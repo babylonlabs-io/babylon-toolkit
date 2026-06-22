@@ -1,0 +1,54 @@
+{
+  "_doc": "Single source of truth for the CRITICAL PATHS in CLAUDE.md. Consumed by .github/workflows/critical-path-check.yml and claude-md-drift.yml (read via jq) and by .github/CODEOWNERS (generated). After editing, run `node .github/scripts/critical-paths.mjs --write` to regenerate CODEOWNERS, and update CLAUDE.md to match. `--check` enforces consistency in CI. Editing this file is itself a critical-path change: two code-owner approvals required.",
+  "defaultOwners": ["@jonybur", "@jeremy-babylonlabs", "@jrwbabylonlab", "@gbarkhatov"],
+  "groups": [
+    {
+      "id": 1,
+      "title": "WASM boundary (value computation)",
+      "paths": ["packages/babylon-tbv-rust-wasm/src/index.ts"]
+    },
+    {
+      "id": 2,
+      "title": "Fee calculation consistency",
+      "paths": [
+        "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts",
+        "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Presigning depositor-graph transactions (Payout + NoPayout)",
+      "paths": [
+        "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts",
+        "packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts",
+        "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Vault-secret derivation (frozen on-chain-binding API)",
+      "paths": [
+        "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/",
+        "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts",
+        "packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts",
+        "packages/babylon-tbv-rust-wasm/src/index-node.ts",
+        "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTLC secret & vault activation",
+      "paths": ["services/vault/src/services/vault/vaultActivationService.ts"]
+    },
+    {
+      "id": 6,
+      "title": "Multi-vault split transactions",
+      "paths": ["packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"]
+    },
+    {
+      "id": 7,
+      "title": "Non-standard wallet signing options",
+      "paths": ["packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"]
+    }
+  ]
+}

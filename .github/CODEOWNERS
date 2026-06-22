@@ -13,27 +13,26 @@
 # review.
 # -----------------------------------------------------------------------------
 
+# >>> critical-paths: generated from .github/critical-paths.json - do not edit by hand (run `node .github/scripts/critical-paths.mjs --write`) >>>
 # 1. WASM boundary (value computation)
 /packages/babylon-tbv-rust-wasm/src/index.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-
 # 2. Fee calculation consistency
 /packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-/services/vault/src/utils/fee/peginFee.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-
-# 3. Presigning payout transactions
+/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+# 3. Presigning depositor-graph transactions (Payout + NoPayout)
 /packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-
 # 4. Vault-secret derivation (frozen on-chain-binding API)
 /packages/babylon-ts-sdk/src/tbv/core/vault-secrets/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-
+/packages/babylon-tbv-rust-wasm/src/index-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/scripts/build-wasm.js @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 # 5. HTLC secret & vault activation
 /services/vault/src/services/vault/vaultActivationService.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-
 # 6. Multi-vault split transactions
 /packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-
 # 7. Non-standard wallet signing options
 /packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+# <<< critical-paths <<<

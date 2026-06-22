@@ -21,20 +21,8 @@ jobs:
         id: detect
         run: |
           set -e
-          # Keep in sync with CLAUDE.md > "CRITICAL PATHS" and .github/CODEOWNERS.
-          paths=(
-            "packages/babylon-tbv-rust-wasm/src/index.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
-            "services/vault/src/utils/fee/peginFee.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
-            "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/"
-            "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts"
-            "services/vault/src/services/vault/vaultActivationService.ts"
-            "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
-          )
+          # Critical-path globs come from the single source of truth.
+          mapfile -t paths < <(jq -r '.groups[].paths[]' .github/critical-paths.json)
 
           git fetch origin main --depth=1 || true
           changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")

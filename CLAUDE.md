@@ -46,7 +46,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 - Files:
   - `packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts` — UTXO selection with iterative fee recalculation
-  - `services/vault/src/utils/fee/peginFee.ts` — dApp-side estimate with safety margin
+  - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts` — shared fee math used by both UTXO selection and transaction funding (moved from `services/vault/src/utils/fee/peginFee.ts`)
 - Both systems must agree before broadcast. A mismatch underfunds the transaction.
 - **Rule:** When changing either, re-verify the other produces the same fee for a representative fixture. Cross-check assertions belong at the broadcast site, not only at the estimator.
 

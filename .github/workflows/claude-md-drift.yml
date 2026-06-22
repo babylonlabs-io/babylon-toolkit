@@ -22,19 +22,8 @@ jobs:
         id: analyze
         run: |
           set -e
-          # Keep in sync with CLAUDE.md > "CRITICAL PATHS", .github/CODEOWNERS,
-          # and .github/workflows/critical-path-check.yml.
-          paths=(
-            "packages/babylon-tbv-rust-wasm/src/index.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
-            "services/vault/src/utils/fee/peginFee.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
-            "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
-            "services/vault/src/services/wots/"
-            "services/vault/src/services/vault/vaultActivationService.ts"
-            "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
-          )
+          # Critical-path globs come from the single source of truth.
+          mapfile -t paths < <(jq -r '.groups[].paths[]' .github/critical-paths.json)
 
           : > missing.txt
           for p in "${paths[@]}"; do
