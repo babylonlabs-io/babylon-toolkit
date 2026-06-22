@@ -15,7 +15,7 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   transactionHash: overrides.transactionHash ?? "abc",
   tokenIcon: overrides.tokenIcon ?? "test://btc.svg",
   isPending: overrides.isPending,
-  isRefunded: overrides.isRefunded,
+  isExpired: overrides.isExpired,
 });
 
 function renderList(props: {

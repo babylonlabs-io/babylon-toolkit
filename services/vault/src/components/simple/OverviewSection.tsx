@@ -6,7 +6,7 @@
  * connected; the disconnected entry screen is handled by DashboardPage.
  */
 
-import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import { Heading, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import {
@@ -20,7 +20,6 @@ import {
   type HealthFactorGaugeStat,
   HeartIcon,
 } from "@/components/shared";
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 
 interface OverviewSectionProps {
@@ -89,14 +88,16 @@ export function OverviewSection({
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           {COPY.overview.heading}
-        </h2>
+        </Heading>
       </div>
 
-      <div
-        className={`w-full rounded-2xl bg-secondary-highlight p-6 ${CARD_DARK_BG_CLASS}`}
-      >
+      <div className="w-full rounded-2xl bg-secondary-highlight p-6">
         <div className="space-y-4">
           {/* Liquidation-risk gauge with stats */}
           {showHealthFactor && (

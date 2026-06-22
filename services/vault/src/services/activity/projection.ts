@@ -216,7 +216,7 @@ export function projectRefundedDeposit(
     },
     chain,
     transactionHash,
-    isRefunded: true,
+    isExpired: true,
   };
 }
 

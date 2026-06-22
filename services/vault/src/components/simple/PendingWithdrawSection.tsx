@@ -6,15 +6,12 @@
  * PendingWithdrawCard). Follows the same pattern as PendingDepositSection.
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import { ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
 import { useOffchainParams } from "@/hooks/useOffchainParams";
@@ -94,19 +91,20 @@ function PendingWithdrawSectionContent({
     <div className="w-full space-y-6">
       {/* Section header */}
       <div className="flex items-center gap-3">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           Pending Withdrawals ({count})
-        </h2>
+        </Heading>
         {anyInProgress && (
           <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
         )}
       </div>
 
       {/* Summary card with expand */}
-      <Card
-        variant="filled"
-        className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
-      >
+      <Card variant="filled" className={SUMMARY_CARD_CLASS}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Avatar

@@ -8,15 +8,17 @@
  *  - When expanded, shows individual deposit sub-cards
  */
 
-import { Avatar, Card, FullScreenDialog } from "@babylonlabs-io/core-ui";
+import {
+  Avatar,
+  Card,
+  FullScreenDialog,
+  Heading,
+} from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
@@ -123,17 +125,18 @@ export function PendingDepositSection() {
             <div className="space-y-6">
               {/* Header row */}
               <div className="flex items-center gap-3">
-                <h2 className="text-[24px] font-normal text-accent-primary">
+                <Heading
+                  variant="h5"
+                  as="h2"
+                  className="font-normal text-accent-primary"
+                >
                   Pending Deposits ({count})
-                </h2>
+                </Heading>
                 <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
               </div>
 
               {/* Summary card */}
-              <Card
-                variant="filled"
-                className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
-              >
+              <Card variant="filled" className={SUMMARY_CARD_CLASS}>
                 {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">

@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
@@ -24,10 +24,7 @@ import {
   type ArtifactDownloadModalParams,
 } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
@@ -202,9 +199,13 @@ export function CollateralSection({
     <div className="w-full space-y-6">
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           Collateral
-        </h2>
+        </Heading>
         <div className="flex items-center gap-2">
           {canReorder && (
             <Button
@@ -229,10 +230,7 @@ export function CollateralSection({
       </div>
 
       {hasCollateral ? (
-        <Card
-          variant="filled"
-          className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
-        >
+        <Card variant="filled" className={SUMMARY_CARD_CLASS}>
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -279,12 +277,12 @@ export function CollateralSection({
                 FeatureFlags.isDepositDisabled && "grayscale",
               )}
             />
-            <p className="text-[20px] text-accent-primary">
+            <p className="text-xl text-accent-primary">
               {FeatureFlags.isDepositDisabled
                 ? COPY.deposit.disabled.title
                 : COPY.collateral.empty.title}
             </p>
-            <p className="text-[16px] text-accent-secondary">
+            <p className="text-base text-accent-secondary">
               {FeatureFlags.isDepositDisabled
                 ? COPY.deposit.disabled.description
                 : COPY.collateral.empty.body(btcConfig.coinSymbol)}

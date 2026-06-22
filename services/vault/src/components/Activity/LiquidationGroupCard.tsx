@@ -1,8 +1,8 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import { RiArrowDownSLine } from "react-icons/ri";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ExpandMenuButton } from "@/components/shared/ExpandMenuButton";
 import type { LiquidationGroupRow } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
 import { formatDateTime } from "@/utils/formatting";
@@ -20,7 +20,7 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
     : `${row.summary.collateral.value} ${row.summary.collateral.symbol}`;
 
   return (
-    <article className="flex flex-col gap-6 rounded-[16px] bg-secondary-highlight p-6">
+    <article className="flex flex-col gap-6 rounded-2xl bg-secondary-highlight p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center">
@@ -39,31 +39,25 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
             )}
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-[20px] leading-none text-accent-primary">
+            <span className="text-xl leading-none text-accent-primary">
               {row.type}
             </span>
-            <span className="text-[14px] text-accent-secondary">{summary}</span>
+            <span className="text-sm text-accent-primary">{summary}</span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
+        <ExpandMenuButton
+          isExpanded={expanded}
+          onToggle={() => setExpanded((v) => !v)}
           aria-label={expanded ? "Collapse details" : "Expand details"}
-          aria-expanded={expanded}
-          className="rounded-[8px] border border-accent-primary p-2"
-        >
-          <RiArrowDownSLine
-            size={20}
-            className={`transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
-        </button>
+          variant="muted"
+        />
       </div>
       {expanded && (
         <ul role="list" className="flex flex-col gap-2">
           {row.children.map((child) => (
             <li
               key={child.id}
-              className="flex items-center justify-between gap-4 rounded-[8px] bg-neutral-200 p-4"
+              className="flex items-center justify-between gap-4 rounded-lg bg-primary-contrast p-4"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <Avatar
@@ -72,7 +66,7 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
                   size="small"
                 />
                 <div className="flex min-w-0 flex-col gap-1">
-                  <span className="text-[16px] leading-none text-accent-primary">
+                  <span className="text-base leading-none text-accent-primary">
                     {child.label}
                   </span>
                   <CopyableHash
@@ -86,10 +80,10 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <span className="text-[16px] text-accent-primary">
+                <span className="text-base text-accent-primary">
                   {child.amount.value} {child.amount.symbol}
                 </span>
-                <span className="text-[12px] text-accent-secondary">
+                <span className="text-xs text-accent-secondary">
                   {formatDateTime(child.date)}
                 </span>
               </div>

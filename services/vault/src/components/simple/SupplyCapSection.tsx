@@ -5,9 +5,9 @@
  * displays "Uncapped" while the deposited card continues to show usage.
  */
 
+import { Heading } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
-import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import type { CapSnapshot } from "@/services/deposit";
@@ -29,7 +29,8 @@ interface CapCardProps {
   usd: number | null;
 }
 
-const CAP_CARD_CLASS = `flex h-[76px] w-full flex-col items-start gap-1 rounded-lg bg-secondary-highlight px-6 py-4 ${CARD_DARK_BG_CLASS}`;
+const CAP_CARD_CLASS =
+  "flex h-[76px] w-full flex-col items-start gap-1 rounded-lg bg-secondary-highlight px-6 py-4";
 
 function CapCard({ label, btcDisplay, usd }: CapCardProps) {
   return (
@@ -80,9 +81,9 @@ function ExplorerCallout() {
 function VaultCapFrame({ children }: { children: ReactNode }) {
   return (
     <div className="w-full space-y-4">
-      <h2 className="text-[24px] font-normal text-accent-primary">
+      <Heading variant="h5" as="h2" className="font-normal text-accent-primary">
         Protocol Cap
-      </h2>
+      </Heading>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
       <ExplorerCallout />
     </div>
