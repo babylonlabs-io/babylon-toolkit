@@ -34,6 +34,7 @@ import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
+import { NotificationPermissionBanner } from "../shared/NotificationPermissionBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -119,6 +120,7 @@ export default function RootLayout() {
     <div className="relative h-full min-h-svh w-full bg-surface">
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
+        <NotificationPermissionBanner />
         <AddressScreeningBanner
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />

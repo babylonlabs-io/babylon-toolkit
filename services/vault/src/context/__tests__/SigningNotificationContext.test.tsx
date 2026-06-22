@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -119,6 +119,41 @@ describe("SigningNotificationContext", () => {
 
     expect(FakeNotification.requestPermission).not.toHaveBeenCalled();
     expect(FakeNotification.instances).toHaveLength(0);
+  });
+
+  it("prompts to enable only while supported and still undecided", () => {
+    FakeNotification.permission = "default";
+    expect(renderNotifier().current!.shouldPromptForPermission).toBe(true);
+  });
+
+  it("does not prompt once permission is granted", () => {
+    FakeNotification.permission = "granted";
+    expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
+  });
+
+  it("does not prompt once permission is denied", () => {
+    FakeNotification.permission = "denied";
+    expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
+  });
+
+  it("does not prompt when the feature flag is off", () => {
+    flag.enabled = false;
+    FakeNotification.permission = "default";
+    expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
+  });
+
+  it("stops prompting once a permission decision resolves", async () => {
+    FakeNotification.permission = "default";
+    FakeNotification.requestPermission.mockResolvedValueOnce("granted");
+    const notifier = renderNotifier();
+
+    expect(notifier.current!.shouldPromptForPermission).toBe(true);
+
+    await act(async () => {
+      notifier.current!.requestPermission();
+    });
+
+    expect(notifier.current!.shouldPromptForPermission).toBe(false);
   });
 
   it("requests permission only while it is still undecided", () => {

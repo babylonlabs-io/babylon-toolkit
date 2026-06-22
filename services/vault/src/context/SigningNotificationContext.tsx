@@ -14,7 +14,15 @@
  * method is a no-op and no OS permission is requested.
  */
 
-import { createContext, useCallback, useContext, useMemo, useRef } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { FeatureFlags } from "@/config";
 import {
@@ -34,6 +42,12 @@ interface SigningNotificationContextValue {
    * signing requirement never notifies twice across observers or poll ticks.
    */
   notifySigningRequired: (key: string, copy: BrowserNotificationCopy) => void;
+  /**
+   * Whether to surface the "enable notifications" prompt: the feature is on,
+   * the browser supports notifications, and the user hasn't decided yet
+   * (neither granted nor blocked). Flips to `false` once a decision is made.
+   */
+  shouldPromptForPermission: boolean;
 }
 
 const SigningNotificationContext =
@@ -46,12 +60,32 @@ export function SigningNotificationProvider({
   // Keys we've already shown. Lives for the session so one signing requirement
   // notifies at most once, no matter how many observers report it.
   const shownKeysRef = useRef<Set<string>>(new Set());
+  const [permission, setPermission] = useState<NotificationPermission | null>(
+    () => (enabled ? getBrowserNotificationPermission() : null),
+  );
+
+  // Refresh on focus so an out-of-band decision (Brave's address-bar prompt,
+  // the browser settings page) clears the banner without a reload.
+  useEffect(() => {
+    if (!enabled) return;
+    const refresh = () => setPermission(getBrowserNotificationPermission());
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [enabled]);
 
   const requestPermission = useCallback(() => {
     if (!enabled) return;
-    void requestBrowserNotificationPermission().catch(() => {
-      // A rejected/denied request just means we never show a notification.
-    });
+    void requestBrowserNotificationPermission()
+      .then((result) => {
+        if (result) setPermission(result);
+      })
+      .catch(() => {
+        // A rejected/denied request just means we never show a notification.
+      });
   }, [enabled]);
 
   const notifySigningRequired = useCallback(
@@ -71,9 +105,15 @@ export function SigningNotificationProvider({
     [enabled],
   );
 
+  const shouldPromptForPermission = enabled && permission === "default";
+
   const value = useMemo(
-    () => ({ requestPermission, notifySigningRequired }),
-    [requestPermission, notifySigningRequired],
+    () => ({
+      requestPermission,
+      notifySigningRequired,
+      shouldPromptForPermission,
+    }),
+    [requestPermission, notifySigningRequired, shouldPromptForPermission],
   );
 
   return (
