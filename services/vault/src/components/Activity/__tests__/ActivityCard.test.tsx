@@ -67,7 +67,7 @@ describe("ActivityCard", () => {
   it("renders the red expired dot with accessible tooltip when isRefunded", () => {
     render(<ActivityCard row={{ ...baseRow, isRefunded: true }} />);
 
-    expect(screen.getByLabelText("Withdraw expired")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deposit expired")).toBeInTheDocument();
   });
 
   it("treats refunded as exclusive with pending (refunded wins)", () => {
@@ -78,7 +78,7 @@ describe("ActivityCard", () => {
     expect(
       screen.queryByTestId("activity-card-spinner"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Withdraw expired")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deposit expired")).toBeInTheDocument();
   });
 
   it("copy button writes the full un-truncated hash to clipboard", () => {

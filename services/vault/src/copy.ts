@@ -903,7 +903,7 @@ export const COPY = {
       "Fully Liquidated": "Fully Liquidated",
     },
     hashPending: "Pending…",
-    expiredTooltip: "Withdraw expired",
+    expiredTooltip: "Deposit expired",
     // Labels for the two child rows nested inside a LiquidationGroupRow.
     liquidation: {
       collateralLabel: "Collateral Liquidated",
