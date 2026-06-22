@@ -18,7 +18,11 @@ import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+import {
+  FeatureFlags,
+  getNetworkConfigBTC,
+  shouldDisplayTestingMsg,
+} from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
@@ -28,6 +32,7 @@ import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
+import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
@@ -118,6 +123,11 @@ export default function RootLayout() {
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
+        <DepositDisabledBanner
+          visible={
+            !isGeoBlocked && isWalletConnected && FeatureFlags.isDepositDisabled
+          }
+        />
         <Header
           size="md"
           // `!max-w-` overrides the `container` class's 2xl breakpoint max-width
@@ -149,6 +159,7 @@ export default function RootLayout() {
                   <DepositButton
                     variant="outlined"
                     rounded
+                    disabled={FeatureFlags.isDepositDisabled}
                     onClick={() => openDeposit()}
                   >
                     Deposit {btcConfig.coinSymbol}
@@ -209,13 +220,17 @@ export default function RootLayout() {
           {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at
               1400px, overriding the `container` class's 1536px max-width at
               the 2xl breakpoint so the footer aligns with the navbar.
+              `[&>div]:!px-5` restores the 20px horizontal inset that core-ui's
+              Container drops at the `sm` breakpoint (`sm:px-0`), matching the
+              navbar/page `PAGE_CONTENT_CLASS` padding so the footer content
+              lines up with the rest of the page chrome.
               `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
               mode background (and its decorative top-edge pseudo) from the
               default teal to brand orange; dark mode keeps `primary-main`. */}
           <Footer
             socialLinks={DEFAULT_SOCIAL_LINKS}
             copyrightYear={new Date().getFullYear()}
-            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-[1400px]"
+            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-[1400px] [&>div]:!px-5"
           />
         </div>
       </div>

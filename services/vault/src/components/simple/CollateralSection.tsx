@@ -6,6 +6,7 @@
 import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { twJoin } from "tailwind-merge";
 import { isHex, type Address, type Hex } from "viem";
 import { useAccount } from "wagmi";
 
@@ -24,7 +25,7 @@ import {
 } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
-import { getNetworkConfigBTC } from "@/config";
+import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { logger } from "@/infrastructure";
@@ -220,7 +221,7 @@ export function CollateralSection({
             variant="outlined"
             size="large"
             onClick={() => onDeposit()}
-            disabled={!isConnected}
+            disabled={!isConnected || FeatureFlags.isDepositDisabled}
             className="rounded-full"
           >
             Deposit
@@ -271,13 +272,20 @@ export function CollateralSection({
               url={btcConfig.icon}
               alt={btcConfig.coinSymbol}
               size="xlarge"
-              className="mb-4 h-[100px] w-[100px]"
+              className={twJoin(
+                "mb-4 h-[100px] w-[100px]",
+                FeatureFlags.isDepositDisabled && "grayscale",
+              )}
             />
             <p className="text-xl text-accent-primary">
-              {COPY.collateral.empty.title}
+              {FeatureFlags.isDepositDisabled
+                ? COPY.deposit.disabled.title
+                : COPY.collateral.empty.title}
             </p>
             <p className="text-base text-accent-secondary">
-              {COPY.collateral.empty.body(btcConfig.coinSymbol)}
+              {FeatureFlags.isDepositDisabled
+                ? COPY.deposit.disabled.description
+                : COPY.collateral.empty.body(btcConfig.coinSymbol)}
             </p>
           </div>
         </Card>

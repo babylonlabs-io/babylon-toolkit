@@ -37,6 +37,10 @@ export interface UseOptimalSplitResult {
   error: Error | null;
 }
 
+// Bitcoin's max supply in satoshis (21M BTC). Larger amounts would trip the
+// SDK's precision guard, so bail before computing the split.
+const MAX_PLAUSIBLE_DEPOSIT_SATS = 2_100_000_000_000_000n;
+
 const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
   sacrificialVault: 0n,
   protectedVault: 0n,
@@ -53,7 +57,7 @@ export function useOptimalSplit(
   const { minDeposit } = useProtocolParamsContext();
 
   const result = useMemo(() => {
-    if (!params || totalBtc <= 0n) {
+    if (!params || totalBtc <= 0n || totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
       return EMPTY_RESULT;
     }
 
