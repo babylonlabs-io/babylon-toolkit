@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/sync-env.mjs && NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite",
+    "dev:testnet": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite --mode dev-testnet",
     "sync-env": "node scripts/sync-env.mjs --all",
     "sync-env:check": "node scripts/sync-env.mjs --check",
     "watchDeps": "./scripts/watch-deps.sh @services/vault",
