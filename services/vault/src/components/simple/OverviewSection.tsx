@@ -23,8 +23,6 @@ import {
 import { CARD_DARK_BG_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 
-const COPY_OVERVIEW = COPY.overview;
-
 interface OverviewSectionProps {
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
@@ -74,16 +72,16 @@ export function OverviewSection({
 }: OverviewSectionProps) {
   const healthFactorFormatted =
     healthFactor !== null && healthFactor > HEALTH_FACTOR_HEALTHY_THRESHOLD
-      ? COPY_OVERVIEW.healthFactorHealthy
+      ? COPY.overview.healthFactorHealthy
       : formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
   const showHealthFactor = healthFactor !== null;
 
   const gaugeStats: HealthFactorGaugeStat[] = useMemo(
     () => [
-      { label: COPY_OVERVIEW.liquidationPriceLabel, value: liquidationPrice },
-      { label: COPY_OVERVIEW.btcPriceLabel, value: btcPrice },
-      { label: COPY_OVERVIEW.pctToLiquidationLabel, value: pctToLiquidation },
+      { label: COPY.overview.liquidationPriceLabel, value: liquidationPrice },
+      { label: COPY.overview.btcPriceLabel, value: btcPrice },
+      { label: COPY.overview.pctToLiquidationLabel, value: pctToLiquidation },
     ],
     [liquidationPrice, btcPrice, pctToLiquidation],
   );
@@ -92,7 +90,7 @@ export function OverviewSection({
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-[24px] font-normal text-accent-primary">
-          {COPY_OVERVIEW.heading}
+          {COPY.overview.heading}
         </h2>
       </div>
 
@@ -111,8 +109,8 @@ export function OverviewSection({
 
           {/* Health Factor Row */}
           <OverviewRow
-            label={COPY_OVERVIEW.healthFactorLabel}
-            tooltip={COPY_OVERVIEW.healthFactorTooltip}
+            label={COPY.overview.healthFactorLabel}
+            tooltip={COPY.overview.healthFactorTooltip}
           >
             {showHealthFactor ? (
               <>
@@ -120,20 +118,20 @@ export function OverviewSection({
                 {healthFactorFormatted}
               </>
             ) : (
-              "-"
+              COPY.common.emptyValue
             )}
           </OverviewRow>
 
           {/* Total Collateral Value Row */}
           <OverviewRow
-            label={COPY_OVERVIEW.totalCollateralValueLabel}
-            tooltip={COPY_OVERVIEW.totalCollateralValueTooltip}
+            label={COPY.overview.totalCollateralValueLabel}
+            tooltip={COPY.overview.totalCollateralValueTooltip}
           >
             {totalCollateralValue}
           </OverviewRow>
 
           {/* Total Borrowed Row */}
-          <OverviewRow label={COPY_OVERVIEW.totalBorrowedLabel}>
+          <OverviewRow label={COPY.overview.totalBorrowedLabel}>
             {totalBorrowed}
           </OverviewRow>
         </div>

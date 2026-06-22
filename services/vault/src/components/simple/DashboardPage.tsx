@@ -111,8 +111,10 @@ export function DashboardPage() {
   // first seizure triggers); BTC price comes from the live oracle feed. Fall
   // back to the empty-value placeholder until the inputs are available, and
   // suppress the BTC price whenever its oracle round is stale or fetch-failed
-  // (mirroring the guard in usePositionNotifications) so a precise price never
-  // sits beside placeholder liquidation stats sourced from the same feed.
+  // (mirroring the guard in usePositionNotifications) so a price sourced from a
+  // bad feed never sits beside liquidation stats derived from that same feed.
+  // Note this does not cover the brief transient while the cascade is still
+  // loading: a freshly-fetched BTC price can render beside placeholder stats.
   const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
   const btcPriceUsd = prices["BTC"];
   const btcMetadata = metadata["BTC"];
