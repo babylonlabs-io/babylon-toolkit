@@ -19,10 +19,6 @@ import {
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../../utils/bitcoin";
-import {
-  deriveRefundPeginAmounts,
-  type RefundPrePeginContext,
-} from "../../../services/refund/buildAndBroadcastRefund";
 import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
 import { buildPrePeginPsbt, type PrePeginParams } from "../pegin";
 import { buildRefundPsbt } from "../refund";
@@ -397,52 +393,21 @@ describe("buildRefundPsbt", () => {
     });
   });
 
-  describe("peg-in amount derivation round-trip", () => {
-    it("re-derives the original peg-in amount from the funded HTLC value (real WASM)", async () => {
-      // Keystone equality: the reserve subtracted at refund time (standalone
-      // computeMinClaimValue + computeMinPeginFee) must equal the reserve WASM
-      // baked into the HTLC value at peg-in time. Fund with a known peg-in
-      // amount, read the funded HTLC value, and prove the derivation inverts
-      // back to that exact amount — so a future WASM bump that broke the
-      // equality is caught here, not in production.
+  describe("peg-in amount round-trip (real WASM)", () => {
+    it("reconstructs the funded HTLC value from the peg-in principal", async () => {
+      // The refund passes the on-chain `amount` (the peg-in principal) as
+      // pegInAmounts; WASM adds depositorClaimValue + minPeginFee back to size
+      // the HTLC output, which must equal the funded tx value. Funding with a
+      // peg-in amount and refunding with that same amount must pass the value
+      // cross-check — so a future WASM bump that changed the reserve sizing is
+      // caught here, not in production.
       const { txHex, params } = await buildFundedPrePegin({
         authAnchorHash: TEST_AUTH_ANCHOR_HASH,
       });
-      const fundedHtlcValue = BigInt(
-        bitcoin.Transaction.fromHex(txHex).outs[0].value,
-      );
 
-      const ctx: RefundPrePeginContext = {
-        vaultProviderPubkey: params.vaultProviderPubkey,
-        vaultKeeperPubkeys: params.vaultKeeperPubkeys,
-        universalChallengerPubkeys: params.universalChallengerPubkeys,
-        timelockRefund: params.timelockRefund,
-        feeRate: params.feeRate,
-        minPeginFeeRate: params.minPeginFeeRate,
-        numLocalChallengers: params.numLocalChallengers,
-        councilQuorum: params.councilQuorum,
-        councilSize: params.councilSize,
-        network: params.network,
-      };
-
-      const derived = await deriveRefundPeginAmounts(
-        [
-          {
-            hashlock: `0x${TEST_HASH_H}` as Hex,
-            amount: fundedHtlcValue,
-            htlcVout: 0,
-          },
-        ],
-        ctx,
-      );
-      expect(derived).toEqual([TEST_AMOUNTS.PEGIN]);
-
-      // And feeding the derived amount back through the real (unmocked)
-      // builder reconstructs a template whose value cross-check passes — a
-      // legitimate refund does not throw.
       await expect(
         buildRefundPsbt({
-          prePeginParams: { ...params, pegInAmounts: derived },
+          prePeginParams: params,
           fundedPrePeginTxHex: txHex,
           htlcVout: 0,
           refundFee: TEST_REFUND_FEE,
