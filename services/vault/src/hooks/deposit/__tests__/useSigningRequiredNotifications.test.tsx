@@ -1,16 +1,18 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const ctx = vi.hoisted(() => ({ notify: vi.fn() }));
+const ctx = vi.hoisted(() => ({ notify: vi.fn(), isActiveFlow: false }));
 
 vi.mock("@/context/SigningNotificationContext", () => ({
   useSigningNotificationOptional: () => ({
     requestPermission: vi.fn(),
     notifySigningRequired: ctx.notify,
     shouldPromptForPermission: false,
-    promptDismissed: false,
     dismissPrompt: vi.fn(),
     resetPromptDismissal: vi.fn(),
+    documentHidden: false,
+    isActiveFlow: ctx.isActiveFlow,
+    setActiveFlow: vi.fn(),
   }),
 }));
 
@@ -46,6 +48,7 @@ function renderObserver(
 describe("useSigningRequiredNotifications", () => {
   beforeEach(() => {
     ctx.notify.mockClear();
+    ctx.isActiveFlow = false;
   });
 
   it("does not notify for payout signing when the BTC public key is unavailable", () => {
@@ -61,5 +64,11 @@ describe("useSigningRequiredNotifications", () => {
   it("notifies for WOTS submission even without the BTC public key", () => {
     renderObserver([PeginAction.SUBMIT_WOTS_KEY], undefined);
     expect(ctx.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("stands down while an active deposit flow is running", () => {
+    ctx.isActiveFlow = true;
+    renderObserver([PeginAction.SIGN_PAYOUT_TRANSACTIONS], "btcpubkey");
+    expect(ctx.notify).not.toHaveBeenCalled();
   });
 });

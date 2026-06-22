@@ -9,7 +9,7 @@
 
 import { Callout } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
@@ -76,11 +76,16 @@ export function DepositSignContent({
   const [started, setStarted] = useState(false);
 
   // Notify the depositor (if they've tabbed away) when the active flow reaches
-  // a pre-broadcast signing step. Gated on `started` so the initial
-  // DERIVE_VAULT_SECRET value can't notify before the user clicks Sign.
-  // Post-broadcast signing is covered by the pending-deposit observer in
-  // PeginPollingContext.
+  // a signing step. Gated on `started` so the initial DERIVE_VAULT_SECRET value
+  // can't notify before the user clicks Sign.
   useDepositSigningNotification(currentStep, started);
+
+  // While the flow is running it owns notifications in-modal; tell the
+  // pending-deposit observer to stand down so it can't double-notify.
+  useEffect(() => {
+    signingNotifier?.setActiveFlow(processing);
+    return () => signingNotifier?.setActiveFlow(false);
+  }, [signingNotifier, processing]);
 
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();

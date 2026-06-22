@@ -8,7 +8,9 @@
  * - the active deposit flow ({@link useDepositSigningNotification}) and the
  * pending-deposit poller ({@link useSigningRequiredNotifications}) - can both
  * be mounted at once (the deposit modal renders over the dashboard) without
- * ever firing the same notification twice.
+ * ever firing the same notification twice. It also owns the single
+ * `documentHidden` source and the `activeFlow` flag that hands ownership of
+ * notifications to the in-flow observer while a deposit is running.
  *
  * Gated by the `ENABLE_SIGNING_NOTIFICATIONS` feature flag: when off, every
  * method is a no-op and no OS permission is requested.
@@ -25,6 +27,7 @@ import {
 } from "react";
 
 import { FeatureFlags } from "@/config";
+import { useDocumentHidden } from "@/hooks/useDocumentHidden";
 import {
   loadNotificationPromptDismissed,
   setNotificationPromptDismissed,
@@ -49,19 +52,27 @@ interface SigningNotificationContextValue {
   /**
    * Whether to surface the "enable notifications" prompt: the feature is on,
    * the browser supports notifications, the user hasn't decided yet (neither
-   * granted nor blocked), and they haven't dismissed the prompt. Flips to
-   * `false` once any of those change.
+   * granted nor blocked), and they haven't dismissed the prompt.
    */
   shouldPromptForPermission: boolean;
-  /** Whether the depositor dismissed the prompt ("No thanks"). Persisted. */
-  promptDismissed: boolean;
   /** Dismiss the prompt and remember it across reloads. */
   dismissPrompt: () => void;
   /**
    * Clear a prior dismissal so the prompt can be offered again — the "revert"
-   * hook for a future re-enable entry point (e.g. a settings toggle).
+   * hook for a future re-enable entry point (e.g. a settings toggle). Kept
+   * deliberately ahead of its UI; not yet wired to a production caller.
    */
   resetPromptDismissal: () => void;
+  /** Single reactive `document.visibilityState === "hidden"` source. */
+  documentHidden: boolean;
+  /**
+   * Whether an active deposit flow is driving signing in-modal. While true the
+   * pending-deposit observer stands down so it can't double-notify alongside
+   * the in-flow observer for the same deposit.
+   */
+  isActiveFlow: boolean;
+  /** Mark the active deposit flow as running / stopped. */
+  setActiveFlow: (active: boolean) => void;
 }
 
 const SigningNotificationContext =
@@ -80,19 +91,8 @@ export function SigningNotificationProvider({
   const [promptDismissed, setPromptDismissed] = useState<boolean>(() =>
     loadNotificationPromptDismissed(),
   );
-
-  // Refresh on focus so an out-of-band decision (Brave's address-bar prompt,
-  // the browser settings page) clears the banner without a reload.
-  useEffect(() => {
-    if (!enabled) return;
-    const refresh = () => setPermission(getBrowserNotificationPermission());
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [enabled]);
+  const [activeFlow, setActiveFlowState] = useState(false);
+  const documentHidden = useDocumentHidden();
 
   const requestPermission = useCallback(() => {
     if (!enabled) return;
@@ -115,6 +115,11 @@ export function SigningNotificationProvider({
     setPromptDismissed(false);
   }, []);
 
+  const setActiveFlow = useCallback(
+    (active: boolean) => setActiveFlowState(active),
+    [],
+  );
+
   const notifySigningRequired = useCallback(
     (key: string, copy: BrowserNotificationCopy) => {
       if (!enabled) return;
@@ -132,6 +137,14 @@ export function SigningNotificationProvider({
     [enabled],
   );
 
+  // When the tab regains focus (documentHidden → false), re-read permission so
+  // an out-of-band decision (Brave's address-bar prompt, browser settings)
+  // clears the enable-prompt without a reload.
+  useEffect(() => {
+    if (!enabled || documentHidden) return;
+    setPermission(getBrowserNotificationPermission());
+  }, [enabled, documentHidden]);
+
   const shouldPromptForPermission =
     enabled && permission === "default" && !promptDismissed;
 
@@ -140,17 +153,21 @@ export function SigningNotificationProvider({
       requestPermission,
       notifySigningRequired,
       shouldPromptForPermission,
-      promptDismissed,
       dismissPrompt,
       resetPromptDismissal,
+      documentHidden,
+      isActiveFlow: activeFlow,
+      setActiveFlow,
     }),
     [
       requestPermission,
       notifySigningRequired,
       shouldPromptForPermission,
-      promptDismissed,
       dismissPrompt,
       resetPromptDismissal,
+      documentHidden,
+      activeFlow,
+      setActiveFlow,
     ],
   );
 

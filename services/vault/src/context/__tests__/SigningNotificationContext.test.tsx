@@ -152,7 +152,6 @@ describe("SigningNotificationContext", () => {
       notifier.current!.dismissPrompt();
     });
 
-    expect(notifier.current!.promptDismissed).toBe(true);
     expect(notifier.current!.shouldPromptForPermission).toBe(false);
   });
 
@@ -164,7 +163,7 @@ describe("SigningNotificationContext", () => {
     });
 
     // A fresh provider reads the dismissal back from storage.
-    expect(renderNotifier().current!.promptDismissed).toBe(true);
+    expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
   });
 
   it("re-offers the prompt after the dismissal is reset", () => {
@@ -179,7 +178,6 @@ describe("SigningNotificationContext", () => {
       notifier.current!.resetPromptDismissal();
     });
 
-    expect(notifier.current!.promptDismissed).toBe(false);
     expect(notifier.current!.shouldPromptForPermission).toBe(true);
   });
 

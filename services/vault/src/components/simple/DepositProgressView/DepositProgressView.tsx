@@ -260,7 +260,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           />
         )}
 
-        <NotificationPermissionPrompt />
+        {!isComplete && !isTerminalSuccess && !error && (
+          <NotificationPermissionPrompt />
+        )}
 
         {error && (
           <Callout variant="error" title={error.title}>

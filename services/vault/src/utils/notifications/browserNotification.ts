@@ -15,7 +15,7 @@ export interface BrowserNotificationCopy {
 /** Branded raster asset shown alongside the notification. */
 const NOTIFICATION_ICON_PATH = "/images/mascot-head-happy.png";
 
-export function isBrowserNotificationSupported(): boolean {
+function isBrowserNotificationSupported(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
@@ -57,14 +57,22 @@ export function showBrowserNotification(
 ): boolean {
   if (!isBrowserNotificationSupported()) return false;
   if (window.Notification.permission !== "granted") return false;
-  const notification = new window.Notification(copy.title, {
-    body: copy.body,
-    icon: NOTIFICATION_ICON_PATH,
-    tag,
-  });
-  notification.onclick = () => {
-    window.focus();
-    notification.close();
-  };
-  return true;
+  try {
+    const notification = new window.Notification(copy.title, {
+      body: copy.body,
+      icon: NOTIFICATION_ICON_PATH,
+      tag,
+    });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+    return true;
+  } catch {
+    // Some platforms (e.g. Android Chrome) require ServiceWorkerRegistration
+    // .showNotification() and throw on the `Notification` constructor. We have
+    // no service worker, so treat that as "couldn't show" rather than letting
+    // it bubble out of the observer effect.
+    return false;
+  }
 }

@@ -46,6 +46,13 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
+// Action-required labels shared between the in-app badges
+// (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
+// surfaces can't drift.
+const KEY_REQUIRED_LABEL = "Key required";
+const SIGNING_REQUIRED_LABEL = "Signing required";
+const BROADCAST_REQUIRED_LABEL = "Broadcast required";
+const ACTIVATION_REQUIRED_LABEL = "Activation required";
 
 export const COPY = {
   pegin: {
@@ -137,10 +144,10 @@ export const COPY = {
       REFUND_HTLC: "Refund",
     },
     actionRequiredBadges: {
-      SUBMIT_WOTS_KEY: "Key required",
-      SIGN_PAYOUT_TRANSACTIONS: "Signing required",
-      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast required",
-      ACTIVATE_VAULT: "Activation required",
+      SUBMIT_WOTS_KEY: KEY_REQUIRED_LABEL,
+      SIGN_PAYOUT_TRANSACTIONS: SIGNING_REQUIRED_LABEL,
+      SIGN_AND_BROADCAST_TO_BITCOIN: BROADCAST_REQUIRED_LABEL,
+      ACTIVATE_VAULT: ACTIVATION_REQUIRED_LABEL,
       REFUND_HTLC: "Refund available",
     },
     expiration: {
@@ -196,36 +203,37 @@ export const COPY = {
     },
     // Browser (desktop) notifications fired when a deposit needs the depositor
     // to sign or act while the tab is in the background. `title` is the bold
-    // heading; `body` is the line beneath it. Titles mirror the in-app
-    // action badges (`pegin.actionRequiredBadges`) so the two surfaces agree.
-    // Bodies are kept short because the OS truncates long notification text.
+    // heading; `body` is the line beneath it. Titles reuse the same constants as
+    // the in-app action badges (`pegin.actionRequiredBadges`) so the two
+    // surfaces can't drift. Bodies are kept short because the OS truncates long
+    // notification text.
     notifications: {
       deriveVaultSecret: {
-        title: "Signing required",
+        title: SIGNING_REQUIRED_LABEL,
         body: "Approve the request in your wallet to generate your deposit secret.",
       },
       signPeginBtc: {
-        title: "Signing required",
+        title: SIGNING_REQUIRED_LABEL,
         body: "Approve the peg-in transaction in your wallet to continue your deposit.",
       },
       signPop: {
-        title: "Signing required",
+        title: SIGNING_REQUIRED_LABEL,
         body: "Sign the ownership proof in your wallet to continue your deposit.",
       },
       submitWotsKey: {
-        title: "Key required",
+        title: KEY_REQUIRED_LABEL,
         body: "Your deposit is ready - submit your WOTS key to continue.",
       },
       signPayouts: {
-        title: "Signing required",
+        title: SIGNING_REQUIRED_LABEL,
         body: "Your vault provider has prepared your payout transactions - sign them to continue.",
       },
       signAndBroadcast: {
-        title: "Broadcast required",
+        title: BROADCAST_REQUIRED_LABEL,
         body: "Your deposit is registered - broadcast the Pre-Pegin transaction to continue.",
       },
       activateVault: {
-        title: "Activation required",
+        title: ACTIVATION_REQUIRED_LABEL,
         body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
       },
       // In-flow prompt nudging the depositor to allow browser notifications so

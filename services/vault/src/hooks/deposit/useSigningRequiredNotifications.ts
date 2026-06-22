@@ -12,7 +12,6 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
-import { useDocumentHidden } from "@/hooks/useDocumentHidden";
 import {
   PeginAction,
   USER_ACTIONABLE_PEGIN_ACTIONS,
@@ -50,9 +49,13 @@ export function useSigningRequiredNotifications(
   const notifier = useSigningNotificationOptional();
   // Re-fire when the user switches tabs: a deposit that became actionable while
   // the tab was focused is suppressed by the provider, so we retry once hidden.
-  const documentHidden = useDocumentHidden();
+  const documentHidden = notifier?.documentHidden ?? false;
+  // Stand down while an active deposit flow drives signing in-modal — the
+  // in-flow observer owns notifications then, so this avoids double-firing.
+  const isActiveFlow = notifier?.isActiveFlow ?? false;
 
   const pending = useMemo(() => {
+    if (isActiveFlow) return [];
     const out: Array<{ key: string; copy: BrowserNotificationCopy }> = [];
     for (const activity of activities) {
       const result = getPollingResult(activity.id);
@@ -75,7 +78,7 @@ export function useSigningRequiredNotifications(
       }
     }
     return out;
-  }, [activities, getPollingResult, btcPublicKey]);
+  }, [activities, getPollingResult, btcPublicKey, isActiveFlow]);
 
   // Stable string the effect keys on, so it only runs when the set of
   // signing-required deposits changes - not on every poll tick.
