@@ -51,6 +51,13 @@ export function buildStepItems(
 export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;
 
 /**
+ * Shared max-width for the deposit progress surfaces. Both the live stepper
+ * (DepositProgressView) and the pre-sign summary (DepositSummaryCard) use this
+ * so the two screens stay the same width across the Sign transition.
+ */
+export const DEPOSIT_VIEW_MAX_WIDTH_CLASS = "max-w-[520px]";
+
+/**
  * Logical groupings of the deposit flow. Each group covers a contiguous,
  * inclusive range of 1-based visual step numbers (the same numbering produced
  * by {@link getVisualStep}). The grouped progress UI expands only the group

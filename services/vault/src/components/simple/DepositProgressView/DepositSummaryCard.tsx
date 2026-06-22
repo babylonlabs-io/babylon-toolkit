@@ -15,21 +15,25 @@ import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 import { COPY } from "@/copy";
 
 import { StepConnector } from "./StepConnector";
-import { STEP_GROUPS } from "./steps";
+import { DEPOSIT_VIEW_MAX_WIDTH_CLASS, STEP_GROUPS } from "./steps";
 
 interface DepositSummaryCardProps {
   /** Starts the deposit flow; the parent then swaps in DepositProgressView. */
   onSign: () => void;
 }
 
-export function DepositSummaryCard({ onSign }: DepositSummaryCardProps) {
-  const groups = STEP_GROUPS.map((group) => ({
-    title: group.title,
-    total: group.endStep - group.startStep + 1,
-  }));
+// Hoisted: derived purely from the static STEP_GROUPS, so the same array
+// instance is reused across renders (no per-render allocation).
+const SUMMARY_GROUPS = STEP_GROUPS.map((group) => ({
+  title: group.title,
+  total: group.endStep - group.startStep + 1,
+}));
 
+export function DepositSummaryCard({ onSign }: DepositSummaryCardProps) {
   return (
-    <div className="w-full max-w-[520px] overflow-hidden rounded-xl border border-secondary-strokeDark">
+    <div
+      className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} overflow-hidden rounded-xl border border-secondary-strokeDark`}
+    >
       <div className="px-6 pt-6">
         <Heading variant="h5" className="text-accent-primary">
           {COPY.deposit.progress.heading}{" "}
@@ -47,7 +51,7 @@ export function DepositSummaryCard({ onSign }: DepositSummaryCardProps) {
       <div className="border-t border-secondary-strokeDark" />
 
       <div className="flex flex-col px-6 pt-6">
-        {groups.map((group, index) => (
+        {SUMMARY_GROUPS.map((group, index) => (
           <div key={group.title} className="flex flex-col">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-secondary-strokeDark">
@@ -70,7 +74,7 @@ export function DepositSummaryCard({ onSign }: DepositSummaryCardProps) {
                 {COPY.deposit.groups.stepCounter(0, group.total)}
               </Text>
             </div>
-            {index < groups.length - 1 && <StepConnector />}
+            {index < SUMMARY_GROUPS.length - 1 && <StepConnector />}
           </div>
         ))}
       </div>

@@ -33,6 +33,7 @@ import { ProviderWaitDetail } from "./ProviderWaitDetail";
 import { SplitGroupedProgress } from "./SplitGroupedProgress";
 import {
   buildStepItems,
+  DEPOSIT_VIEW_MAX_WIDTH_CLASS,
   getStepFillPercent,
   getVisualStep,
   STEP_GROUPS,
@@ -222,7 +223,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   );
 
   return (
-    <div className="w-full max-w-[520px]">
+    <div className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
       <Heading variant="h5" className="text-accent-primary">
         {COPY.deposit.progress.heading}
       </Heading>
