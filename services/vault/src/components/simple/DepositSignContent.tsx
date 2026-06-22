@@ -116,10 +116,16 @@ export function DepositSignContent({
     );
   // Soft deposit-flow warnings from `useDepositFlow`: recoverable issues such
   // as local persistence failures or per-vault WOTS/payout steps that were
-  // skipped/failed while the rest of the split deposit kept moving.
+  // skipped/failed while the rest of the split deposit kept moving. Rendered
+  // unfiltered here: in-progress warnings are final-by-construction (no resume
+  // has happened, and there is no polling context to filter against). The
+  // continuation branch filters stale ones via `ContinuationWarnings`.
   const warningCallouts = lastWarnings.map((warning) => (
-    <Callout key={warning} variant="warning">
-      {warning}
+    <Callout
+      key={`${warning.vaultId ?? "global"}:${warning.stage}`}
+      variant="warning"
+    >
+      {warning.message}
     </Callout>
   ));
 
@@ -131,10 +137,10 @@ export function DepositSignContent({
     return (
       <>
         {banner}
-        {warningCallouts}
         <PostDepositContinuationContent
           vaultIds={continuationVaultIds}
           depositorEthAddress={flowParams.depositorEthAddress}
+          warnings={lastWarnings}
           onClose={onClose}
         />
       </>
