@@ -37,11 +37,8 @@ export interface UseOptimalSplitResult {
   error: Error | null;
 }
 
-// Bitcoin's fixed maximum supply in satoshis (21,000,000 BTC × 1e8). A larger
-// "amount" can't be a real deposit and would trip the SDK's assertSafePrecision
-// guard (RangeError) mid-render. This is a defensive crash-guard only — the
-// oversized amount is rejected for the user with an explicit message by the
-// form's balance/max validation (getDepositCtaState), so we just bail here.
+// Bitcoin's max supply in satoshis (21M BTC). Larger amounts would trip the
+// SDK's precision guard, so bail before computing the split.
 const MAX_PLAUSIBLE_DEPOSIT_SATS = 2_100_000_000_000_000n;
 
 const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
