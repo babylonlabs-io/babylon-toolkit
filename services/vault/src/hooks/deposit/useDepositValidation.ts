@@ -85,16 +85,16 @@ export function useDepositValidation(
         };
       }
 
-      // Symmetric terminal state on the balance/fee dimension: the fee-adjusted
-      // max is below the minimum, so no amount is valid. Mirrors the CTA's
-      // maxBelowMinimum branch instead of a minimum error the user can't satisfy.
-      if (depositService.maxBelowMinimum(maxDepositSats, minDeposit)) {
+      // Symmetric state on the balance/fee dimension: the fee-adjusted max is
+      // below the minimum, so no entered amount is valid. Only surface once an
+      // amount is entered, mirroring the CTA's `maxBelowMinimum` branch.
+      if (
+        satoshis > 0n &&
+        depositService.maxBelowMinimum(maxDepositSats, minDeposit)
+      ) {
         return {
           valid: false,
-          error: depositService.maxBelowMinimumLabel(
-            maxDepositSats,
-            minDeposit,
-          ),
+          error: depositService.maxBelowMinimumLabel(minDeposit),
         };
       }
 

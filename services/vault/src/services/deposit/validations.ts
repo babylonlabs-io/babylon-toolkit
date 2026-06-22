@@ -231,11 +231,8 @@ export function maxBelowMinimum(
   );
 }
 
-export function maxBelowMinimumLabel(
-  maxDepositSats: bigint,
-  minDeposit: bigint,
-): string {
-  return `Available balance (${formatSatoshisToBtc(maxDepositSats)} ${getBtcSymbol()}) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()})`;
+export function maxBelowMinimumLabel(minDeposit: bigint): string {
+  return `Minimum deposit is ${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()}`;
 }
 
 export function getDepositButtonLabel(
@@ -330,14 +327,18 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   }
   // Symmetric to capBelowMinimum, on the balance/fee dimension: the fee-adjusted
   // max is positive but below the minimum, so no amount clears both bounds.
-  // Terminal — surface regardless of the entered amount instead of the dead-end
-  // "Minimum X" guidance. `maxDepositSats` is clamped to `effectiveRemaining`,
+  // Only surface once the user has entered an amount — at the empty initial
+  // state the CTA should read "Enter an amount", not a balance error the user
+  // hasn't triggered yet. `maxDepositSats` is clamped to `effectiveRemaining`,
   // so when the supply cap is the binding cause the capBelowMinimum branch above
   // wins (more specific). Mirrored in useDepositValidation.validateAmount.
-  if (maxBelowMinimum(params.maxDepositSats, params.minDeposit)) {
+  if (
+    params.amountSats > 0n &&
+    maxBelowMinimum(params.maxDepositSats, params.minDeposit)
+  ) {
     return {
       disabled: true,
-      label: maxBelowMinimumLabel(params.maxDepositSats, params.minDeposit),
+      label: maxBelowMinimumLabel(params.minDeposit),
     };
   }
   if (
@@ -355,6 +356,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // cannot make an unfundable amount fundable.
   if (amountExceedsMax(params.amountSats, params.maxDepositSats)) {
     return { disabled: true, label: "Insufficient balance" };
+  }
+
+  // Prompt for an amount before nudging provider selection — on an empty form
+  // entering an amount is the first action the user needs to take.
+  // `getDepositButtonLabel` returns "Enter an amount" for a zero amount.
+  if (params.amountSats <= 0n) {
+    return { disabled: true, label: getDepositButtonLabel(params) };
   }
 
   if (!params.hasProvider) {
