@@ -64,15 +64,15 @@ describe("ActivityCard", () => {
     expect(screen.queryByText("Pending Deposit")).not.toBeInTheDocument();
   });
 
-  it("renders the red expired dot with accessible tooltip when isRefunded", () => {
-    render(<ActivityCard row={{ ...baseRow, isRefunded: true }} />);
+  it("renders the red expired dot with accessible tooltip when isExpired", () => {
+    render(<ActivityCard row={{ ...baseRow, isExpired: true }} />);
 
     expect(screen.getByLabelText("Deposit expired")).toBeInTheDocument();
   });
 
-  it("treats refunded as exclusive with pending (refunded wins)", () => {
+  it("treats expired as exclusive with pending (expired wins)", () => {
     render(
-      <ActivityCard row={{ ...baseRow, isPending: true, isRefunded: true }} />,
+      <ActivityCard row={{ ...baseRow, isPending: true, isExpired: true }} />,
     );
 
     expect(

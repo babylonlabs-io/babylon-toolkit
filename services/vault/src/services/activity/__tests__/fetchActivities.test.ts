@@ -942,7 +942,7 @@ describe("fetchUserActivities refunded deposits", () => {
     expect(result).toHaveLength(1);
     const row = asStandard(result[0]);
     expect(row.type).toBe("Deposit");
-    expect(row.isRefunded).toBe(true);
+    expect(row.isExpired).toBe(true);
     expect(row.amount).toEqual({ value: "1", symbol: "sBTC" });
     expect(row.tokenIcon).toBe("/images/btc.svg");
     // Refunded deposit links to the original BTC peg-in tx (via vault.peginTxHash)
@@ -978,9 +978,9 @@ describe("fetchUserActivities refunded deposits", () => {
 
     // Both rows present — Deposit and the refunded Deposit. They have distinct ids.
     expect(result).toHaveLength(2);
-    const refunded = result.find(
-      (r) => r.kind === "row" && r.isRefunded === true,
+    const expired = result.find(
+      (r) => r.kind === "row" && r.isExpired === true,
     );
-    expect(refunded).toBeDefined();
+    expect(expired).toBeDefined();
   });
 });

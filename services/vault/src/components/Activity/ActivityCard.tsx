@@ -2,7 +2,7 @@ import { Avatar, Loader } from "@babylonlabs-io/core-ui";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { COPY } from "@/copy";
-import type { ActivityLog } from "@/types/activityLog";
+import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
 import { formatDateTime } from "@/utils/formatting";
 
@@ -14,13 +14,13 @@ interface ActivityCardProps {
 
 export function ActivityCard({ row }: ActivityCardProps) {
   const isPending = Boolean(row.isPending);
-  const isRefunded = Boolean(row.isRefunded);
-  const showSpinner = isPending && !isRefunded;
+  const isExpired = Boolean(row.isExpired);
+  const showSpinner = isPending && !isExpired;
   const showHash = row.transactionHash !== "";
 
-  // "Pending Deposit" is an internal type used to keep pending peg-ins out of
-  // the filter menu; the row itself reads as a normal "Deposit" with a spinner.
-  const displayLabel = row.type === "Pending Deposit" ? "Deposit" : row.type;
+  // PENDING_DEPOSIT_TYPE is an internal type used to keep pending peg-ins out
+  // of the filter menu; the row itself reads as a normal "Deposit" with a spinner.
+  const displayLabel = row.type === PENDING_DEPOSIT_TYPE ? "Deposit" : row.type;
 
   const mutedTextClass = isPending
     ? "text-accent-secondary"
@@ -42,7 +42,7 @@ export function ActivityCard({ row }: ActivityCardProps) {
             <span className={`text-xl leading-none ${mutedTextClass}`}>
               {displayLabel}
             </span>
-            {isRefunded ? (
+            {isExpired ? (
               <span
                 role="img"
                 aria-label={COPY.activity.expiredTooltip}
