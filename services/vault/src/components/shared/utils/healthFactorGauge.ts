@@ -9,8 +9,8 @@ export const STATUS_LABELS: Record<
   string
 > = {
   safe: COPY.overview.healthFactorHealthy,
-  warning: "At Risk",
-  danger: "Liquidatable",
+  warning: COPY.overview.healthFactorAtRisk,
+  danger: COPY.overview.healthFactorLiquidatable,
 } satisfies Record<string, string>;
 
 /** Maximum health factor value displayed on the gauge (HF >= this maps to 100%). */

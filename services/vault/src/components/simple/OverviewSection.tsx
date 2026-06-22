@@ -7,6 +7,7 @@
  */
 
 import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import { useMemo } from "react";
 
 import {
   formatHealthFactor,
@@ -78,11 +79,14 @@ export function OverviewSection({
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
   const showHealthFactor = healthFactor !== null;
 
-  const gaugeStats: HealthFactorGaugeStat[] = [
-    { label: COPY_OVERVIEW.liquidationPriceLabel, value: liquidationPrice },
-    { label: COPY_OVERVIEW.btcPriceLabel, value: btcPrice },
-    { label: COPY_OVERVIEW.pctToLiquidationLabel, value: pctToLiquidation },
-  ];
+  const gaugeStats: HealthFactorGaugeStat[] = useMemo(
+    () => [
+      { label: COPY_OVERVIEW.liquidationPriceLabel, value: liquidationPrice },
+      { label: COPY_OVERVIEW.btcPriceLabel, value: btcPrice },
+      { label: COPY_OVERVIEW.pctToLiquidationLabel, value: pctToLiquidation },
+    ],
+    [liquidationPrice, btcPrice, pctToLiquidation],
+  );
 
   return (
     <div className="w-full space-y-6">

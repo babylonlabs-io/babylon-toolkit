@@ -81,7 +81,7 @@ export function DashboardPage() {
   const { result: positionNotifications } = usePositionNotifications(
     isConnected ? address : undefined,
   );
-  const { prices } = usePrices();
+  const { prices, metadata } = usePrices();
 
   const liquidationNotificationsEnabled =
     featureFlags.isLiquidationNotificationsEnabled;
@@ -109,14 +109,22 @@ export function DashboardPage() {
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
   // first seizure triggers); BTC price comes from the live oracle feed. Fall
-  // back to the empty-value placeholder until the inputs are available.
+  // back to the empty-value placeholder until the inputs are available, and
+  // suppress the BTC price whenever its oracle round is stale or fetch-failed
+  // (mirroring the guard in usePositionNotifications) so a precise price never
+  // sits beside placeholder liquidation stats sourced from the same feed.
   const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
   const btcPriceUsd = prices["BTC"];
+  const btcMetadata = metadata["BTC"];
+  const isBtcPriceUsable =
+    btcMetadata !== undefined &&
+    !btcMetadata.isStale &&
+    !btcMetadata.fetchFailed;
   const liquidationPrice = firstLiquidationGroup
     ? formatUsdPrice(firstLiquidationGroup.liquidationPrice)
     : COPY.common.emptyValue;
   const btcPrice =
-    btcPriceUsd !== undefined && btcPriceUsd > 0
+    isBtcPriceUsable && btcPriceUsd !== undefined && btcPriceUsd > 0
       ? formatUsdPrice(btcPriceUsd)
       : COPY.common.emptyValue;
   const pctToLiquidation = firstLiquidationGroup

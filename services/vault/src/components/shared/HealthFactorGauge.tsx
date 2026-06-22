@@ -1,17 +1,18 @@
 /**
  * HealthFactorGauge Component
  * Displays a read-only rainbow gauge visualizing health factor status
- * with a gradient track (red → amber → green), a ring indicator at the
- * current value, and a liquidation threshold marker at HF=1.0. The
- * "Liquidation Risk" / status labels sit above the shaded card; inside the
- * card the gradient track is flush at the top, with an optional row of stats
- * (e.g. liquidation price, BTC price, % to liquidation) below it.
+ * with a gradient track (red → amber → green) and a ring indicator at the
+ * current value. The "Liquidation Risk" / status labels sit above the shaded
+ * card; inside the card the gradient track is flush at the top, with an
+ * optional row of stats (e.g. liquidation price, BTC price, % to liquidation)
+ * below it.
  */
 
 import {
   HEALTH_FACTOR_COLORS,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
+import { COPY } from "@/copy";
 
 import {
   GAUGE_TRACK_GRADIENT,
@@ -60,7 +61,7 @@ export function HealthFactorGauge({
           className="text-xs leading-[1.66] tracking-[0.4px]"
           style={{ color: HEALTH_FACTOR_COLORS.RED }}
         >
-          Liquidation Risk
+          {COPY.overview.liquidationRiskLabel}
         </span>
         <span
           className="text-xs font-normal leading-[1.66] tracking-[0.4px]"
@@ -92,7 +93,12 @@ export function HealthFactorGauge({
         {/* Optional stats row. Columns are separated by a short centered
             divider (matching the design) rather than a full-height border. */}
         {stats && stats.length > 0 && (
-          <div className="mt-4 grid grid-cols-3 px-4">
+          <div
+            className="mt-4 grid px-4"
+            style={{
+              gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))`,
+            }}
+          >
             {stats.map((stat, i) => (
               <div
                 key={stat.label}

@@ -827,6 +827,9 @@ export const COPY = {
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     healthFactorHealthy: "Healthy",
+    healthFactorAtRisk: "At Risk",
+    healthFactorLiquidatable: "Liquidatable",
+    liquidationRiskLabel: "Liquidation Risk",
     totalCollateralValueLabel: "Total collateral value",
     totalCollateralValueTooltip:
       "The current USD value of all Bitcoin collateral backing your loans.",
