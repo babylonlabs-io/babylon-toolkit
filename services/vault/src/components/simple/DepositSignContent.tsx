@@ -15,9 +15,8 @@ import type { Address, Hex } from "viem";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
-import { useRunOnce } from "@/hooks/useRunOnce";
 
-import { DepositProgressView } from "./DepositProgressView";
+import { DepositProgressView, DepositSummaryCard } from "./DepositProgressView";
 import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
 
 interface DepositSignContentProps {
@@ -67,6 +66,11 @@ export function DepositSignContent({
     Hex[] | null
   >(null);
 
+  // The flow no longer auto-starts on mount: the initial screen is a compact
+  // summary card and the depositor begins signing by clicking "Sign". Once
+  // started, the live stepper (DepositProgressView) takes over.
+  const [started, setStarted] = useState(false);
+
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();
     if (result) {
@@ -75,7 +79,10 @@ export function DepositSignContent({
     }
   }, [executeDeposit, onRefetchActivities]);
 
-  useRunOnce(startFlow);
+  const handleSign = useCallback(() => {
+    setStarted(true);
+    void startFlow();
+  }, [startFlow]);
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =
@@ -122,6 +129,17 @@ export function DepositSignContent({
       {warning}
     </Callout>
   ));
+
+  // Initial screen: compact summary card with a single "Sign" CTA. The flow
+  // only begins once the depositor clicks Sign (see `handleSign`).
+  if (!started) {
+    return (
+      <>
+        {banner}
+        <DepositSummaryCard onSign={handleSign} />
+      </>
+    );
+  }
 
   if (
     continuationVaultIds &&
