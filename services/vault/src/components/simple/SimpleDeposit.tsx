@@ -283,6 +283,11 @@ function SimpleDepositContent({
   };
 
   const handleDeposit = async () => {
+    // Kill-switch guard on the submit path: blocks the deposit flow even if a
+    // deposit entry point that bypasses the disabled buttons (e.g. the Activity
+    // empty-state CTA or the urgent Add Collateral banner) opens this dialog.
+    if (FeatureFlags.isDepositDisabled) return;
+
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed: clicking it re-runs the underlying provider's connect flow
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
@@ -399,6 +404,7 @@ function SimpleDepositContent({
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
                 feeError={feeError}
+                isDepositDisabled={FeatureFlags.isDepositDisabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}

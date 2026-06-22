@@ -71,6 +71,18 @@ describe("useOptimalSplit", () => {
     expect(result.current.sacrificialVault).toBe(0n);
   });
 
+  it("surfaces an explicit error for an oversized amount instead of zeroing", () => {
+    // 21,000,001 BTC in sats — above Bitcoin's max supply, so invalid input.
+    const { result } = renderHook(() =>
+      useOptimalSplit(2_100_000_100_000_000n),
+    );
+
+    expect(result.current.error).toBeInstanceOf(RangeError);
+    expect(result.current.canSplit).toBe(false);
+    expect(result.current.sacrificialVault).toBe(0n);
+    expect(result.current.protectedVault).toBe(0n);
+  });
+
   it("returns canSplit: false when params errored", () => {
     mockUseVaultSplitParams.mockReturnValue({
       params: null,
