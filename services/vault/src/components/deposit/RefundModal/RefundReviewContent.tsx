@@ -26,7 +26,14 @@ import { FeeRateField } from "./FeeRateField";
 const DUST_LIMIT_SATS = 546n;
 
 interface RefundReviewContentProps {
+  /** Amount reclaimed by the refund (funded HTLC value); drives the display. */
   amountSats: bigint | null;
+  /**
+   * Deposit amount the SDK's fee-fraction cap is computed against. Mirror it
+   * here (not {@link amountSats}) so the UI cap matches the SDK and never lets
+   * the user confirm a fee the SDK is about to reject.
+   */
+  feeCapBasisSats: bigint | null;
   defaultFeeRateSatsVb: number | null;
   previewError: string | null;
   refunding: boolean;
@@ -36,6 +43,7 @@ interface RefundReviewContentProps {
 
 export function RefundReviewContent({
   amountSats,
+  feeCapBasisSats,
   defaultFeeRateSatsVb,
   previewError,
   refunding,
@@ -95,8 +103,8 @@ export function RefundReviewContent({
   const exceedsRateCap =
     feeRate !== null && feeRate > REFUND_MAX_FEE_RATE_SATS_VB;
   const maxFeeByFractionSats =
-    amountSats !== null
-      ? (amountSats * REFUND_MAX_FEE_FRACTION_NUMERATOR) /
+    feeCapBasisSats !== null
+      ? (feeCapBasisSats * REFUND_MAX_FEE_FRACTION_NUMERATOR) /
         REFUND_MAX_FEE_FRACTION_DENOMINATOR
       : null;
   const exceedsFractionCap =
@@ -115,9 +123,14 @@ export function RefundReviewContent({
     !usingFallback;
 
   const feeCapMessage = exceedsRateCap
-    ? `Network fee rate exceeds the safety cap of ${REFUND_MAX_FEE_RATE_SATS_VB} sat/vB. Lower the fee rate to continue.`
+    ? COPY.deposit.refundReview.feeRateCapError(REFUND_MAX_FEE_RATE_SATS_VB)
     : exceedsFractionCap
-      ? `Network fee exceeds ${(REFUND_MAX_FEE_FRACTION_NUMERATOR * 100n) / REFUND_MAX_FEE_FRACTION_DENOMINATOR}% of the refund amount. Lower the fee rate to continue.`
+      ? COPY.deposit.refundReview.feeFractionCapError(
+          Number(
+            (REFUND_MAX_FEE_FRACTION_NUMERATOR * 100n) /
+              REFUND_MAX_FEE_FRACTION_DENOMINATOR,
+          ),
+        )
       : null;
 
   const handleConfirmClick = () => {

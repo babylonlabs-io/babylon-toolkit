@@ -295,6 +295,14 @@ export const COPY = {
         "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
       dustError:
         "Network fee is too high — your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
+      feeRateCapError: (maxRateSatsVb: number) =>
+        `Network fee rate exceeds the safety cap of ${maxRateSatsVb} sat/vB. Lower the fee rate to continue.`,
+      // The cap is a percentage of the vault deposit (the SDK's basis), not of
+      // the larger refund amount shown above — so frame it as the safety cap
+      // rather than "% of the refund amount", which would contradict the
+      // displayed figure.
+      feeFractionCapError: (percent: number) =>
+        `Network fee exceeds the ${percent}% refund safety cap. Lower the fee rate to continue.`,
       retryButton: "Retry",
       confirmButton: "Confirm",
     },
