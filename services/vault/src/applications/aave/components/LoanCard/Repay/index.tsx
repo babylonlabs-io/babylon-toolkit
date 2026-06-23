@@ -129,8 +129,8 @@ export function Repay() {
   // round-trip that runs before executeRepay's own `isProcessing` takes over.
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // The form stays mounted when the asset switches (the AssetPill only changes
-  // `:reserveId`), so clear the amount, the last failed-tx error and any stale
+  // The form stays mounted when the asset switches (the AssetPill only re-targets
+  // the active reserve), so clear the amount, the last failed-tx error and any stale
   // submit-time refetch error explicitly — all three belong to the previously
   // selected reserve and would otherwise carry over to a different debt.
   useEffect(() => {

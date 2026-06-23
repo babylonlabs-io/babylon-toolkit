@@ -29,7 +29,7 @@ import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import type { Asset } from "../../../types";
 
 export interface UseAaveReserveDetailProps {
-  /** Reserve symbol from URL param */
+  /** Reserve symbol from the active reserve (modal state) */
   reserveId: string | undefined;
   /** User's wallet address */
   address: string | undefined;
@@ -95,7 +95,7 @@ export function useAaveReserveDetail({
 }: UseAaveReserveDetailProps): UseAaveReserveDetailResult {
   const { config, vbtcReserve, allBorrowReserves } = useAaveConfig();
 
-  // Find the selected reserve by symbol (from URL param). Match against the
+  // Find the selected reserve by symbol (from modal state). Match against the
   // full reserve set, not just borrowable ones - a user reaching this page
   // for repay may have debt in a reserve that is no longer borrowable.
   const selectedReserve = useMemo(() => {
