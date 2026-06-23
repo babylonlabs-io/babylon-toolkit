@@ -5,9 +5,9 @@ import type { ApplicationRegistration } from "../types";
 
 import { AAVE_APP_ID, getAaveAdapterAddress } from "./config";
 
-// Aave's reserve detail is rendered as an overlay over the dashboard by the
-// router (see AaveOverlayLayout in `src/router.tsx`), so the app contributes no
-// standalone routes — only metadata and contract config.
+// Aave's reserve detail is rendered as a modal over the dashboard via
+// ReserveDetailModalContext (see `src/applications/aave/context`), so the app
+// contributes no standalone routes — only metadata and contract config.
 const aaveApp: ApplicationRegistration = {
   metadata: {
     id: AAVE_APP_ID,

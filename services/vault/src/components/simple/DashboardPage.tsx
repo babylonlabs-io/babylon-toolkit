@@ -6,12 +6,15 @@
 
 import { Container } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
-import { useNavigate, useOutletContext } from "react-router";
+import { useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { PositionNotificationsDebugPanel } from "@/applications/aave/components/PositionNotificationsDebugPanel";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
-import { useSyncPendingVaults } from "@/applications/aave/context";
+import {
+  useReserveDetailModal,
+  useSyncPendingVaults,
+} from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import {
   usePositionNotifications,
@@ -48,7 +51,6 @@ import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
-  const navigate = useNavigate();
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
@@ -109,6 +111,8 @@ export function DashboardPage() {
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
 
+  const { openReserveDetail } = useReserveDetailModal();
+
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const totalBorrowed = formatUsdValue(debtValueUsd);
@@ -161,10 +165,7 @@ export function DashboardPage() {
 
   const handleRepay = () => {
     if (borrowedAssets.length === 1) {
-      const assetSymbol = borrowedAssets[0].symbol;
-      navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}/${LOAN_TAB.REPAY}`,
-      );
+      openReserveDetail(borrowedAssets[0].symbol, LOAN_TAB.REPAY);
       return;
     }
     setAssetModalMode(LOAN_TAB.REPAY);
@@ -172,9 +173,7 @@ export function DashboardPage() {
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
-    navigate(
-      `/app/aave/reserve/${assetSymbol.toLowerCase()}/${assetModalMode}`,
-    );
+    openReserveDetail(assetSymbol, assetModalMode);
   };
 
   if (!isConnected) {

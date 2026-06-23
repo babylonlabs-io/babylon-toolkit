@@ -1,11 +1,11 @@
 import { Popover } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
-import { useNavigate } from "react-router";
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
 import type { LoanTab } from "../../constants";
+import { useReserveDetailModal } from "../../context";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { AssetListItem } from "../AssetSelectionModal/AssetListItem";
 
@@ -30,7 +30,7 @@ export function AssetPill({
   mode,
   disabled = false,
 }: AssetPillProps) {
-  const navigate = useNavigate();
+  const { openReserveDetail } = useReserveDetailModal();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -49,9 +49,8 @@ export function AssetPill({
 
   const handleSelect = (assetSymbol: string) => {
     setIsOpen(false);
-    // Keep the current mode segment so switching the asset from the repay
-    // screen stays on repay rather than defaulting back to borrow.
-    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}/${mode}`);
+    // Keep the current mode so switching asset from repay stays on repay.
+    openReserveDetail(assetSymbol, mode);
   };
 
   return (
