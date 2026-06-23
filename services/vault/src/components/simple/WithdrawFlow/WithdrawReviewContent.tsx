@@ -1,5 +1,5 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import {
   BPS_SCALE,
@@ -7,7 +7,6 @@ import {
   WITHDRAW_HF_WARNING_THRESHOLD,
 } from "@/applications/aave/constants";
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
-import { type DetailRow } from "@/components/shared";
 import { BTC_BLOCK_TIME_MINS } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
@@ -20,6 +19,12 @@ import {
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
 import { NominatedAddressValue } from "./NominatedAddressValue";
+
+/** A single label/value pair rendered in the review card. */
+interface DetailRow {
+  label: string;
+  value: ReactNode;
+}
 
 interface WithdrawReviewContentProps {
   totalAmountBtc: number;
