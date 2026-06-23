@@ -32,6 +32,11 @@ async function fetchMaxVaultsPerPosition(): Promise<number> {
   return Number(maxVaultsPerPosition);
 }
 
+// Conservative superset of the on-chain position set: every vault in
+// getPosition().vaultIds is ACTIVE+adapter (counted), and PENDING/VERIFIED are
+// in-flight not-yet-members. So this can only over-count (block early), never
+// under-count — do NOT "simplify" to getPosition().vaultIds, which drops the
+// in-flight margin and under-counts under concurrent deposits.
 const COLLATERALIZABLE_STATUSES = new Set([
   ContractStatus.ACTIVE,
   ContractStatus.PENDING,
@@ -65,7 +70,7 @@ export function useVaultCountCap(
     refetchOnWindowFocus: false,
   });
 
-  const { data: vaults } = useVaults(address);
+  const { data: vaults, isError: vaultsError } = useVaults(address);
 
   const currentCount = useMemo(
     () =>
@@ -82,6 +87,10 @@ export function useVaultCountCap(
   return {
     maxVaults: maxVaults ?? null,
     isAtCap,
-    capUnavailable: capError,
+    // Fail closed on a terminal failure of EITHER read — the cap value or the
+    // vaults list. A list-fetch error would otherwise leave currentCount=0
+    // (isAtCap=false) and let an at-cap user lock BTC, then revert at
+    // activation. Mirrors useApplicationCap (capsQuery.error ?? usageQuery.error).
+    capUnavailable: capError || (address !== undefined && vaultsError),
   };
 }
