@@ -162,6 +162,14 @@ export function CollateralSection({
     onWithdraw();
   }, [onWithdraw]);
 
+  // Dismissing the selection modal (Escape / backdrop / close) drops any
+  // selection from the canceled attempt, so a later withdraw can't confirm
+  // with stale vault choices.
+  const handleWithdrawCancel = useCallback(() => {
+    setIsWithdrawOpen(false);
+    onSelectedVaultIdsChange([]);
+  }, [onSelectedVaultIdsChange]);
+
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
     if (address) {
@@ -303,7 +311,7 @@ export function CollateralSection({
 
       <WithdrawVaultsModal
         isOpen={isWithdrawOpen}
-        onClose={() => setIsWithdrawOpen(false)}
+        onClose={handleWithdrawCancel}
         vaults={collateralVaults}
         vaultEligibility={vaultEligibility}
         selectedVaultIds={effectiveSelectedVaultIds}
