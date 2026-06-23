@@ -1,4 +1,5 @@
 name: vault-publish
+run-name: vault-publish${{ inputs.ENVIRONMENT != '' && inputs.ENVIRONMENT != 'all' && format(' {0}', inputs.ENVIRONMENT) || '' }} by ${{ github.actor }}${{ inputs.CORRELATION_ID != '' && format(' [{0}]', inputs.CORRELATION_ID) || '' }}
 
 on:
   push:
@@ -8,6 +9,21 @@ on:
     tags:
       - "vault/*"
   workflow_dispatch:
+    inputs:
+      ENVIRONMENT:
+        description: 'Environment to publish. "all" publishes all three (the push/tag default).'
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - vault-devnet
+          - vault-staging-devnet
+          - vault-testnet
+      CORRELATION_ID:
+        description: 'Opaque ID set by an orchestrating workflow (e.g. tbv-deployment unified redeploy) so it can locate this run via run-name. Empty for manual runs.'
+        required: false
+        type: string
 
 # For github OIDC authentication to AWS
 permissions:
@@ -38,23 +54,60 @@ jobs:
       - name: Build
         run: pnpm run build
 
+  # Resolve which environments this run publishes. A workflow_dispatch run may
+  # scope to a single environment (ENVIRONMENT input); push/tag runs and the
+  # "all" choice publish every environment, preserving the previous behaviour.
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      multi: ${{ steps.matrix.outputs.multi }}
+    steps:
+      - name: Build publish matrix
+        id: matrix
+        env:
+          ENVIRONMENT: ${{ inputs.ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+          ALL='[
+            {"environment":"vault-devnet","aws_account":"537927626649"},
+            {"environment":"vault-staging-devnet","aws_account":"537927626649"},
+            {"environment":"vault-testnet","aws_account":"615368094160","prod":true}
+          ]'
+          if [ -z "${ENVIRONMENT:-}" ] || [ "$ENVIRONMENT" = "all" ]; then
+            SELECTED=$(echo "$ALL" | jq -c '.')
+          else
+            SELECTED=$(echo "$ALL" | jq -c --arg e "$ENVIRONMENT" '[.[] | select(.environment == $e)]')
+            if [ "$(echo "$SELECTED" | jq 'length')" -eq 0 ]; then
+              VALID=$(echo "$ALL" | jq -r '[.[].environment] + ["all"] | join(", ")')
+              echo "::error::Unknown ENVIRONMENT '$ENVIRONMENT'. Valid: $VALID."
+              exit 1
+            fi
+          fi
+          echo "matrix={\"include\":$SELECTED}" >> "$GITHUB_OUTPUT"
+          # multi=true only when publishing more than one environment. Used to
+          # scope continue-on-error: tolerate a prod OIDC failure in the all-env
+          # run (so it can't block devnet), but fail loud when prod is the only
+          # explicitly requested environment (else a scoped prod dispatch goes
+          # green while publishing nothing).
+          if [ "$(echo "$SELECTED" | jq 'length')" -gt 1 ]; then
+            echo "multi=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "multi=false" >> "$GITHUB_OUTPUT"
+          fi
+
   s3_publish:
-    needs: [lint_test]
+    needs: [lint_test, setup]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - environment: vault-devnet
-            aws_account: 537927626649
-          - environment: vault-staging-devnet
-            aws_account: 537927626649
-          - environment: vault-testnet
-            aws_account: 615368094160
-            prod: true
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
-    # Prod environments will fail OIDC on feature branches; allow failure so devnet jobs aren't blocked
-    continue-on-error: ${{ matrix.prod == true }}
+    # Prod OIDC fails on feature branches; tolerate it ONLY in the multi-env run
+    # so it can't block devnet. When prod (vault-testnet) is the single requested
+    # environment, fail loud — otherwise a scoped prod dispatch reports success
+    # while publishing nothing.
+    continue-on-error: ${{ matrix.prod == true && needs.setup.outputs.multi == 'true' }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
