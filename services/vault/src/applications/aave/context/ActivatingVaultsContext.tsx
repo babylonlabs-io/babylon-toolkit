@@ -39,6 +39,13 @@ const ACTIVATING_OVERRIDE_TIMEOUT_MS = 90 * 1000;
 export interface ActivatingVaultEntry {
   /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)). */
   vaultId: Hex;
+  /**
+   * Depositor's ETH address the activation was made from. The dashboard only
+   * surfaces an entry whose address matches the currently connected wallet, so
+   * switching accounts during the optimistic window can't leak one account's
+   * activating vault onto another's dashboard.
+   */
+  depositorEthAddress?: string;
   /** Optimistic BTC amount, replaced by the indexer value on reconciliation. */
   amountBtc: number;
   /** Vault provider Ethereum address (for resolving name/icon in display). */

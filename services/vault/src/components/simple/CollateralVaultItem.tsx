@@ -116,29 +116,36 @@ export function CollateralVaultItem({
         />
       )}
 
-      {/* Vault Provider row */}
-      <VaultCardRow label="Vault provider">
-        <span className="inline-flex items-center gap-1.5">
-          <Hint
-            tooltip={truncateAddress(providerAddress)}
-            attachToChildren
-            placement="left"
-            className="text-sm text-accent-primary"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {providerIconUrl && (
-                <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
-              )}
-              {providerName}
-            </span>
-          </Hint>
-          <ExplorerLink
-            href={getVpExplorerProviderUrl(providerAddress)}
-            label={COPY.explorer.providerLinkLabel}
-            size={14}
-          />
-        </span>
-      </VaultCardRow>
+      {/* Vault Provider row — hidden while activating: indexed provider
+          metadata may be incomplete on the transient row. */}
+      {!isActivating && (
+        <VaultCardRow label="Vault provider">
+          <span className="inline-flex items-center gap-1.5">
+            <Hint
+              tooltip={truncateAddress(providerAddress)}
+              attachToChildren
+              placement="left"
+              className="text-sm text-accent-primary"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {providerIconUrl && (
+                  <Avatar
+                    url={providerIconUrl}
+                    alt={providerName}
+                    size="tiny"
+                  />
+                )}
+                {providerName}
+              </span>
+            </Hint>
+            <ExplorerLink
+              href={getVpExplorerProviderUrl(providerAddress)}
+              label={COPY.explorer.providerLinkLabel}
+              size={14}
+            />
+          </span>
+        </VaultCardRow>
+      )}
 
       {/* Status row */}
       <VaultCardRow label="Status">

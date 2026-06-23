@@ -95,6 +95,7 @@ export function useActivationState({
             if (Number.isFinite(amountBtc) && amountBtc > 0) {
               addActivatingVault({
                 vaultId: activity.id,
+                depositorEthAddress,
                 amountBtc,
                 providerAddress: activity.providers[0]?.id,
               });

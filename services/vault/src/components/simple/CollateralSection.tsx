@@ -144,10 +144,15 @@ export function CollateralSection({
   }, [hasWithdrawableVault, wouldBreachHF, effectiveSelectedVaultIds.length]);
 
   // Optimistic "activating" rows have no indexed liquidation order yet and
-  // can't participate in a reorder, so they don't count toward the threshold.
+  // aren't on-chain collateral, so they must not enter the reorder path (gate,
+  // gas estimate, or the signed permutation). This single derived list drives
+  // both the gate and the modal data so the two can't drift apart.
   const hasActivatingVault = collateralVaults.some((v) => v.isActivating);
-  const canReorder =
-    collateralVaults.filter((v) => !v.isActivating).length >= 2;
+  const reorderableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.isActivating),
+    [collateralVaults],
+  );
+  const canReorder = reorderableVaults.length >= 2;
 
   const handleToggleVaultSelect = useCallback(
     (vaultId: string) => {
@@ -323,7 +328,7 @@ export function CollateralSection({
       <ReorderVaultsModal
         isOpen={isReorderOpen}
         onClose={() => setIsReorderOpen(false)}
-        vaults={collateralVaults}
+        vaults={reorderableVaults}
         onSuccess={() => setIsReorderSuccess(true)}
       />
 

@@ -48,14 +48,18 @@ describe("CollateralVaultItem", () => {
       screen.queryByRole("button", { name: /download artifacts/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Liquidation Order")).not.toBeInTheDocument();
+    // Provider row is suppressed while activating (indexed metadata may be
+    // incomplete on the transient row).
+    expect(screen.queryByText("Vault provider")).not.toBeInTheDocument();
   });
 
-  it("shows the normal status badge when not activating", () => {
+  it("shows the normal status badge and provider row when not activating", () => {
     render(<CollateralVaultItem {...baseProps} inUse={true} selectable />);
 
     expect(screen.getByText(COPY.pegin.labels.IN_USE)).toBeInTheDocument();
     expect(
       screen.queryByText(COPY.collateral.activating),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Vault provider")).toBeInTheDocument();
   });
 });

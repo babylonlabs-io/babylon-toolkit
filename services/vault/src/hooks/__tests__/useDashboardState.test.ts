@@ -11,6 +11,7 @@ const VAULT_C = ("0x" + "c".repeat(64)) as `0x${string}`;
 
 type ActivatingEntry = {
   vaultId: `0x${string}`;
+  depositorEthAddress?: string;
   amountBtc: number;
   providerAddress?: string;
 };
@@ -164,7 +165,10 @@ describe("useDashboardState", () => {
   it("appends an optimistic activating row when the vault is not yet indexed", () => {
     mockCollaterals = null; // empty position (first deposit)
     mockActivatingVaults = new Map([
-      [VAULT_A.toLowerCase(), { vaultId: VAULT_A, amountBtc: 1 }],
+      [
+        VAULT_A.toLowerCase(),
+        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+      ],
     ]);
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
@@ -190,7 +194,10 @@ describe("useDashboardState", () => {
     mockCollateralBtc = 1;
     mockCollaterals = [collateral(VAULT_A, 0)];
     mockActivatingVaults = new Map([
-      [VAULT_A.toLowerCase(), { vaultId: VAULT_A, amountBtc: 1 }],
+      [
+        VAULT_A.toLowerCase(),
+        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+      ],
     ]);
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
@@ -202,5 +209,22 @@ describe("useDashboardState", () => {
     expect(mockClearActivatingVault).toHaveBeenCalledWith(VAULT_A);
     // Display total is not double-counted.
     expect(result.current.displayCollateralBtc).toBe(1);
+  });
+
+  it("does not surface an activating vault belonging to a different connected address", () => {
+    mockCollaterals = null;
+    // Entry was recorded while a different wallet was connected.
+    mockActivatingVaults = new Map([
+      [
+        VAULT_A.toLowerCase(),
+        { vaultId: VAULT_A, depositorEthAddress: "0xother", amountBtc: 1 },
+      ],
+    ]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.collateralVaults).toHaveLength(0);
+    expect(result.current.displayCollateralBtc).toBe(0);
+    expect(result.current.hasDisplayCollateral).toBe(false);
   });
 });

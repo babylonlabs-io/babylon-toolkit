@@ -62,14 +62,19 @@ export function useDashboardState(connectedAddress: string | undefined) {
 
   // Optimistic "Activating…" rows: just-activated vaults the indexer hasn't
   // ingested yet. Excludes any vault already present in the indexer entries so
-  // we never duplicate a row once it lands.
+  // we never duplicate a row once it lands, and any entry that belongs to a
+  // different depositor address so switching wallets during the optimistic
+  // window can't leak one account's activating vault onto another's dashboard.
   const activatingEntries = useMemo((): CollateralVaultEntry[] => {
     if (activatingVaults.size === 0) return [];
+    const connected = connectedAddress?.toLowerCase();
     const indexedIds = new Set(
       rawCollateralVaults.map((v) => v.vaultId.toLowerCase()),
     );
+    if (!connected) return [];
     return Array.from(activatingVaults.values())
       .filter((entry) => !indexedIds.has(entry.vaultId.toLowerCase()))
+      .filter((entry) => entry.depositorEthAddress?.toLowerCase() === connected)
       .map((entry): CollateralVaultEntry => {
         const provider = findProvider?.(entry.providerAddress ?? "");
         return {
@@ -87,7 +92,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
           liquidationIndex: Number.MAX_SAFE_INTEGER,
         };
       });
-  }, [activatingVaults, rawCollateralVaults, findProvider]);
+  }, [activatingVaults, rawCollateralVaults, findProvider, connectedAddress]);
 
   // Displayed entries. Normally indexer-ordered; right after a reorder,
   // `reorderedOrder` holds the submitted order so the new order (and each row's
