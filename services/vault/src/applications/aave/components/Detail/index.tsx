@@ -2,15 +2,13 @@
  * Aave Reserve Detail
  *
  * Borrow/Repay card with real position data from Aave oracle, rendered as a
- * full-screen modal (like the deposit flow). The reserve comes from the route
- * (`/app/aave/reserve/:reserveId/borrow` or `/repay`) and the mode is passed in
- * as `tab`, so the route stays deep-linkable; closing navigates back to the
- * dashboard.
+ * full-screen modal (like the deposit flow). The reserve (token symbol) and
+ * mode (`tab`) come from ReserveDetailModalContext via props; closing calls
+ * `onRequestClose` to clear that modal state.
  */
 
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
 
 import { EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
@@ -28,10 +26,15 @@ import { PositionGate } from "./PositionGate";
 
 const btcConfig = getNetworkConfigBTC();
 
-export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
-  const navigate = useNavigate();
-  const { reserveId } = useParams<{ reserveId: string }>();
-
+export function AaveReserveDetail({
+  reserveSymbol,
+  tab,
+  onRequestClose,
+}: {
+  reserveSymbol: string;
+  tab: LoanTab;
+  onRequestClose: () => void;
+}) {
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
   const { config } = useAaveConfig();
@@ -59,7 +62,7 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
-  } = useAaveReserveDetail({ reserveId, address });
+  } = useAaveReserveDetail({ reserveId: reserveSymbol, address });
 
   // Modal state management
   const {
@@ -80,18 +83,16 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
   // completes on-chain.
   const [isTxInFlight, setIsTxInFlight] = useState(false);
 
-  // Use `replace` so dismissing the overlay doesn't leave a history entry that
-  // browser Back would use to reopen the just-closed flow.
-  const handleClose = () => navigate("/", { replace: true });
+  const handleClose = onRequestClose;
 
   const handleCloseBorrowSuccess = () => {
     closeBorrowSuccess();
-    navigate("/", { replace: true });
+    onRequestClose();
   };
 
   const handleCloseRepaySuccess = () => {
     closeRepaySuccess();
-    navigate("/", { replace: true });
+    onRequestClose();
   };
 
   const renderContent = () => {
