@@ -15,6 +15,7 @@ import { useMemo } from "react";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useUTXOs } from "@/hooks/useUTXOs";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
@@ -46,6 +47,15 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     useAddressScreening();
 
   const isWalletConnected = btcConnected && ethConnected;
+
+  // Show the toggle only once detection confirms inscriptions exist. `inscriptionUTXOs`
+  // is empty while ordinals detection loads or errors, so it stays hidden then too —
+  // safe, since the toggle is a no-op when nothing is detected. `enabled` scopes this
+  // subscription to when the menu can render (the query is shared with the deposit form).
+  const { inscriptionUTXOs } = useUTXOs(btcAddress, {
+    enabled: isWalletConnected && !isGeoBlocked && !isGeoLoading,
+  });
+  const hasInscriptions = inscriptionUTXOs.length > 0;
 
   // Icon source must stay aligned with the (provider-level) connection state:
   // `selectedWallets` is volatile widget state that can lag a reconnect on
@@ -98,6 +108,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           ordinalsExcluded={ordinalsExcluded}
           onIncludeOrdinals={includeOrdinals}
           onExcludeOrdinals={excludeOrdinals}
+          showInscriptionsToggle={hasInscriptions}
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
