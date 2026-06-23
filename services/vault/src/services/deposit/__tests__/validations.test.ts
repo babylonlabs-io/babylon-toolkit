@@ -288,6 +288,7 @@ describe("Deposit Validations", () => {
       isGeoBlocked: false,
       isAddressBlocked: false,
       vaultCountAtCap: false,
+      vaultCountCapUnavailable: false,
       isWalletConnected: true,
       hasProvider: true,
       commissionUnavailable: false,
@@ -397,6 +398,17 @@ describe("Deposit Validations", () => {
         isWalletConnected: false,
       });
       expect(result.label).toBe("Maximum BTC Vaults reached");
+    });
+
+    it("blocks with an explicit error when the vault-count cap read fails", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        vaultCountCapUnavailable: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Unable to verify vault count — please try again",
+      });
     });
 
     it("prioritizes geo-blocked over address-blocked", () => {

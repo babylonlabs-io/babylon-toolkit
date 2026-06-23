@@ -102,6 +102,11 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
   vaultCountAtCap: boolean;
+  /**
+   * True when the vault-count cap read errored. Mirrors `capUnavailable`: block
+   * the CTA so an at-cap user can't lock BTC only to revert at activation.
+   */
+  vaultCountCapUnavailable: boolean;
   hasProvider: boolean;
   /**
    * True when a provider is selected but its on-chain commission hasn't loaded
@@ -306,6 +311,16 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return {
       disabled: true,
       label: "Unable to verify supply cap — please try again",
+    };
+  }
+
+  // Same fail-closed rationale as `capUnavailable`: if the vault-count cap read
+  // errored we can't know whether the user is at cap, so block rather than risk
+  // a BTC lock that reverts at activation.
+  if (params.vaultCountCapUnavailable) {
+    return {
+      disabled: true,
+      label: COPY.vaultCountCap.unavailableCtaLabel,
     };
   }
 

@@ -78,7 +78,8 @@ function SimpleDepositContent({
   const { address: connectedEthAddress } = useETHWallet();
   const { address: connectedBtcAddress, reconnect: reconnectBtcWallet } =
     useBTCWallet();
-  const { isAtCap: vaultCountAtCap } = useVaultCountCap(connectedEthAddress);
+  const { isAtCap: vaultCountAtCap, capUnavailable: vaultCountCapUnavailable } =
+    useVaultCountCap(connectedEthAddress);
   const btcConnector = useChainConnector("BTC");
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
@@ -429,6 +430,7 @@ function SimpleDepositContent({
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   vaultCountAtCap,
+                  vaultCountCapUnavailable,
                   ordinalsCheckPending,
                 }}
                 collateralFactor={collateralFactor}

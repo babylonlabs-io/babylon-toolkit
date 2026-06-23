@@ -16,10 +16,11 @@ const REFETCH_INTERVAL_MS = 60_000;
 
 export interface VaultCountCapResult {
   maxVaults: number | null;
-  currentCount: number;
   isAtCap: boolean;
-  remaining: number;
-  isLoading: boolean;
+  // True when the cap read terminally failed. Callers fail closed (block the
+  // deposit CTA) so an at-cap user can't lock BTC only to revert at activation
+  // — mirrors the supply-cap `capUnavailable` path.
+  capUnavailable: boolean;
 }
 
 async function fetchMaxVaultsPerPosition(): Promise<number> {
@@ -54,7 +55,9 @@ export function useVaultCountCap(
 ): VaultCountCapResult {
   const address = depositorAddress as Address | undefined;
 
-  const { data: maxVaults, isLoading: isLoadingCap } = useQuery({
+  // `isError` flips true only after React Query exhausts its retries, so it is
+  // a terminal read failure — not the initial in-flight load.
+  const { data: maxVaults, isError: capError } = useQuery({
     queryKey: [VAULT_COUNT_CAP_KEY, CONTRACTS.AAVE_ADAPTER],
     queryFn: fetchMaxVaultsPerPosition,
     staleTime: STALE_TIME_MS,
@@ -62,7 +65,7 @@ export function useVaultCountCap(
     refetchOnWindowFocus: false,
   });
 
-  const { data: vaults, isLoading: isLoadingVaults } = useVaults(address);
+  const { data: vaults } = useVaults(address);
 
   const currentCount = useMemo(
     () =>
@@ -71,15 +74,14 @@ export function useVaultCountCap(
   );
 
   const resolved = maxVaults !== undefined;
+  // maxVaults === 0 means "unlimited" on-chain — the adapter rejects only when
+  // the cap is > 0 (AaveAdapter.sol `_validatePositionSizeBoundaries`), so a 0
+  // cap must not gate.
   const isAtCap = resolved && maxVaults > 0 && currentCount >= maxVaults;
-  const remaining =
-    resolved && maxVaults > 0 ? Math.max(0, maxVaults - currentCount) : 0;
 
   return {
     maxVaults: maxVaults ?? null,
-    currentCount,
     isAtCap,
-    remaining,
-    isLoading: isLoadingCap || (!!address && isLoadingVaults),
+    capUnavailable: capError,
   };
 }

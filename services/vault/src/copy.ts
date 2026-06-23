@@ -1022,10 +1022,11 @@ export const COPY = {
     liquidatable: "Critical — liquidation can trigger now",
   },
   vaultCountCap: {
-    bannerTitle: "Maximum vaults reached",
+    bannerTitle: "Maximum BTC Vaults reached",
     bannerDetail: (max: number) =>
       `This position already has the maximum number of BTC Vaults (${max}).`,
     depositCtaLabel: "Maximum BTC Vaults reached",
+    unavailableCtaLabel: "Unable to verify vault count — please try again",
   },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
   // three warning types produced by the calculator (urgent / dust / weird-params).
