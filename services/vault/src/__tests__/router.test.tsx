@@ -4,9 +4,9 @@
  * 1. The /activity route renders <Activity />, which transitively calls
  *    useAaveConfig() through useActivities(). If the route element loses its
  *    AaveConfigProvider wrapper, the page throws synchronously on mount.
- * 2. The reserve detail (/app/aave/reserve/:reserveId) is an overlay on top of
- *    the dashboard, not a sibling route that replaces it. The dashboard must
- *    stay mounted underneath so opening the overlay never blanks the page.
+ * 2. The borrow/repay flow is now a modal (ReserveDetailModalSlot) rather than
+ *    a deep-linkable route. The reserve-detail routes were removed; hitting them
+ *    renders a 404.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -60,10 +60,6 @@ vi.mock("../components/simple/DashboardPage", () => ({
   DashboardPage: () => <div>{DASHBOARD_MARKER}</div>,
 }));
 
-// Echo the `tab` prop the router resolved from the path so the tests can assert
-// that /borrow, /repay and the bare-path redirect each route to the right mode —
-// the core behavior of this PR. A prop-ignoring mock would render the same
-// marker for every route and verify nothing about borrow-vs-repay routing.
 vi.mock("../applications/aave/components/Detail", () => ({
   AaveReserveDetail: ({ tab }: { tab: string }) => (
     <div data-testid={RESERVE_DETAIL_TESTID} data-tab={tab} />
@@ -128,7 +124,7 @@ describe("Router — /activity regression for AaveConfigProvider wiring", () => 
   });
 });
 
-describe("Router — reserve detail is an overlay over the persistent dashboard", () => {
+describe("Router — borrow/repay is a modal, the reserve routes are gone", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -142,44 +138,17 @@ describe("Router — reserve detail is an overlay over the persistent dashboard"
     expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
   });
 
-  it("routes the /borrow sub-path to the detail in borrow mode, dashboard still mounted", async () => {
-    await renderAt("/app/aave/reserve/usdc/borrow");
-
-    // Both present: the dashboard stays mounted and the reserve detail renders
-    // on top of it, rather than replacing it (which is what caused the blank
-    // flash when the two were sibling routes).
-    await waitFor(() => {
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
-    });
-    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-      "data-tab",
-      "borrow",
-    );
-    expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
-  });
-
-  it("routes the /repay sub-path to the detail in repay mode", async () => {
-    await renderAt("/app/aave/reserve/usdc/repay");
+  it.each([
+    "/app/aave/reserve/usdc/borrow",
+    "/app/aave/reserve/usdc/repay",
+    "/app/aave/reserve/usdc",
+  ])("404s the removed reserve route %s", async (path) => {
+    await renderAt(path);
 
     await waitFor(() => {
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+      expect(screen.getByText("404")).toBeInTheDocument();
     });
-    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-      "data-tab",
-      "repay",
-    );
-  });
-
-  it("redirects the bare reserve path to its borrow sub-route", async () => {
-    await renderAt("/app/aave/reserve/usdc");
-
-    // The index route redirects to /borrow, so the detail renders in borrow mode.
-    await waitFor(() => {
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
-    });
-    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-      "data-tab",
-      "borrow",
-    );
+    expect(screen.queryByText(DASHBOARD_MARKER)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
   });
 });

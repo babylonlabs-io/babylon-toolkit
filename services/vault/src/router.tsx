@@ -1,14 +1,15 @@
 import { Loader } from "@babylonlabs-io/core-ui";
 import { Suspense, useEffect, type ComponentType } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 
 import { getAllApplications } from "./applications";
 import { AAVE_APP_ID } from "./applications/aave/config";
-import { LOAN_TAB } from "./applications/aave/constants";
 import {
   AaveConfigProvider,
   PendingVaultsProvider,
   ReorderOverrideProvider,
+  ReserveDetailModalProvider,
+  useReserveDetailModal,
 } from "./applications/aave/context";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
@@ -21,8 +22,8 @@ const DashboardPage = lazyWithRetry(() =>
   })),
 );
 
-// Rendered as a full-screen overlay over the persistent dashboard (see
-// AaveOverlayLayout), so opening it never unmounts the page underneath.
+// Rendered inside ReserveDetailModalSlot — opening it never unmounts the
+// dashboard underneath.
 const importAaveReserveDetail = () =>
   import("./applications/aave/components/Detail");
 const AaveReserveDetail = lazyWithRetry(() =>
@@ -36,14 +37,30 @@ const RouteFallback = () => (
 );
 
 /**
- * Hosts the Aave providers and the dashboard once and keeps both mounted across
- * "/" and "/app/aave/reserve/:reserveId". The reserve detail renders into the
- * <Outlet/> as a full-screen overlay on top of the still-mounted dashboard, so
- * navigating to it never blanks the page — no route swap, no provider refetch.
- * The outlet's fallback is null on purpose: while the (lazy) detail chunk loads
- * the dashboard stays fully visible underneath instead of flashing a loader.
+ * Renders the borrow/repay reserve-detail modal when one is open, else nothing.
+ * Sibling of the dashboard so opening it never unmounts the page underneath.
+ * Suspense fallback is null on purpose: the (lazy) detail chunk loads with the
+ * dashboard fully visible instead of flashing a loader.
  */
-const AaveOverlayLayout = () => {
+const ReserveDetailModalSlot = () => {
+  const { activeReserve, closeReserveDetail } = useReserveDetailModal();
+  if (!activeReserve) return null;
+  return (
+    <AaveReserveDetail
+      reserveSymbol={activeReserve.reserveSymbol}
+      tab={activeReserve.tab}
+      onRequestClose={closeReserveDetail}
+    />
+  );
+};
+
+/**
+ * Dashboard + its Aave providers + the borrow/repay modal slot, mounted once at
+ * the index route. The modal renders as a sibling overlay over the still-mounted
+ * dashboard. Replaces the former route-overlay layout now that borrow/repay are
+ * modals rather than deep-linkable routes.
+ */
+const DashboardWithProviders = () => {
   // Warm the reserve-detail chunk once the dashboard is idle so the first open
   // is instant rather than waiting on the lazy import.
   useEffect(() => {
@@ -63,12 +80,14 @@ const AaveOverlayLayout = () => {
     <AaveConfigProvider>
       <PendingVaultsProvider appId={AAVE_APP_ID}>
         <ReorderOverrideProvider>
-          <Suspense fallback={<RouteFallback />}>
-            <DashboardPage />
-          </Suspense>
-          <Suspense fallback={null}>
-            <Outlet />
-          </Suspense>
+          <ReserveDetailModalProvider>
+            <Suspense fallback={<RouteFallback />}>
+              <DashboardPage />
+            </Suspense>
+            <Suspense fallback={null}>
+              <ReserveDetailModalSlot />
+            </Suspense>
+          </ReserveDetailModalProvider>
         </ReorderOverrideProvider>
       </PendingVaultsProvider>
     </AaveConfigProvider>
@@ -91,20 +110,7 @@ export const Router = () => {
   return (
     <Routes>
       <Route path="/" element={<RootLayout />}>
-        <Route element={<AaveOverlayLayout />}>
-          <Route index element={null} />
-          <Route path={`app/${AAVE_APP_ID}/reserve/:reserveId`}>
-            <Route index element={<Navigate to={LOAN_TAB.BORROW} replace />} />
-            <Route
-              path={LOAN_TAB.BORROW}
-              element={<AaveReserveDetail tab={LOAN_TAB.BORROW} />}
-            />
-            <Route
-              path={LOAN_TAB.REPAY}
-              element={<AaveReserveDetail tab={LOAN_TAB.REPAY} />}
-            />
-          </Route>
-        </Route>
+        <Route index element={<DashboardWithProviders />} />
         <Route
           path="activity"
           element={
