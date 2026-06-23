@@ -52,6 +52,7 @@ export function CollateralExpandedContent({
               vaultId={vault.vaultId}
               amountBtc={vault.amountBtc}
               inUse={vault.inUse}
+              isActivating={vault.isActivating}
               providerName={vault.providerName}
               providerIconUrl={vault.providerIconUrl}
               providerAddress={vault.providerAddress}

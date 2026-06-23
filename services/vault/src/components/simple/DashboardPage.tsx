@@ -63,6 +63,7 @@ export function DashboardPage() {
   );
   const {
     collateralBtc,
+    displayCollateralBtc,
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
@@ -70,6 +71,7 @@ export function DashboardPage() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
+    hasDisplayCollateral,
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(isConnected ? address : undefined);
@@ -104,7 +106,9 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const totalBorrowed = formatUsdValue(debtValueUsd);
-  const totalAmountBtc = formatBtcAmount(collateralBtc);
+  // Display total includes optimistic "activating" vaults; the financial
+  // `collateralBtc` (passed separately for the position snapshot) stays pure.
+  const totalAmountBtc = formatBtcAmount(displayCollateralBtc);
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -210,7 +214,7 @@ export function DashboardPage() {
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
           collateralVaults={collateralVaults}
-          hasCollateral={hasCollateral}
+          hasCollateral={hasDisplayCollateral}
           isConnected={isConnected}
           collateralBtc={collateralBtc}
           currentHealthFactor={healthFactor}

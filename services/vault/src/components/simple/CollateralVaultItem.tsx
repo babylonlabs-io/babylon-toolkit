@@ -8,6 +8,7 @@ import {
   Button,
   Checkbox,
   Hint,
+  Loader,
   StatusBadge,
 } from "@babylonlabs-io/core-ui";
 
@@ -30,6 +31,12 @@ interface CollateralVaultItemProps {
   vaultId: string;
   amountBtc: number;
   inUse: boolean;
+  /**
+   * Optimistic row shown right after the activation ETH tx, before the indexer
+   * ingests the vault. Suppresses every action/field that needs indexed
+   * metadata and shows an "Activating collateral…" status instead.
+   */
+  isActivating?: boolean;
   providerName: string;
   providerIconUrl?: string;
   /** Vault provider Ethereum address, shown on hover over the provider label */
@@ -49,6 +56,7 @@ export function CollateralVaultItem({
   vaultId,
   amountBtc,
   inUse,
+  isActivating = false,
   providerName,
   providerIconUrl,
   providerAddress,
@@ -60,7 +68,7 @@ export function CollateralVaultItem({
   onToggleSelect,
   onArtifactDownload,
 }: CollateralVaultItemProps) {
-  const canInteract = selectable || selected;
+  const canInteract = (selectable || selected) && !isActivating;
   const handleToggle = () => {
     if (canInteract) onToggleSelect(vaultId);
   };
@@ -78,10 +86,13 @@ export function CollateralVaultItem({
           <span className="text-xl font-medium text-accent-primary">
             {formatBtcAmount(amountBtc)}
           </span>
-          <ExplorerLink
-            href={getVpExplorerVaultUrl(vaultId)}
-            label={COPY.explorer.vaultLinkLabel}
-          />
+          {/* The vault explorer may 404 until the indexer ingests it. */}
+          {!isActivating && (
+            <ExplorerLink
+              href={getVpExplorerVaultUrl(vaultId)}
+              label={COPY.explorer.vaultLinkLabel}
+            />
+          )}
         </div>
         <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
           <Checkbox
@@ -95,47 +106,66 @@ export function CollateralVaultItem({
       </div>
 
       {/* Transaction hash row — Pegin + Pre-Pegin. The vault is active here, so
-          both txs are on Bitcoin and link to the explorer. */}
-      <PeginTxHashRow
-        peginTxHash={peginTxHash}
-        prePeginTxHash={prePeginTxHash}
-        linkPegin
-      />
+          both txs are on Bitcoin and link to the explorer. Hidden while
+          activating: the indexed tx hashes aren't available yet. */}
+      {!isActivating && (
+        <PeginTxHashRow
+          peginTxHash={peginTxHash}
+          prePeginTxHash={prePeginTxHash}
+          linkPegin
+        />
+      )}
 
-      {/* Vault Provider row */}
-      <VaultCardRow label="Vault provider">
-        <span className="inline-flex items-center gap-1.5">
-          <Hint
-            tooltip={truncateAddress(providerAddress)}
-            attachToChildren
-            placement="left"
-            className="text-sm text-accent-primary"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {providerIconUrl && (
-                <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
-              )}
-              {providerName}
-            </span>
-          </Hint>
-          <ExplorerLink
-            href={getVpExplorerProviderUrl(providerAddress)}
-            label={COPY.explorer.providerLinkLabel}
-            size={14}
-          />
-        </span>
-      </VaultCardRow>
+      {/* Vault Provider row — hidden while activating: indexed provider
+          metadata may be incomplete on the transient row. */}
+      {!isActivating && (
+        <VaultCardRow label="Vault provider">
+          <span className="inline-flex items-center gap-1.5">
+            <Hint
+              tooltip={truncateAddress(providerAddress)}
+              attachToChildren
+              placement="left"
+              className="text-sm text-accent-primary"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {providerIconUrl && (
+                  <Avatar
+                    url={providerIconUrl}
+                    alt={providerName}
+                    size="tiny"
+                  />
+                )}
+                {providerName}
+              </span>
+            </Hint>
+            <ExplorerLink
+              href={getVpExplorerProviderUrl(providerAddress)}
+              label={COPY.explorer.providerLinkLabel}
+              size={14}
+            />
+          </span>
+        </VaultCardRow>
+      )}
 
       {/* Status row */}
       <VaultCardRow label="Status">
-        <StatusBadge
-          status={inUse ? "active" : "inactive"}
-          label={inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE}
-        />
+        {isActivating ? (
+          <span className="inline-flex items-center gap-1.5 text-sm text-accent-secondary">
+            <Loader size={16} className="text-accent-secondary" />
+            {COPY.collateral.activating}
+          </span>
+        ) : (
+          <StatusBadge
+            status={inUse ? "active" : "inactive"}
+            label={
+              inUse ? COPY.pegin.labels.IN_USE : COPY.pegin.labels.AVAILABLE
+            }
+          />
+        )}
       </VaultCardRow>
 
-      {/* Liquidation Order row */}
-      {liquidationIndex !== undefined && (
+      {/* Liquidation Order row — hidden while activating (no indexed order). */}
+      {!isActivating && liquidationIndex !== undefined && (
         <VaultCardRow label="Liquidation Order">
           <span className="text-sm text-accent-primary">
             {formatOrdinal(liquidationIndex + 1)}
@@ -143,7 +173,7 @@ export function CollateralVaultItem({
         </VaultCardRow>
       )}
 
-      {onArtifactDownload && (
+      {!isActivating && onArtifactDownload && (
         <Button
           variant="outlined"
           color="secondary"

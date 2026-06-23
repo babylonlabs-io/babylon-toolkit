@@ -28,7 +28,10 @@ import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
 
-import { AaveConfigProvider } from "../../applications/aave/context";
+import {
+  AaveConfigProvider,
+  ActivatingVaultsProvider,
+} from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
@@ -178,7 +181,7 @@ export default function RootLayout() {
         ) : isGeoBlocked ? (
           <GeoBlockState />
         ) : (
-          <>
+          <ActivatingVaultsProvider>
             <Outlet
               context={
                 {
@@ -214,7 +217,7 @@ export default function RootLayout() {
                 initialAmountBtc={initialDepositAmountBtc}
               />
             </AaveConfigProvider>
-          </>
+          </ActivatingVaultsProvider>
         )}
         <div className="mt-auto">
           {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at
