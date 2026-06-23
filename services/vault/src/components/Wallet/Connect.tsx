@@ -48,14 +48,16 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   const isWalletConnected = btcConnected && ethConnected;
 
-  // Show the toggle only once detection confirms inscriptions exist. `inscriptionUTXOs`
-  // is empty while ordinals detection loads or errors, so it stays hidden then too —
-  // safe, since the toggle is a no-op when nothing is detected. `enabled` scopes this
-  // subscription to when the menu can render (the query is shared with the deposit form).
-  const { inscriptionUTXOs } = useUTXOs(btcAddress, {
-    enabled: isWalletConnected && !isGeoBlocked && !isGeoLoading,
-  });
-  const hasInscriptions = inscriptionUTXOs.length > 0;
+  // Show the toggle when inscriptions are detected, or when the user has opted into
+  // including them (keeps the persisted preference changeable). Hidden for the default
+  // no-inscriptions case and during ordinals loading/error (toggling is a no-op then).
+  const utxoOptions = useMemo(
+    () => ({ enabled: isWalletConnected && !isGeoBlocked && !isGeoLoading }),
+    [isWalletConnected, isGeoBlocked, isGeoLoading],
+  );
+  const { inscriptionUTXOs } = useUTXOs(btcAddress, utxoOptions);
+  const shouldShowInscriptionsToggle =
+    inscriptionUTXOs.length > 0 || !ordinalsExcluded;
 
   // Icon source must stay aligned with the (provider-level) connection state:
   // `selectedWallets` is volatile widget state that can lag a reconnect on
@@ -108,7 +110,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           ordinalsExcluded={ordinalsExcluded}
           onIncludeOrdinals={includeOrdinals}
           onExcludeOrdinals={excludeOrdinals}
-          showInscriptionsToggle={hasInscriptions}
+          showInscriptionsToggle={shouldShowInscriptionsToggle}
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
