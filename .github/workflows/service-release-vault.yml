@@ -61,6 +61,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      multi: ${{ steps.matrix.outputs.multi }}
     steps:
       - name: Build publish matrix
         id: matrix
@@ -84,6 +85,16 @@ jobs:
             fi
           fi
           echo "matrix={\"include\":$SELECTED}" >> "$GITHUB_OUTPUT"
+          # multi=true only when publishing more than one environment. Used to
+          # scope continue-on-error: tolerate a prod OIDC failure in the all-env
+          # run (so it can't block devnet), but fail loud when prod is the only
+          # explicitly requested environment (else a scoped prod dispatch goes
+          # green while publishing nothing).
+          if [ "$(echo "$SELECTED" | jq 'length')" -gt 1 ]; then
+            echo "multi=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "multi=false" >> "$GITHUB_OUTPUT"
+          fi
 
   s3_publish:
     needs: [lint_test, setup]
@@ -92,8 +103,11 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
-    # Prod environments will fail OIDC on feature branches; allow failure so devnet jobs aren't blocked
-    continue-on-error: ${{ matrix.prod == true }}
+    # Prod OIDC fails on feature branches; tolerate it ONLY in the multi-env run
+    # so it can't block devnet. When prod (vault-testnet) is the single requested
+    # environment, fail loud — otherwise a scoped prod dispatch reports success
+    # while publishing nothing.
+    continue-on-error: ${{ matrix.prod == true && needs.setup.outputs.multi == 'true' }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
