@@ -5,7 +5,12 @@
  * withdrawal flow.
  */
 
-import { Button, FullScreenDialog, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  FullScreenDialog,
+  Heading,
+  Text,
+} from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -52,18 +57,22 @@ export function WithdrawVaultsModal({
       onClose={onClose}
       className="items-center justify-center p-6"
     >
-      <div className="mx-auto w-full max-w-[520px] rounded-2xl border border-secondary-strokeLight">
-        <div className="border-b border-secondary-strokeLight p-6">
-          <h3 className="text-2xl text-accent-primary">
+      <div className="mx-auto flex w-full max-w-[564px] flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Heading
+            variant="h5"
+            as="h2"
+            className="font-normal text-accent-primary"
+          >
             {COPY.withdraw.modal.title}
-          </h3>
-          <p className="mt-2 text-sm text-accent-secondary">
+          </Heading>
+          <Text variant="subtitle1" className="text-accent-secondary">
             {COPY.withdraw.modal.subtitle}
-          </p>
+          </Text>
         </div>
 
-        <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
-          <div className="max-h-[400px] space-y-3 overflow-y-auto">
+        <div className="flex flex-col gap-6">
+          <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
             {vaults.map((vault) => (
               <WithdrawVaultItem
                 key={vault.id}

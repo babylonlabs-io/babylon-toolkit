@@ -1,7 +1,7 @@
 /**
  * WithdrawVaultItem Component
- * Compact, selectable vault row rendered inside the Withdraw modal: BTC icon +
- * amount + liquidation ordinal, with a trailing selection checkbox.
+ * Selectable vault row rendered inside the Withdraw modal: BTC icon + amount +
+ * liquidation ordinal on a filled card, with a trailing selection checkbox.
  */
 
 import { Avatar, Checkbox } from "@babylonlabs-io/core-ui";
@@ -35,12 +35,12 @@ export function WithdrawVaultItem({
   };
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-secondary-strokeLight p-3">
-      <div className="flex items-center gap-3">
-        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
-        <span className="text-base font-medium text-accent-primary">
+    <div className="flex items-center justify-between rounded-lg bg-primary-contrast px-6 py-4">
+      <div className="flex items-center gap-2">
+        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="medium" />
+        <span className="text-xl text-accent-primary">
           {formatBtcAmount(amountBtc)}{" "}
-          <span className="text-sm text-accent-secondary">
+          <span className="text-accent-secondary">
             ({formatOrdinal(position)})
           </span>
         </span>
