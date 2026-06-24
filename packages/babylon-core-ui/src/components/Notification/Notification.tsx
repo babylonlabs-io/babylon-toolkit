@@ -114,6 +114,10 @@ const VARIANT_ACCENT: Record<NotificationVariant, VariantAccent> = {
 
 const ICON_SIZE = 24;
 
+// Figma's close (X) is a 14px mark centered in a 24px frame; our CloseIcon glyph
+// is full-bleed (no internal padding), so render it at 14 to match the visible X.
+const CLOSE_ICON_SIZE = 14;
+
 const DEFAULT_ICON: Record<NotificationVariant, ComponentType<IconProps>> = {
   error: WarningIcon,
   warning: InfoIcon,
@@ -236,7 +240,7 @@ export function Notification({
           aria-label="Dismiss notification"
           className="-mr-1 -mt-1 flex shrink-0 items-center justify-center rounded p-1 text-accent-secondary transition-colors hover:text-accent-primary"
         >
-          <CloseIcon size={20} />
+          <CloseIcon size={CLOSE_ICON_SIZE} />
         </button>
       )}
     </div>
