@@ -4,10 +4,6 @@ import type { Vault } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 import { formatBtcAmount } from "@/utils/formatting";
 
-// Figma shows the suggested-order chips with two-decimal BTC amounts
-// (e.g. "0.60 BTC"); formatBtcAmount still supplies the network coin suffix.
-const CHIP_BTC_DECIMALS = 2;
-
 interface SuggestedOrderChipsProps {
   vaults: Vault[];
 }
@@ -34,7 +30,7 @@ export function SuggestedOrderChips({ vaults }: SuggestedOrderChipsProps) {
             <span className="rounded-full bg-secondary-highlight px-3 py-1 text-sm text-accent-primary">
               {COPY.liquidationWarnings.reorder.vaultChip(
                 vault.name,
-                formatBtcAmount(vault.btc, CHIP_BTC_DECIMALS),
+                formatBtcAmount(vault.btc),
               )}
             </span>
           </Fragment>
