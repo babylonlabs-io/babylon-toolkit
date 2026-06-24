@@ -331,22 +331,49 @@ export const COPY = {
     artifactDownload: {
       title: "Download BTC Vault artifacts",
       body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      // Shown in the same modal once the download is in flight (title +
+      // body swap so the user sees a focused progress dialog instead of
+      // the pre-download marketing copy).
+      titleDownloading: "Downloading vault artifacts",
+      bodyDownloading:
+        "This may take a few minutes depending on your connection.",
+      // Shown after the download completes (third copy bucket for the
+      // same modal); the green-card layout pairs with this title.
+      titleDownloaded: "Artifacts downloaded",
+      bodyDownloaded: "Your files are stored locally and never uploaded.",
       cancelButton: "Cancel",
-      continueButton: "Continue",
+      cancelDownloadButton: "Cancel download",
+      // Right footer button in the downloaded state. The modal only confirms
+      // the artifacts are on disk; it doesn't perform activation, so the
+      // label simply dismisses the dialog.
+      doneButton: "Done",
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
       cardSubtitle: "Encrypted backup files",
       cardSize: "Up to ~1 GB",
+      // Size variant rendered once the download has completed — the
+      // "Up to" hedge no longer applies because the file is on disk.
+      cardSizeDownloaded: "~1 GB",
       downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      cancelDownloadButton: "Cancel",
-      downloadedLabel: "Downloaded",
       retryButton: "Retry",
       walletSignatureHint:
         "You may be asked to approve a signature in your wallet to authenticate.",
+      // Caption under the progress bar while bytes are streaming.
+      doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
+      // Progress/status lines surfaced in the card while the download hook
+      // works through its fetch / re-auth / wait-for-signatures states.
+      fetchingArtifacts: "Fetching artifacts from vault provider...",
+      reauthenticating: "Re-authenticating with vault provider...",
+      waitingForSignatures:
+        "Waiting for vault provider to process signatures...",
+      // Error fallbacks shown when a thrown error carries no usable message.
+      authenticationFailed: "Authentication failed",
+      reauthenticationFailed: "Re-authentication failed",
+      downloadFailed: "Download failed",
     },
     form: {
       computingAllocation: "Computing allocation...",

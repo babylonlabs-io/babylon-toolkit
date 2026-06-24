@@ -36,6 +36,52 @@ const RPC_TIMEOUT_MS = 120 * 1000;
  */
 const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
 
+/** MIME type for the assembled artifact Blob (the payload is JSON). */
+const ARTIFACT_BLOB_TYPE = "application/json";
+
+/**
+ * Fallback total used by the progress bar when the server omits
+ * Content-Length. Artifact payloads are currently ~1 GB; 1.3 GB leaves
+ * comfortable headroom so the displayed percentage stays under 100% for
+ * a typical response.
+ */
+const ARTIFACT_TOTAL_FALLBACK_BYTES = 1_395_864_371;
+
+export interface FetchArtifactsOptions {
+  /**
+   * Invoked after each chunk read from the response body. `totalBytes`
+   * comes from Content-Length when present, otherwise falls back to a
+   * fixed estimate (the server does not always send a length header).
+   */
+  onProgress?: (receivedBytes: number, totalBytes: number) => void;
+  /**
+   * Polled between chunk reads. Returning true cancels the in-flight
+   * stream — used so the modal's Cancel path actually releases the
+   * connection instead of pulling bytes in the background.
+   */
+  isCancelled?: () => boolean;
+  /**
+   * Aborts the underlying request (threaded into `callRaw` → `fetch`).
+   * Unlike `isCancelled`, which is only polled *between* chunk reads, this
+   * unblocks a `reader.read()` stalled on a silent connection, so Cancel
+   * releases the socket immediately instead of hanging until the next byte,
+   * EOF, or the RPC timeout.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Sentinel thrown when the caller cancels the download via
+ * `FetchArtifactsOptions.isCancelled` or `FetchArtifactsOptions.signal`.
+ * Callers should swallow this instead of surfacing it as an error.
+ */
+export class ArtifactDownloadCancelledError extends Error {
+  constructor() {
+    super("Artifact download was cancelled");
+    this.name = "ArtifactDownloadCancelledError";
+  }
+}
+
 /**
  * Fetch artifacts from the vault provider and trigger a browser file download.
  *
@@ -52,6 +98,7 @@ export async function fetchAndDownloadArtifacts(
   providerAddress: string,
   peginTxid: string,
   depositorPk: string,
+  options?: FetchArtifactsOptions,
 ): Promise<void> {
   const normalizedPeginTxid = stripHexPrefix(peginTxid);
 
@@ -71,20 +118,132 @@ export async function fetchAndDownloadArtifacts(
     tokenProvider,
   });
 
-  const response = await client.callRaw(
-    "vaultProvider_requestDepositorClaimerArtifacts",
-    {
-      pegin_txid: normalizedPeginTxid,
-      depositor_pk: stripHexPrefix(depositorPk),
-    },
-  );
+  let body: ReadBodyResult;
+  try {
+    const response = await client.callRaw(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+      {
+        pegin_txid: normalizedPeginTxid,
+        depositor_pk: stripHexPrefix(depositorPk),
+      },
+      options?.signal,
+    );
 
-  const buffer = await response.arrayBuffer();
-  const blob = new Blob([buffer], { type: "application/json" });
+    body = await readBodyWithProgress(response, options);
+  } catch (err) {
+    // A cancellation can surface here as our own sentinel, the client's
+    // "Request aborted", or a DOM AbortError. Normalize all of them to the
+    // sentinel so the caller's catch swallows the cancel instead of
+    // rendering it as a download failure.
+    if (err instanceof ArtifactDownloadCancelledError) throw err;
+    if (options?.signal?.aborted || options?.isCancelled?.()) {
+      throw new ArtifactDownloadCancelledError();
+    }
+    throw err;
+  }
 
-  validateArtifactPayload(buffer);
+  // Validation runs outside the cancel-normalizing catch above so a genuine
+  // payload error still surfaces as VpResponseValidationError / JsonRpcError.
+  validateArtifactPayload(body.validationBytes, body.byteLength);
 
-  triggerBlobDownload(blob, peginTxid);
+  triggerBlobDownload(body.blob, peginTxid);
+}
+
+interface ReadBodyResult {
+  /** The full payload, assembled without an intermediate contiguous copy. */
+  blob: Blob;
+  /** Exact number of bytes received. */
+  byteLength: number;
+  /**
+   * Contiguous bytes for the small-payload validation branch only. Left
+   * undefined for real (large) artifact payloads, which are never decoded
+   * on the main thread (see ERROR_RESPONSE_SIZE_THRESHOLD), so we skip the
+   * extra full-size allocation on that path.
+   */
+  validationBytes?: Uint8Array;
+}
+
+/**
+ * Stream the response body so the UI can show a real byte-level progress
+ * bar, assembling the chunks straight into a Blob. Building the Blob from
+ * the chunk array avoids allocating a second full-size contiguous buffer
+ * (and the copy loop that fills it) — material on the ~1 GB path, where the
+ * old chunks + merged-buffer + Blob sequence held three full copies live at
+ * once. Falls back to `Response.arrayBuffer()` when the body is not a
+ * ReadableStream (e.g. some test doubles).
+ *
+ * Returns the assembled Blob plus its exact byte length, and — only for
+ * sub-threshold payloads — a contiguous byte copy for validation. Large
+ * payloads skip that copy entirely.
+ */
+async function readBodyWithProgress(
+  response: Response,
+  options: FetchArtifactsOptions | undefined,
+): Promise<ReadBodyResult> {
+  const contentLengthHeader = response.headers.get("content-length");
+  const headerTotal = contentLengthHeader ? Number(contentLengthHeader) : NaN;
+  const totalBytes =
+    Number.isFinite(headerTotal) && headerTotal > 0
+      ? headerTotal
+      : ARTIFACT_TOTAL_FALLBACK_BYTES;
+
+  if (!response.body) {
+    if (options?.isCancelled?.()) {
+      throw new ArtifactDownloadCancelledError();
+    }
+    const buffer = await response.arrayBuffer();
+    options?.onProgress?.(buffer.byteLength, totalBytes);
+    return {
+      blob: new Blob([buffer], { type: ARTIFACT_BLOB_TYPE }),
+      byteLength: buffer.byteLength,
+      validationBytes:
+        buffer.byteLength < ERROR_RESPONSE_SIZE_THRESHOLD
+          ? new Uint8Array(buffer)
+          : undefined,
+    };
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let received = 0;
+
+  options?.onProgress?.(0, totalBytes);
+
+  try {
+    while (true) {
+      if (options?.isCancelled?.()) {
+        await reader.cancel().catch(() => undefined);
+        throw new ArtifactDownloadCancelledError();
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        received += value.byteLength;
+        options?.onProgress?.(received, totalBytes);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // Only the small-payload branch needs contiguous bytes; large artifact
+  // payloads are never decoded, so we don't pay for the concat copy there.
+  let validationBytes: Uint8Array | undefined;
+  if (received < ERROR_RESPONSE_SIZE_THRESHOLD) {
+    validationBytes = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      validationBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+  }
+
+  return {
+    blob: new Blob(chunks, { type: ARTIFACT_BLOB_TYPE }),
+    byteLength: received,
+    validationBytes,
+  };
 }
 
 /**
@@ -92,17 +251,27 @@ export async function fetchAndDownloadArtifacts(
  * its runtime schema. Throws JsonRpcError for RPC-level errors and
  * VpResponseValidationError for malformed or incomplete artifact data.
  *
- * Payloads above ERROR_RESPONSE_SIZE_THRESHOLD are assumed to be real
- * artifact responses and are passed through without parsing - parsing a
- * ~450 MB payload on the main thread would likely exceed V8's string
- * length limit or freeze the tab.
+ * Payloads at or above ERROR_RESPONSE_SIZE_THRESHOLD are assumed to be real
+ * artifact responses and are passed through without decoding - turning a
+ * ~1 GB payload into a string on the main thread would likely exceed V8's
+ * string length limit or freeze the tab. For those, `validationBytes` is
+ * undefined and this is a no-op.
  */
-function validateArtifactPayload(buffer: ArrayBuffer): void {
-  if (buffer.byteLength >= ERROR_RESPONSE_SIZE_THRESHOLD) {
+function validateArtifactPayload(
+  validationBytes: Uint8Array | undefined,
+  byteLength: number,
+): void {
+  if (byteLength >= ERROR_RESPONSE_SIZE_THRESHOLD) {
     return;
   }
 
-  const text = new TextDecoder("utf-8").decode(buffer);
+  if (!validationBytes) {
+    throw new VpResponseValidationError(
+      "Artifact response body was not captured for validation",
+    );
+  }
+
+  const text = new TextDecoder("utf-8").decode(validationBytes);
 
   let envelope: unknown;
   try {
