@@ -998,6 +998,14 @@ export const COPY = {
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
     },
   },
+  // Full-width critical banner rendered above the header when the position is at
+  // imminent liquidation risk (red severity). The warning glyph is supplied via
+  // the banner's icon slot, not the message string.
+  topBanner: {
+    critical: (distancePct: string) =>
+      `Critical — liquidation in ${distancePct}`,
+    liquidatable: "Critical — liquidation can trigger now",
+  },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
   // three warning types produced by the calculator (urgent / dust / weird-params).
   liquidationWarnings: {

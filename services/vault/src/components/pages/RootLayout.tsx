@@ -18,6 +18,7 @@ import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import {
   FeatureFlags,
   getNetworkConfigBTC,
@@ -121,6 +122,10 @@ export default function RootLayout() {
   return (
     <div className="relative h-full min-h-svh w-full bg-surface">
       <div className="flex min-h-svh flex-col">
+        {/* Portal target for the critical near-liquidation banner. Owned by the
+            dashboard (where the Aave data + debug override live) but portaled
+            here so it renders above the header, atop the operational banners. */}
+        <div id={CRITICAL_BANNER_SLOT_ID} />
         <TestingBanner visible={shouldDisplayTestingMsg()} />
         <AddressScreeningBanner
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
