@@ -3,13 +3,7 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import {
-  Avatar,
-  Button,
-  Hint,
-  Loader,
-  StatusBadge,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, Hint, Loader, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { ExplorerLink } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
@@ -147,14 +141,21 @@ export function CollateralVaultItem({
       )}
 
       {!isActivating && onArtifactDownload && (
-        <Button
-          variant="outlined"
-          color="secondary"
-          className="w-full"
-          onClick={onArtifactDownload}
-        >
-          Download Artifacts
-        </Button>
+        <div className="flex items-center justify-between rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
+          <span className="text-sm text-accent-primary">
+            {COPY.collateral.artifactCallout.fileName}{" "}
+            <span className="text-accent-secondary">
+              {COPY.collateral.artifactCallout.recommended}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={onArtifactDownload}
+            className="text-sm font-medium text-accent-primary hover:underline"
+          >
+            {COPY.collateral.artifactCallout.downloadNow}
+          </button>
+        </div>
       )}
     </VaultCardShell>
   );

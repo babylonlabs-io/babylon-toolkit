@@ -8,6 +8,7 @@
 import { Avatar, Hint, WarningIcon } from "@babylonlabs-io/core-ui";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { ExplorerLink } from "@/components/shared/ExplorerLink";
 import { getNetworkConfigBTC } from "@/config";
@@ -179,14 +180,12 @@ export function VaultDetailCard({
             className="text-sm text-accent-primary"
           >
             <span className="inline-flex items-center gap-1.5">
-              {providerIconUrl && (
-                <Avatar
-                  url={providerIconUrl}
-                  alt={providerName}
-                  size="small"
-                  className="h-4 w-4"
-                />
-              )}
+              <ApplicationLogo
+                logoUrl={providerIconUrl ?? null}
+                name={providerName}
+                size="xs"
+                shape="circle"
+              />
               {providerName}
             </span>
           </Hint>

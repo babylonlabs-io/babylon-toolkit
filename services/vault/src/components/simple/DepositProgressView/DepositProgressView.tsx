@@ -9,13 +9,7 @@
  * banners, action button.
  */
 
-import {
-  Button,
-  Callout,
-  Heading,
-  Loader,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useCallback, useMemo } from "react";
 
 import { COPY } from "@/copy";
@@ -26,6 +20,7 @@ import type { DepositErrorContent } from "@/utils/errors";
 
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { CompletedStepsPill } from "./CompletedStepsPill";
+import { DepositCardShell } from "./DepositCardShell";
 import { GroupedProgress } from "./GroupedProgress";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
@@ -33,7 +28,6 @@ import { ProviderWaitDetail } from "./ProviderWaitDetail";
 import { SplitGroupedProgress } from "./SplitGroupedProgress";
 import {
   buildStepItems,
-  DEPOSIT_VIEW_MAX_WIDTH_CLASS,
   getStepFillPercent,
   getVisualStep,
   STEP_GROUPS,
@@ -95,6 +89,10 @@ export interface DepositProgressViewProps {
   terminalMessage?: string | null;
   /** Override the default error retry handler (defaults to onClose) */
   onRetry?: () => void;
+  /** False while the flow has not been started yet (pre-sign entry state). Defaults to true so existing callers are unaffected. */
+  started?: boolean;
+  /** Begins the deposit flow. Required only when `started` can be false. */
+  onSign?: () => void;
   /**
    * Data backing the expanded "Awaiting Bitcoin tx confirmations" detail
    * panel. Rendered while the active step is AWAIT_PAYOUT_TRANSACTIONS —
@@ -164,6 +162,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     terminalMessage,
     onRetry,
     btcConfirmationDetail,
+    started = true,
+    onSign,
   } = props;
 
   // A terminal-but-not-final milestone: closeable success without marking the
@@ -171,9 +171,13 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
 
   // On completion, advance past the last row so every circle renders as ✓.
-  const visualStep = isComplete
-    ? TOTAL_VISUAL_STEPS + 1
-    : getVisualStep(currentStep);
+  // Before the flow starts, pin visual step 0 so every group collapses and
+  // nothing reads as completed.
+  const visualStep = !started
+    ? 0
+    : isComplete
+      ? TOTAL_VISUAL_STEPS + 1
+      : getVisualStep(currentStep);
   // `currentStep` is the active action, but split deposits can have each vault
   // lane land on a different step after a recoverable per-vault failure. The
   // aggregate progress bar and completed-group pill must therefore use the
@@ -184,9 +188,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           getVisualStep(step) < getVisualStep(minStep) ? step : minStep,
         )
       : currentStep;
-  const aggregateVisualStep = isComplete
-    ? TOTAL_VISUAL_STEPS + 1
-    : getVisualStep(aggregateRawStep);
+  const aggregateVisualStep = !started
+    ? 0
+    : isComplete
+      ? TOTAL_VISUAL_STEPS + 1
+      : getVisualStep(aggregateRawStep);
   const completedSteps = Math.max(
     0,
     Math.min(TOTAL_VISUAL_STEPS, aggregateVisualStep - 1),
@@ -223,20 +229,77 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   );
 
   return (
-    <div className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
-      <Heading variant="h5" className="text-accent-primary">
-        {COPY.deposit.progress.heading}
-      </Heading>
-
-      {showOverallProgress && (
-        <div className="mt-3">
+    <DepositCardShell
+      progressBar={
+        showOverallProgress ? (
           <ProgressBar
             percent={isComplete ? 1 : getStepFillPercent(aggregateRawStep)}
+            color="rgb(var(--success-bright))"
           />
-        </div>
-      )}
+        ) : undefined
+      }
+      footer={
+        // Callouts live here (not in the scrollable body) so error/success
+        // banners stay pinned above the CTA, always visible.
+        <div className="flex flex-col gap-4">
+          {error && (
+            <Callout variant="error" title={error.title}>
+              {error.body}
+            </Callout>
+          )}
 
-      <div className="mt-6 flex flex-col gap-6">
+          {isComplete && <Callout variant="success">{successMessage}</Callout>}
+
+          {isTerminalSuccess && (
+            <Callout variant="success">{terminalMessage}</Callout>
+          )}
+
+          <Button
+            disabled={started ? !canClose && !isTerminalSuccess : false}
+            variant="contained"
+            color="secondary"
+            className="w-full"
+            onClick={!started ? onSign : error && onRetry ? onRetry : onClose}
+          >
+            {!started ? (
+              COPY.deposit.progress.buttons.signTransaction
+            ) : canContinueInBackground ? (
+              COPY.deposit.progress.buttons.closeContinueLater
+            ) : error ? (
+              onRetry ? (
+                COPY.deposit.progress.buttons.retry
+              ) : (
+                COPY.deposit.progress.buttons.close
+              )
+            ) : isComplete || isTerminalSuccess ? (
+              COPY.deposit.progress.buttons.done
+            ) : isProcessing ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader size={16} className="text-accent-contrast" />
+                <Text
+                  as="span"
+                  variant="body2"
+                  className="text-accent-contrast"
+                >
+                  {COPY.deposit.progress.buttons.sign}
+                </Text>
+              </span>
+            ) : (
+              COPY.deposit.progress.buttons.sign
+            )}
+          </Button>
+        </div>
+      }
+      footnote={
+        <Text
+          variant="body2"
+          className="text-center text-xs text-accent-secondary"
+        >
+          {COPY.deposit.progress.doNotSpendWarning}
+        </Text>
+      }
+    >
+      <div className="flex flex-col gap-6">
         {showCompletedGroupsPill && (
           <CompletedStepsPill completed={completedGroups} total={totalGroups} />
         )}
@@ -248,6 +311,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             vaultCount={vaultCount}
             currentVaultIndex={currentVaultIndex}
             rawStep={currentStep}
+            hasError={Boolean(error)}
             renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
           />
@@ -256,57 +320,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             steps={steps}
             currentStep={visualStep}
             activeStepDetail={activeStepDetail}
+            hasError={Boolean(error)}
           />
         )}
-
-        {error && (
-          <Callout variant="error" title={error.title}>
-            {error.body}
-          </Callout>
-        )}
-
-        {isComplete && <Callout variant="success">{successMessage}</Callout>}
-
-        {isTerminalSuccess && (
-          <Callout variant="success">{terminalMessage}</Callout>
-        )}
-
-        <Button
-          disabled={!canClose && !isTerminalSuccess}
-          variant="contained"
-          color="secondary"
-          className="w-full"
-          onClick={error && onRetry ? onRetry : onClose}
-        >
-          {canContinueInBackground ? (
-            COPY.deposit.progress.buttons.closeContinueLater
-          ) : error ? (
-            onRetry ? (
-              COPY.deposit.progress.buttons.retry
-            ) : (
-              COPY.deposit.progress.buttons.close
-            )
-          ) : isComplete || isTerminalSuccess ? (
-            COPY.deposit.progress.buttons.done
-          ) : isProcessing ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader size={16} className="text-accent-contrast" />
-              <Text as="span" variant="body2" className="text-accent-contrast">
-                {COPY.deposit.progress.buttons.sign}
-              </Text>
-            </span>
-          ) : (
-            COPY.deposit.progress.buttons.sign
-          )}
-        </Button>
-
-        <Text
-          variant="body2"
-          className="text-center text-xs text-accent-secondary"
-        >
-          {COPY.deposit.progress.doNotSpendWarning}
-        </Text>
       </div>
-    </div>
+    </DepositCardShell>
   );
 }
