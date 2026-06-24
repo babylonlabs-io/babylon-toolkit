@@ -1,5 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -102,6 +103,11 @@ vi.mock("@/copy", () => ({
       resume: {
         activationSuccessMessage: "Deposit successfully submitted!",
         activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
+      },
+      vaultActivatedSuccess: {
+        heading: "BTC Vault activated",
+        body: "Your BTC Vault is now active and ready for borrowing.",
+        goToDashboard: "Go to Dashboard",
       },
       errors: {
         defaultTitle: "Transaction failed",
@@ -264,6 +270,7 @@ function renderView(
       }
       onClose={overrides.onClose ?? vi.fn()}
     />,
+    { wrapper: MemoryRouter },
   );
 }
 
@@ -702,6 +709,7 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey={undefined}
         onClose={vi.fn()}
       />,
+      { wrapper: MemoryRouter },
     );
     expect(queryByTestId("payout")).toBeNull();
     expect(queryByTestId("progress-view")).toBeNull();
