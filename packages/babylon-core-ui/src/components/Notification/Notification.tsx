@@ -236,7 +236,7 @@ export function Notification({
           aria-label="Dismiss notification"
           className="-mr-1 -mt-1 flex shrink-0 items-center justify-center rounded p-1 text-accent-secondary transition-colors hover:text-accent-primary"
         >
-          <CloseIcon size={20} />
+          <CloseIcon size={14} />
         </button>
       )}
     </div>

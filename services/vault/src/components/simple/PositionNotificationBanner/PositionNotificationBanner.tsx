@@ -78,6 +78,7 @@ export function PositionNotificationBanner({
   const { executeReorder, isProcessing: isReordering } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
+  const [isWeirdParamsDismissed, setIsWeirdParamsDismissed] = useState(false);
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -90,6 +91,10 @@ export function PositionNotificationBanner({
       invalidateVaultQueries(queryClient, address as Address);
     }
   }, [address, queryClient]);
+
+  const handleDismissWeirdParams = useCallback(() => {
+    setIsWeirdParamsDismissed(true);
+  }, []);
 
   const handleApplyOrder = useCallback(async () => {
     if (!result?.suggestedVaultOrder || !reorderVerificationContext) return;
@@ -131,6 +136,14 @@ export function PositionNotificationBanner({
   const bannerState = deriveBannerState(result);
 
   if (bannerState.severity === "hidden") return null;
+
+  // Only the weird-params advisory is dismissible (informational, no required
+  // action). The standalone reorder suggestion is also `soft` but has a null
+  // primaryWarning, so it is intentionally excluded.
+  const isWeirdParamsAdvisory =
+    bannerState.severity === "soft" &&
+    bannerState.primaryWarning?.type === "weird-params";
+  if (isWeirdParamsAdvisory && isWeirdParamsDismissed) return null;
 
   const { primaryWarning, secondaryWarnings } = bannerState;
   const variant = SEVERITY_VARIANT[bannerState.severity];
@@ -186,6 +199,7 @@ export function PositionNotificationBanner({
             </div>
           ) : undefined
         }
+        onClose={isWeirdParamsAdvisory ? handleDismissWeirdParams : undefined}
         data-testid={TEST_ID}
         data-severity={bannerState.severity}
       >

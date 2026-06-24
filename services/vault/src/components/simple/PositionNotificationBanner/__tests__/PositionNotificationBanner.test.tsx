@@ -52,6 +52,14 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
         <div>{props.title as ReactNode}</div>
         <div>{props.children as ReactNode}</div>
         {props.suggestion ? <div>{props.suggestion as ReactNode}</div> : null}
+        {props.onClose ? (
+          <button
+            aria-label="Dismiss notification"
+            onClick={props.onClose as () => void}
+          >
+            dismiss
+          </button>
+        ) : null}
         {actions.map((action, index) => (
           <button
             key={index}
@@ -252,6 +260,50 @@ describe("PositionNotificationBanner", () => {
     expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+  });
+
+  it("hides the weird-params advisory after its dismiss control is clicked", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "weird-params",
+          title: "Protocol parameters don't compute",
+          detail: "THF must be greater than expected HF.",
+          tone: "soft",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("does not render a dismiss control on the urgent banner", () => {
+    const result = makeBaseResult({
+      warnings: [
+        { type: "urgent", title: "Liquidation is 3.0% away", detail: "..." },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
+  it("does not render a dismiss control on the reorder suggestion", () => {
+    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
   });
 
   it("renders soft reorder note + Apply Suggested Order for a healthy but suboptimal position", () => {
