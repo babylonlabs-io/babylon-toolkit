@@ -56,3 +56,13 @@ export const Hidden: Story = {
     onDismiss: () => console.log("Banner dismissed"),
   },
 };
+
+// Omitting `onDismiss` renders a non-dismissible banner (no close button) — e.g.
+// a critical alert the user must not be able to hide.
+export const NonDismissible: Story = {
+  args: {
+    visible: true,
+    message: "Critical — liquidation in 4.3%",
+    onClick: () => console.log("Banner clicked"),
+  },
+};

@@ -36,6 +36,7 @@ import {
 } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
+import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
@@ -88,6 +89,10 @@ export function DashboardPage() {
   const liquidationNotificationsEnabled =
     featureFlags.isLiquidationNotificationsEnabled;
 
+  // Feed the critical top banner the same debug-aware result the mid-page banner
+  // uses: the debug override when set, otherwise the live calculation.
+  const criticalBannerResult = debugResultOverride ?? positionNotifications;
+
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
@@ -136,6 +141,12 @@ export function DashboardPage() {
   const pctToLiquidation = firstLiquidationGroup
     ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
     : COPY.common.emptyValue;
+
+  const scrollToPositionBanner = useCallback(() => {
+    document
+      .querySelector('[data-testid="position-notification-banner"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
 
   const handleOpenWithdraw = useCallback(() => {
     setIsWithdrawOpen(true);
@@ -193,6 +204,13 @@ export function DashboardPage() {
           btcPrice={btcPrice}
           pctToLiquidation={pctToLiquidation}
         />
+
+        {liquidationNotificationsEnabled && (
+          <CriticalLiquidationTopBanner
+            result={criticalBannerResult}
+            onShowDetails={scrollToPositionBanner}
+          />
+        )}
 
         {liquidationNotificationsEnabled && (
           <PositionNotificationBanner
