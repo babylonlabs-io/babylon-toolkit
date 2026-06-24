@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading, Loader } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
@@ -145,7 +145,16 @@ export function CollateralSection({
     return undefined;
   }, [hasWithdrawableVault, wouldBreachHF, effectiveSelectedVaultIds.length]);
 
-  const canReorder = collateralVaults.length >= 2;
+  // Optimistic "activating" rows have no indexed liquidation order yet and
+  // aren't on-chain collateral, so they must not enter the reorder path (gate,
+  // gas estimate, or the signed permutation). This single derived list drives
+  // both the gate and the modal data so the two can't drift apart.
+  const hasActivatingVault = collateralVaults.some((v) => v.isActivating);
+  const reorderableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.isActivating),
+    [collateralVaults],
+  );
+  const canReorder = reorderableVaults.length >= 2;
 
   const handleToggleVaultSelect = useCallback(
     (vaultId: string) => {
@@ -251,9 +260,21 @@ export function CollateralSection({
                 alt={btcConfig.coinSymbol}
                 size="medium"
               />
-              <span className="text-xl text-accent-primary">
-                {totalAmountBtc}
-              </span>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl text-accent-primary">
+                    {totalAmountBtc}
+                  </span>
+                  {hasActivatingVault && (
+                    <Loader size={16} className="text-accent-secondary" />
+                  )}
+                </div>
+                {hasActivatingVault && (
+                  <span className="text-sm text-accent-secondary">
+                    {COPY.collateral.activating}
+                  </span>
+                )}
+              </div>
             </div>
             <ExpandMenuButton
               isExpanded={isExpanded}
@@ -325,7 +346,7 @@ export function CollateralSection({
       <ReorderVaultsModal
         isOpen={isReorderOpen}
         onClose={() => setIsReorderOpen(false)}
-        vaults={collateralVaults}
+        vaults={reorderableVaults}
         onSuccess={() => setIsReorderSuccess(true)}
       />
 

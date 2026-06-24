@@ -630,6 +630,9 @@ export const COPY = {
     releaseHfBreachTooltip: (threshold: number) =>
       `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
+    // Shown on an optimistic collateral row right after the activation ETH tx,
+    // while the indexer catches up and the vault becomes "In use".
+    activating: "Activating collateral...",
     empty: {
       title: "Deposit Bitcoin to get started",
       body: (symbol: string) =>

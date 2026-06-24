@@ -21,6 +21,14 @@ export interface CollateralVaultEntry {
   addedAt: number;
   /** Whether the vault is currently in use as collateral */
   inUse: boolean;
+  /**
+   * True for an optimistic row shown right after the activation ETH tx, while
+   * the Aave indexer has not yet ingested the vault as collateral. Such a row
+   * has no indexed metadata (provider/tx hashes/liquidation order may be
+   * placeholders) and is not selectable/withdrawable. Cleared once the indexer
+   * reflects the vault. See ActivatingVaultsContext.
+   */
+  isActivating?: boolean;
   /** Vault provider Ethereum address */
   providerAddress: string;
   /** Vault provider display name */
