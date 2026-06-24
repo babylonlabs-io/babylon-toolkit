@@ -9,12 +9,7 @@
  * banners, action button.
  */
 
-import {
-  Button,
-  Callout,
-  Loader,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useCallback, useMemo } from "react";
 
 import { COPY } from "@/copy";
@@ -296,7 +291,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         </div>
       }
       footnote={
-        <Text variant="body2" className="text-center text-xs text-accent-secondary">
+        <Text
+          variant="body2"
+          className="text-center text-xs text-accent-secondary"
+        >
           {COPY.deposit.progress.doNotSpendWarning}
         </Text>
       }

@@ -27,7 +27,10 @@ function GroupIndicator({
 
   if (status === "completed") {
     return (
-      <div className={twMerge(base, "bg-success-bright")} aria-label={ariaLabel}>
+      <div
+        className={twMerge(base, "bg-success-bright")}
+        aria-label={ariaLabel}
+      >
         <IoCheckmarkSharp size={16} className="text-accent-contrast" />
       </div>
     );
