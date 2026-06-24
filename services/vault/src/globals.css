@@ -16,6 +16,11 @@ html {
   --primary: #ff7c2a;
   --secondary: "#0DB7BF";
   --toastify-toast-width: 344px;
+  /* Brand success green (Figma foundation/green/a400, #15B768) as RGB channels
+   * so Tailwind alpha modifiers (e.g. bg-success-bright/10) resolve correctly.
+   * Used by the deposit progress bar, the steps-completed pill, and completed
+   * step checks. */
+  --success-bright: 21 183 104;
 }
 
 @media screen and (min-width: 768px) {

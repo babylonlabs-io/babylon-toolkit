@@ -1,6 +1,7 @@
 import { Accordion, AccordionDetails, Card } from "@babylonlabs-io/core-ui";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
+import { PARTIAL_LIQUIDATION_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
 interface PartialLiquidationProps {
@@ -96,17 +97,16 @@ export function UtxoSplitSelector({
                 </span>
               </span>
               <span className="text-xs text-accent-secondary">
-                {COPY.deposit.form.splitOptionDescription}
-                {/* TODO: restore once we have the final docs URL for split rationale
-                {" "}
+                {COPY.deposit.form.splitOptionDescription}{" "}
                 <a
-                  href="#"
-                  className="text-secondary-main underline"
+                  href={PARTIAL_LIQUIDATION_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-primary underline"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  {COPY.deposit.form.learnWhyRecommended}
+                  {COPY.deposit.form.learnMore}
                 </a>
-                */}
               </span>
             </span>
             {partialLiquidation.isEnabled && (

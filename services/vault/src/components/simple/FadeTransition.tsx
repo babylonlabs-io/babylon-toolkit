@@ -30,7 +30,7 @@ export function FadeTransition({
 
   return (
     <div
-      className="w-full transition-opacity duration-300 ease-in-out"
+      className="w-full transition-opacity duration-150 ease-in-out"
       style={{ opacity: visible ? 1 : 0 }}
     >
       {children}

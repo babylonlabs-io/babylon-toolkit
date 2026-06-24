@@ -7,20 +7,12 @@ import { COPY } from "@/copy";
 import type { GroupStatus } from "./steps";
 
 interface GroupHeaderProps {
-  /** 1-based ordinal of the group, rendered as a letter (A, B, C, …). */
+  /** 1-based ordinal of the group, rendered as a number. */
   number: number;
   title: string;
   status: GroupStatus;
   completedInGroup: number;
   totalInGroup: number;
-}
-
-/**
- * Group indicators use letters (A, B, C, …) so they read distinctly from the
- * numbered sub-steps nested inside each group.
- */
-function groupLetter(ordinal: number): string {
-  return String.fromCharCode("A".charCodeAt(0) + ordinal - 1);
 }
 
 function GroupIndicator({
@@ -35,7 +27,7 @@ function GroupIndicator({
 
   if (status === "completed") {
     return (
-      <div className={twMerge(base, "bg-primary-light")} aria-label={ariaLabel}>
+      <div className={twMerge(base, "bg-success-bright")} aria-label={ariaLabel}>
         <IoCheckmarkSharp size={16} className="text-accent-contrast" />
       </div>
     );
@@ -43,24 +35,15 @@ function GroupIndicator({
 
   return (
     <div
-      className={twMerge(
-        base,
-        "border-2",
-        status === "active"
-          ? "border-primary-light"
-          : "border-secondary-strokeDark",
-      )}
+      className={twMerge(base, "border-2 border-accent-primary")}
       aria-label={ariaLabel}
     >
       <Text
         as="span"
         variant="body2"
-        className={twMerge(
-          "font-medium",
-          status === "active" ? "text-accent-primary" : "text-accent-secondary",
-        )}
+        className="font-medium text-accent-primary"
       >
-        {groupLetter(number)}
+        {number}
       </Text>
     </div>
   );
@@ -79,16 +62,17 @@ export function GroupHeader({
       <Text
         as="span"
         variant="body1"
-        className={twMerge(
-          "flex-1 font-medium",
-          status === "upcoming"
-            ? "text-accent-secondary"
-            : "text-accent-primary",
-        )}
+        className="flex-1 font-medium text-accent-primary"
       >
         {title}
       </Text>
-      <Text as="span" variant="body2" className="text-accent-secondary">
+      <Text
+        as="span"
+        variant="body2"
+        className={
+          status === "active" ? "text-accent-primary" : "text-accent-secondary"
+        }
+      >
         {COPY.deposit.groups.stepCounter(completedInGroup, totalInGroup)}
       </Text>
     </div>
