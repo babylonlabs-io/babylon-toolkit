@@ -13,8 +13,8 @@ export function SplitTooLowHint({ minDepositForSplit }: SplitTooLowHintProps) {
     formatBtcFromSats(minDepositForSplit),
   );
 
-  // Centered hint; the wider horizontal padding keeps the message compact and
-  // centered whether it renders on one or two lines.
+  // Centered hint that sizes to its content, wrapping to a second line when the
+  // message is too long for the row.
   return (
     <div
       role="status"

@@ -377,7 +377,7 @@ function SimpleDepositContent({
     >
       <FadeTransition stepKey={stepKey}>
         {showForm && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className="mx-auto w-full max-w-[564px]">
             <Heading variant="h5">Deposit</Heading>
             <div className="mt-4">
               <DepositForm
