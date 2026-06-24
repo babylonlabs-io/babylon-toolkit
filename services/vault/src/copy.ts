@@ -343,8 +343,8 @@ export const COPY = {
       continueButton: "Continue",
     },
     vaultActivatedSuccess: {
-      heading: "BTC Vault activated",
-      body: "Your BTC Vault is now active and ready for borrowing.",
+      heading: "Vault activated",
+      body: "Your vault is now active and ready for borrowing.",
       goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
