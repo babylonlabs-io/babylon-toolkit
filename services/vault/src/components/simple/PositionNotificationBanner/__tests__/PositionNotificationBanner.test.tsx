@@ -32,15 +32,37 @@ vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: { readContract: vi.fn(), getTransactionReceipt: vi.fn() },
 }));
 
-// Mock core-ui to avoid ESM transformation issues in test environment
+// Mock core-ui Notification to avoid ESM transformation issues in the test
+// environment. Render the pieces the banner assertions depend on: title, body,
+// the suggestion sub-box, and the action pills (label + onClick + disabled),
+// and surface variant/severity as data-attributes.
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  Text: (props: Record<string, unknown>) => {
-    const { children, ...rest } = props;
-    return <span {...rest}>{children as ReactNode}</span>;
-  },
-  Button: (props: Record<string, unknown>) => {
-    const { children, ...rest } = props;
-    return <button {...rest}>{children as ReactNode}</button>;
+  Notification: (props: Record<string, unknown>) => {
+    const actions = (props.actions ?? []) as Array<{
+      label: ReactNode;
+      onClick: () => void;
+      disabled?: boolean;
+    }>;
+    return (
+      <div
+        data-testid={props["data-testid"] as string}
+        data-severity={props["data-severity"] as string}
+        data-variant={props.variant as string}
+      >
+        <div>{props.title as ReactNode}</div>
+        <div>{props.children as ReactNode}</div>
+        {props.suggestion ? <div>{props.suggestion as ReactNode}</div> : null}
+        {actions.map((action, index) => (
+          <button
+            key={index}
+            onClick={action.onClick}
+            disabled={action.disabled}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    );
   },
 }));
 
@@ -186,6 +208,7 @@ describe("PositionNotificationBanner", () => {
     renderBanner(makeBaseResult(), onDeposit, onRepay);
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("green");
+    expect(banner.dataset.variant).toBe("success");
     expect(screen.getByText("Position optimally structured")).toBeTruthy();
     expect(screen.queryByText("Apply Suggested Order")).toBeNull();
   });
@@ -204,6 +227,7 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("red");
+    expect(banner.dataset.variant).toBe("error");
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
     expect(screen.queryByText("Apply Suggested Order")).toBeNull();
@@ -224,6 +248,7 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("soft");
+    expect(banner.dataset.variant).toBe("info");
     expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Apply Suggested Order")).toBeNull();
@@ -333,6 +358,7 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
     expect(
       screen.getByText("Position notifications temporarily unavailable"),
     ).toBeTruthy();
