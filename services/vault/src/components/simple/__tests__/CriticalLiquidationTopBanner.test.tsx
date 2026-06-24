@@ -66,7 +66,6 @@ describe("CriticalLiquidationTopBanner", () => {
     render(
       <CriticalLiquidationTopBanner
         result={makeResult({ distancePct: -4.3, urgent: true })}
-        onShowDetails={() => {}}
       />,
     );
 
@@ -75,11 +74,20 @@ describe("CriticalLiquidationTopBanner", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes the banner as an alert for assistive tech", () => {
+    render(
+      <CriticalLiquidationTopBanner
+        result={makeResult({ distancePct: -4.3, urgent: true })}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
   it("shows the imminent message when already liquidatable (distancePct >= 0)", () => {
     render(
       <CriticalLiquidationTopBanner
         result={makeResult({ distancePct: 1.2, urgent: true })}
-        onShowDetails={() => {}}
       />,
     );
 
@@ -92,7 +100,6 @@ describe("CriticalLiquidationTopBanner", () => {
     render(
       <CriticalLiquidationTopBanner
         result={makeResult({ distancePct: -30, urgent: false })}
-        onShowDetails={() => {}}
       />,
     );
 
@@ -103,7 +110,6 @@ describe("CriticalLiquidationTopBanner", () => {
     render(
       <CriticalLiquidationTopBanner
         result={makeResult({ distancePct: -4.3, urgent: true })}
-        onShowDetails={() => {}}
       />,
     );
 

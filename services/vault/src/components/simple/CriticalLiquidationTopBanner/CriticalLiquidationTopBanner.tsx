@@ -23,18 +23,17 @@ interface CriticalLiquidationTopBannerProps {
    * shows only when this resolves to a `red` (urgent) banner severity.
    */
   result: CalculatorResult | null;
-  /** Scroll the detailed position banner into view when the strip is clicked. */
-  onShowDetails: () => void;
 }
 
 /**
  * Full-width critical (near-liquidation) banner shown above the header when the
- * position is at `red` severity. Non-dismissible by design — an imminent
- * liquidation warning the user must not be able to hide.
+ * position is at `red` severity. A non-interactive `role="alert"` so assistive
+ * tech announces it; non-dismissible by design — an imminent liquidation warning
+ * the user must not be able to hide. The actionable Add Collateral / Repay Debt
+ * controls live on the detailed position banner below.
  */
 export function CriticalLiquidationTopBanner({
   result,
-  onShowDetails,
 }: CriticalLiquidationTopBannerProps) {
   // The portal target lives in RootLayout (mounted before this component);
   // resolve it on mount so we can portal into it once available.
@@ -63,8 +62,8 @@ export function CriticalLiquidationTopBanner({
   return createPortal(
     <TopBanner
       visible
+      role="alert"
       message={message}
-      onClick={onShowDetails}
       icon={<IoWarning size={20} className="shrink-0 text-white" />}
       // error-dark (#C62828) matches the Figma critical-banner fill; force white
       // text over it (the base banner message defaults to accent-primary) and a

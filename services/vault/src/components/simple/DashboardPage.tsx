@@ -142,12 +142,6 @@ export function DashboardPage() {
     ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
     : COPY.common.emptyValue;
 
-  const scrollToPositionBanner = useCallback(() => {
-    document
-      .querySelector('[data-testid="position-notification-banner"]')
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
-
   const handleOpenWithdraw = useCallback(() => {
     setIsWithdrawOpen(true);
   }, []);
@@ -206,10 +200,7 @@ export function DashboardPage() {
         />
 
         {liquidationNotificationsEnabled && (
-          <CriticalLiquidationTopBanner
-            result={criticalBannerResult}
-            onShowDetails={scrollToPositionBanner}
-          />
+          <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
 
         {liquidationNotificationsEnabled && (

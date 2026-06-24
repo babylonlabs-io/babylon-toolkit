@@ -30,6 +30,13 @@ export interface TopBannerProps {
    * Optional custom icon
    */
   icon?: React.ReactNode;
+  /**
+   * Optional ARIA role for the banner wrapper. Use for a non-interactive banner
+   * that should still be announced — e.g. `"alert"` for a critical warning. When
+   * omitted, a clickable banner is exposed as a `button` and a non-clickable one
+   * carries no role.
+   */
+  role?: React.AriaRole;
 }
 
 export const TopBanner = ({
@@ -39,6 +46,7 @@ export const TopBanner = ({
   onDismiss,
   className,
   icon,
+  role,
 }: TopBannerProps) => {
   if (!visible) {
     return null;
@@ -59,7 +67,7 @@ export const TopBanner = ({
         className,
       )}
       onClick={onClick}
-      role={isClickable ? "button" : undefined}
+      role={role ?? (isClickable ? "button" : undefined)}
       tabIndex={isClickable ? 0 : undefined}
     >
       <div className="bbn-top-banner-content">
