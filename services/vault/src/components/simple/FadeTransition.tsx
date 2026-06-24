@@ -1,3 +1,4 @@
+import { useReducedMotion } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -10,28 +11,34 @@ export function FadeTransition({
   stepKey: string;
   children: React.ReactNode;
 }) {
+  const reduced = useReducedMotion();
   const [visible, setVisible] = useState(false);
   const prevKey = useRef(stepKey);
 
   useEffect(() => {
     if (stepKey !== prevKey.current) {
-      // New step: start invisible, then fade in
       setVisible(false);
       prevKey.current = stepKey;
+      if (reduced) {
+        setVisible(true);
+        return;
+      }
       const raf = requestAnimationFrame(() => {
         requestAnimationFrame(() => setVisible(true));
       });
       return () => cancelAnimationFrame(raf);
-    } else {
-      // Initial mount
-      setVisible(true);
     }
-  }, [stepKey]);
+    setVisible(true);
+  }, [stepKey, reduced]);
 
   return (
     <div
-      className="w-full transition-opacity duration-150 ease-in-out"
-      style={{ opacity: visible ? 1 : 0 }}
+      className="w-full"
+      style={{
+        opacity: visible ? 1 : 0,
+        transition:
+          "opacity var(--motion-duration-reveal, 150ms) var(--motion-ease-reveal, ease-in-out)",
+      }}
     >
       {children}
     </div>

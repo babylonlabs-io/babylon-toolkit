@@ -30,6 +30,9 @@ html {
   --motion-ease-backdrop: ease-out;
   --motion-shift-modal-in: 8px;
   --motion-shift-modal-out: 4px;
+  /* Motion spec — Progressive Reveal / State Transition (Figma §3, §6) */
+  --motion-duration-reveal: 180ms;
+  --motion-ease-reveal: ease-out;
 }
 
 @media screen and (min-width: 768px) {
