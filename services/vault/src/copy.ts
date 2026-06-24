@@ -337,14 +337,14 @@ export const COPY = {
       download: "Download Artifacts",
     },
     artifactDownload: {
-      title: "Activate your vault",
-      body: "Before activating, download the recovery artifacts of your vault. These files will make sure your vault is fully functional even if your vault provider becomes unavailable.",
+      title: "Activate your BTC Vault",
+      body: "Before activating, download the recovery artifacts of your BTC Vault. These files will make sure your BTC Vault is fully functional even if your vault provider becomes unavailable.",
       cancelButton: "Cancel",
       continueButton: "Continue",
     },
     vaultActivatedSuccess: {
-      heading: "Vault activated",
-      body: "Your vault is now active and ready for borrowing.",
+      heading: "BTC Vault activated",
+      body: "Your BTC Vault is now active and ready for borrowing.",
       goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
@@ -408,7 +408,6 @@ export const COPY = {
         "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault.",
-      learnWhyRecommended: "Learn why we recommend this.",
       // "Learn more here." link appended to the split-option description in
       // UtxoSplitSelector, pointing at the partial-liquidation docs.
       learnMore: "Learn more here.",

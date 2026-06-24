@@ -180,14 +180,12 @@ export function VaultDetailCard({
             className="text-sm text-accent-primary"
           >
             <span className="inline-flex items-center gap-1.5">
-              <span className="inline-flex items-center [&>div>span]:!text-[10px] [&>div]:!h-4 [&>div]:!w-4 [&>img]:!h-4 [&>img]:!w-4">
-                <ApplicationLogo
-                  logoUrl={providerIconUrl ?? null}
-                  name={providerName}
-                  size="small"
-                  shape="circle"
-                />
-              </span>
+              <ApplicationLogo
+                logoUrl={providerIconUrl ?? null}
+                name={providerName}
+                size="xs"
+                shape="circle"
+              />
               {providerName}
             </span>
           </Hint>
