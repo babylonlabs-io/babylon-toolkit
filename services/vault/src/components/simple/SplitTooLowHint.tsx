@@ -19,7 +19,7 @@ export function SplitTooLowHint({ minDepositForSplit }: SplitTooLowHintProps) {
     <div
       role="status"
       aria-live="polite"
-      className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-[46px] py-2 text-center"
+      className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center"
     >
       <IoInformationCircle
         size={18}
