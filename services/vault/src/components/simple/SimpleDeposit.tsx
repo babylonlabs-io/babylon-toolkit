@@ -118,6 +118,8 @@ function SimpleDepositContent({
     vaultAmounts,
     isSplitLoading,
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     depositorClaimValue,
     depositorClaimValueError,
     ordinalsCheckPending,
@@ -216,6 +218,8 @@ function SimpleDepositContent({
         canSplit,
         isLoading: isSplitLoading,
         splitRatioLabel,
+        minDepositForSplit,
+        isSplitAmountTooLow,
       };
 
   // UTXO-overlap advisory: count is computed on click and rendered as a
