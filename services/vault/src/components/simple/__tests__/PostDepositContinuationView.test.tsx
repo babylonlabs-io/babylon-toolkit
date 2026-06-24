@@ -1,5 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -102,6 +103,11 @@ vi.mock("@/copy", () => ({
       resume: {
         activationSuccessMessage: "Deposit successfully submitted!",
         activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
+      },
+      vaultActivatedSuccess: {
+        heading: "Vault activated",
+        body: "Your vault is now active and ready for borrowing.",
+        goToDashboard: "Go to Dashboard",
       },
       errors: {
         defaultTitle: "Transaction failed",
@@ -264,6 +270,7 @@ function renderView(
       }
       onClose={overrides.onClose ?? vi.fn()}
     />,
+    { wrapper: MemoryRouter },
   );
 }
 
@@ -334,7 +341,7 @@ describe("PostDepositContinuationView", () => {
     ]);
     mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
-    const { getByTestId, rerender } = renderView({
+    const { getByTestId, getByText, queryByTestId, rerender } = renderView({
       vaultIds: ["0xvault0" as Hex],
     });
     expect(getByTestId("activate")).toBeTruthy();
@@ -359,17 +366,16 @@ describe("PostDepositContinuationView", () => {
       />,
     );
 
-    // With no vault left to continue, the modal lands on the completed view
-    // rather than parking on a generic "awaiting confirmation" step.
-    expect(getByTestId("step").textContent).toBe("COMPLETED");
-    expect(getByTestId("complete").textContent).toBe("true");
-    // Single deposit → singular success copy.
-    expect(getByTestId("success-message").textContent).toBe(
-      "Deposit successfully submitted!",
-    );
+    // With no vault left to continue, the modal lands on the activated success
+    // screen (replacing the progress view) rather than parking on a generic
+    // "awaiting confirmation" step.
+    expect(getByText("Vault activated")).toBeInTheDocument();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    // The deposit progress view is replaced, not layered behind.
+    expect(queryByTestId("step")).toBeNull();
   });
 
-  it("uses the plural success message when a whole split batch is complete", () => {
+  it("shows the activated success screen when a whole split batch is complete", () => {
     const VERIFIED = 1;
     const done = () =>
       resultWith({
@@ -383,16 +389,15 @@ describe("PostDepositContinuationView", () => {
     ]);
     mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
-    const { getByTestId } = renderView({
+    const { getByText, queryByTestId } = renderView({
       vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
       activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
     });
 
-    // No candidate vault remains → complete view; a 2-vault batch reads plural.
-    expect(getByTestId("step").textContent).toBe("COMPLETED");
-    expect(getByTestId("success-message").textContent).toBe(
-      "Your BTC Vaults have been activated.",
-    );
+    // No candidate vault remains → the single activated success screen shows.
+    expect(getByText("Vault activated")).toBeInTheDocument();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    expect(queryByTestId("step")).toBeNull();
   });
 
   it("advances to the next vault once the current vault finishes activating", () => {
@@ -702,6 +707,7 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey={undefined}
         onClose={vi.fn()}
       />,
+      { wrapper: MemoryRouter },
     );
     expect(queryByTestId("payout")).toBeNull();
     expect(queryByTestId("progress-view")).toBeNull();

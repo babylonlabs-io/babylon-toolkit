@@ -86,7 +86,7 @@ export function ArtifactDownloadModal({
       />
 
       <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-2 text-accent-primary">
-        <div className="flex flex-col items-center gap-10">
+        <div className="flex flex-col items-start gap-10">
           <svg
             width="90"
             height="90"
@@ -118,11 +118,11 @@ export function ArtifactDownloadModal({
               strokeLinejoin="round"
             />
           </svg>
-          <div className="flex w-full flex-col items-center gap-4">
-            <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
+          <div className="flex w-full flex-col items-start gap-4">
+            <h2 className="text-left text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
               {COPY.deposit.artifactDownload.title}
             </h2>
-            <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
+            <p className="text-left text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
               {COPY.deposit.artifactDownload.body}
             </p>
           </div>

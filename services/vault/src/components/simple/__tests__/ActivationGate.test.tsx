@@ -24,6 +24,16 @@ vi.mock("../ActivateConfirmationModal", () => ({
   ),
 }));
 
+vi.mock("../InStepArtifactCallout", () => ({
+  InStepArtifactCallout: ({ onSkip }: { onSkip: () => void }) => (
+    <div data-testid="instep-artifact">
+      <button type="button" data-testid="artifact-skip" onClick={onSkip}>
+        skip
+      </button>
+    </div>
+  ),
+}));
+
 function activity(overrides?: Partial<VaultActivity>): VaultActivity {
   return {
     id: "0xvault",
@@ -46,13 +56,18 @@ describe("ActivationGate", () => {
     expect(queryByTestId("activation-step")).toBeNull();
   });
 
-  it("renders the children only after the user confirms", () => {
-    const { getByTestId } = render(
+  it("shows the artifact callout after confirming, then the children after skipping", () => {
+    const { getByTestId, queryByTestId } = render(
       <ActivationGate activity={activity()} onClose={vi.fn()}>
         <div data-testid="activation-step" />
       </ActivationGate>,
     );
     fireEvent.click(getByTestId("confirm-activate"));
+    // After confirming: the in-step artifact callout, not the activation step yet.
+    expect(getByTestId("instep-artifact")).toBeTruthy();
+    expect(queryByTestId("activation-step")).toBeNull();
+    // Skipping the artifact download proceeds to the activation step.
+    fireEvent.click(getByTestId("artifact-skip"));
     expect(getByTestId("activation-step")).toBeTruthy();
   });
 

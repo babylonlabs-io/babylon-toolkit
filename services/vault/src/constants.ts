@@ -25,6 +25,11 @@ export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
 export const WITHDRAWAL_LATENCY_DOCS_URL = "https://docs.babylonlabs.io";
 export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 
+// Partial-liquidation (2-UTXO split) docs link, surfaced from the split-option
+// description in UtxoSplitSelector. TODO(product): swap in the exact
+// partial-liquidation doc page once confirmed — the docs root is a placeholder.
+export const PARTIAL_LIQUIDATION_DOCS_URL = "https://docs.babylonlabs.io";
+
 // Bitcoin protocol constants
 export const BTC_BLOCK_TIME_MINS = 10;
 export const MINS_PER_HOUR = 60;

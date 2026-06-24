@@ -30,7 +30,7 @@ interface PartialLiquidationProps {
   splitRatioLabel: string | null;
 }
 
-interface DepositFormProps {
+export interface DepositAmountState {
   amount: string;
   amountSats: bigint;
   btcBalance: bigint;
@@ -60,6 +60,9 @@ interface DepositFormProps {
   effectiveRemaining: bigint | null;
   /** True when the supply-cap read errored — CTA must reflect this. */
   capUnavailable: boolean;
+}
+
+export interface DepositFeeState {
   /**
    * Exact per-HTLC PegIn (activation) tx fee in satoshis. Null while the
    * WASM query is loading. The CTA must block submission while this is
@@ -74,18 +77,6 @@ interface DepositFormProps {
   minPeginFeeError: Error | null;
   btcPrice: number;
   hasPriceFetchError: boolean;
-  onAmountChange: (value: string) => void;
-  onMaxClick: () => void;
-
-  applications: Application[];
-  selectedApplication: string;
-
-  providers: VaultProviderListItem[];
-  isLoadingProviders: boolean;
-  selectedProvider: string;
-  onProviderSelect: (providerId: string) => void;
-
-  isWalletConnected: boolean;
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
   isLoadingFee: boolean;
@@ -103,35 +94,29 @@ interface DepositFormProps {
    * state. Null while the query is healthy.
    */
   depositorClaimValueError: Error | null;
-  isDepositDisabled: boolean;
-  isGeoBlocked: boolean;
-  isAddressBlocked: boolean;
-  onDeposit: () => void;
-
-  partialLiquidation?: PartialLiquidationProps;
-
-  collateralFactor?: number | null;
-
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
   protocolFeeIsError?: boolean;
-
   feeRows?: FeeRow[];
+}
 
-  /**
-   * True while the inscription (ordinals) check is still in flight. Blocks
-   * submission so the user cannot deposit before the spendable set has been
-   * filtered against inscriptions.
-   */
-  ordinalsCheckPending?: boolean;
+export interface DepositProviderState {
+  applications: Application[];
+  selectedApplication: string;
+  providers: VaultProviderListItem[];
+  isLoadingProviders: boolean;
+  selectedProvider: string;
+  onProviderSelect: (providerId: string) => void;
+}
 
+export interface DepositWalletState {
+  isWalletConnected: boolean;
   /**
    * True when the click-time wallet-liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
    * the click handler upstream branches to the reconnect flow.
    */
   hasWalletConnectionError?: boolean;
-
   /**
    * Detail string for the current wallet connection error. Rendered inline
    * above the CTA so the user sees the underlying cause (locked extension,
@@ -139,13 +124,11 @@ interface DepositFormProps {
    * "Reconnect Wallet" button label.
    */
   walletConnectionErrorMessage?: string | null;
-
   /**
    * True while the click-time wallet liveness probe is running. Used to
    * disable the Deposit button so the user cannot double-trigger the check.
    */
   isVerifyingWallet?: boolean;
-
   /**
    * True while a reconnect attempt is in flight. Disables the CTA and
    * swaps its label to a progress indicator.
@@ -153,53 +136,93 @@ interface DepositFormProps {
   isReconnectingWallet?: boolean;
 }
 
+export interface DepositGatingState {
+  isDepositDisabled: boolean;
+  isGeoBlocked: boolean;
+  isAddressBlocked: boolean;
+  /**
+   * True while the inscription (ordinals) check is still in flight. Blocks
+   * submission so the user cannot deposit before the spendable set has been
+   * filtered against inscriptions.
+   */
+  ordinalsCheckPending?: boolean;
+}
+
+interface DepositFormProps {
+  amountState: DepositAmountState;
+  feeState: DepositFeeState;
+  providerState: DepositProviderState;
+  walletState: DepositWalletState;
+  gatingState: DepositGatingState;
+  collateralFactor?: number | null;
+  partialLiquidation?: PartialLiquidationProps;
+  onAmountChange: (value: string) => void;
+  onMaxClick: () => void;
+  onDeposit: () => void;
+}
+
 export function DepositForm({
-  amount,
-  amountSats,
-  btcBalance,
-  unconfirmedBalance,
-  hasUnconfirmedBalanceOnly,
-  minDeposit,
-  maxDeposit,
-  maxDepositSats,
-  effectiveRemaining,
-  capUnavailable,
-  minPeginFee,
-  minPeginFeeError,
-  btcPrice,
-  hasPriceFetchError,
+  amountState,
+  feeState,
+  providerState,
+  walletState,
+  gatingState,
+  collateralFactor = null,
+  partialLiquidation,
   onAmountChange,
   onMaxClick,
-  applications,
-  selectedApplication,
-  providers,
-  isLoadingProviders,
-  selectedProvider,
-  onProviderSelect,
-  isWalletConnected,
-  estimatedFeeSats,
-  estimatedFeeRate,
-  isLoadingFee,
-  feeError,
-  depositorClaimValue,
-  commissionHtlcValues,
-  depositorClaimValueError,
-  isDepositDisabled,
-  isGeoBlocked,
-  isAddressBlocked,
   onDeposit,
-  partialLiquidation,
-  collateralFactor = null,
-  protocolFeeAmount = "--",
-  protocolFeePrice = "",
-  protocolFeeIsError = false,
-  feeRows,
-  ordinalsCheckPending = false,
-  hasWalletConnectionError = false,
-  walletConnectionErrorMessage = null,
-  isVerifyingWallet = false,
-  isReconnectingWallet = false,
 }: DepositFormProps) {
+  const {
+    amount,
+    amountSats,
+    btcBalance,
+    unconfirmedBalance,
+    hasUnconfirmedBalanceOnly,
+    minDeposit,
+    maxDeposit,
+    maxDepositSats,
+    effectiveRemaining,
+    capUnavailable,
+  } = amountState;
+  const {
+    minPeginFee,
+    minPeginFeeError,
+    btcPrice,
+    hasPriceFetchError,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    depositorClaimValue,
+    commissionHtlcValues,
+    depositorClaimValueError,
+    protocolFeeAmount = "--",
+    protocolFeePrice = "",
+    protocolFeeIsError = false,
+    feeRows,
+  } = feeState;
+  const {
+    applications,
+    selectedApplication,
+    providers,
+    isLoadingProviders,
+    selectedProvider,
+    onProviderSelect,
+  } = providerState;
+  const {
+    isWalletConnected,
+    hasWalletConnectionError = false,
+    walletConnectionErrorMessage = null,
+    isVerifyingWallet = false,
+    isReconnectingWallet = false,
+  } = walletState;
+  const {
+    isDepositDisabled,
+    isGeoBlocked,
+    isAddressBlocked,
+    ordinalsCheckPending = false,
+  } = gatingState;
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
@@ -339,11 +362,7 @@ export function DepositForm({
           }
           sliderVariant="primary"
           leftField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-              : usdValue,
-          }}
-          rightField={{
+            label: COPY.deposit.form.maxLabel,
             value: maxDepositLabel,
             // Mention the supply cap only when one exists for this user.
             // `effectiveRemaining` is null both when no cap applies and while
@@ -359,7 +378,12 @@ export function DepositForm({
                   hasSupplyCap: effectiveRemaining !== null,
                 }),
           }}
-          maxPosition="right"
+          rightField={{
+            value: !hasAmount
+              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+              : usdValue,
+          }}
+          maxPosition="left"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />

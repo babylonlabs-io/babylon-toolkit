@@ -73,10 +73,10 @@ describe("DepositProgressView", () => {
         screen.queryByText(COPY.deposit.steps.signPayouts),
       ).not.toBeInTheDocument();
 
-      // The finished "Register deposit" group reports 7/7.
+      // The finished "Register deposit" group is hidden (folds into the pill).
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
-      ).toBeInTheDocument();
+        screen.queryByText(COPY.deposit.groups.registerDeposit),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -372,7 +372,7 @@ describe("DepositProgressView", () => {
   });
 
   describe("complete state", () => {
-    it("collapses all groups with full counters and fills the progress bar", () => {
+    it("hides all groups and fills the progress bar on completion", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -381,16 +381,13 @@ describe("DepositProgressView", () => {
         />,
       );
 
+      // Completed groups fold into the pill — no group headers or sub-steps remain.
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
-      ).toBeInTheDocument();
+        screen.queryByText(COPY.deposit.groups.registerDeposit),
+      ).not.toBeInTheDocument();
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(4, 4)),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(3, 3)),
-      ).toBeInTheDocument();
-      // No expanded sub-steps remain.
+        screen.queryByText(COPY.deposit.groups.activateVault),
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(COPY.deposit.steps.revealSecret),
       ).not.toBeInTheDocument();
@@ -409,8 +406,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
+      // All four groups are done → the pill reports "4 of 4 steps completed".
       expect(
-        screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+        screen.getByText(COPY.deposit.progress.stepsCompleted(4, 4)),
       ).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toHaveAttribute(
         "aria-valuenow",

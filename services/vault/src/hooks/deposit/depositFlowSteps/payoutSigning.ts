@@ -74,6 +74,14 @@ export async function signAndSubmitPayouts(
   });
 
   const peginTxid = stripHexPrefix(peginTxHash);
+
+  // Surface the auth-anchor signature as its own "Authenticate session" step.
+  // The VP auth popup fires inside ensureAuthenticatedVpClient below; without
+  // this, currentStep skips straight from "await payout" to "sign payout", so a
+  // rejection here would land on (and the auth step would falsely complete as)
+  // the next step.
+  onProgress?.({ phase: "auth", completed: 0, total: 0 });
+
   const rpcClient = await ensureAuthenticatedVpClient({
     btcWallet,
     vaultId,

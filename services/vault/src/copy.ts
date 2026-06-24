@@ -207,6 +207,7 @@ export const COPY = {
     a11y: {
       stepActive: (number: number) => `Step ${number} active`,
       stepPending: (number: number) => `Step ${number} not started`,
+      stepFailed: (number: number) => `Step ${number} failed`,
       groupStatus: {
         completed: "Completed",
         active: "In progress",
@@ -243,6 +244,7 @@ export const COPY = {
         close: "Close",
         done: "Done",
         sign: "Sign",
+        signTransaction: "Sign Transaction",
       },
     },
     btcConfirmation: {
@@ -328,11 +330,22 @@ export const COPY = {
       activateButton: "Activate Vault",
       cancelButton: "Cancel",
     },
+    inStepArtifact: {
+      fileName: "vault-artifacts.json",
+      recommended: "(Recommended)",
+      skip: "Skip",
+      download: "Download Artifacts",
+    },
     artifactDownload: {
-      title: "Download BTC Vault artifacts",
-      body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      title: "Activate your BTC Vault",
+      body: "Before activating, download the recovery artifacts of your BTC Vault. These files will make sure your BTC Vault is fully functional even if your vault provider becomes unavailable.",
       cancelButton: "Cancel",
       continueButton: "Continue",
+    },
+    vaultActivatedSuccess: {
+      heading: "Vault activated",
+      body: "Your vault is now active and ready for borrowing.",
+      goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
@@ -350,6 +363,9 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      // Amount-input left-field label; the slider renders its Max button when
+      // this reads "max" (case-insensitive), so keep the value as "Max".
+      maxLabel: "Max",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
@@ -392,7 +408,16 @@ export const COPY = {
         "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault.",
-      learnWhyRecommended: "Learn why we recommend this.",
+      // "Learn more here." link appended to the split-option description in
+      // UtxoSplitSelector, pointing at the partial-liquidation docs.
+      learnMore: "Learn more here.",
+      // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
+      maxToBorrowLabel: "Max to Borrow:",
+      cfParenthetical: (percent: string) => `(CF=${percent})`,
+      // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
+      depositFeeLabel: "Deposit Fee",
+      depositFeeTooltip:
+        "A one-time fee charged by the protocol to process your deposit.",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
@@ -637,6 +662,11 @@ export const COPY = {
       title: "Deposit Bitcoin to get started",
       body: (symbol: string) =>
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
+    },
+    artifactCallout: {
+      fileName: "vault-artifacts.json",
+      recommended: "(Recommended)",
+      downloadNow: "Download now",
     },
   },
   // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when

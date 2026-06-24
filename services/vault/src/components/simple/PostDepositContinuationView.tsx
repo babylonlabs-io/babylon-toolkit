@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
@@ -29,6 +30,7 @@ import {
   ResumeSignContent,
   ResumeWotsContent,
 } from "./ResumeDepositContent";
+import { VaultActivatedView } from "./VaultActivatedView";
 
 interface PostDepositContinuationViewProps {
   vaultIds: Hex[];
@@ -127,6 +129,12 @@ export function PostDepositContinuationView({
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  const navigate = useNavigate();
+
+  const handleGoToDashboard = useCallback(() => {
+    navigate("/", { replace: true });
+    onClose();
+  }, [navigate, onClose]);
 
   const isActionable = (id: string): boolean => {
     const state = getPollingResult(id)?.peginState;
@@ -281,27 +289,9 @@ export function PostDepositContinuationView({
         />
       );
     }
-    return (
-      <StatusView
-        currentStep={DepositFlowStep.COMPLETED}
-        isComplete
-        onClose={onClose}
-        // Plural only when EVERY vault in the batch is actually activated
-        // (ACTIVE / optimistic VERIFIED+CONFIRMED) — an explicit guard rather
-        // than trusting the "no candidate ⇒ all done" invariant, so a
-        // terminal-but-not-activated sibling can never read as "activated".
-        successMessage={
-          vaultCount > 1 &&
-          vaultIds.every((id) =>
-            isVaultActivated(getPollingResult(id)?.peginState),
-          )
-            ? COPY.deposit.resume.activationSuccessMessagePlural
-            : COPY.deposit.resume.activationSuccessMessage
-        }
-        vaultCount={vaultCount}
-        currentVaultIndex={null}
-      />
-    );
+    // Terminal success: show only the activated screen — one surface at a time,
+    // so the deposit progress view is replaced rather than layered behind it.
+    return <VaultActivatedView onGoToDashboard={handleGoToDashboard} />;
   }
 
   const actions = peginState?.availableActions ?? [];
