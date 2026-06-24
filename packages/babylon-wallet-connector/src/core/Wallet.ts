@@ -38,7 +38,7 @@ export class Wallet<P extends IProvider> implements IWallet {
   }
 
   get label() {
-    return this._label ?? (this.installed ? "Installed" : "");
+    return this._label ?? "";
   }
 
   async connect(onProgress?: ProgressReporter) {

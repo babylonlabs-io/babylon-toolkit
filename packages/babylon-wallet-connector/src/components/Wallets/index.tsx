@@ -18,13 +18,22 @@ export interface WalletsProps {
   onSelectWallet?: (chain: IChain, wallet: IWallet) => void;
 }
 
+// Connect-list ordering: installed software wallets (green) first, then
+// hardware wallets (yellow — available but need connecting), then uninstalled
+// download-only options (gray) at the bottom. A lower rank sorts higher, so
+// when no software wallet is installed the hardware options surface to the top.
+const walletDisplayRank = (wallet: IWallet): number => {
+  if (wallet.installed && !wallet.label) return 0;
+  if (wallet.label) return 1;
+  return 2;
+};
+
 export const Wallets = memo(({ chain, className, append, onSelectWallet }: WalletsProps) => {
   const wallets = useMemo(
     () =>
       chain.wallets
         .filter((wallet) => (wallet.id === "injectable" ? wallet.installed : true))
-        // Installed wallets first; uninstalled (download-only) options sink to the bottom.
-        .sort((a, b) => Number(b.installed) - Number(a.installed)),
+        .sort((a, b) => walletDisplayRank(a) - walletDisplayRank(b)),
     [chain],
   );
 
@@ -64,6 +73,7 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
         {wallets.map((wallet) => (
           <WalletButton
             installed={wallet.installed}
+            label={wallet.label}
             key={wallet.id}
             name={wallet.name}
             logo={wallet.icon}

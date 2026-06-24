@@ -34,7 +34,7 @@ const wallets: IWallet[] = [
     docs: "",
     provider: null,
     account: null,
-    label: "Installed",
+    label: "",
   },
   {
     id: "keystone",
