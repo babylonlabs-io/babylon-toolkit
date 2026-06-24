@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
-import { VaultActivatedModal } from "@/components/deposit/VaultActivatedModal";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
@@ -31,6 +30,7 @@ import {
   ResumeSignContent,
   ResumeWotsContent,
 } from "./ResumeDepositContent";
+import { VaultActivatedView } from "./VaultActivatedView";
 
 interface PostDepositContinuationViewProps {
   vaultIds: Hex[];
@@ -289,34 +289,9 @@ export function PostDepositContinuationView({
         />
       );
     }
-    return (
-      <>
-        <StatusView
-          currentStep={DepositFlowStep.COMPLETED}
-          isComplete
-          onClose={onClose}
-          // Plural only when EVERY vault in the batch is actually activated
-          // (ACTIVE / optimistic VERIFIED+CONFIRMED) — an explicit guard rather
-          // than trusting the "no candidate ⇒ all done" invariant, so a
-          // terminal-but-not-activated sibling can never read as "activated".
-          successMessage={
-            vaultCount > 1 &&
-            vaultIds.every((id) =>
-              isVaultActivated(getPollingResult(id)?.peginState),
-            )
-              ? COPY.deposit.resume.activationSuccessMessagePlural
-              : COPY.deposit.resume.activationSuccessMessage
-          }
-          vaultCount={vaultCount}
-          currentVaultIndex={null}
-        />
-        <VaultActivatedModal
-          open
-          onClose={onClose}
-          onGoToDashboard={handleGoToDashboard}
-        />
-      </>
-    );
+    // Terminal success: show only the activated screen — one surface at a time,
+    // so the deposit progress view is replaced rather than layered behind it.
+    return <VaultActivatedView onGoToDashboard={handleGoToDashboard} />;
   }
 
   const actions = peginState?.availableActions ?? [];

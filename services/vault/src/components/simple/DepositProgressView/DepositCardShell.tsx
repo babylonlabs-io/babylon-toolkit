@@ -22,7 +22,7 @@ import type { ReactNode } from "react";
 
 import { COPY } from "@/copy";
 
-import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./steps";
+import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./layout";
 
 interface DepositCardShellProps {
   /**
