@@ -125,21 +125,21 @@ export default {
       keyframes: {
         "modal-in": {
           "0%": {
-            transform: "scale(.96)",
+            transform: "translateY(var(--motion-shift-modal-in, 0px))",
             opacity: 0,
           },
           "100%": {
-            transform: "scale(1)",
+            transform: "translateY(0)",
             opacity: 1,
           },
         },
         "modal-out": {
           "0%": {
-            transform: "scale(1)",
+            transform: "translateY(0)",
             opacity: 1,
           },
           "100%": {
-            transform: "scale(.96)",
+            transform: "translateY(var(--motion-shift-modal-out, 0px))",
             opacity: 0,
           },
         },
@@ -177,12 +177,12 @@ export default {
         },
       },
       animation: {
-        "modal-in": "modal-in 0.5s ease-in-out forwards",
-        "modal-out": "modal-out 0.5s ease-in-out forwards",
-        "mobile-modal-in": "mobile-modal-in 0.5s ease-in-out forwards",
-        "mobile-modal-out": "mobile-modal-out 0.5s ease-in-out forwards",
-        "backdrop-in": "backdrop-in 0.5s ease-in-out forwards",
-        "backdrop-out": "backdrop-out 0.5s ease-in-out forwards",
+        "modal-in": "modal-in var(--motion-duration-modal, 0.5s) var(--motion-ease-modal-in, ease-in-out) forwards",
+        "modal-out": "modal-out var(--motion-duration-modal-out, 0.5s) var(--motion-ease-modal-out, ease-in-out) forwards",
+        "mobile-modal-in": "mobile-modal-in var(--motion-duration-modal, 0.5s) var(--motion-ease-modal-in, ease-in-out) forwards",
+        "mobile-modal-out": "mobile-modal-out var(--motion-duration-modal-out, 0.5s) var(--motion-ease-modal-out, ease-in-out) forwards",
+        "backdrop-in": "backdrop-in var(--motion-duration-backdrop, 0.5s) var(--motion-ease-backdrop, ease-in-out) forwards",
+        "backdrop-out": "backdrop-out var(--motion-duration-backdrop, 0.5s) var(--motion-ease-backdrop, ease-in-out) forwards",
       },
     },
   },
