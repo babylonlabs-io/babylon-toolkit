@@ -938,7 +938,7 @@ export const COPY = {
   activity: {
     pageTitle: "Activity",
     filterAll: "Show all",
-    // Visible filter options in dropdown order (matches Figma node 6602-64485).
+    // Visible filter options in dropdown order
     // Redeem / Pending Deposit rows still render but are not filterable —
     // they don't appear here on purpose.
     filterTypes: {
@@ -964,7 +964,7 @@ export const COPY = {
   banner: {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
-    applySuggestedOrder: "Apply Suggested Order",
+    applyOptimalOrder: "Apply Optimal Order",
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -1025,9 +1025,11 @@ export const COPY = {
     // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
     // engine finds a safer liquidation order than the current on-chain order.
     reorder: {
-      title: "BTC Vaults aren't in the safest liquidation order",
+      title: "Reorder vaults to lose less",
       detail:
-        "Reordering puts a smaller BTC Vault first so less collateral is seized in the first liquidation event. Apply the suggested order to improve your partial-liquidation protection.",
+        "A different vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
+      suggestedOrderLabel: "Suggested order",
+      vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
     },
     dust: {
       title: "Position too small to model",

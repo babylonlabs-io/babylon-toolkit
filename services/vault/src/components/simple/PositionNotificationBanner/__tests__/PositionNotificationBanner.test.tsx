@@ -218,7 +218,7 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.severity).toBe("green");
     expect(banner.dataset.variant).toBe("success");
     expect(screen.getByText("Position optimally structured")).toBeTruthy();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
   it("renders red banner with Add Collateral + Repay Debt for an urgent warning", () => {
@@ -238,7 +238,7 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.variant).toBe("error");
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
   it("renders soft banner for a weird-params advisory with no actions", () => {
@@ -259,7 +259,7 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.variant).toBe("info");
     expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
     expect(screen.queryByText("Add Collateral")).toBeNull();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
   it("hides the weird-params advisory after its dismiss control is clicked", () => {
@@ -306,22 +306,26 @@ describe("PositionNotificationBanner", () => {
     ).toBeNull();
   });
 
-  it("renders soft reorder note + Apply Suggested Order for a healthy but suboptimal position", () => {
+  it("renders the gold reorder suggestion with a chip row + Apply Optimal Order for a healthy but suboptimal position", () => {
     const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("soft");
-    expect(
-      screen.getByText("BTC Vaults aren't in the safest liquidation order"),
-    ).toBeTruthy();
-    expect(screen.getByText("Apply Suggested Order")).toBeTruthy();
+    // Standalone reorder uses the gold `suggestion` variant, not blue `info`.
+    expect(banner.dataset.variant).toBe("suggestion");
+    expect(screen.getByText("Reorder vaults to lose less")).toBeTruthy();
+    // Suggested-order chip row renders each vault in order.
+    expect(screen.getByText("Suggested order")).toBeTruthy();
+    expect(screen.getByText(/Vault 2 ·/)).toBeTruthy();
+    expect(screen.getByText(/Vault 1 ·/)).toBeTruthy();
+    expect(screen.getByText("Apply Optimal Order")).toBeTruthy();
     // Reorder-only — no collateral/repay actions.
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Repay Debt")).toBeNull();
   });
 
-  it("shows Add Collateral, Repay Debt and Apply Suggested Order when urgent + suboptimal", () => {
+  it("shows Add Collateral, Repay Debt and Apply Optimal Order when urgent + suboptimal", () => {
     const result = makeBaseResult({
       warnings: [
         { type: "urgent", title: "Liquidation is 4.3% away", detail: "..." },
@@ -332,7 +336,7 @@ describe("PositionNotificationBanner", () => {
 
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    expect(screen.getByText("Apply Suggested Order")).toBeTruthy();
+    expect(screen.getByText("Apply Optimal Order")).toBeTruthy();
   });
 
   it("calls onDeposit when Add Collateral is clicked", () => {
@@ -355,11 +359,11 @@ describe("PositionNotificationBanner", () => {
     expect(onRepay).toHaveBeenCalled();
   });
 
-  it("calls executeReorder with vault IDs and verification context when Apply Suggested Order is clicked", () => {
+  it("calls executeReorder with vault IDs and verification context when Apply Optimal Order is clicked", () => {
     const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Apply Suggested Order"));
+    fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
       suggestedOrderContext: mockReorderVerificationContext,
     });
@@ -375,7 +379,7 @@ describe("PositionNotificationBanner", () => {
     const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Apply Suggested Order"));
+    fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).not.toHaveBeenCalled();
   });
 
@@ -429,7 +433,7 @@ describe("PositionNotificationBanner", () => {
 
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Repay Debt")).toBeNull();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
   it("renders nothing for dust (hidden severity)", () => {

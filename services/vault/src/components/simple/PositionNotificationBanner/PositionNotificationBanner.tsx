@@ -3,7 +3,7 @@ import {
   type NotificationVariant,
 } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount } from "wagmi";
 
@@ -30,6 +30,7 @@ import {
   STALE_PRICE_BANNER_DETAIL,
   STALE_PRICE_BANNER_TITLE,
 } from "./constants";
+import { SuggestedOrderChips } from "./SuggestedOrderChips";
 
 const TEST_ID = "position-notification-banner";
 
@@ -146,7 +147,17 @@ export function PositionNotificationBanner({
   if (isWeirdParamsAdvisory && isWeirdParamsDismissed) return null;
 
   const { primaryWarning, secondaryWarnings } = bannerState;
-  const variant = SEVERITY_VARIANT[bannerState.severity];
+
+  // The standalone reorder suggestion (soft severity, no primaryWarning) renders
+  // as the gold `suggestion` variant per Figma — distinct from the weird-params
+  // advisory, which is also soft but sets primaryWarning.
+  const isStandaloneReorder =
+    bannerState.severity === "soft" &&
+    !primaryWarning &&
+    bannerState.suggestReorder;
+  const variant = isStandaloneReorder
+    ? "suggestion"
+    : SEVERITY_VARIANT[bannerState.severity];
 
   // Primary content: green standalone copy / risk warning / standalone reorder.
   let title: string;
@@ -172,33 +183,38 @@ export function PositionNotificationBanner({
     isReordering,
   });
 
+  // Sub-box content: the suggested-order chips for the standalone reorder card,
+  // otherwise the stacked secondary warnings (e.g. urgent + weird-params).
+  let suggestion: ReactNode;
+  if (isStandaloneReorder && result.suggestedVaultOrder) {
+    suggestion = <SuggestedOrderChips vaults={result.suggestedVaultOrder} />;
+  } else if (secondaryWarnings.length > 0) {
+    suggestion = (
+      <div className="flex flex-col gap-2">
+        {secondaryWarnings.map((warning, index) => (
+          <div key={index}>
+            <div className="text-sm font-semibold text-accent-primary">
+              {warning.title}
+            </div>
+            {warning.detail && <div className="text-sm">{warning.detail}</div>}
+            {warning.suggestion && (
+              <div className="text-sm opacity-80">{warning.suggestion}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <>
       <Notification
         variant={variant}
         title={title}
+        icon={isStandaloneReorder ? null : undefined}
         actions={actions.length > 0 ? actions : undefined}
-        suggestion={
-          secondaryWarnings.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {secondaryWarnings.map((warning, index) => (
-                <div key={index}>
-                  <div className="text-sm font-semibold text-accent-primary">
-                    {warning.title}
-                  </div>
-                  {warning.detail && (
-                    <div className="text-sm">{warning.detail}</div>
-                  )}
-                  {warning.suggestion && (
-                    <div className="text-sm opacity-80">
-                      {warning.suggestion}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : undefined
-        }
+        actionsPlacement={isStandaloneReorder ? "below" : "inline"}
+        suggestion={suggestion}
         onClose={isWeirdParamsAdvisory ? handleDismissWeirdParams : undefined}
         data-testid={TEST_ID}
         data-severity={bannerState.severity}
