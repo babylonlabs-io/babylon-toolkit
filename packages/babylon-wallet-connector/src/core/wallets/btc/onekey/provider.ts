@@ -251,6 +251,12 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
+    // OneKey renders a blank popup for signPsbts with a single-element
+    // array. Route through signPsbt instead.
+    if (psbtsHexes.length === 1) {
+      return [await this.signPsbt(psbtsHexes[0], options?.[0])];
+    }
+
     // If options provided, map them to OneKey format
     if (options && options.length > 0) {
       const onekeyOptions = options.map((opt) => {
