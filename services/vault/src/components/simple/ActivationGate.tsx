@@ -34,7 +34,6 @@ export function ActivationGate({
         depositorPk={activity.depositorBtcPubkey}
         unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
         onSkip={() => setProceeding(true)}
-        onClose={onClose}
       />
     );
   }

@@ -14,7 +14,6 @@ interface InStepArtifactCalloutProps {
   depositorPk?: string;
   unsignedPrePeginTxHex?: string;
   onSkip: () => void;
-  onClose: () => void;
 }
 
 export function InStepArtifactCallout({
@@ -24,7 +23,6 @@ export function InStepArtifactCallout({
   depositorPk,
   unsignedPrePeginTxHex,
   onSkip,
-  onClose,
 }: InStepArtifactCalloutProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -50,7 +48,7 @@ export function InStepArtifactCallout({
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-neutral-200 text-accent-primary">
             <IoDocumentText size={24} />
           </div>
-          <div className="flex flex-col items-start gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col items-start gap-1">
             <span className="text-lg font-medium leading-[1.4] tracking-[0.15px] text-accent-primary">
               {COPY.deposit.inStepArtifact.fileName}
             </span>
@@ -62,11 +60,7 @@ export function InStepArtifactCallout({
 
         {/* Actions: Skip + Download */}
         <div className="flex gap-3">
-          <Button
-            variant="outlined"
-            className="h-10 flex-1"
-            onClick={onSkip}
-          >
+          <Button variant="outlined" className="h-10 flex-1" onClick={onSkip}>
             {COPY.deposit.inStepArtifact.skip}
           </Button>
           <Button

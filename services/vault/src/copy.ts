@@ -363,6 +363,9 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      // Amount-input left-field label; the slider renders its Max button when
+      // this reads "max" (case-insensitive), so keep the value as "Max".
+      maxLabel: "Max",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."

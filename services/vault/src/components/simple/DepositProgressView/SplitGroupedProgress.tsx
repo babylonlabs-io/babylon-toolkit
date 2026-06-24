@@ -65,7 +65,10 @@ function VaultColumn({
   activeStepDetail,
 }: {
   vaultIndex: number;
-  branchGroups: { group: ReturnType<typeof buildStepGroups>[number]; number: number }[];
+  branchGroups: {
+    group: ReturnType<typeof buildStepGroups>[number];
+    number: number;
+  }[];
   steps: StepperItem[];
   perVaultVisualStep: number;
   hasError: boolean;
@@ -163,8 +166,14 @@ export function SplitGroupedProgress({
               branchGroups={branchGroups}
               steps={steps}
               perVaultVisualStep={perVaultVisualStep}
-              // Only the lane parked on the shared failed step shows the error.
-              hasError={hasError && perVaultVisualStep === currentStep}
+              // Only the failing vault's own lane shows the error — gate on the
+              // active vault index, not just the visual step, since two lanes can
+              // sit on the same step while only the current vault was rejected.
+              hasError={
+                hasError &&
+                vaultIndex === currentVaultIndex &&
+                perVaultVisualStep === currentStep
+              }
               activeStepDetail={renderStepDetail?.(vaultRawStep, {
                 stacked: true,
               })}

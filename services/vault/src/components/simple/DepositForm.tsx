@@ -362,7 +362,7 @@ export function DepositForm({
           }
           sliderVariant="primary"
           leftField={{
-            label: "Max",
+            label: COPY.deposit.form.maxLabel,
             value: maxDepositLabel,
             // Mention the supply cap only when one exists for this user.
             // `effectiveRemaining` is null both when no cap applies and while
