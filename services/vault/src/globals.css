@@ -21,6 +21,15 @@ html {
    * Used by the deposit progress bar, the steps-completed pill, and completed
    * step checks. */
   --success-bright: 21 183 104;
+  /* Motion spec — Modals (Figma 7831:25100 §1) */
+  --motion-duration-modal: 220ms;
+  --motion-duration-modal-out: 180ms;
+  --motion-duration-backdrop: 220ms;
+  --motion-ease-modal-in: ease-out;
+  --motion-ease-modal-out: ease-in;
+  --motion-ease-backdrop: ease-out;
+  --motion-shift-modal-in: 8px;
+  --motion-shift-modal-out: 4px;
 }
 
 @media screen and (min-width: 768px) {
