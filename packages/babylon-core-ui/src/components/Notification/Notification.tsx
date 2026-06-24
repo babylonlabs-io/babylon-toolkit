@@ -14,6 +14,13 @@ import {
 } from "../Icons";
 import { Text } from "../Text";
 
+import {
+  type NotificationAction,
+  NotificationActionButton,
+} from "./NotificationActionButton";
+
+export type { NotificationAction } from "./NotificationActionButton";
+
 export type NotificationVariant =
   | "error"
   | "warning"
@@ -23,17 +30,6 @@ export type NotificationVariant =
   | "suggestion";
 
 export type NotificationActionsPlacement = "inline" | "below";
-
-export interface NotificationAction {
-  label: ReactNode;
-  onClick?: () => void;
-  /**
-   * `primary` = filled with the variant accent color; `secondary` = outlined.
-   * Defaults to `primary`.
-   */
-  emphasis?: "primary" | "secondary";
-  disabled?: boolean;
-}
 
 export interface NotificationProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
@@ -127,31 +123,9 @@ const DEFAULT_ICON: Record<NotificationVariant, ComponentType<IconProps>> = {
   suggestion: InfoIcon,
 };
 
-const ACTION_BASE =
-  "rounded-full px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50";
-
-function ActionButton({
-  action,
-  accent,
-}: {
-  action: NotificationAction;
-  accent: VariantAccent;
-}) {
-  const { label, emphasis = "primary", onClick, disabled } = action;
-  const styles =
-    emphasis === "primary"
-      ? twMerge(ACTION_BASE, accent.accentBg, accent.onAccent, "hover:opacity-90")
-      : twMerge(
-          ACTION_BASE,
-          "border border-secondary-strokeLight text-accent-primary hover:bg-neutral-200",
-        );
-
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={styles}>
-      {label}
-    </button>
-  );
-}
+// React drops `false`/`null`/`undefined`, but `0` and `""` are valid content —
+// gate optional slots on absence, not truthiness, so they are not swallowed.
+const isPresent = (node: ReactNode): boolean => node != null && node !== false;
 
 export function Notification({
   variant,
@@ -186,7 +160,12 @@ export function Notification({
   const alignClass = centerAlign ? "items-center" : "items-start";
 
   const actionButtons = actions?.map((action, index) => (
-    <ActionButton key={index} action={action} accent={accent} />
+    <NotificationActionButton
+      key={index}
+      action={action}
+      accentBg={accent.accentBg}
+      onAccent={accent.onAccent}
+    />
   ));
 
   return (
@@ -216,12 +195,12 @@ export function Notification({
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex min-w-0 flex-col gap-1">
-            {title && (
+            {isPresent(title) && (
               <div className="break-words text-xl font-bold tracking-0.15 text-accent-primary">
                 {title}
               </div>
             )}
-            {children && (
+            {isPresent(children) && (
               <Text
                 as="div"
                 variant="body2"
@@ -232,7 +211,7 @@ export function Notification({
             )}
           </div>
 
-          {suggestion && (
+          {isPresent(suggestion) && (
             <div className="flex w-full flex-col gap-2 rounded-lg bg-neutral-200 p-4 text-accent-secondary">
               {suggestion}
             </div>

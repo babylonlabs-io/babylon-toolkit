@@ -45,8 +45,8 @@ export const ErrorInlineActions: Story = {
     children:
       "BTC has dropped below your liquidation price ($88,400). Anyone can liquidate your position at any moment.",
     actions: [
-      { label: "Add Collateral", emphasis: "primary" },
-      { label: "Repay Debt", emphasis: "secondary" },
+      { label: "Add Collateral", emphasis: "primary", onClick: () => {} },
+      { label: "Repay Debt", emphasis: "secondary", onClick: () => {} },
     ],
   },
 };
@@ -129,7 +129,9 @@ export const SuggestionBelowActions: Story = {
       </>
     ),
     actionsPlacement: "below",
-    actions: [{ label: "Apply Suggested Order", emphasis: "primary" }],
+    actions: [
+      { label: "Apply Suggested Order", emphasis: "primary", onClick: () => {} },
+    ],
   },
 };
 
