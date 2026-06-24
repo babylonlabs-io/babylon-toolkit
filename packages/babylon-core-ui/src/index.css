@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+ * Motion tokens — single source of truth for animation timing.
+ * Defaults below preserve CURRENT core-ui behavior (0.5s modal,
+ * 0.5s backdrop). Consumers (e.g. the vault app) override these
+ * custom properties at :root to apply their own motion spec.
+ * ============================================================ */
+:root {
+  /* durations */
+  --motion-duration-modal: 0.5s;
+  --motion-duration-modal-out: 0.5s;
+  --motion-duration-backdrop: 0.5s;
+
+  /* easings */
+  --motion-ease-modal-in: ease-in-out;
+  --motion-ease-modal-out: ease-in-out;
+  --motion-ease-backdrop: ease-in-out;
+
+  /* transform distances */
+  --motion-shift-modal-in: 0px;   /* current modal uses scale, not translate */
+  --motion-shift-modal-out: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-modal: 0.01ms;
+    --motion-duration-modal-out: 0.01ms;
+    --motion-duration-backdrop: 0.01ms;
+  }
+}
+
 @layer utilities {
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
