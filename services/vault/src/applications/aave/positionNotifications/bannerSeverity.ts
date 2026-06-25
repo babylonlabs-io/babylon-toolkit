@@ -13,7 +13,7 @@ export interface BannerState {
   secondaryWarnings: Warning[];
   /**
    * The engine found a safer liquidation order than the current on-chain order.
-   * Drives the manual "Apply Suggested Order" affordance, independent of the
+   * Drives the manual "Apply Optimal Order" affordance, independent of the
    * risk warnings — it can accompany an urgent/soft banner or stand alone on an
    * otherwise-healthy position.
    */
@@ -31,7 +31,7 @@ export interface BannerState {
  */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
-  const suggestReorder = result.suggestedVaultOrder != null;
+  const suggestReorder = result.optimalVaultOrder != null;
 
   // Warnings are evaluated before the "no groups" check so that an advisory
   // with no computable cascade (e.g. weird-params, which leaves groups empty)

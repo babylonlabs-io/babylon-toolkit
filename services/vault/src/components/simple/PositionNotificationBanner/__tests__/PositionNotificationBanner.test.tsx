@@ -155,12 +155,12 @@ function makeBaseResult(
     collateralValue: 40000,
     targetSeizureBtc: 0.28,
     warnings: [],
-    suggestedVaultOrder: null,
+    optimalVaultOrder: null,
     ...overrides,
   };
 }
 
-const SUGGESTED_ORDER = [
+const OPTIMAL_ORDER = [
   { id: "0xabc", name: "Vault 2", btc: 0.6 },
   { id: "0xdef", name: "Vault 1", btc: 0.1 },
 ];
@@ -298,7 +298,7 @@ describe("PositionNotificationBanner", () => {
   });
 
   it("does not render a dismiss control on the reorder suggestion", () => {
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     expect(
@@ -307,7 +307,7 @@ describe("PositionNotificationBanner", () => {
   });
 
   it("renders the gold reorder suggestion with a chip row + Apply Optimal Order for a healthy but suboptimal position", () => {
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     const banner = screen.getByTestId("position-notification-banner");
@@ -315,7 +315,7 @@ describe("PositionNotificationBanner", () => {
     // Standalone reorder uses the gold `suggestion` variant, not blue `info`.
     expect(banner.dataset.variant).toBe("suggestion");
     expect(screen.getByText("Reorder vaults to lose less")).toBeTruthy();
-    // Suggested-order chip row renders each vault in order.
+    // Optimal-order chip row renders each vault in order.
     expect(screen.getByText("Suggested order")).toBeTruthy();
     expect(screen.getByText(/Vault 2 ·/)).toBeTruthy();
     expect(screen.getByText(/Vault 1 ·/)).toBeTruthy();
@@ -330,7 +330,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         { type: "urgent", title: "Liquidation is 4.3% away", detail: "..." },
       ],
-      suggestedVaultOrder: SUGGESTED_ORDER,
+      optimalVaultOrder: OPTIMAL_ORDER,
     });
     renderBanner(result, onDeposit, onRepay);
 
@@ -360,12 +360,12 @@ describe("PositionNotificationBanner", () => {
   });
 
   it("calls executeReorder with vault IDs and verification context when Apply Optimal Order is clicked", () => {
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
-      suggestedOrderContext: mockReorderVerificationContext,
+      optimalOrderContext: mockReorderVerificationContext,
     });
   });
 
@@ -376,7 +376,7 @@ describe("PositionNotificationBanner", () => {
       isLoading: false,
       reorderVerificationContext: null,
     });
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     fireEvent.click(screen.getByText("Apply Optimal Order"));

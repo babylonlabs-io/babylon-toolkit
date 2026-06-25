@@ -47,7 +47,7 @@ function makeResult({
     collateralValue: 100000,
     targetSeizureBtc: 0,
     warnings: urgent ? [{ type: "urgent", title: "x", detail: "y" }] : [],
-    suggestedVaultOrder: null,
+    optimalVaultOrder: null,
   };
 }
 

@@ -21,9 +21,9 @@ import {
 import { getAaveAdapterAddress } from "../config";
 import {
   PositionChangedError,
+  assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,
   assertReorderMembership,
-  assertSuggestedOrderMatchesOnChain,
   reorderVaultOrder,
   type ReorderVerificationContext,
 } from "../services";
@@ -35,7 +35,7 @@ export interface ExecuteReorderOptions {
    * sign if the result diverges from the submitted permutation. Manual
    * drag-and-drop reorders omit this so users can pick non-optimal orders.
    */
-  suggestedOrderContext?: ReorderVerificationContext;
+  optimalOrderContext?: ReorderVerificationContext;
   /**
    * The on-chain vault ordering the caller observed at the time it built
    * the submission (e.g. the modal-open snapshot). When provided, the hook
@@ -107,12 +107,12 @@ export function useReorderVaults(): UseReorderVaultsResult {
           );
         }
 
-        if (options?.suggestedOrderContext) {
-          await assertSuggestedOrderMatchesOnChain(
+        if (options?.optimalOrderContext) {
+          await assertOptimalOrderMatchesOnChain(
             permutedVaultIds,
             currentVaultIds,
             adapterAddress,
-            options.suggestedOrderContext,
+            options.optimalOrderContext,
           );
         }
 
