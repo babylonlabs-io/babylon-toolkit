@@ -20,7 +20,7 @@ interface BuildBannerActionsArgs {
  * `Notification` `actions` slot:
  * - urgent: "Add Collateral" (primary, filled) + "Repay Debt" (secondary,
  *   outlined) — the core safety actions, matching the Figma callout.
- * - suggested reorder available: "Apply Optimal Order" — filled (primary) on the
+ * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
  * Both groups can appear together (an urgent position whose order is also
@@ -36,7 +36,7 @@ export function buildBannerActions({
 }: BuildBannerActionsArgs): NotificationAction[] {
   const { primaryWarning, suggestReorder } = bannerState;
   const isUrgent = primaryWarning?.type === "urgent";
-  const showApplyOrder = suggestReorder && result.suggestedVaultOrder !== null;
+  const showApplyOrder = suggestReorder && result.optimalVaultOrder !== null;
 
   const actions: NotificationAction[] = [];
 

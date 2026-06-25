@@ -30,7 +30,7 @@ import {
   STALE_PRICE_BANNER_DETAIL,
   STALE_PRICE_BANNER_TITLE,
 } from "./constants";
-import { SuggestedOrderChips } from "./SuggestedOrderChips";
+import { OptimalOrderChips } from "./OptimalOrderChips";
 
 const TEST_ID = "position-notification-banner";
 
@@ -98,10 +98,10 @@ export function PositionNotificationBanner({
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
-    if (!result?.suggestedVaultOrder || !reorderVerificationContext) return;
-    const vaultIds = result.suggestedVaultOrder.map((v) => v.id as Hex);
+    if (!result?.optimalVaultOrder || !reorderVerificationContext) return;
+    const vaultIds = result.optimalVaultOrder.map((v) => v.id as Hex);
     const success = await executeReorder(vaultIds, {
-      suggestedOrderContext: reorderVerificationContext,
+      optimalOrderContext: reorderVerificationContext,
     });
     if (success) {
       // Show the just-submitted order immediately; the indexer catches up later.
@@ -183,11 +183,11 @@ export function PositionNotificationBanner({
     isReordering,
   });
 
-  // Sub-box content: the suggested-order chips for the standalone reorder card,
+  // Sub-box content: the optimal-order chips for the standalone reorder card,
   // otherwise the stacked secondary warnings (e.g. urgent + weird-params).
   let suggestion: ReactNode;
-  if (isStandaloneReorder && result.suggestedVaultOrder) {
-    suggestion = <SuggestedOrderChips vaults={result.suggestedVaultOrder} />;
+  if (isStandaloneReorder && result.optimalVaultOrder) {
+    suggestion = <OptimalOrderChips vaults={result.optimalVaultOrder} />;
   } else if (secondaryWarnings.length > 0) {
     suggestion = (
       <div className="flex flex-col gap-2">

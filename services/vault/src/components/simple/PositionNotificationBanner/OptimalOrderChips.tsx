@@ -4,7 +4,7 @@ import type { Vault } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 import { formatBtcAmount } from "@/utils/formatting";
 
-interface SuggestedOrderChipsProps {
+interface OptimalOrderChipsProps {
   vaults: Vault[];
 }
 
@@ -13,7 +13,7 @@ interface SuggestedOrderChipsProps {
  * a label above a wrapped row of vault pills joined by arrows,
  * read left-to-right as the order the apply action would submit.
  */
-export function SuggestedOrderChips({ vaults }: SuggestedOrderChipsProps) {
+export function OptimalOrderChips({ vaults }: OptimalOrderChipsProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="text-xs uppercase tracking-[0.4px] text-accent-secondary">
