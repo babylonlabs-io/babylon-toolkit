@@ -194,14 +194,22 @@ describe("calculate", () => {
     expect(result.optimalVaultOrder ?? vaults).toHaveLength(14);
   });
 
-  it("only ever emits urgent / dust / weird-params", () => {
+  it("only emits known warning types", () => {
     const inputs: Vault[][] = [
       [v(1.0)],
       [v(0.35), v(0.65)],
       [v(0.1), v(0.1), v(0.8)],
       [v(2.0), v(1.0), v(0.5)],
     ];
-    const allowed = new Set(["urgent", "dust", "weird-params"]);
+    const allowed = new Set([
+      "urgent",
+      "cliff",
+      "rebalance",
+      "reorder",
+      "dust",
+      "weird-params",
+      "too-many-vaults",
+    ]);
     for (const vaults of inputs) {
       const result = calculate(makeParams(vaults));
       for (const w of result.warnings) {
@@ -245,11 +253,120 @@ describe("bannerSeverity", () => {
     expect(state.primaryWarning?.type).toBe("weird-params");
   });
 
-  it("soft with a reorder suggestion for a healthy but suboptimal position", () => {
+  it("soft with a reorder warning as primary for a suboptimal position", () => {
     const result = calculate(makeParams([v(1.0), v(2.0)]));
     const state = deriveBannerState(result);
     expect(state.severity).toBe("soft");
-    expect(state.primaryWarning).toBeNull();
+    expect(state.primaryWarning?.type).toBe("reorder");
     expect(state.suggestReorder).toBe(true);
+  });
+});
+
+// Golden vectors ported from the reference calculator's scenario suite
+// (tbv-liquidations, the source of truth). Defaults match the reference:
+// debt 44287.72, BTC $61722.5, CF 0.75, THF 1.10, maxLB 1.05, expectedHF 0.95.
+// Behavior (warning types, group structure, suggested amounts) is asserted with
+// our copy strings — which intentionally differ from the reference only for the
+// `urgent` titles.
+describe("golden vectors (reference scenario suite)", () => {
+  it("A1 — single 1.0 BTC: cliff (no backup) + urgent within 5%", () => {
+    const result = calculate(makeParams([v(1.0)]));
+    expect(getWarning(result.warnings, "cliff")?.title).toBe("No backup vault");
+    expect(hasWarning(result.warnings, "urgent")).toBe(true);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].isFullLiquidation).toBe(true);
+    // Sacrificial vault to add so the existing vault becomes protected.
+    expect(result.suggestedNewVaultBtc).toBe(0.72);
+  });
+
+  it("A2 — single 2.0 BTC: cliff only, no urgent (far from liquidation)", () => {
+    const result = calculate(makeParams([v(2.0)]));
+    expect(hasWarning(result.warnings, "cliff")).toBe(true);
+    expect(hasWarning(result.warnings, "urgent")).toBe(false);
+  });
+
+  it("A7 — single 1.0 BTC, HF < 1: cliff + already-liquidatable urgent", () => {
+    const result = calculate(makeParams([v(1.0)], { totalDebtUsd: 50000 }));
+    expect(hasWarning(result.warnings, "cliff")).toBe(true);
+    expect(getWarning(result.warnings, "urgent")?.title).toBe(
+      "Liquidation can trigger now",
+    );
+  });
+
+  it("B1 — [0.65, 0.35] correct order: no cliff/reorder, 2 groups", () => {
+    const result = calculate(makeParams([v(0.65), v(0.35)]));
+    expect(hasWarning(result.warnings, "cliff")).toBe(false);
+    expect(hasWarning(result.warnings, "reorder")).toBe(false);
+    expect(result.groups).toHaveLength(2);
+    expect(result.groups[0].vaults).toHaveLength(1);
+    expect(result.groups[1].isFullLiquidation).toBe(true);
+  });
+
+  it("B2 — [0.80, 0.20]: over-seizure triggers a rebalance with a suggested vault", () => {
+    const result = calculate(makeParams([v(0.8), v(0.2)]));
+    expect(hasWarning(result.warnings, "cliff")).toBe(false);
+    expect(hasWarning(result.warnings, "reorder")).toBe(false);
+    expect(hasWarning(result.warnings, "rebalance")).toBe(true);
+    expect(result.suggestedRebalanceVaultBtc).toBe(0.38);
+    expect(result.suggestedRebalanceOrder).not.toBeNull();
+  });
+
+  it("C1 — [0.35, 0.65] wrong order: swap reorder, single group", () => {
+    const result = calculate(makeParams([v(0.35), v(0.65)]));
+    const reorder = getWarning(result.warnings, "reorder");
+    expect(reorder?.title).toContain("Swap");
+    expect(result.optimalVaultOrder).not.toBeNull();
+    expect(result.groups).toHaveLength(1);
+  });
+
+  it("C2 — [0.20, 0.80] cliff fixable by reorder (anti-loop exempt for cliff)", () => {
+    const result = calculate(makeParams([v(0.2), v(0.8)]));
+    expect(getWarning(result.warnings, "reorder")?.title).toContain("Swap");
+  });
+
+  it("D1 — THF 1.30 [0.50, 0.50]: true cliff, neither vault covers", () => {
+    const result = calculate(makeParams([v(0.5), v(0.5)], { THF: 1.3 }));
+    expect(getWarning(result.warnings, "cliff")?.detail).toContain(
+      "Neither vault",
+    );
+    expect(hasWarning(result.warnings, "reorder")).toBe(false);
+    expect(result.groups).toHaveLength(1);
+  });
+
+  it("E1 — [0.42, 0.29, 0.29]: optimally structured, 3 events, no warnings", () => {
+    const result = calculate(makeParams([v(0.42), v(0.29), v(0.29)]));
+    expect(hasWarning(result.warnings, "cliff")).toBe(false);
+    expect(hasWarning(result.warnings, "reorder")).toBe(false);
+    expect(result.groups).toHaveLength(3);
+    expect(result.groups[2].isFullLiquidation).toBe(true);
+  });
+
+  it("G2 — [0.10, 0.10, 0.35] cliff fixable by reorder", () => {
+    const result = calculate(makeParams([v(0.1), v(0.1), v(0.35)]));
+    expect(getWarning(result.warnings, "cliff")?.detail).toContain(
+      "Reordering",
+    );
+    expect(result.groups).toHaveLength(1);
+  });
+
+  it("M1 — [0.3979, 0.6021] vault exactly at target: no cliff (within tolerance)", () => {
+    const result = calculate(makeParams([v(0.3979), v(0.6021)]));
+    expect(hasWarning(result.warnings, "cliff")).toBe(false);
+  });
+
+  it("M5 — single vault, zero debt: no warnings, no groups", () => {
+    const result = calculate(makeParams([v(1.0)], { totalDebtUsd: 0 }));
+    expect(result.warnings).toHaveLength(0);
+    expect(result.groups).toHaveLength(0);
+    expect(result.currentHF).toBe(Infinity);
+  });
+
+  it("18 vaults: too-many-vaults warning, no optimal order suggested", () => {
+    const vaults = Array.from({ length: 18 }, (_, idx) => v(0.2 + idx * 0.01));
+    const result = calculate(makeParams(vaults));
+    expect(getWarning(result.warnings, "too-many-vaults")?.title).toContain(
+      "Too many vaults",
+    );
+    expect(result.optimalVaultOrder).toBeNull();
   });
 });

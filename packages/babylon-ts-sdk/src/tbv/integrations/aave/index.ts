@@ -120,6 +120,7 @@ export {
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
   isHealthFactorHealthy,
+  MAX_DP_N,
   selectVaultsForAmount,
   simulateCascade,
   simulatePrefixSeizure,

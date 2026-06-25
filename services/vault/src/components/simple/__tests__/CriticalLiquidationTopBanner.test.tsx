@@ -46,8 +46,14 @@ function makeResult({
     currentHF: 1.1,
     collateralValue: 100000,
     targetSeizureBtc: 0,
+    recommendedSacrificialBtc: 0,
     warnings: urgent ? [{ type: "urgent", title: "x", detail: "y" }] : [],
+    isFullLiquidation: false,
     optimalVaultOrder: null,
+    suggestedNewVaultBtc: null,
+    suggestedRebalanceVaultBtc: null,
+    suggestedRebalanceOrder: null,
+    rebalanceImprovementBtc: 0,
   };
 }
 

@@ -154,8 +154,14 @@ function makeBaseResult(
     currentHF: 1.2,
     collateralValue: 40000,
     targetSeizureBtc: 0.28,
+    recommendedSacrificialBtc: 0.29,
     warnings: [],
+    isFullLiquidation: false,
     optimalVaultOrder: null,
+    suggestedNewVaultBtc: null,
+    suggestedRebalanceVaultBtc: null,
+    suggestedRebalanceOrder: null,
+    rebalanceImprovementBtc: 0,
     ...overrides,
   };
 }
@@ -451,5 +457,63 @@ describe("PositionNotificationBanner", () => {
     expect(
       container.querySelector("[data-testid='position-notification-banner']"),
     ).toBeNull();
+  });
+
+  it("renders an Add-a-vault CTA for a single-vault cliff and pre-fills the amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "No backup vault",
+          detail: "Your vault will be fully seized at liquidation.",
+          suggestion: "Add a 0.72 BTC sacrificial vault at position 1.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("soft");
+    fireEvent.click(screen.getByText("Add a 0.72 BTC vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  it("renders an Add-a-vault CTA for a rebalance with the rebalance amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "rebalance",
+          title: "Undersized sacrificial vault",
+          detail: "Group 1 over-seizes.",
+          suggestion: "Add a 0.38 BTC vault.",
+        },
+      ],
+      suggestedRebalanceVaultBtc: 0.38,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    fireEvent.click(screen.getByText("Add a 0.38 BTC vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.38");
+  });
+
+  it("renders a soft too-many-vaults advisory with no action button", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "too-many-vaults",
+          title: "Too many vaults — optimal ordering disabled",
+          detail: "You have 18 vaults.",
+          suggestion: "Consider consolidating smaller vaults.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("soft");
+    expect(banner.dataset.variant).toBe("info");
+    expect(screen.queryByText(/Add a .* BTC vault/)).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 });

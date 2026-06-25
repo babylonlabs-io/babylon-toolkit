@@ -1004,6 +1004,7 @@ export const COPY = {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
+    addVault: (amountBtc: string) => `Add a ${amountBtc} BTC vault`,
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -1046,7 +1047,9 @@ export const COPY = {
     liquidatable: "Critical — liquidation can trigger now",
   },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // three warning types produced by the calculator (urgent / dust / weird-params).
+  // warning types produced by the calculator: urgent / cliff / rebalance /
+  // reorder / dust / weird-params / too-many-vaults. Wording is ported from the
+  // reference liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
@@ -1069,6 +1072,100 @@ export const COPY = {
         "A different vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
       suggestedOrderLabel: "Suggested order",
       vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
+      // Warning-variant copy (emitted by the calculator alongside the optimal
+      // order). `swap` is the two-vault cliff fix; the others cover the general
+      // reorder cases.
+      swapTitle: "Swap vault order to unlock partial protection",
+      swapDetail: (bestName: string, bestBtc: string, firstName: string) =>
+        `${bestName} (${bestBtc} BTC) covers the target seizure alone. Right now both vaults are seized together because ${firstName} is first and too small.`,
+      swapSuggestion: (bestName: string, otherName: string) =>
+        `Suggested order: ${bestName} → ${otherName}`,
+      reduceFirstEventTitle:
+        "Better vault ordering reduces first-event seizure",
+      deepenCascadeTitle: "Better vault ordering deepens cascade protection",
+      suggestedOrder: (orderStr: string) => `Suggested order: ${orderStr}`,
+      // Assembled detail string. `g1` (current vs optimal Group 1 BTC) is
+      // prepended when both are known; `sumImproves` selects the per-cascade vs
+      // first-event framing.
+      detail2: (opts: {
+        sumImproves: boolean;
+        savedSum: string;
+        savedBtcAfterG1: string;
+        currentG1Btc?: string;
+        optimalG1Btc?: string;
+      }) => {
+        const g1Part =
+          opts.currentG1Btc !== undefined && opts.optimalG1Btc !== undefined
+            ? `Current order seizes ${opts.currentG1Btc} BTC in Group 1. Optimal order seizes only ${opts.optimalG1Btc} BTC. `
+            : "";
+        return opts.sumImproves
+          ? `${g1Part}Reordering leaves more BTC protected after each liquidation event (+${opts.savedSum} BTC-events total).`
+          : `${g1Part}Reordering leaves ${opts.savedBtcAfterG1} more BTC protected after the first liquidation event.`;
+      },
+    },
+    // Cliff: all vaults consolidate into one liquidation group, so partial
+    // liquidation is no longer possible. Variant by vault count.
+    cliff: {
+      single: {
+        title: "No backup vault",
+        detail:
+          "Your vault will be fully seized at liquidation — nothing is protected behind it.",
+        actionableSuggestion: (suggestedBtc: string, vaultBtc: string) =>
+          `Add a ${suggestedBtc} BTC sacrificial vault at position 1 — your current vault (${vaultBtc} BTC) becomes protected.`,
+        noSplitSuggestion:
+          "Current protocol parameters do not allow vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
+        oversizedSuggestion: (rawBtc: string) =>
+          `To enable partial liquidation, add ≥ ${rawBtc} BTC as a sacrificial vault. You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+      },
+      twoVault: {
+        title: "Both vaults seized together — no partial protection",
+        detail: (targetSeizureBtc: string) =>
+          `Neither vault alone covers the target seizure (${targetSeizureBtc} BTC). Both will be liquidated in one event.`,
+        enablePartial: (deficitBtc: string, largestName: string) =>
+          `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
+        suggestion: (enablePartialStr: string) =>
+          `${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+      },
+      multiVault: {
+        title: "All vaults seized in one liquidation event",
+        detail: (nVaults: number, hasReorderFix: boolean) =>
+          `All ${nVaults} vaults land in Group 1 — no protected vaults remain after first liquidation. ${
+            hasReorderFix
+              ? "Reordering vaults will fix this."
+              : "No combination of vaults covers the target seizure alone."
+          }`,
+        suggestion: (orderStr: string) => `Suggested order: ${orderStr}`,
+      },
+    },
+    // Rebalance: the first group over-seizes because vault sizes aren't optimal;
+    // a new sacrificial vault (combined with the existing small vaults) fixes it.
+    rebalance: {
+      title: "Undersized sacrificial vault",
+      detail: (
+        g1CombinedBtc: string,
+        g1TargetSeizure: string,
+        g1OverSeizure: string,
+        improvementBtc: string,
+      ) =>
+        `Group 1 seizes ${g1CombinedBtc} BTC but target is only ${g1TargetSeizure} BTC — over-seizure of ${g1OverSeizure} BTC. With optimal vault sizes, ${improvementBtc} more BTC would be protected.`,
+      actionableSuggestion: (
+        suggestedBtc: string,
+        smallNames: string,
+        largestName: string,
+        largestBtc: string,
+      ) =>
+        `Add a ${suggestedBtc} BTC vault and place it with ${smallNames} at the front — together they cover the target seizure, protecting ${largestName} (${largestBtc} BTC). You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open the position.`,
+      fallbackSuggestion: (sacrificialBtc: string) =>
+        `Repay the loan, split BTC into optimal UTXOs (sacrificial ~${sacrificialBtc} BTC + protected), and re-open the position.`,
+    },
+    // Too many vaults: beyond the optimizer cap, ordering falls back to a
+    // largest-first heuristic and the reorder suggestion is no longer optimal.
+    tooManyVaults: {
+      title: "Too many vaults — optimal ordering disabled",
+      detail: (nVaults: number, cap: number) =>
+        `You have ${nVaults} vaults. Our optimizer only runs up to ${cap} vaults because beyond that the search space becomes too large to explore exhaustively (O(3ⁿ) time, 2ⁿ memory). The liquidation groups shown below are still accurate for the current vault order, but we can no longer suggest a guaranteed-optimal reordering.`,
+      suggestion:
+        "Consider consolidating smaller vaults — each peg-in costs a separate fee anyway, and fewer vaults give you a guaranteed-optimal cascade ordering.",
     },
     dust: {
       title: "Position too small to model",
