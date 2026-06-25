@@ -479,6 +479,34 @@ describe("PositionNotificationBanner", () => {
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 
+  it("keeps the Add-a-vault CTA (secondary) when a single-vault cliff is also urgent", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "urgent",
+          title: "Liquidation is 3.0% away",
+          detail: "BTC needs to drop only 3%.",
+        },
+        {
+          type: "cliff",
+          title: "No backup vault",
+          detail: "Your vault will be fully seized at liquidation.",
+          suggestion: "Add a 0.72 BTC sacrificial vault at position 1.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("red");
+    // Safety actions still lead, and the pre-filled cliff CTA is still offered.
+    expect(screen.getByText("Add Collateral")).toBeTruthy();
+    expect(screen.getByText("Repay Debt")).toBeTruthy();
+    fireEvent.click(screen.getByText("Add a 0.72 BTC vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
   it("renders an Add-a-vault CTA for a rebalance with the rebalance amount", () => {
     const result = makeBaseResult({
       warnings: [

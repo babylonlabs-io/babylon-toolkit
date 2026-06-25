@@ -168,8 +168,15 @@ export function computeOptimalOrder<T extends CascadeVault>(
   const order = groupsReversed.flat();
 
   // Reconstruction safety: if the chain is incomplete for any reason, fall back
-  // to largest-first rather than throwing.
+  // to largest-first rather than throwing (calculate() runs in the notification
+  // render and must not crash). This path is a DP-invariant violation that
+  // should never occur for valid input — log it so a regression is observable
+  // even though the fallback keeps the UI alive and the result well-shaped.
   if (order.length !== n) {
+    console.error(
+      `computeOptimalOrder: DP reconstruction produced ${order.length}/${n} vaults; ` +
+        `falling back to largest-first. This indicates a DP-invariant regression.`,
+    );
     const fallback = [...vaults].sort((a, b) => b.btc - a.btc);
     const sim = simulateCascade(
       fallback,

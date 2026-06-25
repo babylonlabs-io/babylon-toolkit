@@ -58,21 +58,23 @@ export function buildBannerActions({
     );
   }
 
-  // Add-vault CTA only when cliff/rebalance is the primary message — that is the
-  // case whose call to action is "add a sacrificial vault of this exact size".
-  // (Under an urgent primary the cliff is shown as a secondary note instead, so
-  // the safety actions lead.) The calculator already guarantees the amount is
-  // positive and no larger than the position.
-  const isCliffOrRebalancePrimary =
-    primaryWarning?.type === "cliff" || primaryWarning?.type === "rebalance";
+  // Add-vault CTA whenever a cliff/rebalance warning is present and the
+  // calculator produced an actionable size — i.e. "add a sacrificial vault of
+  // this exact size". When an urgent warning is primary it rides along as a
+  // secondary action so the safety actions lead, but it is no longer dropped
+  // (the cliff's own suggestion text describes exactly this action). The
+  // calculator guarantees the amount is positive and no larger than the position.
+  const hasCliffOrRebalanceWarning = result.warnings.some(
+    (w) => w.type === "cliff" || w.type === "rebalance",
+  );
   const suggestedVaultBtc =
     result.suggestedNewVaultBtc ?? result.suggestedRebalanceVaultBtc;
-  if (isCliffOrRebalancePrimary && suggestedVaultBtc !== null) {
+  if (hasCliffOrRebalanceWarning && suggestedVaultBtc !== null) {
     const amountBtc = suggestedVaultBtc.toFixed(2);
     actions.push({
       label: COPY.banner.addVault(amountBtc),
       onClick: () => onDeposit(amountBtc),
-      emphasis: "primary",
+      emphasis: isUrgent ? "secondary" : "primary",
     });
   }
 

@@ -619,32 +619,42 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       };
       const allVaults = [placeholder, ...vaults];
 
-      const { order: optOrder } = computeOptimalOrder(
-        allVaults,
-        totalDebtUsd,
-        seizedFraction,
-        SEIZURE_TOL,
-        CF,
-        THF,
-        maxLB,
-        expectedHF,
-      );
+      // Deterministic protective order: new + small vaults first, largest last —
+      // together the front group covers the target seizure, protecting the
+      // largest vault.
+      const sortedSmall = [...smallVaults].sort((a, b) => b.btc - a.btc);
+      const manualOrder = [placeholder, ...sortedSmall, largest];
 
-      // If the optimizer order still triggers rebalance, fall back to the
-      // manual protective order (new + small first, largest last).
-      const allTotal = allVaults.reduce((s, v) => s + v.btc, 0);
-      const optG1Btc = getGroup1FromOrder(
-        optOrder,
-        seizedFraction,
-        SEIZURE_TOL,
-      ).reduce((s, v) => s + v.btc, 0);
-      const optProtected = allTotal - optG1Btc;
-      const optOver = optG1Btc - allTotal * seizedFraction;
-      if (optOver > optProtected) {
-        const sortedSmall = [...smallVaults].sort((a, b) => b.btc - a.btc);
-        suggestedRebalanceOrder = [placeholder, ...sortedSmall, largest];
+      if (allVaults.length > MAX_DP_N) {
+        // Adding the placeholder crosses the optimizer cap, so computeOptimalOrder
+        // would only return a largest-first heuristic — not a guaranteed optimum.
+        // Use the manual protective order directly rather than presenting the
+        // heuristic as if it were optimizer-backed.
+        suggestedRebalanceOrder = manualOrder;
       } else {
-        suggestedRebalanceOrder = optOrder;
+        const { order: optOrder } = computeOptimalOrder(
+          allVaults,
+          totalDebtUsd,
+          seizedFraction,
+          SEIZURE_TOL,
+          CF,
+          THF,
+          maxLB,
+          expectedHF,
+        );
+
+        // If the optimizer order still triggers rebalance, fall back to the
+        // manual protective order.
+        const allTotal = allVaults.reduce((s, v) => s + v.btc, 0);
+        const optG1Btc = getGroup1FromOrder(
+          optOrder,
+          seizedFraction,
+          SEIZURE_TOL,
+        ).reduce((s, v) => s + v.btc, 0);
+        const optProtected = allTotal - optG1Btc;
+        const optOver = optG1Btc - allTotal * seizedFraction;
+        suggestedRebalanceOrder =
+          optOver > optProtected ? manualOrder : optOrder;
       }
     }
   }
