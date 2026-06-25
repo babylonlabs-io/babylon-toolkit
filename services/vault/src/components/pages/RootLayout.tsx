@@ -38,6 +38,7 @@ import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
+import { NoticeBanner } from "../shared/NoticeBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -127,6 +128,14 @@ export default function RootLayout() {
             here so it renders above the header, atop the operational banners. */}
         <div id={CRITICAL_BANNER_SLOT_ID} />
         <TestingBanner visible={shouldDisplayTestingMsg()} />
+        {/* Intentionally not gated on `isGeoBlocked`: an operator notice
+            describes a service-wide condition and renders in the top banner
+            stack (above the geo-block screen), so geo-blocked sessions must
+            see it too. */}
+        <NoticeBanner
+          visible={Boolean(FeatureFlags.noticeBannerMessage)}
+          message={FeatureFlags.noticeBannerMessage}
+        />
         <AddressScreeningBanner
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
