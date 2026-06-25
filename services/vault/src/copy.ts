@@ -1066,42 +1066,15 @@ export const COPY = {
     },
     // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
     // engine finds a safer liquidation order than the current on-chain order.
+    // Single reorder notification (matches Figma 6502-111184). Emitted whenever
+    // the calculator finds a strictly safer order than the current one; the
+    // suggested order is rendered as chips from `optimalVaultOrder`, not text.
     reorder: {
       title: "Reorder vaults to lose less",
       detail:
         "A different vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
       suggestedOrderLabel: "Suggested order",
       vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
-      // Warning-variant copy (emitted by the calculator alongside the optimal
-      // order). `swap` is the two-vault cliff fix; the others cover the general
-      // reorder cases.
-      swapTitle: "Swap vault order to unlock partial protection",
-      swapDetail: (bestName: string, bestBtc: string, firstName: string) =>
-        `${bestName} (${bestBtc} BTC) covers the target seizure alone. Right now both vaults are seized together because ${firstName} is first and too small.`,
-      swapSuggestion: (bestName: string, otherName: string) =>
-        `Suggested order: ${bestName} → ${otherName}`,
-      reduceFirstEventTitle:
-        "Better vault ordering reduces first-event seizure",
-      deepenCascadeTitle: "Better vault ordering deepens cascade protection",
-      suggestedOrder: (orderStr: string) => `Suggested order: ${orderStr}`,
-      // Assembled detail string. `g1` (current vs optimal Group 1 BTC) is
-      // prepended when both are known; `sumImproves` selects the per-cascade vs
-      // first-event framing.
-      detail2: (opts: {
-        sumImproves: boolean;
-        savedSum: string;
-        savedBtcAfterG1: string;
-        currentG1Btc?: string;
-        optimalG1Btc?: string;
-      }) => {
-        const g1Part =
-          opts.currentG1Btc !== undefined && opts.optimalG1Btc !== undefined
-            ? `Current order seizes ${opts.currentG1Btc} BTC in Group 1. Optimal order seizes only ${opts.optimalG1Btc} BTC. `
-            : "";
-        return opts.sumImproves
-          ? `${g1Part}Reordering leaves more BTC protected after each liquidation event (+${opts.savedSum} BTC-events total).`
-          : `${g1Part}Reordering leaves ${opts.savedBtcAfterG1} more BTC protected after the first liquidation event.`;
-      },
     },
     // Cliff: all vaults consolidate into one liquidation group, so partial
     // liquidation is no longer possible. Variant by vault count.
@@ -1160,12 +1133,13 @@ export const COPY = {
     },
     // Too many vaults: beyond the optimizer cap, ordering falls back to a
     // largest-first heuristic and the reorder suggestion is no longer optimal.
+    // Copy matches Figma 7048-61969 (count + cap stay interpolated).
     tooManyVaults: {
-      title: "Too many vaults — optimal ordering disabled",
+      title: "Too many vaults to optimize",
       detail: (nVaults: number, cap: number) =>
-        `You have ${nVaults} vaults. Our optimizer only runs up to ${cap} vaults because beyond that the search space becomes too large to explore exhaustively (O(3ⁿ) time, 2ⁿ memory). The liquidation groups shown below are still accurate for the current vault order, but we can no longer suggest a guaranteed-optimal reordering.`,
+        `You have ${nVaults} vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
       suggestion:
-        "Consider consolidating smaller vaults — each peg-in costs a separate fee anyway, and fewer vaults give you a guaranteed-optimal cascade ordering.",
+        "Consider consolidating smaller vaults into fewer larger ones — fewer vaults means lower fees and better optimization.",
     },
     dust: {
       title: "Position too small to model",

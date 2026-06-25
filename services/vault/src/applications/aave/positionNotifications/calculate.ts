@@ -44,29 +44,6 @@ const SAFETY_MARGIN = 1.05;
 /** Format a BTC amount to 2 decimals for user-facing copy. */
 const btc2 = (n: number): string => n.toFixed(2);
 
-/** Format a saved-BTC delta to 3 decimals for reorder copy. */
-const btc3 = (n: number): string => n.toFixed(3);
-
-/**
- * Build the reorder warning detail string from the cascade-score deltas,
- * delegating the wording to copy.ts.
- */
-function reorderDetail(
-  sumImproves: boolean,
-  savedSum: number,
-  savedBtcAfterG1: number,
-  currentG1Btc?: number,
-  optimalG1Btc?: number,
-): string {
-  return COPY.liquidationWarnings.reorder.detail2({
-    sumImproves,
-    savedSum: btc3(savedSum),
-    savedBtcAfterG1: btc3(savedBtcAfterG1),
-    ...(currentG1Btc !== undefined ? { currentG1Btc: btc2(currentG1Btc) } : {}),
-    ...(optimalG1Btc !== undefined ? { optimalG1Btc: btc2(optimalG1Btc) } : {}),
-  });
-}
-
 /**
  * Compute the partial-liquidation cascade and position warnings.
  *
@@ -386,9 +363,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   const group1ReorderWouldHelp =
     reorderWouldHelp && currentGroup1Btc > optimalG1Btc + REORDER_TOL;
 
-  const savedSum = optimalSum - currentSum;
-  const savedBtcAfterG1 = optimalBtcAfterG1 - currentBtcAfterG1;
-
   // Suppress reorder if it would create a rebalance condition that doesn't exist
   // now (prevents a reorder↔rebalance loop). Cliff cases are exempt — for a
   // cliff, reordering is always an improvement even if it introduces rebalance.
@@ -453,6 +427,15 @@ export function calculate(params: CalculatorParams): CalculatorResult {
 
   const { cliff, reorder } = COPY.liquidationWarnings;
 
+  // Single reorder notification (per Figma) reused across every case that wants
+  // to suggest a safer order; the order itself renders as chips from
+  // `optimalVaultOrder`, so no per-case suggestion text is needed.
+  const reorderWarning: Warning = {
+    type: "reorder",
+    title: reorder.title,
+    detail: reorder.detail,
+  };
+
   // CASE 1: Single vault — always fully seized. To protect it, add a NEW
   // sacrificial vault at position 1. Adding a vault increases total BTC, hence
   // target seizure: s >= existingBtc × liqFactor / (1 − liqFactor).
@@ -491,15 +474,9 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   // CASE 2: Exactly two vaults.
   else if (nVaults === 2) {
     if (isCliff && group1ReorderWouldHelp && optimalVaultOrder) {
-      // One vault alone covers — just need to put it first.
-      const best = optimalG1Vaults[0];
-      const other = vaults.find((v) => v.id !== best.id);
-      warnings.push({
-        type: "reorder",
-        title: reorder.swapTitle,
-        detail: reorder.swapDetail(best.name, btc2(best.btc), vaults[0].name),
-        suggestion: reorder.swapSuggestion(best.name, other?.name ?? ""),
-      });
+      // Cliff that swapping the order fixes — surfaced as the reorder
+      // notification (the order itself renders as chips).
+      warnings.push(reorderWarning);
     } else if (isCliff) {
       // Informational deficit text (no actionable button for 2 vaults).
       const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
@@ -520,26 +497,8 @@ export function calculate(params: CalculatorParams): CalculatorResult {
         detail: cliff.twoVault.detail(btc2(targetSeizureBtc)),
         suggestion: cliff.twoVault.suggestion(enablePartialStr),
       });
-    } else if (group1ReorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: reorder.reduceFirstEventTitle,
-        detail: reorderDetail(
-          sumImproves,
-          savedSum,
-          savedBtcAfterG1,
-          currentGroup1Btc,
-          optimalG1Btc,
-        ),
-        suggestion: reorder.suggestedOrder(globalOptimalOrderStr),
-      });
     } else if (reorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: reorder.deepenCascadeTitle,
-        detail: reorderDetail(sumImproves, savedSum, savedBtcAfterG1),
-        suggestion: reorder.suggestedOrder(globalOptimalOrderStr),
-      });
+      warnings.push(reorderWarning);
     }
   }
 
@@ -556,26 +515,8 @@ export function calculate(params: CalculatorParams): CalculatorResult {
           ? { suggestion: cliff.multiVault.suggestion(globalOptimalOrderStr) }
           : {}),
       });
-    } else if (group1ReorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: reorder.reduceFirstEventTitle,
-        detail: reorderDetail(
-          sumImproves,
-          savedSum,
-          savedBtcAfterG1,
-          currentGroup1Btc,
-          optimalG1Btc,
-        ),
-        suggestion: reorder.suggestedOrder(globalOptimalOrderStr),
-      });
     } else if (reorderWouldHelp) {
-      warnings.push({
-        type: "reorder",
-        title: reorder.deepenCascadeTitle,
-        detail: reorderDetail(sumImproves, savedSum, savedBtcAfterG1),
-        suggestion: reorder.suggestedOrder(globalOptimalOrderStr),
-      });
+      warnings.push(reorderWarning);
     }
   }
 

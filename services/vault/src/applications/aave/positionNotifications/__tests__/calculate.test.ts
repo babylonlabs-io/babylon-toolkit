@@ -311,17 +311,18 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(result.suggestedRebalanceOrder).not.toBeNull();
   });
 
-  it("C1 — [0.35, 0.65] wrong order: swap reorder, single group", () => {
+  it("C1 — [0.35, 0.65] wrong order: reorder notification, single group", () => {
     const result = calculate(makeParams([v(0.35), v(0.65)]));
     const reorder = getWarning(result.warnings, "reorder");
-    expect(reorder?.title).toContain("Swap");
+    expect(reorder?.title).toBe("Reorder vaults to lose less");
     expect(result.optimalVaultOrder).not.toBeNull();
     expect(result.groups).toHaveLength(1);
   });
 
   it("C2 — [0.20, 0.80] cliff fixable by reorder (anti-loop exempt for cliff)", () => {
     const result = calculate(makeParams([v(0.2), v(0.8)]));
-    expect(getWarning(result.warnings, "reorder")?.title).toContain("Swap");
+    expect(hasWarning(result.warnings, "reorder")).toBe(true);
+    expect(result.optimalVaultOrder).not.toBeNull();
   });
 
   it("D1 — THF 1.30 [0.50, 0.50]: true cliff, neither vault covers", () => {

@@ -525,22 +525,23 @@ describe("PositionNotificationBanner", () => {
     expect(onDeposit).toHaveBeenCalledWith("0.38");
   });
 
-  it("renders a soft too-many-vaults advisory with no action button", () => {
+  it("renders too-many-vaults as an orange warning with no action button", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "too-many-vaults",
-          title: "Too many vaults — optimal ordering disabled",
+          title: "Too many vaults to optimize",
           detail: "You have 18 vaults.",
-          suggestion: "Consider consolidating smaller vaults.",
+          suggestion:
+            "Consider consolidating smaller vaults into fewer larger ones.",
         },
       ],
     });
     renderBanner(result, onDeposit, onRepay);
 
     const banner = screen.getByTestId("position-notification-banner");
-    expect(banner.dataset.severity).toBe("soft");
-    expect(banner.dataset.variant).toBe("info");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
     expect(screen.queryByText(/Add a .* BTC vault/)).toBeNull();
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });

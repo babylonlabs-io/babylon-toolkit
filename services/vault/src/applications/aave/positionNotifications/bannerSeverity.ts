@@ -1,12 +1,20 @@
 import type { CalculatorResult, Warning, WarningType } from "./types";
 
 /**
- * "yellow" is reserved for the stale-price banner path (driven by a status
- * override, not by a calculator warning). Calculator warnings map to red
- * (urgent), soft (everything advisory), green (none), or hidden (dust / no
- * groups).
+ * Calculator warnings map to red (urgent), yellow (too-many-vaults — the orange
+ * warning banner per Figma), soft (everything else advisory), green (none), or
+ * hidden (dust / no groups). "yellow" also backs the stale-price banner, which
+ * is driven separately by a status override rather than a calculator warning.
  */
 export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
+
+/**
+ * Per-type severity for the primary warning. Anything not listed renders soft.
+ */
+const SEVERITY_BY_TYPE: Partial<Record<WarningType, BannerSeverity>> = {
+  urgent: "red",
+  "too-many-vaults": "yellow",
+};
 
 export interface BannerState {
   severity: BannerSeverity;
@@ -40,7 +48,8 @@ const PRIMARY_ORDER: WarningType[] = [
  * Map a CalculatorResult to a banner display state.
  *
  * Red:    urgent warning present (already liquidatable or within 5%)
- * Soft:   any advisory warning (cliff / rebalance / reorder / too-many-vaults /
+ * Yellow: too-many-vaults (the orange warning banner per Figma)
+ * Soft:   any other advisory warning (cliff / rebalance / reorder /
  *         weird-params), or a healthy position whose vault order is suboptimal
  * Green:  no warnings and order already optimal
  * Hidden: no groups, or dust position (too small to matter)
@@ -68,7 +77,7 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
 
   if (primaryWarning) {
     return {
-      severity: primaryWarning.type === "urgent" ? "red" : "soft",
+      severity: SEVERITY_BY_TYPE[primaryWarning.type] ?? "soft",
       primaryWarning,
       secondaryWarnings: warnings.filter((w) => w !== primaryWarning),
       suggestReorder,
