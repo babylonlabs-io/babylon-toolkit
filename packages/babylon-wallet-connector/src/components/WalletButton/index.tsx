@@ -15,6 +15,7 @@ interface WalletButtonProps {
   name: string;
   fallbackLink?: string;
   installed?: boolean;
+  hardware?: boolean;
   label?: string;
   onClick?: () => void;
 }
@@ -26,14 +27,16 @@ export function WalletButton({
   logo,
   fallbackLink,
   installed = true,
+  hardware = false,
   label,
   onClick,
 }: WalletButtonProps) {
-  // Hardware wallets (and other connect-modal entries) carry a static
-  // descriptor label and are always reachable, so they show a yellow
-  // "available" badge instead of the detection-based Installed/Uninstalled one.
-  const hasDescriptor = Boolean(label);
-  const btnProps = installed
+  // Hardware wallets are always reachable through the connect flow (they have no
+  // browser-extension detection step), so they show a yellow "available" badge
+  // instead of the detection-based Installed/Uninstalled one, and are clickable
+  // even when no provider is detected.
+  const reachable = installed || hardware;
+  const btnProps = reachable
     ? { as: "button", disabled, onClick }
     : { as: "a", href: fallbackLink, target: "_blank", rel: "noopener noreferrer" };
 
@@ -66,11 +69,11 @@ export function WalletButton({
           installed ? "bg-neutral-100" : "bg-neutral-200",
         )}
       >
-        {(hasDescriptor || installed) && (
-          <span className={twMerge("size-2 rounded-full", hasDescriptor ? HARDWARE_DOT : INSTALLED_DOT)} />
+        {(hardware || installed) && (
+          <span className={twMerge("size-2 rounded-full", hardware ? HARDWARE_DOT : INSTALLED_DOT)} />
         )}
-        <span className={hasDescriptor ? HARDWARE_ACCENT : installed ? INSTALLED_ACCENT : "text-accent-secondary"}>
-          {hasDescriptor ? label : installed ? "Installed" : "Uninstalled"}
+        <span className={hardware ? HARDWARE_ACCENT : installed ? INSTALLED_ACCENT : "text-accent-secondary"}>
+          {hardware ? label : installed ? "Installed" : "Uninstalled"}
         </span>
       </Chip>
     </Text>

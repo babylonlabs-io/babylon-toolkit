@@ -23,8 +23,8 @@ export interface WalletsProps {
 // download-only options (gray) at the bottom. A lower rank sorts higher, so
 // when no software wallet is installed the hardware options surface to the top.
 const walletDisplayRank = (wallet: IWallet): number => {
-  if (wallet.installed && !wallet.label) return 0;
-  if (wallet.label) return 1;
+  if (wallet.installed && !wallet.hardware) return 0;
+  if (wallet.hardware) return 1;
   return 2;
 };
 
@@ -73,6 +73,7 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
         {wallets.map((wallet) => (
           <WalletButton
             installed={wallet.installed}
+            hardware={wallet.hardware}
             label={wallet.label}
             key={wallet.id}
             name={wallet.name}

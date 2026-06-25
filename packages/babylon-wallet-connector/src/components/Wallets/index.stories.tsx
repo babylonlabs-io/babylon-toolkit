@@ -38,13 +38,14 @@ const wallets: IWallet[] = [
   },
   {
     id: "keystone",
-    name: "Keysone",
+    name: "Keystone",
     installed: true,
     icon: "/images/wallets/keystone.svg",
     docs: "",
     provider: null,
     account: null,
     label: "Hardware wallet",
+    hardware: true,
   },
   {
     id: "tomo",
