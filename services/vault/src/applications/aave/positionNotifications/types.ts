@@ -60,8 +60,8 @@ export interface CalculatorResult {
   /**
    * The liquidation-optimal vault order the calculator settled on. The group
    * breakdown is computed against this order. Null on early exits (no debt /
-   * dust). Not surfaced in the banner yet — consumed by the (deferred)
-   * auto-reorder-on-EVM-action flow.
+   * dust). Surfaced in the reorder notification as the optimal-order chips
+   * and the "Apply Optimal Order" action.
    */
-  suggestedVaultOrder: Vault[] | null;
+  optimalVaultOrder: Vault[] | null;
 }

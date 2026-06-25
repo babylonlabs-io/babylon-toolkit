@@ -133,7 +133,7 @@ function WithdrawFlowContent({
     >
       <FadeTransition stepKey={renderedStep}>
         {renderedStep === WithdrawStep.REVIEW && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className="mx-auto w-full max-w-[612px]">
             <WithdrawReviewContent
               totalAmountBtc={selectedBtc}
               totalAmountUsd={selectedUsd}

@@ -14,12 +14,12 @@
  *   from the env-pinned adapter and refuses if the submitted multiset
  *   disagrees with the on-chain set.
  *
- * - `assertSuggestedOrderMatchesOnChain` re-fetches per-vault basic info
+ * - `assertOptimalOrderMatchesOnChain` re-fetches per-vault basic info
  *   from `BTCVaultRegistry.getBtcVaultBasicInfo` (amount, status,
  *   applicationEntryPoint), re-runs the full `calculate(...)` pipeline
  *   with on-chain amounts, and refuses if any per-vault status /
  *   application check fails or if the trusted calculator's
- *   `suggestedVaultOrder` does not equal the submission (including the
+ *   `optimalVaultOrder` does not equal the submission (including the
  *   case where the trusted calculator would have suggested no reorder at
  *   all). Only called when the caller is the auto-suggested CTA — manual
  *   drag-and-drop reorders intentionally skip this guard so the user can
@@ -40,8 +40,8 @@ export class ReorderMembershipMismatchError extends Error {
   readonly code = "REORDER_MEMBERSHIP_MISMATCH";
 }
 
-export class SuggestedReorderMismatchError extends Error {
-  readonly code = "SUGGESTED_REORDER_MISMATCH";
+export class OptimalReorderMismatchError extends Error {
+  readonly code = "OPTIMAL_REORDER_MISMATCH";
 }
 
 export class PositionChangedError extends Error {
@@ -49,7 +49,7 @@ export class PositionChangedError extends Error {
 }
 
 /**
- * Trusted calculator inputs for the suggested-order recompute. All values
+ * Trusted calculator inputs for the optimal-order recompute. All values
  * must be on-chain-anchored — the whole point of the guard is to refuse
  * recomputes against indexer-supplied inputs.
  *
@@ -140,7 +140,7 @@ export async function assertReorderMembership(
  * rebalance condition the user currently doesn't have — are honored. A
  * malicious indexer can otherwise fabricate a CTA whose submitted order
  * equals `computeOptimalOrder(trusted).order` even though the trusted
- * calculator would have returned `suggestedVaultOrder: null`.
+ * calculator would have returned `optimalVaultOrder: null`.
  *
  * The calculator needs the **current** on-chain ordering as its `vaults`
  * input so it can decide whether a reorder helps relative to that
@@ -159,18 +159,18 @@ export async function assertReorderMembership(
  *   `AaveIntegrationAdapter.getPosition(user).vaultIds`. Used as the
  *   `vaults` input to `calculate(...)` so the suppression rules see the
  *   user's actual current ordering.
- * @throws {SuggestedReorderMismatchError} when any per-vault check fails,
- *   the trusted calculator suggests no reorder, or the suggested order
+ * @throws {OptimalReorderMismatchError} when any per-vault check fails,
+ *   the trusted calculator suggests no reorder, or the optimal order
  *   does not equal the submission.
  */
-export async function assertSuggestedOrderMatchesOnChain(
+export async function assertOptimalOrderMatchesOnChain(
   submittedVaultIds: readonly Hex[],
   currentVaultIds: readonly Hex[],
   trustedAdapterAddress: Address,
   ctx: ReorderVerificationContext,
 ): Promise<void> {
   if (submittedVaultIds.length === 0) {
-    throw new SuggestedReorderMismatchError(
+    throw new OptimalReorderMismatchError(
       "Reorder submission is empty — refusing to sign.",
     );
   }
@@ -180,12 +180,12 @@ export async function assertSuggestedOrderMatchesOnChain(
   const vaults: Vault[] = currentVaultIds.map((id, i) => {
     const info = basicInfo.get(lower(id) as Hex);
     if (info === undefined) {
-      throw new SuggestedReorderMismatchError(
+      throw new OptimalReorderMismatchError(
         `On-chain basic info for vault ${id} not returned by registry multicall.`,
       );
     }
     if (info.status !== ContractStatus.ACTIVE) {
-      throw new SuggestedReorderMismatchError(
+      throw new OptimalReorderMismatchError(
         `Vault ${id} has on-chain status ${info.status}, expected ACTIVE (${ContractStatus.ACTIVE}). Refusing to recompute reorder against a non-active vault.`,
       );
     }
@@ -193,7 +193,7 @@ export async function assertSuggestedOrderMatchesOnChain(
       info.applicationEntryPoint.toLowerCase() !==
       trustedAdapterAddress.toLowerCase()
     ) {
-      throw new SuggestedReorderMismatchError(
+      throw new OptimalReorderMismatchError(
         `Vault ${id} is bound to application ${info.applicationEntryPoint}, expected the env-pinned Aave adapter ${trustedAdapterAddress}.`,
       );
     }
@@ -204,7 +204,7 @@ export async function assertSuggestedOrderMatchesOnChain(
     };
   });
 
-  const { suggestedVaultOrder } = calculate({
+  const { optimalVaultOrder } = calculate({
     btcPrice: ctx.btcPrice,
     totalDebtUsd: ctx.totalDebtUsd,
     vaults,
@@ -214,17 +214,17 @@ export async function assertSuggestedOrderMatchesOnChain(
     ...(ctx.expectedHF !== undefined ? { expectedHF: ctx.expectedHF } : {}),
   });
 
-  if (suggestedVaultOrder === null) {
-    throw new SuggestedReorderMismatchError(
+  if (optimalVaultOrder === null) {
+    throw new OptimalReorderMismatchError(
       "Trusted calculator would not have suggested a reorder under on-chain amounts. Aborting to avoid signing an indexer-fabricated CTA.",
     );
   }
 
-  const expectedOrder = suggestedVaultOrder.map((v) => v.id as Hex);
+  const expectedOrder = optimalVaultOrder.map((v) => v.id as Hex);
 
   if (!sameOrderedSequence(submittedVaultIds, expectedOrder)) {
-    throw new SuggestedReorderMismatchError(
-      "Suggested reorder does not match the calculator's output under on-chain amounts. Aborting to avoid signing an indexer-steered permutation.",
+    throw new OptimalReorderMismatchError(
+      "Optimal reorder does not match the calculator's output under on-chain amounts. Aborting to avoid signing an indexer-steered permutation.",
     );
   }
 }

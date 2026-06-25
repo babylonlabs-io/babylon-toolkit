@@ -1,9 +1,8 @@
 import {
   Button,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  ResponsiveDialog,
+  FullScreenDialog,
+  Heading,
+  Text,
 } from "@babylonlabs-io/core-ui";
 import {
   closestCenter,
@@ -88,62 +87,79 @@ export function ReorderVaultsModal({
   };
 
   return (
-    <ResponsiveDialog open={isOpen} onClose={handleClose}>
-      <DialogHeader title={REORDER_MODAL_TITLE} onClose={handleClose} />
-      <DialogBody className="space-y-4">
-        <p className="text-sm text-accent-secondary">
-          {REORDER_MODAL_SUBTITLE}
-        </p>
-
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={orderedVaults.map((v) => v.id)}
-            strategy={verticalListSortingStrategy}
+    <FullScreenDialog
+      open={isOpen}
+      onClose={handleClose}
+      className="items-center justify-center p-6"
+    >
+      <div className="mx-auto flex w-full max-w-[564px] flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Heading
+            variant="h5"
+            as="h2"
+            className="font-normal text-accent-primary"
           >
-            <div className="max-h-[400px] space-y-3 overflow-y-auto">
-              {orderedVaults.map((vault, index) => (
-                <ReorderVaultItem
-                  key={vault.id}
-                  id={vault.id}
-                  amountBtc={vault.amountBtc}
-                  position={index + 1}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+            {REORDER_MODAL_TITLE}
+          </Heading>
+          <Text variant="subtitle1" className="text-accent-secondary">
+            {REORDER_MODAL_SUBTITLE}
+          </Text>
+        </div>
 
-        {hasOrderChanged && (
-          <p className="rounded-lg bg-secondary-contrast/5 p-3 text-sm text-accent-secondary">
-            {REORDER_INFO_TEXT}
-          </p>
-        )}
-      </DialogBody>
-      <DialogFooter className="pt-3">
-        <Button
-          variant="contained"
-          color="secondary"
-          size="large"
-          fluid
-          onClick={handleConfirmClick}
-          disabled={!hasOrderChanged || isProcessing}
-        >
-          {isProcessing ? COPY.common.confirming : COPY.reorder.confirmButton}
-        </Button>
-        {hasOrderChanged && (
-          <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">
-            <span>{NETWORK_FEE_LABEL}</span>
-            <span>
-              {feeEth} {feeUsd}
-            </span>
+        <div className="flex flex-col gap-6">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={orderedVaults.map((v) => v.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="flex max-h-[400px] flex-col gap-3 overflow-y-auto">
+                {orderedVaults.map((vault, index) => (
+                  <ReorderVaultItem
+                    key={vault.id}
+                    id={vault.id}
+                    amountBtc={vault.amountBtc}
+                    position={index + 1}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {hasOrderChanged && (
+            <p className="rounded-lg bg-secondary-contrast/5 p-3 text-sm text-accent-secondary">
+              {REORDER_INFO_TEXT}
+            </p>
+          )}
+
+          <div>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="large"
+              fluid
+              onClick={handleConfirmClick}
+              disabled={!hasOrderChanged || isProcessing}
+            >
+              {isProcessing
+                ? COPY.common.confirming
+                : COPY.reorder.confirmButton}
+            </Button>
+            {hasOrderChanged && (
+              <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">
+                <span>{NETWORK_FEE_LABEL}</span>
+                <span>
+                  {feeEth} {feeUsd}
+                </span>
+              </div>
+            )}
           </div>
-        )}
-      </DialogFooter>
-    </ResponsiveDialog>
+        </div>
+      </div>
+    </FullScreenDialog>
   );
 }

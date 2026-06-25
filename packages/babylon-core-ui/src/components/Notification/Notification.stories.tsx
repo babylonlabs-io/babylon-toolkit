@@ -130,7 +130,7 @@ export const SuggestionBelowActions: Story = {
     ),
     actionsPlacement: "below",
     actions: [
-      { label: "Apply Suggested Order", emphasis: "primary", onClick: () => {} },
+      { label: "Apply Optimal Order", emphasis: "primary", onClick: () => {} },
     ],
   },
 };

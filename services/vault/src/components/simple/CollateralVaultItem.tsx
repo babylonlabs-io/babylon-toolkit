@@ -3,13 +3,7 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import {
-  Avatar,
-  Checkbox,
-  Hint,
-  Loader,
-  StatusBadge,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, Hint, Loader, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { ExplorerLink } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
@@ -45,9 +39,6 @@ interface CollateralVaultItemProps {
   /** Pre-PegIn transaction hash (hex, may include 0x prefix) */
   prePeginTxHash?: string;
   liquidationIndex?: number;
-  selected: boolean;
-  selectable: boolean;
-  onToggleSelect: (vaultId: string) => void;
   onArtifactDownload?: () => void;
 }
 
@@ -62,46 +53,23 @@ export function CollateralVaultItem({
   peginTxHash,
   prePeginTxHash,
   liquidationIndex,
-  selected,
-  selectable,
-  onToggleSelect,
   onArtifactDownload,
 }: CollateralVaultItemProps) {
-  const canInteract = (selectable || selected) && !isActivating;
-  const handleToggle = () => {
-    if (canInteract) onToggleSelect(vaultId);
-  };
-
   return (
     <VaultCardShell testId="vault-card">
-      {/* Top row: BTC icon + amount + checkbox */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Avatar
-            url={btcConfig.icon}
-            alt={btcConfig.coinSymbol}
-            size="medium"
+      {/* Top row: BTC icon + amount */}
+      <div className="flex items-center gap-2">
+        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="medium" />
+        <span className="text-xl font-medium text-accent-primary">
+          {formatBtcAmount(amountBtc)}
+        </span>
+        {/* The vault explorer may 404 until the indexer ingests it. */}
+        {!isActivating && (
+          <ExplorerLink
+            href={getVpExplorerVaultUrl(vaultId)}
+            label={COPY.explorer.vaultLinkLabel}
           />
-          <span className="text-xl font-medium text-accent-primary">
-            {formatBtcAmount(amountBtc)}
-          </span>
-          {/* The vault explorer may 404 until the indexer ingests it. */}
-          {!isActivating && (
-            <ExplorerLink
-              href={getVpExplorerVaultUrl(vaultId)}
-              label={COPY.explorer.vaultLinkLabel}
-            />
-          )}
-        </div>
-        <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-          <Checkbox
-            checked={selected}
-            onChange={handleToggle}
-            disabled={!canInteract}
-            variant="default"
-            showLabel={false}
-          />
-        </div>
+        )}
       </div>
 
       {/* Transaction hash row — Pegin + Pre-Pegin. The vault is active here, so
