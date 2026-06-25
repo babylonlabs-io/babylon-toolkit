@@ -39,6 +39,8 @@ import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NoticeBanner } from "../shared/NoticeBanner";
+import { ProtocolPauseBanner } from "../shared/ProtocolPauseBanner";
+import { resolveProtocolPauseLevel } from "../shared/protocolPauseLevel";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -140,9 +142,14 @@ export default function RootLayout() {
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
+        {/* Deposit kill-switch banner. Suppressed when a pause banner is active,
+            since the pause card already explains the disabled state. */}
         <DepositDisabledBanner
           visible={
-            !isGeoBlocked && isWalletConnected && FeatureFlags.isDepositDisabled
+            !isGeoBlocked &&
+            isWalletConnected &&
+            FeatureFlags.isDepositDisabled &&
+            resolveProtocolPauseLevel() === null
           }
         />
         <Header
@@ -196,6 +203,7 @@ export default function RootLayout() {
           <GeoBlockState />
         ) : (
           <ActivatingVaultsProvider>
+            <ProtocolPauseBanner />
             <Outlet
               context={
                 {

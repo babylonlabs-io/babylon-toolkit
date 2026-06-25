@@ -35,6 +35,52 @@ export default {
   },
 
   /**
+   * PROTOCOL_SOFT_PAUSED feature flag
+   *
+   * Purpose: Surfaces the teal "Protocol is soft-paused" status banner (new
+   * deposits/borrows/withdrawals disabled, repay still allowed, liquidations
+   * active).
+   * Why needed: Pause state is operator-controlled, not exposed on-chain or by
+   * the indexer; DevOps flips this during an incident, the same way they flip
+   * the DISABLE_DEPOSIT/DISABLE_BORROW kill-switches.
+   * Default: false (banner hidden unless explicitly set to "true")
+   */
+  get isProtocolSoftPaused() {
+    return process.env.NEXT_PUBLIC_FF_PROTOCOL_SOFT_PAUSED === "true";
+  },
+
+  /**
+   * PROTOCOL_FULLY_PAUSED feature flag
+   *
+   * Purpose: Surfaces the red "Protocol is fully paused" status banner (all
+   * operations disabled including liquidations; debt keeps accruing). Takes
+   * precedence over the soft-paused banner when both are set.
+   * Why needed: Same operator-controlled model as PROTOCOL_SOFT_PAUSED; DevOps
+   * escalates to this when the whole market is halted. The banner only reflects
+   * the flag — it does not detect the on-chain pause state.
+   * Default: false (banner hidden unless explicitly set to "true")
+   */
+  get isProtocolFullyPaused() {
+    return process.env.NEXT_PUBLIC_FF_PROTOCOL_FULLY_PAUSED === "true";
+  },
+
+  /**
+   * PAUSE_BANNER_MESSAGE override
+   *
+   * Purpose: Lets DevOps override the pause banner's body text per incident
+   * without a code change. When set, it replaces the active banner's body; when
+   * empty/unset, the default per-level copy from `copy.ts` is shown.
+   * Why needed: Incident messaging often needs wording the default copy can't
+   * anticipate. Non-boolean config, so it uses a plain NEXT_PUBLIC_ env (per
+   * rule 5) rather than the boolean FF prefix.
+   * Default: undefined (default copy is used).
+   */
+  get pauseBannerMessage(): string | undefined {
+    const raw = process.env.NEXT_PUBLIC_PAUSE_BANNER_MESSAGE?.trim();
+    return raw ? raw : undefined;
+  },
+
+  /**
    * FORCE_PARTIAL_LIQUIDATION feature flag
    *
    * Purpose: Forces partial liquidation split to always be suggested,

@@ -1037,6 +1037,21 @@ export const COPY = {
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
     },
   },
+  // Operator-controlled protocol-pause status banners. The body may be
+  // overridden per incident via NEXT_PUBLIC_PAUSE_BANNER_MESSAGE; these are the
+  // defaults. Each renders a trailing "Learn more" link.
+  protocolPause: {
+    soft: {
+      title: "Protocol is soft-paused",
+      body: "New deposits, borrows, and withdrawals are disabled. You can still repay debt — liquidations remain active.",
+      learnMore: "Learn more",
+    },
+    hard: {
+      title: "Protocol is fully paused",
+      body: "All operations are disabled, including liquidations. Debt continues accruing interest. Monitor official announcements.",
+      learnMore: "Learn more",
+    },
+  },
   // Full-width critical banner rendered above the header when the position is at
   // imminent liquidation risk (red severity). The warning glyph is supplied via
   // the banner's icon slot, not the message string.

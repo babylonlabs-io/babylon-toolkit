@@ -91,6 +91,18 @@ Create a `.env` file with the following variables:
   - Default: `false` (disabled unless explicitly set to `"true"`)
   - Set to `"true"` to bypass the active-vaults check — useful for dev/QA testing of the split deposit flow
 
+- `NEXT_PUBLIC_FF_PROTOCOL_SOFT_PAUSED` - Shows the teal "Protocol is soft-paused" banner (new deposits/borrows/withdrawals disabled, repay still allowed, liquidations active)
+  - Default: `false` (banner hidden unless explicitly set to `"true"`)
+  - Operator-controlled; the banner reflects the flag only and does not detect on-chain pause state
+
+- `NEXT_PUBLIC_FF_PROTOCOL_FULLY_PAUSED` - Shows the red "Protocol is fully paused" banner (all operations disabled including liquidations; debt keeps accruing)
+  - Default: `false` (banner hidden unless explicitly set to `"true"`)
+  - Takes precedence over `NEXT_PUBLIC_FF_PROTOCOL_SOFT_PAUSED` when both are set
+
+- `NEXT_PUBLIC_PAUSE_BANNER_MESSAGE` - Optional override for the pause banner body text (non-boolean config)
+  - Default: empty (the default per-level copy is shown)
+  - When set, replaces the active pause banner's body with this text
+
 ## Available Scripts
 
 ### Development
