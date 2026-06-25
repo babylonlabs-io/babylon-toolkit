@@ -39,6 +39,7 @@ import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NoticeBanner } from "../shared/NoticeBanner";
+import { WalletLockedBanner } from "../shared/WalletLockedBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -97,7 +98,7 @@ function MobileNavigation() {
 
 export default function RootLayout() {
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected } = useBTCWallet();
+  const { connected: btcConnected, locked: btcLocked } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
@@ -140,6 +141,7 @@ export default function RootLayout() {
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
+        <WalletLockedBanner visible={!isGeoBlocked && btcLocked} />
         <DepositDisabledBanner
           visible={
             !isGeoBlocked && isWalletConnected && FeatureFlags.isDepositDisabled

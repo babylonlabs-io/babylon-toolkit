@@ -12,6 +12,11 @@ import type { networks } from "bitcoinjs-lib";
 import { ACCOUNT_CHANGE_EVENTS, DISCONNECT_EVENT } from "@/constants/walletEvents";
 import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
 import { toXOnlyPublicKeyHex } from "@/core/utils/wallet";
+import {
+  BTC_WALLET_LOCK_POLL_INTERVAL_MS,
+  areBtcAccountsLocked,
+  classifyBtcAccountsProbe,
+} from "@/core/utils/walletLock";
 import { useChainConnector } from "@/hooks/useChainConnector";
 import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
@@ -29,6 +34,17 @@ interface BTCWalletContextProps {
   publicKeyNoCoord: string;
   address: string;
   connected: boolean;
+  /**
+   * True when a *connected* BTC wallet has gone silently locked — its
+   * non-interactive accounts read (`getAccounts`) returned empty while a cached
+   * session is still held. Distinct from `connected` (which stays true on a
+   * cached session, since `getAddress()` returns a stale address) and from a
+   * disconnect (which tears the session down). Drives an "unlock your wallet"
+   * prompt; clears automatically once the wallet is unlocked (the poll sees the
+   * account again) or after a successful `reconnect()`. Only ever set for
+   * wallets that expose a non-interactive accounts read.
+   */
+  locked: boolean;
   disconnect: () => void;
   open: () => void;
   /**
@@ -68,6 +84,7 @@ const BTCWalletContext = createContext<BTCWalletContextProps>({
   loading: true,
   network: undefined,
   connected: false,
+  locked: false,
   publicKeyNoCoord: "",
   address: "",
   disconnect: () => {},
@@ -100,6 +117,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const [network, setNetwork] = useState<networks.Network>();
   const [publicKeyNoCoord, setPublicKeyNoCoord] = useState("");
   const [address, setAddress] = useState("");
+  const [locked, setLocked] = useState(false);
 
   const btcConnector = useChainConnector("BTC");
   const { open = () => {} } = useWalletConnect();
@@ -109,6 +127,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     setNetwork(undefined);
     setPublicKeyNoCoord("");
     setAddress("");
+    setLocked(false);
 
     try {
       await callbacks?.onDisconnect?.();
@@ -142,6 +161,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         setBTCWalletProvider(walletProvider);
         setAddress(address);
         setPublicKeyNoCoord(publicKeyNoCoordHex);
+        setLocked(false);
         setLoading(false);
 
         await callbacks?.onConnect?.(address, publicKeyNoCoordHex);
@@ -259,6 +279,37 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const checkBTCConnection = useCallback(async () => {
     if (!btcWalletProvider) return;
 
+    // Non-interactive pre-check (when supported): distinguishes a silent
+    // auto-lock from a real disconnect / account change WITHOUT surfacing the
+    // wallet's unlock popup. `connectWallet()` below is interactive
+    // (`requestAccounts` / `connect`) and would force an unlock prompt on a
+    // locked wallet — and, on rejection/timeout, escalate to disconnect(). For
+    // a mere auto-lock we instead flag `locked` (the unlock banner handles it)
+    // and stop here, so returning to a locked tab never forces a popup or wipes
+    // the session.
+    if (typeof btcWalletProvider.getAccounts === "function") {
+      let accounts: string[] | undefined;
+      try {
+        accounts = await btcWalletProvider.getAccounts();
+      } catch {
+        // Inconclusive (transient error / asleep extension) — fall through to
+        // the interactive path, preserving the original behavior.
+        accounts = undefined;
+      }
+      if (accounts !== undefined) {
+        const probe = classifyBtcAccountsProbe(accounts, address);
+        if (probe === "locked") {
+          setLocked(true);
+          return;
+        }
+        // Unlocked. Same account → nothing changed; skip the interactive
+        // round-trip (and its popup risk) entirely. Different account
+        // ("changed") → fall through to refresh the cached address/pubkey.
+        setLocked(false);
+        if (probe === "current") return;
+      }
+    }
+
     try {
       // Try to get the current accounts from the wallet
       // If disconnected, this will fail or return empty
@@ -295,6 +346,79 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     enabled: Boolean(btcWalletProvider && address),
   });
 
+  // Detect a *silent* wallet auto-lock. Injected extensions (notably UniSat)
+  // re-lock on an idle timer and emit no event, while the cached `getAddress()`
+  // keeps returning a stale address — so `connected` stays true and the UI
+  // looks fine until the user hits a signing call. `getAccounts()` is the
+  // non-interactive probe (it never prompts) and returns [] when locked.
+  const checkLock = useCallback(async () => {
+    if (!btcWalletProvider || !address) return;
+    // Feature-detect: wallets without a non-interactive accounts read
+    // (AppKit, hardware) can't be probed silently, so never flag them locked.
+    if (typeof btcWalletProvider.getAccounts !== "function") return;
+
+    let accounts: string[];
+    try {
+      accounts = await btcWalletProvider.getAccounts();
+    } catch {
+      // A throw is ambiguous (transient RPC error / asleep extension / wallet
+      // without the method) — leave the current state rather than flapping the
+      // banner. The click-time liveness probe still catches a truly
+      // unresponsive wallet at signing time.
+      return;
+    }
+
+    setLocked(areBtcAccountsLocked(accounts));
+  }, [btcWalletProvider, address]);
+
+  // Poll for a silent lock while the tab is visible, plus immediately on tab
+  // focus / return so it feels instant when the user interacts. A backgrounded
+  // tab is not polled (it can't show the banner, and waking the extension for
+  // nothing is wasteful) — it re-checks the moment it becomes visible.
+  useEffect(() => {
+    if (!btcWalletProvider || !address) return;
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    if (typeof btcWalletProvider.getAccounts !== "function") return;
+
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    const startPolling = () => {
+      if (intervalId !== undefined) return;
+      void checkLock();
+      intervalId = setInterval(() => void checkLock(), BTC_WALLET_LOCK_POLL_INTERVAL_MS);
+    };
+
+    const stopPolling = () => {
+      if (intervalId === undefined) return;
+      clearInterval(intervalId);
+      intervalId = undefined;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    const handleFocus = () => {
+      void checkLock();
+    };
+
+    if (document.visibilityState === "visible") {
+      startPolling();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [btcWalletProvider, address, checkLock]);
+
   const reconnect = useCallback(async () => {
     if (!btcWalletProvider) {
       throw new Error("BTC Wallet not connected");
@@ -323,6 +447,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       // address after re-auth, and connectBTC sets both unconditionally.
       setAddress(refreshedAddress);
       setPublicKeyNoCoord(refreshedPublicKeyNoCoord);
+      // A successful re-auth means the wallet answered an interactive prompt, so
+      // it is unlocked again — clear any pending lock state immediately rather
+      // than waiting for the next poll tick.
+      setLocked(false);
       if (refreshedAddress !== address) {
         await callbacks?.onAddressChange?.(refreshedAddress, refreshedPublicKeyNoCoord);
       }
@@ -396,6 +524,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         loading,
         network,
         connected,
+        locked,
         publicKeyNoCoord,
         address,
         disconnect,

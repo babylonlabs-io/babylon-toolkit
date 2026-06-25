@@ -368,6 +368,19 @@ export interface IBTCProvider extends IProvider {
   getNetwork(): Promise<Network>;
 
   /**
+   * Reads the wallet's currently authorized accounts WITHOUT prompting the
+   * user (non-interactive). For injected extensions (UniSat, OneKey) this is
+   * the live account list: a locked or de-authorized wallet returns an empty
+   * array, an unlocked one returns the active address(es). Unlike
+   * `connectWallet()` it never surfaces the unlock / connection popup, so it
+   * can be polled to detect a silent auto-lock that fires no event and leaves
+   * the cached `getAddress()` stale. Optional: wallets without a
+   * non-interactive accounts read omit it (callers must feature-detect).
+   * @returns A promise that resolves to the active account addresses.
+   */
+  getAccounts?(): Promise<string[]>;
+
+  /**
    * Signs a message using either BIP322-Simple or ECDSA signing method.
    * @param message - The message to sign.
    * @param type - The signing method to use.
