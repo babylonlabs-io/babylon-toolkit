@@ -37,6 +37,9 @@ html {
   --motion-duration-dropdown: 180ms;
   --motion-ease-dropdown-in: ease-out;
   --motion-shift-dropdown: 4px;
+  /* Motion spec — Tooltips / Info (Figma §4) */
+  --motion-duration-tooltip: 140ms;
+  --motion-duration-tooltip-out: 120ms;
 }
 
 @media screen and (min-width: 768px) {
