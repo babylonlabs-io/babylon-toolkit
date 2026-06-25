@@ -118,6 +118,8 @@ function SimpleDepositContent({
     vaultAmounts,
     isSplitLoading,
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     depositorClaimValue,
     depositorClaimValueError,
     ordinalsCheckPending,
@@ -216,6 +218,8 @@ function SimpleDepositContent({
         canSplit,
         isLoading: isSplitLoading,
         splitRatioLabel,
+        minDepositForSplit,
+        isSplitAmountTooLow,
       };
 
   // UTXO-overlap advisory: count is computed on click and rendered as a
@@ -315,9 +319,8 @@ function SimpleDepositContent({
             ? err.message
             : "BTC wallet check failed. Please reconnect your wallet and try again.",
         );
-        return;
-      } finally {
         setIsVerifyingWallet(false);
+        return;
       }
     } else {
       // The `!isWalletConnected` branch in getDepositCtaState should prevent
@@ -333,8 +336,14 @@ function SimpleDepositContent({
 
     setWalletConnectionError(null);
 
-    // Ensure the signing path sees post-mempool state, not the cached snapshot.
-    await refetchUtxos();
+    // Keep the button in its loading state through the UTXO refetch so there's
+    // no dead air between the wallet check and the signing screen.
+    try {
+      // Ensure the signing path sees post-mempool state, not the cached snapshot.
+      await refetchUtxos();
+    } finally {
+      setIsVerifyingWallet(false);
+    }
 
     const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
     const effectiveVaultAmounts =
@@ -368,57 +377,66 @@ function SimpleDepositContent({
     >
       <FadeTransition stepKey={stepKey}>
         {showForm && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className="mx-auto w-full max-w-[564px]">
             <Heading variant="h5">Deposit</Heading>
             <div className="mt-4">
               <DepositForm
-                amount={formData.amountBtc}
-                amountSats={amountSats}
-                btcBalance={btcBalance}
-                unconfirmedBalance={unconfirmedBalance}
-                hasUnconfirmedBalanceOnly={hasUnconfirmedBalanceOnly}
-                minDeposit={minDeposit}
-                maxDeposit={maxDeposit}
-                maxDepositSats={maxDepositSats}
-                effectiveRemaining={effectiveRemaining}
-                capUnavailable={capUnavailable}
-                minPeginFee={minPeginFee}
-                minPeginFeeError={minPeginFeeError}
-                btcPrice={btcPrice}
-                hasPriceFetchError={hasPriceFetchError}
+                amountState={{
+                  amount: formData.amountBtc,
+                  amountSats,
+                  btcBalance,
+                  unconfirmedBalance,
+                  hasUnconfirmedBalanceOnly,
+                  minDeposit,
+                  maxDeposit,
+                  maxDepositSats,
+                  effectiveRemaining,
+                  capUnavailable,
+                }}
+                feeState={{
+                  minPeginFee,
+                  minPeginFeeError,
+                  btcPrice,
+                  hasPriceFetchError,
+                  estimatedFeeSats,
+                  estimatedFeeRate,
+                  isLoadingFee,
+                  feeError,
+                  depositorClaimValue: totalDepositorClaimValue,
+                  commissionHtlcValues,
+                  depositorClaimValueError,
+                  protocolFeeAmount,
+                  protocolFeePrice,
+                  protocolFeeIsError,
+                  feeRows,
+                }}
+                providerState={{
+                  applications,
+                  selectedApplication: effectiveSelectedApplication,
+                  providers,
+                  isLoadingProviders,
+                  selectedProvider: formData.selectedProvider,
+                  onProviderSelect: (providerId) =>
+                    setFormData({ selectedProvider: providerId }),
+                }}
+                walletState={{
+                  isWalletConnected,
+                  hasWalletConnectionError: Boolean(walletConnectionError),
+                  walletConnectionErrorMessage: walletConnectionError,
+                  isVerifyingWallet,
+                  isReconnectingWallet,
+                }}
+                gatingState={{
+                  isDepositDisabled: FeatureFlags.isDepositDisabled,
+                  isGeoBlocked: isGeoBlocked || isGeoLoading,
+                  isAddressBlocked: isAddressBlocked || isScreeningLoading,
+                  ordinalsCheckPending,
+                }}
+                collateralFactor={collateralFactor}
+                partialLiquidation={partialLiquidationProps}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
-                applications={applications}
-                selectedApplication={effectiveSelectedApplication}
-                providers={providers}
-                isLoadingProviders={isLoadingProviders}
-                selectedProvider={formData.selectedProvider}
-                onProviderSelect={(providerId) =>
-                  setFormData({ selectedProvider: providerId })
-                }
-                isWalletConnected={isWalletConnected}
-                depositorClaimValue={totalDepositorClaimValue}
-                commissionHtlcValues={commissionHtlcValues}
-                depositorClaimValueError={depositorClaimValueError}
-                estimatedFeeSats={estimatedFeeSats}
-                estimatedFeeRate={estimatedFeeRate}
-                isLoadingFee={isLoadingFee}
-                feeError={feeError}
-                isDepositDisabled={FeatureFlags.isDepositDisabled}
-                isGeoBlocked={isGeoBlocked || isGeoLoading}
-                isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
-                partialLiquidation={partialLiquidationProps}
-                collateralFactor={collateralFactor}
-                protocolFeeAmount={protocolFeeAmount}
-                protocolFeePrice={protocolFeePrice}
-                protocolFeeIsError={protocolFeeIsError}
-                feeRows={feeRows}
-                ordinalsCheckPending={ordinalsCheckPending}
-                hasWalletConnectionError={Boolean(walletConnectionError)}
-                walletConnectionErrorMessage={walletConnectionError}
-                isVerifyingWallet={isVerifyingWallet}
-                isReconnectingWallet={isReconnectingWallet}
               />
             </div>
           </div>

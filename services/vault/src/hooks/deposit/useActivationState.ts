@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useActivatingVaults } from "@/applications/aave/context";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -60,6 +61,7 @@ export function useActivationState({
   }, []);
 
   const { setOptimisticStatus } = usePeginPolling();
+  const { addActivatingVault } = useActivatingVaults();
   const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
     ethAddress: depositorEthAddress,
     confirmedPegins: EMPTY_CONFIRMED,
@@ -83,6 +85,21 @@ export function useActivationState({
           onShowSuccessModal: () => {
             if (!mountedRef.current) return;
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
+            // Optimistically surface the just-activated vault in the dashboard
+            // Collateral section while the Aave indexer catches up (~15s gap).
+            // Skip a bogus row if the amount can't be parsed to a positive BTC
+            // value — the indexer-driven row will still appear within seconds.
+            const amountBtc = parseFloat(
+              activity.collateral.amount.replace(/,/g, ""),
+            );
+            if (Number.isFinite(amountBtc) && amountBtc > 0) {
+              addActivatingVault({
+                vaultId: activity.id,
+                depositorEthAddress,
+                amountBtc,
+                providerAddress: activity.providers[0]?.id,
+              });
+            }
             setLocalActivating(false);
             setActivated(true);
           },
@@ -101,6 +118,7 @@ export function useActivationState({
       updatePendingPeginStatus,
       vaultHandleActivation,
       setOptimisticStatus,
+      addActivatingVault,
     ],
   );
 

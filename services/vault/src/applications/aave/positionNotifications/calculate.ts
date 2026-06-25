@@ -37,8 +37,8 @@ const REORDER_TOL = 0.001;
  *
  * Liquidation follows the current on-chain vault order, so the group breakdown
  * is computed against that order. Separately, the optimizer is run and — when
- * it finds a strictly better order — `suggestedVaultOrder` is returned so the
- * banner can offer a manual "Apply Suggested Order" action. Warnings are limited
+ * it finds a strictly better order — `optimalVaultOrder` is returned so the
+ * banner can offer a manual "Apply Optimal Order" action. Warnings are limited
  * to three types: `weird-params` (invalid protocol params, soft), `urgent`
  * (already liquidatable or within 5% of the trigger), or `dust`.
  */
@@ -71,7 +71,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       collateralValue,
       targetSeizureBtc: 0,
       warnings,
-      suggestedVaultOrder: null,
+      optimalVaultOrder: null,
     };
   }
 
@@ -111,7 +111,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
           detail: COPY.liquidationWarnings.dust.detail,
         },
       ],
-      suggestedVaultOrder: null,
+      optimalVaultOrder: null,
     };
   }
 
@@ -225,15 +225,15 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     groupIndex++;
   }
 
-  // ── 4. Optimal-order analysis (manual "Apply Suggested Order") ──
+  // ── 4. Optimal-order analysis (manual "Apply Optimal Order") ──
   //
   // We never reorder automatically. Score the current order against the
   // optimizer's best order; only when the optimizer strictly improves the
   // cascade (more BTC surviving across events, tie-broken by BTC after the
-  // first event) do we surface a suggested order for the user to apply.
+  // first event) do we surface the optimal order for the user to apply.
   // Skipped under invalid params — the cascade scores are meaningless there.
 
-  let suggestedVaultOrder: Vault[] | null = null;
+  let optimalVaultOrder: Vault[] | null = null;
   if (!seizedParamsInvalid) {
     const current = simulateCascade(
       vaults,
@@ -260,7 +260,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     const afterG1Improves =
       Math.abs(optimal.sumBtcAfterEvents - current.sumBtcAfterEvents) <=
         REORDER_TOL && optimal.btcAfterG1 > current.btcAfterG1 + REORDER_TOL;
-    if (sumImproves || afterG1Improves) suggestedVaultOrder = optimal.order;
+    if (sumImproves || afterG1Improves) optimalVaultOrder = optimal.order;
   }
 
   // ── 5. Warnings ────────────────────────────────────────────────
@@ -327,6 +327,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     collateralValue,
     targetSeizureBtc,
     warnings,
-    suggestedVaultOrder,
+    optimalVaultOrder,
   };
 }

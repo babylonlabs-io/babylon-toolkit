@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading, Loader } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
@@ -34,6 +34,7 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
 import { ReorderSuccessModal, ReorderVaultsModal } from "./ReorderVaults";
+import { CollateralActionsMenu, WithdrawVaultsModal } from "./WithdrawVaults";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -75,6 +76,7 @@ export function CollateralSection({
       })
     | null
   >(null);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const { findProvider } = useVaultProviders();
@@ -143,7 +145,16 @@ export function CollateralSection({
     return undefined;
   }, [hasWithdrawableVault, wouldBreachHF, effectiveSelectedVaultIds.length]);
 
-  const canReorder = collateralVaults.length >= 2;
+  // Optimistic "activating" rows have no indexed liquidation order yet and
+  // aren't on-chain collateral, so they must not enter the reorder path (gate,
+  // gas estimate, or the signed permutation). This single derived list drives
+  // both the gate and the modal data so the two can't drift apart.
+  const hasActivatingVault = collateralVaults.some((v) => v.isActivating);
+  const reorderableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.isActivating),
+    [collateralVaults],
+  );
+  const canReorder = reorderableVaults.length >= 2;
 
   const handleToggleVaultSelect = useCallback(
     (vaultId: string) => {
@@ -154,6 +165,19 @@ export function CollateralSection({
     },
     [selectedVaultIds, onSelectedVaultIdsChange],
   );
+
+  const handleWithdrawConfirm = useCallback(() => {
+    setIsWithdrawOpen(false);
+    onWithdraw();
+  }, [onWithdraw]);
+
+  // Dismissing the selection modal (Escape / backdrop / close) drops any
+  // selection from the canceled attempt, so a later withdraw can't confirm
+  // with stale vault choices.
+  const handleWithdrawCancel = useCallback(() => {
+    setIsWithdrawOpen(false);
+    onSelectedVaultIdsChange([]);
+  }, [onSelectedVaultIdsChange]);
 
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
@@ -207,16 +231,6 @@ export function CollateralSection({
           Collateral
         </Heading>
         <div className="flex items-center gap-2">
-          {canReorder && (
-            <Button
-              variant="outlined"
-              size="large"
-              onClick={() => setIsReorderOpen(true)}
-              className="rounded-full"
-            >
-              Reorder
-            </Button>
-          )}
           <DepositButton
             variant="outlined"
             size="large"
@@ -226,12 +240,19 @@ export function CollateralSection({
           >
             Deposit
           </DepositButton>
+          {hasCollateral && (
+            <CollateralActionsMenu
+              onWithdraw={() => setIsWithdrawOpen(true)}
+              onReorder={() => setIsReorderOpen(true)}
+              canReorder={canReorder}
+            />
+          )}
         </div>
       </div>
 
       {hasCollateral ? (
         <Card variant="filled" className={SUMMARY_CARD_CLASS}>
-          {/* Summary row: BTC icon + total amount + three-dots toggle */}
+          {/* Summary row: BTC icon + total amount + expand chevron */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Avatar
@@ -239,9 +260,21 @@ export function CollateralSection({
                 alt={btcConfig.coinSymbol}
                 size="medium"
               />
-              <span className="text-xl text-accent-primary">
-                {totalAmountBtc}
-              </span>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl text-accent-primary">
+                    {totalAmountBtc}
+                  </span>
+                  {hasActivatingVault && (
+                    <Loader size={16} className="text-accent-secondary" />
+                  )}
+                </div>
+                {hasActivatingVault && (
+                  <span className="text-sm text-accent-secondary">
+                    {COPY.collateral.activating}
+                  </span>
+                )}
+              </div>
             </div>
             <ExpandMenuButton
               isExpanded={isExpanded}
@@ -254,13 +287,6 @@ export function CollateralSection({
           {isExpanded && (
             <CollateralExpandedContent
               vaults={collateralVaults}
-              vaultEligibility={vaultEligibility}
-              selectedVaultIds={effectiveSelectedVaultIds}
-              selectedBtc={selectedBtc}
-              canWithdraw={canWithdraw}
-              onToggleVaultSelect={handleToggleVaultSelect}
-              onWithdraw={onWithdraw}
-              disabledReason={disabledReason}
               onArtifactDownload={handleArtifactDownload}
             />
           )}
@@ -304,10 +330,23 @@ export function CollateralSection({
         />
       )}
 
+      <WithdrawVaultsModal
+        isOpen={isWithdrawOpen}
+        onClose={handleWithdrawCancel}
+        vaults={collateralVaults}
+        vaultEligibility={vaultEligibility}
+        selectedVaultIds={effectiveSelectedVaultIds}
+        selectedBtc={selectedBtc}
+        canWithdraw={canWithdraw}
+        onToggleVaultSelect={handleToggleVaultSelect}
+        onConfirm={handleWithdrawConfirm}
+        disabledReason={disabledReason}
+      />
+
       <ReorderVaultsModal
         isOpen={isReorderOpen}
         onClose={() => setIsReorderOpen(false)}
-        vaults={collateralVaults}
+        vaults={reorderableVaults}
         onSuccess={() => setIsReorderSuccess(true)}
       />
 

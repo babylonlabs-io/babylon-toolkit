@@ -25,6 +25,11 @@ export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
 export const WITHDRAWAL_LATENCY_DOCS_URL = "https://docs.babylonlabs.io";
 export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 
+// Two-vault split docs link, surfaced from the split-option description in
+// UtxoSplitSelector. Points at the "decide how to split your BTC" step.
+export const PARTIAL_LIQUIDATION_DOCS_URL =
+  "https://docs.babylonlabs.io/trustless-bitcoin-vault/use-for-lending/create-a-vault/#step-1-decide-how-to-split-your-btc";
+
 // Bitcoin protocol constants
 export const BTC_BLOCK_TIME_MINS = 10;
 export const MINS_PER_HOUR = 60;

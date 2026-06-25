@@ -6,7 +6,7 @@
  * Returns the current on-chain ordering so Guard B can feed it into the
  * calculator.
  *
- * Guard B — `assertSuggestedOrderMatchesOnChain`: re-runs the full
+ * Guard B — `assertOptimalOrderMatchesOnChain`: re-runs the full
  * notification calculator with on-chain amounts and blocks submissions
  * whose ordering disagrees (the same-set tamper attack), whose vaults
  * are inactive or bound to a different application, or whose trusted
@@ -21,12 +21,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getBtcVaultBasicInfoFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 
 import {
+  OptimalReorderMismatchError,
   PositionChangedError,
   ReorderMembershipMismatchError,
-  SuggestedReorderMismatchError,
+  assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,
   assertReorderMembership,
-  assertSuggestedOrderMatchesOnChain,
   type ReorderVerificationContext,
 } from "../assertReorderMatchesOnChain";
 
@@ -67,7 +67,7 @@ const VAULT_C =
  * High-debt context where the optimizer prefers concentrating seizure on
  * the larger vault first ([A=0.6, B=0.1] → suggested [A, B]). Current
  * order in tests is [B, A] so `calculate()` will surface a non-null
- * `suggestedVaultOrder = [A, B]`.
+ * `optimalVaultOrder = [A, B]`.
  */
 const CONTEXT_BASE: ReorderVerificationContext = {
   CF: 0.7,
@@ -181,12 +181,12 @@ describe("assertReorderMembership", () => {
   });
 });
 
-describe("assertSuggestedOrderMatchesOnChain", () => {
+describe("assertOptimalOrderMatchesOnChain", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("resolves when the submission equals the calculator's suggested order under on-chain amounts", async () => {
+  it("resolves when the submission equals the calculator's optimal order under on-chain amounts", async () => {
     // Current order [B, A] is suboptimal (smaller-first cliff). Calculator
     // suggests [A, B] (larger-first). Submission matches.
     mockGetBtcVaultBasicInfo.mockResolvedValue(
@@ -197,7 +197,7 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
@@ -218,17 +218,17 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_B, VAULT_A],
         [VAULT_B, VAULT_A],
         ADAPTER,
         CONTEXT_BASE,
       ),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
   });
 
   it("rejects when the trusted calculator would not have suggested a reorder (no debt)", async () => {
-    // No-debt scenario → calculator returns early with suggestedVaultOrder: null.
+    // No-debt scenario → calculator returns early with optimalVaultOrder: null.
     // Indexer would have fabricated a CTA; Guard B refuses.
     mockGetBtcVaultBasicInfo.mockResolvedValue(
       basicInfoMap([
@@ -238,13 +238,13 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
         { ...CONTEXT_BASE, totalDebtUsd: 0 },
       ),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
   });
 
   it("rejects when the current ordering is already optimal (calculator returns null)", async () => {
@@ -259,13 +259,13 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_B, VAULT_A],
         [VAULT_A, VAULT_B],
         ADAPTER,
         CONTEXT_BASE,
       ),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
   });
 
   it("rejects when any vault is not in ACTIVE status", async () => {
@@ -284,13 +284,13 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
         CONTEXT_BASE,
       ),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
   });
 
   it("rejects when a vault's applicationEntryPoint differs from the trusted adapter", async () => {
@@ -302,13 +302,13 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
         CONTEXT_BASE,
       ),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
   });
 
   it("matches applicationEntryPoint case-insensitively", async () => {
@@ -320,7 +320,7 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
@@ -338,7 +338,7 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A.toUpperCase() as Hex, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
@@ -349,8 +349,8 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
 
   it("rejects empty submissions", async () => {
     await expect(
-      assertSuggestedOrderMatchesOnChain([], [], ADAPTER, CONTEXT_BASE),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+      assertOptimalOrderMatchesOnChain([], [], ADAPTER, CONTEXT_BASE),
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
     expect(mockGetBtcVaultBasicInfo).not.toHaveBeenCalled();
   });
 
@@ -360,7 +360,7 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
@@ -369,19 +369,19 @@ describe("assertSuggestedOrderMatchesOnChain", () => {
     ).rejects.toThrow("vault not registered on-chain");
   });
 
-  it("throws SuggestedReorderMismatchError when the registry omits a vault from its response", async () => {
+  it("throws OptimalReorderMismatchError when the registry omits a vault from its response", async () => {
     mockGetBtcVaultBasicInfo.mockResolvedValue(
       basicInfoMap([[VAULT_A, activeInfo(60_000_000n)]]),
     );
 
     await expect(
-      assertSuggestedOrderMatchesOnChain(
+      assertOptimalOrderMatchesOnChain(
         [VAULT_A, VAULT_B],
         [VAULT_B, VAULT_A],
         ADAPTER,
         CONTEXT_BASE,
       ),
-    ).rejects.toBeInstanceOf(SuggestedReorderMismatchError);
+    ).rejects.toBeInstanceOf(OptimalReorderMismatchError);
   });
 });
 

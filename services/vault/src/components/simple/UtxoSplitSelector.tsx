@@ -1,6 +1,7 @@
 import { Accordion, AccordionDetails, Card } from "@babylonlabs-io/core-ui";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
+import { PARTIAL_LIQUIDATION_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
 interface PartialLiquidationProps {
@@ -16,12 +17,6 @@ interface UtxoSplitSelectorProps {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }
-
-function getSplitOptionMainLabel(splitRatioLabel: string | null): string {
-  return splitRatioLabel ? `2 UTXO Split - ${splitRatioLabel}` : "2 UTXO Split";
-}
-
-const RECOMMENDED_SUFFIX = "(Recommended)";
 
 export function UtxoSplitSelector({
   partialLiquidation,
@@ -55,9 +50,11 @@ export function UtxoSplitSelector({
           <span className="text-sm text-accent-primary">
             {partialLiquidation.isEnabled ? (
               <>
-                {getSplitOptionMainLabel(partialLiquidation.splitRatioLabel)}{" "}
+                {COPY.deposit.form.splitOptionLabel(
+                  partialLiquidation.splitRatioLabel,
+                )}{" "}
                 <span className="text-accent-secondary">
-                  {RECOMMENDED_SUFFIX}
+                  {COPY.deposit.form.splitOptionRecommended}
                 </span>
               </>
             ) : (
@@ -90,23 +87,24 @@ export function UtxoSplitSelector({
           >
             <span className="flex flex-col gap-1">
               <span className={`text-sm ${splitTitleColor}`}>
-                {getSplitOptionMainLabel(partialLiquidation.splitRatioLabel)}{" "}
+                {COPY.deposit.form.splitOptionLabel(
+                  partialLiquidation.splitRatioLabel,
+                )}{" "}
                 <span className="text-accent-secondary">
-                  {RECOMMENDED_SUFFIX}
+                  {COPY.deposit.form.splitOptionRecommended}
                 </span>
               </span>
               <span className="text-xs text-accent-secondary">
-                {COPY.deposit.form.splitOptionDescription}
-                {/* TODO: restore once we have the final docs URL for split rationale
-                {" "}
+                {COPY.deposit.form.splitOptionDescription}{" "}
                 <a
-                  href="#"
+                  href={PARTIAL_LIQUIDATION_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-secondary-main underline"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  {COPY.deposit.form.learnWhyRecommended}
+                  {COPY.deposit.form.learnMore}
                 </a>
-                */}
               </span>
             </span>
             {partialLiquidation.isEnabled && (

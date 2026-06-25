@@ -18,6 +18,7 @@ import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import {
   FeatureFlags,
   getNetworkConfigBTC,
@@ -28,7 +29,10 @@ import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
 
-import { AaveConfigProvider } from "../../applications/aave/context";
+import {
+  AaveConfigProvider,
+  ActivatingVaultsProvider,
+} from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
@@ -118,6 +122,10 @@ export default function RootLayout() {
   return (
     <div className="relative h-full min-h-svh w-full bg-surface">
       <div className="flex min-h-svh flex-col">
+        {/* Portal target for the critical near-liquidation banner. Owned by the
+            dashboard (where the Aave data + debug override live) but portaled
+            here so it renders above the header, atop the operational banners. */}
+        <div id={CRITICAL_BANNER_SLOT_ID} />
         <TestingBanner visible={shouldDisplayTestingMsg()} />
         <AddressScreeningBanner
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
@@ -178,7 +186,7 @@ export default function RootLayout() {
         ) : isGeoBlocked ? (
           <GeoBlockState />
         ) : (
-          <>
+          <ActivatingVaultsProvider>
             <Outlet
               context={
                 {
@@ -214,7 +222,7 @@ export default function RootLayout() {
                 initialAmountBtc={initialDepositAmountBtc}
               />
             </AaveConfigProvider>
-          </>
+          </ActivatingVaultsProvider>
         )}
         <div className="mt-auto">
           {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at

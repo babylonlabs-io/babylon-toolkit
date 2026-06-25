@@ -36,6 +36,7 @@ import {
 } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
+import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
@@ -63,6 +64,7 @@ export function DashboardPage() {
   );
   const {
     collateralBtc,
+    displayCollateralBtc,
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
@@ -70,6 +72,7 @@ export function DashboardPage() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
+    hasDisplayCollateral,
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(isConnected ? address : undefined);
@@ -85,6 +88,10 @@ export function DashboardPage() {
 
   const liquidationNotificationsEnabled =
     featureFlags.isLiquidationNotificationsEnabled;
+
+  // Feed the critical top banner the same debug-aware result the mid-page banner
+  // uses: the debug override when set, otherwise the live calculation.
+  const criticalBannerResult = debugResultOverride ?? positionNotifications;
 
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
@@ -104,7 +111,9 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const totalBorrowed = formatUsdValue(debtValueUsd);
-  const totalAmountBtc = formatBtcAmount(collateralBtc);
+  // Display total includes optimistic "activating" vaults; the financial
+  // `collateralBtc` (passed separately for the position snapshot) stays pure.
+  const totalAmountBtc = formatBtcAmount(displayCollateralBtc);
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -191,6 +200,10 @@ export function DashboardPage() {
         />
 
         {liquidationNotificationsEnabled && (
+          <CriticalLiquidationTopBanner result={criticalBannerResult} />
+        )}
+
+        {liquidationNotificationsEnabled && (
           <PositionNotificationBanner
             connectedAddress={address}
             onDeposit={openDeposit}
@@ -210,7 +223,7 @@ export function DashboardPage() {
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
           collateralVaults={collateralVaults}
-          hasCollateral={hasCollateral}
+          hasCollateral={hasDisplayCollateral}
           isConnected={isConnected}
           collateralBtc={collateralBtc}
           currentHealthFactor={healthFactor}

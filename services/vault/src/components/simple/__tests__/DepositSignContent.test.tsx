@@ -3,13 +3,19 @@ import { act, fireEvent, render } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
+import type { DepositProgressViewProps } from "../DepositProgressView";
 import { DepositSignContent } from "../DepositSignContent";
 
 const mockExecuteDeposit = vi.hoisted(() => vi.fn());
-// Captures the latest `onSign` handed to the summary card so a test can invoke
-// it twice synchronously — the real double-click race that happens before the
-// `started` re-render unmounts the Sign button.
+// Captures the latest `onSign` handed to DepositProgressView so a test can
+// invoke it twice synchronously — the real double-click race that happens
+// before the `started` re-render flips the button out of the pre-sign state.
 const signHolder = vi.hoisted(() => ({ onSign: null as null | (() => void) }));
+const lastProgressProps = vi.hoisted(() => ({
+  current: {} as Partial<DepositProgressViewProps>,
+}));
 
 vi.mock("@/hooks/deposit/useDepositFlow", () => ({
   useDepositFlow: () => ({
@@ -41,13 +47,20 @@ vi.mock("../PostDepositContinuationContent", () => ({
   ),
 }));
 
+// DepositProgressView now owns both the pre-sign entry state (started=false,
+// renders the "Sign Transaction" CTA) and the in-flight stepper (started=true).
+// The mock captures `onSign` so the double-click race can be exercised, and
+// renders a stable marker so tests can tell the two states apart.
 vi.mock("../DepositProgressView", () => ({
-  DepositProgressView: () => <div data-testid="progress" />,
-  DepositSummaryCard: ({ onSign }: { onSign: () => void }) => {
-    signHolder.onSign = onSign;
+  DepositProgressView: (props: DepositProgressViewProps) => {
+    lastProgressProps.current = props;
+    if (props.started) {
+      return <div data-testid="progress" />;
+    }
+    signHolder.onSign = props.onSign ?? null;
     return (
-      <button type="button" data-testid="summary-sign" onClick={onSign}>
-        Sign
+      <button type="button" data-testid="summary-sign" onClick={props.onSign}>
+        {COPY.deposit.progress.buttons.signTransaction}
       </button>
     );
   },
@@ -77,17 +90,23 @@ function renderContent(
 describe("DepositSignContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signHolder.onSign = null;
+    lastProgressProps.current = {};
   });
 
-  it("shows the summary card first and only starts the flow on Sign", () => {
+  it("renders DepositProgressView in the pre-sign state and only starts the flow on Sign Transaction", () => {
     mockExecuteDeposit.mockResolvedValue(null);
 
     const { getByTestId, queryByTestId } = renderContent();
 
-    // Initial screen is the summary card; the flow has not started.
+    // Initial screen is the pre-sign entry; the flow has not started.
     expect(getByTestId("summary-sign")).toBeTruthy();
+    expect(getByTestId("summary-sign").textContent).toBe(
+      COPY.deposit.progress.buttons.signTransaction,
+    );
     expect(queryByTestId("progress")).toBeNull();
     expect(mockExecuteDeposit).not.toHaveBeenCalled();
+    expect(lastProgressProps.current.started).toBe(false);
 
     fireEvent.click(getByTestId("summary-sign"));
 
@@ -101,7 +120,8 @@ describe("DepositSignContent", () => {
     renderContent();
 
     // Two clicks landing in the same tick, before the `started` re-render can
-    // unmount the Sign button — the double-broadcast race the ref guards.
+    // flip the button out of the pre-sign state — the double-broadcast race
+    // the ref guards.
     act(() => {
       signHolder.onSign?.();
       signHolder.onSign?.();

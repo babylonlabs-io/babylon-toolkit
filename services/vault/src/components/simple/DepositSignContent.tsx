@@ -18,7 +18,7 @@ import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
 
-import { DepositProgressView, DepositSummaryCard } from "./DepositProgressView";
+import { DepositProgressView } from "./DepositProgressView";
 import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
 
 interface DepositSignContentProps {
@@ -70,9 +70,9 @@ export function DepositSignContent({
 
   const signingNotifier = useSigningNotificationOptional();
 
-  // The flow no longer auto-starts on mount: the initial screen is a compact
-  // summary card and the depositor begins signing by clicking "Sign". Once
-  // started, the live stepper (DepositProgressView) takes over.
+  // The flow no longer auto-starts on mount: DepositProgressView renders the
+  // pre-sign entry state (started=false) and the depositor begins signing by
+  // clicking "Sign Transaction". Once started, the live stepper takes over.
   const [started, setStarted] = useState(false);
 
   // Notify the depositor (if they've tabbed away) when the active flow reaches
@@ -165,17 +165,6 @@ export function DepositSignContent({
     </Callout>
   ));
 
-  // Initial screen: compact summary card with a single "Sign" CTA. The flow
-  // only begins once the depositor clicks Sign (see `handleSign`).
-  if (!started) {
-    return (
-      <>
-        {banner}
-        <DepositSummaryCard onSign={handleSign} />
-      </>
-    );
-  }
-
   if (
     continuationVaultIds &&
     continuationVaultIds.length > 0 &&
@@ -212,6 +201,8 @@ export function DepositSignContent({
         currentVaultIndex={currentVaultIndex}
         perVaultSteps={perVaultSteps}
         onClose={handleClose}
+        started={started}
+        onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}
       />
     </>

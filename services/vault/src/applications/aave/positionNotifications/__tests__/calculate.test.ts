@@ -92,7 +92,7 @@ describe("calculate", () => {
     expect(result.warnings).toHaveLength(0);
     expect(result.groups).toHaveLength(0);
     expect(result.currentHF).toBe(Infinity);
-    expect(result.suggestedVaultOrder).toBeNull();
+    expect(result.optimalVaultOrder).toBeNull();
   });
 
   it("dust — debt under $1k — single dust warning, one full-liquidation group", () => {
@@ -101,7 +101,7 @@ describe("calculate", () => {
     expect(result.warnings[0].type).toBe("dust");
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].isFullLiquidation).toBe(true);
-    expect(result.suggestedVaultOrder).toBeNull();
+    expect(result.optimalVaultOrder).toBeNull();
   });
 
   it("dust — collateral under $1k", () => {
@@ -157,7 +157,7 @@ describe("calculate", () => {
     // but invalid params (THF <= expectedHF) suppress the suggestion.
     const result = calculate(makeParams([v(0.35), v(0.65)], { THF: 0.9 }));
     expect(hasWarning(result.warnings, "weird-params")).toBe(true);
-    expect(result.suggestedVaultOrder).toBeNull();
+    expect(result.optimalVaultOrder).toBeNull();
   });
 
   // ── Group breakdown uses the current on-chain order ──────────
@@ -165,24 +165,24 @@ describe("calculate", () => {
   it("group breakdown follows the current order, not the optimal one", () => {
     // [0.35, 0.65] in this order: 0.35 alone can't cover the target, so both
     // vaults are seized together in one event (a worse outcome the user keeps
-    // until they apply the suggested order).
+    // until they apply the optimal order).
     const result = calculate(makeParams([v(0.35), v(0.65)]));
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].vaults).toHaveLength(2);
   });
 
-  // ── Suggested order ──────────────────────────────────────────
+  // ── Optimal order ──────────────────────────────────────────
 
   it("suggests a better order when the current order is suboptimal", () => {
     const result = calculate(makeParams([v(0.35), v(0.65)]));
-    expect(result.suggestedVaultOrder).not.toBeNull();
+    expect(result.optimalVaultOrder).not.toBeNull();
     // Largest vault first protects more collateral.
-    expect(result.suggestedVaultOrder![0].btc).toBeCloseTo(0.65, 2);
+    expect(result.optimalVaultOrder![0].btc).toBeCloseTo(0.65, 2);
   });
 
   it("suggests nothing when the current order is already optimal", () => {
     const result = calculate(makeParams([v(0.65), v(0.35)]));
-    expect(result.suggestedVaultOrder).toBeNull();
+    expect(result.optimalVaultOrder).toBeNull();
   });
 
   // ── Robustness ───────────────────────────────────────────────
@@ -191,7 +191,7 @@ describe("calculate", () => {
     const vaults = Array.from({ length: 14 }, (_, i) => v(0.1 + i * 0.03));
     const result = calculate(makeParams(vaults));
     expect(result.groups.length).toBeGreaterThan(0);
-    expect(result.suggestedVaultOrder ?? vaults).toHaveLength(14);
+    expect(result.optimalVaultOrder ?? vaults).toHaveLength(14);
   });
 
   it("only ever emits urgent / dust / weird-params", () => {

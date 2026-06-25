@@ -53,6 +53,9 @@ const KEY_REQUIRED_LABEL = "Key required";
 const SIGNING_REQUIRED_LABEL = "Signing required";
 const BROADCAST_REQUIRED_LABEL = "Broadcast required";
 const ACTIVATION_REQUIRED_LABEL = "Activation required";
+// Depositor-facing name for the multi-vault deposit option. Shared between the
+// split-option title and the "deposit too low" hint so the two never drift.
+const TWO_VAULT_SPLIT_NAME = "Two-vault split";
 
 export const COPY = {
   pegin: {
@@ -259,6 +262,7 @@ export const COPY = {
     a11y: {
       stepActive: (number: number) => `Step ${number} active`,
       stepPending: (number: number) => `Step ${number} not started`,
+      stepFailed: (number: number) => `Step ${number} failed`,
       groupStatus: {
         completed: "Completed",
         active: "In progress",
@@ -295,6 +299,7 @@ export const COPY = {
         close: "Close",
         done: "Done",
         sign: "Sign",
+        signTransaction: "Sign Transaction",
       },
     },
     btcConfirmation: {
@@ -380,11 +385,22 @@ export const COPY = {
       activateButton: "Activate Vault",
       cancelButton: "Cancel",
     },
+    inStepArtifact: {
+      fileName: "vault-artifacts.json",
+      recommended: "(Recommended)",
+      skip: "Skip",
+      download: "Download Artifacts",
+    },
     artifactDownload: {
-      title: "Download BTC Vault artifacts",
-      body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      title: "Activate your BTC Vault",
+      body: "Before activating, download the recovery artifacts of your BTC Vault. These files will make sure your BTC Vault is fully functional even if your vault provider becomes unavailable.",
       cancelButton: "Cancel",
       continueButton: "Continue",
+    },
+    vaultActivatedSuccess: {
+      heading: "Vault activated",
+      body: "Your vault is now active and ready for borrowing.",
+      goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
@@ -402,6 +418,9 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      // Amount-input left-field label; the slider renders its Max button when
+      // this reads "max" (case-insensitive), so keep the value as "Max".
+      maxLabel: "Max",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
@@ -410,7 +429,7 @@ export const COPY = {
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
-      doNotSplit: "Do not split UTXO",
+      doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a provider to secure your BTC",
       providerSelectEmpty: "No vault providers available at this time.",
@@ -440,11 +459,41 @@ export const COPY = {
       providerMetricPlaceholder: "—",
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
+      // Split-option title. "Two-vault split" (not "UTXO split") because the
+      // UTXO concept is never introduced to the depositor; the ratio (e.g.
+      // "26/74") shows how the deposit is divided across the two BTC Vaults.
+      splitOptionLabel: (splitRatioLabel: string | null) =>
+        splitRatioLabel
+          ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
+          : TWO_VAULT_SPLIT_NAME,
+      splitOptionRecommended: "(Recommended)",
+      // Shown inside the amount card (below "Max to Borrow") when the deposit is
+      // below the minimum needed to split across two vaults; the split selector
+      // below stays visible with its two-vault option disabled. `minBtc` already
+      // carries the network coin symbol (e.g. "0.4 BTC"). The split name and
+      // minimum are
+      // emphasized (primary text) by the component; the rest stays secondary.
+      // The component joins these fragments with explicit `{" "}` separators.
+      splitTooLowHint: (minBtc: string) => ({
+        prefix: "To use",
+        splitName: TWO_VAULT_SPLIT_NAME,
+        middle: ", increase your deposit to",
+        minimum: `at least ${minBtc}`,
+      }),
       splitOptionDescription:
         "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault.",
-      learnWhyRecommended: "Learn why we recommend this.",
+      // "Learn more here." link appended to the split-option description in
+      // UtxoSplitSelector, pointing at the partial-liquidation docs.
+      learnMore: "Learn more here.",
+      // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
+      maxToBorrowLabel: "Max to Borrow:",
+      cfParenthetical: (percent: string) => `(CF=${percent})`,
+      // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
+      depositFeeLabel: "Deposit Fee",
+      depositFeeTooltip:
+        "A one-time fee charged by the protocol to process your deposit.",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
@@ -682,10 +731,24 @@ export const COPY = {
     releaseHfBreachTooltip: (threshold: number) =>
       `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
+    // Shown on an optimistic collateral row right after the activation ETH tx,
+    // while the indexer catches up and the vault becomes "In use".
+    activating: "Activating collateral...",
     empty: {
       title: "Deposit Bitcoin to get started",
       body: (symbol: string) =>
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
+    },
+    // The "⋯" actions menu on the Collateral summary card.
+    menu: {
+      triggerLabel: "Collateral options",
+      withdraw: "Withdraw",
+      reorder: "Reorder",
+    },
+    artifactCallout: {
+      fileName: "vault-artifacts.json",
+      recommended: "(Recommended)",
+      downloadNow: "Download now",
     },
   },
   // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
@@ -701,6 +764,15 @@ export const COPY = {
     calloutLinkText: "BTC Trustless Vault Explorer",
   },
   withdraw: {
+    // Collateral-selection modal opened from the Collateral "⋯" menu. Picks
+    // which vaults to withdraw before handing off to the withdrawal flow.
+    modal: {
+      title: "Withdraw",
+      subtitle:
+        "Choose the collateral you want to withdraw. Remaining vaults will move up in priority order.",
+      confirmButton: "Withdraw",
+      confirmButtonWithAmount: (amount: string) => `Withdraw ${amount}`,
+    },
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",
@@ -957,7 +1029,7 @@ export const COPY = {
   activity: {
     pageTitle: "Activity",
     filterAll: "Show all",
-    // Visible filter options in dropdown order (matches Figma node 6602-64485).
+    // Visible filter options in dropdown order
     // Redeem / Pending Deposit rows still render but are not filterable —
     // they don't appear here on purpose.
     filterTypes: {
@@ -983,7 +1055,7 @@ export const COPY = {
   banner: {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
-    applySuggestedOrder: "Apply Suggested Order",
+    applyOptimalOrder: "Apply Optimal Order",
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -1017,6 +1089,14 @@ export const COPY = {
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
     },
   },
+  // Full-width critical banner rendered above the header when the position is at
+  // imminent liquidation risk (red severity). The warning glyph is supplied via
+  // the banner's icon slot, not the message string.
+  topBanner: {
+    critical: (distancePct: string) =>
+      `Critical — liquidation in ${distancePct}`,
+    liquidatable: "Critical — liquidation can trigger now",
+  },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
   // three warning types produced by the calculator (urgent / dust / weird-params).
   liquidationWarnings: {
@@ -1036,9 +1116,11 @@ export const COPY = {
     // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
     // engine finds a safer liquidation order than the current on-chain order.
     reorder: {
-      title: "BTC Vaults aren't in the safest liquidation order",
+      title: "Reorder vaults to lose less",
       detail:
-        "Reordering puts a smaller BTC Vault first so less collateral is seized in the first liquidation event. Apply the suggested order to improve your partial-liquidation protection.",
+        "A different vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
+      suggestedOrderLabel: "Suggested order",
+      vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
     },
     dust: {
       title: "Position too small to model",

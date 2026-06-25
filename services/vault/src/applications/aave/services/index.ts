@@ -34,9 +34,9 @@ export {
 // On-chain integrity guards
 export {
   PositionChangedError,
+  assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,
   assertReorderMembership,
-  assertSuggestedOrderMatchesOnChain,
   type ReorderVerificationContext,
 } from "./assertReorderMatchesOnChain";
 export {
