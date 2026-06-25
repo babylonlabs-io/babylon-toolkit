@@ -27,7 +27,7 @@ export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 
 // Two-vault split docs link, surfaced from the split-option description in
 // UtxoSplitSelector. Points at the "decide how to split your BTC" step.
-export const PARTIAL_LIQUIDATION_DOCS_URL =
+export const TWO_VAULT_SPLIT_DOCS_URL =
   "https://docs.babylonlabs.io/trustless-bitcoin-vault/use-for-lending/create-a-vault/#step-1-decide-how-to-split-your-btc";
 
 // Bitcoin protocol constants

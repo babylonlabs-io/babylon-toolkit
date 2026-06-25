@@ -12,7 +12,10 @@ import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
 import { SplitTooLowHint } from "./SplitTooLowHint";
-import { UtxoSplitSelector } from "./UtxoSplitSelector";
+import {
+  UtxoSplitSelector,
+  type TwoVaultSplitProps,
+} from "./UtxoSplitSelector";
 import { VaultProviderSelector } from "./VaultProviderSelector";
 
 const btcConfig = getNetworkConfigBTC();
@@ -21,16 +24,6 @@ interface Application {
   id: string;
   name: string;
   logoUrl: string | null;
-}
-
-interface PartialLiquidationProps {
-  isEnabled: boolean;
-  onChange: (checked: boolean) => void;
-  canSplit: boolean;
-  isLoading: boolean;
-  splitRatioLabel: string | null;
-  minDepositForSplit: bigint;
-  isSplitAmountTooLow: boolean;
 }
 
 export interface DepositAmountState {
@@ -158,7 +151,7 @@ interface DepositFormProps {
   walletState: DepositWalletState;
   gatingState: DepositGatingState;
   collateralFactor?: number | null;
-  partialLiquidation?: PartialLiquidationProps;
+  twoVaultSplit?: TwoVaultSplitProps;
   onAmountChange: (value: string) => void;
   onMaxClick: () => void;
   onDeposit: () => void;
@@ -171,7 +164,7 @@ export function DepositForm({
   walletState,
   gatingState,
   collateralFactor = null,
-  partialLiquidation,
+  twoVaultSplit,
   onAmountChange,
   onMaxClick,
   onDeposit,
@@ -400,16 +393,16 @@ export function DepositForm({
             amount card (below "Max to Borrow") telling the user the minimum
             they need. The split selector below stays visible with its
             two-vault option disabled. */}
-        {partialLiquidation?.isSplitAmountTooLow && (
+        {twoVaultSplit?.isSplitAmountTooLow && (
           <SplitTooLowHint
-            minDepositForSplit={partialLiquidation.minDepositForSplit}
+            minDepositForSplit={twoVaultSplit.minDepositForSplit}
           />
         )}
       </Card>
 
-      {partialLiquidation && (
+      {twoVaultSplit && (
         <UtxoSplitSelector
-          partialLiquidation={partialLiquidation}
+          twoVaultSplit={twoVaultSplit}
           expanded={openPanel === "split"}
           onExpandedChange={setPanelExpanded("split")}
         />
