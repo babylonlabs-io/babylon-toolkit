@@ -35,6 +35,10 @@
     --rt-transition-show-delay: 0s;
     --rt-transition-closing-delay: 0s;
   }
+
+  .animate-reveal-in {
+    animation: none;
+  }
 }
 
 @layer utilities {
