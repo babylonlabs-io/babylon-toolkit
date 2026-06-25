@@ -38,6 +38,7 @@ import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
+import { NoticeBanner } from "../shared/NoticeBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -127,6 +128,10 @@ export default function RootLayout() {
             here so it renders above the header, atop the operational banners. */}
         <div id={CRITICAL_BANNER_SLOT_ID} />
         <TestingBanner visible={shouldDisplayTestingMsg()} />
+        <NoticeBanner
+          visible={!isGeoBlocked && Boolean(FeatureFlags.noticeBannerMessage)}
+          message={FeatureFlags.noticeBannerMessage}
+        />
         <AddressScreeningBanner
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />

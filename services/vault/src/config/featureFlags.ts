@@ -108,6 +108,22 @@ export default {
     return process.env.NEXT_PUBLIC_FF_ENABLE_GRPC_ARTIFACTS === "true";
   },
 
+  /**
+   * NOTICE_BANNER_MESSAGE config
+   *
+   * Purpose: Operator-controlled freeform banner shown at the top of the app
+   * for situations like intermittent peg-in errors or service degradation.
+   * Why needed: Lets DevOps surface an ad-hoc notice via env var without a
+   * code change. Intentionally decoupled from DISABLE_DEPOSIT so a notice can
+   * be shown while deposits remain enabled.
+   * Default: empty (banner hidden unless a non-empty message is set).
+   *
+   * Non-boolean gating config, so it uses the NEXT_PUBLIC_ prefix without _FF_.
+   */
+  get noticeBannerMessage() {
+    return (process.env.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE ?? "").trim();
+  },
+
   get extraBtcWallets() {
     return new Set(
       (process.env.NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS ?? "")
