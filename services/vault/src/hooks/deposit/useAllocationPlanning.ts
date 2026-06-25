@@ -22,6 +22,15 @@ export interface UseAllocationPlanningResult {
   canSplit: boolean;
   /** Display label for the split ratio, null when not applicable */
   splitRatioLabel: string | null;
+  /** Minimum deposit required to split across two vaults, in satoshis */
+  minDepositForSplit: bigint;
+  /**
+   * True when the entered amount is a valid, positive amount that falls below
+   * the two-vault split minimum — i.e. the split is unavailable specifically
+   * because the deposit is too low (not because params are loading or the
+   * amount is zero/out of range). Drives the "increase your deposit" hint.
+   */
+  isSplitAmountTooLow: boolean;
   /** Whether split params are still loading */
   isLoading: boolean;
 }
@@ -35,8 +44,13 @@ export function useAllocationPlanning({
   // key (positions are insulated from reserve config rotations until
   // refresh — see Spoke.sol liquidation path).
   const { address: ethAddress } = useETHWallet();
-  const { sacrificialVault, protectedVault, canSplit, isLoading } =
-    useOptimalSplit(amountSats, ethAddress);
+  const {
+    sacrificialVault,
+    protectedVault,
+    canSplit,
+    minDepositForSplit,
+    isLoading,
+  } = useOptimalSplit(amountSats, ethAddress);
 
   const vaultAmounts = useMemo(() => {
     if (!isPartialLiquidation || !canSplit || amountSats <= 0n) return null;
@@ -61,10 +75,22 @@ export function useAllocationPlanning({
     return `${sacrificialPct}/${protectedPct}`;
   }, [canSplit, amountSats, sacrificialVault, protectedVault]);
 
+  // The split is unavailable purely because the amount is below the minimum:
+  // params have loaded (minDepositForSplit > 0), the user entered a positive
+  // amount, and it sits under the threshold. Excludes the zero-amount and
+  // out-of-range cases, where minDepositForSplit is 0.
+  const isSplitAmountTooLow =
+    !isLoading &&
+    minDepositForSplit > 0n &&
+    amountSats > 0n &&
+    amountSats < minDepositForSplit;
+
   return {
     vaultAmounts,
     canSplit,
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     isLoading,
   };
 }

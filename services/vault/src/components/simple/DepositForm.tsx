@@ -11,6 +11,7 @@ import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
+import { SplitTooLowHint } from "./SplitTooLowHint";
 import { UtxoSplitSelector } from "./UtxoSplitSelector";
 import { VaultProviderSelector } from "./VaultProviderSelector";
 
@@ -28,6 +29,8 @@ interface PartialLiquidationProps {
   canSplit: boolean;
   isLoading: boolean;
   splitRatioLabel: string | null;
+  minDepositForSplit: bigint;
+  isSplitAmountTooLow: boolean;
 }
 
 export interface DepositAmountState {
@@ -393,6 +396,15 @@ export function DepositForm({
           btcPrice={btcPrice}
           hasPriceFetchError={hasPriceFetchError}
         />
+        {/* When the amount is too low to split, an inline hint sits inside the
+            amount card (below "Max to Borrow") telling the user the minimum
+            they need. The split selector below stays visible with its
+            two-vault option disabled. */}
+        {partialLiquidation?.isSplitAmountTooLow && (
+          <SplitTooLowHint
+            minDepositForSplit={partialLiquidation.minDepositForSplit}
+          />
+        )}
       </Card>
 
       {partialLiquidation && (

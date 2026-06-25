@@ -172,6 +172,10 @@ export interface UseDepositPageFormResult {
   isSplitLoading: boolean;
   /** Display label for the split ratio, null when not applicable */
   splitRatioLabel: string | null;
+  /** Minimum deposit required to split across two vaults, in satoshis */
+  minDepositForSplit: bigint;
+  /** True when the amount is positive but below the two-vault split minimum */
+  isSplitAmountTooLow: boolean;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
   /**
@@ -361,6 +365,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     canSplit,
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     isLoading: isSplitLoading,
   } = useAllocationPlanning({
     amountSats,
@@ -675,6 +681,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     depositorClaimValueError:
       challengerCountError ?? toError(depositorClaimValueError),
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     validateForm,
     validateAmountOnBlur,
     resetForm,

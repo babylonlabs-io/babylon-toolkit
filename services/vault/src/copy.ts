@@ -46,6 +46,9 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
+// Depositor-facing name for the multi-vault deposit option. Shared between the
+// split-option title and the "deposit too low" hint so the two never drift.
+const TWO_VAULT_SPLIT_NAME = "Two-vault split";
 
 export const COPY = {
   pegin: {
@@ -374,7 +377,7 @@ export const COPY = {
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
-      doNotSplit: "Do not split UTXO",
+      doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a provider to secure your BTC",
       providerSelectEmpty: "No vault providers available at this time.",
@@ -404,6 +407,27 @@ export const COPY = {
       providerMetricPlaceholder: "—",
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
+      // Split-option title. "Two-vault split" (not "UTXO split") because the
+      // UTXO concept is never introduced to the depositor; the ratio (e.g.
+      // "26/74") shows how the deposit is divided across the two BTC Vaults.
+      splitOptionLabel: (splitRatioLabel: string | null) =>
+        splitRatioLabel
+          ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
+          : TWO_VAULT_SPLIT_NAME,
+      splitOptionRecommended: "(Recommended)",
+      // Shown inside the amount card (below "Max to Borrow") when the deposit is
+      // below the minimum needed to split across two vaults; the split selector
+      // below stays visible with its two-vault option disabled. `minBtc` already
+      // carries the network coin symbol (e.g. "0.4 BTC"). The split name and
+      // minimum are
+      // emphasized (primary text) by the component; the rest stays secondary.
+      // The component joins these fragments with explicit `{" "}` separators.
+      splitTooLowHint: (minBtc: string) => ({
+        prefix: "To use",
+        splitName: TWO_VAULT_SPLIT_NAME,
+        middle: ", increase your deposit to",
+        minimum: `at least ${minBtc}`,
+      }),
       splitOptionDescription:
         "Split your Bitcoin into multiple vaults to enable partial liquidation.",
       noSplitOptionDescription:
