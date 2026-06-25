@@ -153,6 +153,7 @@ jobs:
           # Trustless Bitcoin Vault (TBV) Contracts
           NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY }}
           NEXT_PUBLIC_TBV_AAVE_ADAPTER: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER }}
+          NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG }}
           NEXT_PUBLIC_TBV_BTC_PRICE_FEED: ${{ vars.NEXT_PUBLIC_TBV_BTC_PRICE_FEED }}
           # Build Metadata
           NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}

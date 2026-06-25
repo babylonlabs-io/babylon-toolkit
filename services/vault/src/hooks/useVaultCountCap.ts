@@ -11,8 +11,10 @@ import type { Vault } from "@/types/vault";
 import { useVaults } from "./useVaults";
 
 const VAULT_COUNT_CAP_KEY = "vaultCountCap";
-const STALE_TIME_MS = 60_000;
-const REFETCH_INTERVAL_MS = 60_000;
+// maxVaultsPerPosition is a near-static governance param, so cache it long and
+// skip continuous polling — fetch on mount and rely on staleTime. A change is
+// rare and the activation-time revert backstops any staleness.
+const STALE_TIME_MS = 10 * 60_000;
 
 export interface VaultCountCapResult {
   maxVaults: number | null;
@@ -27,7 +29,9 @@ async function fetchMaxVaultsPerPosition(): Promise<number> {
   const publicClient = ethClient.getPublicClient();
   const { maxVaultsPerPosition } = await getPositionSizeParams(
     publicClient,
-    CONTRACTS.AAVE_ADAPTER,
+    // maxVaultsPerPosition lives on AaveAdapterConfig, not the adapter (the
+    // adapter only calls it internally and exposes no getter).
+    CONTRACTS.AAVE_ADAPTER_CONFIG,
   );
   return Number(maxVaultsPerPosition);
 }
@@ -63,10 +67,12 @@ export function useVaultCountCap(
   // `isError` flips true only after React Query exhausts its retries, so it is
   // a terminal read failure — not the initial in-flight load.
   const { data: maxVaults, isError: capError } = useQuery({
-    queryKey: [VAULT_COUNT_CAP_KEY, CONTRACTS.AAVE_ADAPTER],
+    queryKey: [VAULT_COUNT_CAP_KEY, CONTRACTS.AAVE_ADAPTER_CONFIG],
     queryFn: fetchMaxVaultsPerPosition,
+    // Only needed once the user could deposit (connected); skip the read for
+    // disconnected dashboard visitors.
+    enabled: !!address,
     staleTime: STALE_TIME_MS,
-    refetchInterval: REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
   });
 
