@@ -32,12 +32,6 @@ export interface AuthenticatedVpClientConfig {
    * x-only and asserted against every issued token's CWT `aud` claim.
    */
   depositorBtcPubkey: string;
-  /**
-   * Opt into gRPC-subject auth for the artifact stream. Defaults to
-   * `false` (JSON-RPC bearer). Only enable against a proxy running with
-   * `ENABLE_GRPC_ARTIFACTS`. Forwarded to {@link vpTokenRegistry}.
-   */
-  enableGrpcArtifactAuth?: boolean;
   /** Optional outer-client tunables (timeout, retries, headers, etc.). */
   options?: VaultProviderRpcClientOptions;
 }
@@ -58,7 +52,6 @@ export function createAuthenticatedVpClient(
     expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
       config.depositorBtcPubkey,
     ),
-    enableGrpcArtifactAuth: config.enableGrpcArtifactAuth,
   });
 
   return new VaultProviderRpcClient(config.baseUrl, {

@@ -37,7 +37,6 @@ import {
   getVaultKeeperReader,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
-import featureFlags from "@/config/featureFlags";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
@@ -754,7 +753,6 @@ export function useDepositFlow(
               authAnchorHex,
               pinnedServerPubkey,
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
-              enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
             });
             primedRegistryTxids.push(peginTxid);
           }
