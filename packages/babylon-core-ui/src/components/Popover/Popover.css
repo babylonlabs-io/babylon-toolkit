@@ -1,3 +1,36 @@
+/* react-popper positions .bbn-popover via an inline transform; animate opacity
+   only here and keep the translateY on the inner .bbn-popover-content wrapper so
+   popper's positioning transform is never overridden. */
 .bbn-popover {
   @apply z-[9999];
+  animation: bbn-popover-in var(--motion-duration-dropdown, 0ms) var(--motion-ease-dropdown-in, ease-out) forwards;
+}
+
+.bbn-popover-content {
+  animation: bbn-popover-content-in var(--motion-duration-dropdown, 0ms) var(--motion-ease-dropdown-in, ease-out) forwards;
+}
+
+@keyframes bbn-popover-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bbn-popover-content-in {
+  from {
+    transform: translateY(var(--motion-shift-dropdown, 0px));
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbn-popover,
+  .bbn-popover-content {
+    animation: none;
+  }
 }
