@@ -33,6 +33,10 @@ html {
   /* Motion spec — Progressive Reveal / State Transition (Figma §3, §6) */
   --motion-duration-reveal: 180ms;
   --motion-ease-reveal: ease-out;
+  /* Motion spec — Dropdowns / Expandable (Figma §2) */
+  --motion-duration-dropdown: 180ms;
+  --motion-ease-dropdown-in: ease-out;
+  --motion-shift-dropdown: 4px;
 }
 
 @media screen and (min-width: 768px) {
