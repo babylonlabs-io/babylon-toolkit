@@ -44,6 +44,14 @@ const STEP_NOTIFICATION: Partial<
     phase: "pop",
     copy: COPY.deposit.notifications.signPop,
   },
+  [DepositFlowStep.SUBMIT_PEGIN]: {
+    phase: "register",
+    copy: COPY.deposit.notifications.submitPegin,
+  },
+  [DepositFlowStep.BROADCAST_PRE_PEGIN]: {
+    phase: "broadcast",
+    copy: COPY.deposit.notifications.signAndBroadcast,
+  },
   [DepositFlowStep.SUBMIT_WOTS_KEYS]: {
     phase: "wots",
     copy: COPY.deposit.notifications.submitWotsKey,

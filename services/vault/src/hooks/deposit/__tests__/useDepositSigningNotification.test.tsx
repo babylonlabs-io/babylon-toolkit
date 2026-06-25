@@ -12,7 +12,6 @@ vi.mock("@/context/SigningNotificationContext", () => ({
     notifySigningRequired: ctx.notify,
     shouldPromptForPermission: false,
     dismissPrompt: vi.fn(),
-    resetPromptDismissal: vi.fn(),
     documentHidden: ctx.documentHidden,
     isActiveFlow: false,
     setActiveFlow: vi.fn(),
@@ -41,6 +40,22 @@ describe("useDepositSigningNotification", () => {
     );
     expect(ctx.notify).toHaveBeenCalledTimes(1);
     expect(ctx.notify.mock.calls[0][0]).toContain(":pop");
+  });
+
+  it("notifies for the ETH peg-in registration signing step", () => {
+    renderHook(() =>
+      useDepositSigningNotification(DepositFlowStep.SUBMIT_PEGIN, true),
+    );
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+    expect(ctx.notify.mock.calls[0][0]).toContain(":register");
+  });
+
+  it("notifies for the Pre-PegIn broadcast signing step", () => {
+    renderHook(() =>
+      useDepositSigningNotification(DepositFlowStep.BROADCAST_PRE_PEGIN, true),
+    );
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+    expect(ctx.notify.mock.calls[0][0]).toContain(":broadcast");
   });
 
   it("notifies for a post-broadcast payout signing step", () => {

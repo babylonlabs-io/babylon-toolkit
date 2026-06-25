@@ -9,7 +9,6 @@ vi.mock("@/context/SigningNotificationContext", () => ({
     notifySigningRequired: ctx.notify,
     shouldPromptForPermission: false,
     dismissPrompt: vi.fn(),
-    resetPromptDismissal: vi.fn(),
     documentHidden: false,
     isActiveFlow: ctx.isActiveFlow,
     setActiveFlow: vi.fn(),
@@ -64,6 +63,25 @@ describe("useSigningRequiredNotifications", () => {
   it("notifies for WOTS submission even without the BTC public key", () => {
     renderObserver([PeginAction.SUBMIT_WOTS_KEY], undefined);
     expect(ctx.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not notify for a deposit in a warning display state", () => {
+    renderHook(() =>
+      useSigningRequiredNotifications(
+        ACTIVITIES,
+        () =>
+          ({
+            isOwnedByCurrentWallet: true,
+            loading: false,
+            peginState: {
+              availableActions: [PeginAction.ACTIVATE_VAULT],
+              displayVariant: "warning",
+            },
+          }) as unknown as DepositPollingResult,
+        "btcpubkey",
+      ),
+    );
+    expect(ctx.notify).not.toHaveBeenCalled();
   });
 
   it("stands down while an active deposit flow is running", () => {

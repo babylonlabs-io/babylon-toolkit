@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
 import {
+  isVaultPastActivation,
   PeginAction,
   USER_ACTIONABLE_PEGIN_ACTIONS,
 } from "@/models/peginStateMachine";
@@ -60,7 +61,19 @@ export function useSigningRequiredNotifications(
     for (const activity of activities) {
       const result = getPollingResult(activity.id);
       if (!result || result.loading || !result.isOwnedByCurrentWallet) continue;
-      for (const action of result.peginState.availableActions ?? []) {
+      // Mirror `isCandidateVault` in PostDepositContinuationView: skip deposits
+      // the continuation UI won't offer an action for - past activation, or in a
+      // warning/danger display state - so we never nudge an action the user
+      // can't actually take there.
+      const { peginState } = result;
+      if (
+        isVaultPastActivation(peginState) ||
+        peginState.displayVariant === "warning" ||
+        peginState.displayVariant === "danger"
+      ) {
+        continue;
+      }
+      for (const action of peginState.availableActions ?? []) {
         if (!isNotifiableAction(action)) continue;
         // Mirror `hasActionableStep`: payout signing needs the BTC public key to
         // render the resume branch, so don't nudge to an action the user can't

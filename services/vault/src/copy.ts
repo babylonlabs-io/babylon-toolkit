@@ -223,6 +223,10 @@ export const COPY = {
         title: SIGNING_REQUIRED_LABEL,
         body: "Sign the ownership proof in your wallet to continue your deposit.",
       },
+      submitPegin: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Confirm the registration in your wallet to continue your deposit.",
+      },
       submitWotsKey: {
         title: KEY_REQUIRED_LABEL,
         body: "Your deposit is ready - submit your WOTS key to continue.",

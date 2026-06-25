@@ -7,7 +7,6 @@ const ctx = vi.hoisted(() => ({
     notifySigningRequired: ReturnType<typeof vi.fn>;
     shouldPromptForPermission: boolean;
     dismissPrompt: ReturnType<typeof vi.fn>;
-    resetPromptDismissal: ReturnType<typeof vi.fn>;
     documentHidden: boolean;
     isActiveFlow: boolean;
     setActiveFlow: ReturnType<typeof vi.fn>;
@@ -26,7 +25,6 @@ function makeContext(overrides: { shouldPromptForPermission?: boolean } = {}) {
     notifySigningRequired: vi.fn(),
     shouldPromptForPermission: true,
     dismissPrompt: vi.fn(),
-    resetPromptDismissal: vi.fn(),
     documentHidden: false,
     isActiveFlow: false,
     setActiveFlow: vi.fn(),

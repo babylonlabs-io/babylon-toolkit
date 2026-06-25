@@ -4,13 +4,15 @@
  * App-level coordinator for browser (desktop) notifications that tell the
  * depositor "you need to sign something" when they are on another tab.
  *
- * A single instance owns the de-dup registry so the two observers that feed it
+ * A single instance owns the de-dup registry so each observer that feeds it
  * - the active deposit flow ({@link useDepositSigningNotification}) and the
- * pending-deposit poller ({@link useSigningRequiredNotifications}) - can both
- * be mounted at once (the deposit modal renders over the dashboard) without
- * ever firing the same notification twice. It also owns the single
- * `documentHidden` source and the `activeFlow` flag that hands ownership of
- * notifications to the in-flow observer while a deposit is running.
+ * pending-deposit poller ({@link useSigningRequiredNotifications}) - never fires
+ * the same key twice across poll ticks or tab-visibility changes. The two
+ * observers use disjoint key namespaces, so the registry does not dedup the
+ * same logical requirement across them; while a deposit runs, the no-double-fire
+ * guarantee comes from the `activeFlow` flag, which stands the pending-deposit
+ * observer down so only the in-flow observer notifies. The provider also owns
+ * the single `documentHidden` source.
  *
  * Gated by the `ENABLE_SIGNING_NOTIFICATIONS` feature flag: when off, every
  * method is a no-op and no OS permission is requested.
@@ -45,8 +47,10 @@ interface SigningNotificationContextValue {
   requestPermission: () => void;
   /**
    * Fire a "signing required" notification the first time `key` is seen while
-   * the tab is hidden. De-duplicated per `key` for the session, so the same
-   * signing requirement never notifies twice across observers or poll ticks.
+   * the tab is hidden. De-duplicated per `key` for the session, so a given
+   * `key` never notifies twice - no matter which observer reports it or how
+   * many poll ticks see it. (The two observers use disjoint key namespaces, so
+   * the registry does not collapse the same logical requirement across them.)
    */
   notifySigningRequired: (key: string, copy: BrowserNotificationCopy) => void;
   /**
@@ -57,12 +61,6 @@ interface SigningNotificationContextValue {
   shouldPromptForPermission: boolean;
   /** Dismiss the prompt and remember it across reloads. */
   dismissPrompt: () => void;
-  /**
-   * Clear a prior dismissal so the prompt can be offered again — the "revert"
-   * hook for a future re-enable entry point (e.g. a settings toggle). Kept
-   * deliberately ahead of its UI; not yet wired to a production caller.
-   */
-  resetPromptDismissal: () => void;
   /** Single reactive `document.visibilityState === "hidden"` source. */
   documentHidden: boolean;
   /**
@@ -89,7 +87,7 @@ export function SigningNotificationProvider({
     () => (enabled ? getBrowserNotificationPermission() : null),
   );
   const [promptDismissed, setPromptDismissed] = useState<boolean>(() =>
-    loadNotificationPromptDismissed(),
+    enabled ? loadNotificationPromptDismissed() : false,
   );
   const [activeFlow, setActiveFlowState] = useState(false);
   const documentHidden = useDocumentHidden();
@@ -108,11 +106,6 @@ export function SigningNotificationProvider({
   const dismissPrompt = useCallback(() => {
     setNotificationPromptDismissed(true);
     setPromptDismissed(true);
-  }, []);
-
-  const resetPromptDismissal = useCallback(() => {
-    setNotificationPromptDismissed(false);
-    setPromptDismissed(false);
   }, []);
 
   const setActiveFlow = useCallback(
@@ -154,7 +147,6 @@ export function SigningNotificationProvider({
       notifySigningRequired,
       shouldPromptForPermission,
       dismissPrompt,
-      resetPromptDismissal,
       documentHidden,
       isActiveFlow: activeFlow,
       setActiveFlow,
@@ -164,7 +156,6 @@ export function SigningNotificationProvider({
       notifySigningRequired,
       shouldPromptForPermission,
       dismissPrompt,
-      resetPromptDismissal,
       documentHidden,
       activeFlow,
       setActiveFlow,

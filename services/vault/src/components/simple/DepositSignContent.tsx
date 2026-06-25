@@ -107,8 +107,12 @@ export function DepositSignContent({
     hasStartedRef.current = true;
     // The Sign click is a user gesture - the right moment to ask for OS
     // notification permission so we can later ping the depositor when a
-    // signature is needed and they've switched tabs.
-    signingNotifier?.requestPermission();
+    // signature is needed and they've switched tabs. Gated on
+    // `shouldPromptForPermission` so a depositor who chose "No thanks" (or who
+    // already decided) isn't shown the native OS dialog anyway.
+    if (signingNotifier?.shouldPromptForPermission) {
+      signingNotifier.requestPermission();
+    }
     setStarted(true);
     void startFlow();
   }, [startFlow, signingNotifier]);

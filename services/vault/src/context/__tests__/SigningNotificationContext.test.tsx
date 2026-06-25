@@ -166,21 +166,6 @@ describe("SigningNotificationContext", () => {
     expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
   });
 
-  it("re-offers the prompt after the dismissal is reset", () => {
-    FakeNotification.permission = "default";
-    const notifier = renderNotifier();
-    act(() => {
-      notifier.current!.dismissPrompt();
-    });
-    expect(notifier.current!.shouldPromptForPermission).toBe(false);
-
-    act(() => {
-      notifier.current!.resetPromptDismissal();
-    });
-
-    expect(notifier.current!.shouldPromptForPermission).toBe(true);
-  });
-
   it("stops prompting once a permission decision resolves", async () => {
     FakeNotification.permission = "default";
     FakeNotification.requestPermission.mockResolvedValueOnce("granted");
