@@ -791,9 +791,22 @@ export const COPY = {
       challengePeriodEndsIn: (duration: string) => `in ~${duration}`,
       // Shown once the challenge-period clock has elapsed (payout eligible).
       challengePeriodEndsSoon: "shortly",
+      // Live Assert-tx confirmation count toward the payout CSV clock, shown
+      // during the challenge period. `confirmed`/`required` are BTC blocks.
+      confirmationsLabel: "Confirmations",
+      confirmationsValue: (confirmed: number, required: number) =>
+        `${confirmed} of ${required}`,
+      // Typical total length of the challenge period, derived from the vault's
+      // timelockAssert (display-only). Sets the up-front expectation; the live
+      // countdown above shows the remaining time, so total-vs-remaining don't
+      // conflict.
+      challengePeriodTypicalDuration: (duration: string) =>
+        `This typically takes about ${duration}.`,
       // Challenge-period help note. Explains this is one step (the on-chain
-      // challenge period) and that a payout step follows — no fixed duration
-      // here, to avoid conflicting with the live countdown above it.
+      // challenge period) and that a payout step follows. The concrete typical
+      // duration is appended separately (challengePeriodTypicalDuration), kept
+      // out of this base sentence so the live countdown stays the source of
+      // remaining time.
       challengeNote:
         "For your security, your withdrawal goes through an on-chain challenge period. After it ends, the payout is broadcast to your nominated address.",
       learnMorePrefix: "Read more about the withdrawal latency ",

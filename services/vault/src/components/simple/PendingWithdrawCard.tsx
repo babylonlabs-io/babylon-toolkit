@@ -160,6 +160,31 @@ export function PendingWithdrawCard({
     }
   }
 
+  // Challenge-period extras (live confirmation count + typical total duration)
+  // only make sense once the required timelock is known.
+  //  - confirmationsValue: Assert-tx confirmations toward the payout CSV clock,
+  //    shown once the live count is also known. The numerator is clamped so an
+  //    overshoot doesn't read as "450 of 432" before the status advances.
+  //  - typicalDuration: timelockAssert × block time, the up-front expectation
+  //    alongside the live countdown (total vs. remaining).
+  let confirmationsValue: string | undefined;
+  let typicalDuration: string | undefined;
+  if (
+    isChallengePeriod &&
+    timelockAssertBlocks !== undefined &&
+    timelockAssertBlocks > 0
+  ) {
+    typicalDuration = CARD_COPY.challengePeriodTypicalDuration(
+      formatDuration(timelockAssertBlocks * BTC_BLOCK_TIME_MINS),
+    );
+    if (assertConfirmations !== undefined) {
+      confirmationsValue = CARD_COPY.confirmationsValue(
+        Math.min(assertConfirmations, timelockAssertBlocks),
+        timelockAssertBlocks,
+      );
+    }
+  }
+
   return (
     <VaultCardShell>
       {/* Header: amount (left) + stage badge with info tooltip (right). */}
@@ -215,6 +240,14 @@ export function PendingWithdrawCard({
         </VaultCardRow>
       )}
 
+      {confirmationsValue && (
+        <VaultCardRow label={CARD_COPY.confirmationsLabel}>
+          <span className="text-sm text-accent-primary">
+            {confirmationsValue}
+          </span>
+        </VaultCardRow>
+      )}
+
       <VaultCardRow label="Vault provider">
         <span className="inline-flex items-center gap-1.5">
           <Hint
@@ -259,7 +292,9 @@ export function PendingWithdrawCard({
       {/* Challenge-period security note. */}
       {isChallengePeriod && (
         <div className="rounded-lg bg-secondary-highlight p-3 text-sm text-accent-secondary">
-          {CARD_COPY.challengeNote} {CARD_COPY.learnMorePrefix}
+          {CARD_COPY.challengeNote}
+          {typicalDuration ? ` ${typicalDuration}` : ""}{" "}
+          {CARD_COPY.learnMorePrefix}
           <a
             href={WITHDRAWAL_LATENCY_DOCS_URL}
             target="_blank"
