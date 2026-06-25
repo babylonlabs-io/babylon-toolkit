@@ -30,6 +30,11 @@
     --motion-duration-modal-out: 0.01ms;
     --motion-duration-backdrop: 0.01ms;
   }
+
+  .react-tooltip {
+    --rt-transition-show-delay: 0s;
+    --rt-transition-closing-delay: 0s;
+  }
 }
 
 @layer utilities {
@@ -59,7 +64,14 @@
 }
 
 .react-tooltip {
-  @apply !bg-[#F5F5F5] !text-accent-primary !rounded-md !text-xs !max-w-xs !px-3 !py-2 !opacity-100 !shadow-lg !z-[99999];
+  @apply !bg-[#F5F5F5] !text-accent-primary !rounded-md !text-xs !max-w-xs !px-3 !py-2 !shadow-lg !z-[99999];
+  /* Drive react-tooltip's own opacity fade via its custom properties.
+   * --rt-opacity keeps the shown tooltip fully opaque (its default is 0.9);
+   * the delay vars map react-tooltip's built-in opacity transition (ease-out
+   * on show, ease-in on close) onto our motion duration tokens. */
+  --rt-opacity: 1;
+  --rt-transition-show-delay: var(--motion-duration-tooltip, 0.15s);
+  --rt-transition-closing-delay: var(--motion-duration-tooltip-out, 0.15s);
   text-wrap: pretty;
   max-width: min(280px, 90vw) !important;
 }
