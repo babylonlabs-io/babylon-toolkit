@@ -128,8 +128,12 @@ export default function RootLayout() {
             here so it renders above the header, atop the operational banners. */}
         <div id={CRITICAL_BANNER_SLOT_ID} />
         <TestingBanner visible={shouldDisplayTestingMsg()} />
+        {/* Intentionally not gated on `isGeoBlocked`: an operator notice
+            describes a service-wide condition and renders in the top banner
+            stack (above the geo-block screen), so geo-blocked sessions must
+            see it too. */}
         <NoticeBanner
-          visible={!isGeoBlocked && Boolean(FeatureFlags.noticeBannerMessage)}
+          visible={Boolean(FeatureFlags.noticeBannerMessage)}
           message={FeatureFlags.noticeBannerMessage}
         />
         <AddressScreeningBanner
