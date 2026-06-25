@@ -325,9 +325,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           />
         )}
 
-        {!isComplete && !isTerminalSuccess && !error && (
-          <NotificationPermissionPrompt />
-        )}
+        {/* Persist through errors: a retry still needs signing, so the nudge
+            stays useful. Only a finished deposit (complete / terminal success)
+            has no further signing to notify about. */}
+        {!isComplete && !isTerminalSuccess && <NotificationPermissionPrompt />}
       </div>
     </DepositCardShell>
   );
