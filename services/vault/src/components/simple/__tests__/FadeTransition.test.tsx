@@ -23,4 +23,12 @@ describe("FadeTransition", () => {
     const el = screen.getByText("B");
     expect(el.style.opacity).toBe("1");
   });
+
+  it("settles at translateY(0) with no rise when reduced motion is preferred", () => {
+    setReducedMotion(true);
+    const { rerender } = render(<FadeTransition stepKey="a">A</FadeTransition>);
+    rerender(<FadeTransition stepKey="b">B</FadeTransition>);
+    const el = screen.getByText("B");
+    expect(el.style.transform).toBe("translateY(0)");
+  });
 });

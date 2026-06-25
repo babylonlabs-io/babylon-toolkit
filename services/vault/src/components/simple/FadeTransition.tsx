@@ -36,8 +36,11 @@ export function FadeTransition({
       className="w-full"
       style={{
         opacity: visible ? 1 : 0,
+        transform: visible
+          ? "translateY(0)"
+          : "translateY(var(--motion-shift-reveal, 0px))",
         transition:
-          "opacity var(--motion-duration-reveal, 150ms) var(--motion-ease-reveal, ease-in-out)",
+          "opacity var(--motion-duration-reveal, 150ms) var(--motion-ease-reveal, ease-out), transform var(--motion-duration-reveal, 150ms) var(--motion-ease-reveal, ease-out)",
       }}
     >
       {children}
