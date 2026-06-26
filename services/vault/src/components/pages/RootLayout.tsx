@@ -39,11 +39,11 @@ import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NoticeBanner } from "../shared/NoticeBanner";
-import { ProtocolPauseBanner } from "../shared/ProtocolPauseBanner";
 import {
   isDepositBlocked,
-  resolveProtocolPauseLevel,
-} from "../shared/protocolPauseLevel";
+  resolveProtocolStatus,
+} from "../shared/protocolStatus";
+import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -145,14 +145,15 @@ export default function RootLayout() {
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
-        {/* Deposit kill-switch banner. Suppressed when a pause banner is active,
-            since the pause card already explains the disabled state. */}
+        {/* Deposit kill-switch banner. Suppressed when a frozen/paused status
+            banner is active, since that banner already explains the disabled
+            state. */}
         <DepositDisabledBanner
           visible={
             !isGeoBlocked &&
             isWalletConnected &&
             FeatureFlags.isDepositDisabled &&
-            resolveProtocolPauseLevel() === null
+            resolveProtocolStatus() === null
           }
         />
         <Header
@@ -209,8 +210,8 @@ export default function RootLayout() {
             {/* Intentionally in the content branch (not the top stack like
                 NoticeBanner): a geo-blocked session is already fully blocked
                 from transacting and sees the geo-block screen, so it doesn't
-                need the pause card the way it still needs operator notices. */}
-            <ProtocolPauseBanner />
+                need the status banner the way it still needs operator notices. */}
+            <ProtocolStatusBanner />
             <Outlet
               context={
                 {

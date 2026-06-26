@@ -17,7 +17,7 @@ import {
 import { useEffect } from "react";
 
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
-import { isBorrowBlocked } from "@/components/shared/protocolPauseLevel";
+import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 
 import {

@@ -49,8 +49,8 @@ const WRONG_WALLET_BODY =
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
-// Trailing "Learn more" link label, shared by the soft and hard pause banners.
-const PROTOCOL_PAUSE_LEARN_MORE = "Learn more";
+// Trailing "Learn more" link label, shared by the frozen and paused status banners.
+const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
 
 export const COPY = {
   pegin: {
@@ -1039,27 +1039,25 @@ export const COPY = {
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
     },
   },
-  // Operator-controlled protocol-pause status banners. The body may be
-  // overridden per incident via NEXT_PUBLIC_PAUSE_BANNER_MESSAGE; these are the
-  // defaults. Each renders a trailing "Learn more" link.
+  // Operator-controlled protocol governance-status banners (Freeze / Pause). The
+  // body may be overridden per incident via NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE;
+  // these are the defaults. Each renders a trailing "Learn more" link.
   //
   // INTERIM copy: states only what the dApp currently *enforces* (new deposits
   // and borrows are disabled — see `isDepositBlocked` / `isBorrowBlocked`). The
-  // wording deliberately does not claim withdrawals / repay / liquidations are
-  // blocked yet; those gates land with the Freeze (withdraw) and Pause
-  // (repay/reorder) follow-ups, and the final freeze/pause wording is owned by
-  // design. ("including liquidations" was also dropped — the frontend cannot
-  // stop Aave-side liquidations.)
-  protocolPause: {
-    soft: {
-      title: "Protocol is soft-paused",
+  // wording deliberately does not claim the remaining ops are blocked yet; those
+  // gates land with the Freeze (reorder) and Pause (withdraw/repay/activation/…)
+  // follow-ups, and the final freeze/pause wording is owned by design.
+  protocolStatus: {
+    frozen: {
+      title: "Protocol is frozen",
       body: "New deposits and borrows are disabled. You can still repay debt — liquidations remain active.",
-      learnMore: PROTOCOL_PAUSE_LEARN_MORE,
+      learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
-    hard: {
-      title: "Protocol is fully paused",
+    paused: {
+      title: "Protocol is paused",
       body: "New deposits and borrows are disabled. Debt continues accruing interest. Monitor official announcements.",
-      learnMore: PROTOCOL_PAUSE_LEARN_MORE,
+      learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
   },
   // Full-width critical banner rendered above the header when the position is at

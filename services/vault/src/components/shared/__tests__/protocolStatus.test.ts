@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isProtocolSoftPaused: false,
-  isProtocolFullyPaused: false,
+  isProtocolFrozen: false,
+  isProtocolPaused: false,
   isDepositDisabled: false,
   isBorrowDisabled: false,
 }));
@@ -13,30 +13,30 @@ vi.mock("@/config/featureFlags", () => ({
 import {
   isBorrowBlocked,
   isDepositBlocked,
-  resolveProtocolPauseLevel,
-} from "../protocolPauseLevel";
+  resolveProtocolStatus,
+} from "../protocolStatus";
 
 beforeEach(() => {
-  featureFlagsMock.isProtocolSoftPaused = false;
-  featureFlagsMock.isProtocolFullyPaused = false;
+  featureFlagsMock.isProtocolFrozen = false;
+  featureFlagsMock.isProtocolPaused = false;
   featureFlagsMock.isDepositDisabled = false;
   featureFlagsMock.isBorrowDisabled = false;
 });
 
-describe("resolveProtocolPauseLevel", () => {
-  it("returns null when no pause flag is set", () => {
-    expect(resolveProtocolPauseLevel()).toBeNull();
+describe("resolveProtocolStatus", () => {
+  it("returns null when no status flag is set", () => {
+    expect(resolveProtocolStatus()).toBeNull();
   });
 
-  it("returns 'soft' when only soft-paused", () => {
-    featureFlagsMock.isProtocolSoftPaused = true;
-    expect(resolveProtocolPauseLevel()).toBe("soft");
+  it("returns 'frozen' when only frozen", () => {
+    featureFlagsMock.isProtocolFrozen = true;
+    expect(resolveProtocolStatus()).toBe("frozen");
   });
 
-  it("returns 'hard' when fully paused (wins over soft)", () => {
-    featureFlagsMock.isProtocolSoftPaused = true;
-    featureFlagsMock.isProtocolFullyPaused = true;
-    expect(resolveProtocolPauseLevel()).toBe("hard");
+  it("returns 'paused' when paused (wins over frozen)", () => {
+    featureFlagsMock.isProtocolFrozen = true;
+    featureFlagsMock.isProtocolPaused = true;
+    expect(resolveProtocolStatus()).toBe("paused");
   });
 });
 
@@ -46,14 +46,14 @@ describe("isDepositBlocked / isBorrowBlocked", () => {
     expect(isBorrowBlocked()).toBe(false);
   });
 
-  it("both blocked under soft pause", () => {
-    featureFlagsMock.isProtocolSoftPaused = true;
+  it("both blocked when frozen", () => {
+    featureFlagsMock.isProtocolFrozen = true;
     expect(isDepositBlocked()).toBe(true);
     expect(isBorrowBlocked()).toBe(true);
   });
 
-  it("both blocked under hard pause", () => {
-    featureFlagsMock.isProtocolFullyPaused = true;
+  it("both blocked when paused", () => {
+    featureFlagsMock.isProtocolPaused = true;
     expect(isDepositBlocked()).toBe(true);
     expect(isBorrowBlocked()).toBe(true);
   });

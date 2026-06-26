@@ -3,7 +3,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
-import { isDepositBlocked } from "@/components/shared/protocolPauseLevel";
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
