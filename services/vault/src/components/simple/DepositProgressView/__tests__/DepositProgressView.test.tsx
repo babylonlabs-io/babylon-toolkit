@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -13,6 +13,17 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
     <div data-testid="btc-confirmation-detail" />
   ),
 }));
+
+// DepositProgressView self-sources the BTC wallet-lock state to render its
+// unlock notice. Drive it through a mutable mock; default unlocked.
+const mockBtcWalletState = vi.hoisted(() => ({ locked: false }));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => mockBtcWalletState,
+}));
+
+afterEach(() => {
+  mockBtcWalletState.locked = false;
+});
 
 const baseProps = {
   error: null,
@@ -574,6 +585,36 @@ describe("DepositProgressView", () => {
 
       expect(screen.queryByText("Ready to activate.")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+    });
+  });
+
+  describe("wallet-locked notice", () => {
+    it("surfaces the lock title and description when the BTC wallet is locked", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(screen.getByText(COPY.wallet.locked.title)).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.wallet.locked.description),
+      ).toBeInTheDocument();
+    });
+
+    it("does not show the lock notice when the BTC wallet is unlocked", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
     });
   });
 });

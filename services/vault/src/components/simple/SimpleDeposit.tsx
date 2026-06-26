@@ -9,7 +9,6 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
-import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
@@ -428,14 +427,14 @@ function SimpleDepositContent({
                 walletState={{
                   isWalletConnected,
                   // A click-time liveness failure OR the proactive lock poll
-                  // promotes the CTA to the reconnect/unlock action. The lock is
-                  // surfaced here (inside the dialog) because the top-of-page
-                  // WalletLockedBanner is covered by this full-screen modal.
+                  // promotes the CTA to the reconnect/unlock action. A lock
+                  // relabels the CTA to "Unlock wallet" (see DepositForm) instead
+                  // of showing a red inline string; a liveness failure keeps its
+                  // detail message.
                   hasWalletConnectionError:
                     Boolean(walletConnectionError) || isBtcWalletLocked,
-                  walletConnectionErrorMessage:
-                    walletConnectionError ??
-                    (isBtcWalletLocked ? COPY.wallet.locked.description : null),
+                  walletConnectionErrorMessage: walletConnectionError,
+                  isWalletLocked: isBtcWalletLocked,
                   isVerifyingWallet,
                   isReconnectingWallet,
                 }}

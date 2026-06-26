@@ -44,7 +44,6 @@ import {
   resolveProtocolStatus,
 } from "../shared/protocolStatus";
 import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
-import { WalletLockedBanner } from "../shared/WalletLockedBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -103,7 +102,7 @@ function MobileNavigation() {
 
 export default function RootLayout() {
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected, locked: btcLocked } = useBTCWallet();
+  const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
@@ -146,7 +145,6 @@ export default function RootLayout() {
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
-        <WalletLockedBanner visible={!isGeoBlocked && btcLocked} />
         {/* Deposit kill-switch banner. Suppressed when a frozen/paused status
             banner is active, since that banner already explains the disabled
             state. */}

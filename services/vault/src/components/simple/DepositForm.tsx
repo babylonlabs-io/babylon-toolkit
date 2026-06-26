@@ -121,6 +121,13 @@ export interface DepositWalletState {
    */
   walletConnectionErrorMessage?: string | null;
   /**
+   * True when the silent lock poll flagged the BTC wallet as locked. The CTA is
+   * already promoted to a recovery action via `hasWalletConnectionError`; this
+   * relabels it "Unlock wallet" (vs "Reconnect Wallet" for a liveness failure)
+   * so the button matches what the user must do.
+   */
+  isWalletLocked?: boolean;
+  /**
    * True while the click-time wallet liveness probe is running. Used to
    * disable the Deposit button so the user cannot double-trigger the check.
    */
@@ -210,6 +217,7 @@ export function DepositForm({
     isWalletConnected,
     hasWalletConnectionError = false,
     walletConnectionErrorMessage = null,
+    isWalletLocked = false,
     isVerifyingWallet = false,
     isReconnectingWallet = false,
   } = walletState;
@@ -336,6 +344,17 @@ export function DepositForm({
     isReconnectingWallet,
   });
 
+  // A locked wallet reuses the same recovery CTA as a liveness failure (both
+  // reconnect on click), but reads "Unlock wallet" so the action matches the
+  // cause. `getDepositCtaState` already handled `disabled`; only the label
+  // differs here.
+  const ctaLabel =
+    isWalletLocked && hasWalletConnectionError
+      ? isReconnectingWallet
+        ? COPY.wallet.locked.unlocking
+        : COPY.wallet.locked.unlockButton
+      : cta.label;
+
   return (
     <div className="flex w-full flex-col gap-4">
       <Card variant="filled" className="flex flex-col gap-4 !rounded-lg">
@@ -431,12 +450,16 @@ export function DepositForm({
         onExpandedChange={setPanelExpanded("provider")}
       />
 
-      {/* CTA button */}
-      {hasWalletConnectionError && walletConnectionErrorMessage && (
-        <p className="text-sm text-error-main" role="alert">
-          {walletConnectionErrorMessage}
-        </p>
-      )}
+      {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
+          ("Unlock wallet") is the affordance. A liveness failure still surfaces
+          its detail string so the user sees the underlying cause. */}
+      {hasWalletConnectionError &&
+        !isWalletLocked &&
+        walletConnectionErrorMessage && (
+          <p className="text-sm text-error-main" role="alert">
+            {walletConnectionErrorMessage}
+          </p>
+        )}
       <DepositButton
         variant="contained"
         color="primary"
@@ -445,7 +468,7 @@ export function DepositForm({
         disabled={cta.disabled || isVerifyingWallet}
         onClick={onDeposit}
       >
-        {isVerifyingWallet ? "Checking wallet..." : cta.label}
+        {isVerifyingWallet ? "Checking wallet..." : ctaLabel}
       </DepositButton>
 
       {/* Fee breakdown */}
