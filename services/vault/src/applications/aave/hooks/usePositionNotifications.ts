@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 
+import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 
 import {
   calculate,
@@ -12,7 +14,6 @@ import {
 } from "../positionNotifications";
 import type { ReorderVerificationContext } from "../services";
 
-import { usePositionSizeParams } from "./usePositionSizeParams";
 import { useVaultSplitParams } from "./useVaultSplitParams";
 
 export type PositionNotificationsStatus =
@@ -71,10 +72,11 @@ export function usePositionNotifications(
   const { params: splitParams, isLoading: paramsLoading } =
     useVaultSplitParams(connectedAddress);
 
-  // On-chain per-position BTC Vault cap. Not gated into `isLoading` — when it's
-  // still resolving (or unavailable) we simply omit the `max-vaults` advisory
-  // rather than hold back the rest of the notifications.
-  const { maxVaultsPerPosition } = usePositionSizeParams();
+  // On-chain per-position BTC Vault cap. `max-vaults` is a value-protection
+  // capacity fact, shown ALWAYS (independent of the liquidation-notifications
+  // flag), while the cascade warnings below stay behind the flag.
+  const { isAtCap, maxVaults } = useVaultCountCap(connectedAddress);
+  const ffOn = FeatureFlags.isLiquidationNotificationsEnabled;
 
   const {
     collateralVaults,
@@ -162,22 +164,27 @@ export function usePositionNotifications(
           }
         : calculatorResult;
 
-    // Max-vaults is a position-capacity fact, independent of the liquidation
-    // cascade — so it's injected here (not inside `calculate`, which early-exits
-    // for zero-debt / dust positions) whenever the collateralized vault count
-    // is at/over the on-chain cap. Mirrors the contract, which enforces the cap
-    // against `_getCollateralizedVaults(depositor)`.
+    // The cascade warnings (cliff / reorder / urgent / dust …) stay behind the
+    // liquidation-notifications flag; when it's off we strip them so only a
+    // possible max-vaults advisory remains.
+    const cascadeResult: CalculatorResult = ffOn
+      ? resultWithLiveHf
+      : { ...resultWithLiveHf, warnings: [], optimalVaultOrder: null };
+
+    // Max-vaults is a position-capacity fact, always-on and independent of the
+    // liquidation cascade — injected here (not inside `calculate`, which
+    // early-exits for zero-debt / dust positions) whenever the on-chain count is
+    // at/over the cap. Mirrors the contract's `_validatePositionSizeBoundaries`.
     const finalResult: CalculatorResult =
-      maxVaultsPerPosition != null &&
-      collateralVaults.length >= maxVaultsPerPosition
+      isAtCap && maxVaults != null
         ? {
-            ...resultWithLiveHf,
+            ...cascadeResult,
             warnings: [
-              buildMaxVaultsWarning(maxVaultsPerPosition),
-              ...resultWithLiveHf.warnings,
+              buildMaxVaultsWarning(maxVaults),
+              ...cascadeResult.warnings,
             ],
           }
-        : resultWithLiveHf;
+        : cascadeResult;
 
     return {
       result: finalResult,
@@ -199,7 +206,9 @@ export function usePositionNotifications(
     collateralVaults,
     debtValueUsd,
     healthFactor,
-    maxVaultsPerPosition,
+    isAtCap,
+    maxVaults,
+    ffOn,
   ]);
 
   return { result, status, isLoading, reorderVerificationContext };

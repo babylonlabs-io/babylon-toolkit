@@ -203,15 +203,19 @@ export function DashboardPage() {
           <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
 
-        {liquidationNotificationsEnabled && (
-          <PositionNotificationBanner
-            connectedAddress={address}
-            onDeposit={openDeposit}
-            onRepay={handleRepay}
-            result={debugResultOverride ?? undefined}
-            statusOverride={debugStatusOverride ?? undefined}
-          />
-        )}
+        {/* Always rendered: the "Maximum vaults reached" advisory is a
+            value-protection capacity fact shown regardless of the
+            liquidation-notifications flag. The flag-gated cascade warnings
+            (cliff / reorder / urgent / dust) are suppressed inside the hook
+            when the flag is off, so this renders nothing in that case unless
+            the position is at the vault cap. */}
+        <PositionNotificationBanner
+          connectedAddress={address}
+          onDeposit={openDeposit}
+          onRepay={handleRepay}
+          result={debugResultOverride ?? undefined}
+          statusOverride={debugStatusOverride ?? undefined}
+        />
 
         <PendingDepositSection />
 

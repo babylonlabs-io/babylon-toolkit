@@ -145,10 +145,14 @@ export interface DepositGatingState {
   ordinalsCheckPending?: boolean;
   /**
    * True when even a single new vault would exceed the on-chain per-position
-   * BTC Vault cap — disables the deposit CTA. (Gated behind the
-   * liquidation-notifications flag by the caller.)
+   * BTC Vault cap — disables the deposit CTA.
    */
   isVaultCapReached?: boolean;
+  /**
+   * True when the vault-count cap read terminally failed — fail closed (block
+   * the CTA) so an at-cap user can't lock BTC only to revert at activation.
+   */
+  vaultCountCapUnavailable?: boolean;
   /**
    * True when a single vault still fits but a 2-vault split would exceed the
    * cap — the deposit proceeds as a single vault and we surface the inline
@@ -234,6 +238,7 @@ export function DepositForm({
     isAddressBlocked,
     ordinalsCheckPending = false,
     isVaultCapReached = false,
+    vaultCountCapUnavailable = false,
     vaultCapSplitUnavailable = false,
     vaultCapUsage,
   } = gatingState;
@@ -480,14 +485,21 @@ export function DepositForm({
         color="primary"
         size="large"
         fluid
-        disabled={cta.disabled || isVerifyingWallet || isVaultCapReached}
+        disabled={
+          cta.disabled ||
+          isVerifyingWallet ||
+          isVaultCapReached ||
+          vaultCountCapUnavailable
+        }
         onClick={onDeposit}
       >
         {isVaultCapReached
           ? COPY.deposit.maxVaultsReached.cta
-          : isVerifyingWallet
-            ? "Checking wallet..."
-            : cta.label}
+          : vaultCountCapUnavailable
+            ? COPY.deposit.maxVaultsReached.unavailableCta
+            : isVerifyingWallet
+              ? "Checking wallet..."
+              : cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}

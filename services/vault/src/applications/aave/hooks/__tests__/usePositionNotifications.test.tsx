@@ -24,10 +24,20 @@ vi.mock("../useVaultSplitParams", () => ({
   useVaultSplitParams: (...args: unknown[]) => mockUseVaultSplitParams(...args),
 }));
 
-const mockUsePositionSizeParams = vi.fn();
-vi.mock("../usePositionSizeParams", () => ({
-  usePositionSizeParams: (...args: unknown[]) =>
-    mockUsePositionSizeParams(...args),
+const mockUseVaultCountCap = vi.fn();
+vi.mock("@/hooks/useVaultCountCap", () => ({
+  useVaultCountCap: (...args: unknown[]) => mockUseVaultCountCap(...args),
+}));
+
+// The cascade warnings are gated behind this flag; default it ON so the
+// existing live-HF tests exercise the cascade. Max-vaults tests below flip it.
+const flag = vi.hoisted(() => ({ liquidation: true }));
+vi.mock("@/config", () => ({
+  FeatureFlags: {
+    get isLiquidationNotificationsEnabled() {
+      return flag.liquidation;
+    },
+  },
 }));
 
 import { usePositionNotifications } from "../usePositionNotifications";
@@ -83,14 +93,16 @@ function setHappyPrices() {
 }
 
 function setHappySplitParams() {
+  flag.liquidation = true;
   mockUseVaultSplitParams.mockReturnValue({
     params: { CF: 0.7, THF: 1.1, LB: 1.05 },
     isLoading: false,
   });
-  mockUsePositionSizeParams.mockReturnValue({
-    maxVaultsPerPosition: null,
-    isLoading: false,
-    error: null,
+  mockUseVaultCountCap.mockReturnValue({
+    maxVaults: null,
+    currentCount: 0,
+    isAtCap: false,
+    capUnavailable: false,
   });
 }
 
@@ -187,11 +199,13 @@ describe("usePositionNotifications — max-vaults injection", () => {
     setHappySplitParams();
   });
 
-  it("injects max-vaults when the collateralized count is at/over the cap, even with zero debt", () => {
-    mockUsePositionSizeParams.mockReturnValue({
-      maxVaultsPerPosition: 1,
-      isLoading: false,
-      error: null,
+  it("injects max-vaults at the cap even with zero debt AND the flag off (always-on)", () => {
+    flag.liquidation = false; // cascade off — max-vaults must still show
+    mockUseVaultCountCap.mockReturnValue({
+      maxVaults: 1,
+      currentCount: 1,
+      isAtCap: true,
+      capUnavailable: false,
     });
     // Zero debt → calculate() early-exits with no cascade warnings; the
     // max-vaults advisory must still be injected (position-capacity fact).
@@ -209,11 +223,33 @@ describe("usePositionNotifications — max-vaults injection", () => {
     ).toBe(true);
   });
 
+  it("strips cascade warnings when the flag is off, keeping only max-vaults", () => {
+    flag.liquidation = false;
+    mockUseVaultCountCap.mockReturnValue({
+      maxVaults: 1,
+      currentCount: 1,
+      isAtCap: true,
+      capUnavailable: false,
+    });
+    // A live HF below threshold would normally inject an urgent cascade
+    // warning — but with the flag off only max-vaults should remain.
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 100,
+      healthFactor: 0.95,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+    const types = result.current.result?.warnings.map((w) => w.type) ?? [];
+    expect(types).toEqual(["max-vaults"]);
+  });
+
   it("does not inject max-vaults below the cap", () => {
-    mockUsePositionSizeParams.mockReturnValue({
-      maxVaultsPerPosition: 5,
-      isLoading: false,
-      error: null,
+    mockUseVaultCountCap.mockReturnValue({
+      maxVaults: 5,
+      currentCount: 1,
+      isAtCap: false,
+      capUnavailable: false,
     });
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 0.5, 0)],

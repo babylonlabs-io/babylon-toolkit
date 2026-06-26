@@ -180,6 +180,7 @@ export const COPY = {
     },
     maxVaultsReached: {
       cta: "Maximum BTC Vaults reached",
+      unavailableCta: "Unable to verify vault count — please try again",
       splitUnavailable: (used: number, cap: number) =>
         `${used} of ${cap} vaults used. Vault split unavailable.`,
     },

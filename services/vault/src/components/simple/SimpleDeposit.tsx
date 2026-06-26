@@ -3,10 +3,6 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
-import {
-  useAaveUserPosition,
-  usePositionSizeParams,
-} from "@/applications/aave/hooks";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
@@ -18,6 +14,7 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -195,21 +192,23 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
-  // Per-position BTC Vault cap (on-chain). Behind the liquidation-notifications
-  // flag: block the deposit when even a single vault won't fit (`isAtCap`), and
-  // force a single vault (no split) when a split would overflow but a single
-  // still fits (`isSplitUnavailable`). The cap is enforced on-chain against the
-  // depositor's *collateralized* vaults (`_getCollateralizedVaults`), so mirror
-  // that with `position.collaterals` — not every indexer vault (which counts
-  // pending + redeemed and would over-count).
-  const { position } = useAaveUserPosition(connectedEthAddress);
-  const collateralizedVaultCount = position?.collaterals?.length ?? 0;
-  const { maxVaultsPerPosition } = usePositionSizeParams();
+  // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
+  // block the deposit when even a single vault won't fit (`isAtCap`), force a
+  // single vault when a split would overflow (`isSplitUnavailable`), and fail
+  // closed if the cap read errors (`vaultCountCapUnavailable`). The count comes
+  // from `useVaultCountCap` (ACTIVE + PENDING + VERIFIED, adapter-scoped), which
+  // keeps the in-flight margin so concurrent deposits can't slip past the cap
+  // and revert at activation.
+  const {
+    maxVaults,
+    currentCount: collateralizableVaultCount,
+    capUnavailable: vaultCountCapUnavailable,
+  } = useVaultCountCap(connectedEthAddress);
   const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
     resolveVaultCapState({
-      existingVaultCount: collateralizedVaultCount,
-      maxVaultsPerPosition,
-      enabled: FeatureFlags.isLiquidationNotificationsEnabled,
+      existingVaultCount: collateralizableVaultCount,
+      maxVaultsPerPosition: maxVaults,
+      enabled: true,
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
@@ -317,8 +316,9 @@ function SimpleDepositContent({
     if (isDepositBlocked()) return;
 
     // Per-position BTC Vault cap: never start a deposit that would push the
-    // position past the on-chain cap (defense-in-depth behind the disabled CTA).
-    if (isVaultCapReached) return;
+    // position past the on-chain cap, or when the cap couldn't be read (fail
+    // closed) — defense-in-depth behind the disabled CTA.
+    if (isVaultCapReached || vaultCountCapUnavailable) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed: clicking it re-runs the underlying provider's connect flow
@@ -460,12 +460,13 @@ function SimpleDepositContent({
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   ordinalsCheckPending,
                   isVaultCapReached,
+                  vaultCountCapUnavailable,
                   vaultCapSplitUnavailable: isSplitCapReached,
                   vaultCapUsage:
-                    isSplitCapReached && maxVaultsPerPosition != null
+                    isSplitCapReached && maxVaults != null
                       ? {
-                          used: collateralizedVaultCount,
-                          cap: maxVaultsPerPosition,
+                          used: collateralizableVaultCount,
+                          cap: maxVaults,
                         }
                       : undefined,
                 }}

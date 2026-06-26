@@ -40,10 +40,6 @@ export {
   type UsePositionNotificationsResult,
 } from "./usePositionNotifications";
 export {
-  usePositionSizeParams,
-  type UsePositionSizeParamsResult,
-} from "./usePositionSizeParams";
-export {
   useProjectedBorrowApr,
   type UseProjectedBorrowAprResult,
 } from "./useProjectedBorrowApr";
