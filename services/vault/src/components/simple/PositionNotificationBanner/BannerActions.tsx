@@ -20,10 +20,13 @@ interface BuildBannerActionsArgs {
  * `Notification` `actions` slot:
  * - urgent: "Add Collateral" (primary, filled) + "Repay Debt" (secondary,
  *   outlined) — the core safety actions, matching the Figma callout.
+ * - cliff / rebalance with an actionable suggested vault size: "Add a X BTC
+ *   vault" — opens the deposit flow with that amount pre-filled (a single,
+ *   non-split supplemental deposit).
  * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
- * Both groups can appear together (an urgent position whose order is also
+ * The groups can appear together (an urgent position whose order is also
  * suboptimal).
  */
 export function buildBannerActions({
@@ -55,14 +58,34 @@ export function buildBannerActions({
     );
   }
 
+  // Add-vault CTA whenever a cliff/rebalance warning is present and the
+  // calculator produced an actionable size — i.e. "add a sacrificial vault of
+  // this exact size". When an urgent warning is primary it rides along as a
+  // secondary action so the safety actions lead, but it is no longer dropped
+  // (the cliff's own suggestion text describes exactly this action). The
+  // calculator guarantees the amount is positive and no larger than the position.
+  const hasCliffOrRebalanceWarning = result.warnings.some(
+    (w) => w.type === "cliff" || w.type === "rebalance",
+  );
+  const suggestedVaultBtc =
+    result.suggestedNewVaultBtc ?? result.suggestedRebalanceVaultBtc;
+  if (hasCliffOrRebalanceWarning && suggestedVaultBtc !== null) {
+    const amountBtc = suggestedVaultBtc.toFixed(2);
+    actions.push({
+      label: COPY.banner.addVault(amountBtc),
+      onClick: () => onDeposit(amountBtc),
+      emphasis: isUrgent ? "secondary" : "primary",
+    });
+  }
+
   if (showApplyOrder) {
     actions.push({
       label: isReordering
         ? COPY.common.applying
         : COPY.banner.applyOptimalOrder,
-      onClick: onApplyOrder,
       // Standalone reorder gets the filled (primary) gold button; when it rides
       // alongside the urgent callout it stays secondary so "Add Collateral" leads.
+      onClick: onApplyOrder,
       emphasis: isUrgent ? "secondary" : "primary",
       disabled: isReordering,
     });

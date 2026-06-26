@@ -204,6 +204,10 @@ export async function assertOptimalOrderMatchesOnChain(
     };
   });
 
+  // Re-runs the full optimizer (worst case ~100-200ms for an exact DP at the
+  // 17-vault cap). Acceptable on this path: it's a one-shot guard immediately
+  // before a wallet prompt (which itself takes seconds), and a position of 17
+  // separate peg-ins is extraordinarily rare.
   const { optimalVaultOrder } = calculate({
     btcPrice: ctx.btcPrice,
     totalDebtUsd: ctx.totalDebtUsd,
