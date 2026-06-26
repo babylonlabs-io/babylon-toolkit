@@ -209,6 +209,11 @@ export interface IWallet<P extends IProvider = IProvider> {
   provider: P | null;
   account: Account | null;
   label: string;
+  // Explicit hardware-wallet marker. Drives the "available" badge and the
+  // connect-list ordering. Do NOT infer this from `label`: software wallets
+  // (injectable, AppKit) carry labels too, so label truthiness is not a
+  // hardware signal.
+  hardware?: boolean;
 }
 
 export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
@@ -235,6 +240,9 @@ export interface WalletMetadata<P extends IProvider, C> {
   id: string;
   wallet?: string | ((context: any, config: C) => any);
   label?: string;
+  // Marks the entry as a hardware wallet so the UI shows the "available" badge
+  // and groups it after installed software wallets. Set explicitly per wallet.
+  hardware?: boolean;
   name: string | ((wallet: any, config: C) => Promise<string>);
   icon: string | ((wallet: any, config: C) => Promise<string>);
   docs: string;

@@ -921,7 +921,7 @@ describe("useDepositPageForm", () => {
   });
 
   describe("Max pinning sync with vaultCount", () => {
-    // vaultCount is now the EFFECTIVE split: isPartialLiquidation && canSplit.
+    // vaultCount is now the EFFECTIVE split: isTwoVaultSplit && canSplit.
     // These tests exercise the 1->2 transition, so the amount must be
     // splittable — override the default canSplit (false) to true.
     beforeEach(() => {
@@ -963,7 +963,7 @@ describe("useDepositPageForm", () => {
       expect(result.current.formData.amountBtc).toBe("0.0076");
 
       act(() => {
-        result.current.setIsPartialLiquidation(true);
+        result.current.setIsTwoVaultSplit(true);
       });
 
       await waitFor(() => {
@@ -996,7 +996,7 @@ describe("useDepositPageForm", () => {
       expect(result.current.formData.amountBtc).toBe("0.001");
 
       act(() => {
-        result.current.setIsPartialLiquidation(true);
+        result.current.setIsTwoVaultSplit(true);
       });
 
       await waitFor(() => {
@@ -1038,7 +1038,7 @@ describe("useDepositPageForm", () => {
       });
 
       act(() => {
-        result.current.setIsPartialLiquidation(true);
+        result.current.setIsTwoVaultSplit(true);
       });
 
       // Give the effect a chance to (incorrectly) re-budget; it must not.

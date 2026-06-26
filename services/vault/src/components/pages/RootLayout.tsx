@@ -38,6 +38,12 @@ import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
+import { NoticeBanner } from "../shared/NoticeBanner";
+import {
+  isDepositBlocked,
+  resolveProtocolStatus,
+} from "../shared/protocolStatus";
+import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -127,13 +133,27 @@ export default function RootLayout() {
             here so it renders above the header, atop the operational banners. */}
         <div id={CRITICAL_BANNER_SLOT_ID} />
         <TestingBanner visible={shouldDisplayTestingMsg()} />
+        {/* Intentionally not gated on `isGeoBlocked`: an operator notice
+            describes a service-wide condition and renders in the top banner
+            stack (above the geo-block screen), so geo-blocked sessions must
+            see it too. */}
+        <NoticeBanner
+          visible={Boolean(FeatureFlags.noticeBannerMessage)}
+          message={FeatureFlags.noticeBannerMessage}
+        />
         <AddressScreeningBanner
           visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
         />
         <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
+        {/* Deposit kill-switch banner. Suppressed when a frozen/paused status
+            banner is active, since that banner already explains the disabled
+            state. */}
         <DepositDisabledBanner
           visible={
-            !isGeoBlocked && isWalletConnected && FeatureFlags.isDepositDisabled
+            !isGeoBlocked &&
+            isWalletConnected &&
+            FeatureFlags.isDepositDisabled &&
+            resolveProtocolStatus() === null
           }
         />
         <Header
@@ -167,7 +187,7 @@ export default function RootLayout() {
                   <DepositButton
                     variant="outlined"
                     rounded
-                    disabled={FeatureFlags.isDepositDisabled}
+                    disabled={isDepositBlocked()}
                     onClick={() => openDeposit()}
                   >
                     Deposit {btcConfig.coinSymbol}
@@ -187,6 +207,11 @@ export default function RootLayout() {
           <GeoBlockState />
         ) : (
           <ActivatingVaultsProvider>
+            {/* Intentionally in the content branch (not the top stack like
+                NoticeBanner): a geo-blocked session is already fully blocked
+                from transacting and sees the geo-block screen, so it doesn't
+                need the status banner the way it still needs operator notices. */}
+            <ProtocolStatusBanner />
             <Outlet
               context={
                 {

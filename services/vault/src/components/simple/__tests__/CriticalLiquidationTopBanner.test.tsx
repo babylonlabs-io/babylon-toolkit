@@ -48,6 +48,8 @@ function makeResult({
     targetSeizureBtc: 0,
     warnings: urgent ? [{ type: "urgent", title: "x", detail: "y" }] : [],
     optimalVaultOrder: null,
+    suggestedNewVaultBtc: null,
+    suggestedRebalanceVaultBtc: null,
   };
 }
 

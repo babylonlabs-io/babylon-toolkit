@@ -12,7 +12,7 @@ import { useETHWallet } from "@/context/wallet";
 
 export interface UseAllocationPlanningParams {
   amountSats: bigint;
-  isPartialLiquidation: boolean;
+  isTwoVaultSplit: boolean;
 }
 
 export interface UseAllocationPlanningResult {
@@ -37,7 +37,7 @@ export interface UseAllocationPlanningResult {
 
 export function useAllocationPlanning({
   amountSats,
-  isPartialLiquidation,
+  isTwoVaultSplit,
 }: UseAllocationPlanningParams): UseAllocationPlanningResult {
   // Pass the connected ETH address so useVaultSplitParams can prefer the
   // user's existing position's dynamicConfigKey over the reserve's current
@@ -53,15 +53,9 @@ export function useAllocationPlanning({
   } = useOptimalSplit(amountSats, ethAddress);
 
   const vaultAmounts = useMemo(() => {
-    if (!isPartialLiquidation || !canSplit || amountSats <= 0n) return null;
+    if (!isTwoVaultSplit || !canSplit || amountSats <= 0n) return null;
     return [sacrificialVault, protectedVault] as const;
-  }, [
-    isPartialLiquidation,
-    canSplit,
-    amountSats,
-    sacrificialVault,
-    protectedVault,
-  ]);
+  }, [isTwoVaultSplit, canSplit, amountSats, sacrificialVault, protectedVault]);
 
   const splitRatioLabel = useMemo(() => {
     if (!canSplit || amountSats <= 0n) return null;

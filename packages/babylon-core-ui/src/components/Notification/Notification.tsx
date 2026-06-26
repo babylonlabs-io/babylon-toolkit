@@ -10,6 +10,7 @@ import {
   CloseIcon,
   type IconProps,
   InfoIcon,
+  PauseIcon,
   WarningIcon,
 } from "../Icons";
 import { Text } from "../Text";
@@ -27,6 +28,7 @@ export type NotificationVariant =
   | "info"
   | "success"
   | "paused"
+  | "halted"
   | "suggestion";
 
 export type NotificationActionsPlacement = "inline" | "below";
@@ -104,6 +106,12 @@ const VARIANT_ACCENT: Record<NotificationVariant, VariantAccent> = {
     onAccent: ON_DARK_ACCENT,
     tint: "",
   },
+  halted: {
+    border: "border-error-light",
+    accentBg: "bg-error-light",
+    onAccent: ON_DARK_ACCENT,
+    tint: "",
+  },
   suggestion: {
     border: SUGGESTION_BORDER,
     accentBg: SUGGESTION_ACCENT_BG,
@@ -123,7 +131,8 @@ const DEFAULT_ICON: Record<NotificationVariant, ComponentType<IconProps>> = {
   warning: InfoIcon,
   info: InfoIcon,
   success: CheckIcon,
-  paused: InfoIcon,
+  paused: PauseIcon,
+  halted: PauseIcon,
   suggestion: InfoIcon,
 };
 
@@ -145,7 +154,8 @@ export function Notification({
   ...rest
 }: NotificationProps) {
   const accent = VARIANT_ACCENT[variant];
-  const resolvedRole = role ?? (variant === "error" ? "alert" : "status");
+  const resolvedRole =
+    role ?? (variant === "error" || variant === "halted" ? "alert" : "status");
 
   const DefaultIcon = DEFAULT_ICON[variant];
   const iconNode =

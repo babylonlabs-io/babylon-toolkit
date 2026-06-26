@@ -56,6 +56,8 @@ const ACTIVATION_REQUIRED_LABEL = "Activation required";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
+// Trailing "Learn more" link label, shared by the frozen and paused status banners.
+const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
 
 export const COPY = {
   pegin: {
@@ -182,6 +184,12 @@ export const COPY = {
       description: "Deposits are currently disabled. Please try again later.",
       bannerMessage:
         "New deposits are paused for maintenance and will resume shortly.",
+    },
+    maxVaultsReached: {
+      cta: "Maximum BTC Vaults reached",
+      unavailableCta: "Unable to verify vault count — please try again",
+      splitUnavailable: (used: number, cap: number) =>
+        `${used} of ${cap} vaults used. Vault split unavailable.`,
     },
     steps: {
       generateSecret: "Generate secret for the deposit",
@@ -485,7 +493,7 @@ export const COPY = {
         minimum: `at least ${minBtc}`,
       }),
       splitOptionDescription:
-        "Split your Bitcoin into multiple vaults to enable partial liquidation.",
+        "Split your Bitcoin into two vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault.",
       // "Learn more here." link appended to the split-option description in
@@ -847,9 +855,22 @@ export const COPY = {
       challengePeriodEndsIn: (duration: string) => `in ~${duration}`,
       // Shown once the challenge-period clock has elapsed (payout eligible).
       challengePeriodEndsSoon: "shortly",
+      // Live Assert-tx confirmation count toward the payout CSV clock, shown
+      // during the challenge period. `confirmed`/`required` are BTC blocks.
+      confirmationsLabel: "Confirmations",
+      confirmationsValue: (confirmed: number, required: number) =>
+        `${confirmed} of ${required}`,
+      // Typical total length of the challenge period, derived from the vault's
+      // timelockAssert (display-only). Sets the up-front expectation; the live
+      // countdown above shows the remaining time, so total-vs-remaining don't
+      // conflict.
+      challengePeriodTypicalDuration: (duration: string) =>
+        `This typically takes about ${duration}.`,
       // Challenge-period help note. Explains this is one step (the on-chain
-      // challenge period) and that a payout step follows — no fixed duration
-      // here, to avoid conflicting with the live countdown above it.
+      // challenge period) and that a payout step follows. The concrete typical
+      // duration is appended separately (challengePeriodTypicalDuration), kept
+      // out of this base sentence so the live countdown stays the source of
+      // remaining time.
       challengeNote:
         "For your security, your withdrawal goes through an on-chain challenge period. After it ends, the payout is broadcast to your nominated address.",
       learnMorePrefix: "Read more about the withdrawal latency ",
@@ -1060,6 +1081,7 @@ export const COPY = {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
+    addVault: (amountBtc: string) => `Add a ${amountBtc} BTC vault`,
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -1093,6 +1115,27 @@ export const COPY = {
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
     },
   },
+  // Operator-controlled protocol governance-status banners (Freeze / Pause). The
+  // body may be overridden per incident via NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE;
+  // these are the defaults. Each renders a trailing "Learn more" link.
+  //
+  // INTERIM copy: states only what the dApp currently *enforces* (new deposits
+  // and borrows are disabled — see `isDepositBlocked` / `isBorrowBlocked`). The
+  // wording deliberately does not claim the remaining ops are blocked yet; those
+  // gates land with the Freeze (reorder) and Pause (withdraw/repay/activation/…)
+  // follow-ups, and the final freeze/pause wording is owned by design.
+  protocolStatus: {
+    frozen: {
+      title: "Protocol is frozen",
+      body: "New deposits and borrows are disabled. You can still repay debt — liquidations remain active.",
+      learnMore: PROTOCOL_STATUS_LEARN_MORE,
+    },
+    paused: {
+      title: "Protocol is paused",
+      body: "New deposits and borrows are disabled. Debt continues accruing interest. Monitor official announcements.",
+      learnMore: PROTOCOL_STATUS_LEARN_MORE,
+    },
+  },
   // Full-width critical banner rendered above the header when the position is at
   // imminent liquidation risk (red severity). The warning glyph is supplied via
   // the banner's icon slot, not the message string.
@@ -1102,7 +1145,9 @@ export const COPY = {
     liquidatable: "Critical — liquidation can trigger now",
   },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // three warning types produced by the calculator (urgent / dust / weird-params).
+  // warning types produced by the calculator: urgent / cliff / rebalance /
+  // reorder / dust / weird-params / too-many-vaults. Wording is ported from the
+  // reference liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
@@ -1119,12 +1164,85 @@ export const COPY = {
     },
     // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
     // engine finds a safer liquidation order than the current on-chain order.
+    // Single reorder notification (matches Figma 6502-111184). Emitted whenever
+    // the calculator finds a strictly safer order than the current one; the
+    // suggested order is rendered as chips from `optimalVaultOrder`, not text.
     reorder: {
       title: "Reorder vaults to lose less",
       detail:
         "A different vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
       suggestedOrderLabel: "Suggested order",
       vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
+    },
+    // Cliff: all vaults consolidate into one liquidation group, so partial
+    // liquidation is no longer possible. Variant by vault count.
+    cliff: {
+      single: {
+        title: "No backup vault",
+        detail:
+          "Your vault will be fully seized at liquidation — nothing is protected behind it.",
+        actionableSuggestion: (suggestedBtc: string, vaultBtc: string) =>
+          `Add a ${suggestedBtc} BTC sacrificial vault at position 1 — your current vault (${vaultBtc} BTC) becomes protected.`,
+        noSplitSuggestion:
+          "Current protocol parameters do not allow vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
+        oversizedSuggestion: (rawBtc: string) =>
+          `To enable partial liquidation, add ≥ ${rawBtc} BTC as a sacrificial vault. You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+      },
+      twoVault: {
+        title: "Both vaults seized together — no partial protection",
+        detail: (targetSeizureBtc: string) =>
+          `Neither vault alone covers the target seizure (${targetSeizureBtc} BTC). Both will be liquidated in one event.`,
+        enablePartial: (deficitBtc: string, largestName: string) =>
+          `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
+        suggestion: (enablePartialStr: string) =>
+          `${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+      },
+      multiVault: {
+        title: "All vaults seized in one liquidation event",
+        detail: (nVaults: number, hasReorderFix: boolean) =>
+          `All ${nVaults} vaults land in Group 1 — no protected vaults remain after first liquidation. ${
+            hasReorderFix
+              ? "Reordering vaults will fix this."
+              : "No combination of vaults covers the target seizure alone."
+          }`,
+        suggestion: (orderStr: string) => `Suggested order: ${orderStr}`,
+      },
+    },
+    // Rebalance: the first group over-seizes because vault sizes aren't optimal;
+    // a new sacrificial vault (combined with the existing small vaults) fixes it.
+    rebalance: {
+      title: "Undersized sacrificial vault",
+      detail: (
+        g1CombinedBtc: string,
+        g1TargetSeizure: string,
+        g1OverSeizure: string,
+        improvementBtc: string,
+      ) =>
+        `Group 1 seizes ${g1CombinedBtc} BTC but target is only ${g1TargetSeizure} BTC — over-seizure of ${g1OverSeizure} BTC. With optimal vault sizes, ${improvementBtc} more BTC would be protected.`,
+      actionableSuggestion: (
+        suggestedBtc: string,
+        smallNames: string,
+        largestName: string,
+        largestBtc: string,
+      ) =>
+        `Add a ${suggestedBtc} BTC vault and place it with ${smallNames} at the front — together they cover the target seizure, protecting ${largestName} (${largestBtc} BTC). You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open the position.`,
+      fallbackSuggestion: (sacrificialBtc: string) =>
+        `Repay the loan, split BTC into optimal UTXOs (sacrificial ~${sacrificialBtc} BTC + protected), and re-open the position.`,
+    },
+    // Too many vaults: beyond the optimizer cap, ordering falls back to a
+    // largest-first heuristic and the reorder suggestion is no longer optimal.
+    // Copy matches Figma 7048-61969 (count + cap stay interpolated).
+    tooManyVaults: {
+      title: "Too many vaults to optimize",
+      detail: (nVaults: number, cap: number) =>
+        `You have ${nVaults} vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
+      suggestion:
+        "Consider consolidating smaller vaults into fewer larger ones — fewer vaults means lower fees and better optimization.",
+    },
+    maxVaults: {
+      title: "Maximum vaults reached",
+      detail: (cap: number) =>
+        `This position already has the maximum number of BTC Vaults (${cap}).`,
     },
     dust: {
       title: "Position too small to model",

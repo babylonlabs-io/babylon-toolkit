@@ -1,41 +1,42 @@
 import { Accordion, AccordionDetails, Card } from "@babylonlabs-io/core-ui";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
-import { PARTIAL_LIQUIDATION_DOCS_URL } from "@/constants";
+import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
-interface PartialLiquidationProps {
+export interface TwoVaultSplitProps {
   isEnabled: boolean;
   onChange: (checked: boolean) => void;
   canSplit: boolean;
   isLoading: boolean;
   splitRatioLabel: string | null;
+  minDepositForSplit: bigint;
+  isSplitAmountTooLow: boolean;
 }
 
 interface UtxoSplitSelectorProps {
-  partialLiquidation: PartialLiquidationProps;
+  twoVaultSplit: TwoVaultSplitProps;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }
 
 export function UtxoSplitSelector({
-  partialLiquidation,
+  twoVaultSplit,
   expanded,
   onExpandedChange,
 }: UtxoSplitSelectorProps) {
-  const splitDisabled =
-    !partialLiquidation.canSplit || partialLiquidation.isLoading;
+  const splitDisabled = !twoVaultSplit.canSplit || twoVaultSplit.isLoading;
 
   const handleSelectSplit = () => {
     if (splitDisabled) return;
-    partialLiquidation.onChange(true);
+    twoVaultSplit.onChange(true);
   };
-  const handleSelectNoSplit = () => partialLiquidation.onChange(false);
+  const handleSelectNoSplit = () => twoVaultSplit.onChange(false);
 
-  const splitTitleColor = partialLiquidation.isEnabled
+  const splitTitleColor = twoVaultSplit.isEnabled
     ? "text-accent-primary"
     : "text-accent-secondary";
-  const noSplitTitleColor = partialLiquidation.isEnabled
+  const noSplitTitleColor = twoVaultSplit.isEnabled
     ? "text-accent-secondary"
     : "text-accent-primary";
 
@@ -48,10 +49,10 @@ export function UtxoSplitSelector({
           onClick={() => onExpandedChange(!expanded)}
         >
           <span className="text-sm text-accent-primary">
-            {partialLiquidation.isEnabled ? (
+            {twoVaultSplit.isEnabled ? (
               <>
                 {COPY.deposit.form.splitOptionLabel(
-                  partialLiquidation.splitRatioLabel,
+                  twoVaultSplit.splitRatioLabel,
                 )}{" "}
                 <span className="text-accent-secondary">
                   {COPY.deposit.form.splitOptionRecommended}
@@ -88,7 +89,7 @@ export function UtxoSplitSelector({
             <span className="flex flex-col gap-1">
               <span className={`text-sm ${splitTitleColor}`}>
                 {COPY.deposit.form.splitOptionLabel(
-                  partialLiquidation.splitRatioLabel,
+                  twoVaultSplit.splitRatioLabel,
                 )}{" "}
                 <span className="text-accent-secondary">
                   {COPY.deposit.form.splitOptionRecommended}
@@ -97,7 +98,7 @@ export function UtxoSplitSelector({
               <span className="text-xs text-accent-secondary">
                 {COPY.deposit.form.splitOptionDescription}{" "}
                 <a
-                  href={PARTIAL_LIQUIDATION_DOCS_URL}
+                  href={TWO_VAULT_SPLIT_DOCS_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-secondary-main underline"
@@ -107,7 +108,7 @@ export function UtxoSplitSelector({
                 </a>
               </span>
             </span>
-            {partialLiquidation.isEnabled && (
+            {twoVaultSplit.isEnabled && (
               <IoCheckmark className="shrink-0 text-accent-primary" size={20} />
             )}
           </div>
@@ -132,12 +133,12 @@ export function UtxoSplitSelector({
                 {COPY.deposit.form.noSplitOptionDescription}
               </span>
             </span>
-            {!partialLiquidation.isEnabled && (
+            {!twoVaultSplit.isEnabled && (
               <IoCheckmark className="shrink-0 text-accent-primary" size={20} />
             )}
           </div>
 
-          {partialLiquidation.isLoading && (
+          {twoVaultSplit.isLoading && (
             <span className="text-xs text-accent-secondary">
               {COPY.deposit.form.computingAllocation}
             </span>

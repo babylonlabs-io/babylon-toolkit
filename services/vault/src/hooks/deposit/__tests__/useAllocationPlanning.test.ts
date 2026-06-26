@@ -47,7 +47,7 @@ describe("useAllocationPlanning — isSplitAmountTooLow", () => {
     const { result } = renderHook(() =>
       useAllocationPlanning({
         amountSats: MIN_DEPOSIT_FOR_SPLIT - 1n,
-        isPartialLiquidation: true,
+        isTwoVaultSplit: true,
       }),
     );
 
@@ -61,7 +61,7 @@ describe("useAllocationPlanning — isSplitAmountTooLow", () => {
     const { result } = renderHook(() =>
       useAllocationPlanning({
         amountSats: MIN_DEPOSIT_FOR_SPLIT,
-        isPartialLiquidation: true,
+        isTwoVaultSplit: true,
       }),
     );
 
@@ -69,12 +69,13 @@ describe("useAllocationPlanning — isSplitAmountTooLow", () => {
   });
 
   it("is false when no amount has been entered", () => {
-    mockUseOptimalSplit.mockReturnValue(
-      optimalSplit({ minDepositForSplit: 0n, canSplit: false }),
-    );
+    // Params have loaded with a positive minimum, so the zero-amount guard is
+    // the only reason the hint stays hidden (the separate "minimum unavailable"
+    // test below isolates the loaded-but-zero-minimum guard).
+    mockUseOptimalSplit.mockReturnValue(optimalSplit({ canSplit: false }));
 
     const { result } = renderHook(() =>
-      useAllocationPlanning({ amountSats: 0n, isPartialLiquidation: true }),
+      useAllocationPlanning({ amountSats: 0n, isTwoVaultSplit: true }),
     );
 
     expect(result.current.isSplitAmountTooLow).toBe(false);
@@ -88,7 +89,7 @@ describe("useAllocationPlanning — isSplitAmountTooLow", () => {
     const { result } = renderHook(() =>
       useAllocationPlanning({
         amountSats: MIN_DEPOSIT_FOR_SPLIT - 1n,
-        isPartialLiquidation: true,
+        isTwoVaultSplit: true,
       }),
     );
 
@@ -103,7 +104,7 @@ describe("useAllocationPlanning — isSplitAmountTooLow", () => {
     const { result } = renderHook(() =>
       useAllocationPlanning({
         amountSats: 10_000_000n,
-        isPartialLiquidation: true,
+        isTwoVaultSplit: true,
       }),
     );
 

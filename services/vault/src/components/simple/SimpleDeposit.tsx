@@ -3,6 +3,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
@@ -13,6 +14,8 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
+import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -112,8 +115,8 @@ function SimpleDepositContent({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
-    isPartialLiquidation,
-    setIsPartialLiquidation,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
     canSplit,
     vaultAmounts,
     isSplitLoading,
@@ -128,7 +131,7 @@ function SimpleDepositContent({
   } = useDepositPageForm();
 
   const depositBatchSize =
-    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
+    isTwoVaultSplit && vaultAmounts ? vaultAmounts.length : 1;
 
   const {
     feeEthFormatted: protocolFeeAmount,
@@ -151,10 +154,9 @@ function SimpleDepositContent({
   // keep the per-vault values distinct to preserve each floor operation.
   const commissionHtlcValues =
     depositorClaimValue !== undefined && minPeginFee != null
-      ? (isPartialLiquidation && vaultAmounts
-          ? vaultAmounts
-          : [amountSats]
-        ).map((vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee)
+      ? (isTwoVaultSplit && vaultAmounts ? vaultAmounts : [amountSats]).map(
+          (vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee,
+        )
       : undefined;
 
   // Live commission (bps) for the selected provider, read from the current
@@ -190,9 +192,29 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
+  // block the deposit when even a single vault won't fit (`isAtCap`), force a
+  // single vault when a split would overflow (`isSplitUnavailable`), and fail
+  // closed if the cap read errors (`vaultCountCapUnavailable`). The count comes
+  // from `useVaultCountCap` (ACTIVE + PENDING + VERIFIED, adapter-scoped), which
+  // keeps the in-flight margin so concurrent deposits can't slip past the cap
+  // and revert at activation.
+  const {
+    maxVaults,
+    currentCount: collateralizableVaultCount,
+    capUnavailable: vaultCountCapUnavailable,
+  } = useVaultCountCap(connectedEthAddress);
+  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+    resolveVaultCapState({
+      existingVaultCount: collateralizableVaultCount,
+      maxVaultsPerPosition: maxVaults,
+      enabled: true,
+    });
+
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
     !isSupplementalDeposit &&
+    !isSplitCapReached &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Auto-enable split once when it first becomes available and allowed
@@ -200,11 +222,11 @@ function SimpleDepositContent({
   useEffect(() => {
     if (canSplit && allowSplit && !hasAutoChecked.current) {
       hasAutoChecked.current = true;
-      setIsPartialLiquidation(true);
+      setIsTwoVaultSplit(true);
     }
-  }, [canSplit, allowSplit, setIsPartialLiquidation]);
+  }, [canSplit, allowSplit, setIsTwoVaultSplit]);
 
-  const partialLiquidationProps = !allowSplit
+  const twoVaultSplitProps = !allowSplit
     ? undefined
     : {
         // Show the split as selected only when the user wants it AND the
@@ -213,8 +235,8 @@ function SimpleDepositContent({
         // raising it back above restores the selection because the underlying
         // intent is preserved. An explicit "Do not split" click (intent =
         // false) still sticks.
-        isEnabled: isPartialLiquidation && canSplit,
-        onChange: setIsPartialLiquidation,
+        isEnabled: isTwoVaultSplit && canSplit,
+        onChange: setIsTwoVaultSplit,
         canSplit,
         isLoading: isSplitLoading,
         splitRatioLabel,
@@ -247,7 +269,7 @@ function SimpleDepositContent({
 
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
-    setIsPartialLiquidation(false);
+    setIsTwoVaultSplit(false);
     setWalletConnectionError(null);
     setOverlappingPendingVaultCount(null);
     resetDeposit();
@@ -258,7 +280,7 @@ function SimpleDepositContent({
       setFormData({ amountBtc: initialAmountBtc });
     }
   }, [
-    setIsPartialLiquidation,
+    setIsTwoVaultSplit,
     resetDeposit,
     resetForm,
     initialAmountBtc,
@@ -287,10 +309,16 @@ function SimpleDepositContent({
   };
 
   const handleDeposit = async () => {
-    // Kill-switch guard on the submit path: blocks the deposit flow even if a
-    // deposit entry point that bypasses the disabled buttons (e.g. the Activity
-    // empty-state CTA or the urgent Add Collateral banner) opens this dialog.
-    if (FeatureFlags.isDepositDisabled) return;
+    // Kill-switch / pause guard on the submit path: blocks the deposit flow even
+    // if a deposit entry point that bypasses the disabled buttons (e.g. the
+    // Activity empty-state CTA or the urgent Add Collateral banner) opens this
+    // dialog.
+    if (isDepositBlocked()) return;
+
+    // Per-position BTC Vault cap: never start a deposit that would push the
+    // position past the on-chain cap, or when the cap couldn't be read (fail
+    // closed) — defense-in-depth behind the disabled CTA.
+    if (isVaultCapReached || vaultCountCapUnavailable) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed: clicking it re-runs the underlying provider's connect flow
@@ -345,7 +373,7 @@ function SimpleDepositContent({
       setIsVerifyingWallet(false);
     }
 
-    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
+    const shouldSplit = isTwoVaultSplit && allowSplit && !!vaultAmounts;
     const effectiveVaultAmounts =
       shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
     setOverlappingPendingVaultCount(runOverlapCheck(effectiveVaultAmounts));
@@ -427,13 +455,23 @@ function SimpleDepositContent({
                   isReconnectingWallet,
                 }}
                 gatingState={{
-                  isDepositDisabled: FeatureFlags.isDepositDisabled,
+                  isDepositDisabled: isDepositBlocked(),
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   ordinalsCheckPending,
+                  isVaultCapReached,
+                  vaultCountCapUnavailable,
+                  vaultCapSplitUnavailable: isSplitCapReached,
+                  vaultCapUsage:
+                    isSplitCapReached && maxVaults != null
+                      ? {
+                          used: collateralizableVaultCount,
+                          cap: maxVaults,
+                        }
+                      : undefined,
                 }}
                 collateralFactor={collateralFactor}
-                partialLiquidation={partialLiquidationProps}
+                twoVaultSplit={twoVaultSplitProps}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
                 onDeposit={handleDeposit}
