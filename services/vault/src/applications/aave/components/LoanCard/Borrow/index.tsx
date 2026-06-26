@@ -17,7 +17,7 @@ import {
 import { useEffect } from "react";
 
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
-import { FeatureFlags } from "@/config";
+import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 
 import {
@@ -244,7 +244,7 @@ export function Borrow() {
   };
 
   const getBorrowButtonText = () => {
-    if (FeatureFlags.isBorrowDisabled) return COPY.loans.borrow.unavailable;
+    if (isBorrowBlocked()) return COPY.loans.borrow.unavailable;
     if (isProcessing) return COPY.loans.borrow.processing;
     return buttonText;
   };
@@ -264,7 +264,7 @@ export function Borrow() {
           title: COPY.loans.transactionFailedTitle,
           body: txError,
         }
-      : FeatureFlags.isBorrowDisabled
+      : isBorrowBlocked()
         ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
         : tokenPriceUsd == null || oracleAddress == null
           ? { variant: "warning", body: COPY.loans.priceUnavailable }
@@ -373,7 +373,7 @@ export function Borrow() {
         disabled={
           isDisabled ||
           isProcessing ||
-          FeatureFlags.isBorrowDisabled ||
+          isBorrowBlocked() ||
           !isPriceReady ||
           oracleAddress == null
         }

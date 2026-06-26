@@ -3,6 +3,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
@@ -287,10 +288,11 @@ function SimpleDepositContent({
   };
 
   const handleDeposit = async () => {
-    // Kill-switch guard on the submit path: blocks the deposit flow even if a
-    // deposit entry point that bypasses the disabled buttons (e.g. the Activity
-    // empty-state CTA or the urgent Add Collateral banner) opens this dialog.
-    if (FeatureFlags.isDepositDisabled) return;
+    // Kill-switch / pause guard on the submit path: blocks the deposit flow even
+    // if a deposit entry point that bypasses the disabled buttons (e.g. the
+    // Activity empty-state CTA or the urgent Add Collateral banner) opens this
+    // dialog.
+    if (isDepositBlocked()) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed: clicking it re-runs the underlying provider's connect flow
@@ -427,7 +429,7 @@ function SimpleDepositContent({
                   isReconnectingWallet,
                 }}
                 gatingState={{
-                  isDepositDisabled: FeatureFlags.isDepositDisabled,
+                  isDepositDisabled: isDepositBlocked(),
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   ordinalsCheckPending,

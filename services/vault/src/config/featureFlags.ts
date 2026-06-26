@@ -35,6 +35,55 @@ export default {
   },
 
   /**
+   * PROTOCOL_FROZEN feature flag (governance "Freeze")
+   *
+   * Purpose: Surfaces the teal "Protocol is frozen" status banner and disables
+   * new deposits and borrows. Freeze blocks new entry but preserves all exits
+   * (repay, withdraw, liquidation, activation stay available); gating the
+   * remaining new-entry action (reorder) is the Freeze follow-up.
+   * Why needed: The on-chain Frozen/Paused state is public (each contract
+   * exposes it and emits Frozen/Paused events), but we intentionally drive the
+   * banner from an operator flag for now — reading it on-chain is the follow-up.
+   * DevOps flips this during an incident, like the DISABLE_DEPOSIT/DISABLE_BORROW
+   * kill-switches.
+   * Default: false (banner hidden unless explicitly set to "true")
+   */
+  get isProtocolFrozen() {
+    return process.env.NEXT_PUBLIC_FF_PROTOCOL_FROZEN === "true";
+  },
+
+  /**
+   * PROTOCOL_PAUSED feature flag (governance "Pause")
+   *
+   * Purpose: Surfaces the red "Protocol is paused" status banner; shares the
+   * deposit + borrow enforcement with the freeze flag (gating the remaining Aave
+   * actions is the Pause follow-up). Takes precedence over the frozen banner
+   * when both are set. Pause is the full stop (a last-resort emergency).
+   * Why needed: Same operator-controlled model as PROTOCOL_FROZEN; DevOps
+   * escalates to this when the whole market is halted.
+   * Default: false (banner hidden unless explicitly set to "true")
+   */
+  get isProtocolPaused() {
+    return process.env.NEXT_PUBLIC_FF_PROTOCOL_PAUSED === "true";
+  },
+
+  /**
+   * PROTOCOL_STATUS_MESSAGE override
+   *
+   * Purpose: Lets DevOps override the frozen/paused banner's body text per
+   * incident without a code change. When set, it replaces the active banner's
+   * body; when empty/unset, the default per-status copy from `copy.ts` is shown.
+   * Why needed: Incident messaging often needs wording the default copy can't
+   * anticipate. Non-boolean config, so it uses a plain NEXT_PUBLIC_ env (per
+   * rule 5) rather than the boolean FF prefix.
+   * Default: undefined (default copy is used).
+   */
+  get protocolStatusMessage(): string | undefined {
+    const raw = process.env.NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE?.trim();
+    return raw ? raw : undefined;
+  },
+
+  /**
    * FORCE_PARTIAL_LIQUIDATION feature flag
    *
    * Purpose: Forces partial liquidation split to always be suggested,
