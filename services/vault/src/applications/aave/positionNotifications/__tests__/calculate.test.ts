@@ -262,6 +262,41 @@ describe("bannerSeverity", () => {
   });
 });
 
+describe("max-vaults banner severity", () => {
+  // `max-vaults` is injected by usePositionNotifications (not calculate), so it
+  // can ride on any result — including a dust position that otherwise hides the
+  // banner. It must override the dust-hidden suppression and render as yellow.
+  const maxVaultsWarning: Warning = {
+    type: "max-vaults",
+    title: "Maximum vaults reached",
+    detail: "This position already has the maximum number of BTC Vaults (1).",
+  };
+
+  it("shows max-vaults as yellow even on a dust position", () => {
+    const dustResult = calculate(makeParams([v(0.001)], { totalDebtUsd: 100 }));
+    expect(hasWarning(dustResult.warnings, "dust")).toBe(true);
+
+    const state = deriveBannerState({
+      ...dustResult,
+      warnings: [maxVaultsWarning, ...dustResult.warnings],
+    });
+
+    expect(state.severity).toBe("yellow");
+    expect(state.primaryWarning?.type).toBe("max-vaults");
+    expect(state.secondaryWarnings.some((w) => w.type === "dust")).toBe(false);
+  });
+
+  it("urgent still outranks max-vaults", () => {
+    const urgentResult = calculate(makeParams([v(1.0)]));
+    const state = deriveBannerState({
+      ...urgentResult,
+      warnings: [maxVaultsWarning, ...urgentResult.warnings],
+    });
+    expect(state.primaryWarning?.type).toBe("urgent");
+    expect(state.severity).toBe("red");
+  });
+});
+
 // Golden vectors ported from the reference calculator's scenario suite
 // (tbv-liquidations, the source of truth). Defaults match the reference:
 // debt 44287.72, BTC $61722.5, CF 0.75, THF 1.10, maxLB 1.05, expectedHF 0.95.

@@ -3,6 +3,10 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
+import {
+  useAaveUserPosition,
+  usePositionSizeParams,
+} from "@/applications/aave/hooks";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
@@ -14,6 +18,7 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -190,9 +195,27 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  // Per-position BTC Vault cap (on-chain). Behind the liquidation-notifications
+  // flag: block the deposit when even a single vault won't fit (`isAtCap`), and
+  // force a single vault (no split) when a split would overflow but a single
+  // still fits (`isSplitUnavailable`). The cap is enforced on-chain against the
+  // depositor's *collateralized* vaults (`_getCollateralizedVaults`), so mirror
+  // that with `position.collaterals` — not every indexer vault (which counts
+  // pending + redeemed and would over-count).
+  const { position } = useAaveUserPosition(connectedEthAddress);
+  const collateralizedVaultCount = position?.collaterals?.length ?? 0;
+  const { maxVaultsPerPosition } = usePositionSizeParams();
+  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+    resolveVaultCapState({
+      existingVaultCount: collateralizedVaultCount,
+      maxVaultsPerPosition,
+      enabled: FeatureFlags.isLiquidationNotificationsEnabled,
+    });
+
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
     !isSupplementalDeposit &&
+    !isSplitCapReached &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Auto-enable split once when it first becomes available and allowed
@@ -292,6 +315,10 @@ function SimpleDepositContent({
     // Activity empty-state CTA or the urgent Add Collateral banner) opens this
     // dialog.
     if (isDepositBlocked()) return;
+
+    // Per-position BTC Vault cap: never start a deposit that would push the
+    // position past the on-chain cap (defense-in-depth behind the disabled CTA).
+    if (isVaultCapReached) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed: clicking it re-runs the underlying provider's connect flow
@@ -432,6 +459,15 @@ function SimpleDepositContent({
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   ordinalsCheckPending,
+                  isVaultCapReached,
+                  vaultCapSplitUnavailable: isSplitCapReached,
+                  vaultCapUsage:
+                    isSplitCapReached && maxVaultsPerPosition != null
+                      ? {
+                          used: collateralizedVaultCount,
+                          cap: maxVaultsPerPosition,
+                        }
+                      : undefined,
                 }}
                 collateralFactor={collateralFactor}
                 twoVaultSplit={twoVaultSplitProps}

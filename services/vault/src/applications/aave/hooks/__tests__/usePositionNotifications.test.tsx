@@ -24,6 +24,12 @@ vi.mock("../useVaultSplitParams", () => ({
   useVaultSplitParams: (...args: unknown[]) => mockUseVaultSplitParams(...args),
 }));
 
+const mockUsePositionSizeParams = vi.fn();
+vi.mock("../usePositionSizeParams", () => ({
+  usePositionSizeParams: (...args: unknown[]) =>
+    mockUsePositionSizeParams(...args),
+}));
+
 import { usePositionNotifications } from "../usePositionNotifications";
 
 const VAULT_A =
@@ -80,6 +86,11 @@ function setHappySplitParams() {
   mockUseVaultSplitParams.mockReturnValue({
     params: { CF: 0.7, THF: 1.1, LB: 1.05 },
     isLoading: false,
+  });
+  mockUsePositionSizeParams.mockReturnValue({
+    maxVaultsPerPosition: null,
+    isLoading: false,
+    error: null,
   });
 }
 
@@ -165,6 +176,55 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.status).toBe("ready");
     expect(
       result.current.result?.warnings.some((w) => w.type === "urgent"),
+    ).toBe(false);
+  });
+});
+
+describe("usePositionNotifications — max-vaults injection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setHappyPrices();
+    setHappySplitParams();
+  });
+
+  it("injects max-vaults when the collateralized count is at/over the cap, even with zero debt", () => {
+    mockUsePositionSizeParams.mockReturnValue({
+      maxVaultsPerPosition: 1,
+      isLoading: false,
+      error: null,
+    });
+    // Zero debt → calculate() early-exits with no cascade warnings; the
+    // max-vaults advisory must still be injected (position-capacity fact).
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 0.5, 0)],
+      debtValueUsd: 0,
+      healthFactor: null,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("ready");
+    expect(
+      result.current.result?.warnings.some((w) => w.type === "max-vaults"),
+    ).toBe(true);
+  });
+
+  it("does not inject max-vaults below the cap", () => {
+    mockUsePositionSizeParams.mockReturnValue({
+      maxVaultsPerPosition: 5,
+      isLoading: false,
+      error: null,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 0.5, 0)],
+      debtValueUsd: 30_000,
+      healthFactor: 2.0,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(
+      result.current.result?.warnings.some((w) => w.type === "max-vaults"),
     ).toBe(false);
   });
 });

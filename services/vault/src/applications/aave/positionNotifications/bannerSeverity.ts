@@ -14,6 +14,7 @@ export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
 const SEVERITY_BY_TYPE: Partial<Record<WarningType, BannerSeverity>> = {
   urgent: "red",
   "too-many-vaults": "yellow",
+  "max-vaults": "yellow",
 };
 
 export interface BannerState {
@@ -40,6 +41,7 @@ const PRIMARY_ORDER: WarningType[] = [
   "weird-params",
   "cliff",
   "rebalance",
+  "max-vaults",
   "too-many-vaults",
   "reorder",
 ];
@@ -58,9 +60,11 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
   const suggestReorder = result.optimalVaultOrder != null;
 
-  // Dust suppresses all other warnings — position is too small to matter.
+  // Dust suppresses all other warnings — position is too small to matter —
+  // EXCEPT `max-vaults`, a position-capacity fact independent of position size.
   const dustWarning = warnings.find((w) => w.type === "dust");
-  if (dustWarning) {
+  const hasMaxVaults = warnings.some((w) => w.type === "max-vaults");
+  if (dustWarning && !hasMaxVaults) {
     return {
       severity: "hidden",
       primaryWarning: dustWarning,
@@ -70,6 +74,8 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
   }
 
   // Pick the highest-precedence warning as primary; the rest become secondary.
+  // `dust` is never surfaced (not in PRIMARY_ORDER, and excluded from secondary)
+  // — when it coexists with `max-vaults` the latter is shown alone.
   const primaryWarning =
     PRIMARY_ORDER.map((type) => warnings.find((w) => w.type === type)).find(
       (w): w is Warning => w !== undefined,
@@ -79,7 +85,9 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
     return {
       severity: SEVERITY_BY_TYPE[primaryWarning.type] ?? "soft",
       primaryWarning,
-      secondaryWarnings: warnings.filter((w) => w !== primaryWarning),
+      secondaryWarnings: warnings.filter(
+        (w) => w !== primaryWarning && w.type !== "dust",
+      ),
       suggestReorder,
     };
   }
