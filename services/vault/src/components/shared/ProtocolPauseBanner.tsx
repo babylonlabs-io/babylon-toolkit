@@ -12,8 +12,9 @@ import {
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 
-// TODO(#1953): swap for the confirmed protocol-pause docs URL once product
-// provides it.
+// TODO: swap for the confirmed protocol-pause docs URL once product provides
+// it. Until then, enabling the pause flags in an environment should be gated on
+// the real URL being set.
 const PROTOCOL_PAUSE_LEARN_MORE_URL = "https://docs.babylonlabs.io";
 
 // Soft = teal/info-light (you can still act); hard = red/error-light (full stop).

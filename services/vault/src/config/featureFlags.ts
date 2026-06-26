@@ -37,12 +37,13 @@ export default {
   /**
    * PROTOCOL_SOFT_PAUSED feature flag
    *
-   * Purpose: Surfaces the teal "Protocol is soft-paused" status banner (new
-   * deposits/borrows/withdrawals disabled, repay still allowed, liquidations
-   * active).
-   * Why needed: Pause state is operator-controlled, not exposed on-chain or by
-   * the indexer; DevOps flips this during an incident, the same way they flip
-   * the DISABLE_DEPOSIT/DISABLE_BORROW kill-switches.
+   * Purpose: Surfaces the teal "Protocol is soft-paused" status banner and
+   * disables new deposits and borrows (repay stays allowed, liquidations
+   * active). Withdrawal blocking is not enforced yet.
+   * Why needed: We intentionally drive the banner from an operator flag rather
+   * than reading the on-chain pause state (TBVPausableUpg.pauseState is public);
+   * DevOps flips this during an incident, the same way they flip the
+   * DISABLE_DEPOSIT/DISABLE_BORROW kill-switches.
    * Default: false (banner hidden unless explicitly set to "true")
    */
   get isProtocolSoftPaused() {
@@ -52,12 +53,14 @@ export default {
   /**
    * PROTOCOL_FULLY_PAUSED feature flag
    *
-   * Purpose: Surfaces the red "Protocol is fully paused" status banner (all
-   * operations disabled including liquidations; debt keeps accruing). Takes
-   * precedence over the soft-paused banner when both are set.
+   * Purpose: Surfaces the red "Protocol is fully paused" status banner; shares
+   * the deposit + borrow enforcement with the soft flag (gating the remaining
+   * Aave actions is the Pause follow-up). Takes precedence over the soft-paused
+   * banner when both are set.
    * Why needed: Same operator-controlled model as PROTOCOL_SOFT_PAUSED; DevOps
-   * escalates to this when the whole market is halted. The banner only reflects
-   * the flag — it does not detect the on-chain pause state.
+   * escalates to this when the whole market is halted. We intentionally drive
+   * the banner from the operator flag rather than reading the on-chain
+   * TBVPausableUpg.pauseState.
    * Default: false (banner hidden unless explicitly set to "true")
    */
   get isProtocolFullyPaused() {

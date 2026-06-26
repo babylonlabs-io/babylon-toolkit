@@ -206,6 +206,10 @@ export default function RootLayout() {
           <GeoBlockState />
         ) : (
           <ActivatingVaultsProvider>
+            {/* Intentionally in the content branch (not the top stack like
+                NoticeBanner): a geo-blocked session is already fully blocked
+                from transacting and sees the geo-block screen, so it doesn't
+                need the pause card the way it still needs operator notices. */}
             <ProtocolPauseBanner />
             <Outlet
               context={

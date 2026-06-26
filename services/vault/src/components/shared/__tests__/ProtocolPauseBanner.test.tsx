@@ -46,6 +46,9 @@ describe("ProtocolPauseBanner", () => {
     expect(
       screen.getByText(/Debt continues accruing interest/),
     ).toBeInTheDocument();
+    // The `halted` variant is assertive: it must expose role="alert" (vs the
+    // soft `paused` variant's role="status").
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   it("shows the fully-paused card when both flags are set (hard wins)", () => {

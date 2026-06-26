@@ -49,6 +49,8 @@ const WRONG_WALLET_BODY =
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
+// Trailing "Learn more" link label, shared by the soft and hard pause banners.
+const PROTOCOL_PAUSE_LEARN_MORE = "Learn more";
 
 export const COPY = {
   pegin: {
@@ -1052,12 +1054,12 @@ export const COPY = {
     soft: {
       title: "Protocol is soft-paused",
       body: "New deposits and borrows are disabled. You can still repay debt — liquidations remain active.",
-      learnMore: "Learn more",
+      learnMore: PROTOCOL_PAUSE_LEARN_MORE,
     },
     hard: {
       title: "Protocol is fully paused",
       body: "New deposits and borrows are disabled. Debt continues accruing interest. Monitor official announcements.",
-      learnMore: "Learn more",
+      learnMore: PROTOCOL_PAUSE_LEARN_MORE,
     },
   },
   // Full-width critical banner rendered above the header when the position is at
