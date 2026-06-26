@@ -19,4 +19,11 @@ export const CONTRACTS = {
    * Controls collateral, borrowing, and lending operations for Aave protocol
    */
   AAVE_ADAPTER: ENV.AAVE_ADAPTER as Address,
+
+  /**
+   * AaveAdapterConfig contract - holds the per-position size params
+   * (maxPositionBTC, maxVaultsPerPosition). Separate deployment from the
+   * adapter, which only calls it internally and does not expose the getter.
+   */
+  AAVE_ADAPTER_CONFIG: ENV.AAVE_ADAPTER_CONFIG as Address,
 } as const;

@@ -14,6 +14,8 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
+import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -193,9 +195,29 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
+  // block the deposit when even a single vault won't fit (`isAtCap`), force a
+  // single vault when a split would overflow (`isSplitUnavailable`), and fail
+  // closed if the cap read errors (`vaultCountCapUnavailable`). The count comes
+  // from `useVaultCountCap` (ACTIVE + PENDING + VERIFIED, adapter-scoped), which
+  // keeps the in-flight margin so concurrent deposits can't slip past the cap
+  // and revert at activation.
+  const {
+    maxVaults,
+    currentCount: collateralizableVaultCount,
+    capUnavailable: vaultCountCapUnavailable,
+  } = useVaultCountCap(connectedEthAddress);
+  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+    resolveVaultCapState({
+      existingVaultCount: collateralizableVaultCount,
+      maxVaultsPerPosition: maxVaults,
+      enabled: true,
+    });
+
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
     !isSupplementalDeposit &&
+    !isSplitCapReached &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Auto-enable split once when it first becomes available and allowed
@@ -295,6 +317,11 @@ function SimpleDepositContent({
     // Activity empty-state CTA or the urgent Add Collateral banner) opens this
     // dialog.
     if (isDepositBlocked()) return;
+
+    // Per-position BTC Vault cap: never start a deposit that would push the
+    // position past the on-chain cap, or when the cap couldn't be read (fail
+    // closed) — defense-in-depth behind the disabled CTA.
+    if (isVaultCapReached || vaultCountCapUnavailable) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed OR the proactive lock poll has flagged a silently-locked
@@ -443,6 +470,16 @@ function SimpleDepositContent({
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   ordinalsCheckPending,
+                  isVaultCapReached,
+                  vaultCountCapUnavailable,
+                  vaultCapSplitUnavailable: isSplitCapReached,
+                  vaultCapUsage:
+                    isSplitCapReached && maxVaults != null
+                      ? {
+                          used: collateralizableVaultCount,
+                          cap: maxVaults,
+                        }
+                      : undefined,
                 }}
                 collateralFactor={collateralFactor}
                 twoVaultSplit={twoVaultSplitProps}

@@ -178,6 +178,12 @@ export const COPY = {
       bannerMessage:
         "New deposits are paused for maintenance and will resume shortly.",
     },
+    maxVaultsReached: {
+      cta: "Maximum BTC Vaults reached",
+      unavailableCta: "Unable to verify vault count — please try again",
+      splitUnavailable: (used: number, cap: number) =>
+        `${used} of ${cap} vaults used. Vault split unavailable.`,
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
@@ -1182,6 +1188,11 @@ export const COPY = {
         `You have ${nVaults} vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
       suggestion:
         "Consider consolidating smaller vaults into fewer larger ones — fewer vaults means lower fees and better optimization.",
+    },
+    maxVaults: {
+      title: "Maximum vaults reached",
+      detail: (cap: number) =>
+        `This position already has the maximum number of BTC Vaults (${cap}).`,
     },
     dust: {
       title: "Position too small to model",

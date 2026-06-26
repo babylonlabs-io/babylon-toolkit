@@ -39,6 +39,7 @@ import { CollateralSection } from "./CollateralSection";
 import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
 import { LoansSection } from "./LoansSection";
+import { MaxVaultsNotification } from "./MaxVaultsNotification";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
@@ -202,6 +203,12 @@ export function DashboardPage() {
         {liquidationNotificationsEnabled && (
           <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
+
+        {/* "Maximum vaults reached" is a value-protection capacity fact shown
+            ALWAYS (independent of the liquidation-notifications flag and of BTC
+            price), and decoupled from the cascade banner so a stale-price or
+            all-pending position still surfaces it. */}
+        <MaxVaultsNotification connectedAddress={address} />
 
         {liquidationNotificationsEnabled && (
           <PositionNotificationBanner
