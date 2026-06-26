@@ -1026,6 +1026,7 @@ export const COPY = {
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
     addVault: (amountBtc: string) => `Add a ${amountBtc} BTC vault`,
+    addSacrificialVault: "Add sacrificial vault",
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -1119,37 +1120,48 @@ export const COPY = {
       vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
     },
     // Cliff: all vaults consolidate into one liquidation group, so partial
-    // liquidation is no longer possible. Variant by vault count.
+    // liquidation is no longer possible. One Figma title/body across every case
+    // (CLIFF A 6502-110902 / CLIFF B 7064-77201); only the suggestion varies by
+    // what action is feasible.
     cliff: {
-      single: {
-        title: "No backup vault",
-        detail:
-          "Your vault will be fully seized at liquidation — nothing is protected behind it.",
-        actionableSuggestion: (suggestedBtc: string, vaultBtc: string) =>
-          `Add a ${suggestedBtc} BTC sacrificial vault at position 1 — your current vault (${vaultBtc} BTC) becomes protected.`,
-        noSplitSuggestion:
-          "Current protocol parameters do not allow vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
-        oversizedSuggestion: (rawBtc: string) =>
-          `To enable partial liquidation, add ≥ ${rawBtc} BTC as a sacrificial vault. You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
-      },
+      title: "First liquidation takes everything",
+      body: "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+      // Header shown above the suggestion text when there is no actionable CTA
+      // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
+      suggestionLabel: "Suggestion",
+      // Variant A (#1948): an affordable sacrificial vault buffers the existing
+      // position. The amount lives here; the CTA label stays generic.
+      addSacrificialSuggestion: (sacrificialBtc: string) =>
+        `Adding a ${sacrificialBtc} BTC sacrificial vault creates a buffer — it gets liquidated first, your existing BTC survives.`,
+      // Variant B (#1949): the single vault is too large to buffer cheaply —
+      // withdraw it and re-deposit as two smaller vaults instead.
+      withdrawResplitSuggestion: (
+        withdrawBtc: string,
+        sacrificialBtc: string,
+        protectedBtc: string,
+      ) =>
+        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller vaults: ${sacrificialBtc} BTC sacrificial + ${protectedBtc} BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.`,
+      // Protocol params disallow splitting entirely — no re-split is possible.
+      noSplitSuggestion:
+        "Current protocol parameters do not allow vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
+      // 2-vault / 3+ cliffs share the title/body/severity but keep their
+      // structural suggestion, since "re-deposit as two smaller vaults" doesn't
+      // apply when you already hold multiple vaults.
       twoVault: {
-        title: "Both vaults seized together — no partial protection",
-        detail: (targetSeizureBtc: string) =>
-          `Neither vault alone covers the target seizure (${targetSeizureBtc} BTC). Both will be liquidated in one event.`,
         enablePartial: (deficitBtc: string, largestName: string) =>
           `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
-        suggestion: (enablePartialStr: string) =>
-          `${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+        suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
+          `Neither vault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
       },
       multiVault: {
-        title: "All vaults seized in one liquidation event",
-        detail: (nVaults: number, hasReorderFix: boolean) =>
-          `All ${nVaults} vaults land in Group 1 — no protected vaults remain after first liquidation. ${
-            hasReorderFix
-              ? "Reordering vaults will fix this."
-              : "No combination of vaults covers the target seizure alone."
-          }`,
-        suggestion: (orderStr: string) => `Suggested order: ${orderStr}`,
+        suggestion: (
+          nVaults: number,
+          hasReorderFix: boolean,
+          orderStr: string,
+        ) =>
+          hasReorderFix
+            ? `All ${nVaults} vaults land in the first liquidation group. Reordering vaults will fix this — suggested order: ${orderStr}.`
+            : `All ${nVaults} vaults land in the first liquidation group, and no combination of vaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
       },
     },
     // Rebalance: the first group over-seizes because vault sizes aren't optimal;

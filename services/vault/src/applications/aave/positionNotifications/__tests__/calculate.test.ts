@@ -246,6 +246,15 @@ describe("bannerSeverity", () => {
     expect(deriveBannerState(result).severity).toBe("hidden");
   });
 
+  it("yellow (orange) when a cliff is the primary warning", () => {
+    // Single 2.0 BTC vault: cliff but far from liquidation (no urgent), so the
+    // cliff is primary and renders as the orange warning per Figma.
+    const result = calculate(makeParams([v(2.0)]));
+    const state = deriveBannerState(result);
+    expect(state.primaryWarning?.type).toBe("cliff");
+    expect(state.severity).toBe("yellow");
+  });
+
   it("soft for a weird-params advisory", () => {
     const result = calculate(makeParams([v(1.0)], { THF: 0.9 }));
     const state = deriveBannerState(result);
@@ -269,14 +278,32 @@ describe("bannerSeverity", () => {
 // our copy strings — which intentionally differ from the reference only for the
 // `urgent` titles.
 describe("golden vectors (reference scenario suite)", () => {
-  it("A1 — single 1.0 BTC: cliff (no backup) + urgent within 5%", () => {
+  it("A1 — single 1.0 BTC: affordable cliff (add sacrificial) + urgent within 5%", () => {
     const result = calculate(makeParams([v(1.0)]));
-    expect(getWarning(result.warnings, "cliff")?.title).toBe("No backup vault");
+    expect(getWarning(result.warnings, "cliff")?.title).toBe(
+      "First liquidation takes everything",
+    );
     expect(hasWarning(result.warnings, "urgent")).toBe(true);
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].isFullLiquidation).toBe(true);
-    // Sacrificial vault to add so the existing vault becomes protected.
+    // Affordable add (≤ position) → Variant A: sacrificial vault to add so the
+    // existing vault becomes protected.
     expect(result.suggestedNewVaultBtc).toBe(0.72);
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
+      "0.72 BTC sacrificial vault creates a buffer",
+    );
+  });
+
+  it("A8 — single 2.0 BTC, THF 1.40: oversized cliff → withdraw & re-deposit (Variant B)", () => {
+    const result = calculate(makeParams([v(2.0)], { THF: 1.4 }));
+    const cliff = getWarning(result.warnings, "cliff");
+    expect(cliff?.title).toBe("First liquidation takes everything");
+    // The needed add exceeds the position, so there is no actionable CTA; the
+    // fix is to withdraw and re-split. sacrificial + protected === withdraw.
+    expect(result.suggestedNewVaultBtc).toBeNull();
+    expect(cliff?.suggestion).toContain("withdraw your 2.00 BTC");
+    expect(cliff?.suggestion).toContain("1.28 BTC sacrificial");
+    expect(cliff?.suggestion).toContain("0.72 BTC protected");
   });
 
   it("A2 — single 2.0 BTC: cliff only, no urgent (far from liquidation)", () => {
@@ -326,9 +353,10 @@ describe("golden vectors (reference scenario suite)", () => {
 
   it("D1 — THF 1.30 [0.50, 0.50]: true cliff, neither vault covers", () => {
     const result = calculate(makeParams([v(0.5), v(0.5)], { THF: 1.3 }));
-    expect(getWarning(result.warnings, "cliff")?.detail).toContain(
-      "Neither vault",
-    );
+    const cliff = getWarning(result.warnings, "cliff");
+    expect(cliff?.title).toBe("First liquidation takes everything");
+    // The deficit detail moved into the suggestion now that the body is shared.
+    expect(cliff?.suggestion).toContain("Neither vault");
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
     expect(result.groups).toHaveLength(1);
   });
@@ -343,9 +371,9 @@ describe("golden vectors (reference scenario suite)", () => {
 
   it("G2 — [0.10, 0.10, 0.35] cliff fixable by reorder", () => {
     const result = calculate(makeParams([v(0.1), v(0.1), v(0.35)]));
-    expect(getWarning(result.warnings, "cliff")?.detail).toContain(
-      "Reordering",
-    );
+    const cliff = getWarning(result.warnings, "cliff");
+    expect(cliff?.title).toBe("First liquidation takes everything");
+    expect(cliff?.suggestion).toContain("Reordering");
     expect(result.groups).toHaveLength(1);
   });
 

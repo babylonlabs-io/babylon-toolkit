@@ -418,9 +418,12 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     detail: reorder.detail,
   };
 
-  // CASE 1: Single vault — always fully seized. To protect it, add a NEW
-  // sacrificial vault at position 1. Adding a vault increases total BTC, hence
-  // target seizure: s >= existingBtc × liqFactor / (1 − liqFactor).
+  // CASE 1: Single vault — always fully seized. Two Figma variants share the
+  // title/body and differ only by which fix is feasible:
+  //  • Affordable add (CLIFF A, #1948): a sacrificial vault smaller than the
+  //    position buffers it. s >= existingBtc × liqFactor / (1 − liqFactor).
+  //  • Oversized (CLIFF B, #1949): that add would exceed the position, so the
+  //    fix is to withdraw and re-deposit the same BTC as two smaller vaults.
   let suggestedNewVaultBtc: number | null = null;
   if (nVaults === 1) {
     const canSplit = liqFactor < 1;
@@ -435,25 +438,37 @@ export function calculate(params: CalculatorParams): CalculatorResult {
 
     let suggestion: string;
     if (suggestedNewVaultBtc !== null) {
-      suggestion = cliff.single.actionableSuggestion(
-        btc2(suggestedNewVaultBtc),
-        btc2(vaults[0].btc),
-      );
-    } else if (!canSplit) {
-      suggestion = cliff.single.noSplitSuggestion;
+      // Variant A — affordable sacrificial add; the CTA carries the action.
+      suggestion = cliff.addSacrificialSuggestion(btc2(suggestedNewVaultBtc));
     } else {
-      suggestion = cliff.single.oversizedSuggestion(btc2(raw));
+      // Variant B — re-split the existing vault. seizedFraction depends only on
+      // CF/maxLB/THF, so re-splitting the same total is valid; size the
+      // sacrificial to cover the seizure first and protect the remainder.
+      const withdrawBtc = vaults[0].btc;
+      const sacrificialBtc = Math.ceil(withdrawBtc * liqFactor * 100) / 100;
+      const protectedBtc =
+        Math.round((withdrawBtc - sacrificialBtc) * 100) / 100;
+      if (canSplit && protectedBtc > 0) {
+        suggestion = cliff.withdrawResplitSuggestion(
+          btc2(withdrawBtc),
+          btc2(sacrificialBtc),
+          btc2(protectedBtc),
+        );
+      } else {
+        // Splitting disallowed or the re-split degenerates — fall back.
+        suggestion = cliff.noSplitSuggestion;
+      }
     }
 
     warnings.push({
       type: "cliff",
-      title: cliff.single.title,
-      detail: cliff.single.detail,
+      title: cliff.title,
+      detail: cliff.body,
       suggestion,
     });
   }
 
-  // CASE 2: Exactly two vaults.
+  // CASE 2: Exactly two vaults — shared shell, keep the structural suggestion.
   else if (nVaults === 2) {
     if (isCliff && group1ReorderWouldHelp && optimalVaultOrder) {
       // Cliff that swapping the order fixes — surfaced as the reorder
@@ -475,27 +490,32 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       }
       warnings.push({
         type: "cliff",
-        title: cliff.twoVault.title,
-        detail: cliff.twoVault.detail(btc2(targetSeizureBtc)),
-        suggestion: cliff.twoVault.suggestion(enablePartialStr),
+        title: cliff.title,
+        detail: cliff.body,
+        suggestion: cliff.twoVault.suggestion(
+          btc2(targetSeizureBtc),
+          enablePartialStr,
+        ),
       });
     } else if (reorderWouldHelp) {
       warnings.push(reorderWarning);
     }
   }
 
-  // CASE 3+: three or more vaults.
+  // CASE 3+: three or more vaults — shared shell, keep the structural suggestion.
   else if (nVaults >= 3) {
     if (isCliff) {
       const cliffReorderFix =
         group1ReorderWouldHelp && optimalVaultOrder !== null;
       warnings.push({
         type: "cliff",
-        title: cliff.multiVault.title,
-        detail: cliff.multiVault.detail(nVaults, cliffReorderFix),
-        ...(cliffReorderFix
-          ? { suggestion: cliff.multiVault.suggestion(globalOptimalOrderStr) }
-          : {}),
+        title: cliff.title,
+        detail: cliff.body,
+        suggestion: cliff.multiVault.suggestion(
+          nVaults,
+          cliffReorderFix,
+          globalOptimalOrderStr,
+        ),
       });
     } else if (reorderWouldHelp) {
       warnings.push(reorderWarning);

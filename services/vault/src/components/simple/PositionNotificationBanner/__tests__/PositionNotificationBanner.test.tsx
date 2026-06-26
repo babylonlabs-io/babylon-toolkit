@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 
+import { STALE_PRICE_BANNER_GRACE_MS } from "../constants";
 import { PositionNotificationBanner } from "../PositionNotificationBanner";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +39,7 @@ vi.mock("@/clients/eth-contract/client", () => ({
 // the suggestion sub-box, and the action pills (label + onClick + disabled),
 // and surface variant/severity as data-attributes.
 vi.mock("@babylonlabs-io/core-ui", () => ({
+  InfoIcon: () => <span data-testid="suggestion-info-icon" />,
   Notification: (props: Record<string, unknown>) => {
     const actions = (props.actions ?? []) as Array<{
       label: ReactNode;
@@ -109,7 +112,7 @@ const mockReorderVerificationContext = {
 
 const mockUsePositionNotifications = vi.fn(() => ({
   result: null,
-  status: "ready" as const,
+  status: "ready" as PositionNotificationsStatus,
   isLoading: false,
   reorderVerificationContext: mockReorderVerificationContext as
     | typeof mockReorderVerificationContext
@@ -207,6 +210,14 @@ describe("PositionNotificationBanner", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the live status to "ready" so a per-test override (e.g. stale-price)
+    // doesn't leak into other tests.
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      status: "ready",
+      isLoading: false,
+      reorderVerificationContext: mockReorderVerificationContext,
+    });
   });
 
   it("renders nothing when result is null", () => {
@@ -438,6 +449,39 @@ describe("PositionNotificationBanner", () => {
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
+  it("defers the live stale-price banner until the grace window elapses", () => {
+    vi.useFakeTimers();
+    // Live feed (no debug override) reports stale price.
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      status: "stale-price",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+
+    render(
+      <Wrapper>
+        <PositionNotificationBanner onDeposit={onDeposit} onRepay={onRepay} />
+      </Wrapper>,
+    );
+
+    // Within the grace window: nothing shown (no banner, no stale price used).
+    expect(
+      screen.queryByText("Position notifications temporarily unavailable"),
+    ).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(STALE_PRICE_BANNER_GRACE_MS);
+    });
+
+    // Condition persisted past the window → banner surfaces.
+    expect(
+      screen.getByText("Position notifications temporarily unavailable"),
+    ).toBeTruthy();
+
+    vi.useRealTimers();
+  });
+
   it("renders nothing for dust (hidden severity)", () => {
     const result = makeBaseResult({
       warnings: [
@@ -455,14 +499,16 @@ describe("PositionNotificationBanner", () => {
     ).toBeNull();
   });
 
-  it("renders an Add-a-vault CTA for a single-vault cliff and pre-fills the amount", () => {
+  it("renders an orange cliff with the generic 'Add sacrificial vault' CTA and pre-fills the amount", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "cliff",
-          title: "No backup vault",
-          detail: "Your vault will be fully seized at liquidation.",
-          suggestion: "Add a 0.72 BTC sacrificial vault at position 1.",
+          title: "First liquidation takes everything",
+          detail:
+            "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+          suggestion:
+            "Adding a 0.72 BTC sacrificial vault creates a buffer — it gets liquidated first, your existing BTC survives.",
         },
       ],
       suggestedNewVaultBtc: 0.72,
@@ -470,12 +516,42 @@ describe("PositionNotificationBanner", () => {
     renderBanner(result, onDeposit, onRepay);
 
     const banner = screen.getByTestId("position-notification-banner");
-    expect(banner.dataset.severity).toBe("soft");
-    fireEvent.click(screen.getByText("Add a 0.72 BTC vault"));
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
+    // Affordable cliff (CLIFF A): info-icon suggestion box, no "Suggestion" label.
+    expect(screen.getByTestId("suggestion-info-icon")).toBeTruthy();
+    expect(screen.queryByText("Suggestion")).toBeNull();
+    // Generic label per Figma; the amount lives in the suggestion text.
+    fireEvent.click(screen.getByText("Add sacrificial vault"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 
-  it("keeps the Add-a-vault CTA (secondary) when a single-vault cliff is also urgent", () => {
+  it("renders an unaffordable cliff (CLIFF B) with a SUGGESTION label and no CTA", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail:
+            "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+          suggestion:
+            "To enable partial liquidation, withdraw your 2.00 BTC and re-deposit as two smaller vaults: 1.28 BTC sacrificial + 0.72 BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.",
+        },
+      ],
+      // No affordable add → no CTA, "SUGGESTION"-labelled box.
+      suggestedNewVaultBtc: null,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
+    expect(screen.getByText("Suggestion")).toBeTruthy();
+    expect(screen.queryByTestId("suggestion-info-icon")).toBeNull();
+    expect(screen.queryByText("Add sacrificial vault")).toBeNull();
+  });
+
+  it("keeps the sacrificial CTA (secondary) when a single-vault cliff is also urgent", () => {
     const result = makeBaseResult({
       warnings: [
         {
@@ -485,9 +561,11 @@ describe("PositionNotificationBanner", () => {
         },
         {
           type: "cliff",
-          title: "No backup vault",
-          detail: "Your vault will be fully seized at liquidation.",
-          suggestion: "Add a 0.72 BTC sacrificial vault at position 1.",
+          title: "First liquidation takes everything",
+          detail:
+            "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+          suggestion:
+            "Adding a 0.72 BTC sacrificial vault creates a buffer — it gets liquidated first, your existing BTC survives.",
         },
       ],
       suggestedNewVaultBtc: 0.72,
@@ -499,7 +577,7 @@ describe("PositionNotificationBanner", () => {
     // Safety actions still lead, and the pre-filled cliff CTA is still offered.
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    fireEvent.click(screen.getByText("Add a 0.72 BTC vault"));
+    fireEvent.click(screen.getByText("Add sacrificial vault"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 
