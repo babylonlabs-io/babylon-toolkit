@@ -162,9 +162,9 @@ export interface UseDepositPageFormResult {
    */
   ordinalsCheckPending: boolean;
 
-  // Partial liquidation (multi-vault)
-  isPartialLiquidation: boolean;
-  setIsPartialLiquidation: (v: boolean) => void;
+  // Two-vault split (multi-vault) intent
+  isTwoVaultSplit: boolean;
+  setIsTwoVaultSplit: (v: boolean) => void;
   canSplit: boolean;
   /** Per-vault amounts when splitting, null when not applicable */
   vaultAmounts: readonly [bigint, bigint] | null;
@@ -353,9 +353,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
-  // Partial liquidation (multi-vault deposit) — declared early so the fee
+  // Two-vault split (multi-vault deposit) intent — declared early so the fee
   // estimate below can account for the batch output count.
-  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
+  const [isTwoVaultSplit, setIsTwoVaultSplit] = useState(false);
 
   // Split planning first: `canSplit` gates the effective vault count below,
   // which drives the fee/output budgeting. Depends only on `amountSats` + the
@@ -370,11 +370,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoading: isSplitLoading,
   } = useAllocationPlanning({
     amountSats,
-    isPartialLiquidation,
+    isTwoVaultSplit,
   });
 
   // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor +
-  // 1 OP_RETURN auth-anchor. When partial liquidation is on, N = 2.
+  // 1 OP_RETURN auth-anchor. When the two-vault split is on, N = 2.
   // `hasAuthAnchor: true` mirrors the OP_RETURN output that
   // `PeginManager.preparePegin` will include in its UTXO selection at
   // signing time, so the Max fee budget here matches the fee the UTXO
@@ -386,7 +386,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // splittable threshold the deposit falls back to a single vault, so the
   // Max/fee reserves must follow — otherwise Max is understated and can
   // falsely read "below the minimum deposit".
-  const vaultCount = isPartialLiquidation && canSplit ? 2 : 1;
+  const vaultCount = isTwoVaultSplit && canSplit ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 
   const {
@@ -667,8 +667,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     minPeginFee: minPeginFee ?? null,
     minPeginFeeError: toError(minPeginFeeError),
     ordinalsCheckPending,
-    isPartialLiquidation,
-    setIsPartialLiquidation,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
     canSplit,
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,

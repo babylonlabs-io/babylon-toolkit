@@ -30,6 +30,7 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
     provider: wallet.provider,
     account: wallet.account,
     label: wallet.label,
+    hardware: wallet.hardware,
   };
 }
 

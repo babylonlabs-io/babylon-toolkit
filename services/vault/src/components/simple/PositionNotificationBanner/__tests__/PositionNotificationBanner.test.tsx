@@ -156,6 +156,8 @@ function makeBaseResult(
     targetSeizureBtc: 0.28,
     warnings: [],
     optimalVaultOrder: null,
+    suggestedNewVaultBtc: null,
+    suggestedRebalanceVaultBtc: null,
     ...overrides,
   };
 }
@@ -451,5 +453,92 @@ describe("PositionNotificationBanner", () => {
     expect(
       container.querySelector("[data-testid='position-notification-banner']"),
     ).toBeNull();
+  });
+
+  it("renders an Add-a-vault CTA for a single-vault cliff and pre-fills the amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "No backup vault",
+          detail: "Your vault will be fully seized at liquidation.",
+          suggestion: "Add a 0.72 BTC sacrificial vault at position 1.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("soft");
+    fireEvent.click(screen.getByText("Add a 0.72 BTC vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  it("keeps the Add-a-vault CTA (secondary) when a single-vault cliff is also urgent", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "urgent",
+          title: "Liquidation is 3.0% away",
+          detail: "BTC needs to drop only 3%.",
+        },
+        {
+          type: "cliff",
+          title: "No backup vault",
+          detail: "Your vault will be fully seized at liquidation.",
+          suggestion: "Add a 0.72 BTC sacrificial vault at position 1.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("red");
+    // Safety actions still lead, and the pre-filled cliff CTA is still offered.
+    expect(screen.getByText("Add Collateral")).toBeTruthy();
+    expect(screen.getByText("Repay Debt")).toBeTruthy();
+    fireEvent.click(screen.getByText("Add a 0.72 BTC vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  it("renders an Add-a-vault CTA for a rebalance with the rebalance amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "rebalance",
+          title: "Undersized sacrificial vault",
+          detail: "Group 1 over-seizes.",
+          suggestion: "Add a 0.38 BTC vault.",
+        },
+      ],
+      suggestedRebalanceVaultBtc: 0.38,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    fireEvent.click(screen.getByText("Add a 0.38 BTC vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.38");
+  });
+
+  it("renders too-many-vaults as an orange warning with no action button", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "too-many-vaults",
+          title: "Too many vaults to optimize",
+          detail: "You have 18 vaults.",
+          suggestion:
+            "Consider consolidating smaller vaults into fewer larger ones.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
+    expect(screen.queryByText(/Add a .* BTC vault/)).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 });

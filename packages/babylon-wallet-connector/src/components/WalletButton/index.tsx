@@ -1,6 +1,13 @@
 import { Avatar, Chip, Text } from "@babylonlabs-io/core-ui";
 import { twMerge } from "tailwind-merge";
 
+// Green = software wallet detected/installed; yellow = hardware wallet that is
+// available but still needs connecting; secondary/gray = not installed.
+const INSTALLED_ACCENT = "text-[#15B768] dark:text-[#00E676]";
+const INSTALLED_DOT = "bg-[#15B768] dark:bg-[#00E676]";
+const HARDWARE_ACCENT = "text-[#FFB300]";
+const HARDWARE_DOT = "bg-[#FFB300]";
+
 interface WalletButtonProps {
   className?: string;
   logo: string;
@@ -8,6 +15,8 @@ interface WalletButtonProps {
   name: string;
   fallbackLink?: string;
   installed?: boolean;
+  hardware?: boolean;
+  label?: string;
   onClick?: () => void;
 }
 
@@ -18,9 +27,16 @@ export function WalletButton({
   logo,
   fallbackLink,
   installed = true,
+  hardware = false,
+  label,
   onClick,
 }: WalletButtonProps) {
-  const btnProps = installed
+  // Hardware wallets are always reachable through the connect flow (they have no
+  // browser-extension detection step), so they show a yellow "available" badge
+  // instead of the detection-based Installed/Uninstalled one, and are clickable
+  // even when no provider is detected.
+  const reachable = installed || hardware;
+  const btnProps = reachable
     ? { as: "button", disabled, onClick }
     : { as: "a", href: fallbackLink, target: "_blank", rel: "noopener noreferrer" };
 
@@ -53,9 +69,11 @@ export function WalletButton({
           installed ? "bg-neutral-100" : "bg-neutral-200",
         )}
       >
-        {installed && <span className="size-2 rounded-full bg-[#15B768] dark:bg-[#00E676]" />}
-        <span className={installed ? "text-[#15B768] dark:text-[#00E676]" : "text-accent-secondary"}>
-          {installed ? "Installed" : "Uninstalled"}
+        {(hardware || installed) && (
+          <span className={twMerge("size-2 rounded-full", hardware ? HARDWARE_DOT : INSTALLED_DOT)} />
+        )}
+        <span className={hardware ? HARDWARE_ACCENT : installed ? INSTALLED_ACCENT : "text-accent-secondary"}>
+          {hardware ? label : installed ? "Installed" : "Uninstalled"}
         </span>
       </Chip>
     </Text>

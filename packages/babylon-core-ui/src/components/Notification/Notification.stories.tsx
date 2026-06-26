@@ -75,6 +75,20 @@ export const Paused: Story = {
   },
 };
 
+/** Full-pause uses the red `halted` variant (Figma: "Protocol is fully paused"). */
+export const Halted: Story = {
+  args: {
+    variant: "halted",
+    title: "Protocol is fully paused",
+    children: (
+      <>
+        All operations are disabled, including liquidations. Debt continues
+        accruing interest. Monitor official announcements. <u>Learn more</u>
+      </>
+    ),
+  },
+};
+
 /** Warning with an icon, a plain suggestion box, and a close control. */
 export const WarningWithSuggestion: Story = {
   args: {
@@ -163,6 +177,9 @@ export const AllVariants: Story = {
       </Notification>
       <Notification variant="paused" title="Paused">
         A soft, lower-urgency status update.
+      </Notification>
+      <Notification variant="halted" title="Halted">
+        A critical, full-stop status update.
       </Notification>
       <Notification variant="suggestion" title="Suggestion">
         An optional optimization the user can take.

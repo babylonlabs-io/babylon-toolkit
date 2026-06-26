@@ -25,6 +25,7 @@ import {
 } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
@@ -235,7 +236,7 @@ export function CollateralSection({
             variant="outlined"
             size="large"
             onClick={() => onDeposit()}
-            disabled={!isConnected || FeatureFlags.isDepositDisabled}
+            disabled={!isConnected || isDepositBlocked()}
             className="rounded-full"
           >
             Deposit

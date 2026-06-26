@@ -97,9 +97,10 @@ describe("computeOptimalOrder", () => {
     expect(result.sumBtcAfterEvents).toBe(0);
   });
 
-  it("handles more vaults than the DP cap without throwing", () => {
-    // 14 vaults > MAX_DP_N (10): the smallest get pre-jointed into composites.
-    const vaults = Array.from({ length: 14 }, (_, idx) =>
+  it("falls back to largest-first beyond the DP cap without throwing", () => {
+    // 18 vaults > MAX_DP_N (17): the optimizer skips the bitmask DP and returns
+    // a largest-first heuristic order instead of throwing.
+    const vaults = Array.from({ length: 18 }, (_, idx) =>
       vault(`v${idx}`, 0.1 + idx * 0.05),
     );
     const result = computeOptimalOrder(
@@ -112,9 +113,11 @@ describe("computeOptimalOrder", () => {
       LB,
       expectedHF,
     );
-    // Reconstruction returns every original vault exactly once.
-    expect(result.order).toHaveLength(14);
-    expect(new Set(result.order.map((v) => v.id)).size).toBe(14);
+    // Every original vault appears exactly once, ordered by descending BTC.
+    expect(result.order).toHaveLength(18);
+    expect(new Set(result.order.map((v) => v.id)).size).toBe(18);
+    const descending = [...vaults].sort((a, b) => b.btc - a.btc);
+    expect(result.order.map((v) => v.id)).toEqual(descending.map((v) => v.id));
     expect(result.sumBtcAfterEvents).toBeGreaterThan(0);
   });
 

@@ -148,13 +148,15 @@ export function PositionNotificationBanner({
 
   const { primaryWarning, secondaryWarnings } = bannerState;
 
-  // The standalone reorder suggestion (soft severity, no primaryWarning) renders
-  // as the gold `suggestion` variant per Figma — distinct from the weird-params
-  // advisory, which is also soft but sets primaryWarning.
+  // The standalone reorder suggestion renders as the gold `suggestion` variant
+  // per Figma — distinct from the weird-params advisory, which is also soft but
+  // sets a non-reorder primaryWarning. It applies both when the calculator emits
+  // a `reorder` warning (its rich title/detail drive the card) and the legacy
+  // case of a suggested order with no warning object.
   const isStandaloneReorder =
     bannerState.severity === "soft" &&
-    !primaryWarning &&
-    bannerState.suggestReorder;
+    bannerState.suggestReorder &&
+    (primaryWarning === null || primaryWarning.type === "reorder");
   const variant = isStandaloneReorder
     ? "suggestion"
     : SEVERITY_VARIANT[bannerState.severity];
@@ -184,26 +186,39 @@ export function PositionNotificationBanner({
   });
 
   // Sub-box content: the optimal-order chips for the standalone reorder card,
-  // otherwise the stacked secondary warnings (e.g. urgent + weird-params).
+  // otherwise the primary warning's own suggestion (e.g. the cliff/rebalance
+  // advice — urgent conveys its CTA via the action buttons instead) stacked
+  // above any secondary warnings (e.g. urgent + cliff).
   let suggestion: ReactNode;
   if (isStandaloneReorder && result.optimalVaultOrder) {
     suggestion = <OptimalOrderChips vaults={result.optimalVaultOrder} />;
-  } else if (secondaryWarnings.length > 0) {
-    suggestion = (
-      <div className="flex flex-col gap-2">
-        {secondaryWarnings.map((warning, index) => (
-          <div key={index}>
-            <div className="text-sm font-semibold text-accent-primary">
-              {warning.title}
+  } else {
+    const primarySuggestion =
+      primaryWarning && primaryWarning.type !== "urgent"
+        ? primaryWarning.suggestion
+        : undefined;
+    if (primarySuggestion || secondaryWarnings.length > 0) {
+      suggestion = (
+        <div className="flex flex-col gap-2">
+          {primarySuggestion && (
+            <div className="text-sm opacity-80">{primarySuggestion}</div>
+          )}
+          {secondaryWarnings.map((warning, index) => (
+            <div key={index}>
+              <div className="text-sm font-semibold text-accent-primary">
+                {warning.title}
+              </div>
+              {warning.detail && (
+                <div className="text-sm">{warning.detail}</div>
+              )}
+              {warning.suggestion && (
+                <div className="text-sm opacity-80">{warning.suggestion}</div>
+              )}
             </div>
-            {warning.detail && <div className="text-sm">{warning.detail}</div>}
-            {warning.suggestion && (
-              <div className="text-sm opacity-80">{warning.suggestion}</div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
+          ))}
+        </div>
+      );
+    }
   }
 
   return (
