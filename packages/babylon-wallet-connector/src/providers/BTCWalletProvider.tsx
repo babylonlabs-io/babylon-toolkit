@@ -308,8 +308,14 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       try {
         accounts = await btcWalletProvider.getAccounts();
       } catch {
-        // Inconclusive (transient error / asleep extension) — fall through to
-        // the interactive path, preserving the original behavior.
+        // No silent verdict — either a transient error / asleep extension, or a
+        // wallet whose getAccounts is present but unsupported (throws
+        // WALLET_METHOD_NOT_SUPPORTED). Both are treated like an absent method:
+        // fall through to the interactive path (the pre-existing
+        // disconnect-detection behavior). The current providers can't reach the
+        // unsupported case — OKX/OneKey omit getAccounts entirely (so they skip
+        // this block) and UniSat is version-gated at connect — so in practice
+        // only a genuine transient error lands here.
         accounts = undefined;
       }
       if (accounts !== undefined) {
