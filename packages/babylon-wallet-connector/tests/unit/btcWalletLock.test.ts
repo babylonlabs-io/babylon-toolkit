@@ -6,7 +6,7 @@ import {
 } from "../../src/core/utils/walletLock";
 
 test.describe("areBtcAccountsLocked — silent BTC wallet lock detection", () => {
-  test("reports locked for an empty accounts array (UniSat/OneKey return [] when locked)", () => {
+  test("reports locked for an empty accounts array (UniSat returns [] when locked)", () => {
     expect(areBtcAccountsLocked([])).toBe(true);
   });
 
@@ -21,6 +21,11 @@ test.describe("areBtcAccountsLocked — silent BTC wallet lock detection", () =>
   test("reports locked for a non-array (malformed response) rather than hiding it", () => {
     expect(areBtcAccountsLocked(undefined as unknown as string[])).toBe(true);
     expect(areBtcAccountsLocked(null as unknown as string[])).toBe(true);
+  });
+
+  test("reports locked when the array carries no usable string address (malformed shape)", () => {
+    expect(areBtcAccountsLocked([{ address: "bc1pexampleaddress" }] as unknown as string[])).toBe(true);
+    expect(areBtcAccountsLocked([""] as unknown as string[])).toBe(true);
   });
 });
 
@@ -45,5 +50,13 @@ test.describe("classifyBtcAccountsProbe — visibility-probe reaction without an
 
   test("classifies a different active account as changed (fall through to refresh)", () => {
     expect(classifyBtcAccountsProbe(["bc1pdifferent"], ADDR)).toBe("changed");
+  });
+
+  test("classifies an array of non-string descriptors as locked, not a spurious change", () => {
+    expect(classifyBtcAccountsProbe([{ address: ADDR }], ADDR)).toBe("locked");
+  });
+
+  test("ignores non-string entries when matching the cached address (current)", () => {
+    expect(classifyBtcAccountsProbe([{ foo: "bar" }, ADDR], ADDR)).toBe("current");
   });
 });

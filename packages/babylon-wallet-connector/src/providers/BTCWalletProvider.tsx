@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -14,7 +15,6 @@ import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } fr
 import { toXOnlyPublicKeyHex } from "@/core/utils/wallet";
 import {
   BTC_WALLET_LOCK_POLL_INTERVAL_MS,
-  areBtcAccountsLocked,
   classifyBtcAccountsProbe,
 } from "@/core/utils/walletLock";
 import { useChainConnector } from "@/hooks/useChainConnector";
@@ -118,6 +118,16 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const [publicKeyNoCoord, setPublicKeyNoCoord] = useState("");
   const [address, setAddress] = useState("");
   const [locked, setLocked] = useState(false);
+
+  // Mirrors the current provider/address for in-flight lock probes. A probe
+  // (`getAccounts`) is async; by the time it resolves the session may have been
+  // torn down (disconnect) or switched. Comparing the captured provider/address
+  // against this ref lets a stale resolution bail before it writes `locked` for
+  // a wallet that is no longer current.
+  const lockProbeContextRef = useRef<{ provider: IBTCProvider | undefined; address: string }>({
+    provider: undefined,
+    address: "",
+  });
 
   const btcConnector = useChainConnector("BTC");
   const { open = () => {} } = useWalletConnect();
@@ -274,6 +284,12 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     };
   }, [btcWalletProvider, address, callbacks, disconnect]);
 
+  // Keep the lock-probe context in sync so an in-flight `getAccounts` resolution
+  // can detect that the session changed underneath it (see checkLock).
+  useEffect(() => {
+    lockProbeContextRef.current = { provider: btcWalletProvider, address };
+  }, [btcWalletProvider, address]);
+
   // Check wallet connection when tab becomes visible
   // This handles the case where user disconnects from extension while tab is in background
   const checkBTCConnection = useCallback(async () => {
@@ -297,6 +313,13 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         accounts = undefined;
       }
       if (accounts !== undefined) {
+        // The read is async — drop it if the wallet was disconnected or
+        // switched while it was in flight, so a stale response can't write
+        // `locked` for a session that is no longer current.
+        const probeContext = lockProbeContextRef.current;
+        if (probeContext.provider !== btcWalletProvider || probeContext.address !== address) {
+          return;
+        }
         const probe = classifyBtcAccountsProbe(accounts, address);
         if (probe === "locked") {
           setLocked(true);
@@ -352,23 +375,39 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   // looks fine until the user hits a signing call. `getAccounts()` is the
   // non-interactive probe (it never prompts) and returns [] when locked.
   const checkLock = useCallback(async () => {
-    if (!btcWalletProvider || !address) return;
+    const probedProvider = btcWalletProvider;
+    const probedAddress = address;
+    if (!probedProvider || !probedAddress) return;
     // Feature-detect: wallets without a non-interactive accounts read
-    // (AppKit, hardware) can't be probed silently, so never flag them locked.
-    if (typeof btcWalletProvider.getAccounts !== "function") return;
+    // (OKX, OneKey, AppKit, hardware) can't be probed silently, so never flag
+    // them locked.
+    if (typeof probedProvider.getAccounts !== "function") return;
 
-    let accounts: string[];
+    let accounts: unknown;
     try {
-      accounts = await btcWalletProvider.getAccounts();
+      accounts = await probedProvider.getAccounts();
     } catch {
-      // A throw is ambiguous (transient RPC error / asleep extension / wallet
-      // without the method) — leave the current state rather than flapping the
-      // banner. The click-time liveness probe still catches a truly
-      // unresponsive wallet at signing time.
+      // A throw is ambiguous (transient RPC error / asleep extension) — leave
+      // the current state rather than flapping the banner. The click-time
+      // liveness probe still catches a truly unresponsive wallet at signing.
       return;
     }
 
-    setLocked(areBtcAccountsLocked(accounts));
+    // The read is async: a disconnect or wallet/account switch may have landed
+    // while `getAccounts` was in flight. Drop a stale response rather than
+    // flipping `locked` for a provider/address that is no longer current.
+    const probeContext = lockProbeContextRef.current;
+    if (probeContext.provider !== probedProvider || probeContext.address !== probedAddress) {
+      return;
+    }
+
+    const probe = classifyBtcAccountsProbe(accounts, probedAddress);
+    // A different active account is an account switch, not a lock: leave the
+    // cached address/pubkey refresh to the accountsChanged event and the
+    // visibility check. Clearing `locked` here would present an unlocked
+    // session against a stale address.
+    if (probe === "changed") return;
+    setLocked(probe === "locked");
   }, [btcWalletProvider, address]);
 
   // Poll for a silent lock while the tab is visible, plus immediately on tab

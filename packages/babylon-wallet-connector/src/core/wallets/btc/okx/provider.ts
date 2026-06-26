@@ -165,29 +165,12 @@ export class OKXProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
-  getAccounts = async (): Promise<string[]> => {
-    if (!this.walletInfo)
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: "OKX Wallet not connected",
-        wallet: WALLET_PROVIDER_NAME,
-      });
-
-    // OKX's per-chain BTC provider does not always expose a non-interactive
-    // accounts read. Feature-detect and surface a typed capability error so the
-    // lock poll can skip OKX rather than treating an absent method as a lock.
-    if (typeof this.provider.getAccounts !== "function") {
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
-        message: "OKX Wallet does not support getAccounts",
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
-
-    return withTimeout(this.provider.getAccounts(), OKX_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading its accounts"),
-    );
-  };
+  // `getAccounts` is intentionally omitted: OKX's BTC provider returns the
+  // cached selected address from getAccounts() even when the wallet is locked
+  // (lock only flips an internal isUnlocked flag), so an empty-array read is
+  // not a reliable silent-lock signal. Omitting it makes the lock poll
+  // feature-detect OKX out (see BTCWalletProvider) instead of showing a banner
+  // that never fires. Re-add only alongside a real lock signal.
 
   signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)

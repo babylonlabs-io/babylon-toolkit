@@ -210,29 +210,12 @@ export class OneKeyProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
-  getAccounts = async (): Promise<string[]> => {
-    if (!this.walletInfo)
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: "OneKey Wallet not connected",
-        wallet: WALLET_PROVIDER_NAME,
-      });
-
-    if (typeof this.provider.getAccounts !== "function") {
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
-        message: "OneKey Wallet does not support getAccounts",
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
-
-    // Non-interactive read (UniSat-compatible API): a locked wallet resolves
-    // with [] without surfacing the unlock popup, so it can be polled to detect
-    // a silent auto-lock. Bounded so a stalled extension can't hang the poll.
-    return withTimeout(this.provider.getAccounts(), ONEKEY_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading its accounts"),
-    );
-  };
+  // `getAccounts` is intentionally omitted: OneKey's getProviderState reports
+  // isUnlocked: true and getAccounts() returns the dApp-authorized address
+  // regardless of keyring lock, so an empty-array read is not a reliable
+  // silent-lock signal. Omitting it makes the lock poll feature-detect OneKey
+  // out (see BTCWalletProvider) instead of showing a banner that never fires.
+  // Re-add only alongside a real lock signal.
 
   signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)

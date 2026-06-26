@@ -14,15 +14,18 @@ export const BTC_WALLET_LOCK_POLL_INTERVAL_MS = 10_000;
  * Whether a non-interactive accounts read indicates a locked (or
  * de-authorized) BTC wallet.
  *
- * UniSat/OneKey return an empty array from `getAccounts()` when the wallet is
- * locked — without surfacing the unlock popup — while a stale cached
- * `getAddress()` still reports the last-known address. An empty list is
- * therefore the silent-lock signal. A non-array (malformed response) is also
- * treated as locked: a wallet that stops reporting a valid account should be
- * surfaced to the user, not silently hidden.
+ * UniSat returns an empty array from `getAccounts()` when the wallet is locked
+ * — without surfacing the unlock popup — while a stale cached `getAddress()`
+ * still reports the last-known address. An empty list is therefore the
+ * silent-lock signal. A non-array, or an array carrying no usable string
+ * address (a malformed response), is also treated as locked: a wallet that
+ * stops reporting a valid account should be surfaced to the user, not silently
+ * hidden. (OKX and OneKey return a cached address even when locked, so they are
+ * deliberately not polled — see their providers.)
  */
 export function areBtcAccountsLocked(accounts: unknown): boolean {
-  return !Array.isArray(accounts) || accounts.length === 0;
+  if (!Array.isArray(accounts)) return true;
+  return !accounts.some((entry) => typeof entry === "string" && entry.length > 0);
 }
 
 /**
@@ -45,5 +48,12 @@ export function classifyBtcAccountsProbe(
   cachedAddress: string,
 ): BtcAccountsProbe {
   if (areBtcAccountsLocked(accounts)) return "locked";
-  return (accounts as string[]).includes(cachedAddress) ? "current" : "changed";
+  // `areBtcAccountsLocked` guarantees an array with at least one usable string;
+  // narrow to string entries so a wallet that returns account descriptors (or
+  // other non-string shapes) can't slip past `includes` and be misread as a
+  // spurious account change.
+  const addresses = (accounts as unknown[]).filter(
+    (entry): entry is string => typeof entry === "string",
+  );
+  return addresses.includes(cachedAddress) ? "current" : "changed";
 }
