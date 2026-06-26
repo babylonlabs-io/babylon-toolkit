@@ -1,10 +1,7 @@
 import { useMemo } from "react";
 
-import { FeatureFlags } from "@/config";
-import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
-import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 
 import {
   calculate,
@@ -58,25 +55,11 @@ function buildLiveHfUrgentWarning(healthFactor: number): Warning {
   };
 }
 
-function buildMaxVaultsWarning(cap: number): Warning {
-  return {
-    type: "max-vaults",
-    title: COPY.liquidationWarnings.maxVaults.title,
-    detail: COPY.liquidationWarnings.maxVaults.detail(cap),
-  };
-}
-
 export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
   const { params: splitParams, isLoading: paramsLoading } =
     useVaultSplitParams(connectedAddress);
-
-  // On-chain per-position BTC Vault cap. `max-vaults` is a value-protection
-  // capacity fact, shown ALWAYS (independent of the liquidation-notifications
-  // flag), while the cascade warnings below stay behind the flag.
-  const { isAtCap, maxVaults } = useVaultCountCap(connectedAddress);
-  const ffOn = FeatureFlags.isLiquidationNotificationsEnabled;
 
   const {
     collateralVaults,
@@ -164,30 +147,8 @@ export function usePositionNotifications(
           }
         : calculatorResult;
 
-    // The cascade warnings (cliff / reorder / urgent / dust …) stay behind the
-    // liquidation-notifications flag; when it's off we strip them so only a
-    // possible max-vaults advisory remains.
-    const cascadeResult: CalculatorResult = ffOn
-      ? resultWithLiveHf
-      : { ...resultWithLiveHf, warnings: [], optimalVaultOrder: null };
-
-    // Max-vaults is a position-capacity fact, always-on and independent of the
-    // liquidation cascade — injected here (not inside `calculate`, which
-    // early-exits for zero-debt / dust positions) whenever the on-chain count is
-    // at/over the cap. Mirrors the contract's `_validatePositionSizeBoundaries`.
-    const finalResult: CalculatorResult =
-      isAtCap && maxVaults != null
-        ? {
-            ...cascadeResult,
-            warnings: [
-              buildMaxVaultsWarning(maxVaults),
-              ...cascadeResult.warnings,
-            ],
-          }
-        : cascadeResult;
-
     return {
-      result: finalResult,
+      result: resultWithLiveHf,
       status: "ready",
       reorderVerificationContext: {
         CF: splitParams.CF,
@@ -206,9 +167,6 @@ export function usePositionNotifications(
     collateralVaults,
     debtValueUsd,
     healthFactor,
-    isAtCap,
-    maxVaults,
-    ffOn,
   ]);
 
   return { result, status, isLoading, reorderVerificationContext };

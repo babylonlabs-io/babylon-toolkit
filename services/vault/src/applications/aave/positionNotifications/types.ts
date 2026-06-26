@@ -34,8 +34,7 @@ export type WarningType =
   | "reorder"
   | "dust"
   | "weird-params"
-  | "too-many-vaults"
-  | "max-vaults";
+  | "too-many-vaults";
 
 export interface Warning {
   type: WarningType;

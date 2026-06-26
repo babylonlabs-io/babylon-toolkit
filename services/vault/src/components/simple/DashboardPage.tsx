@@ -39,6 +39,7 @@ import { CollateralSection } from "./CollateralSection";
 import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
 import { LoansSection } from "./LoansSection";
+import { MaxVaultsNotification } from "./MaxVaultsNotification";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
@@ -203,19 +204,21 @@ export function DashboardPage() {
           <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
 
-        {/* Always rendered: the "Maximum vaults reached" advisory is a
-            value-protection capacity fact shown regardless of the
-            liquidation-notifications flag. The flag-gated cascade warnings
-            (cliff / reorder / urgent / dust) are suppressed inside the hook
-            when the flag is off, so this renders nothing in that case unless
-            the position is at the vault cap. */}
-        <PositionNotificationBanner
-          connectedAddress={address}
-          onDeposit={openDeposit}
-          onRepay={handleRepay}
-          result={debugResultOverride ?? undefined}
-          statusOverride={debugStatusOverride ?? undefined}
-        />
+        {/* "Maximum vaults reached" is a value-protection capacity fact shown
+            ALWAYS (independent of the liquidation-notifications flag and of BTC
+            price), and decoupled from the cascade banner so a stale-price or
+            all-pending position still surfaces it. */}
+        <MaxVaultsNotification connectedAddress={address} />
+
+        {liquidationNotificationsEnabled && (
+          <PositionNotificationBanner
+            connectedAddress={address}
+            onDeposit={openDeposit}
+            onRepay={handleRepay}
+            result={debugResultOverride ?? undefined}
+            statusOverride={debugStatusOverride ?? undefined}
+          />
+        )}
 
         <PendingDepositSection />
 

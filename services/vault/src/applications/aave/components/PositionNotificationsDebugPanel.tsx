@@ -39,7 +39,6 @@ const WARNING_TYPE_COLORS: Record<WarningType, string> = {
   dust: "bg-gray-500 text-white",
   "weird-params": "bg-blue-500 text-white",
   "too-many-vaults": "bg-purple-500 text-white",
-  "max-vaults": "bg-orange-500 text-white",
 };
 
 const STATUS_MESSAGES: Record<
