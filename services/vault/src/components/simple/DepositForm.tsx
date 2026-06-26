@@ -1,5 +1,6 @@
 import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
+import { IoInformationCircle } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
@@ -142,6 +143,24 @@ export interface DepositGatingState {
    * filtered against inscriptions.
    */
   ordinalsCheckPending?: boolean;
+  /**
+   * True when even a single new vault would exceed the on-chain per-position
+   * BTC Vault cap — disables the deposit CTA.
+   */
+  isVaultCapReached?: boolean;
+  /**
+   * True when the vault-count cap read terminally failed — fail closed (block
+   * the CTA) so an at-cap user can't lock BTC only to revert at activation.
+   */
+  vaultCountCapUnavailable?: boolean;
+  /**
+   * True when a single vault still fits but a 2-vault split would exceed the
+   * cap — the deposit proceeds as a single vault and we surface the inline
+   * "vaults used / split unavailable" hint.
+   */
+  vaultCapSplitUnavailable?: boolean;
+  /** Vault usage (used / cap) for the split-unavailable hint copy. */
+  vaultCapUsage?: { used: number; cap: number };
 }
 
 interface DepositFormProps {
@@ -218,6 +237,10 @@ export function DepositForm({
     isGeoBlocked,
     isAddressBlocked,
     ordinalsCheckPending = false,
+    isVaultCapReached = false,
+    vaultCountCapUnavailable = false,
+    vaultCapSplitUnavailable = false,
+    vaultCapUsage,
   } = gatingState;
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
   const setPanelExpanded =
@@ -398,6 +421,26 @@ export function DepositForm({
             minDepositForSplit={twoVaultSplit.minDepositForSplit}
           />
         )}
+        {/* Near the per-position vault cap: a split would overflow, so the
+            deposit proceeds as a single vault. Surface usage + why split is off. */}
+        {vaultCapSplitUnavailable && vaultCapUsage && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center"
+          >
+            <IoInformationCircle
+              size={18}
+              className="mt-px shrink-0 text-accent-primary"
+            />
+            <span className="min-w-0 text-sm text-accent-secondary">
+              {COPY.deposit.maxVaultsReached.splitUnavailable(
+                vaultCapUsage.used,
+                vaultCapUsage.cap,
+              )}
+            </span>
+          </div>
+        )}
       </Card>
 
       {twoVaultSplit && (
@@ -442,10 +485,21 @@ export function DepositForm({
         color="primary"
         size="large"
         fluid
-        disabled={cta.disabled || isVerifyingWallet}
+        disabled={
+          cta.disabled ||
+          isVerifyingWallet ||
+          isVaultCapReached ||
+          vaultCountCapUnavailable
+        }
         onClick={onDeposit}
       >
-        {isVerifyingWallet ? "Checking wallet..." : cta.label}
+        {isVaultCapReached
+          ? COPY.deposit.maxVaultsReached.cta
+          : vaultCountCapUnavailable
+            ? COPY.deposit.maxVaultsReached.unavailableCta
+            : isVerifyingWallet
+              ? "Checking wallet..."
+              : cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}
