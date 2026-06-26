@@ -154,14 +154,10 @@ function makeBaseResult(
     currentHF: 1.2,
     collateralValue: 40000,
     targetSeizureBtc: 0.28,
-    recommendedSacrificialBtc: 0.29,
     warnings: [],
-    isFullLiquidation: false,
     optimalVaultOrder: null,
     suggestedNewVaultBtc: null,
     suggestedRebalanceVaultBtc: null,
-    suggestedRebalanceOrder: null,
-    rebalanceImprovementBtc: 0,
     ...overrides,
   };
 }

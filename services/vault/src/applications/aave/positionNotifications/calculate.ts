@@ -87,14 +87,10 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       currentHF: Infinity,
       collateralValue,
       targetSeizureBtc: 0,
-      recommendedSacrificialBtc: 0,
       warnings,
-      isFullLiquidation: false,
       optimalVaultOrder: null,
       suggestedNewVaultBtc: null,
       suggestedRebalanceVaultBtc: null,
-      suggestedRebalanceOrder: null,
-      rebalanceImprovementBtc: 0,
     };
   }
 
@@ -127,7 +123,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       currentHF,
       collateralValue,
       targetSeizureBtc: totalBtc,
-      recommendedSacrificialBtc: totalBtc,
       warnings: [
         {
           type: "dust",
@@ -135,12 +130,9 @@ export function calculate(params: CalculatorParams): CalculatorResult {
           detail: COPY.liquidationWarnings.dust.detail,
         },
       ],
-      isFullLiquidation: true,
       optimalVaultOrder: null,
       suggestedNewVaultBtc: null,
       suggestedRebalanceVaultBtc: null,
-      suggestedRebalanceOrder: null,
-      rebalanceImprovementBtc: 0,
     };
   }
 
@@ -153,10 +145,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     expectedHF,
   );
   const targetSeizureBtc = totalBtc * seizedFraction;
-  const recommendedSacrificialBtc = Math.min(
-    targetSeizureBtc * SAFETY_MARGIN,
-    totalBtc,
-  );
   // Combined seizure-with-safety-margin factor, used for vault-sizing advice.
   const liqFactor = seizedFraction * SAFETY_MARGIN;
   const liqPenalty = maxLB * CF;
@@ -176,7 +164,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   let remainingDebt = totalDebtUsd;
   let remainingBtc = totalBtc;
   let groupIndex = 1;
-  let isFullLiquidation = false;
 
   while (
     !seizedParamsInvalid &&
@@ -199,7 +186,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     }
 
     const isGroupFull = i >= remainingVaults.length;
-    if (isGroupFull) isFullLiquidation = true;
     const seizedVaults = remainingVaults.slice(0, i);
     const seizedBtc = prefixSum;
     const overSeizureBtc = Math.max(0, seizedBtc - curTargetSeizure);
@@ -296,14 +282,10 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       currentHF,
       collateralValue,
       targetSeizureBtc,
-      recommendedSacrificialBtc,
       warnings,
-      isFullLiquidation,
       optimalVaultOrder: null,
       suggestedNewVaultBtc: null,
       suggestedRebalanceVaultBtc: null,
-      suggestedRebalanceOrder: null,
-      rebalanceImprovementBtc: 0,
     };
   }
 
@@ -544,7 +526,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   // (1 − liqFactor). Cheaper than a standalone vault because the existing small
   // vaults contribute to covering the target seizure.
   let suggestedRebalanceVaultBtc: number | null = null;
-  let suggestedRebalanceOrder: Vault[] | null = null;
   if (rebalanceNeeded && liqFactor < 1) {
     const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
     const smallVaults = vaults.filter((v) => v.id !== largest.id);
@@ -553,50 +534,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     const rounded = Math.ceil(Math.max(0, raw) * 100) / 100;
     if (rounded <= totalBtc) {
       suggestedRebalanceVaultBtc = rounded;
-      const placeholder: Vault = {
-        id: "__new__",
-        name: "__new__",
-        btc: rounded,
-      };
-      const allVaults = [placeholder, ...vaults];
-
-      // Deterministic protective order: new + small vaults first, largest last —
-      // together the front group covers the target seizure, protecting the
-      // largest vault.
-      const sortedSmall = [...smallVaults].sort((a, b) => b.btc - a.btc);
-      const manualOrder = [placeholder, ...sortedSmall, largest];
-
-      if (allVaults.length > MAX_DP_N) {
-        // Adding the placeholder crosses the optimizer cap, so computeOptimalOrder
-        // would only return a largest-first heuristic — not a guaranteed optimum.
-        // Use the manual protective order directly rather than presenting the
-        // heuristic as if it were optimizer-backed.
-        suggestedRebalanceOrder = manualOrder;
-      } else {
-        const { order: optOrder } = computeOptimalOrder(
-          allVaults,
-          totalDebtUsd,
-          seizedFraction,
-          SEIZURE_TOL,
-          CF,
-          THF,
-          maxLB,
-          expectedHF,
-        );
-
-        // If the optimizer order still triggers rebalance, fall back to the
-        // manual protective order.
-        const allTotal = allVaults.reduce((s, v) => s + v.btc, 0);
-        const optG1Btc = getGroup1FromOrder(
-          optOrder,
-          seizedFraction,
-          SEIZURE_TOL,
-        ).reduce((s, v) => s + v.btc, 0);
-        const optProtected = allTotal - optG1Btc;
-        const optOver = optG1Btc - allTotal * seizedFraction;
-        suggestedRebalanceOrder =
-          optOver > optProtected ? manualOrder : optOrder;
-      }
     }
   }
 
@@ -607,16 +544,12 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   );
   if (rebalanceNeeded && hasCliffOrReorder) {
     suggestedRebalanceVaultBtc = null;
-    suggestedRebalanceOrder = null;
   }
   if (rebalanceNeeded && !hasCliffOrReorder) {
     const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
     const g1CombinedBtc = firstGroup?.combinedBtc ?? 0;
     let suggestion: string;
-    if (
-      suggestedRebalanceVaultBtc !== null &&
-      suggestedRebalanceOrder !== null
-    ) {
+    if (suggestedRebalanceVaultBtc !== null) {
       const smallNames = vaults
         .filter((v) => v.id !== largest.id)
         .map((v) => v.name)
@@ -652,13 +585,9 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     currentHF,
     collateralValue,
     targetSeizureBtc,
-    recommendedSacrificialBtc,
     warnings,
-    isFullLiquidation,
     optimalVaultOrder,
     suggestedNewVaultBtc,
     suggestedRebalanceVaultBtc,
-    suggestedRebalanceOrder,
-    rebalanceImprovementBtc,
   };
 }

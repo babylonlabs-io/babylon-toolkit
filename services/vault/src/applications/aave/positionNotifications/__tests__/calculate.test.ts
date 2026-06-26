@@ -187,7 +187,7 @@ describe("calculate", () => {
 
   // ── Robustness ───────────────────────────────────────────────
 
-  it("handles more vaults than the optimizer DP cap without throwing", () => {
+  it("handles a large in-cap position (14 vaults, exact DP) without throwing", () => {
     const vaults = Array.from({ length: 14 }, (_, i) => v(0.1 + i * 0.03));
     const result = calculate(makeParams(vaults));
     expect(result.groups.length).toBeGreaterThan(0);
@@ -308,7 +308,6 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
     expect(hasWarning(result.warnings, "rebalance")).toBe(true);
     expect(result.suggestedRebalanceVaultBtc).toBe(0.38);
-    expect(result.suggestedRebalanceOrder).not.toBeNull();
   });
 
   it("C1 — [0.35, 0.65] wrong order: reorder notification, single group", () => {
@@ -371,22 +370,18 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(result.optimalVaultOrder).toBeNull();
   });
 
-  it("17-vault rebalance: uses the deterministic manual order past the optimizer cap", () => {
+  it("17-vault rebalance: suggests a vault amount, no too-many-vaults at the cap", () => {
     // One large vault over-seizes; 16 tiny vaults can't combine to cover the
-    // target without it. Adding the placeholder makes 18 vaults (> MAX_DP_N 17),
-    // so the suggested order must be the manual protective order, not a heuristic
-    // dressed up as optimizer-backed — and no too-many-vaults warning fires
-    // (the position itself has only 17 vaults).
+    // target without it. The position has 17 vaults (== MAX_DP_N), so the
+    // optimizer runs an exact DP and no too-many-vaults warning fires (the
+    // position is at the cap, not over it).
     const big = v(0.9);
     const smalls = Array.from({ length: 16 }, () => v(0.01));
     const result = calculate(makeParams([big, ...smalls]));
 
     expect(hasWarning(result.warnings, "rebalance")).toBe(true);
     expect(hasWarning(result.warnings, "too-many-vaults")).toBe(false);
-    expect(result.suggestedRebalanceOrder).not.toBeNull();
-    const order = result.suggestedRebalanceOrder!;
-    expect(order[0].id).toBe("__new__");
-    expect(order[order.length - 1].id).toBe(big.id);
+    expect(result.suggestedRebalanceVaultBtc).not.toBeNull();
     // The optimal-order analysis runs an exact DP at n = 17 (the cap), which is
     // intentionally near the interactive-time budget — allow extra headroom.
   }, 20000);

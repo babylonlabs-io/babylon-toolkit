@@ -63,14 +63,7 @@ export interface CalculatorResult {
   currentHF: number;
   collateralValue: number;
   targetSeizureBtc: number;
-  /**
-   * Recommended sacrificial-vault size for a single-vault split:
-   * `targetSeizure × SAFETY_MARGIN`, capped at total BTC.
-   */
-  recommendedSacrificialBtc: number;
   warnings: Warning[];
-  /** True when the cascade consolidates into one full-liquidation group. */
-  isFullLiquidation: boolean;
   /**
    * The liquidation-optimal vault order the calculator settled on, or `null`
    * when no reorder strictly helps (or under invalid/dust params). Surfaced in
@@ -93,11 +86,4 @@ export interface CalculatorResult {
    * position.
    */
   suggestedRebalanceVaultBtc: number | null;
-  /**
-   * The full vault order after adding the rebalance vault (includes the
-   * placeholder new vault). Drives the one-click apply for the rebalance fix.
-   */
-  suggestedRebalanceOrder: Vault[] | null;
-  /** Additional BTC that would survive the first event with optimal sizing. */
-  rebalanceImprovementBtc: number;
 }
