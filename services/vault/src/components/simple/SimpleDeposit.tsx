@@ -113,8 +113,8 @@ function SimpleDepositContent({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
-    isPartialLiquidation,
-    setIsPartialLiquidation,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
     canSplit,
     vaultAmounts,
     isSplitLoading,
@@ -129,7 +129,7 @@ function SimpleDepositContent({
   } = useDepositPageForm();
 
   const depositBatchSize =
-    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
+    isTwoVaultSplit && vaultAmounts ? vaultAmounts.length : 1;
 
   const {
     feeEthFormatted: protocolFeeAmount,
@@ -152,10 +152,9 @@ function SimpleDepositContent({
   // keep the per-vault values distinct to preserve each floor operation.
   const commissionHtlcValues =
     depositorClaimValue !== undefined && minPeginFee != null
-      ? (isPartialLiquidation && vaultAmounts
-          ? vaultAmounts
-          : [amountSats]
-        ).map((vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee)
+      ? (isTwoVaultSplit && vaultAmounts ? vaultAmounts : [amountSats]).map(
+          (vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee,
+        )
       : undefined;
 
   // Live commission (bps) for the selected provider, read from the current
@@ -201,11 +200,11 @@ function SimpleDepositContent({
   useEffect(() => {
     if (canSplit && allowSplit && !hasAutoChecked.current) {
       hasAutoChecked.current = true;
-      setIsPartialLiquidation(true);
+      setIsTwoVaultSplit(true);
     }
-  }, [canSplit, allowSplit, setIsPartialLiquidation]);
+  }, [canSplit, allowSplit, setIsTwoVaultSplit]);
 
-  const partialLiquidationProps = !allowSplit
+  const twoVaultSplitProps = !allowSplit
     ? undefined
     : {
         // Show the split as selected only when the user wants it AND the
@@ -214,8 +213,8 @@ function SimpleDepositContent({
         // raising it back above restores the selection because the underlying
         // intent is preserved. An explicit "Do not split" click (intent =
         // false) still sticks.
-        isEnabled: isPartialLiquidation && canSplit,
-        onChange: setIsPartialLiquidation,
+        isEnabled: isTwoVaultSplit && canSplit,
+        onChange: setIsTwoVaultSplit,
         canSplit,
         isLoading: isSplitLoading,
         splitRatioLabel,
@@ -248,7 +247,7 @@ function SimpleDepositContent({
 
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
-    setIsPartialLiquidation(false);
+    setIsTwoVaultSplit(false);
     setWalletConnectionError(null);
     setOverlappingPendingVaultCount(null);
     resetDeposit();
@@ -259,7 +258,7 @@ function SimpleDepositContent({
       setFormData({ amountBtc: initialAmountBtc });
     }
   }, [
-    setIsPartialLiquidation,
+    setIsTwoVaultSplit,
     resetDeposit,
     resetForm,
     initialAmountBtc,
@@ -347,7 +346,7 @@ function SimpleDepositContent({
       setIsVerifyingWallet(false);
     }
 
-    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
+    const shouldSplit = isTwoVaultSplit && allowSplit && !!vaultAmounts;
     const effectiveVaultAmounts =
       shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
     setOverlappingPendingVaultCount(runOverlapCheck(effectiveVaultAmounts));
@@ -435,7 +434,7 @@ function SimpleDepositContent({
                   ordinalsCheckPending,
                 }}
                 collateralFactor={collateralFactor}
-                partialLiquidation={partialLiquidationProps}
+                twoVaultSplit={twoVaultSplitProps}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
                 onDeposit={handleDeposit}

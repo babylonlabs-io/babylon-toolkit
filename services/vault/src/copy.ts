@@ -431,7 +431,7 @@ export const COPY = {
         minimum: `at least ${minBtc}`,
       }),
       splitOptionDescription:
-        "Split your Bitcoin into multiple vaults to enable partial liquidation.",
+        "Split your Bitcoin into two vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault.",
       // "Learn more here." link appended to the split-option description in
