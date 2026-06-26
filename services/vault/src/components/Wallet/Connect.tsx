@@ -49,13 +49,18 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   const isWalletConnected = btcConnected && ethConnected;
 
+  // Single source for both the UTXO query gate and the menu render branch below.
+  const canShowWalletMenu = isWalletConnected && !isGeoBlocked && !isGeoLoading;
+
   // Scope this subscription to when the menu can render; the query is shared
   // (same key) with the deposit form, so this only adds an observer.
   const utxoOptions = useMemo(
-    () => ({ enabled: isWalletConnected && !isGeoBlocked && !isGeoLoading }),
-    [isWalletConnected, isGeoBlocked, isGeoLoading],
+    () => ({ enabled: canShowWalletMenu }),
+    [canShowWalletMenu],
   );
   const { inscriptionUTXOs } = useUTXOs(btcAddress, utxoOptions);
+  // While ordinals are loading or errored, useUTXOs reports 0 inscriptions, so
+  // the toggle stays hidden then — fine, toggling is a no-op until it resolves.
   const showInscriptionsToggle = shouldShowInscriptionsToggle(
     inscriptionUTXOs.length,
     ordinalsExcluded,
@@ -79,7 +84,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
-  if (isWalletConnected && !isGeoBlocked && !isGeoLoading) {
+  if (canShowWalletMenu) {
     return (
       <div className="flex flex-row items-center gap-4">
         <BtcEthWalletMenu
