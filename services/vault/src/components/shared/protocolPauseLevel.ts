@@ -20,3 +20,23 @@ export function resolveProtocolPauseLevel(): ProtocolPauseLevel | null {
   }
   return null;
 }
+
+/**
+ * Whether new deposits are blocked right now — either by the DISABLE_DEPOSIT
+ * kill-switch or because the protocol is paused (soft or hard both block new
+ * deposits). Routing the deposit CTAs through this makes the pause state
+ * actually enforce, so the pause banner reflects reality instead of just
+ * describing it.
+ */
+export function isDepositBlocked(): boolean {
+  return featureFlags.isDepositDisabled || resolveProtocolPauseLevel() !== null;
+}
+
+/**
+ * Whether new borrows are blocked right now — either by the DISABLE_BORROW
+ * kill-switch or because the protocol is paused (soft or hard both block new
+ * borrows).
+ */
+export function isBorrowBlocked(): boolean {
+  return featureFlags.isBorrowDisabled || resolveProtocolPauseLevel() !== null;
+}

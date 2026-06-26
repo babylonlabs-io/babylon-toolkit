@@ -40,7 +40,10 @@ import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NoticeBanner } from "../shared/NoticeBanner";
 import { ProtocolPauseBanner } from "../shared/ProtocolPauseBanner";
-import { resolveProtocolPauseLevel } from "../shared/protocolPauseLevel";
+import {
+  isDepositBlocked,
+  resolveProtocolPauseLevel,
+} from "../shared/protocolPauseLevel";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
@@ -183,7 +186,7 @@ export default function RootLayout() {
                   <DepositButton
                     variant="outlined"
                     rounded
-                    disabled={FeatureFlags.isDepositDisabled}
+                    disabled={isDepositBlocked()}
                     onClick={() => openDeposit()}
                   >
                     Deposit {btcConfig.coinSymbol}

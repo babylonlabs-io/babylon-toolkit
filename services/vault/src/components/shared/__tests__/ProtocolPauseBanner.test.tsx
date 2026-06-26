@@ -31,7 +31,7 @@ describe("ProtocolPauseBanner", () => {
 
     expect(screen.getByText("Protocol is soft-paused")).toBeInTheDocument();
     expect(
-      screen.getByText(/New deposits, borrows, and withdrawals are disabled/),
+      screen.getByText(/New deposits and borrows are disabled/),
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Learn more" });
     expect(link.getAttribute("href")).toMatch(/^https?:\/\//);
@@ -44,7 +44,7 @@ describe("ProtocolPauseBanner", () => {
 
     expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
     expect(
-      screen.getByText(/All operations are disabled, including liquidations/),
+      screen.getByText(/Debt continues accruing interest/),
     ).toBeInTheDocument();
   });
 
@@ -70,7 +70,7 @@ describe("ProtocolPauseBanner", () => {
       screen.getByText(/Maintenance until 14:00 UTC\./),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(/New deposits, borrows, and withdrawals are disabled/),
+      screen.queryByText(/New deposits and borrows are disabled/),
     ).not.toBeInTheDocument();
     // The Learn more link still renders alongside the custom message.
     expect(

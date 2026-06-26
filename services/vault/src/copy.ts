@@ -1040,15 +1040,23 @@ export const COPY = {
   // Operator-controlled protocol-pause status banners. The body may be
   // overridden per incident via NEXT_PUBLIC_PAUSE_BANNER_MESSAGE; these are the
   // defaults. Each renders a trailing "Learn more" link.
+  //
+  // INTERIM copy: states only what the dApp currently *enforces* (new deposits
+  // and borrows are disabled — see `isDepositBlocked` / `isBorrowBlocked`). The
+  // wording deliberately does not claim withdrawals / repay / liquidations are
+  // blocked yet; those gates land with the Freeze (withdraw) and Pause
+  // (repay/reorder) follow-ups, and the final freeze/pause wording is owned by
+  // design. ("including liquidations" was also dropped — the frontend cannot
+  // stop Aave-side liquidations.)
   protocolPause: {
     soft: {
       title: "Protocol is soft-paused",
-      body: "New deposits, borrows, and withdrawals are disabled. You can still repay debt — liquidations remain active.",
+      body: "New deposits and borrows are disabled. You can still repay debt — liquidations remain active.",
       learnMore: "Learn more",
     },
     hard: {
       title: "Protocol is fully paused",
-      body: "All operations are disabled, including liquidations. Debt continues accruing interest. Monitor official announcements.",
+      body: "New deposits and borrows are disabled. Debt continues accruing interest. Monitor official announcements.",
       learnMore: "Learn more",
     },
   },
