@@ -45,6 +45,40 @@
   .bbn-accordion-icon {
     transition: none;
   }
+
+  /* Skeleton shimmer is decorative; the static placeholder boxes still show. */
+  .bbn-skeleton::after {
+    animation: none;
+  }
+}
+
+/* Token-driven skeleton loading utility. The element keeps its placeholder
+ * boxes (which preserve final layout); the ::after sweeps a translucent
+ * highlight across it via a gradient, so no solid background is required. */
+.bbn-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.bbn-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  animation: bbn-skeleton-shimmer var(--motion-duration-skeleton, 1.5s) linear
+    infinite;
+}
+
+@keyframes bbn-skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @layer utilities {
