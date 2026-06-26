@@ -45,6 +45,9 @@ html {
   --motion-duration-icon: 180ms;
   --motion-ease-icon: ease-out;
   --motion-duration-spinner: 1.2s;
+
+  /* Motion spec — Loading / Skeleton (Figma §5) */
+  --motion-duration-skeleton: 1.5s;
 }
 
 @media screen and (min-width: 768px) {
