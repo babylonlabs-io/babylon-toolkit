@@ -39,6 +39,12 @@
   .animate-reveal-in {
     animation: none;
   }
+
+  /* Disable only the chevron rotation; the functional spinner (.bbn-loader)
+   * is intentionally NOT disabled and keeps rotating as a loading indicator. */
+  .bbn-accordion-icon {
+    transition: none;
+  }
 }
 
 @layer utilities {
