@@ -114,6 +114,51 @@ describe("PendingWithdrawCard — stage presentation", () => {
     expect(assertLinked).toBe(true);
   });
 
+  it("shows the live confirmation count toward the payout clock during the challenge period", () => {
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+      assertConfirmations: 72,
+    });
+
+    expect(screen.getByText(CARD.confirmationsLabel)).toBeInTheDocument();
+    expect(
+      screen.getByText(CARD.confirmationsValue(72, 144)),
+    ).toBeInTheDocument();
+  });
+
+  it("clamps the confirmation count so an overshoot never exceeds the timelock", () => {
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+      assertConfirmations: 200,
+    });
+
+    expect(
+      screen.getByText(CARD.confirmationsValue(144, 144)),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the confirmation count until the live count is known", () => {
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+    });
+
+    expect(screen.queryByText(CARD.confirmationsLabel)).not.toBeInTheDocument();
+  });
+
+  it("states the typical challenge-period duration derived from the timelock", () => {
+    // 144 blocks × 10 min = 1440 min = 1 day.
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+      assertConfirmations: 72,
+    });
+
+    expect(
+      screen.getByText(CARD.challengePeriodTypicalDuration("1 day"), {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the progress bar and shows no Contact Support for Payout sent", () => {
     renderCard(resultForStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST));
 
