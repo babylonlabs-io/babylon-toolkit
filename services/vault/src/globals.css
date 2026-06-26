@@ -41,6 +41,10 @@ html {
   /* Motion spec — Tooltips / Info (Figma §4) */
   --motion-duration-tooltip: 140ms;
   --motion-duration-tooltip-out: 120ms;
+  /* Motion spec — Icons (Figma §7) */
+  --motion-duration-icon: 180ms;
+  --motion-ease-icon: ease-out;
+  --motion-duration-spinner: 1.2s;
 }
 
 @media screen and (min-width: 768px) {
