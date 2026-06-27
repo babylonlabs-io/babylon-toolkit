@@ -25,30 +25,33 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Zero the duration/shift TOKENS rather than overriding each consuming rule.
+   * Variable resolution is order-independent, so this wins regardless of where
+   * a consuming rule (.react-tooltip, .bbn-accordion-icon, .animate-reveal-in,
+   * .bbn-popover, …) appears in the bundle — fixing the cascade-order trap where
+   * a base rule defined later would otherwise beat a same-specificity override.
+   * --motion-duration-spinner is intentionally omitted: the loader is a
+   * functional indicator and keeps rotating. */
   :root {
     --motion-duration-modal: 0.01ms;
     --motion-duration-modal-out: 0.01ms;
     --motion-duration-backdrop: 0.01ms;
+    --motion-duration-dropdown: 0.01ms;
+    --motion-duration-tooltip: 0.01ms;
+    --motion-duration-tooltip-out: 0.01ms;
+    --motion-duration-reveal: 0.01ms;
+    --motion-duration-icon: 0.01ms;
+    --motion-shift-modal-in: 0px;
+    --motion-shift-modal-out: 0px;
+    --motion-shift-dropdown: 0px;
+    --motion-shift-reveal: 0px;
   }
 
-  .react-tooltip {
-    --rt-transition-show-delay: 0s;
-    --rt-transition-closing-delay: 0s;
-  }
-
-  .animate-reveal-in {
-    animation: none;
-  }
-
-  /* Disable only the chevron rotation; the functional spinner (.bbn-loader)
-   * is intentionally NOT disabled and keeps rotating as a loading indicator. */
-  .bbn-accordion-icon {
-    transition: none;
-  }
-
-  /* Skeleton shimmer is decorative; the static placeholder boxes still show. */
+  /* The skeleton shimmer loops; fully stop it (not just zero its duration) so it
+   * neither animates nor repaints. `!important` makes it win irrespective of the
+   * base rule's source position. The static placeholder boxes still show. */
   .bbn-skeleton::after {
-    animation: none;
+    animation: none !important;
   }
 }
 
