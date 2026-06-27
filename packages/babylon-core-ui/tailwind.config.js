@@ -127,22 +127,25 @@ export default {
       },
       keyframes: {
         "modal-in": {
+          // Default `scale(.96)` preserves legacy modal behavior for non-opted-in
+          // consumers; an app overrides the token (e.g. `translateY(8px)`) to apply
+          // its spec. `none` is the shared identity end-state for either transform.
           "0%": {
-            transform: "translateY(var(--motion-shift-modal-in, 0px))",
+            transform: "var(--motion-transform-modal-in, scale(.96))",
             opacity: 0,
           },
           "100%": {
-            transform: "translateY(0)",
+            transform: "none",
             opacity: 1,
           },
         },
         "modal-out": {
           "0%": {
-            transform: "translateY(0)",
+            transform: "none",
             opacity: 1,
           },
           "100%": {
-            transform: "translateY(var(--motion-shift-modal-out, 0px))",
+            transform: "var(--motion-transform-modal-out, scale(.96))",
             opacity: 0,
           },
         },

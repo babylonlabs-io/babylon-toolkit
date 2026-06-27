@@ -47,9 +47,3 @@
     transform: translateY(0);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .bbn-accordion-content[data-expanded="true"] {
-    animation: none;
-  }
-}

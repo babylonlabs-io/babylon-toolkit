@@ -3,55 +3,35 @@
 @tailwind utilities;
 
 /* ============================================================
- * Motion tokens — single source of truth for animation timing.
- * Defaults below preserve CURRENT core-ui behavior (0.5s modal,
- * 0.5s backdrop). Consumers (e.g. the vault app) override these
- * custom properties at :root to apply their own motion spec.
+ * Motion — reduced-motion reset (single source of truth).
+ *
+ * Legacy defaults for every motion token live as inline `var(--token, <default>)`
+ * fallbacks at each consuming rule (keyframes, transitions). Apps opt into the
+ * spec by *defining* the tokens in their own `:root`; non-opted consumers keep
+ * the inline fallback, i.e. current behavior. There is intentionally no `:root`
+ * defaults block here — a single declaration site avoids drift.
+ *
+ * Under `prefers-reduced-motion` we neutralize ALL animation/transition with one
+ * `*` reset. It is order-proof (`!important` + universal selector beat any rule
+ * regardless of source position) and token-agnostic (no per-token list to keep in
+ * sync across packages). `animation-iteration-count: 1` also stops looping
+ * decoratives like the skeleton shimmer. The functional loader spinner is the
+ * single documented exception and is re-enabled below.
  * ============================================================ */
-:root {
-  /* durations */
-  --motion-duration-modal: 0.5s;
-  --motion-duration-modal-out: 0.5s;
-  --motion-duration-backdrop: 0.5s;
-
-  /* easings */
-  --motion-ease-modal-in: ease-in-out;
-  --motion-ease-modal-out: ease-in-out;
-  --motion-ease-backdrop: ease-in-out;
-
-  /* transform distances */
-  --motion-shift-modal-in: 0px;   /* current modal uses scale, not translate */
-  --motion-shift-modal-out: 0px;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  /* Zero the duration/shift TOKENS rather than overriding each consuming rule.
-   * Variable resolution is order-independent, so this wins regardless of where
-   * a consuming rule (.react-tooltip, .bbn-accordion-icon, .animate-reveal-in,
-   * .bbn-popover, …) appears in the bundle — fixing the cascade-order trap where
-   * a base rule defined later would otherwise beat a same-specificity override.
-   * --motion-duration-spinner is intentionally omitted: the loader is a
-   * functional indicator and keeps rotating. */
-  :root {
-    --motion-duration-modal: 0.01ms;
-    --motion-duration-modal-out: 0.01ms;
-    --motion-duration-backdrop: 0.01ms;
-    --motion-duration-dropdown: 0.01ms;
-    --motion-duration-tooltip: 0.01ms;
-    --motion-duration-tooltip-out: 0.01ms;
-    --motion-duration-reveal: 0.01ms;
-    --motion-duration-icon: 0.01ms;
-    --motion-shift-modal-in: 0px;
-    --motion-shift-modal-out: 0px;
-    --motion-shift-dropdown: 0px;
-    --motion-shift-reveal: 0px;
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 
-  /* The skeleton shimmer loops; fully stop it (not just zero its duration) so it
-   * neither animates nor repaints. `!important` makes it win irrespective of the
-   * base rule's source position. The static placeholder boxes still show. */
-  .bbn-skeleton::after {
-    animation: none !important;
+  /* Functional indicator — keep it spinning (higher specificity wins). */
+  .bbn-loader,
+  .bbn-loader circle {
+    animation-duration: var(--motion-duration-spinner, 1.4s) !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

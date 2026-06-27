@@ -211,7 +211,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - **Tokens, not magic numbers.** Timing/easing/distance are CSS custom properties (`--motion-*`); never inline `ms`/easing/`px` in components.
 - **Knobs in core-ui, values in the app.** core-ui animations read `var(--motion-…, <legacy default>)`; an app opts in by defining the token in its `globals.css`. Don't define app-spec tokens in core-ui `:root`.
 - **No animation library** (no framer-motion/react-spring) — use the existing mount/unmount seam for exits.
-- **`prefers-reduced-motion` is mandatory:** zero the tokens in a `:root` reduced-motion block in **both** core-ui and the app (after the app's tokens). Keep the functional spinner running; stop the decorative skeleton shimmer. JS motion reads `useReducedMotion()`.
+- **`prefers-reduced-motion` is mandatory:** handled by a single global `*` animation/transition reset in core-ui `index.css` — no per-token or per-app zeroing. The functional spinner is the one re-enabled exception; JS motion reads `useReducedMotion()`.
 - **Never animate `transform` on a popper/tooltip-positioned element** — animate opacity on it, translate on an inner wrapper.
 
 ---

@@ -38,23 +38,40 @@
 
 Token names: `--motion-duration-{modal,modal-out,backdrop,dropdown,tooltip,tooltip-out,reveal,icon,spinner,skeleton}`,
 `--motion-ease-{modal-in,modal-out,backdrop,dropdown-in,reveal,icon}`,
-`--motion-shift-{modal-in,modal-out,dropdown,reveal}`.
+`--motion-shift-{dropdown,reveal}`,
+`--motion-transform-{modal-in,modal-out}` (full transform so the legacy `scale(.96)`
+modal default is preserved; apps override with e.g. `translateY(8px)`).
 
 > Values above are from each Figma **section node** via `get_design_context` (authoritative);
 > the overview screenshot differs in places. Re-pull the section node before changing a value.
 
 ## Reduced motion (required)
 
-Drive reduced-motion through **`:root` token zeroing**, not per-rule overrides —
-variable resolution is order-independent, so it can't be defeated by CSS source
-order (a base rule defined later would otherwise beat a same-specificity override).
+Handled by **one global reset** in core-ui `index.css` — no per-token list, no
+per-app duplication, no per-component overrides:
 
-- core-ui `index.css` has a `@media (prefers-reduced-motion: reduce) { :root { … 0.01ms / 0px } }` block.
-- **Each app must repeat the zeroing** in its own stylesheet **after** its token
-  definitions (the app's `:root` loads after core-ui and would otherwise win).
-- **Exceptions:** the **spinner stays running** (functional indicator — do not
-  zero `--motion-duration-spinner`). The **skeleton shimmer is stopped** with
-  `animation: none !important` (decorative + looping → also avoids repaints).
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .bbn-loader, .bbn-loader circle { /* functional spinner stays running */
+    animation-duration: var(--motion-duration-spinner, 1.4s) !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+```
+
+- The `*` reset is **order-proof** (`!important` + universal selector beat any
+  rule regardless of source position) and **token-agnostic** — adding a new token
+  needs no reduced-motion bookkeeping in core-ui *or* the app.
+- `animation-iteration-count: 1` also stops looping decoratives like the skeleton
+  shimmer (it ends off-screen, leaving the static placeholder boxes).
+- **Only exception:** the functional **spinner stays running**, re-enabled by the
+  one higher-specificity rule above. Anything else that must keep animating under
+  reduced motion is a deliberate exception added the same way.
 - JS-driven motion must read `useReducedMotion()` (core-ui) and render the final
   state on first paint (initialize state from `reduced`, don't fade in post-mount).
 
@@ -65,15 +82,16 @@ order (a base rule defined later would otherwise beat a same-specificity overrid
    — the fallback must reproduce current behavior so other consumers don't change.
 3. If it's a popper/tooltip element, animate opacity on it and translate on a wrapper.
 4. Define the spec token value in the consuming app's `globals.css` `:root`.
-5. Add the token to **both** reduced-motion `:root` blocks (core-ui + app); decide
-   functional (keep) vs decorative (stop).
+5. Reduced motion is automatic via the global reset — no per-token work. Only if
+   the animation is a *functional* indicator that must keep running, add a
+   higher-specificity re-enable rule next to the spinner exception in core-ui.
 6. Verify: `pnpm --filter @babylonlabs-io/core-ui build`, app tests/lint, and a
    manual `prefers-reduced-motion` pass. Confirm no behavior change for non-opted-in
    consumers (defaults intact).
 
 ## Where it lives
 
-- Tokens + reduced-motion block + shared utilities: `packages/babylon-core-ui/src/index.css`
-- Per-component animations: `packages/babylon-core-ui/src/components/**/*.css`, `tailwind.config.js`
+- Global reduced-motion reset + shared utilities: `packages/babylon-core-ui/src/index.css`
+- Per-component animations + token fallbacks: `packages/babylon-core-ui/src/components/**/*.css`, `tailwind.config.js`
 - Hook: `packages/babylon-core-ui/src/hooks/useReducedMotion.ts`
-- Vault opt-in: `services/vault/src/globals.css` (`:root` + reduced-motion block)
+- Vault opt-in: `services/vault/src/globals.css` (`:root` token values only)

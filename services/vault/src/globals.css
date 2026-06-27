@@ -28,8 +28,8 @@ html {
   --motion-ease-modal-in: ease-out;
   --motion-ease-modal-out: ease-in;
   --motion-ease-backdrop: ease-out;
-  --motion-shift-modal-in: 8px;
-  --motion-shift-modal-out: 4px;
+  --motion-transform-modal-in: translateY(8px);
+  --motion-transform-modal-out: translateY(4px);
   /* Motion spec — Progressive Reveal / State Transition (Figma §3, §6) */
   --motion-duration-reveal: 180ms;
   --motion-ease-reveal: ease-out;
@@ -50,28 +50,8 @@ html {
   --motion-duration-skeleton: 1.5s;
 }
 
-/* Reduced motion: the vault's spec tokens above are plain :root declarations
- * that load AFTER core-ui's stylesheet, so they would otherwise beat core-ui's
- * own reduced-motion zeroing. Re-zero them here (after the vault :root) so the
- * cascade resolves to instant under `prefers-reduced-motion`. The functional
- * spinner (--motion-duration-spinner) is intentionally left running; the
- * skeleton shimmer is stopped by core-ui's reduced-motion rule. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --motion-duration-modal: 0.01ms;
-    --motion-duration-modal-out: 0.01ms;
-    --motion-duration-backdrop: 0.01ms;
-    --motion-duration-dropdown: 0.01ms;
-    --motion-duration-tooltip: 0.01ms;
-    --motion-duration-tooltip-out: 0.01ms;
-    --motion-duration-reveal: 0.01ms;
-    --motion-duration-icon: 0.01ms;
-    --motion-shift-modal-in: 0px;
-    --motion-shift-modal-out: 0px;
-    --motion-shift-dropdown: 0px;
-    --motion-shift-reveal: 0px;
-  }
-}
+/* Reduced motion is handled globally in core-ui's index.css via a single `*`
+ * animation/transition reset, so there is no per-token zeroing to repeat here. */
 
 @media screen and (min-width: 768px) {
   :root {
