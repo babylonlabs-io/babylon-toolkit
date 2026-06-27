@@ -29,10 +29,6 @@ export function getAppIdByController(
   return controllerToAppId.get(controllerAddress.toLowerCase());
 }
 
-export function getAllApplications(): ApplicationRegistration[] {
-  return Array.from(applicationRegistry.values());
-}
-
 /**
  * Get application metadata by controller address
  * Used to enrich GraphQL data with local metadata

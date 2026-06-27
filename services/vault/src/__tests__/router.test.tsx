@@ -23,7 +23,6 @@ vi.mock("../components/pages/RootLayout", () => ({
 }));
 
 vi.mock("../applications", () => ({
-  getAllApplications: () => [],
   getApplication: () => undefined,
   getApplicationMetadataByController: () => undefined,
 }));

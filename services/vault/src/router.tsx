@@ -1,8 +1,7 @@
 import { Loader } from "@babylonlabs-io/core-ui";
-import { Suspense, useEffect, type ComponentType } from "react";
+import { Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router";
 
-import { getAllApplications } from "./applications";
 import { AAVE_APP_ID } from "./applications/aave/config";
 import {
   AaveConfigProvider,
@@ -101,12 +100,6 @@ const ActivityWithProviders = () => (
 );
 
 export const Router = () => {
-  // Narrow to apps that actually expose Routes so the element below can render
-  // <AppRoutes /> unconditionally — no dead fallback branch.
-  const apps = getAllApplications().filter(
-    (app): app is typeof app & { Routes: ComponentType } => Boolean(app.Routes),
-  );
-
   return (
     <Routes>
       <Route path="/" element={<RootLayout />}>
@@ -119,20 +112,6 @@ export const Router = () => {
             </Suspense>
           }
         />
-        {apps.map((app) => {
-          const AppRoutes = app.Routes;
-          return (
-            <Route
-              key={app.metadata.id}
-              path={`app/${app.metadata.id}/*`}
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <AppRoutes />
-                </Suspense>
-              }
-            />
-          );
-        })}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
