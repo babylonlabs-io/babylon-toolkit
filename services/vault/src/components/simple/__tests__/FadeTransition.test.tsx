@@ -31,4 +31,12 @@ describe("FadeTransition", () => {
     const el = screen.getByText("B");
     expect(el.style.transform).toBe("translateY(0)");
   });
+
+  it("shows content final on the initial mount under reduced motion (no first-paint fade)", () => {
+    setReducedMotion(true);
+    render(<FadeTransition stepKey="a">A</FadeTransition>);
+    const el = screen.getByText("A");
+    expect(el.style.opacity).toBe("1");
+    expect(el.style.transform).toBe("translateY(0)");
+  });
 });

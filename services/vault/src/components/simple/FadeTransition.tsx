@@ -12,7 +12,10 @@ export function FadeTransition({
   children: React.ReactNode;
 }) {
   const reduced = useReducedMotion();
-  const [visible, setVisible] = useState(false);
+  // Initialize from `reduced` so the first paint is already final (no initial
+  // fade/rise) for users who prefer reduced motion; otherwise start hidden and
+  // let the effect fade the content in.
+  const [visible, setVisible] = useState(reduced);
   const prevKey = useRef(stepKey);
 
   useEffect(() => {
