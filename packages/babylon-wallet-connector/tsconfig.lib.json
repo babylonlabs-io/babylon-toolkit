@@ -34,6 +34,5 @@
     "outDir": "dist"
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
   "keywords": ["react", "babylonlabs", "bbn", "wallet-connect", "bitcoin", "btc", "bitcoin-wallet"]
 }
