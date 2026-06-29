@@ -90,7 +90,7 @@ export function SigningNotificationProvider({
     enabled ? loadNotificationPromptDismissed() : false,
   );
   const [activeFlow, setActiveFlowState] = useState(false);
-  const documentHidden = useDocumentHidden();
+  const documentHidden = useDocumentHidden(enabled);
 
   const requestPermission = useCallback(() => {
     if (!enabled) return;
@@ -125,7 +125,12 @@ export function SigningNotificationProvider({
       // Mark synchronously before showing so two observers firing in the same
       // tick can't both surface the same notification.
       shownKeysRef.current.add(key);
-      showBrowserNotification(copy, key);
+      // If the platform couldn't actually show it (API became unusable, or the
+      // constructor threw), release the key so a later observer can still nudge
+      // once rather than consuming the once-per-session slot with nothing shown.
+      if (!showBrowserNotification(copy, key)) {
+        shownKeysRef.current.delete(key);
+      }
     },
     [enabled],
   );

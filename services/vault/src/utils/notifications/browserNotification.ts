@@ -4,6 +4,13 @@
  * Kept free of React so the permission/visibility logic can be unit-tested and
  * the SSR guards live in one place. All callers go through these helpers
  * instead of touching `window.Notification` directly.
+ *
+ * Effectively desktop-only: iOS Safari has no `Notification`, so support
+ * detection returns `false` and every helper no-ops; Android/most mobile
+ * browsers expose the constructor but throw on it (only
+ * `ServiceWorkerRegistration.showNotification()` works), which we catch and
+ * treat as "couldn't show". Both degrade silently, which is fine for this
+ * desktop-targeted app.
  */
 
 /** Copy for a single browser notification. */
@@ -41,7 +48,23 @@ export async function requestBrowserNotificationPermission(): Promise<Notificati
   if (window.Notification.permission !== "default") {
     return window.Notification.permission;
   }
-  return window.Notification.requestPermission();
+  // Safari < 16 only supports the deprecated callback form: requestPermission()
+  // returns undefined there and delivers the result via the callback. Support
+  // both shapes - pass the callback and also settle from the Promise modern
+  // browsers return, whichever the platform actually uses. Both may fire in
+  // modern browsers; Promise resolution is idempotent, so the first wins. If
+  // the modern Promise rejects (e.g. insecure context), fall back to the
+  // current permission rather than hanging forever.
+  return new Promise<NotificationPermission>((resolve) => {
+    const maybePromise = window.Notification.requestPermission(resolve) as
+      | Promise<NotificationPermission>
+      | undefined;
+    if (maybePromise) {
+      void maybePromise.then(resolve, () =>
+        resolve(window.Notification.permission),
+      );
+    }
+  });
 }
 
 /**

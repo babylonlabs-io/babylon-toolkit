@@ -21,12 +21,19 @@ class FakeNotification {
   static permission: NotificationPermission = "granted";
   static requestPermission = vi.fn(async () => FakeNotification.permission);
   static instances: FakeNotification[] = [];
+  // When set, the next construction throws once - mimics platforms (e.g.
+  // Android Chrome) where the `Notification` constructor is unusable.
+  static throwOnce = false;
   onclick: (() => void) | null = null;
   close = vi.fn();
   constructor(
     public title: string,
     public options?: NotificationOptions,
   ) {
+    if (FakeNotification.throwOnce) {
+      FakeNotification.throwOnce = false;
+      throw new Error("Notification constructor not supported");
+    }
     FakeNotification.instances.push(this);
   }
 }
@@ -53,6 +60,7 @@ describe("SigningNotificationContext", () => {
     flag.enabled = true;
     FakeNotification.instances = [];
     FakeNotification.permission = "granted";
+    FakeNotification.throwOnce = false;
     FakeNotification.requestPermission.mockClear();
     (
       window as unknown as { Notification: typeof FakeNotification }
@@ -107,6 +115,19 @@ describe("SigningNotificationContext", () => {
 
     // Tab away: the same key now fires.
     setVisibility("hidden");
+    notifier.current!.notifySigningRequired("k1", SIGNING_COPY);
+    expect(FakeNotification.instances).toHaveLength(1);
+  });
+
+  it("releases the key when the platform fails to show, so a retry still fires", () => {
+    const notifier = renderNotifier();
+
+    // First attempt: the constructor throws, so nothing is shown.
+    FakeNotification.throwOnce = true;
+    notifier.current!.notifySigningRequired("k1", SIGNING_COPY);
+    expect(FakeNotification.instances).toHaveLength(0);
+
+    // The once-per-session slot was not consumed: the same key fires later.
     notifier.current!.notifySigningRequired("k1", SIGNING_COPY);
     expect(FakeNotification.instances).toHaveLength(1);
   });

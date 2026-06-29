@@ -2,15 +2,17 @@
  * NotificationPermissionPrompt
  *
  * In-flow card nudging the depositor to allow browser notifications so we can
- * ping them when a deposit needs a signature. A bell icon in an info-toned tile
- * sits beside the heading, body copy, and the Enable / No thanks actions.
+ * ping them when a deposit needs a signature. A thin container around the
+ * shared core-ui {@link Callout}: it owns only the gating, the bell icon, the
+ * copy, and the Enable / No thanks wiring - all layout and styling come from
+ * the design-system component.
  *
  * Shown only while `shouldPromptForPermission` is true: the feature is enabled,
  * the browser supports notifications, the user hasn't decided yet, and they
  * haven't dismissed the prompt.
  */
 
-import { Text } from "@babylonlabs-io/core-ui";
+import { Callout, type CalloutAction } from "@babylonlabs-io/core-ui";
 import { IoNotifications } from "react-icons/io5";
 
 import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
@@ -25,42 +27,32 @@ export function NotificationPermissionPrompt() {
     return null;
   }
 
+  const actions: CalloutAction[] = [
+    {
+      label: COPY.deposit.notifications.prompt.enable,
+      emphasis: "primary",
+      onClick: () => notifier.requestPermission(),
+    },
+    {
+      label: COPY.deposit.notifications.prompt.dismiss,
+      emphasis: "secondary",
+      onClick: () => notifier.dismissPrompt(),
+    },
+  ];
+
   return (
-    <div className="flex w-full items-start gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info-dark">
+    <Callout
+      variant="infoStrong"
+      icon={
         <IoNotifications
           size={NOTIFICATION_ICON_SIZE}
           className="text-accent-contrast"
         />
-      </div>
-
-      <div className="flex flex-1 flex-col gap-4">
-        <div className="flex flex-col">
-          <Text variant="body1" className="text-accent-primary">
-            {COPY.deposit.notifications.prompt.title}
-          </Text>
-          <Text variant="body2" className="text-accent-secondary">
-            {COPY.deposit.notifications.prompt.message}
-          </Text>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => notifier.requestPermission()}
-            className="flex h-9 items-center justify-center rounded-lg bg-info-dark px-4 text-sm text-accent-contrast transition-opacity hover:opacity-90"
-          >
-            {COPY.deposit.notifications.prompt.enable}
-          </button>
-          <button
-            type="button"
-            onClick={() => notifier.dismissPrompt()}
-            className="flex h-9 items-center justify-center rounded-lg border border-secondary-strokeLight px-4 text-sm text-accent-primary transition-opacity hover:opacity-80"
-          >
-            {COPY.deposit.notifications.prompt.dismiss}
-          </button>
-        </div>
-      </div>
-    </div>
+      }
+      title={COPY.deposit.notifications.prompt.title}
+      actions={actions}
+    >
+      {COPY.deposit.notifications.prompt.message}
+    </Callout>
   );
 }
