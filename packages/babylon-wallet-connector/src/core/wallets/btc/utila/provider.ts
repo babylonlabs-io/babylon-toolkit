@@ -18,11 +18,11 @@ const UTILA_PROMPT_TIMEOUT_MS = 60_000;
 
 /**
  * Utila is an MPC wallet that injects an `IBTCProvider`-compatible object at
- * `window.utila.bitcoin` (see docs/vault-integration-guide.md — it implements
- * the documented Bitcoin Wallet Interface directly). Unlike the UniSat/OneKey
- * adapters there is no request-shape translation; this adapter forwards each
- * method through and adds the connection guards + deriveContextHash error
- * mapping the dApp expects.
+ * `window.utila.bitcoin`, targeting Babylon's Bitcoin Wallet Interface
+ * (docs/vault-integration-guide.md). Most methods forward straight through with
+ * connection guards + deriveContextHash error mapping. `signPsbts` is the
+ * exception: Utila does not implement batch signing, so the adapter falls back
+ * to looping `signPsbt` (confirmed with the Utila team).
  *
  * Its `deriveContextHash` is MPC-based, not HD/HKDF — cross-wallet portability
  * is not provided, which the spec permits for non-HD wallets (the dApp only
@@ -166,6 +166,16 @@ export class UtilaProvider implements IBTCProvider {
         message: "psbts hexes are required and must be a non-empty array",
         wallet: WALLET_PROVIDER_NAME,
       });
+    }
+
+    // Batch signing is STRONGLY RECOMMENDED, not required. If Utila's injected
+    // provider omits signPsbts, sign each PSBT sequentially via signPsbt.
+    if (typeof this.provider.signPsbts !== "function") {
+      const signedPsbts: string[] = [];
+      for (let i = 0; i < psbtsHexes.length; i++) {
+        signedPsbts.push(await this.signPsbt(psbtsHexes[i], options?.[i]));
+      }
+      return signedPsbts;
     }
 
     try {
