@@ -107,6 +107,67 @@ export const BtcEth: StoryObj = {
   },
 };
 
+export const BtcEthNoInscriptions: StoryObj = {
+  name: "BtcEthWalletMenu (no inscriptions — toggle hidden)",
+  render: () => {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    const trigger = (
+      <div className="cursor-pointer">
+        <AvatarGroup max={2} variant="circular">
+          <Avatar
+            alt={mockWalletData.selectedWallets.BTC.name}
+            url={mockWalletData.selectedWallets.BTC.icon}
+            size="large"
+            className={`object-contain bg-accent-contrast box-content ${isMenuOpen ? "outline outline-[2px] outline-accent-primary" : ""}`}
+          />
+          <Avatar
+            alt={mockWalletData.selectedWallets.ETH.name}
+            url={mockWalletData.selectedWallets.ETH.icon}
+            size="large"
+            className={`object-contain bg-accent-contrast box-content ${isMenuOpen ? "outline outline-[2px] outline-accent-primary" : ""}`}
+          />
+        </AvatarGroup>
+      </div>
+    );
+
+    const customFormatBalance = (amount: number, coinSymbol: string) => {
+      return `${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8,
+      })} ${coinSymbol}`;
+    };
+
+    return (
+      <div className="space-y-4 p-4">
+        <h3 className="text-lg font-semibold">BtcEthWalletMenu - no inscriptions (toggle hidden)</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          showInscriptionsToggle=false: the "Using Inscriptions" row is omitted and the Bitcoin Public Key item takes the
+          single-item rounded-lg styling.
+        </p>
+        <BtcEthWalletMenu
+          trigger={trigger}
+          btcAddress={mockWalletData.btcAddress}
+          ethAddress={mockWalletData.ethAddress}
+          selectedWallets={mockWalletData.selectedWallets}
+          publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
+          ordinalsExcluded
+          onIncludeOrdinals={() => console.log("Include ordinals")}
+          onExcludeOrdinals={() => console.log("Exclude ordinals")}
+          onDisconnect={() => console.log("Disconnect wallets")}
+          onOpenChange={setIsMenuOpen}
+          btcBalances={mockWalletData.btcBalances}
+          ethBalances={mockWalletData.ethBalances}
+          btcCoinSymbol="BTC"
+          ethCoinSymbol="ETH"
+          showInscriptionsToggle={false}
+          formatBalance={customFormatBalance}
+        />
+      </div>
+    );
+  },
+};
+
 export const BtcBaby: StoryObj = {
   name: "BtcBabyWalletMenu (Simple-staking)",
   render: () => {
