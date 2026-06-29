@@ -20,6 +20,7 @@ import {
   type CalculatorResult,
   type WarningType,
 } from "@/applications/aave/positionNotifications";
+import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
@@ -104,6 +105,9 @@ export function PositionNotificationBanner({
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
+    // Freeze/Pause blocks reorder; the CTA is disabled, but guard the handler
+    // too so a programmatic invocation can't slip a reorder through.
+    if (isReorderBlocked()) return;
     if (!result?.optimalVaultOrder || !reorderVerificationContext) return;
     const vaultIds = result.optimalVaultOrder.map((v) => v.id as Hex);
     const success = await executeReorder(vaultIds, {
@@ -220,6 +224,7 @@ export function PositionNotificationBanner({
     onRepay,
     onApplyOrder: handleApplyOrder,
     isReordering,
+    reorderBlocked: isReorderBlocked(),
   });
 
   // Sub-box content: the optimal-order chips for the standalone reorder card,
