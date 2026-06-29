@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -26,12 +26,14 @@ vi.mock("@/context/wallet", () => ({
 // suite stays focused on DepositProgressView's rendering. `isUnlocking: false`
 // drives the steady "Unlock wallet" label; the hook's reconnect/logging
 // behavior is its own concern.
+const mockUnlock = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useBtcWalletUnlock", () => ({
-  useBtcWalletUnlock: () => ({ unlock: vi.fn(), isUnlocking: false }),
+  useBtcWalletUnlock: () => ({ unlock: mockUnlock, isUnlocking: false }),
 }));
 
 afterEach(() => {
   mockBtcWalletState.locked = false;
+  mockUnlock.mockClear();
 });
 
 const baseProps = {
@@ -673,6 +675,26 @@ describe("DepositProgressView", () => {
       expect(
         screen.queryByText(COPY.deposit.progress.buttons.signTransaction),
       ).not.toBeInTheDocument();
+    });
+
+    it("runs the unlock action and not the sign flow when the locked pre-sign CTA is clicked", () => {
+      mockBtcWalletState.locked = true;
+      const onSign = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={onSign}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: COPY.wallet.locked.unlockButton }),
+      );
+
+      expect(mockUnlock).toHaveBeenCalledTimes(1);
+      expect(onSign).not.toHaveBeenCalled();
     });
   });
 });
