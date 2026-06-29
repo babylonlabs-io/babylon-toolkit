@@ -13,7 +13,6 @@ type LoanSuccessVariant = "borrow" | "repay";
 
 interface LoanSuccessModalProps {
   open: boolean;
-  onClose: () => void;
   onDone: () => void;
   variant: LoanSuccessVariant;
   amount: number;
@@ -30,11 +29,12 @@ const COPY_BY_VARIANT = {
 /**
  * Full-screen success screen shown after a successful borrow or repay. The
  * layout is identical for both operations; only the copy differs, selected by
- * `variant`. Confirms the amount and dismisses via the "Done" CTA.
+ * `variant`. Confirms the amount and dismisses via the "Done" CTA — the sole
+ * control. `onClose` is intentionally withheld from the dialog so there is no
+ * close (X), backdrop, or escape dismissal competing with the single button.
  */
 export function LoanSuccessModal({
   open,
-  onClose,
   onDone,
   variant,
   amount,
@@ -46,11 +46,7 @@ export function LoanSuccessModal({
   const formattedAmount = formatAmount(amount, decimals);
 
   return (
-    <FullScreenDialog
-      open={open}
-      onClose={onClose}
-      className="items-center justify-center p-6"
-    >
+    <FullScreenDialog open={open} className="items-center justify-center p-6">
       <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight px-6 pb-6 pt-[72px] text-center text-accent-primary">
         <div className="flex flex-col items-center gap-6">
           <Avatar

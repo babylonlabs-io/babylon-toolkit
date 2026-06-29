@@ -180,7 +180,6 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
           <LoanSuccessModal
             variant="borrow"
             open={showBorrowSuccess}
-            onClose={handleCloseBorrowSuccess}
             onDone={handleCloseBorrowSuccess}
             amount={borrowSuccessData.amount}
             symbol={assetConfig.symbol}
@@ -191,7 +190,6 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
           <LoanSuccessModal
             variant="repay"
             open={showRepaySuccess}
-            onClose={handleCloseRepaySuccess}
             onDone={handleCloseRepaySuccess}
             amount={repaySuccessData.repayAmount}
             symbol={assetConfig.symbol}
