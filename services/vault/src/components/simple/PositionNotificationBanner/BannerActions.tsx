@@ -20,9 +20,12 @@ interface BuildBannerActionsArgs {
  * `Notification` `actions` slot:
  * - urgent: "Add Collateral" (primary, filled) + "Repay Debt" (secondary,
  *   outlined) — the core safety actions, matching the Figma callout.
- * - cliff / rebalance with an actionable suggested vault size: "Add a X BTC
- *   vault" — opens the deposit flow with that amount pre-filled (a single,
- *   non-split supplemental deposit).
+ * - cliff with an affordable sacrificial size: "Add sacrificial vault" (generic
+ *   label per Figma; the amount lives in the suggestion text) — opens the
+ *   deposit flow with that amount pre-filled.
+ * - rebalance with an actionable suggested vault size: "Add a X BTC vault" —
+ *   opens the deposit flow with that amount pre-filled (a single, non-split
+ *   supplemental deposit).
  * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
@@ -62,17 +65,22 @@ export function buildBannerActions({
   // calculator produced an actionable size — i.e. "add a sacrificial vault of
   // this exact size". When an urgent warning is primary it rides along as a
   // secondary action so the safety actions lead, but it is no longer dropped
-  // (the cliff's own suggestion text describes exactly this action). The
+  // (the warning's own suggestion text describes exactly this action). The
   // calculator guarantees the amount is positive and no larger than the position.
+  // The cliff path uses the generic "Add sacrificial vault" label (amount in the
+  // suggestion text per Figma); rebalance keeps the amount on the button.
   const hasCliffOrRebalanceWarning = result.warnings.some(
     (w) => w.type === "cliff" || w.type === "rebalance",
   );
+  const isCliffSacrificial = result.suggestedNewVaultBtc !== null;
   const suggestedVaultBtc =
     result.suggestedNewVaultBtc ?? result.suggestedRebalanceVaultBtc;
   if (hasCliffOrRebalanceWarning && suggestedVaultBtc !== null) {
     const amountBtc = suggestedVaultBtc.toFixed(2);
     actions.push({
-      label: COPY.banner.addVault(amountBtc),
+      label: isCliffSacrificial
+        ? COPY.banner.addSacrificialVault
+        : COPY.banner.addVault(amountBtc),
       onClick: () => onDeposit(amountBtc),
       emphasis: isUrgent ? "secondary" : "primary",
     });
