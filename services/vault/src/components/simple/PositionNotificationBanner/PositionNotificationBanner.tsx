@@ -18,6 +18,7 @@ import {
   deriveBannerState,
   type BannerSeverity,
   type CalculatorResult,
+  type WarningType,
 } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
@@ -82,7 +83,9 @@ export function PositionNotificationBanner({
   const { executeReorder, isProcessing: isReordering } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
-  const [isAdvisoryDismissed, setIsAdvisoryDismissed] = useState(false);
+  const [dismissedAdvisories, setDismissedAdvisories] = useState<
+    Set<WarningType>
+  >(() => new Set());
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -96,8 +99,8 @@ export function PositionNotificationBanner({
     }
   }, [address, queryClient]);
 
-  const handleDismissAdvisory = useCallback(() => {
-    setIsAdvisoryDismissed(true);
+  const handleDismissAdvisory = useCallback((type: WarningType) => {
+    setDismissedAdvisories((prev) => new Set(prev).add(type));
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
@@ -156,13 +159,21 @@ export function PositionNotificationBanner({
   if (bannerState.severity === "hidden") return null;
 
   // The weird-params and dust advisories are dismissible (informational, no
-  // required action). The standalone reorder suggestion is also `soft` but has a
-  // null primaryWarning, so it is intentionally excluded.
-  const isDismissibleAdvisory =
+  // required action). Dismissal is tracked per warning type so closing one never
+  // hides the other if the position later transitions between them. The
+  // standalone reorder suggestion is also `soft` but has a null primaryWarning,
+  // so it is intentionally excluded.
+  const primaryWarningType = bannerState.primaryWarning?.type;
+  const dismissibleAdvisoryType =
     bannerState.severity === "soft" &&
-    (bannerState.primaryWarning?.type === "weird-params" ||
-      bannerState.primaryWarning?.type === "dust");
-  if (isDismissibleAdvisory && isAdvisoryDismissed) return null;
+    (primaryWarningType === "weird-params" || primaryWarningType === "dust")
+      ? primaryWarningType
+      : null;
+  if (
+    dismissibleAdvisoryType &&
+    dismissedAdvisories.has(dismissibleAdvisoryType)
+  )
+    return null;
 
   const { primaryWarning, secondaryWarnings } = bannerState;
 
@@ -287,7 +298,11 @@ export function PositionNotificationBanner({
           isStandaloneReorder || isCliffPrimary ? "below" : "inline"
         }
         suggestion={suggestion}
-        onClose={isDismissibleAdvisory ? handleDismissAdvisory : undefined}
+        onClose={
+          dismissibleAdvisoryType
+            ? () => handleDismissAdvisory(dismissibleAdvisoryType)
+            : undefined
+        }
         data-testid={TEST_ID}
         data-severity={bannerState.severity}
       >
