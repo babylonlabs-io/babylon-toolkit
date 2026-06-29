@@ -306,6 +306,21 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(cliff?.suggestion).toContain("0.72 BTC protected");
   });
 
+  it("A9 — non-cent-aligned vault: the three re-deposit amounts reconcile", () => {
+    // 1.045 BTC at THF 1.40 rendered an infeasible "1.04 → 0.67 + 0.38" (= 1.05)
+    // before the withdraw was snapped to cents; the parts must sum to withdraw.
+    const result = calculate(makeParams([v(1.045)], { THF: 1.4 }));
+    const suggestion = getWarning(result.warnings, "cliff")?.suggestion ?? "";
+    const match = suggestion.match(
+      /withdraw your ([\d.]+) BTC.*?([\d.]+) BTC sacrificial \+ ([\d.]+) BTC protected/,
+    );
+    expect(match).not.toBeNull();
+    const [, withdraw, sacrificial, protectedAmt] = match!;
+    expect(
+      (parseFloat(sacrificial) + parseFloat(protectedAmt)).toFixed(2),
+    ).toBe(parseFloat(withdraw).toFixed(2));
+  });
+
   it("A2 — single 2.0 BTC: cliff only, no urgent (far from liquidation)", () => {
     const result = calculate(makeParams([v(2.0)]));
     expect(hasWarning(result.warnings, "cliff")).toBe(true);

@@ -444,7 +444,11 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       // Variant B — re-split the existing vault. seizedFraction depends only on
       // CF/maxLB/THF, so re-splitting the same total is valid; size the
       // sacrificial to cover the seizure first and protect the remainder.
-      const withdrawBtc = vaults[0].btc;
+      // Snap the withdraw to cents first so the three displayed amounts
+      // reconcile exactly: sacrificial (ceil) + protected (remainder) ===
+      // withdraw. Deriving the parts from a full-precision withdraw lets the
+      // cent-rounded parts sum to more than the (also-rounded) withdraw.
+      const withdrawBtc = Math.round(vaults[0].btc * 100) / 100;
       const sacrificialBtc = Math.ceil(withdrawBtc * liqFactor * 100) / 100;
       const protectedBtc =
         Math.round((withdrawBtc - sacrificialBtc) * 100) / 100;
