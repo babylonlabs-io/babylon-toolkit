@@ -82,7 +82,7 @@ export function PositionNotificationBanner({
   const { executeReorder, isProcessing: isReordering } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
-  const [isWeirdParamsDismissed, setIsWeirdParamsDismissed] = useState(false);
+  const [isAdvisoryDismissed, setIsAdvisoryDismissed] = useState(false);
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -96,8 +96,8 @@ export function PositionNotificationBanner({
     }
   }, [address, queryClient]);
 
-  const handleDismissWeirdParams = useCallback(() => {
-    setIsWeirdParamsDismissed(true);
+  const handleDismissAdvisory = useCallback(() => {
+    setIsAdvisoryDismissed(true);
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
@@ -155,13 +155,14 @@ export function PositionNotificationBanner({
 
   if (bannerState.severity === "hidden") return null;
 
-  // Only the weird-params advisory is dismissible (informational, no required
-  // action). The standalone reorder suggestion is also `soft` but has a null
-  // primaryWarning, so it is intentionally excluded.
-  const isWeirdParamsAdvisory =
+  // The weird-params and dust advisories are dismissible (informational, no
+  // required action). The standalone reorder suggestion is also `soft` but has a
+  // null primaryWarning, so it is intentionally excluded.
+  const isDismissibleAdvisory =
     bannerState.severity === "soft" &&
-    bannerState.primaryWarning?.type === "weird-params";
-  if (isWeirdParamsAdvisory && isWeirdParamsDismissed) return null;
+    (bannerState.primaryWarning?.type === "weird-params" ||
+      bannerState.primaryWarning?.type === "dust");
+  if (isDismissibleAdvisory && isAdvisoryDismissed) return null;
 
   const { primaryWarning, secondaryWarnings } = bannerState;
 
@@ -286,7 +287,7 @@ export function PositionNotificationBanner({
           isStandaloneReorder || isCliffPrimary ? "below" : "inline"
         }
         suggestion={suggestion}
-        onClose={isWeirdParamsAdvisory ? handleDismissWeirdParams : undefined}
+        onClose={isDismissibleAdvisory ? handleDismissAdvisory : undefined}
         data-testid={TEST_ID}
         data-severity={bannerState.severity}
       >

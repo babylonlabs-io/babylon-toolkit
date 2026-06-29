@@ -190,16 +190,9 @@ export function DashboardPage() {
       <div className="space-y-10">
         <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
 
-        <OverviewSection
-          healthFactor={healthFactor}
-          healthFactorStatus={healthFactorStatus}
-          totalCollateralValue={totalCollateralValue}
-          totalBorrowed={totalBorrowed}
-          liquidationPrice={liquidationPrice}
-          btcPrice={btcPrice}
-          pctToLiquidation={pctToLiquidation}
-        />
-
+        {/* Notifications sit between the supply cap and Overview per Figma
+            (frame 6508-114810). The critical top banner, the max-vaults notice,
+            and the cascade banner share this slot. */}
         {liquidationNotificationsEnabled && (
           <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
@@ -219,6 +212,16 @@ export function DashboardPage() {
             statusOverride={debugStatusOverride ?? undefined}
           />
         )}
+
+        <OverviewSection
+          healthFactor={healthFactor}
+          healthFactorStatus={healthFactorStatus}
+          totalCollateralValue={totalCollateralValue}
+          totalBorrowed={totalBorrowed}
+          liquidationPrice={liquidationPrice}
+          btcPrice={btcPrice}
+          pctToLiquidation={pctToLiquidation}
+        />
 
         <PendingDepositSection />
 
