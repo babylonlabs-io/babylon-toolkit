@@ -18,6 +18,7 @@ import { type ReactNode, useCallback, useMemo } from "react";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 import type { DepositErrorContent } from "@/utils/errors";
@@ -174,10 +175,18 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // silent lock here (as an error-style Callout) regardless of which flow —
   // deposit, resume/broadcast, payout signing, or continuation — mounted it.
   const { locked: walletLocked } = useBTCWallet();
+  const { unlock, isUnlocking } = useBtcWalletUnlock(
+    "Wallet unlock from deposit progress",
+  );
 
   // A terminal-but-not-final milestone: closeable success without marking the
   // whole flow complete (so the stepper keeps its real position).
   const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
+
+  // At the pre-sign entry (`!started`) a silently locked wallet can't sign, so
+  // the primary CTA becomes an unlock action (matching the navbar and deposit
+  // form) instead of starting a flow that would only stall at the signing call.
+  const showUnlockCta = !started && walletLocked;
 
   // On completion, advance past the last row so every circle renders as ✓.
   // Before the flow starts, pin visual step 0 so every group collapses and
@@ -270,13 +279,33 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           )}
 
           <Button
-            disabled={started ? !canClose && !isTerminalSuccess : false}
+            disabled={
+              showUnlockCta
+                ? isUnlocking
+                : started
+                  ? !canClose && !isTerminalSuccess
+                  : false
+            }
             variant="contained"
             color="secondary"
             className="w-full"
-            onClick={!started ? onSign : error && onRetry ? onRetry : onClose}
+            onClick={
+              showUnlockCta
+                ? unlock
+                : !started
+                  ? onSign
+                  : error && onRetry
+                    ? onRetry
+                    : onClose
+            }
           >
-            {!started ? (
+            {showUnlockCta ? (
+              isUnlocking ? (
+                COPY.wallet.locked.unlocking
+              ) : (
+                COPY.wallet.locked.unlockButton
+              )
+            ) : !started ? (
               COPY.deposit.progress.buttons.signTransaction
             ) : canContinueInBackground ? (
               COPY.deposit.progress.buttons.closeContinueLater

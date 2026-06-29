@@ -6,18 +6,17 @@ import {
   Hint,
 } from "@babylonlabs-io/core-ui";
 import {
-  isUserRejectionMessage,
   useChainConnector,
   useWalletConnect,
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import { useUTXOs } from "@/hooks/useUTXOs";
-import { logger } from "@/infrastructure";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
@@ -39,29 +38,14 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     address: btcAddress,
     publicKeyNoCoord,
     locked: btcLocked,
-    reconnect: reconnectBtcWallet,
   } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
-  const [isUnlocking, setIsUnlocking] = useState(false);
-
-  const handleUnlock = async () => {
-    setIsUnlocking(true);
-    try {
-      // Re-runs the wallet's connect flow, surfacing the extension's unlock
-      // prompt. On success the provider clears `locked` and this button reverts
-      // to the connected wallet menu.
-      await reconnectBtcWallet();
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      // User rejections are expected (they dismissed the prompt) — only report
-      // genuine failures.
-      if (!isUserRejectionMessage(err.message)) {
-        logger.error(err, { data: { context: "Wallet unlock from navbar" } });
-      }
-    } finally {
-      setIsUnlocking(false);
-    }
-  };
+  // Re-runs the wallet's connect flow, surfacing the extension's unlock prompt.
+  // On success the provider clears `locked` and this button reverts to the
+  // connected wallet menu.
+  const { unlock: handleUnlock, isUnlocking } = useBtcWalletUnlock(
+    "Wallet unlock from navbar",
+  );
   const { selectedWallets } = useWidgetState();
   const btcConnector = useChainConnector("BTC");
   const ethConnector = useChainConnector("ETH");

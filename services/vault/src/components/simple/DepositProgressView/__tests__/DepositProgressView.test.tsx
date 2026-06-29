@@ -15,11 +15,19 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
 }));
 
 // DepositProgressView self-sources the BTC wallet-lock state to render its
-// unlock notice. Drive it through a mutable mock; default unlocked.
-const mockBtcWalletState = vi.hoisted(() => ({ locked: false }));
+// unlock notice and pre-sign unlock CTA. Drive it through a mutable mock;
+// default unlocked.
+const mockBtcWalletState = vi.hoisted(() => ({
+  locked: false,
+  reconnect: vi.fn(),
+}));
 vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => mockBtcWalletState,
 }));
+
+// The pre-sign unlock CTA routes through useBtcWalletUnlock, which logs genuine
+// failures; stub the logger so importing it has no side effects under test.
+vi.mock("@/infrastructure", () => ({ logger: { error: vi.fn() } }));
 
 afterEach(() => {
   mockBtcWalletState.locked = false;
@@ -644,6 +652,25 @@ describe("DepositProgressView", () => {
 
       expect(
         screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("relabels the pre-sign CTA to an unlock action when the wallet is locked", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={vi.fn()}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: COPY.wallet.locked.unlockButton }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.progress.buttons.signTransaction),
       ).not.toBeInTheDocument();
     });
   });
