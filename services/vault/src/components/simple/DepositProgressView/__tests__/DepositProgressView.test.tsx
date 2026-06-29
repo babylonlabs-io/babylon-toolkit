@@ -17,17 +17,18 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
 // DepositProgressView self-sources the BTC wallet-lock state to render its
 // unlock notice and pre-sign unlock CTA. Drive it through a mutable mock;
 // default unlocked.
-const mockBtcWalletState = vi.hoisted(() => ({
-  locked: false,
-  reconnect: vi.fn(),
-}));
+const mockBtcWalletState = vi.hoisted(() => ({ locked: false }));
 vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => mockBtcWalletState,
 }));
 
-// The pre-sign unlock CTA routes through useBtcWalletUnlock, which logs genuine
-// failures; stub the logger so importing it has no side effects under test.
-vi.mock("@/infrastructure", () => ({ logger: { error: vi.fn() } }));
+// The pre-sign unlock CTA delegates to useBtcWalletUnlock; mock it so this
+// suite stays focused on DepositProgressView's rendering. `isUnlocking: false`
+// drives the steady "Unlock wallet" label; the hook's reconnect/logging
+// behavior is its own concern.
+vi.mock("@/hooks/useBtcWalletUnlock", () => ({
+  useBtcWalletUnlock: () => ({ unlock: vi.fn(), isUnlocking: false }),
+}));
 
 afterEach(() => {
   mockBtcWalletState.locked = false;
