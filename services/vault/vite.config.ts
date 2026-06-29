@@ -6,8 +6,18 @@ import { defineConfig } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { sriPlugin } from "./src/build/sriPlugin";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const SECURITY_HEADERS = {
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: http: wss: ws:; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; worker-src 'self' blob:;",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+};
 
 const isSentryDisabled =
   process.env.NEXT_BUILD_E2E || process.env.DISABLE_SENTRY === "true";
@@ -22,6 +32,9 @@ const enableSentryPlugin =
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    headers: SECURITY_HEADERS,
+  },
   resolve: {
     dedupe: ["@babylonlabs-io/core-ui", "react", "react-dom"],
     alias: {
@@ -54,6 +67,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    sriPlugin(),
     react(),
     tsconfigPaths({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],

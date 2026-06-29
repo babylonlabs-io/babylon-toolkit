@@ -27,6 +27,7 @@ export default tseslint.config(
       "postcss.config.cjs",
       "prettier.config.cjs",
       "scripts",
+      "public",
     ],
   },
   importPlugin.flatConfigs.recommended,
