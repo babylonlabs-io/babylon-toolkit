@@ -1,18 +1,22 @@
 import type { CalculatorResult, Warning, WarningType } from "./types";
 
 /**
- * Calculator warnings map to red (urgent), yellow (too-many-vaults — the orange
- * warning banner per Figma), soft (everything else advisory), green (none), or
- * hidden (dust / no groups). "yellow" also backs the stale-price banner, which
- * is driven separately by a status override rather than a calculator warning.
+ * Calculator warnings map to red (urgent), yellow (cliff / too-many-vaults — the
+ * orange warning banner per Figma), soft (everything else advisory), green
+ * (none), or hidden (dust / no groups). "yellow" also backs the stale-price
+ * banner, which is driven separately by a status override rather than a
+ * calculator warning.
  */
 export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
 
 /**
  * Per-type severity for the primary warning. Anything not listed renders soft.
+ * `cliff` is orange per Figma ("First liquidation takes everything"); it only
+ * surfaces as the primary banner when no `urgent` (red) warning is present.
  */
 const SEVERITY_BY_TYPE: Partial<Record<WarningType, BannerSeverity>> = {
   urgent: "red",
+  cliff: "yellow",
   "too-many-vaults": "yellow",
 };
 
@@ -48,9 +52,9 @@ const PRIMARY_ORDER: WarningType[] = [
  * Map a CalculatorResult to a banner display state.
  *
  * Red:    urgent warning present (already liquidatable or within 5%)
- * Yellow: too-many-vaults (the orange warning banner per Figma)
- * Soft:   any other advisory warning (cliff / rebalance / reorder /
- *         weird-params), or a healthy position whose vault order is suboptimal
+ * Yellow: cliff or too-many-vaults (the orange warning banner per Figma)
+ * Soft:   any other advisory warning (rebalance / reorder / weird-params), or a
+ *         healthy position whose vault order is suboptimal
  * Green:  no warnings and order already optimal
  * Hidden: no groups, or dust position (too small to matter)
  */

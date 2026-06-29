@@ -21,7 +21,37 @@ html {
    * Used by the deposit progress bar, the steps-completed pill, and completed
    * step checks. */
   --success-bright: 21 183 104;
+  /* Motion spec — Modals (Figma 7831:25100 §1) */
+  --motion-duration-modal: 220ms;
+  --motion-duration-modal-out: 180ms;
+  --motion-duration-backdrop: 220ms;
+  --motion-ease-modal-in: ease-out;
+  --motion-ease-modal-out: ease-in;
+  --motion-ease-backdrop: ease-out;
+  --motion-transform-modal-in: translateY(8px);
+  --motion-transform-modal-out: translateY(4px);
+  /* Motion spec — Progressive Reveal / State Transition (Figma §3, §6) */
+  --motion-duration-reveal: 180ms;
+  --motion-ease-reveal: ease-out;
+  --motion-shift-reveal: 6px;
+  /* Motion spec — Dropdowns / Expandable (Figma §2) */
+  --motion-duration-dropdown: 180ms;
+  --motion-ease-dropdown-in: ease-out;
+  --motion-shift-dropdown: 4px;
+  /* Motion spec — Tooltips / Info (Figma §4) */
+  --motion-duration-tooltip: 140ms;
+  --motion-duration-tooltip-out: 120ms;
+  /* Motion spec — Icons (Figma §7) */
+  --motion-duration-icon: 180ms;
+  --motion-ease-icon: ease-out;
+  --motion-duration-spinner: 1.2s;
+
+  /* Motion spec — Loading / Skeleton (Figma §5) */
+  --motion-duration-skeleton: 1.5s;
 }
+
+/* Reduced motion is handled globally in core-ui's index.css via a single `*`
+ * animation/transition reset, so there is no per-token zeroing to repeat here. */
 
 @media screen and (min-width: 768px) {
   :root {

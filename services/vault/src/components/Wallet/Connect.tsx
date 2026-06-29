@@ -16,11 +16,13 @@ import { useMemo, useState } from "react";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useUTXOs } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
 
+import { shouldShowInscriptionsToggle } from "./inscriptionToggle";
 import { resolveDisplayWallets } from "./resolveDisplayWallets";
 
 interface ConnectProps {
@@ -71,6 +73,23 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   const isWalletConnected = btcConnected && ethConnected;
 
+  // Single source for both the UTXO query gate and the menu render branch below.
+  const canShowWalletMenu = isWalletConnected && !isGeoBlocked && !isGeoLoading;
+
+  // Scope this subscription to when the menu can render; the query is shared
+  // (same key) with the deposit form, so this only adds an observer.
+  const utxoOptions = useMemo(
+    () => ({ enabled: canShowWalletMenu }),
+    [canShowWalletMenu],
+  );
+  const { inscriptionUTXOs } = useUTXOs(btcAddress, utxoOptions);
+  // While ordinals are loading or errored, useUTXOs reports 0 inscriptions, so
+  // the toggle stays hidden then — fine, toggling is a no-op until it resolves.
+  const showInscriptionsToggle = shouldShowInscriptionsToggle(
+    inscriptionUTXOs.length,
+    ordinalsExcluded,
+  );
+
   // Icon source must stay aligned with the (provider-level) connection state:
   // `selectedWallets` is volatile widget state that can lag a reconnect on
   // refresh, leaving the address shown but the icon blank. resolveDisplayWallets
@@ -103,7 +122,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
-  if (isWalletConnected && !isGeoBlocked && !isGeoLoading) {
+  if (canShowWalletMenu) {
     return (
       <div className="flex flex-row items-center gap-4">
         <BtcEthWalletMenu
@@ -136,6 +155,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           ordinalsExcluded={ordinalsExcluded}
           onIncludeOrdinals={includeOrdinals}
           onExcludeOrdinals={excludeOrdinals}
+          showInscriptionsToggle={showInscriptionsToggle}
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
