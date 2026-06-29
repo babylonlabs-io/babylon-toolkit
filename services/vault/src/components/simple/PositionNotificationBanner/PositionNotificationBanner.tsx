@@ -105,9 +105,6 @@ export function PositionNotificationBanner({
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
-    // Freeze/Pause blocks reorder; the CTA is disabled, but guard the handler
-    // too so a programmatic invocation can't slip a reorder through.
-    if (isReorderBlocked()) return;
     if (!result?.optimalVaultOrder || !reorderVerificationContext) return;
     const vaultIds = result.optimalVaultOrder.map((v) => v.id as Hex);
     const success = await executeReorder(vaultIds, {
