@@ -133,6 +133,14 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const { open = () => {} } = useWalletConnect();
 
   const disconnect = useCallback(async () => {
+    // Invalidate any in-flight lock probe synchronously. The ref is otherwise
+    // mirrored in a passive effect that runs only after these state setters
+    // commit — leaving a window where a `getAccounts` resolution lands in the
+    // gap, passes the stale-session check, and `setLocked(true)` on a
+    // torn-down session (surfacing an "Unlock" button for a disconnected
+    // wallet, with no further poll to clear it). Clearing it here closes that
+    // window.
+    lockProbeContextRef.current = { provider: undefined, address: "" };
     setBTCWalletProvider(undefined);
     setNetwork(undefined);
     setPublicKeyNoCoord("");
@@ -173,6 +181,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         setPublicKeyNoCoord(publicKeyNoCoordHex);
         setLocked(false);
         setLoading(false);
+        // Mirror the new session synchronously (the passive sync effect runs
+        // only after this commit) so a probe in flight from a prior session
+        // resolves against the correct identity instead of this one.
+        lockProbeContextRef.current = { provider: walletProvider, address };
 
         await callbacks?.onConnect?.(address, publicKeyNoCoordHex);
       } catch (error: any) {
@@ -251,6 +263,13 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
 
           setAddress(newAddress);
           setPublicKeyNoCoord(newPublicKeyNoCoord);
+          // An accountsChanged event is itself proof the wallet answered, so it
+          // is unlocked. If it was previously flagged as silently locked and
+          // the user unlocked into a *different* account, the poll's `checkLock`
+          // leaves `locked` set on the "changed" verdict (it can't clear it
+          // against a still-stale address). Clear it here, atomically with the
+          // address refresh, instead of waiting a poll tick for it to re-read.
+          setLocked(false);
           await callbacks?.onAddressChange?.(newAddress, newPublicKeyNoCoord);
         }
       } catch (error: any) {
@@ -285,7 +304,11 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   }, [btcWalletProvider, address, callbacks, disconnect]);
 
   // Keep the lock-probe context in sync so an in-flight `getAccounts` resolution
-  // can detect that the session changed underneath it (see checkLock).
+  // can detect that the session changed underneath it (see checkLock). This
+  // effect is the catch-all for event-driven address changes; the two cases
+  // where a stale probe would write to a no-longer-current session before this
+  // passive effect could run — disconnect and connect — also mirror the ref
+  // synchronously at the mutation site.
   useEffect(() => {
     lockProbeContextRef.current = { provider: btcWalletProvider, address };
   }, [btcWalletProvider, address]);
@@ -380,6 +403,12 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   // keeps returning a stale address — so `connected` stays true and the UI
   // looks fine until the user hits a signing call. `getAccounts()` is the
   // non-interactive probe (it never prompts) and returns [] when locked.
+  //
+  // The "emits no event on lock" premise holds only for UniSat >=
+  // MIN_UNISAT_VERSION (1.7.14). Older builds emit `accountsChanged([])` on
+  // lock, which `onAccountsChanged` (above) turns into a disconnect — so this
+  // detection silently depends on the connect-time version gate. Don't lower
+  // that floor without revisiting this path.
   const checkLock = useCallback(async () => {
     const probedProvider = btcWalletProvider;
     const probedAddress = address;
@@ -411,7 +440,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     // A different active account is an account switch, not a lock: leave the
     // cached address/pubkey refresh to the accountsChanged event and the
     // visibility check. Clearing `locked` here would present an unlocked
-    // session against a stale address.
+    // session against a stale address — so if the wallet was locked and the
+    // user unlocked into a new account, `locked` is cleared by the
+    // accountsChanged handler (atomically with the address refresh) or the
+    // visibility check, not here.
     if (probe === "changed") return;
     setLocked(probe === "locked");
   }, [btcWalletProvider, address]);
@@ -448,6 +480,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     };
 
     const handleFocus = () => {
+      // visibilitychange already covers the common tab-return case; only probe
+      // on focus when the tab is actually visible so a focus event on a hidden
+      // tab doesn't fire a redundant round-trip.
+      if (document.visibilityState !== "visible") return;
       void checkLock();
     };
 

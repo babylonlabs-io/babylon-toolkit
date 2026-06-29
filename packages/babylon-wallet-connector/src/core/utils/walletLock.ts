@@ -20,8 +20,8 @@ export const BTC_WALLET_LOCK_POLL_INTERVAL_MS = 10_000;
  * silent-lock signal. A non-array, or an array carrying no usable string
  * address (a malformed response), is also treated as locked: a wallet that
  * stops reporting a valid account should be surfaced to the user, not silently
- * hidden. (OKX and OneKey return a cached address even when locked, so they are
- * deliberately not polled — see their providers.)
+ * hidden. (OKX and OneKey are deliberately not polled — their non-interactive
+ * accounts read isn't a reliable lock signal; see their providers.)
  */
 export function areBtcAccountsLocked(accounts: unknown): boolean {
   if (!Array.isArray(accounts)) return true;

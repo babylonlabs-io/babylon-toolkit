@@ -251,7 +251,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         // Callouts live here (not in the scrollable body) so error/success
         // banners stay pinned above the CTA, always visible.
         <div className="flex flex-col gap-4">
-          {walletLocked && (
+          {walletLocked && !isComplete && !isTerminalSuccess && (
             <Callout variant="error" title={COPY.wallet.locked.title}>
               {COPY.wallet.locked.description}
             </Callout>

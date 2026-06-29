@@ -616,5 +616,35 @@ describe("DepositProgressView", () => {
         screen.queryByText(COPY.wallet.locked.title),
       ).not.toBeInTheDocument();
     });
+
+    it("suppresses the lock notice on a completed deposit so it never stacks on the success banner", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          isComplete
+          currentStep={DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("suppresses the lock notice at a terminal success milestone so it never stacks on the success banner", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          terminalMessage="Ready to activate."
+          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
+    });
   });
 });
