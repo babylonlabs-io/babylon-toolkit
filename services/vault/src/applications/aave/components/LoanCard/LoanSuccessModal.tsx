@@ -59,7 +59,16 @@ export function LoanSuccessModal({
             <Heading variant="h4">{copy.title}</Heading>
 
             <Text as="div" className="text-accent-secondary">
-              {copy.body(formattedAmount, symbol)}
+              {copy.body(formattedAmount, symbol).map((segment, index) => (
+                <span
+                  key={index}
+                  className={
+                    segment.emphasis ? "text-accent-primary" : undefined
+                  }
+                >
+                  {segment.text}
+                </span>
+              ))}
             </Text>
           </div>
         </div>
