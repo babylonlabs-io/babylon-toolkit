@@ -71,6 +71,11 @@ interface SigningNotificationContextValue {
   isActiveFlow: boolean;
   /** Mark the active deposit flow as running / stopped. */
   setActiveFlow: (active: boolean) => void;
+  /**
+   * Whether the signing-notifications feature flag is on. Observers read this
+   * to skip work entirely when the feature is off.
+   */
+  enabled: boolean;
 }
 
 const SigningNotificationContext =
@@ -89,7 +94,7 @@ export function SigningNotificationProvider({
   const [promptDismissed, setPromptDismissed] = useState<boolean>(() =>
     enabled ? loadNotificationPromptDismissed() : false,
   );
-  const [activeFlow, setActiveFlowState] = useState(false);
+  const [activeFlow, setActiveFlow] = useState(false);
   const documentHidden = useDocumentHidden(enabled);
 
   const requestPermission = useCallback(() => {
@@ -107,11 +112,6 @@ export function SigningNotificationProvider({
     setNotificationPromptDismissed(true);
     setPromptDismissed(true);
   }, []);
-
-  const setActiveFlow = useCallback(
-    (active: boolean) => setActiveFlowState(active),
-    [],
-  );
 
   const notifySigningRequired = useCallback(
     (key: string, copy: BrowserNotificationCopy) => {
@@ -155,6 +155,7 @@ export function SigningNotificationProvider({
       documentHidden,
       isActiveFlow: activeFlow,
       setActiveFlow,
+      enabled,
     }),
     [
       requestPermission,
@@ -164,6 +165,7 @@ export function SigningNotificationProvider({
       documentHidden,
       activeFlow,
       setActiveFlow,
+      enabled,
     ],
   );
 

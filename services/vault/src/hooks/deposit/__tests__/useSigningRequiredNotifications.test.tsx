@@ -12,6 +12,7 @@ vi.mock("@/context/SigningNotificationContext", () => ({
     documentHidden: false,
     isActiveFlow: ctx.isActiveFlow,
     setActiveFlow: vi.fn(),
+    enabled: true,
   }),
 }));
 
