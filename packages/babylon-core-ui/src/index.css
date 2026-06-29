@@ -2,6 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+ * Motion — reduced-motion reset (single source of truth).
+ *
+ * Legacy defaults for every motion token live as inline `var(--token, <default>)`
+ * fallbacks at each consuming rule (keyframes, transitions). Apps opt into the
+ * spec by *defining* the tokens in their own `:root`; non-opted consumers keep
+ * the inline fallback, i.e. current behavior. There is intentionally no `:root`
+ * defaults block here — a single declaration site avoids drift.
+ *
+ * Under `prefers-reduced-motion` we neutralize ALL animation/transition with one
+ * `*` reset. It is order-proof (`!important` + universal selector beat any rule
+ * regardless of source position) and token-agnostic (no per-token list to keep in
+ * sync across packages). `animation-iteration-count: 1` also stops looping
+ * decoratives like the skeleton shimmer. The functional loader spinner is the
+ * single documented exception and is re-enabled below.
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Functional indicator — keep it spinning (higher specificity wins). */
+  .bbn-loader,
+  .bbn-loader circle {
+    animation-duration: var(--motion-duration-spinner, 1.4s) !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* Token-driven skeleton loading utility. The element keeps its placeholder
+ * boxes (which preserve final layout); the ::after sweeps a translucent
+ * highlight across it via a gradient, so no solid background is required. */
+.bbn-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.bbn-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  animation: bbn-skeleton-shimmer var(--motion-duration-skeleton, 1.5s) linear
+    infinite;
+}
+
+@keyframes bbn-skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @layer utilities {
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
@@ -29,7 +91,14 @@
 }
 
 .react-tooltip {
-  @apply !bg-[#F5F5F5] !text-accent-primary !rounded-md !text-xs !max-w-xs !px-3 !py-2 !opacity-100 !shadow-lg !z-[99999];
+  @apply !bg-[#F5F5F5] !text-accent-primary !rounded-md !text-xs !max-w-xs !px-3 !py-2 !shadow-lg !z-[99999];
+  /* Drive react-tooltip's own opacity fade via its custom properties.
+   * --rt-opacity keeps the shown tooltip fully opaque (its default is 0.9);
+   * the delay vars map react-tooltip's built-in opacity transition (ease-out
+   * on show, ease-in on close) onto our motion duration tokens. */
+  --rt-opacity: 1;
+  --rt-transition-show-delay: var(--motion-duration-tooltip, 0.15s);
+  --rt-transition-closing-delay: var(--motion-duration-tooltip-out, 0.15s);
   text-wrap: pretty;
   max-width: min(280px, 90vw) !important;
 }

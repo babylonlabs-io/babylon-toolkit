@@ -1,3 +1,4 @@
+import { useReducedMotion } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -10,28 +11,40 @@ export function FadeTransition({
   stepKey: string;
   children: React.ReactNode;
 }) {
-  const [visible, setVisible] = useState(false);
+  const reduced = useReducedMotion();
+  // Initialize from `reduced` so the first paint is already final (no initial
+  // fade/rise) for users who prefer reduced motion; otherwise start hidden and
+  // let the effect fade the content in.
+  const [visible, setVisible] = useState(reduced);
   const prevKey = useRef(stepKey);
 
   useEffect(() => {
     if (stepKey !== prevKey.current) {
-      // New step: start invisible, then fade in
       setVisible(false);
       prevKey.current = stepKey;
+      if (reduced) {
+        setVisible(true);
+        return;
+      }
       const raf = requestAnimationFrame(() => {
         requestAnimationFrame(() => setVisible(true));
       });
       return () => cancelAnimationFrame(raf);
-    } else {
-      // Initial mount
-      setVisible(true);
     }
-  }, [stepKey]);
+    setVisible(true);
+  }, [stepKey, reduced]);
 
   return (
     <div
-      className="w-full transition-opacity duration-150 ease-in-out"
-      style={{ opacity: visible ? 1 : 0 }}
+      className="w-full"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible
+          ? "translateY(0)"
+          : "translateY(var(--motion-shift-reveal, 0px))",
+        transition:
+          "opacity var(--motion-duration-reveal, 150ms) var(--motion-ease-reveal, ease-out), transform var(--motion-duration-reveal, 150ms) var(--motion-ease-reveal, ease-out)",
+      }}
     >
       {children}
     </div>

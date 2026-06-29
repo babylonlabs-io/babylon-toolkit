@@ -248,12 +248,19 @@ export function VaultStatusBadge({
 }) {
   return (
     <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-      {isDanger ? (
-        <WarningIcon size={14} variant="danger" />
-      ) : (
-        <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
-      )}
-      {label}
+      {/* Keyed on `label` so a status change remounts this span, replaying the
+          mount-driven reveal-in animation each time the label transitions. */}
+      <span
+        key={label}
+        className="inline-flex animate-reveal-in items-center gap-1.5"
+      >
+        {isDanger ? (
+          <WarningIcon size={14} variant="danger" />
+        ) : (
+          <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
+        )}
+        {label}
+      </span>
       {tooltip && <Hint tooltip={tooltip} />}
     </span>
   );
