@@ -482,21 +482,104 @@ describe("PositionNotificationBanner", () => {
     vi.useRealTimers();
   });
 
-  it("renders nothing for dust (hidden severity)", () => {
+  it("renders the dust notice as a soft (info) banner with no actions", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "dust",
-          title: "Position too small to model",
-          detail: "Too small for analysis.",
+          title: "Position too small for vault analysis",
+          detail:
+            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
       ],
     });
-    const { container } = renderBanner(result, onDeposit, onRepay);
+    renderBanner(result, onDeposit, onRepay);
 
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("soft");
+    expect(banner.dataset.variant).toBe("info");
     expect(
-      container.querySelector("[data-testid='position-notification-banner']"),
-    ).toBeNull();
+      screen.getByText("Position too small for vault analysis"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Add Collateral")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
+  });
+
+  it("keeps a later weird-params advisory visible after the dust notice was dismissed", () => {
+    // Dismissal is per warning type: dismissing dust must not suppress a
+    // different advisory the position later transitions into while mounted.
+    const queryClient = makeQueryClient();
+    const dust = makeBaseResult({
+      warnings: [
+        {
+          type: "dust",
+          title: "Position too small for vault analysis",
+          detail:
+            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
+        },
+      ],
+    });
+    const weirdParams = makeBaseResult({
+      warnings: [
+        {
+          type: "weird-params",
+          title: "Protocol parameters don't compute",
+          detail: "THF must be greater than expected HF.",
+          tone: "soft",
+        },
+      ],
+    });
+
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <PositionNotificationBanner
+          result={dust}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+
+    // Same mounted banner, position now reads as a weird-params advisory.
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <PositionNotificationBanner
+          result={weirdParams}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+    expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
+  });
+
+  it("hides the dust notice after its dismiss control is clicked", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "dust",
+          title: "Position too small for vault analysis",
+          detail:
+            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
   it("renders an orange cliff with the generic 'Add sacrificial vault' CTA and pre-fills the amount", () => {

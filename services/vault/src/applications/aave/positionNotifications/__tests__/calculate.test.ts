@@ -234,11 +234,12 @@ describe("bannerSeverity", () => {
     expect(state.primaryWarning?.type).toBe("urgent");
   });
 
-  it("hidden for dust", () => {
+  it("soft (info) for dust — suppresses other warnings", () => {
     const result = calculate(makeParams([v(0.5)], { totalDebtUsd: 500 }));
     const state = deriveBannerState(result);
-    expect(state.severity).toBe("hidden");
+    expect(state.severity).toBe("soft");
     expect(state.primaryWarning?.type).toBe("dust");
+    expect(state.secondaryWarnings).toHaveLength(0);
   });
 
   it("hidden when there are no groups (zero debt)", () => {

@@ -1201,9 +1201,9 @@ export const COPY = {
         `This position already has the maximum number of BTC Vaults (${cap}).`,
     },
     dust: {
-      title: "Position too small to model",
+      title: "Position too small for vault analysis",
       detail:
-        "Below $1,000 the cascade simplifies — all BTC Vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+        "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
     weirdParams: {
       title: "Protocol parameters don't compute",
