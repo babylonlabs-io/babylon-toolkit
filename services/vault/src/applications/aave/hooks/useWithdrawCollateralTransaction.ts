@@ -10,8 +10,10 @@ import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -49,9 +51,16 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   const queryClient = useQueryClient();
   const { handleError } = useError();
   const { markVaultsAsPending } = usePendingVaults();
+  const gate = useProtocolGateState();
 
   const executeWithdraw = useCallback(
     async (vaultIds: string[]) => {
+      // Withdraw is an EXIT: blocked only when either scope is paused (Freeze
+      // preserves exits). Guard the execution chokepoint so a pause that lands
+      // mid-session can't broadcast even if a modal was already open; the menu
+      // item is disabled too.
+      if (isWithdrawBlocked(gate)) return false;
+
       setIsProcessing(true);
       try {
         // Validate wallet connection
@@ -109,7 +118,14 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         setIsProcessing(false);
       }
     },
-    [walletClient, address, queryClient, handleError, markVaultsAsPending],
+    [
+      walletClient,
+      address,
+      queryClient,
+      handleError,
+      markVaultsAsPending,
+      gate,
+    ],
   );
 
   return {

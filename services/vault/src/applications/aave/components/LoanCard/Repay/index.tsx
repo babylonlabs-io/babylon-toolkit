@@ -14,9 +14,11 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { isRepayBlocked } from "@/components/shared/protocolStatus";
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useERC20Balance } from "@/hooks";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import {
   getCurrencyIconWithFallback,
@@ -51,6 +53,8 @@ import { validateRepayPreSign } from "./hooks/validateRepayPreSign";
 import { RepayDetailsCard } from "./RepayDetailsCard";
 
 export function Repay() {
+  const gate = useProtocolGateState();
+  const repayBlocked = isRepayBlocked(gate);
   const {
     collateralValueUsd,
     currentDebtAmount,
@@ -379,7 +383,13 @@ export function Repay() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing || isSubmitting || !balanceKnown}
+        disabled={
+          isDisabled ||
+          isProcessing ||
+          isSubmitting ||
+          !balanceKnown ||
+          repayBlocked
+        }
         onClick={handleRepay}
         className="mt-6"
       >

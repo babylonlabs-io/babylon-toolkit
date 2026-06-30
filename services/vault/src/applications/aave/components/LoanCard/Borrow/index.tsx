@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import {
   getCurrencyIconWithFallback,
@@ -62,6 +63,7 @@ import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
 const MAX_BORROWABLE_LIQUIDITY_FRACTION = 0.999;
 
 export function Borrow() {
+  const gate = useProtocolGateState();
   const {
     collateralValueUsd,
     totalDebtValueUsd,
@@ -244,7 +246,7 @@ export function Borrow() {
   };
 
   const getBorrowButtonText = () => {
-    if (isBorrowBlocked()) return COPY.loans.borrow.unavailable;
+    if (isBorrowBlocked(gate)) return COPY.loans.borrow.unavailable;
     if (isProcessing) return COPY.loans.borrow.processing;
     return buttonText;
   };
@@ -264,7 +266,7 @@ export function Borrow() {
           title: COPY.loans.transactionFailedTitle,
           body: txError,
         }
-      : isBorrowBlocked()
+      : isBorrowBlocked(gate)
         ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
         : tokenPriceUsd == null || oracleAddress == null
           ? { variant: "warning", body: COPY.loans.priceUnavailable }
@@ -373,7 +375,7 @@ export function Borrow() {
         disabled={
           isDisabled ||
           isProcessing ||
-          isBorrowBlocked() ||
+          isBorrowBlocked(gate) ||
           !isPriceReady ||
           oracleAddress == null
         }

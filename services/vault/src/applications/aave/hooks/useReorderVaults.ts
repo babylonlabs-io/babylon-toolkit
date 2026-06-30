@@ -12,6 +12,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -74,15 +75,16 @@ export function useReorderVaults(): UseReorderVaultsResult {
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const { handleError } = useError();
+  const gate = useProtocolGateState();
 
   const executeReorder = useCallback(
     async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
-      // Freeze/Pause blocks reorder. Guard the shared execution chokepoint so
-      // neither the banner CTA nor the reorder modal can broadcast while
-      // blocked, regardless of how the handler was reached (the UI buttons are
-      // disabled too). Returns a no-op failure — the path is UI-prevented, so
-      // there is nothing actionable to surface in a modal.
-      if (isReorderBlocked()) return false;
+      // Reorder is an aave-scope entry action: Freeze or Pause blocks it. Guard
+      // the shared execution chokepoint so neither the banner CTA nor the
+      // reorder modal can broadcast while blocked, regardless of how the handler
+      // was reached (the UI buttons are disabled too). Returns a no-op failure —
+      // the path is UI-prevented, so there is nothing actionable to surface.
+      if (isReorderBlocked(gate)) return false;
 
       setIsProcessing(true);
       try {
@@ -154,7 +156,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, handleError],
+    [walletClient, address, handleError, gate],
   );
 
   return {

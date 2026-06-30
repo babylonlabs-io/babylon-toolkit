@@ -15,6 +15,10 @@ interface BuildBannerActionsArgs {
   isReordering: boolean;
   /** Freeze/Pause blocks `reorderVaults`; disables the "Apply Optimal Order" CTA. */
   reorderBlocked: boolean;
+  /** Protocol Freeze/Pause blocks new deposits; disables the add-collateral / add-vault CTAs. */
+  depositBlocked: boolean;
+  /** An aave Pause blocks repay; disables the "Repay Debt" CTA. */
+  repayBlocked: boolean;
 }
 
 /**
@@ -42,6 +46,8 @@ export function buildBannerActions({
   onApplyOrder,
   isReordering,
   reorderBlocked,
+  depositBlocked,
+  repayBlocked,
 }: BuildBannerActionsArgs): NotificationAction[] {
   const { primaryWarning, suggestReorder } = bannerState;
   const isUrgent = primaryWarning?.type === "urgent";
@@ -55,11 +61,16 @@ export function buildBannerActions({
         label: COPY.banner.addCollateral,
         onClick: () => onDeposit(),
         emphasis: "primary",
+        // Adding collateral is a deposit (protocol-scope entry) — blocked under
+        // a protocol Freeze/Pause. The status banner explains why.
+        disabled: depositBlocked,
       },
       {
         label: COPY.banner.repayDebt,
         onClick: onRepay,
         emphasis: "secondary",
+        // Repay is blocked only by an aave Pause (preserved under Freeze).
+        disabled: repayBlocked,
       },
     );
   }
@@ -86,6 +97,8 @@ export function buildBannerActions({
         : COPY.banner.addVault(amountBtc),
       onClick: () => onDeposit(amountBtc),
       emphasis: isUrgent ? "secondary" : "primary",
+      // Adding a vault is a deposit — blocked under a protocol Freeze/Pause.
+      disabled: depositBlocked,
     });
   }
 

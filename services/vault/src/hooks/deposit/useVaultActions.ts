@@ -25,8 +25,10 @@ import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import { isActivationBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
@@ -98,6 +100,8 @@ export interface UseVaultActionsReturn {
  * Custom hook for vault actions (broadcast)
  */
 export function useVaultActions(): UseVaultActionsReturn {
+  const gate = useProtocolGateState();
+
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
@@ -342,6 +346,12 @@ export function useVaultActions(): UseVaultActionsReturn {
    * Handle vault activation — reveal HTLC secret on Ethereum
    */
   const handleActivation = async (params: ActivateVaultParams) => {
+    // Activation is an EXIT blocked under Pause (either scope); preserved under
+    // Freeze (time-critical — a depositor with BTC locked must still activate).
+    // Guard the chokepoint behind the disabled Activate button; never reveal the
+    // secret on-chain while paused.
+    if (isActivationBlocked(gate)) return;
+
     const {
       vaultId,
       secretHex,

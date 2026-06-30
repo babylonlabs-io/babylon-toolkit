@@ -28,10 +28,12 @@ import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import {
   isDepositBlocked,
   isReorderBlocked,
+  isWithdrawBlocked,
 } from "@/components/shared/protocolStatus";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
@@ -84,6 +86,7 @@ export function CollateralSection({
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const { findProvider } = useVaultProviders();
+  const gate = useProtocolGateState();
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -239,7 +242,7 @@ export function CollateralSection({
             variant="outlined"
             size="large"
             onClick={() => onDeposit()}
-            disabled={!isConnected || isDepositBlocked()}
+            disabled={!isConnected || isDepositBlocked(gate)}
             className="rounded-full"
           >
             Deposit
@@ -249,7 +252,8 @@ export function CollateralSection({
               onWithdraw={() => setIsWithdrawOpen(true)}
               onReorder={() => setIsReorderOpen(true)}
               canReorder={canReorder}
-              reorderBlocked={isReorderBlocked()}
+              reorderBlocked={isReorderBlocked(gate)}
+              withdrawBlocked={isWithdrawBlocked(gate)}
             />
           )}
         </div>

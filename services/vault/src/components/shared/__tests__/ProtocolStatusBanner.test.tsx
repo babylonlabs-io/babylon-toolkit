@@ -2,30 +2,39 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isProtocolFrozen: false,
-  isProtocolPaused: false,
   protocolStatusMessage: undefined as string | undefined,
 }));
 vi.mock("@/config/featureFlags", () => ({
   default: featureFlagsMock,
 }));
 
+// The banner derives its status from the composed gate state, so drive the gate
+// directly here (overriding the unblocked default from the global test setup).
+const gateMock = vi.hoisted(() => ({
+  value: { protocol: null, aave: null } as {
+    protocol: string | null;
+    aave: string | null;
+  },
+}));
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => gateMock.value,
+}));
+
 import { ProtocolStatusBanner } from "../ProtocolStatusBanner";
 
 beforeEach(() => {
-  featureFlagsMock.isProtocolFrozen = false;
-  featureFlagsMock.isProtocolPaused = false;
   featureFlagsMock.protocolStatusMessage = undefined;
+  gateMock.value = { protocol: null, aave: null };
 });
 
 describe("ProtocolStatusBanner", () => {
-  it("renders nothing when no status flag is set", () => {
+  it("renders nothing when no scope has a status", () => {
     const { container } = render(<ProtocolStatusBanner />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the frozen card with a Learn more link when frozen", () => {
-    featureFlagsMock.isProtocolFrozen = true;
+  it("shows the frozen card with a Learn more link when a scope is frozen", () => {
+    gateMock.value = { protocol: "frozen", aave: null };
 
     render(<ProtocolStatusBanner />);
 
@@ -37,8 +46,8 @@ describe("ProtocolStatusBanner", () => {
     expect(link.getAttribute("href")).toMatch(/^https?:\/\//);
   });
 
-  it("shows the paused card when paused", () => {
-    featureFlagsMock.isProtocolPaused = true;
+  it("shows the paused card when a scope is paused", () => {
+    gateMock.value = { protocol: "paused", aave: null };
 
     render(<ProtocolStatusBanner />);
 
@@ -51,9 +60,8 @@ describe("ProtocolStatusBanner", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("shows the paused card when both flags are set (pause wins)", () => {
-    featureFlagsMock.isProtocolFrozen = true;
-    featureFlagsMock.isProtocolPaused = true;
+  it("summarizes the most severe scope (pause wins over a concurrent freeze)", () => {
+    gateMock.value = { protocol: "frozen", aave: "paused" };
 
     render(<ProtocolStatusBanner />);
 
@@ -62,7 +70,7 @@ describe("ProtocolStatusBanner", () => {
   });
 
   it("overrides the body with NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE when set", () => {
-    featureFlagsMock.isProtocolFrozen = true;
+    gateMock.value = { protocol: "frozen", aave: null };
     featureFlagsMock.protocolStatusMessage = "Maintenance until 14:00 UTC.";
 
     render(<ProtocolStatusBanner />);

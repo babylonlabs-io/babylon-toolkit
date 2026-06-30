@@ -14,6 +14,7 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
@@ -74,6 +75,7 @@ function SimpleDepositContent({
   onClose,
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
+  const gate = useProtocolGateState();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
@@ -313,7 +315,7 @@ function SimpleDepositContent({
     // if a deposit entry point that bypasses the disabled buttons (e.g. the
     // Activity empty-state CTA or the urgent Add Collateral banner) opens this
     // dialog.
-    if (isDepositBlocked()) return;
+    if (isDepositBlocked(gate)) return;
 
     // Per-position BTC Vault cap: never start a deposit that would push the
     // position past the on-chain cap, or when the cap couldn't be read (fail
@@ -455,7 +457,7 @@ function SimpleDepositContent({
                   isReconnectingWallet,
                 }}
                 gatingState={{
-                  isDepositDisabled: isDepositBlocked(),
+                  isDepositDisabled: isDepositBlocked(gate),
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   ordinalsCheckPending,

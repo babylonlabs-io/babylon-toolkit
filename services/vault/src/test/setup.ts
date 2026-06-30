@@ -63,6 +63,25 @@ vi.mock("@/config/network", () => ({
   BTC_SIGNET: "signet",
 }));
 
+// Default-mock the protocol gate hooks. They wrap a React-Query on-chain read,
+// which the many incidental consumers (deposit/borrow/withdraw/repay/activation
+// components and tx hooks) would otherwise require a QueryClient for. The
+// default is an unblocked gate; gating-specific tests override `useProtocolGate`
+// locally with their own `vi.mock` to drive a frozen/paused scope. Plain
+// functions (not vi.fn) so `vi.clearAllMocks()` can't reset them to undefined.
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolPauseStatus: () => ({ data: undefined, isError: false }),
+  useProtocolGateState: () => ({ protocol: null, aave: null }),
+  useGating: () => ({
+    depositBlocked: false,
+    borrowBlocked: false,
+    reorderBlocked: false,
+    withdrawBlocked: false,
+    repayBlocked: false,
+    activationBlocked: false,
+  }),
+}));
+
 // Mock the WASM module to avoid syntax errors in tests
 vi.mock("@/utils/btc/wasm", () => ({
   initWasm: vi.fn(),

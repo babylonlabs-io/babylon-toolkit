@@ -12,7 +12,9 @@ import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
+import { isRepayBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -111,6 +113,7 @@ export function useRepayTransaction({
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
+  const gate = useProtocolGateState();
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -123,6 +126,10 @@ export function useRepayTransaction({
     const { preSignValidation, repayAmountRaw } = options;
 
     if (repayAmount <= 0) return false;
+
+    // Repay is an aave-scope EXIT: blocked only by an aave Pause (not a protocol
+    // pause, and never by Freeze). Guard the chokepoint behind the disabled button.
+    if (isRepayBlocked(gate)) return false;
 
     setError(null);
     setIsProcessing(true);
