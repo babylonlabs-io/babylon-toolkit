@@ -23,16 +23,18 @@ export function FeatureCard({
   const showFull = !expandable || expanded;
 
   const content = (
-    <div className="flex w-full items-start gap-3">
+    <div className="flex w-full items-start gap-2">
       <span className="mt-0.5 shrink-0 text-accent-primary">{icon}</span>
       <div className="min-w-0 flex-1">
-        <span className="block text-[15px] text-accent-primary">{title}</span>
+        <span className="block text-base tracking-[0.15px] text-accent-primary">
+          {title}
+        </span>
         <span
-          className={`mt-1 text-[13px] leading-snug text-accent-secondary ${showFull ? "block" : "line-clamp-1"}`}
+          className={`mt-1 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary ${showFull ? "block" : "line-clamp-1"}`}
         >
           {body}
         </span>
-        {extra && showFull && <div className="mt-3">{extra}</div>}
+        {extra && showFull && <div className="mt-2">{extra}</div>}
       </div>
       {expandable && (
         <ChevronRightIcon
@@ -45,18 +47,18 @@ export function FeatureCard({
   );
 
   return (
-    <div className="rounded-2xl bg-secondary-highlight">
+    <div className="rounded bg-secondary-highlight">
       {expandable ? (
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          className="w-full px-4 py-3 text-left"
+          className="w-full p-3 text-left"
         >
           {content}
         </button>
       ) : (
-        <div className="px-4 py-3">{content}</div>
+        <div className="p-3">{content}</div>
       )}
     </div>
   );

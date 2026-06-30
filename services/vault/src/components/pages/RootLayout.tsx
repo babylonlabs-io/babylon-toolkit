@@ -158,17 +158,25 @@ export default function RootLayout() {
         />
         <Header
           size="md"
-          // `!max-w-` overrides the `container` class's 2xl breakpoint max-width
-          // (1536px) that core-ui's Header applies by default, so the navbar is
-          // actually capped at 1400px on wide viewports.
-          containerClassName={`${PAGE_CONTENT_CLASS} !max-w-[1400px]`}
+          // `PAGE_CONTENT_CLASS` carries `!max-w-[1080px]`, overriding the
+          // `container` width core-ui's Header applies by default so the navbar
+          // shares the same 1080px content box as the page body and footer.
+          containerClassName={PAGE_CONTENT_CLASS}
           // Tint the logo brand-orange in light mode; keep the default
           // light-on-dark contrast in dark mode. The wrapper's `[&_svg]` selector
           // overrides the SVG's hardcoded `text-accent-primary` color, which the
           // paths inherit through `fill-current`.
           logo={
-            <div className="[&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
-              <SmallLogo />
+            <div className="flex items-center gap-3">
+              <div className="[&_svg]:!h-8 [&_svg]:!w-auto [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
+                <SmallLogo />
+              </div>
+              <div className="h-8 w-px bg-secondary-strokeLight" />
+              <img
+                src="/images/aave-wordmark.svg"
+                alt="Aave"
+                className="h-[18px] w-[109px]"
+              />
             </div>
           }
           mobileLogo={
@@ -250,13 +258,12 @@ export default function RootLayout() {
           </ActivatingVaultsProvider>
         )}
         <div className="mt-auto">
-          {/* `[&>div]:!max-w-[1400px]` caps the Footer's inner Container at
-              1400px, overriding the `container` class's 1536px max-width at
-              the 2xl breakpoint so the footer aligns with the navbar.
+          {/* The footer is intentionally full app-width (1400px) — wider than the
+              1080px `PAGE_CONTENT_CLASS` content box the navbar/body use — matching
+              Figma's full-frame footer. `[&>div]:!max-w-[1400px]` caps the Footer's
+              inner Container, overriding the `container` class's default max-width.
               `[&>div]:!px-5` restores the 20px horizontal inset that core-ui's
-              Container drops at the `sm` breakpoint (`sm:px-0`), matching the
-              navbar/page `PAGE_CONTENT_CLASS` padding so the footer content
-              lines up with the rest of the page chrome.
+              Container drops at the `sm` breakpoint (`sm:px-0`).
               `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
               mode background (and its decorative top-edge pseudo) from the
               default teal to brand orange; dark mode keeps `primary-main`. */}
