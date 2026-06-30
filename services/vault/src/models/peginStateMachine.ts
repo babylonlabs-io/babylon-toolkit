@@ -225,6 +225,19 @@ export function canPerformAction(
 }
 
 /**
+ * True when an EXPIRED vault's refund is already in flight (Refunding — our own
+ * broadcast, or an HTLC spend the mempool probe sees) or settled (Refunded).
+ * Both labels are produced only in the EXPIRED branch, so this is the
+ * display-layer signal that the refund modal has nothing left to do.
+ */
+export function isRefundInFlightOrSettled(state: PeginState): boolean {
+  return (
+    state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDING ||
+    state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDED
+  );
+}
+
+/**
  * PegIn actions a depositor can drive inline from the deposit flow.
  *
  * Excludes:

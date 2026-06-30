@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,6 +51,7 @@ vi.mock("../VaultDetailCard", () => ({
       data-disabled={disabled ? "true" : "false"}
       data-disabled-tooltip={disabledTooltip ?? ""}
       data-clickable={onClick ? "true" : "false"}
+      onClick={onClick}
     >
       <div data-testid="amount-subtext">{amountSubtext}</div>
       <div data-testid="below-header">{belowHeader}</div>
@@ -276,5 +277,71 @@ describe("PendingDepositCard — payout signing step number", () => {
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PendingDepositCard — refunding (in-flight) cards are not clickable", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
+  });
+
+  it("is inert once a refund is in flight (Refunding)", () => {
+    // Refunding = our own broadcast OR the HTLC-spend probe seeing the refund tx
+    // in the mempool (so this also covers a refund broadcast from another
+    // device). The refund is in flight, so the card must not reopen the modal.
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.EXPIRED,
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+      },
+    });
+    const onCardClick = vi.fn();
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={onCardClick}
+      />,
+    );
+
+    const card = screen.getByTestId("vault-detail-card");
+    expect(card).toHaveAttribute("data-clickable", "false");
+    fireEvent.click(card);
+    expect(onCardClick).not.toHaveBeenCalled();
+  });
+
+  it("stays clickable for a pending vault with no available action", () => {
+    // Pending cards open the multistepper even with no primary action; the
+    // refund gate (Refunding/Refunded only) must not touch them.
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.PENDING,
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+      },
+    });
+    const onCardClick = vi.fn();
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={onCardClick}
+      />,
+    );
+
+    const card = screen.getByTestId("vault-detail-card");
+    expect(card).toHaveAttribute("data-clickable", "true");
+    fireEvent.click(card);
+    expect(onCardClick).toHaveBeenCalledWith("0xvault");
   });
 });

@@ -22,7 +22,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
   canPerformAction,
   getPeginDisplayStep,
-  PEGIN_DISPLAY_LABELS,
+  isRefundInFlightOrSettled,
 } from "@/models/peginStateMachine";
 import { getTokenBrandColor } from "@/services/token/tokenService";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -100,12 +100,13 @@ export function PendingDepositCard({
   const isDanger = displayVariant === "danger";
   const dotColor = isDanger ? undefined : STATUS_DOT_COLORS[displayVariant];
 
-  // A refunded deposit is terminal: the card's click opens the refund modal,
-  // which has nothing left to do once the refund has settled on-chain. Drop the
-  // handler so the row isn't presented as actionable (no hover, no pointer).
-  const isRefunded = peginState.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDED;
+  // The card's click opens the refund modal. Keep it inert once a refund is in
+  // flight or settled (covers our own broadcast and one the mempool probe sees
+  // from another device) — there's nothing left to do.
   const handleCardClick =
-    onCardClick && !isRefunded ? () => onCardClick(depositId) : undefined;
+    onCardClick && !isRefundInFlightOrSettled(peginState)
+      ? () => onCardClick(depositId)
+      : undefined;
 
   // The Pre-PegIn tx is on Bitcoin only once the depositor has broadcast it.
   // While the broadcast action is still pending, an explorer link would 404, so
