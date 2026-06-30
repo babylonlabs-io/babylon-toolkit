@@ -13,7 +13,9 @@ import {
   RecoveryArtifactsCard,
   type RecoveryArtifactsCardHandle,
 } from "@/components/deposit/RecoveryArtifactsCard";
+import { isActivationBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 interface ActivateConfirmationModalProps {
@@ -64,7 +66,9 @@ export function ActivateConfirmationModal({
   };
 
   const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
-  const canActivate = downloaded || acknowledged;
+  const gate = useProtocolGateState();
+  const canActivate =
+    (downloaded || acknowledged) && !isActivationBlocked(gate);
 
   return (
     <ResponsiveDialog

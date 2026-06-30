@@ -37,9 +37,11 @@ import {
   getVaultKeeperReader,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -278,6 +280,7 @@ export function useDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const queryClient = useQueryClient();
+  const gate = useProtocolGateState();
   const { findProvider } = useVaultProviders(selectedApplication);
   const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
     useProtocolParamsContext();
@@ -313,6 +316,15 @@ export function useDepositFlow(
       const primedRegistryTxids: string[] = [];
 
       try {
+        // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
+        // gated and the on-chain register below is contract-enforced
+        // (`whenNotFrozen`), but guard the execution path too: abort cleanly
+        // here — before the wallet popup and the doomed on-chain register —
+        // rather than letting it revert, if the protocol is frozen/paused.
+        if (isDepositBlocked(gate)) {
+          throw new Error(COPY.deposit.errors.protocolPaused);
+        }
+
         // ========================================================================
         // Step 0: Validation
         // ========================================================================
@@ -1182,6 +1194,7 @@ export function useDepositFlow(
         abortControllerRef.current = null;
       }
     }, [
+      gate,
       vaultAmounts,
       mempoolFeeRate,
       btcWalletProvider,

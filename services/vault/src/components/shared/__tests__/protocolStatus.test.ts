@@ -11,11 +11,25 @@ vi.mock("@/config/featureFlags", () => ({
 }));
 
 import {
+  composeGateState,
+  isActivationBlocked,
   isBorrowBlocked,
   isDepositBlocked,
   isReorderBlocked,
-  resolveProtocolStatus,
+  isRepayBlocked,
+  isWithdrawBlocked,
+  maxSeverity,
+  resolveBannerStatus,
+  type ProtocolGateState,
+  type ScopeStatus,
 } from "../protocolStatus";
+
+function gate(
+  protocol: ScopeStatus,
+  aave: ScopeStatus = null,
+): ProtocolGateState {
+  return { protocol, aave };
+}
 
 beforeEach(() => {
   featureFlagsMock.isProtocolFrozen = false;
@@ -24,71 +38,115 @@ beforeEach(() => {
   featureFlagsMock.isBorrowDisabled = false;
 });
 
-describe("resolveProtocolStatus", () => {
-  it("returns null when no status flag is set", () => {
-    expect(resolveProtocolStatus()).toBeNull();
-  });
-
-  it("returns 'frozen' when only frozen", () => {
-    featureFlagsMock.isProtocolFrozen = true;
-    expect(resolveProtocolStatus()).toBe("frozen");
-  });
-
-  it("returns 'paused' when paused (wins over frozen)", () => {
-    featureFlagsMock.isProtocolFrozen = true;
-    featureFlagsMock.isProtocolPaused = true;
-    expect(resolveProtocolStatus()).toBe("paused");
+describe("maxSeverity", () => {
+  it("ranks paused > frozen > null", () => {
+    expect(maxSeverity("frozen", "paused")).toBe("paused");
+    expect(maxSeverity("frozen", null)).toBe("frozen");
+    expect(maxSeverity(null, null)).toBeNull();
   });
 });
 
-describe("isDepositBlocked / isBorrowBlocked", () => {
-  it("both false when nothing is set", () => {
-    expect(isDepositBlocked()).toBe(false);
-    expect(isBorrowBlocked()).toBe(false);
+describe("composeGateState — operator override", () => {
+  it("uses the on-chain status when no operator flag is set", () => {
+    expect(composeGateState({ protocol: "paused", aave: null })).toEqual({
+      protocol: "paused",
+      aave: null,
+    });
   });
 
-  it("both blocked when frozen", () => {
-    featureFlagsMock.isProtocolFrozen = true;
-    expect(isDepositBlocked()).toBe(true);
-    expect(isBorrowBlocked()).toBe(true);
-  });
-
-  it("both blocked when paused", () => {
+  it("falls back to the operator flag when on-chain is null (e.g. read failed)", () => {
     featureFlagsMock.isProtocolPaused = true;
-    expect(isDepositBlocked()).toBe(true);
-    expect(isBorrowBlocked()).toBe(true);
+    expect(composeGateState(null)).toEqual({
+      protocol: "paused",
+      aave: "paused",
+    });
   });
 
-  it("respects the standalone DISABLE_DEPOSIT / DISABLE_BORROW kill-switches independently", () => {
+  it("takes the more severe of on-chain and operator per scope", () => {
+    featureFlagsMock.isProtocolFrozen = true; // global frozen override
+    expect(composeGateState({ protocol: null, aave: "paused" })).toEqual({
+      protocol: "frozen",
+      aave: "paused",
+    });
+  });
+
+  it("does not block exits on a failed read unless an operator flag is set", () => {
+    // on-chain null (read failed) + no operator flag → nothing blocked.
+    const g = composeGateState(null);
+    expect(isWithdrawBlocked(g)).toBe(false);
+    expect(isRepayBlocked(g)).toBe(false);
+    expect(isActivationBlocked(g)).toBe(false);
+  });
+});
+
+describe("entry gating — blocks on any non-null status for its scope", () => {
+  it("deposit is protocol-scope (frozen OR paused)", () => {
+    expect(isDepositBlocked(gate(null))).toBe(false);
+    expect(isDepositBlocked(gate("frozen"))).toBe(true);
+    expect(isDepositBlocked(gate("paused"))).toBe(true);
+    // An aave-scope status does NOT block deposit.
+    expect(isDepositBlocked(gate(null, "paused"))).toBe(false);
+  });
+
+  it("borrow is aave-scope (frozen OR paused)", () => {
+    expect(isBorrowBlocked(gate(null, null))).toBe(false);
+    expect(isBorrowBlocked(gate(null, "frozen"))).toBe(true);
+    expect(isBorrowBlocked(gate(null, "paused"))).toBe(true);
+    // A protocol-scope status does NOT block borrow.
+    expect(isBorrowBlocked(gate("paused", null))).toBe(false);
+  });
+
+  it("reorder is aave-scope (frozen OR paused)", () => {
+    expect(isReorderBlocked(gate(null, null))).toBe(false);
+    expect(isReorderBlocked(gate(null, "frozen"))).toBe(true);
+    expect(isReorderBlocked(gate(null, "paused"))).toBe(true);
+    expect(isReorderBlocked(gate("paused", null))).toBe(false);
+  });
+
+  it("honors the standalone DISABLE_DEPOSIT / DISABLE_BORROW kill-switches", () => {
     featureFlagsMock.isDepositDisabled = true;
-    expect(isDepositBlocked()).toBe(true);
-    expect(isBorrowBlocked()).toBe(false);
+    expect(isDepositBlocked(gate(null, null))).toBe(true);
+    expect(isBorrowBlocked(gate(null, null))).toBe(false);
 
     featureFlagsMock.isDepositDisabled = false;
     featureFlagsMock.isBorrowDisabled = true;
-    expect(isDepositBlocked()).toBe(false);
-    expect(isBorrowBlocked()).toBe(true);
+    expect(isBorrowBlocked(gate(null, null))).toBe(true);
+    expect(isDepositBlocked(gate(null, null))).toBe(false);
   });
 });
 
-describe("isReorderBlocked", () => {
-  it("false when nothing is set", () => {
-    expect(isReorderBlocked()).toBe(false);
+describe("exit gating — blocks only on PAUSE (Freeze preserves exits)", () => {
+  it("Freeze never blocks any exit", () => {
+    const frozen = gate("frozen", "frozen");
+    expect(isWithdrawBlocked(frozen)).toBe(false);
+    expect(isActivationBlocked(frozen)).toBe(false);
+    expect(isRepayBlocked(frozen)).toBe(false);
   });
 
-  it("blocked when frozen (reorder is an Aave-scope new-entry action)", () => {
-    featureFlagsMock.isProtocolFrozen = true;
-    expect(isReorderBlocked()).toBe(true);
+  it("withdraw is blocked if EITHER scope is paused", () => {
+    expect(isWithdrawBlocked(gate(null, null))).toBe(false);
+    expect(isWithdrawBlocked(gate("paused", null))).toBe(true);
+    expect(isWithdrawBlocked(gate(null, "paused"))).toBe(true);
   });
 
-  it("blocked when paused", () => {
-    featureFlagsMock.isProtocolPaused = true;
-    expect(isReorderBlocked()).toBe(true);
+  it("activation is blocked if EITHER scope is paused", () => {
+    expect(isActivationBlocked(gate(null, null))).toBe(false);
+    expect(isActivationBlocked(gate("paused", null))).toBe(true);
+    expect(isActivationBlocked(gate(null, "paused"))).toBe(true);
   });
 
-  it("ignores the deposit/borrow kill-switches — it is governance-gated only", () => {
-    featureFlagsMock.isDepositDisabled = true;
-    featureFlagsMock.isBorrowDisabled = true;
-    expect(isReorderBlocked()).toBe(false);
+  it("repay is blocked ONLY by an aave pause (not a protocol pause)", () => {
+    expect(isRepayBlocked(gate(null, null))).toBe(false);
+    expect(isRepayBlocked(gate(null, "paused"))).toBe(true);
+    // Protocol-only pause must keep repay available — the user can still de-risk.
+    expect(isRepayBlocked(gate("paused", null))).toBe(false);
+  });
+});
+
+describe("resolveBannerStatus", () => {
+  it("summarizes the most severe scope status", () => {
+    expect(resolveBannerStatus(gate(null, null))).toBeNull();
+    expect(resolveBannerStatus(gate("frozen", null))).toBe("frozen");
+    expect(resolveBannerStatus(gate("frozen", "paused"))).toBe("paused");
   });
 });

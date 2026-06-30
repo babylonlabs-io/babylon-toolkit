@@ -7,10 +7,11 @@ import {
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
   type ProtocolStatus,
-  resolveProtocolStatus,
+  resolveBannerStatus,
 } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 // TODO: swap for the confirmed protocol-status docs URL once product provides
 // it. Until then, enabling the freeze/pause flags in an environment should be
@@ -32,7 +33,8 @@ const STATUS_VARIANT: Record<ProtocolStatus, NotificationVariant> = {
  * shows.
  */
 export function ProtocolStatusBanner() {
-  const status = resolveProtocolStatus();
+  const gate = useProtocolGateState();
+  const status = resolveBannerStatus(gate);
   if (!status) {
     return null;
   }

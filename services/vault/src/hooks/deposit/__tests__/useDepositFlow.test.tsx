@@ -37,6 +37,14 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
 }));
 
+// Local override of the global gate mock so we can drive a frozen/paused scope.
+const depositGateMock = vi.hoisted(() => ({
+  value: { protocol: null as string | null, aave: null as string | null },
+}));
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => depositGateMock.value,
+}));
+
 // Avoid threading a real QueryClientProvider through every renderHook —
 // `useDepositFlow` only uses the client to invalidate the UTXO query
 // after broadcast; a stub is sufficient for adapter-wiring tests.
@@ -368,7 +376,40 @@ async function setupDefaultMocks() {
 describe("useDepositFlow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    depositGateMock.value = { protocol: null, aave: null };
     await setupDefaultMocks();
+  });
+
+  describe("Protocol pause gating", () => {
+    it("aborts before any side effect when the protocol is frozen/paused", async () => {
+      depositGateMock.value = { protocol: "paused", aave: null };
+
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      let resolved: unknown;
+      await act(async () => {
+        resolved = await result.current.executeDeposit();
+      });
+
+      expect(resolved).toBeNull();
+      expect(result.current.error?.body).toBe(
+        COPY.deposit.errors.protocolPaused,
+      );
+      // No BTC was sent and nothing was registered — aborted up front.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
   });
 
   describe("Batch Pre-PegIn Creation", () => {

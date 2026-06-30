@@ -28,6 +28,7 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import {
   AaveConfigProvider,
@@ -41,7 +42,7 @@ import { GeoBlockState } from "../shared/GeoBlockState";
 import { NoticeBanner } from "../shared/NoticeBanner";
 import {
   isDepositBlocked,
-  resolveProtocolStatus,
+  resolveBannerStatus,
 } from "../shared/protocolStatus";
 import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
@@ -101,6 +102,7 @@ function MobileNavigation() {
 }
 
 export default function RootLayout() {
+  const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
@@ -153,7 +155,7 @@ export default function RootLayout() {
             !isGeoBlocked &&
             isWalletConnected &&
             FeatureFlags.isDepositDisabled &&
-            resolveProtocolStatus() === null
+            resolveBannerStatus(gate) === null
           }
         />
         <Header
@@ -187,7 +189,7 @@ export default function RootLayout() {
                   <DepositButton
                     variant="outlined"
                     rounded
-                    disabled={isDepositBlocked()}
+                    disabled={isDepositBlocked(gate)}
                     onClick={() => openDeposit()}
                   >
                     Deposit {btcConfig.coinSymbol}

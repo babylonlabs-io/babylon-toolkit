@@ -25,10 +25,16 @@ import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import {
+  composeGateState,
+  isActivationBlocked,
+} from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
+import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
@@ -98,6 +104,8 @@ export interface UseVaultActionsReturn {
  * Custom hook for vault actions (broadcast)
  */
 export function useVaultActions(): UseVaultActionsReturn {
+  const gate = useProtocolGateState();
+
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
@@ -342,6 +350,17 @@ export function useVaultActions(): UseVaultActionsReturn {
    * Handle vault activation — reveal HTLC secret on Ethereum
    */
   const handleActivation = async (params: ActivateVaultParams) => {
+    // Activation is an EXIT blocked under Pause (either scope); preserved under
+    // Freeze (time-critical — a depositor with BTC locked must still activate).
+    // Guard the chokepoint behind the disabled Activate button; never reveal the
+    // secret on-chain while paused. Surface a paused error (rather than a silent
+    // return) so the caller's spinner clears via `!activationError` and the user
+    // gets feedback. A fresh on-chain re-check below closes the stale-gate window.
+    if (isActivationBlocked(gate)) {
+      setActivationError(COPY.pegin.activationPaused);
+      return;
+    }
+
     const {
       vaultId,
       secretHex,
@@ -364,8 +383,23 @@ export function useVaultActions(): UseVaultActionsReturn {
       // status check and the contract write (the actual TOCTOU window
       // for the secret-leak failure mode this hook guards against).
       const reader = getVaultRegistryReader();
-      const { basic: basicInfo, protocol: protocolInfo } =
-        await reader.getVaultData(vaultId);
+      // Read the vault data AND a FRESH pause state in parallel. The cached
+      // `gate` can be ~20s stale; the secret must never reach `activateVault`
+      // calldata if the protocol paused in that window. A failed pause read
+      // falls back to the cached gate (activation is time-critical — an RPC
+      // blip must not trap a depositor whose activation deadline is near).
+      const [{ basic: basicInfo, protocol: protocolInfo }, freshPauseState] =
+        await Promise.all([
+          reader.getVaultData(vaultId),
+          getOnChainPauseState().catch(() => null),
+        ]);
+
+      const effectiveGate = freshPauseState
+        ? composeGateState(freshPauseState)
+        : gate;
+      if (isActivationBlocked(effectiveGate)) {
+        throw new Error(COPY.pegin.activationPaused);
+      }
 
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(

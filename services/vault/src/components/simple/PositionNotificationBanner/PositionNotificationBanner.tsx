@@ -20,8 +20,13 @@ import {
   type CalculatorResult,
   type WarningType,
 } from "@/applications/aave/positionNotifications";
-import { isReorderBlocked } from "@/components/shared/protocolStatus";
+import {
+  isDepositBlocked,
+  isReorderBlocked,
+  isRepayBlocked,
+} from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
@@ -81,6 +86,7 @@ export function PositionNotificationBanner({
   const hasOverride = resultOverride !== undefined;
   const result = hasOverride ? resultOverride : hookResult;
 
+  const gate = useProtocolGateState();
   const { executeReorder, isProcessing: isReordering } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
@@ -221,7 +227,9 @@ export function PositionNotificationBanner({
     onRepay,
     onApplyOrder: handleApplyOrder,
     isReordering,
-    reorderBlocked: isReorderBlocked(),
+    reorderBlocked: isReorderBlocked(gate),
+    depositBlocked: isDepositBlocked(gate),
+    repayBlocked: isRepayBlocked(gate),
   });
 
   // Sub-box content: the optimal-order chips for the standalone reorder card,
