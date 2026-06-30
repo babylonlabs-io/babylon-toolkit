@@ -9,7 +9,7 @@ import { type Abi, type Hash, decodeErrorResult } from "viem";
 
 import { COMMON_ERROR_ABI } from "./commonErrorAbi";
 import { CONTRACT_ERROR_MESSAGES } from "./errorMessages";
-import { ContractError, ErrorCode } from "./types";
+import { ActivationNotPossibleError, ContractError, ErrorCode } from "./types";
 
 /** Minimum length of a revert hex payload: `0x` + a 4-byte (8 hex char) selector. */
 const SELECTOR_HEX_MIN_LENGTH = 10;
@@ -338,4 +338,35 @@ export function mapViemErrorToContractError(
   return new ContractError(finalMessage, code, transactionHash, reason, {
     cause: error,
   });
+}
+
+/**
+ * ABI error name from BTCVaultRegistry, surfaced as `ContractError.reason` when
+ * `activateVaultWithSecret` is called after the activation window closed
+ * (contract check `block.number > createdAt + pegInActivationTimeout`).
+ */
+export const ACTIVATION_DEADLINE_EXPIRED_REASON = "ActivationDeadlineExpired";
+
+/**
+ * True when an activation failure is the terminal ActivationDeadlineExpired
+ * revert. Retrying re-runs the identical revert, so the UI must offer Close,
+ * not Retry.
+ */
+export function isActivationDeadlineExpiredError(err: unknown): boolean {
+  return (
+    err instanceof ContractError &&
+    err.reason === ACTIVATION_DEADLINE_EXPIRED_REASON
+  );
+}
+
+/**
+ * True when an activation failure is terminal — retrying would re-run the same
+ * failing path. Covers the on-chain deadline revert and the pre-flight
+ * "vault not in an activatable state" guard. The UI offers Close, not Retry.
+ */
+export function isTerminalActivationError(err: unknown): boolean {
+  return (
+    isActivationDeadlineExpiredError(err) ||
+    err instanceof ActivationNotPossibleError
+  );
 }

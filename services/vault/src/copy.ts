@@ -576,6 +576,10 @@ export const COPY = {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
       },
+      activationDeadlinePassed: {
+        title: "Activation deadline passed",
+        body: "The activation window has closed and this BTC Vault can no longer be activated. You can reclaim your BTC through the refund flow once it becomes available.",
+      },
       signingRejected: {
         title: "Signing rejected",
         body: "You rejected the request in your wallet. Click Retry to approve it and continue.",

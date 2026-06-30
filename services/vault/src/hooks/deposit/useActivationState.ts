@@ -32,6 +32,8 @@ export interface UseActivationStateResult {
   activated: boolean;
   /** Error message if activation failed */
   error: string | null;
+  /** True when the error is terminal (activation deadline passed) — no Retry. */
+  errorTerminal: boolean;
   /** Handler to initiate activation with the user-entered secret */
   handleActivation: (secretHex: string) => Promise<void>;
 }
@@ -43,6 +45,7 @@ export function useActivationState({
   const {
     activating: vaultActivating,
     activationError,
+    activationErrorTerminal,
     handleActivation: vaultHandleActivation,
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
@@ -128,6 +131,7 @@ export function useActivationState({
     activating: isActivating,
     activated,
     error: activationError,
+    errorTerminal: activationErrorTerminal,
     handleActivation,
   };
 }

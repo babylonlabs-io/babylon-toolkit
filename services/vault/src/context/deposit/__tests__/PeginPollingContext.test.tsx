@@ -62,6 +62,18 @@ vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
   useBtcHtlcRefundStatus: () => mockUseBtcHtlcRefundStatus(),
 }));
 
+// Activation-deadline gate uses react-query + chain reads — stub so the
+// provider renders in isolation. Default: nothing gated. Tests can inject a
+// gated vault id via `mockReturnValue`.
+const { mockUseActivationDeadlineGate } = vi.hoisted(() => ({
+  mockUseActivationDeadlineGate: vi.fn<() => ReadonlySet<string>>(
+    () => new Set<string>(),
+  ),
+}));
+vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
+  useActivationDeadlineGate: () => mockUseActivationDeadlineGate(),
+}));
+
 const mockVersionedParams = new Map<number, { tRefund: number }>();
 
 vi.mock("../../ProtocolParamsContext", () => ({

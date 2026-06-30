@@ -22,6 +22,7 @@ import {
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
+import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import {
@@ -142,6 +143,12 @@ export function PeginPollingProvider({
   // EXPIRED gates on `tRefund` for the Refund action. Each has its own
   // cache (depth/maturity never rewinds → drop cached txids from polling).
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  // Tiered (Tier-1 estimate → Tier-2 chain confirm) activation-deadline gate.
+  // Lowercased ids of VERIFIED vaults confirmed past their activation window.
+  const activationDeadlinePassedIds = useActivationDeadlineGate(
+    activities,
+    config.pegInActivationTimeout,
+  );
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
   );
@@ -406,6 +413,9 @@ export function PeginPollingProvider({
         refundedHtlcVaultIds,
         requiredDepth: getRequiredPrePeginDepth(activity),
         refundTimelock,
+        activationDeadlinePassed: activationDeadlinePassedIds.has(
+          activity.id.toLowerCase(),
+        ),
         isLoading,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
@@ -426,6 +436,7 @@ export function PeginPollingProvider({
       refundedHtlcVaultIds,
       getRequiredPrePeginDepth,
       getOffchainParamsByVersion,
+      activationDeadlinePassedIds,
       isLoading,
       optimisticStatuses,
       optimisticRefundBroadcastAt,

@@ -32,6 +32,10 @@ import {
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import {
+  ActivationNotPossibleError,
+  isTerminalActivationError,
+} from "@/utils/errors";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
@@ -97,6 +101,8 @@ export interface UseVaultActionsReturn {
   // Activation state
   activating: boolean;
   activationError: string | null;
+  /** True when the activation failure is terminal (deadline passed) — no Retry. */
+  activationErrorTerminal: boolean;
   handleActivation: (params: ActivateVaultParams) => Promise<void>;
 }
 
@@ -113,6 +119,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   // Activation state
   const [activating, setActivating] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationErrorTerminal, setActivationErrorTerminal] = useState(false);
 
   // Track mount: both handleBroadcast and handleActivation await slow
   // on-chain work and then setState. The consumer (Resume*Content inside
@@ -373,6 +380,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
     setActivating(true);
     setActivationError(null);
+    setActivationErrorTerminal(false);
 
     try {
       // Read basic + protocol info in one parallel call. Indexer is
@@ -420,9 +428,14 @@ export function useVaultActions(): UseVaultActionsReturn {
         const label =
           OnChainBtcVaultStatus[basicInfo.status] ??
           `UNKNOWN(${basicInfo.status})`;
-        throw new Error(
-          `Cannot activate: BTC Vault is in ${label} state. Activation is only valid when VERIFIED.`,
-        );
+        const message = `Cannot activate: BTC Vault is in ${label} state. Activation is only valid when VERIFIED.`;
+        // EXPIRED is terminal — retrying can't revert the status to VERIFIED.
+        // Other non-VERIFIED states (e.g. still-PENDING verification) stay
+        // retryable, so only EXPIRED suppresses Retry.
+        if (basicInfo.status === OnChainBtcVaultStatus.EXPIRED) {
+          throw new ActivationNotPossibleError(message);
+        }
+        throw new Error(message);
       }
 
       // Validate secret against hashlock before sending ETH tx.
@@ -483,6 +496,9 @@ export function useVaultActions(): UseVaultActionsReturn {
           ? "BTC Vault not found. The BTC Vault ID may be invalid."
           : rawMessage;
         setActivationError(errorMessage);
+        // Classify from the typed error before it is flattened to a string — a
+        // passed deadline or an already-EXPIRED vault is terminal (no Retry).
+        setActivationErrorTerminal(isTerminalActivationError(err));
         setActivating(false);
       }
     }
@@ -494,6 +510,7 @@ export function useVaultActions(): UseVaultActionsReturn {
     handleBroadcast,
     activating,
     activationError,
+    activationErrorTerminal,
     handleActivation,
   };
 }

@@ -136,6 +136,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
     activating: false,
     activated: false,
     error: null,
+    errorTerminal: false,
     handleActivation: mockHandleActivation,
   })),
 }));
@@ -513,6 +514,7 @@ describe("ResumeActivationContent — reactive activation terminal", () => {
       activating: false,
       activated: true,
       error: null,
+      errorTerminal: false,
       handleActivation: mockHandleActivation,
     });
   });
