@@ -21,6 +21,7 @@ import {
 } from "react";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
+import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import {
@@ -431,6 +432,10 @@ export function PeginPollingProvider({
       btcPublicKey,
     ],
   );
+
+  // Surface a browser notification when any polled deposit enters a
+  // signing/action-required state while the user is on another tab.
+  useSigningRequiredNotifications(activities, getPollingResult, btcPublicKey);
 
   const contextValue = useMemo(
     () => ({
