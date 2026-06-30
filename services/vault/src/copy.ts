@@ -52,6 +52,16 @@ const TWO_VAULT_SPLIT_NAME = "Two-vault split";
 // Trailing "Learn more" link label, shared by the frozen and paused status banners.
 const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
 
+/**
+ * A run of body text for the loan success modals. `emphasis` segments render in
+ * the primary text color (e.g. the repaid amount), the rest in secondary — so a
+ * single line can mix muted prose with a highlighted value.
+ */
+export interface LoanSuccessBodySegment {
+  text: string;
+  emphasis: boolean;
+}
+
 export const COPY = {
   pegin: {
     labels: {
@@ -892,14 +902,20 @@ export const COPY = {
     },
     borrowSuccess: {
       title: "Borrow successful",
-      body: (amount: string, symbol: string) =>
-        `${amount} ${symbol} has been credited to your wallet.`,
+      body: (amount: string, symbol: string): LoanSuccessBodySegment[] => [
+        {
+          text: `${amount} ${symbol} has been credited to your wallet.`,
+          emphasis: false,
+        },
+      ],
       doneButton: "Done",
     },
     repaySuccess: {
       title: "Repay successful",
-      body: (amount: string, symbol: string) =>
-        `You have repaid ${amount} ${symbol}.`,
+      body: (amount: string, symbol: string): LoanSuccessBodySegment[] => [
+        { text: "You have repaid ", emphasis: false },
+        { text: `${amount} ${symbol}`, emphasis: true },
+      ],
       doneButton: "Done",
     },
     empty: {
