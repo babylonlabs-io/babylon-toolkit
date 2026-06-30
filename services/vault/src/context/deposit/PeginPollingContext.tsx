@@ -20,6 +20,7 @@ import {
   useState,
 } from "react";
 
+import { useDemoDeposit } from "../../components/dev/demoDeposit";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
@@ -113,6 +114,11 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
 }: PeginPollingProviderProps) {
+  // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
+  // is on and the panel toggle is enabled). When present, its ids resolve to
+  // controlled results below instead of the live polling decision tree.
+  const demo = useDemoDeposit();
+
   // Optimistic status overrides (for immediate UI feedback after signing)
   const [optimisticStatuses, setOptimisticStatuses] = useState<
     Map<string, LocalStorageStatus>
@@ -383,6 +389,12 @@ export function PeginPollingProvider({
   // hand off to the pure decision tree in `computeDepositPollingResult`.
   const getPollingResult = useCallback(
     (depositId: string): DepositPollingResult | undefined => {
+      // God-mode demo ids resolve to their controlled result, bypassing the
+      // live polling tree (the demo is never in `activities`, so it is never
+      // polled). No-op in production (demo is null).
+      const demoResult = demo?.resultsById.get(depositId);
+      if (demoResult) return demoResult;
+
       const activity = activities.find((a) => a.id === depositId);
       if (!activity) return undefined;
       // Strict: a since-lowered latest `tRefund` could mark a vault
@@ -412,6 +424,7 @@ export function PeginPollingProvider({
       });
     },
     [
+      demo,
       activities,
       pendingPegins,
       pendingDepositorSignatures,

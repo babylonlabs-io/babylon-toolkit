@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -35,6 +35,8 @@ import {
   formatUsdValue,
 } from "@/utils/formatting";
 
+import { useDemoCollateral, useDemoWithdrawal } from "../dev/demoDeposit";
+
 import { CollateralSection } from "./CollateralSection";
 import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
@@ -46,6 +48,15 @@ import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
 import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
+
+// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
+// code is dropped from production builds entirely (the dynamic import sits in a
+// dead branch that the bundler eliminates).
+const GodModePanel = import.meta.env.DEV
+  ? lazy(() =>
+      import("../dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
+    )
+  : null;
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -104,7 +115,51 @@ export function DashboardPage() {
   // Every redeemed vault shows its staged progress, including the terminal
   // "Payout sent" and "Blocked" states. A vault drops off naturally once it
   // leaves the redeemed set on-chain (payout settles / vault closes).
-  const pendingWithdrawVaults = redeemedVaults;
+  //
+  // God-mode demo withdrawal (dev only; null unless the panel is on). Merged in
+  // here — and the real rows hidden when `hideReal` is set — so the demo renders
+  // in the real Pending Withdrawals section. Inert in production.
+  const demoWithdrawal = useDemoWithdrawal();
+  const pendingWithdrawVaults = useMemo(() => {
+    if (!demoWithdrawal) return redeemedVaults;
+    return [
+      ...demoWithdrawal.vaults,
+      ...(demoWithdrawal.hideReal ? [] : redeemedVaults),
+    ];
+  }, [redeemedVaults, demoWithdrawal]);
+  const withdrawPegoutStatuses = useMemo(() => {
+    if (!demoWithdrawal) return pegoutStatuses;
+    const merged = new Map(demoWithdrawal.hideReal ? [] : pegoutStatuses);
+    for (const [id, status] of demoWithdrawal.statuses) merged.set(id, status);
+    return merged;
+  }, [pegoutStatuses, demoWithdrawal]);
+
+  // God-mode demo collateral (dev only; null unless the panel is on). Merged
+  // into the Collateral section's list, with the real rows hidden when
+  // `hideReal` is set. Inert in production.
+  const demoCollateral = useDemoCollateral();
+  const collateralVaultsWithDemo = useMemo(() => {
+    if (!demoCollateral) return collateralVaults;
+    return [
+      ...demoCollateral.vaults,
+      ...(demoCollateral.hideReal ? [] : collateralVaults),
+    ];
+  }, [collateralVaults, demoCollateral]);
+  const showCollateral =
+    hasDisplayCollateral || (demoCollateral?.vaults.length ?? 0) > 0;
+  // When the demo changes the collateral list (adds a row or hides the real
+  // ones), the summary total must reflect the rendered list — otherwise the
+  // header reads "0 sBTC" above a demo card. Real totals are untouched
+  // otherwise (the demo can't mutate financial state).
+  const demoAffectsCollateral =
+    demoCollateral !== null &&
+    (demoCollateral.vaults.length > 0 || demoCollateral.hideReal);
+  const collateralBtcShown = demoAffectsCollateral
+    ? collateralVaultsWithDemo.reduce((sum, vault) => sum + vault.amountBtc, 0)
+    : collateralBtc;
+  const totalAmountBtcShown = demoAffectsCollateral
+    ? formatBtcAmount(collateralBtcShown)
+    : formatBtcAmount(displayCollateralBtc);
 
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
@@ -112,9 +167,6 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const totalBorrowed = formatUsdValue(debtValueUsd);
-  // Display total includes optimistic "activating" vaults; the financial
-  // `collateralBtc` (passed separately for the position snapshot) stays pure.
-  const totalAmountBtc = formatBtcAmount(displayCollateralBtc);
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -177,10 +229,23 @@ export function DashboardPage() {
     );
   };
 
+  // Dev/QA god-mode admin panel (NEXT_PUBLIC_FF_GOD_MODE_PANEL). Floats over
+  // the page and drives the demo items rendered in the real sections below.
+  // Stripped from production builds and never active there (see GodModePanel).
+  const godModePanel =
+    import.meta.env.DEV &&
+    GodModePanel &&
+    featureFlags.isGodModePanelEnabled ? (
+      <Suspense fallback={null}>
+        <GodModePanel />
+      </Suspense>
+    ) : null;
+
   if (!isConnected) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <DisconnectedOverview capSnapshot={capSnapshot} />
+        {godModePanel}
       </Container>
     );
   }
@@ -227,15 +292,15 @@ export function DashboardPage() {
 
         <PendingWithdrawSection
           pendingWithdrawVaults={pendingWithdrawVaults}
-          pegoutStatuses={pegoutStatuses}
+          pegoutStatuses={withdrawPegoutStatuses}
         />
 
         <CollateralSection
-          totalAmountBtc={totalAmountBtc}
-          collateralVaults={collateralVaults}
-          hasCollateral={hasDisplayCollateral}
+          totalAmountBtc={totalAmountBtcShown}
+          collateralVaults={collateralVaultsWithDemo}
+          hasCollateral={showCollateral}
           isConnected={isConnected}
-          collateralBtc={collateralBtc}
+          collateralBtc={collateralBtcShown}
           currentHealthFactor={healthFactor}
           selectedVaultIds={selectedVaultIds}
           onSelectedVaultIdsChange={setSelectedVaultIds}
@@ -284,6 +349,8 @@ export function DashboardPage() {
             : undefined
         }
       />
+
+      {godModePanel}
     </Container>
   );
 }

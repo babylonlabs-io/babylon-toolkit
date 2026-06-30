@@ -90,8 +90,13 @@ export function PendingDepositCard({
 
   if (!pollingResult) return null;
 
-  const { loading, peginState, prePeginConfirmations, requiredPrePeginDepth } =
-    pollingResult;
+  const {
+    loading,
+    peginState,
+    prePeginConfirmations,
+    requiredPrePeginDepth,
+    displayStepOverride,
+  } = pollingResult;
   // `getActionStatus` still drives the disabled-with-tooltip state for
   // wallet-ownership mismatch. Action triggering itself is no longer the
   // card's job — the parent's click handler owns that.
@@ -122,7 +127,11 @@ export function PendingDepositCard({
   // the first poll is still loading — until VP ingestion state arrives the step
   // is ambiguous (a CONFIRMING deposit could be awaiting BTC confirmation or
   // preparing payouts), so we don't assert one and risk a backward jump.
-  const step = loading ? null : getPeginDisplayStep(peginState);
+  // `displayStepOverride` is set only by the dev god-mode panel (to mock any of
+  // the 15 flow steps); production always derives the step from the live state.
+  const step = loading
+    ? null
+    : (displayStepOverride ?? getPeginDisplayStep(peginState));
 
   const btcConfirmationSummary =
     step === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
