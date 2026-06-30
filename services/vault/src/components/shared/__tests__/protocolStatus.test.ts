@@ -13,6 +13,7 @@ vi.mock("@/config/featureFlags", () => ({
 import {
   isBorrowBlocked,
   isDepositBlocked,
+  isReorderBlocked,
   resolveProtocolStatus,
 } from "../protocolStatus";
 
@@ -67,5 +68,27 @@ describe("isDepositBlocked / isBorrowBlocked", () => {
     featureFlagsMock.isBorrowDisabled = true;
     expect(isDepositBlocked()).toBe(false);
     expect(isBorrowBlocked()).toBe(true);
+  });
+});
+
+describe("isReorderBlocked", () => {
+  it("false when nothing is set", () => {
+    expect(isReorderBlocked()).toBe(false);
+  });
+
+  it("blocked when frozen (reorder is an Aave-scope new-entry action)", () => {
+    featureFlagsMock.isProtocolFrozen = true;
+    expect(isReorderBlocked()).toBe(true);
+  });
+
+  it("blocked when paused", () => {
+    featureFlagsMock.isProtocolPaused = true;
+    expect(isReorderBlocked()).toBe(true);
+  });
+
+  it("ignores the deposit/borrow kill-switches — it is governance-gated only", () => {
+    featureFlagsMock.isDepositDisabled = true;
+    featureFlagsMock.isBorrowDisabled = true;
+    expect(isReorderBlocked()).toBe(false);
   });
 });

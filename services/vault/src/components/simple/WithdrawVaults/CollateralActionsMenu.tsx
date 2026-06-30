@@ -26,12 +26,15 @@ interface CollateralActionsMenuProps {
   onReorder: () => void;
   /** Reorder needs at least two vaults; the row is disabled otherwise. */
   canReorder: boolean;
+  /** Freeze/Pause blocks `reorderVaults`; disables the Reorder row. */
+  reorderBlocked: boolean;
 }
 
 export function CollateralActionsMenu({
   onWithdraw,
   onReorder,
   canReorder,
+  reorderBlocked,
 }: CollateralActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -77,7 +80,7 @@ export function CollateralActionsMenu({
             <button
               type="button"
               role="menuitem"
-              disabled={!canReorder}
+              disabled={!canReorder || reorderBlocked}
               onClick={() => runAction(onReorder)}
               className={MENU_ITEM_CLASS}
             >

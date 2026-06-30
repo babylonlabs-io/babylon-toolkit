@@ -9,6 +9,7 @@ import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
 import { logger } from "@/infrastructure";
@@ -76,6 +77,13 @@ export function useReorderVaults(): UseReorderVaultsResult {
 
   const executeReorder = useCallback(
     async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
+      // Freeze/Pause blocks reorder. Guard the shared execution chokepoint so
+      // neither the banner CTA nor the reorder modal can broadcast while
+      // blocked, regardless of how the handler was reached (the UI buttons are
+      // disabled too). Returns a no-op failure — the path is UI-prevented, so
+      // there is nothing actionable to surface in a modal.
+      if (isReorderBlocked()) return false;
+
       setIsProcessing(true);
       try {
         if (!walletClient) {

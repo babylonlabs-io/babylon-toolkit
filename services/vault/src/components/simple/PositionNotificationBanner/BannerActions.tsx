@@ -13,6 +13,8 @@ interface BuildBannerActionsArgs {
   onRepay: () => void;
   onApplyOrder: () => void;
   isReordering: boolean;
+  /** Freeze/Pause blocks `reorderVaults`; disables the "Apply Optimal Order" CTA. */
+  reorderBlocked: boolean;
 }
 
 /**
@@ -39,6 +41,7 @@ export function buildBannerActions({
   onRepay,
   onApplyOrder,
   isReordering,
+  reorderBlocked,
 }: BuildBannerActionsArgs): NotificationAction[] {
   const { primaryWarning, suggestReorder } = bannerState;
   const isUrgent = primaryWarning?.type === "urgent";
@@ -95,7 +98,9 @@ export function buildBannerActions({
       // alongside the urgent callout it stays secondary so "Add Collateral" leads.
       onClick: onApplyOrder,
       emphasis: isUrgent ? "secondary" : "primary",
-      disabled: isReordering,
+      // Disabled while a reorder is in flight, or when Freeze/Pause blocks
+      // `reorderVaults` entirely (the protocol status banner explains why).
+      disabled: isReordering || reorderBlocked,
     });
   }
 

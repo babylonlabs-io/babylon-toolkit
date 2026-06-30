@@ -20,6 +20,7 @@ import {
   type CalculatorResult,
   type WarningType,
 } from "@/applications/aave/positionNotifications";
+import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
@@ -220,6 +221,7 @@ export function PositionNotificationBanner({
     onRepay,
     onApplyOrder: handleApplyOrder,
     isReordering,
+    reorderBlocked: isReorderBlocked(),
   });
 
   // Sub-box content: the optimal-order chips for the standalone reorder card,

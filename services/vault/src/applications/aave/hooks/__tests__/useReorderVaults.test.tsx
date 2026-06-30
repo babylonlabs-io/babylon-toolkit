@@ -40,6 +40,11 @@ vi.mock("wagmi", () => ({
   useWalletClient: () => mockUseWalletClient(),
 }));
 
+const mockIsReorderBlocked = vi.fn(() => false);
+vi.mock("@/components/shared/protocolStatus", () => ({
+  isReorderBlocked: () => mockIsReorderBlocked(),
+}));
+
 const mockGetAaveAdapterAddress = vi.fn(
   () => "0xaaaa000000000000000000000000000000000ada",
 );
@@ -97,6 +102,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupConnectedWallet();
+    mockIsReorderBlocked.mockReturnValue(false);
     // Guard A now returns the on-chain ordering so Guard B can feed it
     // into calculate(...). Default mock returns the same IDs the test
     // submits — individual tests can override.
@@ -137,6 +143,22 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
     expect(mockHandleError).toHaveBeenCalled();
+  });
+
+  it("refuses to broadcast when Freeze/Pause blocks reorder (before any on-chain read)", async () => {
+    mockIsReorderBlocked.mockReturnValue(true);
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+    });
+
+    expect(resolved).toBe(false);
+    expect(mockAssertMembership).not.toHaveBeenCalled();
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(mockHandleError).not.toHaveBeenCalled();
   });
 
   it("runs the optimal-order recompute only when optimalOrderContext is provided", async () => {
