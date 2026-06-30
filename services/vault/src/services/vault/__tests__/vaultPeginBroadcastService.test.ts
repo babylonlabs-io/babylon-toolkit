@@ -263,6 +263,29 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     ).rejects.toThrow(/exceeds maximum reasonable fee/);
   });
 
+  it("rejects before signing or broadcasting when total input value is less than total output value", async () => {
+    // The single input resolves to fewer sats than the 90000-sat output — the
+    // shape a compromised mempool API would return to underfund the tx. The
+    // guard must fire before any signature is requested or anything broadcast.
+    mockFetchUTXO.mockResolvedValueOnce({
+      scriptPubKey: "0014aabb",
+      value: 50000,
+    });
+    const signPsbt = vi.fn().mockResolvedValue("mock-signed-psbt-hex");
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/less than.*total output value/);
+
+    expect(signPsbt).not.toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
   it("succeeds when finalizeAllInputs throws but all inputs are already finalized by the wallet", async () => {
     mockSignedPsbt.finalizeAllInputs.mockImplementationOnce(() => {
       throw new Error("Already finalized");
