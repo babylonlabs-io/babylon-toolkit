@@ -18,6 +18,9 @@ export default {
     {
       pattern: /animate-(modal|mobile-modal|backdrop)-(in|out)/,
     },
+    {
+      pattern: /animate-reveal-in/,
+    },
     // Common opacity values used
     {
       pattern: /opacity-(0|30|100)/,
@@ -124,22 +127,25 @@ export default {
       },
       keyframes: {
         "modal-in": {
+          // Default `scale(.96)` preserves legacy modal behavior for non-opted-in
+          // consumers; an app overrides the token (e.g. `translateY(8px)`) to apply
+          // its spec. `none` is the shared identity end-state for either transform.
           "0%": {
-            transform: "scale(.96)",
+            transform: "var(--motion-transform-modal-in, scale(.96))",
             opacity: 0,
           },
           "100%": {
-            transform: "scale(1)",
+            transform: "none",
             opacity: 1,
           },
         },
         "modal-out": {
           "0%": {
-            transform: "scale(1)",
+            transform: "none",
             opacity: 1,
           },
           "100%": {
-            transform: "scale(.96)",
+            transform: "var(--motion-transform-modal-out, scale(.96))",
             opacity: 0,
           },
         },
@@ -175,14 +181,25 @@ export default {
             opacity: "0",
           },
         },
+        "reveal-in": {
+          "0%": {
+            opacity: 0,
+            transform: "translateY(var(--motion-shift-reveal, 0px))",
+          },
+          "100%": {
+            opacity: 1,
+            transform: "translateY(0)",
+          },
+        },
       },
       animation: {
-        "modal-in": "modal-in 0.5s ease-in-out forwards",
-        "modal-out": "modal-out 0.5s ease-in-out forwards",
-        "mobile-modal-in": "mobile-modal-in 0.5s ease-in-out forwards",
-        "mobile-modal-out": "mobile-modal-out 0.5s ease-in-out forwards",
-        "backdrop-in": "backdrop-in 0.5s ease-in-out forwards",
-        "backdrop-out": "backdrop-out 0.5s ease-in-out forwards",
+        "modal-in": "modal-in var(--motion-duration-modal, 0.5s) var(--motion-ease-modal-in, ease-in-out) forwards",
+        "modal-out": "modal-out var(--motion-duration-modal-out, 0.5s) var(--motion-ease-modal-out, ease-in-out) forwards",
+        "mobile-modal-in": "mobile-modal-in var(--motion-duration-modal, 0.5s) var(--motion-ease-modal-in, ease-in-out) forwards",
+        "mobile-modal-out": "mobile-modal-out var(--motion-duration-modal-out, 0.5s) var(--motion-ease-modal-out, ease-in-out) forwards",
+        "backdrop-in": "backdrop-in var(--motion-duration-backdrop, 0.5s) var(--motion-ease-backdrop, ease-in-out) forwards",
+        "backdrop-out": "backdrop-out var(--motion-duration-backdrop, 0.5s) var(--motion-ease-backdrop, ease-in-out) forwards",
+        "reveal-in": "reveal-in var(--motion-duration-reveal, 0ms) var(--motion-ease-reveal, ease-out) forwards",
       },
     },
   },

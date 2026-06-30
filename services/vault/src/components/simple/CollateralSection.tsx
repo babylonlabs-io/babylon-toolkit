@@ -25,7 +25,10 @@ import {
 } from "@/components/deposit/ArtifactDownloadModal";
 import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
-import { isDepositBlocked } from "@/components/shared/protocolStatus";
+import {
+  isDepositBlocked,
+  isReorderBlocked,
+} from "@/components/shared/protocolStatus";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
@@ -246,6 +249,7 @@ export function CollateralSection({
               onWithdraw={() => setIsWithdrawOpen(true)}
               onReorder={() => setIsReorderOpen(true)}
               canReorder={canReorder}
+              reorderBlocked={isReorderBlocked()}
             />
           )}
         </div>

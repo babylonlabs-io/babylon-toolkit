@@ -165,6 +165,13 @@ export class OKXProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
+  // `getAccounts` is intentionally omitted: OKX's BTC provider is closed-source
+  // and its locked-wallet behavior for a non-interactive accounts read is
+  // unspecified, so an empty-array read can't be trusted as a silent-lock
+  // signal. Omitting it makes the lock poll feature-detect OKX out (see
+  // BTCWalletProvider) instead of risking a banner that never fires (or one
+  // that fires wrongly). Re-add only alongside a verified lock signal.
+
   signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)
       throw new WalletError({

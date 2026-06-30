@@ -41,6 +41,7 @@
     "test:unit:ui": "playwright test --ui --project=unit",
     "test:unit:debug": "playwright test --debug --project=unit",
     "test:all": "npm run test:unit && npm run test:e2e",
+    "test": "vitest run",
     "visualizer": "pnpm exec vite-bundle-visualizer"
   },
   "dependencies": {
@@ -99,6 +100,8 @@
     "@storybook/react-vite": "^8.6.15",
     "@storybook/test": "^8.6.15",
     "@tanstack/react-query": "^5.74.4",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "^16.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -115,6 +118,7 @@
     "eslint-plugin-tailwindcss": "^3.18.2",
     "globals": "^16.3.0",
     "husky": "^9.1.7",
+    "jsdom": "20.0.3",
     "lint-staged": "^15.5.0",
     "postcss": "^8.4.47",
     "prettier": "^3.6.2",
@@ -129,7 +133,8 @@
     "typescript-eslint": "^8.44.1",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.3.0",
-    "vite-plugin-node-polyfills": "^0.23.0"
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vitest": "^4.0.8"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

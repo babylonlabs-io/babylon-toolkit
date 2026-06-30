@@ -376,6 +376,23 @@ export interface IBTCProvider extends IProvider {
   getNetwork(): Promise<Network>;
 
   /**
+   * Reads the wallet's live accounts WITHOUT prompting the user
+   * (non-interactive). Implemented only by wallets where an empty result is a
+   * reliable silent-lock signal: UniSat returns [] when the wallet is locked
+   * while a stale cached `getAddress()` still reports the last-known address,
+   * so it can be polled to detect a silent auto-lock that fires no event.
+   * Unlike `connectWallet()` it never surfaces the unlock / connection popup.
+   *
+   * Intentionally omitted by OKX and OneKey: their `getAccounts()` returns the
+   * cached / dApp-authorized address even when the keyring is locked, so an
+   * empty-array read is not a lock signal there. Optional — callers MUST
+   * feature-detect (`typeof provider.getAccounts === "function"`) and treat a
+   * missing method as "lock cannot be probed", never as locked.
+   * @returns A promise that resolves to the active account addresses.
+   */
+  getAccounts?(): Promise<string[]>;
+
+  /**
    * Signs a message using either BIP322-Simple or ECDSA signing method.
    * @param message - The message to sign.
    * @param type - The signing method to use.

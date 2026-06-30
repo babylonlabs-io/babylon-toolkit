@@ -48,3 +48,14 @@ export function isDepositBlocked(): boolean {
 export function isBorrowBlocked(): boolean {
   return featureFlags.isBorrowDisabled || resolveProtocolStatus() !== null;
 }
+
+/**
+ * Whether vault reordering is blocked right now. Reorder (`reorderVaults`) is an
+ * Aave-scope new-entry action, so Freeze and Pause both block it — gated exactly
+ * like deposit/borrow. Unlike those it has no standalone kill-switch; reorder is
+ * governance-gated only. Freeze preserves the exits (withdraw, repay,
+ * activation, redemption), which is why no helper gates them here.
+ */
+export function isReorderBlocked(): boolean {
+  return resolveProtocolStatus() !== null;
+}

@@ -1,4 +1,5 @@
 import {
+  InfoIcon,
   Notification,
   type NotificationVariant,
 } from "@babylonlabs-io/core-ui";
@@ -17,7 +18,9 @@ import {
   deriveBannerState,
   type BannerSeverity,
   type CalculatorResult,
+  type WarningType,
 } from "@/applications/aave/positionNotifications";
+import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
@@ -28,9 +31,11 @@ import {
   GREEN_BANNER_DETAIL,
   GREEN_BANNER_TITLE,
   STALE_PRICE_BANNER_DETAIL,
+  STALE_PRICE_BANNER_GRACE_MS,
   STALE_PRICE_BANNER_TITLE,
 } from "./constants";
 import { OptimalOrderChips } from "./OptimalOrderChips";
+import { useSustainedFlag } from "./useSustainedFlag";
 
 const TEST_ID = "position-notification-banner";
 
@@ -79,7 +84,9 @@ export function PositionNotificationBanner({
   const { executeReorder, isProcessing: isReordering } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
-  const [isWeirdParamsDismissed, setIsWeirdParamsDismissed] = useState(false);
+  const [dismissedAdvisories, setDismissedAdvisories] = useState<
+    Set<WarningType>
+  >(() => new Set());
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -93,8 +100,8 @@ export function PositionNotificationBanner({
     }
   }, [address, queryClient]);
 
-  const handleDismissWeirdParams = useCallback(() => {
-    setIsWeirdParamsDismissed(true);
+  const handleDismissAdvisory = useCallback((type: WarningType) => {
+    setDismissedAdvisories((prev) => new Set(prev).add(type));
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
@@ -112,18 +119,32 @@ export function PositionNotificationBanner({
 
   const effectiveStatus = statusOverride ?? status;
 
-  // Stale-price: warning notification regardless of result.
+  // The live feed already auto-refetches (faster while unhealthy); "stale" means
+  // the on-chain oracle's own timestamp is old, which a refetch can't fix. Defer
+  // the banner past a grace window so a transient blip doesn't flash it. A debug
+  // override (statusOverride) shows immediately for testing.
+  const isLiveStalePrice =
+    statusOverride === undefined && status === "stale-price";
+  const staleBannerReady = useSustainedFlag(
+    isLiveStalePrice,
+    STALE_PRICE_BANNER_GRACE_MS,
+  );
+
   if (effectiveStatus === "stale-price") {
-    return (
-      <Notification
-        variant="warning"
-        title={STALE_PRICE_BANNER_TITLE}
-        data-testid={TEST_ID}
-        data-severity="yellow"
-      >
-        {STALE_PRICE_BANNER_DETAIL}
-      </Notification>
-    );
+    if (statusOverride === "stale-price" || staleBannerReady) {
+      return (
+        <Notification
+          variant="warning"
+          title={STALE_PRICE_BANNER_TITLE}
+          data-testid={TEST_ID}
+          data-severity="yellow"
+        >
+          {STALE_PRICE_BANNER_DETAIL}
+        </Notification>
+      );
+    }
+    // Within the grace window: render nothing (no stale price is ever used).
+    return null;
   }
 
   // When no override, respect loading states
@@ -138,13 +159,22 @@ export function PositionNotificationBanner({
 
   if (bannerState.severity === "hidden") return null;
 
-  // Only the weird-params advisory is dismissible (informational, no required
-  // action). The standalone reorder suggestion is also `soft` but has a null
-  // primaryWarning, so it is intentionally excluded.
-  const isWeirdParamsAdvisory =
+  // The weird-params and dust advisories are dismissible (informational, no
+  // required action). Dismissal is tracked per warning type so closing one never
+  // hides the other if the position later transitions between them. The
+  // standalone reorder suggestion is also `soft` but has a null primaryWarning,
+  // so it is intentionally excluded.
+  const primaryWarningType = bannerState.primaryWarning?.type;
+  const dismissibleAdvisoryType =
     bannerState.severity === "soft" &&
-    bannerState.primaryWarning?.type === "weird-params";
-  if (isWeirdParamsAdvisory && isWeirdParamsDismissed) return null;
+    (primaryWarningType === "weird-params" || primaryWarningType === "dust")
+      ? primaryWarningType
+      : null;
+  if (
+    dismissibleAdvisoryType &&
+    dismissedAdvisories.has(dismissibleAdvisoryType)
+  )
+    return null;
 
   const { primaryWarning, secondaryWarnings } = bannerState;
 
@@ -160,6 +190,14 @@ export function PositionNotificationBanner({
   const variant = isStandaloneReorder
     ? "suggestion"
     : SEVERITY_VARIANT[bannerState.severity];
+
+  // The cliff ("First liquidation takes everything") renders as a vertical card
+  // per Figma: no title icon-chip, the CTA stacked below, and its suggestion box
+  // styled by feasibility — an info-icon row when an affordable sacrificial add
+  // exists (#1948), otherwise a "SUGGESTION"-labelled block (#1949 / multi-vault).
+  const isCliffPrimary = primaryWarning?.type === "cliff";
+  const cliffHasAffordableAdd =
+    isCliffPrimary && result.suggestedNewVaultBtc !== null;
 
   // Primary content: green standalone copy / risk warning / standalone reorder.
   let title: string;
@@ -183,6 +221,7 @@ export function PositionNotificationBanner({
     onRepay,
     onApplyOrder: handleApplyOrder,
     isReordering,
+    reorderBlocked: isReorderBlocked(),
   });
 
   // Sub-box content: the optimal-order chips for the standalone reorder card,
@@ -197,12 +236,41 @@ export function PositionNotificationBanner({
       primaryWarning && primaryWarning.type !== "urgent"
         ? primaryWarning.suggestion
         : undefined;
-    if (primarySuggestion || secondaryWarnings.length > 0) {
+
+    let primarySuggestionNode: ReactNode = null;
+    if (primarySuggestion) {
+      if (cliffHasAffordableAdd) {
+        // #1948 — affordable add: info-icon row, no label (Figma CLIFF A).
+        primarySuggestionNode = (
+          <div className="flex items-start gap-3">
+            <InfoIcon
+              size={16}
+              className="mt-0.5 shrink-0 text-accent-primary"
+            />
+            <div className="text-sm">{primarySuggestion}</div>
+          </div>
+        );
+      } else if (isCliffPrimary) {
+        // #1949 / multi-vault — no CTA: "SUGGESTION" label, no icon (Figma CLIFF B).
+        primarySuggestionNode = (
+          <div className="flex flex-col gap-1">
+            <div className="tracking-wider text-xs font-medium uppercase text-accent-secondary">
+              {COPY.liquidationWarnings.cliff.suggestionLabel}
+            </div>
+            <div className="text-sm">{primarySuggestion}</div>
+          </div>
+        );
+      } else {
+        primarySuggestionNode = (
+          <div className="text-sm opacity-80">{primarySuggestion}</div>
+        );
+      }
+    }
+
+    if (primarySuggestionNode || secondaryWarnings.length > 0) {
       suggestion = (
         <div className="flex flex-col gap-2">
-          {primarySuggestion && (
-            <div className="text-sm opacity-80">{primarySuggestion}</div>
-          )}
+          {primarySuggestionNode}
           {secondaryWarnings.map((warning, index) => (
             <div key={index}>
               <div className="text-sm font-semibold text-accent-primary">
@@ -226,11 +294,17 @@ export function PositionNotificationBanner({
       <Notification
         variant={variant}
         title={title}
-        icon={isStandaloneReorder ? null : undefined}
+        icon={isStandaloneReorder || isCliffPrimary ? null : undefined}
         actions={actions.length > 0 ? actions : undefined}
-        actionsPlacement={isStandaloneReorder ? "below" : "inline"}
+        actionsPlacement={
+          isStandaloneReorder || isCliffPrimary ? "below" : "inline"
+        }
         suggestion={suggestion}
-        onClose={isWeirdParamsAdvisory ? handleDismissWeirdParams : undefined}
+        onClose={
+          dismissibleAdvisoryType
+            ? () => handleDismissAdvisory(dismissibleAdvisoryType)
+            : undefined
+        }
         data-testid={TEST_ID}
         data-severity={bannerState.severity}
       >

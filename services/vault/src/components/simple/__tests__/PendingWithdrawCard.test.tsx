@@ -159,14 +159,16 @@ describe("PendingWithdrawCard — stage presentation", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the progress bar and shows no Contact Support for Payout sent", () => {
+  it("hides the progress bar and shows no Contact Support for Payout sent", () => {
+    // Payout sent is terminal-success: the bar has nothing left to advance, so
+    // it is omitted — but this is not an error, so no Contact Support either.
     renderCard(resultForStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST));
 
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(CARD.contactSupport)).not.toBeInTheDocument();
   });
 
-  it("shows Contact Support and hides the progress bar only when truly Blocked", () => {
+  it("shows Contact Support and hides the progress bar when truly Blocked", () => {
     renderCard(resultForStatus(ClaimerPegoutStatusValue.PAYOUT_BLOCKED));
 
     expect(

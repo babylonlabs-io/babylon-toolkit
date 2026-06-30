@@ -20,7 +20,7 @@ export function RefundSuccessContent({
   const btcSymbol = getBtcSymbol();
 
   return (
-    <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight bg-surface px-6 pb-6 pt-10">
+    <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight bg-surface px-6 pb-6 pt-10 dark:border-secondary-strokeDark">
       <div className="flex flex-col items-center gap-6">
         <img
           src={btcConfig.icon}
@@ -42,7 +42,7 @@ export function RefundSuccessContent({
           <Button
             variant="outlined"
             color="primary"
-            className="flex-1 whitespace-nowrap"
+            className="flex-1 whitespace-nowrap !border-secondary-strokeLight"
             onClick={() => {
               window.open(explorerUrl, "_blank", "noopener,noreferrer");
             }}
@@ -58,10 +58,7 @@ export function RefundSuccessContent({
             {COPY.deposit.refundSuccess.doneButton}
           </Button>
         </div>
-        <Text
-          variant="body2"
-          className="text-center text-xs text-accent-secondary"
-        >
+        <Text variant="caption" className="text-center text-accent-secondary">
           {COPY.deposit.refundSuccess.doNotSpendWarning(btcSymbol)}
         </Text>
       </div>

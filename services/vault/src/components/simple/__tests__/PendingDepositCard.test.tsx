@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PeginAction } from "@/components/deposit/actionStatus";
 import { COPY } from "@/copy";
-import { ContractStatus, LocalStorageStatus } from "@/models/peginStateMachine";
+import {
+  ContractStatus,
+  LocalStorageStatus,
+  PEGIN_DISPLAY_LABELS,
+} from "@/models/peginStateMachine";
 
 import { PendingDepositCard } from "../PendingDepositCard";
 
@@ -32,18 +36,21 @@ vi.mock("../VaultDetailCard", () => ({
     belowHeader,
     disabled,
     disabledTooltip,
+    onClick,
     txHashRow,
   }: {
     amountSubtext?: ReactNode;
     belowHeader?: ReactNode;
     disabled?: boolean;
     disabledTooltip?: string;
+    onClick?: () => void;
     txHashRow?: ReactNode;
   }) => (
     <div
       data-testid="vault-detail-card"
       data-disabled={disabled ? "true" : "false"}
       data-disabled-tooltip={disabledTooltip ?? ""}
+      data-clickable={onClick ? "true" : "false"}
     >
       <div data-testid="amount-subtext">{amountSubtext}</div>
       <div data-testid="below-header">{belowHeader}</div>
@@ -143,6 +150,50 @@ describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
 
     const card = screen.getByTestId("vault-detail-card");
     expect(card).toHaveAttribute("data-disabled", "false");
+  });
+});
+
+describe("PendingDepositCard — refunded cards are not clickable", () => {
+  function renderWithClick(displayLabel: string) {
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.EXPIRED,
+        displayLabel,
+        displayVariant: "inactive",
+        availableActions: [],
+      },
+    });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={vi.fn()}
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
+  });
+
+  it("drops the click handler once the deposit is refunded", () => {
+    renderWithClick(PEGIN_DISPLAY_LABELS.REFUNDED);
+    expect(screen.getByTestId("vault-detail-card")).toHaveAttribute(
+      "data-clickable",
+      "false",
+    );
+  });
+
+  it("keeps the card clickable for an expired deposit still awaiting refund", () => {
+    renderWithClick(PEGIN_DISPLAY_LABELS.EXPIRED);
+    expect(screen.getByTestId("vault-detail-card")).toHaveAttribute(
+      "data-clickable",
+      "true",
+    );
   });
 });
 
