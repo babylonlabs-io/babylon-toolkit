@@ -24,7 +24,9 @@ const PAUSE_STATE_STALE_TIME_MS = 10_000;
 
 /**
  * Raw on-chain pause-state query. `data` is undefined while loading or after a
- * failed/unrecognized read; callers fall back to the operator-flag override.
+ * failed (reverted) read; callers fall back to the operator-flag override. An
+ * unrecognized enum value does NOT land here — it maps to "paused" (fail
+ * closed) in `mapPauseState`, so it arrives as real data.
  */
 export function useProtocolPauseStatus() {
   return useQuery({

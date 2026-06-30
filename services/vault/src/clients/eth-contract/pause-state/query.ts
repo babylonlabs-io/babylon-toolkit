@@ -36,8 +36,7 @@ const REGISTRY_PAUSE_STATE_ABI = [
 // Confirmed against the upstream Solidity `ITBVPausable.sol`:
 //   enum PauseState { None, Frozen, Paused }  // 0, 1, 2
 // (`freeze() -> Frozen`, `pause() -> Paused`; both contracts the FE reads
-// inherit `TBVPausableUpg`). Unknown values still THROW rather than defaulting
-// to "unpaused" (no silent fallback that could mask a future enum change).
+// inherit `TBVPausableUpg`).
 const PAUSE_STATE = {
   /** Normal operation. */
   NONE: 0,
@@ -47,6 +46,13 @@ const PAUSE_STATE = {
   PAUSED: 2,
 } as const;
 
+// An unrecognized enum value means the on-chain contract is in a state this
+// build does not model (e.g. a future `PauseState` was added). Treat it as the
+// MOST RESTRICTIVE status ("paused") — fail CLOSED — rather than mapping it to
+// `null`, which would leave actions open during a state we don't understand.
+// This is deliberately different from a genuine read failure (a reverted
+// multicall throws and the React-Query hook fails OPEN, so an RPC blip never
+// traps a user mid-exit).
 function mapPauseState(raw: number): ScopeStatus {
   switch (raw) {
     case PAUSE_STATE.NONE:
@@ -56,17 +62,16 @@ function mapPauseState(raw: number): ScopeStatus {
     case PAUSE_STATE.PAUSED:
       return "paused";
     default:
-      throw new Error(
-        `Unknown ITBVPausable.PauseState value: ${raw}. The on-chain enum may have changed — update the pause-state mapping.`,
-      );
+      return "paused";
   }
 }
 
 /**
  * Read both scopes' pause state in a single multicall round-trip. Throws on a
- * reverted read or an unrecognized enum value; the caller decides how to fall
- * back (the React-Query hook treats a throw as "unknown" and defers to the
- * operator-flag override).
+ * reverted read (the React-Query hook then fails OPEN, deferring to the
+ * operator-flag override so an RPC blip never traps a user mid-exit). An
+ * unrecognized enum value does NOT throw — it maps to "paused" (fail closed),
+ * see `mapPauseState`.
  */
 export async function getOnChainPauseState(): Promise<ProtocolGateState> {
   const publicClient = ethClient.getPublicClient();

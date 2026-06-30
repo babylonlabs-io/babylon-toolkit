@@ -40,7 +40,7 @@ describe("ProtocolStatusBanner", () => {
 
     expect(screen.getByText("Protocol is frozen")).toBeInTheDocument();
     expect(
-      screen.getByText(/New deposits and borrows are disabled/),
+      screen.getByText(/temporarily restricted while the protocol is frozen/),
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Learn more" });
     expect(link.getAttribute("href")).toMatch(/^https?:\/\//);

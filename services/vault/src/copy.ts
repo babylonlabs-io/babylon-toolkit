@@ -84,6 +84,11 @@ export const COPY = {
     },
     // Row label for the vault creation time (rendered as relative time).
     createdLabel: "Created",
+    // Shown if activation is attempted while the protocol is paused — surfaced
+    // as the activation error so the spinner clears and the user understands
+    // it's a governance pause (not a failed secret). Activation resumes on unpause.
+    activationPaused:
+      "Activation is paused by a protocol governance action. Your BTC Vault stays safe — activation will resume once the pause is lifted.",
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
@@ -483,6 +488,11 @@ export const COPY = {
     errors: {
       invalidSecret:
         "Invalid secret: SHA256(secret) does not match the BTC Vault's hashlock. Please check your secret and try again.",
+      // Surfaced if deposit execution is reached while the protocol is frozen or
+      // paused — aborted up front, before the on-chain registration and the BTC
+      // broadcast, so no funds are locked and the user can retry once it resumes.
+      protocolPaused:
+        "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -1079,12 +1089,19 @@ export const COPY = {
   protocolStatus: {
     frozen: {
       title: "Protocol is frozen",
-      body: "New deposits and borrows are disabled. You can still repay debt — liquidations remain active.",
+      // Non-specific about which actions: gating is per-scope, so naming
+      // "deposits and borrows" can be inaccurate (e.g. an aave-only freeze
+      // leaves deposits working). Exits are always preserved under a freeze, so
+      // that reassurance is safe to state. The per-action buttons are the
+      // precise source of truth.
+      body: "Some new actions are temporarily restricted while the protocol is frozen. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
       learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
     paused: {
       title: "Protocol is paused",
-      body: "New deposits and borrows are disabled. Debt continues accruing interest. Monitor official announcements.",
+      // Non-specific for the same reason — under a per-scope pause the exact set
+      // of blocked actions varies. Each affected button explains itself.
+      body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
       learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
   },

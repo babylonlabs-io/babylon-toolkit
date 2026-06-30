@@ -39,10 +39,18 @@ describe("getOnChainPauseState — PauseState enum mapping", () => {
     });
   });
 
-  it("throws on an unrecognized enum value instead of defaulting to unpaused", async () => {
+  it("maps an unrecognized enum value to 'paused' (fail closed, not open)", async () => {
+    // A future/unknown PauseState must NOT collapse to null (which would leave
+    // actions open). It maps to the most-restrictive status for that scope.
     mockMulticall.mockResolvedValueOnce([3, 0]);
-    await expect(getOnChainPauseState()).rejects.toThrow(
-      /Unknown ITBVPausable\.PauseState value: 3/,
-    );
+    await expect(getOnChainPauseState()).resolves.toEqual({
+      protocol: "paused",
+      aave: null,
+    });
+  });
+
+  it("propagates a reverted read (so the hook can fail open on an RPC error)", async () => {
+    mockMulticall.mockRejectedValueOnce(new Error("execution reverted"));
+    await expect(getOnChainPauseState()).rejects.toThrow(/reverted/);
   });
 });

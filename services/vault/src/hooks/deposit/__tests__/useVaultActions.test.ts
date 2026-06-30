@@ -60,6 +60,19 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
   ),
 }));
 
+// Fresh on-chain pause read used by the activation preflight. Holder so tests
+// can simulate a pause landing in the stale-gate window (cached gate unblocked,
+// fresh read paused). Defaults unblocked.
+const onChainPauseMock = vi.hoisted(() => ({
+  value: { protocol: null, aave: null } as {
+    protocol: string | null;
+    aave: string | null;
+  } | null,
+}));
+vi.mock("@/clients/eth-contract/pause-state/query", () => ({
+  getOnChainPauseState: () => Promise.resolve(onChainPauseMock.value),
+}));
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: vi.fn(() => ({})),
   useChainConnector: vi.fn(() => ({
@@ -720,6 +733,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: null };
   });
 
   it("does not reveal the secret on-chain when a scope is paused", async () => {
@@ -740,6 +754,27 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
     expect(reader.getVaultData).not.toHaveBeenCalled();
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("re-checks pause on-chain before revealing the secret (catches a pause in the stale-gate window)", async () => {
+    // Cached gate is unblocked, but a FRESH read shows a pause landed while the
+    // user sat on the activate screen. The secret must not reach the tx.
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: "paused" };
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).not.toBeNull();
   });
 
   it("uses the on-chain hashlock and never reads the indexer hashlock", async () => {
