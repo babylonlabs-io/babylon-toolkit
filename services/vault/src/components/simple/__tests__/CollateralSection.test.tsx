@@ -38,6 +38,13 @@ vi.mock("@/components/shared", () => ({
       expand
     </button>
   ),
+  ExpandablePanel: ({
+    expanded,
+    children,
+  }: {
+    expanded: boolean;
+    children: React.ReactNode;
+  }) => (expanded ? <>{children}</> : null),
 }));
 
 vi.mock("@/config", () => ({
