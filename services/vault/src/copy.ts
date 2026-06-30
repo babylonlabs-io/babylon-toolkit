@@ -808,6 +808,14 @@ export const COPY = {
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
     },
+    // Dashboard section headings. A "Payout sent" withdrawal is terminal
+    // success, so it moves out of "Pending Withdrawals" into a plain
+    // "Withdrawals" section while it lingers in the redeemed set.
+    section: {
+      pendingTitle: "Pending Withdrawals",
+      completedTitle: "Withdrawals",
+      detailsAria: "Withdrawal details",
+    },
     // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
     card: {
       // When the withdrawal was initiated (the VP's claimer-record timestamp).
