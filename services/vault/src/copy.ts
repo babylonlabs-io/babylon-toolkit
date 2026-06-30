@@ -814,7 +814,10 @@ export const COPY = {
     section: {
       pendingTitle: "Pending Withdrawals",
       completedTitle: "Withdrawals",
-      detailsAria: "Withdrawal details",
+      // Derived from the section title so each section's expand button is
+      // distinctly labelled ("Pending Withdrawals details" vs "Withdrawals
+      // details") when both render at once.
+      detailsAria: (title: string) => `${title} details`,
     },
     // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
     card: {

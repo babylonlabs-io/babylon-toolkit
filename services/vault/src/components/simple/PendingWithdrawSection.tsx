@@ -124,7 +124,7 @@ function PendingWithdrawSectionContent({
           <ExpandMenuButton
             isExpanded={isExpanded}
             onToggle={() => setIsExpanded((prev) => !prev)}
-            aria-label={COPY.pegout.section.detailsAria}
+            aria-label={COPY.pegout.section.detailsAria(title)}
           />
         </div>
 
