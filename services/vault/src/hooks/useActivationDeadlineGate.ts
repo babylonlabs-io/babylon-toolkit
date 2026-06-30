@@ -9,6 +9,7 @@
 // Only a confirmed TRUE gates the Activate CTA. Any RPC error, missing param, or
 // vault-not-yet-on-chain leaves the vault ungated (fail-safe).
 
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { type Hex, zeroAddress } from "viem";
@@ -123,6 +124,10 @@ export function useActivationDeadlineGate(
         const { id, info } = entry;
         // Unregistered / zero record → can't trust createdAt; don't gate.
         if (info.depositor === zeroAddress || info.createdAt === 0n) continue;
+        // Gate only vaults the chain still reports VERIFIED. A stale indexer
+        // VERIFIED row for an already-ACTIVE/REDEEMED/EXPIRED vault must not be
+        // badged Expired from the deadline alone.
+        if (info.status !== OnChainBtcVaultStatus.VERIFIED) continue;
         if (
           isActivationDeadlinePassedOnChain({
             currentBlock,

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import type { VaultActivity } from "@/types/activity";
 
@@ -199,6 +200,7 @@ vi.mock("../DepositProgressView", () => ({
     isProcessing,
     terminalMessage,
     canContinueInBackground,
+    onRetry,
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
@@ -206,10 +208,13 @@ vi.mock("../DepositProgressView", () => ({
     isProcessing?: boolean;
     terminalMessage?: string | null;
     canContinueInBackground?: boolean;
+    onRetry?: () => void;
   }) => (
     <div data-testid="progress-view">
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
+      <span data-testid="error-title">{error?.title ?? ""}</span>
+      <span data-testid="has-retry">{String(!!onRetry)}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
       <span data-testid="processing">{String(!!isProcessing)}</span>
       <span data-testid="terminal">{terminalMessage ?? ""}</span>
@@ -582,5 +587,46 @@ describe("ResumeActivationContent — activated success terminal", () => {
     // ACTIVATE_VAULT
     await waitFor(() => expect(getByTestId("step").textContent).toBe("14"));
     expect(queryByTestId("vault-activated-view")).toBeNull();
+  });
+
+  it("shows the deadline-passed copy and suppresses Retry on a terminal failure", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: "The activation deadline has passed.",
+      errorTerminal: true,
+      handleActivation: mockHandleActivation,
+    });
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.activationDeadlinePassed.title,
+      ),
+    );
+    expect(getByTestId("error").textContent).toBe(
+      COPY.deposit.errors.activationDeadlinePassed.body,
+    );
+    expect(getByTestId("has-retry").textContent).toBe("false");
+  });
+
+  it("keeps Retry and the generic mapping for a non-terminal failure", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: "Some transient RPC error",
+      errorTerminal: false,
+      handleActivation: mockHandleActivation,
+    });
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("has-retry").textContent).toBe("true"),
+    );
+    expect(getByTestId("error-title").textContent).not.toBe(
+      COPY.deposit.errors.activationDeadlinePassed.title,
+    );
   });
 });
