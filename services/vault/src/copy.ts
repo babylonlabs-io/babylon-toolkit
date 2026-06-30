@@ -559,6 +559,8 @@ export const COPY = {
       // broadcast, so no funds are locked and the user can retry once it resumes.
       protocolPaused:
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
+      cannotActivateInState: (state: string) =>
+        `Cannot activate: BTC Vault is in ${state} state. Activation is only valid when VERIFIED.`,
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",

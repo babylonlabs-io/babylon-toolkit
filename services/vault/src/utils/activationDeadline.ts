@@ -2,7 +2,6 @@
 export const ETH_SLOT_SECONDS = 12;
 
 const MILLISECONDS_PER_SECOND = 1000;
-const NO_ELAPSED_BLOCKS = 0;
 
 /** Authoritative on-chain check: matches the contract's strict '>', so a boundary-equal block is NOT expired. */
 export function isActivationDeadlinePassedOnChain(params: {
@@ -39,11 +38,10 @@ export function estimateActivationDeadlineLikelyPassed(params: {
     return false;
   }
 
-  const estimatedElapsedBlocks = Math.floor(
-    elapsedMs / MILLISECONDS_PER_SECOND / slotSeconds,
+  // elapsedMs > 0 here, so the floor is already >= 0. Compare in bigint (the
+  // timeout is a uint256) to avoid precision loss for very large values.
+  const estimatedElapsedBlocks = BigInt(
+    Math.floor(elapsedMs / MILLISECONDS_PER_SECOND / slotSeconds),
   );
-  return (
-    Math.max(estimatedElapsedBlocks, NO_ELAPSED_BLOCKS) >=
-    Number(pegInActivationTimeout)
-  );
+  return estimatedElapsedBlocks >= pegInActivationTimeout;
 }

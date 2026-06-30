@@ -428,7 +428,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         const label =
           OnChainBtcVaultStatus[basicInfo.status] ??
           `UNKNOWN(${basicInfo.status})`;
-        const message = `Cannot activate: BTC Vault is in ${label} state. Activation is only valid when VERIFIED.`;
+        const message = COPY.deposit.errors.cannotActivateInState(label);
         // EXPIRED is terminal — retrying can't revert the status to VERIFIED.
         // Other non-VERIFIED states (e.g. still-PENDING verification) stay
         // retryable, so only EXPIRED suppresses Retry.
