@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
+import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -52,6 +53,10 @@ export function RefundReviewContent({
 }: RefundReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
+  // The refund signs+broadcasts a BTC transaction, so a silently locked wallet
+  // must block confirmation. This full-screen modal covers the navbar unlock
+  // affordance, so surface the lock here and gate the CTA until it clears.
+  const { locked: walletLocked } = useBTCWallet();
 
   const [feeRate, setFeeRate] = useState<number | null>(null);
   // True when the seeded feeRate came from the hard-coded floor because the
@@ -114,6 +119,7 @@ export function RefundReviewContent({
 
   const canConfirm =
     !refunding &&
+    !walletLocked &&
     feeRate !== null &&
     feeRate > 0 &&
     youReceiveSats !== null &&
@@ -208,6 +214,11 @@ export function RefundReviewContent({
             emphasis
           />
 
+          {walletLocked && (
+            <Callout variant="error" title={COPY.wallet.locked.title}>
+              {COPY.wallet.locked.description}
+            </Callout>
+          )}
           {previewError && <Callout variant="error">{previewError}</Callout>}
           {!error && !isDust && usingFallback && (
             <Callout variant="warning">

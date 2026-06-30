@@ -78,8 +78,11 @@ function SimpleDepositContent({
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
-  const { address: connectedBtcAddress, reconnect: reconnectBtcWallet } =
-    useBTCWallet();
+  const {
+    address: connectedBtcAddress,
+    reconnect: reconnectBtcWallet,
+    locked: isBtcWalletLocked,
+  } = useBTCWallet();
   const btcConnector = useChainConnector("BTC");
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
@@ -321,11 +324,12 @@ function SimpleDepositContent({
     if (isVaultCapReached || vaultCountCapUnavailable) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
-    // has failed: clicking it re-runs the underlying provider's connect flow
+    // has failed OR the proactive lock poll has flagged a silently-locked
+    // wallet: clicking it re-runs the underlying provider's connect flow
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
     // attempting another deposit. The deposit attempt itself is only retried
-    // once the user successfully reconnects and the error state clears.
-    if (walletConnectionError) {
+    // once the user successfully reconnects and the error/lock state clears.
+    if (walletConnectionError || isBtcWalletLocked) {
       await handleReconnectWallet();
       return;
     }
@@ -449,8 +453,15 @@ function SimpleDepositContent({
                 }}
                 walletState={{
                   isWalletConnected,
-                  hasWalletConnectionError: Boolean(walletConnectionError),
+                  // A click-time liveness failure OR the proactive lock poll
+                  // promotes the CTA to the reconnect/unlock action. A lock
+                  // relabels the CTA to "Unlock wallet" (see DepositForm) instead
+                  // of showing a red inline string; a liveness failure keeps its
+                  // detail message.
+                  hasWalletConnectionError:
+                    Boolean(walletConnectionError) || isBtcWalletLocked,
                   walletConnectionErrorMessage: walletConnectionError,
+                  isWalletLocked: isBtcWalletLocked,
                   isVerifyingWallet,
                   isReconnectingWallet,
                 }}

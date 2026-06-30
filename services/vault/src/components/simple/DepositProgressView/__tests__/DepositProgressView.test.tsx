@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -13,6 +13,28 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
     <div data-testid="btc-confirmation-detail" />
   ),
 }));
+
+// DepositProgressView self-sources the BTC wallet-lock state to render its
+// unlock notice and pre-sign unlock CTA. Drive it through a mutable mock;
+// default unlocked.
+const mockBtcWalletState = vi.hoisted(() => ({ locked: false }));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => mockBtcWalletState,
+}));
+
+// The pre-sign unlock CTA delegates to useBtcWalletUnlock; mock it so this
+// suite stays focused on DepositProgressView's rendering. `isUnlocking: false`
+// drives the steady "Unlock wallet" label; the hook's reconnect/logging
+// behavior is its own concern.
+const mockUnlock = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/useBtcWalletUnlock", () => ({
+  useBtcWalletUnlock: () => ({ unlock: mockUnlock, isUnlocking: false }),
+}));
+
+afterEach(() => {
+  mockBtcWalletState.locked = false;
+  mockUnlock.mockClear();
+});
 
 const baseProps = {
   error: null,
@@ -574,6 +596,105 @@ describe("DepositProgressView", () => {
 
       expect(screen.queryByText("Ready to activate.")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+    });
+  });
+
+  describe("wallet-locked notice", () => {
+    it("surfaces the lock title and description when the BTC wallet is locked", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(screen.getByText(COPY.wallet.locked.title)).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.wallet.locked.description),
+      ).toBeInTheDocument();
+    });
+
+    it("does not show the lock notice when the BTC wallet is unlocked", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("suppresses the lock notice on a completed deposit so it never stacks on the success banner", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          isComplete
+          currentStep={DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("suppresses the lock notice at a terminal success milestone so it never stacks on the success banner", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          terminalMessage="Ready to activate."
+          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.wallet.locked.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("relabels the pre-sign CTA to an unlock action when the wallet is locked", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={vi.fn()}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: COPY.wallet.locked.unlockButton }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.progress.buttons.signTransaction),
+      ).not.toBeInTheDocument();
+    });
+
+    it("runs the unlock action and not the sign flow when the locked pre-sign CTA is clicked", () => {
+      mockBtcWalletState.locked = true;
+      const onSign = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={onSign}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: COPY.wallet.locked.unlockButton }),
+      );
+
+      expect(mockUnlock).toHaveBeenCalledTimes(1);
+      expect(onSign).not.toHaveBeenCalled();
     });
   });
 });

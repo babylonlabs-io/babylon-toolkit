@@ -690,6 +690,12 @@ export const COPY = {
       addressMismatch:
         "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
     },
+    locked: {
+      title: "Bitcoin wallet locked",
+      description: "Unlock your Bitcoin wallet in your extension to continue.",
+      unlockButton: "Unlock wallet",
+      unlocking: "Unlocking wallet...",
+    },
   },
   collateral: {
     releaseDisabledTooltip:

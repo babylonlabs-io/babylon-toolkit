@@ -15,6 +15,7 @@ import { useMemo } from "react";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import { useUTXOs } from "@/hooks/useUTXOs";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
@@ -36,8 +37,15 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     connected: btcConnected,
     address: btcAddress,
     publicKeyNoCoord,
+    locked: btcLocked,
   } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
+  // Re-runs the wallet's connect flow, surfacing the extension's unlock prompt.
+  // On success the provider clears `locked` and this button reverts to the
+  // connected wallet menu.
+  const { unlock: handleUnlock, isUnlocking } = useBtcWalletUnlock(
+    "Wallet unlock from navbar",
+  );
   const { selectedWallets } = useWidgetState();
   const btcConnector = useChainConnector("BTC");
   const ethConnector = useChainConnector("ETH");
@@ -81,6 +89,20 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
       }),
     [selectedWallets, btcConnected, ethConnected, btcConnector, ethConnector],
   );
+
+  // A silently locked BTC wallet keeps `connected` true (cached session), so it
+  // would otherwise render the connected wallet menu. Surface an unlock button
+  // in the navbar instead so the user can re-authorize in one click.
+  if (btcLocked && !isGeoBlocked && !isGeoLoading) {
+    return (
+      <ConnectButton
+        connected={false}
+        loading={isUnlocking}
+        onClick={handleUnlock}
+        text={COPY.wallet.locked.unlockButton}
+      />
+    );
+  }
 
   // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
