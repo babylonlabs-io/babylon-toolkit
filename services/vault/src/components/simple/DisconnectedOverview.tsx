@@ -35,6 +35,11 @@ import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
 
 const COPY_OVERVIEW = COPY.overview.disconnected;
 
+// Stablecoin brand colors for the borrow-APR figures. No core-ui token exists for
+// these, so they are pinned here as named constants (WBTC uses the secondary-main token).
+const USDT_APR_COLOR_CLASS = "text-[#1BA27A]";
+const USDC_APR_COLOR_CLASS = "text-[#0B53BF]";
+
 function formatCapAmount(satoshis: bigint): string {
   const btc = satoshiToBtcNumber(satoshis);
   return formatSatoshisToBtcDisplay(satoshis, btc >= 1 ? 2 : 8);
@@ -63,7 +68,7 @@ interface StatCellProps {
 function StatCell({ label, value, withDivider }: StatCellProps) {
   return (
     <div
-      className={`flex flex-col gap-2 p-4 ${withDivider ? "border-l border-secondary-strokeLight dark:border-secondary-strokeDark" : ""}`}
+      className={`flex flex-col gap-2 p-4 ${withDivider ? "border-l border-secondary-strokeLight" : ""}`}
     >
       <span className="text-sm text-accent-secondary">{label}</span>
       <span className="text-base text-accent-primary">{value}</span>
@@ -79,11 +84,11 @@ interface AprStat {
 
 function AprRow({ stats }: { stats: AprStat[] }) {
   return (
-    <div className="grid grid-cols-3">
+    <div className="flex">
       {stats.map((stat, i) => (
         <div
           key={stat.label}
-          className={`flex flex-col gap-1 ${i > 0 ? "border-l border-secondary-strokeLight pl-4 dark:border-secondary-strokeDark" : ""}`}
+          className={`flex flex-col items-center gap-1 ${i > 0 ? "ml-4 border-l border-secondary-strokeLight pl-4" : ""}`}
         >
           <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
             {stat.label}
@@ -115,12 +120,12 @@ export function DisconnectedOverview({
       {
         label: COPY_OVERVIEW.aprLabels.usdt,
         value: borrowAprs.usdt,
-        colorClass: "text-[#1BA27A]",
+        colorClass: USDT_APR_COLOR_CLASS,
       },
       {
         label: COPY_OVERVIEW.aprLabels.usdc,
         value: borrowAprs.usdc,
-        colorClass: "text-[#0B53BF]",
+        colorClass: USDC_APR_COLOR_CLASS,
       },
       {
         label: COPY_OVERVIEW.aprLabels.wbtc,

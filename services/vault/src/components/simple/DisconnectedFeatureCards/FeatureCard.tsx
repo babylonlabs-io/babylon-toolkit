@@ -30,7 +30,7 @@ export function FeatureCard({
           {title}
         </span>
         <span
-          className={`mt-1 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary ${showFull ? "block" : "line-clamp-1"}`}
+          className={`text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary ${showFull ? "block" : "line-clamp-1 max-w-sm"}`}
         >
           {body}
         </span>
