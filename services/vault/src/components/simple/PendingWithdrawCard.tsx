@@ -125,6 +125,10 @@ export function PendingWithdrawCard({
   // Support, hidden bar). The `warning` variant is also used for transient
   // polling timeouts / unknown statuses, which should keep the normal layout.
   const isBlocked = claimer?.status === ClaimerPegoutStatusValue.PAYOUT_BLOCKED;
+  // "Payout sent" is the terminal success stage: the BTC payout is on its way,
+  // so the staged progress bar has nothing left to advance.
+  const isPayoutSent =
+    claimer?.status === ClaimerPegoutStatusValue.PAYOUT_BROADCAST;
 
   const progress = getPegoutStageProgress(
     claimer?.status,
@@ -210,9 +214,11 @@ export function PendingWithdrawCard({
         />
       </div>
 
-      {/* Progress bar — omitted only for a real protocol block, where the red
-          badge and Contact Support carry the message instead. */}
-      {!isBlocked && (
+      {/* Progress bar — shown only while the withdrawal is still advancing.
+          Omitted at the terminal payout stages: "Payout sent" (the green badge
+          already says it's done) and "Blocked" (the red badge + Contact Support
+          carry the message instead). */}
+      {!isBlocked && !isPayoutSent && (
         <ProgressBar percent={progress} color={ASSET_BRAND_COLOR} />
       )}
 
