@@ -72,14 +72,6 @@ vi.mock("@/config/network", () => ({
 vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolPauseStatus: () => ({ data: undefined, isError: false }),
   useProtocolGateState: () => ({ protocol: null, aave: null }),
-  useGating: () => ({
-    depositBlocked: false,
-    borrowBlocked: false,
-    reorderBlocked: false,
-    withdrawBlocked: false,
-    repayBlocked: false,
-    activationBlocked: false,
-  }),
 }));
 
 // Mock the WASM module to avoid syntax errors in tests

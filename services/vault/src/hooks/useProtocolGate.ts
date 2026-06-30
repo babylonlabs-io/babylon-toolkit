@@ -1,10 +1,10 @@
 /**
  * Per-scope protocol gate state — composes the on-chain `pauseState()` reads
- * with the operator-flag override and exposes per-action gating booleans.
+ * with the operator-flag override.
  *
- * Components read `useGating()` to disable CTAs; transaction hooks read
- * `useProtocolGateState()` and pass the snapshot to the matching
- * `is*Blocked(gate)` predicate at their execution chokepoint.
+ * Consumers call `useProtocolGateState()` for the snapshot and pass it to the
+ * matching `is*Blocked(gate)` predicate from `protocolStatus`: components use it
+ * to disable CTAs; transaction hooks guard their execution chokepoint with it.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -13,12 +13,6 @@ import { useMemo } from "react";
 import { getOnChainPauseState } from "@/clients/eth-contract/pause-state/query";
 import {
   composeGateState,
-  isActivationBlocked,
-  isBorrowBlocked,
-  isDepositBlocked,
-  isReorderBlocked,
-  isRepayBlocked,
-  isWithdrawBlocked,
   type ProtocolGateState,
 } from "@/components/shared/protocolStatus";
 
@@ -50,30 +44,13 @@ export function useProtocolPauseStatus() {
  */
 export function useProtocolGateState(): ProtocolGateState {
   const { data } = useProtocolPauseStatus();
-  return useMemo(() => composeGateState(data ?? null), [data]);
-}
-
-export interface GatingFlags {
-  depositBlocked: boolean;
-  borrowBlocked: boolean;
-  reorderBlocked: boolean;
-  withdrawBlocked: boolean;
-  repayBlocked: boolean;
-  activationBlocked: boolean;
-}
-
-/** Derived per-action booleans for disabling CTAs in components. */
-export function useGating(): GatingFlags {
-  const gate = useProtocolGateState();
-  return useMemo(
-    () => ({
-      depositBlocked: isDepositBlocked(gate),
-      borrowBlocked: isBorrowBlocked(gate),
-      reorderBlocked: isReorderBlocked(gate),
-      withdrawBlocked: isWithdrawBlocked(gate),
-      repayBlocked: isRepayBlocked(gate),
-      activationBlocked: isActivationBlocked(gate),
-    }),
-    [gate],
-  );
+  // Depend on the primitive scope values (not the `data` object) so the gate
+  // keeps a stable reference across polls when the status is unchanged — this
+  // avoids churning the `useCallback`s in the tx hooks that consume it. Operator
+  // flags are env-static, so these two values are the only dynamic inputs to
+  // `composeGateState` (passing `{ protocol: null, aave: null }` is equivalent
+  // to passing `null` — it collapses to the operator-flag value).
+  const protocol = data?.protocol ?? null;
+  const aave = data?.aave ?? null;
+  return useMemo(() => composeGateState({ protocol, aave }), [protocol, aave]);
 }
