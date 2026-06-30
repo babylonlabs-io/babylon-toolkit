@@ -3,15 +3,9 @@ export const ETH_SLOT_SECONDS = 12;
 
 const MILLISECONDS_PER_SECOND = 1000;
 
-/** Authoritative on-chain check: matches the contract's strict '>', so a boundary-equal block is NOT expired. */
-export function isActivationDeadlinePassedOnChain(params: {
-  currentBlock: bigint;
-  createdAtBlock: bigint;
-  pegInActivationTimeout: bigint;
-}): boolean {
-  const { currentBlock, createdAtBlock, pegInActivationTimeout } = params;
-  return currentBlock > createdAtBlock + pegInActivationTimeout;
-}
+// The authoritative on-chain check (currentBlock > createdAt + timeout) lives
+// in the SDK (`@babylonlabs-io/ts-sdk/tbv/core/services` → peginState) so the
+// contract-mirror rule stays co-located with its inputs and the ABI error.
 
 /**
  * Cheap, no-RPC first pass. Uses slot time as a fixed cadence to estimate elapsed blocks.

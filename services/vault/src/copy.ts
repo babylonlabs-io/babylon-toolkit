@@ -34,6 +34,10 @@
  *   surrounding screen rather than imposing a single rule.
  */
 
+// Direct file import (not the barrel) so we don't pull errorMessages' siblings
+// that import this file back. errorMessages.ts is import-free, so this is safe.
+import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
+
 // Shared strings that legitimately appear in multiple places. Hoisting them
 // here prevents wording drift if one site is later reworded but the other is
 // missed.
@@ -580,7 +584,9 @@ export const COPY = {
       },
       activationDeadlinePassed: {
         title: "Activation deadline passed",
-        body: "The activation window has closed and this BTC Vault can no longer be activated. You can reclaim your BTC through the refund flow once it becomes available.",
+        // Reuse the canonical ABI-keyed message so this terminal callout can't
+        // drift from the ActivationDeadlineExpired contract-error string.
+        body: `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} You can reclaim your BTC through the refund flow once it becomes available.`,
       },
       signingRejected: {
         title: "Signing rejected",

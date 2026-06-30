@@ -3,40 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ETH_SLOT_SECONDS,
   estimateActivationDeadlineLikelyPassed,
-  isActivationDeadlinePassedOnChain,
 } from "../activationDeadline";
-
-describe("isActivationDeadlinePassedOnChain", () => {
-  it("treats the boundary block (current == created + timeout) as NOT expired", () => {
-    expect(
-      isActivationDeadlinePassedOnChain({
-        currentBlock: 1100n,
-        createdAtBlock: 1000n,
-        pegInActivationTimeout: 100n,
-      }),
-    ).toBe(false);
-  });
-
-  it("treats one block past the boundary as expired", () => {
-    expect(
-      isActivationDeadlinePassedOnChain({
-        currentBlock: 1101n,
-        createdAtBlock: 1000n,
-        pegInActivationTimeout: 100n,
-      }),
-    ).toBe(true);
-  });
-
-  it("treats a block below the boundary as NOT expired", () => {
-    expect(
-      isActivationDeadlinePassedOnChain({
-        currentBlock: 1050n,
-        createdAtBlock: 1000n,
-        pegInActivationTimeout: 100n,
-      }),
-    ).toBe(false);
-  });
-});
 
 describe("estimateActivationDeadlineLikelyPassed", () => {
   it("returns false when well within the window", () => {

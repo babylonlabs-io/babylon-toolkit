@@ -10,6 +10,7 @@
 // vault-not-yet-on-chain leaves the vault ungated (fail-safe).
 
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { isActivationDeadlinePassedOnChain } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { type Hex, zeroAddress } from "viem";
@@ -18,10 +19,7 @@ import { ethClient } from "@/clients/eth-contract/client";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { ContractStatus } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
-import {
-  estimateActivationDeadlineLikelyPassed,
-  isActivationDeadlinePassedOnChain,
-} from "@/utils/activationDeadline";
+import { estimateActivationDeadlineLikelyPassed } from "@/utils/activationDeadline";
 
 const ACTIVATION_DEADLINE_QUERY_KEY = "activationDeadlineOnChain";
 // Refresh on the dashboard cadence; the gate moves slowly (deadline is measured
