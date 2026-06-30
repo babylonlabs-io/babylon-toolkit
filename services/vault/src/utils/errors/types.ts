@@ -109,6 +109,18 @@ export class WalletError extends Error {
   }
 }
 
+/**
+ * Thrown by the activation pre-flight when the vault's on-chain status makes
+ * activation impossible (e.g. already EXPIRED). Terminal — retrying cannot
+ * revert the status to VERIFIED, so the UI suppresses Retry.
+ */
+export class ActivationNotPossibleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ActivationNotPossibleError";
+  }
+}
+
 export const isError451 = (error: unknown): boolean => {
   if (!error || typeof error !== "object") {
     return false;

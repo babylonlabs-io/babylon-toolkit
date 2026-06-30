@@ -136,6 +136,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
     activating: false,
     activated: false,
     error: null,
+    errorTerminal: false,
     handleActivation: mockHandleActivation,
   })),
 }));
@@ -529,6 +530,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       activating: false,
       activated: true,
       error: null,
+      errorTerminal: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -548,6 +550,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       activating: false,
       activated: false,
       error: null,
+      errorTerminal: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -567,6 +570,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       activating: true,
       activated: false,
       error: null,
+      errorTerminal: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
