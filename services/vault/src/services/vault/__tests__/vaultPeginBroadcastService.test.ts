@@ -267,9 +267,10 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     // The single input resolves to fewer sats than the 90000-sat output — the
     // shape a compromised mempool API would return to underfund the tx. The
     // guard must fire before any signature is requested or anything broadcast.
+    const underfundedValue = 50_000; // 50000-sat input < 90000-sat output → underfunding
     mockFetchUTXO.mockResolvedValueOnce({
       scriptPubKey: "0014aabb",
-      value: 50000,
+      value: underfundedValue,
     });
     const signPsbt = vi.fn().mockResolvedValue("mock-signed-psbt-hex");
     vi.mocked(pushTx).mockClear();
