@@ -341,7 +341,7 @@ export function formatPayoutSignatureError(error: unknown): {
   if (error instanceof Error) {
     if (error.message.includes("Vault provider not found")) {
       return {
-        title: "Provider not found",
+        title: "Vault provider not found",
         message:
           "The vault provider for this deposit could not be found. Please contact support.",
       };

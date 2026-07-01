@@ -327,7 +327,7 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.severity).toBe("soft");
     // Standalone reorder uses the gold `suggestion` variant, not blue `info`.
     expect(banner.dataset.variant).toBe("suggestion");
-    expect(screen.getByText("Reorder vaults to lose less")).toBeTruthy();
+    expect(screen.getByText("Reorder BTC Vaults to lose less")).toBeTruthy();
     // Optimal-order chip row renders each vault in order.
     expect(screen.getByText("Suggested order")).toBeTruthy();
     expect(screen.getByText(/Vault 2 ·/)).toBeTruthy();
@@ -487,7 +487,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "dust",
-          title: "Position too small for vault analysis",
+          title: "Position too small for BTC Vault analysis",
           detail:
             "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
@@ -499,7 +499,7 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.severity).toBe("soft");
     expect(banner.dataset.variant).toBe("info");
     expect(
-      screen.getByText("Position too small for vault analysis"),
+      screen.getByText("Position too small for BTC Vault analysis"),
     ).toBeTruthy();
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
@@ -513,7 +513,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "dust",
-          title: "Position too small for vault analysis",
+          title: "Position too small for BTC Vault analysis",
           detail:
             "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
@@ -565,7 +565,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "dust",
-          title: "Position too small for vault analysis",
+          title: "Position too small for BTC Vault analysis",
           detail:
             "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
@@ -582,16 +582,16 @@ describe("PositionNotificationBanner", () => {
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
-  it("renders an orange cliff with the generic 'Add sacrificial vault' CTA and pre-fills the amount", () => {
+  it("renders an orange cliff with the generic 'Add sacrificial BTC Vault' CTA and pre-fills the amount", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "cliff",
           title: "First liquidation takes everything",
           detail:
-            "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
           suggestion:
-            "Adding a 0.72 BTC sacrificial vault creates a buffer — it gets liquidated first, your existing BTC survives.",
+            "Adding a sacrificial 0.72 BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.",
         },
       ],
       suggestedNewVaultBtc: 0.72,
@@ -605,7 +605,7 @@ describe("PositionNotificationBanner", () => {
     expect(screen.getByTestId("suggestion-info-icon")).toBeTruthy();
     expect(screen.queryByText("Suggestion")).toBeNull();
     // Generic label per Figma; the amount lives in the suggestion text.
-    fireEvent.click(screen.getByText("Add sacrificial vault"));
+    fireEvent.click(screen.getByText("Add sacrificial BTC Vault"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 
@@ -616,9 +616,9 @@ describe("PositionNotificationBanner", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail:
-            "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
           suggestion:
-            "To enable partial liquidation, withdraw your 2.00 BTC and re-deposit as two smaller vaults: 1.28 BTC sacrificial + 0.72 BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.",
+            "To enable partial liquidation, withdraw your 2.00 BTC and re-deposit as two smaller BTC Vaults: 1.28 BTC sacrificial + 0.72 BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.",
         },
       ],
       // No affordable add → no CTA, "SUGGESTION"-labelled box.
@@ -631,7 +631,7 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.variant).toBe("warning");
     expect(screen.getByText("Suggestion")).toBeTruthy();
     expect(screen.queryByTestId("suggestion-info-icon")).toBeNull();
-    expect(screen.queryByText("Add sacrificial vault")).toBeNull();
+    expect(screen.queryByText("Add sacrificial BTC Vault")).toBeNull();
   });
 
   it("keeps the sacrificial CTA (secondary) when a single-vault cliff is also urgent", () => {
@@ -646,9 +646,9 @@ describe("PositionNotificationBanner", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail:
-            "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
           suggestion:
-            "Adding a 0.72 BTC sacrificial vault creates a buffer — it gets liquidated first, your existing BTC survives.",
+            "Adding a sacrificial 0.72 BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.",
         },
       ],
       suggestedNewVaultBtc: 0.72,
@@ -660,7 +660,7 @@ describe("PositionNotificationBanner", () => {
     // Safety actions still lead, and the pre-filled cliff CTA is still offered.
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    fireEvent.click(screen.getByText("Add sacrificial vault"));
+    fireEvent.click(screen.getByText("Add sacrificial BTC Vault"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 
@@ -669,16 +669,16 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "rebalance",
-          title: "Undersized sacrificial vault",
+          title: "Undersized sacrificial BTC Vault",
           detail: "Group 1 over-seizes.",
-          suggestion: "Add a 0.38 BTC vault.",
+          suggestion: "Add a 0.38 BTC Vault.",
         },
       ],
       suggestedRebalanceVaultBtc: 0.38,
     });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Add a 0.38 BTC vault"));
+    fireEvent.click(screen.getByText("Add a 0.38 BTC Vault"));
     expect(onDeposit).toHaveBeenCalledWith("0.38");
   });
 
@@ -687,7 +687,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "too-many-vaults",
-          title: "Too many vaults to optimize",
+          title: "Too many BTC Vaults to optimize",
           detail: "You have 18 vaults.",
           suggestion:
             "Consider consolidating smaller vaults into fewer larger ones.",
@@ -699,7 +699,7 @@ describe("PositionNotificationBanner", () => {
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("yellow");
     expect(banner.dataset.variant).toBe("warning");
-    expect(screen.queryByText(/Add a .* BTC vault/)).toBeNull();
+    expect(screen.queryByText(/Add a .* BTC Vault/)).toBeNull();
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 });
