@@ -136,8 +136,9 @@ export async function assertReorderMembership(
  * notification calculator would have suggested.
  *
  * Re-runs the full `calculate(...)` pipeline (not just `computeOptimalOrder`)
- * so that suppression rules — e.g. when an optimal reorder would create a
- * rebalance condition the user currently doesn't have — are honored. A
+ * so that suppression rules — e.g. when an optimal reorder would newly
+ * introduce an over-seizure condition the user currently doesn't have — are
+ * honored. A
  * malicious indexer can otherwise fabricate a CTA whose submitted order
  * equals `computeOptimalOrder(trusted).order` even though the trusted
  * calculator would have returned `optimalVaultOrder: null`.

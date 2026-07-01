@@ -128,6 +128,36 @@ describe("BatchedDepositGroup", () => {
     expect(screen.getAllByTestId("deposit-card")).toHaveLength(2);
   });
 
+  it("surfaces a group CTA that opens the multistepper once a sibling needs a post-broadcast step", () => {
+    // Broadcast done; a sibling now needs to activate. The batch shows one
+    // orange CTA routing through onGroupClick to the batch multistepper.
+    mockGetActionStatus.mockReturnValue({
+      type: "available",
+      action: {
+        action: PeginAction.ACTIVATE_VAULT,
+        label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      },
+    } satisfies ActionStatus);
+    const onGroupClick = vi.fn();
+    render(
+      <BatchedDepositGroup
+        activities={[activity("0xa"), activity("0xb")]}
+        vaultProviders={[]}
+        onBroadcastClick={vi.fn()}
+        onGroupClick={onGroupClick}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /broadcast pre-pegin/i }),
+    ).not.toBeInTheDocument();
+    const cta = screen.getByRole("button", {
+      name: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+    });
+    fireEvent.click(cta);
+    expect(onGroupClick).toHaveBeenCalledWith("0xa");
+  });
+
   it("opens the batch multistepper when an owned group body is clicked", () => {
     mockGetActionStatus.mockReturnValue(NO_ACTION);
     const onGroupClick = vi.fn();

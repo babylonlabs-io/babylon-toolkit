@@ -43,7 +43,6 @@ const PRIMARY_ORDER: WarningType[] = [
   "urgent",
   "weird-params",
   "cliff",
-  "rebalance",
   "too-many-vaults",
   "reorder",
 ];
@@ -53,7 +52,7 @@ const PRIMARY_ORDER: WarningType[] = [
  *
  * Red:    urgent warning present (already liquidatable or within 5%)
  * Yellow: cliff or too-many-vaults (the orange warning banner per Figma)
- * Soft:   any other advisory warning (rebalance / reorder / weird-params), or a
+ * Soft:   any other advisory warning (reorder / weird-params), or a
  *         healthy position whose vault order is suboptimal
  * Green:  no warnings and order already optimal
  * Hidden: no groups

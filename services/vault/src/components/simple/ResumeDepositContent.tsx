@@ -304,11 +304,11 @@ export function ResumeWotsContent({
     try {
       const peginTxHash = activity.peginTxHash ?? null;
       if (!peginTxHash) {
-        throw new Error("Missing pegin transaction hash");
+        throw new Error("Missing peg-in transaction hash");
       }
       if (!activity.unsignedPrePeginTx) {
         throw new Error(
-          "Missing pre-pegin transaction; cannot recover WOTS seed inputs",
+          "Missing Pre-Pegin transaction; cannot recover WOTS seed inputs",
         );
       }
 
@@ -597,7 +597,7 @@ export function ResumeActivationContent({
     }
     if (!activity.unsignedPrePeginTx) {
       setLocalError(
-        "Missing pre-pegin transaction; cannot recover HTLC secret",
+        "Missing Pre-Pegin transaction; cannot recover HTLC secret",
       );
       setLoading(false);
       return;

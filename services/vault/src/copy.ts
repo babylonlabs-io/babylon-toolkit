@@ -46,6 +46,13 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
+// Action-required labels shared between the in-app badges
+// (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
+// surfaces can't drift.
+const KEY_REQUIRED_LABEL = "Key required";
+const SIGNING_REQUIRED_LABEL = "Signing required";
+const BROADCAST_REQUIRED_LABEL = "Broadcast required";
+const ACTIVATION_REQUIRED_LABEL = "Activation required";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
@@ -139,7 +146,7 @@ export const COPY = {
     },
     statusErrors: {
       expired:
-        "This deposit has expired. You may still reclaim within the grace window — see refund options.",
+        "This deposit has expired. You may still refund within the grace window.",
       expiredCleanedUp:
         "This deposit expired and the grace window has elapsed. No further action is possible.",
       expiredInClaim: "Deposit expired; claim transaction has been broadcast",
@@ -157,10 +164,10 @@ export const COPY = {
       REFUND_HTLC: "Refund",
     },
     actionRequiredBadges: {
-      SUBMIT_WOTS_KEY: "Key required",
-      SIGN_PAYOUT_TRANSACTIONS: "Signing required",
-      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast required",
-      ACTIVATE_VAULT: "Activation required",
+      SUBMIT_WOTS_KEY: KEY_REQUIRED_LABEL,
+      SIGN_PAYOUT_TRANSACTIONS: SIGNING_REQUIRED_LABEL,
+      SIGN_AND_BROADCAST_TO_BITCOIN: BROADCAST_REQUIRED_LABEL,
+      ACTIVATE_VAULT: ACTIVATION_REQUIRED_LABEL,
       REFUND_HTLC: "Refund available",
     },
     expiration: {
@@ -195,9 +202,9 @@ export const COPY = {
     },
     maxVaultsReached: {
       cta: "Maximum BTC Vaults reached",
-      unavailableCta: "Unable to verify vault count — please try again",
+      unavailableCta: "Unable to verify BTC Vault count — please try again",
       splitUnavailable: (used: number, cap: number) =>
-        `${used} of ${cap} vaults used. Vault split unavailable.`,
+        `${used} of ${cap} BTC Vaults used. BTC Vault split unavailable.`,
     },
     steps: {
       generateSecret: "Generate secret for the deposit",
@@ -215,16 +222,65 @@ export const COPY = {
       awaitVpVerification: "Awaiting vault provider verification",
       retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
-      awaitActivationConfirmation: "Awaiting vault activation confirmation",
+      awaitActivationConfirmation: "Awaiting BTC Vault activation confirmation",
       peginFeeWarning: "Expect a high transaction fee for security reasons",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
+    },
+    // Browser (desktop) notifications fired when a deposit needs the depositor
+    // to sign or act while the tab is in the background. `title` is the bold
+    // heading; `body` is the line beneath it. Titles reuse the same constants as
+    // the in-app action badges (`pegin.actionRequiredBadges`) so the two
+    // surfaces can't drift. Bodies are kept short because the OS truncates long
+    // notification text.
+    notifications: {
+      deriveVaultSecret: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Approve the request in your wallet to generate your deposit secret.",
+      },
+      signPeginBtc: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Approve the peg-in transaction in your wallet to continue your deposit.",
+      },
+      signPop: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Sign the ownership proof in your wallet to continue your deposit.",
+      },
+      submitPegin: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Confirm the registration in your wallet to continue your deposit.",
+      },
+      submitWotsKey: {
+        title: KEY_REQUIRED_LABEL,
+        body: "Your deposit is ready - submit your WOTS key to continue.",
+      },
+      signPayouts: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Your vault provider has prepared your payout transactions - sign them to continue.",
+      },
+      signAndBroadcast: {
+        title: BROADCAST_REQUIRED_LABEL,
+        body: "Your deposit is registered - broadcast the Pre-Pegin transaction to continue.",
+      },
+      activateVault: {
+        title: ACTIVATION_REQUIRED_LABEL,
+        body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
+      },
+      // In-flow prompt nudging the depositor to allow browser notifications so
+      // we can ping them when a deposit needs a signature.
+      prompt: {
+        title: "Stay notified",
+        message:
+          "Turn on browser notifications and we'll let you know the moment your deposit needs you to sign.",
+        enable: "Enable notifications",
+        dismiss: "No thanks",
+      },
     },
     groups: {
       registerDeposit: "Register deposit",
       signWots: "Set up claim",
       signPayout: "Sign payout",
-      activateVault: "Activate vault",
+      activateVault: "Activate BTC Vault",
       stepCounter: (completed: number, total: number) =>
         `${completed}/${total}`,
     },
@@ -248,7 +304,7 @@ export const COPY = {
       summary: {
         estimate: "~60 min",
         description:
-          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the vault is activated.",
+          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the BTC Vault is activated.",
       },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
@@ -309,8 +365,8 @@ export const COPY = {
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Expired vault withdrawal broadcast",
-      body: "Your expired vault withdrawal transaction has been broadcast successfully.",
+      heading: "Expired BTC Vault withdrawal broadcast",
+      body: "Your expired BTC Vault withdrawal transaction has been broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
@@ -369,8 +425,8 @@ export const COPY = {
       continueButton: "Continue",
     },
     vaultActivatedSuccess: {
-      heading: "Vault activated",
-      body: "Your vault is now active and ready for borrowing.",
+      heading: "BTC Vault activated",
+      body: "Your BTC Vault is now active and ready for borrowing.",
       goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
@@ -402,7 +458,7 @@ export const COPY = {
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
       doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
-      providerSelectDescription: "Choose a provider to secure your BTC",
+      providerSelectDescription: "Choose a vault provider to secure your BTC",
       providerSelectEmpty: "No vault providers available at this time.",
       providerStatusUnavailable: "Unavailable",
       // Status label for a vault provider that has recently been unreachable
@@ -410,7 +466,7 @@ export const COPY = {
       providerStatusUnhealthy: "Recently unreachable",
       // Tooltip on an unhealthy provider, explaining it stays selectable.
       providerUnhealthyReason:
-        "This provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
+        "This vault provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
       // Divider label above the group of unhealthy / rejected providers.
       providerGroupUnavailableLabel: "Limited availability",
       // Per-provider metric labels shown in the picker.
@@ -421,7 +477,7 @@ export const COPY = {
       // (2.50%)"; net payout is the deposit minus that commission.
       vpCommissionLabel: "VP commission",
       vpCommissionTooltip:
-        "The vault provider's fee, deducted from your payout when you redeem. Set by the provider and shown here before you deposit.",
+        "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",
       netPayoutLabel: "Net payout",
       netPayoutTooltip:
         "What you receive at payout: your deposit minus the vault provider's commission.",
@@ -452,7 +508,7 @@ export const COPY = {
         minimum: `at least ${minBtc}`,
       }),
       splitOptionDescription:
-        "Split your Bitcoin into two vaults to enable partial liquidation.",
+        "Split your BTC into two BTC Vaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTC Vault.",
       // "Learn more here." link appended to the split-option description in
@@ -574,7 +630,7 @@ export const COPY = {
             "The vault provider took too long to respond. Please try again.",
         },
         providerNotFound: {
-          title: "Provider not found",
+          title: "Vault provider not found",
           message:
             "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
         },
@@ -584,12 +640,12 @@ export const COPY = {
             "Unable to connect to the vault provider. Please check your connection and try again.",
         },
         providerTimeout: {
-          title: "Provider timeout",
+          title: "Vault provider timeout",
           message:
             "The vault provider took too long to respond. Please try again later.",
         },
         providerUnavailable: {
-          title: "Provider unavailable",
+          title: "Vault provider unavailable",
           message:
             "The vault provider is temporarily unreachable. Please try again later.",
         },
@@ -622,12 +678,12 @@ export const COPY = {
           "The payout address from the indexer does not match your connected wallet. This may indicate a data integrity issue. Please verify your wallet connection.",
       },
       providerNotAssigned: {
-        title: "Provider not assigned",
+        title: "Vault provider not assigned",
         message:
           "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
       },
       providerNotFound: {
-        title: "Provider not found",
+        title: "Vault provider not found",
         message: "Vault provider not found.",
       },
       walletNotConnected: {
@@ -737,12 +793,12 @@ export const COPY = {
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
   // accessible name + tooltip.
   explorer: {
-    vaultLinkLabel: "View vault on explorer",
+    vaultLinkLabel: "View BTC Vault on explorer",
     providerLinkLabel: "View vault provider on explorer",
     // Callout under the Protocol Cap section. `calloutLinkText` renders as the
     // anchor to the explorer home; `callout` is the plain lead-in.
     callout:
-      "Explore vault activity, liquidity metrics, and protocol statistics in the",
+      "Explore BTC Vault activity, liquidity metrics, and protocol statistics in the",
     calloutLinkText: "BTC Trustless Vault Explorer",
   },
   withdraw: {
@@ -751,7 +807,7 @@ export const COPY = {
     modal: {
       title: "Withdraw",
       subtitle:
-        "Choose the collateral you want to withdraw. Remaining vaults will move up in priority order.",
+        "Choose the collateral you want to withdraw. Remaining BTC Vaults will move up in priority order.",
       confirmButton: "Withdraw",
       confirmButtonWithAmount: (amount: string) => `Withdraw ${amount}`,
     },
@@ -807,6 +863,17 @@ export const COPY = {
       unknownLabel: "Unknown",
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
+    },
+    // Dashboard section headings. A "Payout sent" withdrawal is terminal
+    // success, so it moves out of "Pending Withdrawals" into a plain
+    // "Withdrawals" section while it lingers in the redeemed set.
+    section: {
+      pendingTitle: "Pending Withdrawals",
+      completedTitle: "Withdrawals",
+      // Derived from the section title so each section's expand button is
+      // distinctly labelled ("Pending Withdrawals details" vs "Withdrawals
+      // details") when both render at once.
+      detailsAria: (title: string) => `${title} details`,
     },
     // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
     card: {
@@ -1064,8 +1131,7 @@ export const COPY = {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
-    addVault: (amountBtc: string) => `Add a ${amountBtc} BTC vault`,
-    addSacrificialVault: "Add sacrificial vault",
+    addSacrificialVault: "Add sacrificial BTC Vault",
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -1136,9 +1202,9 @@ export const COPY = {
     liquidatable: "Critical — liquidation can trigger now",
   },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // warning types produced by the calculator: urgent / cliff / rebalance /
-  // reorder / dust / weird-params / too-many-vaults. Wording is ported from the
-  // reference liquidation calculator (the source of truth for this copy).
+  // warning types produced by the calculator: urgent / cliff / reorder / dust /
+  // weird-params / too-many-vaults. Wording is ported from the reference
+  // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
@@ -1159,9 +1225,9 @@ export const COPY = {
     // the calculator finds a strictly safer order than the current one; the
     // suggested order is rendered as chips from `optimalVaultOrder`, not text.
     reorder: {
-      title: "Reorder vaults to lose less",
+      title: "Reorder BTC Vaults to lose less",
       detail:
-        "A different vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
+        "A different BTC Vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
       suggestedOrderLabel: "Suggested order",
       vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
     },
@@ -1171,14 +1237,14 @@ export const COPY = {
     // what action is feasible.
     cliff: {
       title: "First liquidation takes everything",
-      body: "With your current vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+      body: "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
       // Header shown above the suggestion text when there is no actionable CTA
       // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
       suggestionLabel: "Suggestion",
       // Variant A (#1948): an affordable sacrificial vault buffers the existing
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
-        `Adding a ${sacrificialBtc} BTC sacrificial vault creates a buffer — it gets liquidated first, your existing BTC survives.`,
+        `Adding a sacrificial ${sacrificialBtc} BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.`,
       // Variant B (#1949): the single vault is too large to buffer cheaply —
       // withdraw it and re-deposit as two smaller vaults instead.
       withdrawResplitSuggestion: (
@@ -1186,10 +1252,10 @@ export const COPY = {
         sacrificialBtc: string,
         protectedBtc: string,
       ) =>
-        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller vaults: ${sacrificialBtc} BTC sacrificial + ${protectedBtc} BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.`,
+        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTC Vaults: ${sacrificialBtc} BTC sacrificial + ${protectedBtc} BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.`,
       // Protocol params disallow splitting entirely — no re-split is possible.
       noSplitSuggestion:
-        "Current protocol parameters do not allow vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
+        "Current protocol parameters do not allow BTC Vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
       // 2-vault / 3+ cliffs share the title/body/severity but keep their
       // structural suggestion, since "re-deposit as two smaller vaults" doesn't
       // apply when you already hold multiple vaults.
@@ -1197,7 +1263,7 @@ export const COPY = {
         enablePartial: (deficitBtc: string, largestName: string) =>
           `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
         suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
-          `Neither vault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial vault.`,
+          `Neither BTC Vault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial BTC Vault.`,
       },
       multiVault: {
         suggestion: (
@@ -1206,50 +1272,29 @@ export const COPY = {
           orderStr: string,
         ) =>
           hasReorderFix
-            ? `All ${nVaults} vaults land in the first liquidation group. Reordering vaults will fix this — suggested order: ${orderStr}.`
-            : `All ${nVaults} vaults land in the first liquidation group, and no combination of vaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
+            ? `All ${nVaults} BTC Vaults land in the first liquidation group. Reordering BTC Vaults will fix this — suggested order: ${orderStr}.`
+            : `All ${nVaults} BTC Vaults land in the first liquidation group, and no combination of BTC Vaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
       },
-    },
-    // Rebalance: the first group over-seizes because vault sizes aren't optimal;
-    // a new sacrificial vault (combined with the existing small vaults) fixes it.
-    rebalance: {
-      title: "Undersized sacrificial vault",
-      detail: (
-        g1CombinedBtc: string,
-        g1TargetSeizure: string,
-        g1OverSeizure: string,
-        improvementBtc: string,
-      ) =>
-        `Group 1 seizes ${g1CombinedBtc} BTC but target is only ${g1TargetSeizure} BTC — over-seizure of ${g1OverSeizure} BTC. With optimal vault sizes, ${improvementBtc} more BTC would be protected.`,
-      actionableSuggestion: (
-        suggestedBtc: string,
-        smallNames: string,
-        largestName: string,
-        largestBtc: string,
-      ) =>
-        `Add a ${suggestedBtc} BTC vault and place it with ${smallNames} at the front — together they cover the target seizure, protecting ${largestName} (${largestBtc} BTC). You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open the position.`,
-      fallbackSuggestion: (sacrificialBtc: string) =>
-        `Repay the loan, split BTC into optimal UTXOs (sacrificial ~${sacrificialBtc} BTC + protected), and re-open the position.`,
     },
     // Too many vaults: beyond the optimizer cap, ordering falls back to a
     // largest-first heuristic and the reorder suggestion is no longer optimal.
     // Copy matches Figma 7048-61969 (count + cap stay interpolated).
     tooManyVaults: {
-      title: "Too many vaults to optimize",
+      title: "Too many BTC Vaults to optimize",
       detail: (nVaults: number, cap: number) =>
-        `You have ${nVaults} vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
+        `You have ${nVaults} BTC Vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
       suggestion:
-        "Consider consolidating smaller vaults into fewer larger ones — fewer vaults means lower fees and better optimization.",
+        "Consider consolidating smaller BTC Vaults into fewer larger ones — fewer BTC Vaults means lower fees and better optimization.",
     },
     maxVaults: {
-      title: "Maximum vaults reached",
+      title: "Maximum BTC Vaults reached",
       detail: (cap: number) =>
         `This position already has the maximum number of BTC Vaults (${cap}).`,
     },
     dust: {
-      title: "Position too small for vault analysis",
+      title: "Position too small for BTC Vault analysis",
       detail:
-        "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+        "Below $1,000 the cascade simplifies — all BTC Vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
     weirdParams: {
       title: "Protocol parameters don't compute",

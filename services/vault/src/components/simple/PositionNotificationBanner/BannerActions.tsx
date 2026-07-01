@@ -29,9 +29,6 @@ interface BuildBannerActionsArgs {
  * - cliff with an affordable sacrificial size: "Add sacrificial vault" (generic
  *   label per Figma; the amount lives in the suggestion text) — opens the
  *   deposit flow with that amount pre-filled.
- * - rebalance with an actionable suggested vault size: "Add a X BTC vault" —
- *   opens the deposit flow with that amount pre-filled (a single, non-split
- *   supplemental deposit).
  * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
@@ -75,26 +72,17 @@ export function buildBannerActions({
     );
   }
 
-  // Add-vault CTA whenever a cliff/rebalance warning is present and the
-  // calculator produced an actionable size — i.e. "add a sacrificial vault of
-  // this exact size". When an urgent warning is primary it rides along as a
-  // secondary action so the safety actions lead, but it is no longer dropped
-  // (the warning's own suggestion text describes exactly this action). The
-  // calculator guarantees the amount is positive and no larger than the position.
-  // The cliff path uses the generic "Add sacrificial vault" label (amount in the
-  // suggestion text per Figma); rebalance keeps the amount on the button.
-  const hasCliffOrRebalanceWarning = result.warnings.some(
-    (w) => w.type === "cliff" || w.type === "rebalance",
-  );
-  const isCliffSacrificial = result.suggestedNewVaultBtc !== null;
-  const suggestedVaultBtc =
-    result.suggestedNewVaultBtc ?? result.suggestedRebalanceVaultBtc;
-  if (hasCliffOrRebalanceWarning && suggestedVaultBtc !== null) {
-    const amountBtc = suggestedVaultBtc.toFixed(2);
+  // Add-sacrificial-vault CTA on a cliff when the calculator produced an
+  // actionable size — "add a sacrificial vault of this exact size". When an
+  // urgent warning is primary it rides along as a secondary action so the
+  // safety actions lead. The calculator guarantees the amount is positive and
+  // no larger than the position. Generic "Add sacrificial vault" label (the
+  // amount lives in the suggestion text per Figma).
+  const hasCliffWarning = result.warnings.some((w) => w.type === "cliff");
+  if (hasCliffWarning && result.suggestedNewVaultBtc !== null) {
+    const amountBtc = result.suggestedNewVaultBtc.toFixed(2);
     actions.push({
-      label: isCliffSacrificial
-        ? COPY.banner.addSacrificialVault
-        : COPY.banner.addVault(amountBtc),
+      label: COPY.banner.addSacrificialVault,
       onClick: () => onDeposit(amountBtc),
       emphasis: isUrgent ? "secondary" : "primary",
       // Adding a vault is a deposit — blocked under a protocol Freeze/Pause.

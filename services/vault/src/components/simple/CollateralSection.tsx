@@ -23,7 +23,11 @@ import {
   ArtifactDownloadModal,
   type ArtifactDownloadModalParams,
 } from "@/components/deposit/ArtifactDownloadModal";
-import { DepositButton, ExpandMenuButton } from "@/components/shared";
+import {
+  DepositButton,
+  ExpandablePanel,
+  ExpandMenuButton,
+} from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import {
   isDepositBlocked,
@@ -293,12 +297,12 @@ export function CollateralSection({
           </div>
 
           {/* Expanded vault list */}
-          {isExpanded && (
+          <ExpandablePanel expanded={isExpanded}>
             <CollateralExpandedContent
               vaults={collateralVaults}
               onArtifactDownload={handleArtifactDownload}
             />
-          )}
+          </ExpandablePanel>
         </Card>
       ) : (
         <Card variant="filled" className="w-full border-0">

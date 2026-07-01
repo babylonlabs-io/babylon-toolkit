@@ -43,39 +43,14 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   },
 }));
 
-vi.mock("@/models/peginStateMachine", () => ({
-  PeginAction: {
-    SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY",
-    SIGN_PAYOUT_TRANSACTIONS: "SIGN_PAYOUT_TRANSACTIONS",
-    ACTIVATE_VAULT: "ACTIVATE_VAULT",
-    NONE: "NONE",
-  },
-  ContractStatus: {
-    PENDING: 0,
-    VERIFIED: 1,
-    ACTIVE: 2,
-    REDEEMED: 3,
-    LIQUIDATED: 4,
-    INVALID: 5,
-    DEPOSITOR_WITHDRAWN: 6,
-    EXPIRED: 7,
-  },
-  LocalStorageStatus: {
-    PENDING: "pending",
-    PAYOUT_SIGNED: "payout_signed",
-    CONFIRMING: "confirming",
-    CONFIRMED: "confirmed",
-    REFUND_BROADCAST: "refund_broadcast",
-  },
-  getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
-  getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
-  // Mirrors the production set; ContractStatus literals match the mock above.
-  USER_ACTIONABLE_PEGIN_ACTIONS: new Set([
+vi.mock("@/models/peginStateMachine", () => {
+  // Mirrors the production set; ContractStatus literals match the mock below.
+  const USER_ACTIONABLE_PEGIN_ACTIONS = new Set([
     "SUBMIT_WOTS_KEY",
     "SIGN_PAYOUT_TRANSACTIONS",
     "ACTIVATE_VAULT",
-  ]),
-  isVaultPastActivation: (
+  ]);
+  const isVaultPastActivation = (
     state: { contractStatus: number; localStatus?: string } | undefined,
   ) => {
     if (!state) return false;
@@ -85,17 +60,84 @@ vi.mock("@/models/peginStateMachine", () => ({
     }
     // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
     return [2, 3, 4, 6].includes(state.contractStatus);
-  },
-  // Narrower than isVaultPastActivation: only ACTIVE or optimistic
-  // VERIFIED+CONFIRMED count as "activated".
-  isVaultActivated: (
-    state: { contractStatus: number; localStatus?: string } | undefined,
+  };
+  // Faithful stand-ins for the shared predicates the continuation view imports.
+  // They mirror production so the tests still drive selection through the
+  // peginState data (displayVariant / availableActions / btcPublicKey).
+  const isCandidateVault = (
+    state:
+      | {
+          contractStatus: number;
+          localStatus?: string;
+          displayVariant?: string;
+        }
+      | undefined,
+  ) =>
+    !!state &&
+    !isVaultPastActivation(state) &&
+    state.displayVariant !== "warning" &&
+    state.displayVariant !== "danger";
+  const isActionablePeginAction = (
+    action: string,
+    btcPublicKey: string | undefined,
   ) => {
-    if (!state) return false;
-    if (state.contractStatus === 2) return true; // ACTIVE
-    return state.contractStatus === 1 && state.localStatus === "confirmed";
-  },
-}));
+    if (action === "SIGN_AND_BROADCAST_TO_BITCOIN") return true;
+    if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
+    if (action === "SIGN_PAYOUT_TRANSACTIONS") {
+      return btcPublicKey !== undefined;
+    }
+    return true;
+  };
+  const hasActionableStep = (
+    state: { availableActions?: string[] } | undefined,
+    btcPublicKey: string | undefined,
+  ) =>
+    !!state &&
+    (state.availableActions ?? []).some((action) =>
+      isActionablePeginAction(action, btcPublicKey),
+    );
+  return {
+    PeginAction: {
+      SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY",
+      SIGN_PAYOUT_TRANSACTIONS: "SIGN_PAYOUT_TRANSACTIONS",
+      ACTIVATE_VAULT: "ACTIVATE_VAULT",
+      NONE: "NONE",
+    },
+    ContractStatus: {
+      PENDING: 0,
+      VERIFIED: 1,
+      ACTIVE: 2,
+      REDEEMED: 3,
+      LIQUIDATED: 4,
+      INVALID: 5,
+      DEPOSITOR_WITHDRAWN: 6,
+      EXPIRED: 7,
+    },
+    LocalStorageStatus: {
+      PENDING: "pending",
+      PAYOUT_SIGNED: "payout_signed",
+      CONFIRMING: "confirming",
+      CONFIRMED: "confirmed",
+      REFUND_BROADCAST: "refund_broadcast",
+    },
+    getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    USER_ACTIONABLE_PEGIN_ACTIONS,
+    isVaultPastActivation,
+    // Narrower than isVaultPastActivation: only ACTIVE or optimistic
+    // VERIFIED+CONFIRMED count as "activated".
+    isVaultActivated: (
+      state: { contractStatus: number; localStatus?: string } | undefined,
+    ) => {
+      if (!state) return false;
+      if (state.contractStatus === 2) return true; // ACTIVE
+      return state.contractStatus === 1 && state.localStatus === "confirmed";
+    },
+    isCandidateVault,
+    isActionablePeginAction,
+    hasActionableStep,
+  };
+});
 
 vi.mock("@/copy", () => ({
   COPY: {
@@ -105,8 +147,8 @@ vi.mock("@/copy", () => ({
         activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
       },
       vaultActivatedSuccess: {
-        heading: "Vault activated",
-        body: "Your vault is now active and ready for borrowing.",
+        heading: "BTC Vault activated",
+        body: "Your BTC Vault is now active and ready for borrowing.",
         goToDashboard: "Go to Dashboard",
       },
       errors: {
@@ -369,7 +411,7 @@ describe("PostDepositContinuationView", () => {
     // With no vault left to continue, the modal lands on the activated success
     // screen (replacing the progress view) rather than parking on a generic
     // "awaiting confirmation" step.
-    expect(getByText("Vault activated")).toBeInTheDocument();
+    expect(getByText("BTC Vault activated")).toBeInTheDocument();
     expect(getByText("Go to Dashboard")).toBeInTheDocument();
     // The deposit progress view is replaced, not layered behind.
     expect(queryByTestId("step")).toBeNull();
@@ -395,7 +437,7 @@ describe("PostDepositContinuationView", () => {
     });
 
     // No candidate vault remains → the single activated success screen shows.
-    expect(getByText("Vault activated")).toBeInTheDocument();
+    expect(getByText("BTC Vault activated")).toBeInTheDocument();
     expect(getByText("Go to Dashboard")).toBeInTheDocument();
     expect(queryByTestId("step")).toBeNull();
   });

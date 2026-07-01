@@ -21,7 +21,7 @@ describe("MaxVaultsNotification", () => {
 
     render(<MaxVaultsNotification connectedAddress="0xuser" />);
 
-    expect(screen.getByText("Maximum vaults reached")).toBeInTheDocument();
+    expect(screen.getByText("Maximum BTC Vaults reached")).toBeInTheDocument();
     expect(
       screen.getByText(/maximum number of BTC Vaults \(10\)/),
     ).toBeInTheDocument();

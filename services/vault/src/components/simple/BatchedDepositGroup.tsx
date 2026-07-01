@@ -15,6 +15,7 @@
 import { Button } from "@babylonlabs-io/core-ui";
 
 import {
+  type ActionButton,
   getActionStatus,
   PeginAction,
 } from "@/components/deposit/actionStatus";
@@ -63,6 +64,26 @@ export function BatchedDepositGroup({
       status.action.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN
     );
   });
+
+  // Once the shared broadcast is done, a sibling may still need a per-vault
+  // step (submit key / sign payouts / activate). Surface a single group CTA so
+  // the depositor always has an explicit "continue" affordance — it opens the
+  // batch multistepper, which drives every remaining step. Broadcast keeps its
+  // own dedicated button (a distinct handler); the two are mutually exclusive.
+  // Split siblings normally advance together, so the first one still needing a
+  // step labels the batch.
+  let continueAction: ActionButton | undefined;
+  if (!broadcastTarget) {
+    for (const activity of activities) {
+      const result = getPollingResult(activity.id);
+      if (!result) continue;
+      const status = getActionStatus(result);
+      if (status.type === "available") {
+        continueAction = status.action;
+        break;
+      }
+    }
+  }
 
   // Display-only header total. `formatBtcAmount` rounds to 8 dp, so float-sum
   // drift never surfaces. Do NOT copy this parseFloat-sum into any commitment,
@@ -154,7 +175,7 @@ export function BatchedDepositGroup({
         <div className="mt-3">
           <Button
             variant="contained"
-            color="primary"
+            color="secondary"
             className="w-full"
             onClick={() => onBroadcastClick(broadcastTarget.id)}
           >
@@ -163,6 +184,18 @@ export function BatchedDepositGroup({
           <span className="mt-2 block text-center text-xs text-accent-secondary">
             {COPY.pegin.batchedDeposit.broadcastHelper}
           </span>
+        </div>
+      )}
+      {continueAction && onGroupClick && (
+        <div className="mt-3">
+          <Button
+            variant="contained"
+            color="secondary"
+            className="w-full"
+            onClick={() => onGroupClick(activities[0].id)}
+          >
+            {continueAction.label}
+          </Button>
         </div>
       )}
     </div>

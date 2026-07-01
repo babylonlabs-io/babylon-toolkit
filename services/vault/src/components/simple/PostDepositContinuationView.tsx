@@ -10,11 +10,11 @@ import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress"
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
+  hasActionableStep,
+  isCandidateVault,
   isVaultActivated,
   isVaultPastActivation,
   PeginAction,
-  type PeginState,
-  USER_ACTIONABLE_PEGIN_ACTIONS,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { type DepositErrorContent, mapDepositError } from "@/utils/errors";
@@ -38,41 +38,6 @@ interface PostDepositContinuationViewProps {
   depositorEthAddress: Address;
   btcPublicKey: string | undefined;
   onClose: () => void;
-}
-
-function isCandidateVault(state: PeginState | undefined): boolean {
-  return (
-    !!state &&
-    !isVaultPastActivation(state) &&
-    state.displayVariant !== "warning" &&
-    state.displayVariant !== "danger"
-  );
-}
-
-function hasActionableStep(
-  state: PeginState | undefined,
-  btcPublicKey: string | undefined,
-): boolean {
-  if (!state) return false;
-  return (state.availableActions ?? []).some((action) => {
-    // This continuation view also drives the shared Pre-PegIn broadcast (see
-    // the SIGN_AND_BROADCAST branch below), which `USER_ACTIONABLE_PEGIN_ACTIONS`
-    // deliberately omits. Count it here so selection is explicit rather than
-    // relying on the no-actionable fallback. Hardening only: broadcast is a
-    // single shared tx, so when it's pending every sibling is at this same step
-    // together — there is never an "earlier sibling past broadcast" to skip, so
-    // the chosen index is index 0 either way.
-    if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) return true;
-    if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
-    // Mirror the render-branch prerequisite: payout signing also needs the
-    // depositor's BTC public key. Without this check a payout-only vault
-    // wins actionableIndex, fails the payout branch, and renders the wait
-    // view — stalling a later vault with a genuinely-actionable step.
-    if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
-      return btcPublicKey !== undefined;
-    }
-    return true;
-  });
 }
 
 function StatusView({
