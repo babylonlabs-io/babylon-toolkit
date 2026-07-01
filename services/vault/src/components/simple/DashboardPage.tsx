@@ -74,7 +74,6 @@ export function DashboardPage() {
     hasLoans,
     hasCollateral,
     hasDisplayCollateral,
-    hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(isConnected ? address : undefined);
@@ -118,7 +117,7 @@ export function DashboardPage() {
   // the whole panel until there is real collateral or debt to summarize. Gate on
   // the financial flags (not the display ones) so an optimistic "activating"
   // vault, whose values are still $0, doesn't surface an empty panel.
-  const hasOverviewData = hasCollateral || hasDebt;
+  const hasOverviewData = hasCollateral || hasLoans;
   // Display total includes optimistic "activating" vaults; the financial
   // `collateralBtc` (passed separately for the position snapshot) stays pure.
   const totalAmountBtc = formatBtcAmount(displayCollateralBtc);
