@@ -13,11 +13,7 @@ import { PositionNotificationsDebugPanel } from "@/applications/aave/components/
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
-import {
-  usePositionNotifications,
-  type PositionNotificationsStatus,
-} from "@/applications/aave/hooks/usePositionNotifications";
-import type { CalculatorResult } from "@/applications/aave/positionNotifications";
+import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
@@ -36,6 +32,7 @@ import {
   formatUsdValue,
 } from "@/utils/formatting";
 
+import { useDebugPositionOverride } from "../dev/debugPositionStore";
 import { useDemoCollateral, useDemoWithdrawal } from "../dev/demoDeposit";
 
 import { CollateralSection } from "./CollateralSection";
@@ -68,13 +65,15 @@ export function DashboardPage() {
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [debugResultOverride, setDebugResultOverride] =
-    useState<CalculatorResult | null>(null);
-  const [debugStatusOverride, setDebugStatusOverride] =
-    useState<PositionNotificationsStatus | null>(null);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
+
+  // Dev-only banner override driven by the position-notifications section of
+  // the god-mode panel (see debugPositionStore). Always null in production, so
+  // the banners fall back to the live calculation with no behavioural change.
+  const { result: debugResultOverride, status: debugStatusOverride } =
+    useDebugPositionOverride();
   const {
     collateralBtc,
     displayCollateralBtc,
@@ -253,12 +252,20 @@ export function DashboardPage() {
   // Dev/QA god-mode admin panel (NEXT_PUBLIC_FF_GOD_MODE_PANEL). Floats over
   // the page and drives the demo items rendered in the real sections below.
   // Stripped from production builds and never active there (see GodModePanel).
+  // The position-notifications debug controls live inside the god-mode panel as
+  // a section (gated by their own flag), so there's one integrated debug
+  // surface rather than a separate panel on the page.
   const godModePanel =
     import.meta.env.DEV &&
     GodModePanel &&
     featureFlags.isGodModePanelEnabled ? (
       <Suspense fallback={null}>
-        <GodModePanel />
+        <GodModePanel>
+          {liquidationNotificationsEnabled &&
+            featureFlags.isPositionDebugPanelEnabled && (
+              <PositionNotificationsDebugPanel />
+            )}
+        </GodModePanel>
       </Suspense>
     ) : null;
 
@@ -343,14 +350,6 @@ export function DashboardPage() {
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />
-
-        {liquidationNotificationsEnabled &&
-          featureFlags.isPositionDebugPanelEnabled && (
-            <PositionNotificationsDebugPanel
-              onResultChange={setDebugResultOverride}
-              onStatusChange={setDebugStatusOverride}
-            />
-          )}
       </div>
 
       {/* Withdraw Flow */}

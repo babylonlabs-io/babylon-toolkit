@@ -229,6 +229,19 @@ describe("GodModePanel", () => {
       screen.getByRole("combobox", { name: "Mock 1 type" }),
     ).toBeDisabled();
   });
+
+  it("renders a passed-in section (e.g. the position debug panel) once expanded", () => {
+    render(
+      <GodModePanel>
+        <div>extra debug section</div>
+      </GodModePanel>,
+    );
+    // Collapsed launcher shows no children.
+    expect(screen.queryByText("extra debug section")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "God mode" }));
+    expect(screen.getByText("extra debug section")).toBeInTheDocument();
+  });
 });
 
 // Collateral collation referenced for COLLATERAL_SCENARIOS length sanity.

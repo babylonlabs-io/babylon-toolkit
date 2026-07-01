@@ -14,7 +14,13 @@
  * routed through copy.ts — none of it is shown to depositors.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -218,18 +224,21 @@ function DemoControls() {
   );
 }
 
-function PanelBody() {
+function PanelBody({ children }: { children?: ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
-        Mocks
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
+          Mocks
+        </div>
+        <DemoControls />
       </div>
-      <DemoControls />
+      {children}
     </div>
   );
 }
 
-export function GodModePanel() {
+export function GodModePanel({ children }: { children?: ReactNode }) {
   // Defaults: collapsed (small launcher) anchored bottom-right. `pos` is null
   // until the user drags — then it switches to absolute top/left positioning.
   const [collapsed, setCollapsed] = useState(true);
@@ -324,7 +333,7 @@ export function GodModePanel() {
             Return ↙
           </button>
         </div>
-        <PanelBody />
+        <PanelBody>{children}</PanelBody>
       </div>,
       popupContainer,
     );
@@ -383,7 +392,7 @@ export function GodModePanel() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
-          <PanelBody />
+          <PanelBody>{children}</PanelBody>
         </div>
       </div>
     );
