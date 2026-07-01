@@ -196,3 +196,22 @@ export function canPerformAction(
 ): boolean {
   return state.availableActions.includes(action);
 }
+
+// ============================================================================
+// Activation deadline
+// ============================================================================
+
+/**
+ * Whether a vault's on-chain activation window has closed. Mirrors the
+ * BTCVaultRegistry check that reverts `ActivationDeadlineExpired`:
+ * `block.number > createdAt + pegInActivationTimeout` — strict `>`, so a
+ * boundary-equal block is NOT expired. All values are Ethereum block numbers.
+ */
+export function isActivationDeadlinePassedOnChain(params: {
+  currentBlock: bigint;
+  createdAtBlock: bigint;
+  pegInActivationTimeout: bigint;
+}): boolean {
+  const { currentBlock, createdAtBlock, pegInActivationTimeout } = params;
+  return currentBlock > createdAtBlock + pegInActivationTimeout;
+}

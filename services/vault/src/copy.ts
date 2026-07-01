@@ -34,6 +34,10 @@
  *   surrounding screen rather than imposing a single rule.
  */
 
+// Direct file import (not the barrel) so we don't pull errorMessages' siblings
+// that import this file back. errorMessages.ts is import-free, so this is safe.
+import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
+
 // Shared strings that legitimately appear in multiple places. Hoisting them
 // here prevents wording drift if one site is later reworded but the other is
 // missed.
@@ -559,6 +563,8 @@ export const COPY = {
       // broadcast, so no funds are locked and the user can retry once it resumes.
       protocolPaused:
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
+      cannotActivateInState: (state: string) =>
+        `Cannot activate: BTC Vault is in ${state} state. Activation is only valid when VERIFIED.`,
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -575,6 +581,12 @@ export const COPY = {
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
+      },
+      activationDeadlinePassed: {
+        title: "Activation deadline passed",
+        // Reuse the canonical ABI-keyed message so this terminal callout can't
+        // drift from the ActivationDeadlineExpired contract-error string.
+        body: `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} You can reclaim your BTC through the refund flow once it becomes available.`,
       },
       signingRejected: {
         title: "Signing rejected",
