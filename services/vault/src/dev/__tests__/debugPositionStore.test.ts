@@ -5,7 +5,7 @@ import type { CalculatorResult } from "@/applications/aave/positionNotifications
 
 import {
   makeDefaultDebugParams,
-  resetDebugPositionState,
+  resetDebugManualParams,
   setDebugManualMode,
   setDebugManualParams,
   setDebugPositionOverride,
@@ -21,8 +21,13 @@ import {
 const RESULT_DOUBLE = { currentHF: 1.23 } as unknown as CalculatorResult;
 
 describe("debugPositionStore", () => {
+  // Reset through the same setters production uses — the store is a module
+  // singleton, so each test must leave it in its default state.
   afterEach(() => {
-    resetDebugPositionState();
+    setDebugManualMode(false);
+    setDebugSimulateStalePrice(false);
+    resetDebugManualParams();
+    setDebugPositionOverride(null, null);
   });
 
   it("reflects the manual-mode and stale-price toggles", () => {
@@ -47,7 +52,7 @@ describe("debugPositionStore", () => {
     );
     expect(result.current.btcPrice).toBe(12345);
 
-    act(() => resetDebugPositionState());
+    act(() => resetDebugManualParams());
     expect(result.current.btcPrice).toBe(defaultBtcPrice);
   });
 

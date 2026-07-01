@@ -357,7 +357,8 @@ export function DashboardPage() {
           transaction, so passing the demo-merged list would let a god-mode mock
           row (fake vaultId) — or a hidden-real scenario — enter the real signing
           path. The CollateralSection above is the only surface that takes the
-          demo-merged list, and it filters `displayOnly` rows out of every action. */}
+          demo-merged list, and it filters `displayOnly` rows out of every action.
+          WithdrawFlow also filters `displayOnly` internally as defense-in-depth. */}
       <WithdrawFlow
         open={isWithdrawOpen}
         onClose={handleCloseWithdraw}

@@ -100,9 +100,12 @@ export default {
   /**
    * POSITION_DEBUG_PANEL feature flag
    *
-   * Purpose: Shows the position notifications debug panel on the dashboard,
-   * allowing manual parameter overrides and simulation of notification states.
-   * Why needed: Dev/QA tool for testing position notification scenarios
+   * Purpose: Shows the position-notifications debug controls as a section
+   * inside the god-mode panel, allowing manual parameter overrides and
+   * simulation of notification states.
+   * Why needed: Dev/QA tool for testing position notification scenarios.
+   * Only surfaces when GOD_MODE_PANEL (dev builds only) and
+   * ENABLE_LIQUIDATION_NOTIFICATIONS are also enabled.
    * Default: false (disabled unless explicitly set to "true")
    */
   get isPositionDebugPanelEnabled() {

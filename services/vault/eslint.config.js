@@ -164,7 +164,10 @@ export default tseslint.config(
           ],
           patterns: [
             {
-              group: ["@/dev", "@/dev/*"],
+              // Both the alias and relative spellings: no-restricted-imports
+              // matches the literal import specifier, not the resolved path,
+              // so "@/dev/*" alone would let "../dev/*" slip through.
+              group: ["@/dev", "@/dev/*", "**/dev", "**/dev/*"],
               message:
                 "Dev-only tooling in src/dev must not be imported by production code. Add a new sanctioned seam to the src/dev boundary override in eslint.config.js only if truly required.",
             },

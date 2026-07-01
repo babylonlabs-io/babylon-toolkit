@@ -108,15 +108,6 @@ export function setDebugPositionOverride(
   emit();
 }
 
-/** Reset every control back to its default (used by tests). */
-export function resetDebugPositionState() {
-  manualMode = false;
-  simulateStalePrice = false;
-  manualParams = makeDefaultDebugParams();
-  override = NO_OVERRIDE;
-  emit();
-}
-
 function getManualMode() {
   return manualMode;
 }

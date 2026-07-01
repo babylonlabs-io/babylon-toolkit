@@ -59,12 +59,22 @@ function WithdrawFlowContent({
   const [submittedAssertTimelockBlocks, setSubmittedAssertTimelockBlocks] =
     useState(0);
 
+  // Signing-surface guard: god-mode demo rows are display-only (`displayOnly`,
+  // fake vaultId) and must never be selectable for a real withdraw, even if a
+  // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
+  // actionableVaults filter. Always a no-op in production (the flag is never
+  // set there).
+  const withdrawableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.displayOnly),
+    [collateralVaults],
+  );
+
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
     selectedVaults: effectiveSelectedVaults,
   } = useMemo(
-    () => getEffectiveVaultSelection(collateralVaults, preSelectedVaultIds),
-    [collateralVaults, preSelectedVaultIds],
+    () => getEffectiveVaultSelection(withdrawableVaults, preSelectedVaultIds),
+    [withdrawableVaults, preSelectedVaultIds],
   );
 
   const selectedPayoutAddresses = useMemo(
