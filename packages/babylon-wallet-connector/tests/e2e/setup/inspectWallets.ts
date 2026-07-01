@@ -5,7 +5,7 @@
  *  1. Production wallets (UNISAT, METAMASK): runs the real importer from `fixtures/wallets/*` headed
  *     so you can watch the flow and see the address verdict. The importers are the single source of
  *     truth — this tool just drives them.
- *  2. Prototype mode (any wallet without an importer yet, e.g. OKX/ONEKEY): loads the extension,
+ *  2. Prototype mode (any wallet without an importer yet): loads the extension,
  *     discovers its runtime id, opens its entry page, and dumps a screenshot + DOM snapshot so you
  *     can derive selectors, then write `fixtures/wallets/<wallet>.ts`.
  *
@@ -21,6 +21,7 @@ import { setupOKXWallet } from "../fixtures/wallets/okx";
 import { setupOneKeyWallet } from "../fixtures/wallets/onekey";
 import { setupUnisatWallet } from "../fixtures/wallets/unisat";
 import { pathToExtensionId } from "../utils/extensionId";
+import { SETTLE } from "../utils/timing";
 import { addrMatches } from "../utils/walletUi";
 
 import { EXTENSION_CHROME_STORE_IDS, getExtensionPath } from "./downloadExtensions";
@@ -168,7 +169,7 @@ async function main() {
     await page.goto(`chrome-extension://${runtimeId}/index.html`).catch((e) => console.log(`goto: ${e.message}`));
   }
   await page.waitForLoadState("domcontentloaded").catch(() => {});
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(SETTLE.MEDIUM);
   await page.bringToFront();
   console.log(`\nentry: ${page.url()}`);
   await snap(page, "1-welcome");

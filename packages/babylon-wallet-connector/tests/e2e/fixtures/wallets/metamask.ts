@@ -21,7 +21,17 @@ import { type BrowserContext, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
+import { SETTLE, TYPE_DELAY_MS } from "../../utils/timing";
 import { clickText, clickWhenEnabled, scanEthAddress } from "../../utils/walletUi";
+
+/** MetaMask-specific timeouts/loop bounds (values preserved from the verified onboarding flow). */
+const WALLET_SETTLE_STEPS = 15; // settleWallet loop: drive residual onboarding until the home renders
+const POST_PASSWORD_STEPS = 8; // dismiss-screen attempts after setting the password
+const UNLOCK_ENABLE_MS = 4000; // wait for the unlock submit button to enable
+const DISMISS_CLICK_MS = 2000; // click timeout for optional dismiss buttons
+const OPEN_WALLET_CLICK_MS = 5000; // click timeout for the "Open wallet" button
+const SIDE_PANEL_APPEAR_MS = 8000; // wait for the side panel to open after "Open wallet"
+const SIDE_PANEL_RECHECK_MS = 3000; // shorter re-check in case a panel re-opened
 
 /** Close MetaMask's docked side panel via CDP (browser-level; LavaMoat can't block it). Optionally
  * poll for it to appear first — its presence also signals onboarding has finalized. */
@@ -36,7 +46,7 @@ async function closeSidePanel(page: Page, waitMs = 0): Promise<number> {
   const deadline = Date.now() + waitMs;
   let panels = await findPanels();
   while (panels.length === 0 && Date.now() < deadline) {
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(SETTLE.SHORT);
     panels = await findPanels();
   }
   for (const panel of panels) await cdp.send("Target.closeTarget", { targetId: panel.targetId }).catch(() => {});
@@ -49,15 +59,15 @@ async function unlockIfNeeded(page: Page, password: string): Promise<boolean> {
   if ((await pw.count()) === 0) return false;
   await pw.fill(password);
   await pw.press("Enter").catch(() => {});
-  await clickWhenEnabled(page, /Unlock|Confirm|Log in|Submit/i, 4000);
-  await page.waitForTimeout(2000);
+  await clickWhenEnabled(page, /Unlock|Confirm|Log in|Submit/i, UNLOCK_ENABLE_MS);
+  await page.waitForTimeout(SETTLE.MEDIUM);
   return true;
 }
 
 /** Drive a fresh MetaMask tab to the actual wallet home, absorbing residual onboarding (unlock /
  * decline passkey). Deterministic: loops until the wallet home renders rather than waiting a guess. */
 async function settleWallet(page: Page, base: string, password: string): Promise<boolean> {
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < WALLET_SETTLE_STEPS; i++) {
     const url = page.url();
     const onWallet = !/\/onboarding\//.test(url) && (await page.getByRole("button", { name: /^Receive$/i }).count()) > 0;
     if (onWallet) return true;
@@ -68,14 +78,14 @@ async function settleWallet(page: Page, base: string, password: string): Promise
       for (const label of ["Maybe later", "Not now", "Skip", "No thanks"]) {
         const loc = page.getByText(label, { exact: true }).first();
         if ((await loc.count()) > 0) {
-          await loc.click({ timeout: 2000 }).catch(() => {});
+          await loc.click({ timeout: DISMISS_CLICK_MS }).catch(() => {});
           break;
         }
       }
     } else {
       await page.goto(`${base}/home.html#/`).catch(() => {}); // nudge back toward the wallet home
     }
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(SETTLE.MODAL);
   }
   return false;
 }
@@ -102,28 +112,28 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
   const onboardingTab = await context.newPage();
   await onboardingTab.goto(`chrome-extension://${extensionId}/home.html#onboarding/welcome`).catch(() => {});
   await onboardingTab.waitForLoadState("domcontentloaded").catch(() => {});
-  await onboardingTab.waitForTimeout(2000);
+  await onboardingTab.waitForTimeout(SETTLE.MEDIUM);
   const tid = (id: string) => onboardingTab.getByTestId(id);
 
   // Force English, then choose the import-existing-wallet → Secret Recovery Phrase path.
   const languageSelect = onboardingTab.locator("select").first();
   if ((await languageSelect.count()) > 0) {
     await languageSelect.selectOption("en").catch(() => {});
-    await onboardingTab.waitForTimeout(1000);
+    await onboardingTab.waitForTimeout(SETTLE.BRIEF);
   }
   await clickText(onboardingTab, /I have an existing wallet|Import an existing wallet/i);
-  await onboardingTab.waitForTimeout(1500);
+  await onboardingTab.waitForTimeout(SETTLE.MODAL);
   await clickText(onboardingTab, /Import using Secret Recovery Phrase|Secret Recovery Phrase|Import a wallet with|Continue with a Secret/i);
-  await onboardingTab.waitForTimeout(1500);
+  await onboardingTab.waitForTimeout(SETTLE.MODAL);
   await clickText(onboardingTab, /^I agree$|No thanks|Got it/i); // optional analytics prompt
-  await onboardingTab.waitForTimeout(1200);
+  await onboardingTab.waitForTimeout(SETTLE.MODAL);
 
   // Secret Recovery Phrase — per-word testids if present, else the word-grid (type word + Space + wait).
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
   if ((await tid("import-srp__srp-word-0").count()) > 0) {
     for (let i = 0; i < words.length; i++) {
       await tid(`import-srp__srp-word-${i}`).click().catch(() => {});
-      await tid(`import-srp__srp-word-${i}`).pressSequentially(words[i], { delay: 10 }).catch(() => {});
+      await tid(`import-srp__srp-word-${i}`).pressSequentially(words[i], { delay: TYPE_DELAY_MS }).catch(() => {});
     }
   } else {
     const box = (await onboardingTab.getByRole("textbox").count()) > 0
@@ -133,16 +143,16 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
     await onboardingTab.keyboard.press("ControlOrMeta+A");
     await onboardingTab.keyboard.press("Backspace");
     for (let i = 0; i < words.length; i++) {
-      await onboardingTab.keyboard.type(words[i], { delay: 10 });
+      await onboardingTab.keyboard.type(words[i], { delay: TYPE_DELAY_MS });
       if (i < words.length - 1) {
         await onboardingTab.keyboard.press("Space");
-        await onboardingTab.waitForTimeout(180); // let the grid mount + focus the next word box
+        await onboardingTab.waitForTimeout(SETTLE.KEYSTROKE); // let the grid mount + focus the next word box
       }
     }
   }
-  await onboardingTab.waitForTimeout(800);
+  await onboardingTab.waitForTimeout(SETTLE.BRIEF);
   await clickWhenEnabled(onboardingTab, /Continue|Import wallet|Confirm/i);
-  await onboardingTab.waitForTimeout(2000);
+  await onboardingTab.waitForTimeout(SETTLE.MEDIUM);
 
   // Guard: MetaMask's SRP word boxes are also input[type=password]; only fill the password once the
   // real password screen is showing, else we'd dump the password into the seed boxes.
@@ -158,30 +168,30 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
   }
   await onboardingTab.locator('input[type="checkbox"]').first().check({ force: true }).catch(() => {});
   await clickWhenEnabled(onboardingTab, /Create password|Import my wallet|Confirm/i);
-  await onboardingTab.waitForTimeout(2800);
+  await onboardingTab.waitForTimeout(SETTLE.LONG);
 
   // Post-password screens (decline biometrics etc.) until the "Your wallet is ready!" completion.
   const dismissLabels = ["Maybe later", "Remind me later", "Not now", "Skip", "No thanks", "Got it", "Done", "Next", "Continue"];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < POST_PASSWORD_STEPS; i++) {
     if (await scanEthAddress(onboardingTab)) break;
     if ((await onboardingTab.getByText(/Your wallet is ready|Open wallet/i).count()) > 0) break;
     let clicked = false;
     for (const label of dismissLabels) {
       const loc = onboardingTab.getByText(label, { exact: true }).first();
       if ((await loc.count()) > 0) {
-        await loc.click({ timeout: 2000 }).catch(() => {});
-        await onboardingTab.waitForTimeout(1000);
+        await loc.click({ timeout: DISMISS_CLICK_MS }).catch(() => {});
+        await onboardingTab.waitForTimeout(SETTLE.BRIEF);
         clicked = true;
         break;
       }
     }
-    if (!clicked) await onboardingTab.waitForTimeout(700);
+    if (!clicked) await onboardingTab.waitForTimeout(SETTLE.BRIEF);
   }
 
   // Finalize onboarding by clicking "Open wallet" (also opens the side panel), then close the panel.
-  await onboardingTab.getByRole("button", { name: /Open wallet/i }).first().click({ timeout: 5000 }).catch(() => {});
-  await onboardingTab.waitForTimeout(1500);
-  await closeSidePanel(onboardingTab, 8000);
+  await onboardingTab.getByRole("button", { name: /Open wallet/i }).first().click({ timeout: OPEN_WALLET_CLICK_MS }).catch(() => {});
+  await onboardingTab.waitForTimeout(SETTLE.MODAL);
+  await closeSidePanel(onboardingTab, SIDE_PANEL_APPEAR_MS);
 
   // Read the wallet in a fresh tab, driving through any residual onboarding (unlock / passkey).
   const base = (onboardingTab.url().match(/^(chrome-extension:\/\/[a-p]{32})\//) ?? [])[1] ?? `chrome-extension://${extensionId}`;
@@ -190,7 +200,7 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
   await settleWallet(walletPage, base, password);
 
   await onboardingTab.close().catch(() => {}); // completion tab no longer needed
-  await closeSidePanel(walletPage, 3000); // in case a panel re-opened
+  await closeSidePanel(walletPage, SIDE_PANEL_RECHECK_MS); // in case a panel re-opened
 
   const address = await readAddress(walletPage);
   await walletPage.close().catch(() => {}); // done — the wallet persists in the profile

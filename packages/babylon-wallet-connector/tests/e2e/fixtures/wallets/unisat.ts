@@ -17,21 +17,25 @@ import { type BrowserContext, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
+import { CLIPBOARD_POLL, SETTLE, TYPE_DELAY_MS } from "../../utils/timing";
 import { addrMatches, advance, clickText, tap, tapTopmost } from "../../utils/walletUi";
 
 /** Signet-correct BIP86 account path; UniSat appends the `/0` receive index → m/86'/1'/0'/0/0. */
 const UNISAT_TAPROOT_ACCOUNT_PATH = "m/86'/1'/0'/0";
 
+/** How many times to re-try dismissing the "Compatibility Tips" modal before giving up. */
+const MODAL_DISMISS_ATTEMPTS = 4;
+
 /** Dismiss UniSat's "Compatibility Tips" modal — its checkbox must be acknowledged before OK works. */
 async function dismissModals(page: Page): Promise<void> {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < MODAL_DISMISS_ATTEMPTS; i++) {
     if ((await page.getByText(/Compatibility Tips/i).count()) === 0) return;
     const checkbox = page.locator('input[type="checkbox"]').last();
     if ((await checkbox.count()) > 0) await checkbox.check({ force: true }).catch(() => {});
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(SETTLE.KEYSTROKE);
     const okBox = await page.getByText(/^OK$/).last().boundingBox().catch(() => null);
     if (okBox) await page.mouse.click(okBox.x + okBox.width / 2, okBox.y + okBox.height / 2).catch(() => {});
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(SETTLE.BRIEF);
   }
 }
 
@@ -39,17 +43,17 @@ async function dismissModals(page: Page): Promise<void> {
 async function switchToSignet(page: Page): Promise<void> {
   await dismissModals(page);
   await tapTopmost(page, /^Bitcoin$/); // network pill at the top of the header
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(SETTLE.BRIEF);
   await tap(page, /^Bitcoin Testnet$/); // expand the testnet group
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(SETTLE.SHORT);
   await tap(page, /Bitcoin Signet/); // select signet
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(SETTLE.MODAL);
 }
 
 /** Read the full active taproot address from the Receive screen (via clipboard; DOM is truncated). */
 async function readReceiveAddress(page: Page): Promise<string | null> {
   await tap(page, /^Receive$/);
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(SETTLE.MODAL);
 
   const bodyText = (await page.evaluate("document.body.innerText").catch(() => "")) as string;
   const trunc = (bodyText.match(/tb1p[0-9a-z]+\.\.\.[0-9a-z]+/) ?? [])[0] ?? null;
@@ -63,10 +67,10 @@ async function readReceiveAddress(page: Page): Promise<string | null> {
   if (box) await page.mouse.click(box.x + box.width + 14, box.y + box.height / 2).catch(() => {}); // copy icon
 
   let clip = "";
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < CLIPBOARD_POLL.ATTEMPTS; i++) {
     clip = (((await page.evaluate("navigator.clipboard.readText().catch(() => '')").catch(() => "")) as string) || "").trim();
     if (/^tb1p[0-9a-z]{50,}$/.test(clip)) break;
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(CLIPBOARD_POLL.INTERVAL_MS);
   }
   if (/^tb1p[0-9a-z]{50,}$/.test(clip) && (!trunc || addrMatches(trunc, clip))) return clip;
   return trunc; // fall back to the truncated on-screen value (spec compares prefix/suffix)
@@ -84,13 +88,13 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/index.html`).catch(() => {});
   await page.waitForLoadState("domcontentloaded").catch(() => {});
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(SETTLE.MODAL);
 
   // Welcome → "I already have a wallet".
   await clickText(page, /i already have a wallet|already have/i);
 
   // UniSat asks to create a password first.
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(SETTLE.BRIEF);
   const passwordInputs = page.locator('input[type="password"]');
   if ((await passwordInputs.count()) >= 2) {
     await passwordInputs.nth(0).fill(password);
@@ -99,39 +103,39 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   }
 
   // "Restore from Mnemonics" chooser → source wallet = UniSat Wallet.
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(SETTLE.BRIEF);
   await clickText(page, /^UniSat Wallet$/);
 
   // Seed-entry screen — type each word with real key events.
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(SETTLE.BRIEF);
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
   const seedInputs = page.locator("input:visible, textarea:visible");
   const seedCount = await seedInputs.count();
   if (seedCount >= words.length) {
     for (let i = 0; i < words.length; i++) {
       await seedInputs.nth(i).click();
-      await seedInputs.nth(i).pressSequentially(words[i], { delay: 15 });
+      await seedInputs.nth(i).pressSequentially(words[i], { delay: TYPE_DELAY_MS });
     }
   } else {
     await seedInputs.first().click();
     await seedInputs.first().fill(mnemonic.trim());
   }
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(SETTLE.BRIEF);
   await advance(page, /continue|import|next|confirm/i);
 
   // Address-type screen — force the signet-correct path and select the Taproot (P2TR) row.
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(SETTLE.MODAL);
   const customPath = page.getByPlaceholder(/Custom HD Wallet Derivation Path/i);
   if ((await customPath.count()) > 0) {
     await customPath.first().click();
     await customPath.first().fill(UNISAT_TAPROOT_ACCOUNT_PATH);
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(SETTLE.BRIEF);
   }
   await tap(page, /Taproot \(P2TR\)/i);
   await advance(page, /continue|import|confirm|next|ok|done/i);
 
   // Wallet home (mainnet by default) → switch to signet and read the taproot address.
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(SETTLE.MEDIUM);
   await switchToSignet(page);
   const address = await readReceiveAddress(page);
 

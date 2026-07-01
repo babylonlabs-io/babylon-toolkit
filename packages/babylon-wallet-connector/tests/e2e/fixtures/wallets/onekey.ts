@@ -22,6 +22,7 @@ import { type BrowserContext, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
+import { CLIPBOARD_POLL, SETTLE, WAIT_FOR } from "../../utils/timing";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -40,32 +41,32 @@ async function closeForeignTabs(context: BrowserContext, tab: Page): Promise<voi
 }
 
 /** Force-click a top-document element by testid, waiting for it to appear first. */
-async function clickByTestId(tab: Page, testid: string, timeout = 10000): Promise<void> {
+async function clickByTestId(tab: Page, testid: string, timeout: number = WAIT_FOR.ELEMENT_SLOW_MS): Promise<void> {
   const loc = tab.locator(`[data-testid="${testid}"]`).first();
   await loc.waitFor({ state: "visible", timeout }).catch(() => {});
-  await loc.click({ force: true, timeout: 6000 }).catch(() => {});
+  await loc.click({ force: true, timeout: WAIT_FOR.ACTION_MS }).catch(() => {});
 }
 
 /** Force-click an element by its (exact) visible text, waiting for it first. */
-async function clickByText(tab: Page, text: string, timeout = 10000): Promise<void> {
+async function clickByText(tab: Page, text: string, timeout: number = WAIT_FOR.ELEMENT_SLOW_MS): Promise<void> {
   const loc = tab.getByText(text, { exact: true }).first();
   await loc.waitFor({ state: "visible", timeout }).catch(() => {});
-  await loc.click({ force: true, timeout: 6000 }).catch(() => {});
+  await loc.click({ force: true, timeout: WAIT_FOR.ACTION_MS }).catch(() => {});
 }
 
 /** Switch the active network to Bitcoin Signet via the chain-cluster trigger → Single network → search. */
 async function switchToSignet(tab: Page): Promise<void> {
   // The chain-icon cluster ("+16") next to "Account #1" has no testid — target its source-file marker.
   await tab.locator('[data-sentry-source-file*="AllNetworksManagerTrigger"]').first().click({ force: true }).catch(() => {});
-  await sleep(1500);
+  await sleep(SETTLE.MODAL);
   await clickByText(tab, "Single network");
-  await sleep(800);
+  await sleep(SETTLE.SHORT);
   const search = tab.locator('[data-testid="nav-header-search-chain-selector-search-bar"]').first();
-  await search.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+  await search.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
   await search.fill("signet").catch(() => {});
-  await sleep(1200);
+  await sleep(SETTLE.MODAL);
   await clickByText(tab, "Bitcoin Signet");
-  await sleep(2500);
+  await sleep(SETTLE.MEDIUM);
 }
 
 /**
@@ -77,10 +78,10 @@ async function readAddress(tab: Page): Promise<string | null> {
   await clickByTestId(tab, "account-selector-copy-address-btn");
 
   let clip = "";
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < CLIPBOARD_POLL.ATTEMPTS; i++) {
     clip = (((await tab.evaluate("navigator.clipboard.readText().catch(() => '')").catch(() => "")) as string) || "").trim();
     if (FULL_SIGNET_TAPROOT.test(clip)) return clip;
-    await sleep(300);
+    await sleep(CLIPBOARD_POLL.INTERVAL_MS);
   }
   return null;
 }
@@ -100,42 +101,42 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   const tab = await context.newPage();
   await tab.goto(`${origin}/ui-expand-tab.html`).catch(() => {});
   await tab.waitForLoadState("domcontentloaded").catch(() => {});
-  await sleep(4000);
+  await sleep(SETTLE.EXTRA_LONG);
   await closeForeignTabs(context, tab);
 
   // Add existing wallet → import phrase or private key. The tile has no testid, so click by text.
   await clickByText(tab, "Add existing wallet");
-  await sleep(2000);
+  await sleep(SETTLE.MEDIUM);
   await clickByTestId(tab, "onboarding-create-or-import-wallet-option-phraseOrPrivateKey-btn");
-  await sleep(2500);
+  await sleep(SETTLE.MEDIUM);
 
   // Fill the 12 seed words by pasting into box 0 (OneKey fans it across all inputs); clear the clipboard.
   const seedBox = tab.locator('[data-testid="phrase-input-index0"]').first();
-  await seedBox.waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+  await seedBox.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
   await tab.evaluate((m) => navigator.clipboard.writeText(m).catch(() => {}), mnemonic.trim()).catch(() => {});
   await seedBox.click().catch(() => {});
-  await tab.keyboard.press("Meta+V").catch(() => {});
-  await sleep(500);
+  await tab.keyboard.press("ControlOrMeta+V").catch(() => {});
+  await sleep(SETTLE.SHORT);
   await tab.evaluate("navigator.clipboard.writeText('').catch(() => {})").catch(() => {});
-  await sleep(600);
+  await sleep(SETTLE.SHORT);
   await clickByTestId(tab, "onboarding-import-phrase-confirm-btn");
-  await sleep(3000);
+  await sleep(SETTLE.LONG);
 
   // Set passcode: fill both fields, submit.
   await tab.locator('[data-testid="password"]').first().fill(password).catch(() => {});
   await tab.locator('[data-testid="confirm-password"]').first().fill(password).catch(() => {});
-  await sleep(500);
+  await sleep(SETTLE.SHORT);
   await clickByTestId(tab, "set-password");
-  await sleep(6000);
+  await sleep(SETTLE.PROCESSING);
 
   // "Your wallet is ready" → Enter wallet → skip the referral-code modal.
   await clickByText(tab, "Enter wallet");
-  await sleep(3000);
+  await sleep(SETTLE.LONG);
   await clickByText(tab, "Skip");
-  await sleep(4000);
+  await sleep(SETTLE.EXTRA_LONG);
 
   // Wait for the wallet home, then switch to signet and read the address.
-  await tab.locator('[data-testid="AccountSelectorTriggerBase"]').first().waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
+  await tab.locator('[data-testid="AccountSelectorTriggerBase"]').first().waitFor({ state: "visible", timeout: WAIT_FOR.HOME_MS }).catch(() => {});
   await switchToSignet(tab);
 
   const address = await readAddress(tab);

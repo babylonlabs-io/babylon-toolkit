@@ -8,6 +8,7 @@
 import { type BrowserContext, chromium } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS, getExtensionPath } from "../setup/downloadExtensions";
+import { EXTENSION_INIT_MS } from "../utils/timing";
 
 export type SupportedWallet = keyof typeof EXTENSION_CHROME_STORE_IDS;
 
@@ -35,7 +36,7 @@ export async function launchWalletContext(wallets: SupportedWallet[]): Promise<B
   // about:blank must remain, or closing the last page would close the browser.
   const blank = context.pages()[0] ?? (await context.newPage());
   await blank.goto("about:blank").catch(() => {});
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  await new Promise((resolve) => setTimeout(resolve, EXTENSION_INIT_MS));
   for (const page of context.pages()) {
     if (page !== blank) await page.close().catch(() => {});
   }

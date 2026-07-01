@@ -7,12 +7,14 @@
  */
 import { type Page } from "@playwright/test";
 
+import { SETTLE, WAIT_FOR } from "./timing";
+
 /** Click the first element whose text matches `re` (best-effort; resolves nothing → returns false). */
-export async function clickText(page: Page, re: RegExp, timeout = 4000): Promise<boolean> {
+export async function clickText(page: Page, re: RegExp, timeout: number = WAIT_FOR.ACTION_MS): Promise<boolean> {
   const loc = page.getByText(re).first();
   if ((await loc.count()) > 0) {
     await loc.click({ timeout }).catch(() => {});
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(SETTLE.MODAL);
     return true;
   }
   return false;
@@ -23,16 +25,16 @@ export async function clickText(page: Page, re: RegExp, timeout = 4000): Promise
  * (SRP Continue, Create password, Unlock) stay disabled until their form validates; a plain click on
  * the label span while disabled is silently dropped.
  */
-export async function clickWhenEnabled(page: Page, re: RegExp, timeout = 6000): Promise<boolean> {
+export async function clickWhenEnabled(page: Page, re: RegExp, timeout: number = WAIT_FOR.ACTION_MS): Promise<boolean> {
   const btn = page.getByRole("button", { name: re }).first();
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if ((await btn.count()) > 0 && !(await btn.isDisabled().catch(() => true))) {
       await btn.click().catch(() => {});
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(SETTLE.BRIEF);
       return true;
     }
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(SETTLE.KEYSTROKE);
   }
   return false;
 }
@@ -44,7 +46,7 @@ export async function clickWhenEnabled(page: Page, re: RegExp, timeout = 6000): 
 export async function advance(page: Page, re: RegExp): Promise<void> {
   const box = await page.getByText(re).last().boundingBox().catch(() => null);
   if (box) await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(SETTLE.MEDIUM);
 }
 
 /** Click the LAST element matching `re` by screen coordinates (robust for div-buttons/rows). */
@@ -54,7 +56,7 @@ export async function tap(page: Page, re: RegExp): Promise<boolean> {
   const box = await loc.boundingBox().catch(() => null);
   if (!box) return false;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(SETTLE.MODAL);
   return true;
 }
 
@@ -68,7 +70,7 @@ export async function tapTopmost(page: Page, re: RegExp): Promise<boolean> {
   }
   if (!best) return false;
   await page.mouse.click(best.x + best.width / 2, best.y + best.height / 2).catch(() => {});
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(SETTLE.BRIEF);
   return true;
 }
 
