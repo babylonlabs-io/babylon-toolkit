@@ -10,7 +10,7 @@
  * notification calculator with on-chain amounts and blocks submissions
  * whose ordering disagrees (the same-set tamper attack), whose vaults
  * are inactive or bound to a different application, or whose trusted
- * calculator would not have suggested a reorder at all (rebalance
+ * calculator would not have suggested a reorder at all (over-seizure
  * suppression).
  */
 

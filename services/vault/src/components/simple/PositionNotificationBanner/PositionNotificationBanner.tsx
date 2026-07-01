@@ -233,9 +233,9 @@ export function PositionNotificationBanner({
   });
 
   // Sub-box content: the optimal-order chips for the standalone reorder card,
-  // otherwise the primary warning's own suggestion (e.g. the cliff/rebalance
-  // advice — urgent conveys its CTA via the action buttons instead) stacked
-  // above any secondary warnings (e.g. urgent + cliff).
+  // otherwise the primary warning's own suggestion (e.g. the cliff advice —
+  // urgent conveys its CTA via the action buttons instead) stacked above any
+  // secondary warnings (e.g. urgent + cliff).
   let suggestion: ReactNode;
   if (isStandaloneReorder && result.optimalVaultOrder) {
     suggestion = <OptimalOrderChips vaults={result.optimalVaultOrder} />;

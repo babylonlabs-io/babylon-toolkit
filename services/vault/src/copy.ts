@@ -1120,7 +1120,6 @@ export const COPY = {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
-    addVault: (amountBtc: string) => `Add a ${amountBtc} BTC Vault`,
     addSacrificialVault: "Add sacrificial BTC Vault",
   },
   geoBlock: {
@@ -1192,9 +1191,9 @@ export const COPY = {
     liquidatable: "Critical — liquidation can trigger now",
   },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // warning types produced by the calculator: urgent / cliff / rebalance /
-  // reorder / dust / weird-params / too-many-vaults. Wording is ported from the
-  // reference liquidation calculator (the source of truth for this copy).
+  // warning types produced by the calculator: urgent / cliff / reorder / dust /
+  // weird-params / too-many-vaults. Wording is ported from the reference
+  // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
@@ -1265,27 +1264,6 @@ export const COPY = {
             ? `All ${nVaults} BTC Vaults land in the first liquidation group. Reordering BTC Vaults will fix this — suggested order: ${orderStr}.`
             : `All ${nVaults} BTC Vaults land in the first liquidation group, and no combination of BTC Vaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
       },
-    },
-    // Rebalance: the first group over-seizes because vault sizes aren't optimal;
-    // a new sacrificial vault (combined with the existing small vaults) fixes it.
-    rebalance: {
-      title: "Undersized sacrificial BTC Vault",
-      detail: (
-        g1CombinedBtc: string,
-        g1TargetSeizure: string,
-        g1OverSeizure: string,
-        improvementBtc: string,
-      ) =>
-        `Group 1 seizes ${g1CombinedBtc} BTC but target is only ${g1TargetSeizure} BTC — over-seizure of ${g1OverSeizure} BTC. With optimal BTC Vault sizes, ${improvementBtc} more BTC would be protected.`,
-      actionableSuggestion: (
-        suggestedBtc: string,
-        smallNames: string,
-        largestName: string,
-        largestBtc: string,
-      ) =>
-        `Add a ${suggestedBtc} BTC Vault and place it with ${smallNames} at the front — together they cover the target seizure, protecting ${largestName} (${largestBtc} BTC). You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open the position.`,
-      fallbackSuggestion: (sacrificialBtc: string) =>
-        `Repay the loan, split BTC into optimal UTXOs (sacrificial ~${sacrificialBtc} BTC + protected), and re-open the position.`,
     },
     // Too many vaults: beyond the optimizer cap, ordering falls back to a
     // largest-first heuristic and the reorder suggestion is no longer optimal.

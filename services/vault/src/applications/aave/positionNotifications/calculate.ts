@@ -56,7 +56,7 @@ const btc2 = (n: number): string => n.toFixed(2);
  * other advisories), `too-many-vaults` (optimizer fell back past its cap),
  * `urgent` (already liquidatable or within 5%), `cliff` (all vaults consolidate
  * into one liquidation group — partial liquidation impossible), `reorder` (a
- * safer order exists), `rebalance` (the first group over-seizes), or `dust`.
+ * safer order exists), or `dust`.
  */
 export function calculate(params: CalculatorParams): CalculatorResult {
   const {
@@ -90,7 +90,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       warnings,
       optimalVaultOrder: null,
       suggestedNewVaultBtc: null,
-      suggestedRebalanceVaultBtc: null,
     };
   }
 
@@ -132,7 +131,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       ],
       optimalVaultOrder: null,
       suggestedNewVaultBtc: null,
-      suggestedRebalanceVaultBtc: null,
     };
   }
 
@@ -285,7 +283,6 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       warnings,
       optimalVaultOrder: null,
       suggestedNewVaultBtc: null,
-      suggestedRebalanceVaultBtc: null,
     };
   }
 
@@ -345,21 +342,23 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   const group1ReorderWouldHelp =
     reorderWouldHelp && currentGroup1Btc > optimalG1Btc + REORDER_TOL;
 
-  // Suppress reorder if it would create a rebalance condition that doesn't exist
-  // now (prevents a reorder↔rebalance loop). Cliff cases are exempt — for a
-  // cliff, reordering is always an improvement even if it introduces rebalance.
+  // Don't suggest a reorder that would newly introduce an over-seizure
+  // condition (Group 1 loses more in excess than it protects) that the current
+  // order doesn't already have — a reorder should never make the position
+  // worse. Cliff cases are exempt: for a cliff, reordering is always an
+  // improvement even if the result over-seizes.
   if (reorderWouldHelp && nVaults >= 2 && !isCliff) {
     const currentOverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
     const currentProtected = firstGroup ? firstGroup.btcRemainingAfter : 0;
-    const currentHasRebalanceCond = currentOverSeizure > currentProtected;
+    const currentHasOverSeizure = currentOverSeizure > currentProtected;
 
     const optTarget = totalBtc * seizedFraction;
     const optOver = Math.max(0, optimalG1Btc - optTarget);
     const optProtected = totalBtc - optimalG1Btc;
     const optIsCliff = optimalG1Vaults.length === nVaults;
-    const optWouldTriggerRebalance = optOver > optProtected && !optIsCliff;
+    const optWouldOverSeize = optOver > optProtected && !optIsCliff;
 
-    if (!currentHasRebalanceCond && optWouldTriggerRebalance) {
+    if (!currentHasOverSeizure && optWouldOverSeize) {
       reorderWouldHelp = false;
     }
   }
@@ -526,83 +525,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     }
   }
 
-  // ── 8. Warning: rebalance ──────────────────────────────────────
-  //
-  // Over-seizure in Group 1 means vault sizes aren't optimal: you lose more in
-  // excess than what survives. A new sacrificial vault (combined with the
-  // existing small vaults) protects the largest one.
-
-  const g1OverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
-  const g1TargetSeizure = firstGroup ? firstGroup.targetSeizureBtc : 0;
-  const g1ProtectedBtc = firstGroup ? firstGroup.btcRemainingAfter : 0;
-  const rebalanceNeeded =
-    g1OverSeizure > g1ProtectedBtc && nVaults >= 2 && !isCliff;
-
-  const idealProtectedBtc = totalBtc - totalBtc * Math.min(liqFactor, 1);
-  const currentProtectedBtc = firstGroup
-    ? firstGroup.btcRemainingAfter
-    : totalBtc;
-  const rebalanceImprovementBtc = rebalanceNeeded
-    ? Math.max(0, idealProtectedBtc - currentProtectedBtc)
-    : 0;
-
-  // Suggested new sacrificial vault: s >= (T × liqFactor − smallVaultsSum) /
-  // (1 − liqFactor). Cheaper than a standalone vault because the existing small
-  // vaults contribute to covering the target seizure.
-  let suggestedRebalanceVaultBtc: number | null = null;
-  if (rebalanceNeeded && liqFactor < 1) {
-    const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
-    const smallVaults = vaults.filter((v) => v.id !== largest.id);
-    const smallVaultsSum = smallVaults.reduce((s, v) => s + v.btc, 0);
-    const raw = (totalBtc * liqFactor - smallVaultsSum) / (1 - liqFactor);
-    const rounded = Math.ceil(Math.max(0, raw) * 100) / 100;
-    if (rounded <= totalBtc) {
-      suggestedRebalanceVaultBtc = rounded;
-    }
-  }
-
-  // Emit the rebalance warning only when no cliff/reorder already covers it;
-  // otherwise drop its suggestion data so no orphan action button renders.
-  const hasCliffOrReorder = warnings.some(
-    (w) => w.type === "cliff" || w.type === "reorder",
-  );
-  if (rebalanceNeeded && hasCliffOrReorder) {
-    suggestedRebalanceVaultBtc = null;
-  }
-  if (rebalanceNeeded && !hasCliffOrReorder) {
-    const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
-    const g1CombinedBtc = firstGroup?.combinedBtc ?? 0;
-    let suggestion: string;
-    if (suggestedRebalanceVaultBtc !== null) {
-      const smallNames = vaults
-        .filter((v) => v.id !== largest.id)
-        .map((v) => v.name)
-        .join(" + ");
-      suggestion = COPY.liquidationWarnings.rebalance.actionableSuggestion(
-        btc2(suggestedRebalanceVaultBtc),
-        smallNames,
-        largest.name,
-        btc2(largest.btc),
-      );
-    } else {
-      suggestion = COPY.liquidationWarnings.rebalance.fallbackSuggestion(
-        btc2(totalBtc * Math.min(liqFactor, 1)),
-      );
-    }
-    warnings.push({
-      type: "rebalance",
-      title: COPY.liquidationWarnings.rebalance.title,
-      detail: COPY.liquidationWarnings.rebalance.detail(
-        btc2(g1CombinedBtc),
-        btc2(g1TargetSeizure),
-        btc2(g1OverSeizure),
-        btc2(rebalanceImprovementBtc),
-      ),
-      suggestion,
-    });
-  }
-
-  // ── 9. Return ──────────────────────────────────────────────────
+  // ── 8. Return ──────────────────────────────────────────────────
 
   return {
     groups,
@@ -612,6 +535,5 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     warnings,
     optimalVaultOrder,
     suggestedNewVaultBtc,
-    suggestedRebalanceVaultBtc,
   };
 }
