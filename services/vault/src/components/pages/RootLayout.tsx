@@ -1,5 +1,4 @@
 import {
-  DEFAULT_SOCIAL_LINKS,
   Footer,
   FullScreenDialog,
   Header,
@@ -7,12 +6,15 @@ import {
   MobileLogo,
   Nav,
   SmallLogo,
+  type SocialLink,
   StandardSettingsMenu,
   TestingBanner,
   Text,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import { useCallback, useState } from "react";
+import { BsDiscord, BsGithub, BsLinkedin } from "react-icons/bs";
+import { FaXTwitter } from "react-icons/fa6";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
@@ -52,6 +54,44 @@ export interface RootLayoutContext {
 }
 
 const btcConfig = getNetworkConfigBTC();
+
+function MailIcon({ size = 32, title }: { size?: number; title?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 27 22"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label={title}
+    >
+      {title ? <title>{title}</title> : null}
+      <path
+        d="M2.66667 21.3333C1.93333 21.3333 1.30578 21.0724 0.784 20.5507C0.262222 20.0289 0.000888889 19.4009 0 18.6667V2.66667C0 1.93333 0.261333 1.30578 0.784 0.784C1.30667 0.262222 1.93422 0.000888889 2.66667 0H24C24.7333 0 25.3613 0.261333 25.884 0.784C26.4067 1.30667 26.6676 1.93422 26.6667 2.66667V18.6667C26.6667 19.4 26.4058 20.028 25.884 20.5507C25.3622 21.0733 24.7342 21.3342 24 21.3333H2.66667ZM13.3333 12L24 5.33333V2.66667L13.3333 9.33333L2.66667 2.66667V5.33333L13.3333 12Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+// Footer social links, ordered to match the TBV Figma footer.
+const FOOTER_SOCIAL_LINKS: SocialLink[] = [
+  { name: "GitHub", url: "https://github.com/babylonlabs-io", Icon: BsGithub },
+  {
+    name: "LinkedIn",
+    url: "https://www.linkedin.com/company/babylon-labs-official",
+    Icon: BsLinkedin,
+  },
+  { name: "Email", url: "mailto:contact@babylonlabs.io", Icon: MailIcon },
+  { name: "Discord", url: "https://discord.gg/babylonglobal", Icon: BsDiscord },
+  { name: "X", url: "https://x.com/babylonlabs_io", Icon: FaXTwitter },
+];
+
+// Shifts the footer's social/copyright block in from the viewport edge by
+// however much the 1080px `PAGE_CONTENT_CLASS` box is currently inset, so it
+// starts at the same x-position as the navbar/body instead of the raw edge.
+const FOOTER_SOCIAL_MARGIN_CLASS = "md:ml-[max(0px,calc((100vw-1080px)/2))]";
 
 function AppNavLink({
   to,
@@ -258,19 +298,26 @@ export default function RootLayout() {
           </ActivatingVaultsProvider>
         )}
         <div className="mt-auto">
-          {/* The footer is intentionally full app-width (1400px) — wider than the
-              1080px `PAGE_CONTENT_CLASS` content box the navbar/body use — matching
-              Figma's full-frame footer. `[&>div]:!max-w-[1400px]` caps the Footer's
-              inner Container, overriding the `container` class's default max-width.
-              `[&>div]:!px-5` restores the 20px horizontal inset that core-ui's
-              Container drops at the `sm` breakpoint (`sm:px-0`).
+          {/* The footer bar background is full-bleed, and per Figma its content is too:
+              the social/copyright block's left edge lines up with the navbar/body's
+              1080px `PAGE_CONTENT_CLASS` box, but the logo sits close to the true
+              viewport edge rather than being boxed into that same 1080px cap.
+              `[&>div]:!max-w-none` drops the Footer's default `container` cap so the
+              row can span the full width; `[&>div]:!px-5` keeps the page's standard
+              20px edge inset on the left (and on the right below `md`).
+              `[&>div]:md:!pr-[90px]` widens the right inset at `md`+ to match Figma's
+              footer-specific right margin exactly. `FOOTER_SOCIAL_MARGIN_CLASS` (passed
+              via `socialClassName`) pushes the social block in from the left edge by the
+              same amount the 1080px box is inset at the current viewport width, so it
+              lines up with the navbar/body starting point instead of the raw edge.
               `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
               mode background (and its decorative top-edge pseudo) from the
               default teal to brand orange; dark mode keeps `primary-main`. */}
           <Footer
-            socialLinks={DEFAULT_SOCIAL_LINKS}
+            socialLinks={FOOTER_SOCIAL_LINKS}
             copyrightYear={new Date().getFullYear()}
-            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-[1400px] [&>div]:!px-5"
+            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-none [&>div]:!px-5 [&>div]:md:!pr-[90px]"
+            socialClassName={FOOTER_SOCIAL_MARGIN_CLASS}
           />
         </div>
       </div>
