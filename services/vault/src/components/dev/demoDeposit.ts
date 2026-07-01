@@ -93,7 +93,7 @@ const DEMO_REQUIRED_DEPTH = 6;
 const DEMO_TIMESTAMP = 1760665727000;
 const DEMO_AT_SECONDS = Math.floor(DEMO_TIMESTAMP / 1000);
 
-export const DEMO_VAULT_PROVIDER: VaultProvider = {
+const DEMO_VAULT_PROVIDER: VaultProvider = {
   id: DEMO_PROVIDER_ID,
   btcPubKey: `0x${"f".repeat(64)}`,
   name: "demo-vault-provider",
@@ -520,6 +520,7 @@ function buildCollateralEntry(
     addedAt: DEMO_AT_SECONDS,
     inUse: scenario.inUse,
     isActivating: scenario.isActivating,
+    displayOnly: true,
     providerAddress: DEMO_PROVIDER_ID,
     providerName: DEMO_VAULT_PROVIDER.name ?? "demo-vault-provider",
     depositorBtcPubkey: DEMO_OWNER_PUBKEY,
