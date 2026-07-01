@@ -20,7 +20,7 @@ import {
   useState,
 } from "react";
 
-import { useDemoDeposit } from "../../components/dev/demoDeposit";
+import { useDemoDeposit } from "../../dev/demoDeposit";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";

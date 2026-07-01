@@ -9,7 +9,6 @@ import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
-import { PositionNotificationsDebugPanel } from "@/applications/aave/components/PositionNotificationsDebugPanel";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
@@ -20,6 +19,9 @@ import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import { PositionNotificationsDebugPanel } from "@/dev/PositionNotificationsDebugPanel";
+import { useDebugPositionOverride } from "@/dev/debugPositionStore";
+import { useDemoCollateral, useDemoWithdrawal } from "@/dev/demoDeposit";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
@@ -31,9 +33,6 @@ import {
   formatUsdPrice,
   formatUsdValue,
 } from "@/utils/formatting";
-
-import { useDebugPositionOverride } from "../dev/debugPositionStore";
-import { useDemoCollateral, useDemoWithdrawal } from "../dev/demoDeposit";
 
 import { CollateralSection } from "./CollateralSection";
 import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
@@ -52,7 +51,7 @@ import WithdrawFlow from "./WithdrawFlow";
 // dead branch that the bundler eliminates).
 const GodModePanel = import.meta.env.DEV
   ? lazy(() =>
-      import("../dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
+      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
     )
   : null;
 
@@ -352,7 +351,13 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Withdraw Flow */}
+      {/* Withdraw Flow.
+          Safety invariant: this MUST receive the raw on-chain `collateralVaults`,
+          never `collateralVaultsWithDemo`. WithdrawFlow signs a real withdraw
+          transaction, so passing the demo-merged list would let a god-mode mock
+          row (fake vaultId) — or a hidden-real scenario — enter the real signing
+          path. The CollateralSection above is the only surface that takes the
+          demo-merged list, and it filters `displayOnly` rows out of every action. */}
       <WithdrawFlow
         open={isWithdrawOpen}
         onClose={handleCloseWithdraw}

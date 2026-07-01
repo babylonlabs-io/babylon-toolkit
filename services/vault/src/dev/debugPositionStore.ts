@@ -27,19 +27,30 @@ export interface DebugPositionOverride {
   status: PositionNotificationsStatus | null;
 }
 
+// Representative sample inputs for manual mode — a realistic starting point,
+// NOT protocol parameters. The ratio defaults are exported so the panel's
+// empty-input fallbacks reuse them instead of re-hardcoding the same numbers.
+const DEBUG_DEFAULT_BTC_PRICE = 61722.5;
+const DEBUG_DEFAULT_TOTAL_DEBT_USD = 44287.72;
+export const DEBUG_DEFAULT_CF = 0.75;
+export const DEBUG_DEFAULT_THF = 1.1;
+export const DEBUG_DEFAULT_MAX_LB = 1.05;
+export const DEBUG_DEFAULT_EXPECTED_HF = 0.95;
+
 /** Default manual-mode inputs the panel starts from (and resets to). */
 export function makeDefaultDebugParams(): CalculatorParams {
   return {
-    btcPrice: 61722.5,
-    totalDebtUsd: 44287.72,
+    btcPrice: DEBUG_DEFAULT_BTC_PRICE,
+    totalDebtUsd: DEBUG_DEFAULT_TOTAL_DEBT_USD,
+    // Two sample vaults so the liquidation-group table has something to show.
     vaults: [
       { id: "v-1", name: "Vault 1", btc: 0.65 },
       { id: "v-2", name: "Vault 2", btc: 0.35 },
     ],
-    CF: 0.75,
-    THF: 1.1,
-    maxLB: 1.05,
-    expectedHF: 0.95,
+    CF: DEBUG_DEFAULT_CF,
+    THF: DEBUG_DEFAULT_THF,
+    maxLB: DEBUG_DEFAULT_MAX_LB,
+    expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
   };
 }
 

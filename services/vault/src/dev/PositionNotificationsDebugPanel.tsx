@@ -1,21 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
-  resetDebugManualParams,
-  setDebugManualMode,
-  setDebugManualParams,
-  setDebugPositionOverride,
-  setDebugSimulateStalePrice,
-  useDebugManualMode,
-  useDebugManualParams,
-  useDebugSimulateStalePrice,
-} from "@/components/dev/debugPositionStore";
-import { useETHWallet } from "@/context/wallet";
-
-import {
   usePositionNotifications,
   type PositionNotificationsStatus,
-} from "../hooks/usePositionNotifications";
+} from "@/applications/aave/hooks/usePositionNotifications";
 import {
   calculate,
   deriveBannerState,
@@ -28,7 +16,22 @@ import {
   type Vault,
   type Warning,
   type WarningType,
-} from "../positionNotifications";
+} from "@/applications/aave/positionNotifications";
+import { useETHWallet } from "@/context/wallet";
+import {
+  DEBUG_DEFAULT_CF,
+  DEBUG_DEFAULT_EXPECTED_HF,
+  DEBUG_DEFAULT_MAX_LB,
+  DEBUG_DEFAULT_THF,
+  resetDebugManualParams,
+  setDebugManualMode,
+  setDebugManualParams,
+  setDebugPositionOverride,
+  setDebugSimulateStalePrice,
+  useDebugManualMode,
+  useDebugManualParams,
+  useDebugSimulateStalePrice,
+} from "@/dev/debugPositionStore";
 
 const SEVERITY_COLORS: Record<BannerSeverity, string> = {
   red: "border-red-500 bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-200",
@@ -331,7 +334,7 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.CF}
             onChange={(e) =>
-              updateField("CF", parseFloat(e.target.value) || 0.75)
+              updateField("CF", parseFloat(e.target.value) || DEBUG_DEFAULT_CF)
             }
           />
         </div>
@@ -345,7 +348,10 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.THF}
             onChange={(e) =>
-              updateField("THF", parseFloat(e.target.value) || 1.1)
+              updateField(
+                "THF",
+                parseFloat(e.target.value) || DEBUG_DEFAULT_THF,
+              )
             }
           />
         </div>
@@ -361,7 +367,10 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.maxLB}
             onChange={(e) =>
-              updateField("maxLB", parseFloat(e.target.value) || 1.05)
+              updateField(
+                "maxLB",
+                parseFloat(e.target.value) || DEBUG_DEFAULT_MAX_LB,
+              )
             }
           />
         </div>
@@ -375,7 +384,10 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.expectedHF}
             onChange={(e) =>
-              updateField("expectedHF", parseFloat(e.target.value) || 0.95)
+              updateField(
+                "expectedHF",
+                parseFloat(e.target.value) || DEBUG_DEFAULT_EXPECTED_HF,
+              )
             }
           />
         </div>
@@ -461,6 +473,11 @@ export function PositionNotificationsDebugPanel() {
       setDebugPositionOverride(displayResult, null);
     }
   }, [displayResult, simulateStalePrice]);
+
+  // Stop overriding the banner once this panel unmounts (god-mode hidden or the
+  // popped-out window closed) — otherwise the last manual / stale-price override
+  // would linger in the module store and keep driving the dashboard banner.
+  useEffect(() => () => setDebugPositionOverride(null, null), []);
 
   return (
     <details className="rounded-lg border border-dashed border-purple-400 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-950/30">

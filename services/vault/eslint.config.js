@@ -136,6 +136,43 @@ export default tseslint.config(
       "@typescript-eslint/ban-ts-comment": "error",
     },
   },
+  // Dev-only tooling boundary — production code must not import `src/dev` (the
+  // god-mode / demo / debug tooling), so it stays an evident, self-contained
+  // subtree that never leaks into the app except at the sanctioned mount seams
+  // listed in `ignores`. Re-declares the @uidotdev/usehooks ban because a
+  // file's `no-restricted-imports` is replaced wholesale, not merged.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/dev/**",
+      "**/__tests__/**",
+      "**/*.test.{ts,tsx}",
+      // Sanctioned seams that legitimately mount / inject the dev tooling.
+      "src/components/simple/DashboardPage.tsx",
+      "src/hooks/usePendingDeposits.ts",
+      "src/context/deposit/PeginPollingContext.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@uidotdev/usehooks",
+              message: "@uidotdev/usehooks is banned in this workspace.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/dev", "@/dev/*"],
+              message:
+                "Dev-only tooling in src/dev must not be imported by production code. Add a new sanctioned seam to the src/dev boundary override in eslint.config.js only if truly required.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   {
     settings: {
       "import/resolver": {

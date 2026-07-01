@@ -15,8 +15,8 @@
 import { useMemo } from "react";
 import type { Address } from "viem";
 
-import { useDemoDeposit } from "@/components/dev/demoDeposit";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useDemoDeposit } from "@/dev/demoDeposit";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";

@@ -21,6 +21,10 @@ import { useMemo, useSyncExternalStore } from "react";
 import type { Hex } from "viem";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
+import {
+  getStepLabel,
+  getVisualStep,
+} from "@/components/simple/DepositProgressView/steps";
 import featureFlags from "@/config/featureFlags";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
@@ -39,11 +43,6 @@ import type { VaultActivity } from "@/types/activity";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
-
-import {
-  getStepLabel,
-  getVisualStep,
-} from "../simple/DepositProgressView/steps";
 
 /** Whether (and how) a scenario is expected to render the action CTA. */
 export type DemoCta = "primary" | "outlined" | "none";
