@@ -204,7 +204,6 @@ describe("calculate", () => {
     const allowed = new Set([
       "urgent",
       "cliff",
-      "rebalance",
       "reorder",
       "dust",
       "weird-params",
@@ -345,12 +344,13 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(result.groups[1].isFullLiquidation).toBe(true);
   });
 
-  it("B2 — [0.80, 0.20]: over-seizure triggers a rebalance with a suggested vault", () => {
+  it("B2 — [0.80, 0.20]: over-seizure is no longer surfaced (rebalance dropped)", () => {
+    // The first group over-seizes, but with the "Undersized sacrificial vault"
+    // (rebalance) notification removed there is no actionable cliff/reorder
+    // warning for this shape — the position is left un-notified by design.
     const result = calculate(makeParams([v(0.8), v(0.2)]));
     expect(hasWarning(result.warnings, "cliff")).toBe(false);
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
-    expect(hasWarning(result.warnings, "rebalance")).toBe(true);
-    expect(result.suggestedRebalanceVaultBtc).toBe(0.38);
   });
 
   it("C1 — [0.35, 0.65] wrong order: reorder notification, single group", () => {
@@ -414,18 +414,15 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(result.optimalVaultOrder).toBeNull();
   });
 
-  it("17-vault rebalance: suggests a vault amount, no too-many-vaults at the cap", () => {
-    // One large vault over-seizes; 16 tiny vaults can't combine to cover the
-    // target without it. The position has 17 vaults (== MAX_DP_N), so the
-    // optimizer runs an exact DP and no too-many-vaults warning fires (the
-    // position is at the cap, not over it).
+  it("17 vaults at the cap: no too-many-vaults warning (== MAX_DP_N)", () => {
+    // The position has 17 vaults (== MAX_DP_N), so the optimizer runs an exact
+    // DP and does NOT fall back — no too-many-vaults warning fires (the position
+    // is at the cap, not over it).
     const big = v(0.9);
     const smalls = Array.from({ length: 16 }, () => v(0.01));
     const result = calculate(makeParams([big, ...smalls]));
 
-    expect(hasWarning(result.warnings, "rebalance")).toBe(true);
     expect(hasWarning(result.warnings, "too-many-vaults")).toBe(false);
-    expect(result.suggestedRebalanceVaultBtc).not.toBeNull();
     // The optimal-order analysis runs an exact DP at n = 17 (the cap), which is
     // intentionally near the interactive-time budget — allow extra headroom.
   }, 20000);

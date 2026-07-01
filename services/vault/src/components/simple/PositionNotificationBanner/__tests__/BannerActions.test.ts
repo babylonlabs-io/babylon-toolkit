@@ -22,7 +22,6 @@ function makeResult(
       { id: "0xdef", name: "Vault 1", btc: 0.1 },
     ],
     suggestedNewVaultBtc: null,
-    suggestedRebalanceVaultBtc: null,
     ...overrides,
   };
 }

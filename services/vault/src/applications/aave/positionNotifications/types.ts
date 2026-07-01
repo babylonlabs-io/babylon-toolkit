@@ -30,7 +30,6 @@ export interface LiquidationGroup {
 export type WarningType =
   | "urgent"
   | "cliff"
-  | "rebalance"
   | "reorder"
   | "dust"
   | "weird-params"
@@ -79,11 +78,4 @@ export interface CalculatorResult {
    * actionable (extreme params, or the amount would exceed the position).
    */
   suggestedNewVaultBtc: number | null;
-  /**
-   * Multi-vault rebalance only: size of a new sacrificial vault that combines
-   * with the existing small vaults to protect the largest. `null` when no
-   * rebalance is needed, params are extreme, or the amount would exceed the
-   * position.
-   */
-  suggestedRebalanceVaultBtc: number | null;
 }

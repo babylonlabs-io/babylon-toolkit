@@ -160,7 +160,6 @@ function makeBaseResult(
     warnings: [],
     optimalVaultOrder: null,
     suggestedNewVaultBtc: null,
-    suggestedRebalanceVaultBtc: null,
     ...overrides,
   };
 }
@@ -662,24 +661,6 @@ describe("PositionNotificationBanner", () => {
     expect(screen.getByText("Repay Debt")).toBeTruthy();
     fireEvent.click(screen.getByText("Add sacrificial BTC Vault"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
-  });
-
-  it("renders an Add-a-vault CTA for a rebalance with the rebalance amount", () => {
-    const result = makeBaseResult({
-      warnings: [
-        {
-          type: "rebalance",
-          title: "Undersized sacrificial BTC Vault",
-          detail: "Group 1 over-seizes.",
-          suggestion: "Add a 0.38 BTC Vault.",
-        },
-      ],
-      suggestedRebalanceVaultBtc: 0.38,
-    });
-    renderBanner(result, onDeposit, onRepay);
-
-    fireEvent.click(screen.getByText("Add a 0.38 BTC Vault"));
-    expect(onDeposit).toHaveBeenCalledWith("0.38");
   });
 
   it("renders too-many-vaults as an orange warning with no action button", () => {

@@ -34,7 +34,6 @@ const SEVERITY_COLORS: Record<BannerSeverity, string> = {
 const WARNING_TYPE_COLORS: Record<WarningType, string> = {
   urgent: "bg-red-600 text-white",
   cliff: "bg-orange-600 text-white",
-  rebalance: "bg-amber-500 text-white",
   reorder: "bg-yellow-500 text-black",
   dust: "bg-gray-500 text-white",
   "weird-params": "bg-blue-500 text-white",
