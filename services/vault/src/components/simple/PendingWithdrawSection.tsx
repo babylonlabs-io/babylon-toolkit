@@ -10,7 +10,7 @@ import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
-import { ExpandMenuButton } from "@/components/shared";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
@@ -124,7 +124,7 @@ function PendingWithdrawSectionContent({
         </div>
 
         {/* Expanded: one staged progress card per vault. */}
-        {isExpanded && (
+        <ExpandablePanel expanded={isExpanded}>
           <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
             {pendingWithdrawVaults.map((vault) => {
               const pollingResult = pegoutStatuses.get(vault.id);
@@ -150,7 +150,7 @@ function PendingWithdrawSectionContent({
               );
             })}
           </div>
-        )}
+        </ExpandablePanel>
       </Card>
     </div>
   );
