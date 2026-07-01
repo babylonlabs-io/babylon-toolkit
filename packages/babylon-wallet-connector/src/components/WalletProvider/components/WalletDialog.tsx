@@ -65,7 +65,7 @@ export function WalletDialog({ persistent, storage, config, onError }: WalletDia
       onBack={onBack}
       className="items-center justify-center p-6"
     >
-      <div className="mx-auto w-full max-w-[600px]">
+      <div className="mx-auto w-full max-w-[612px]">
         <Screen current={screen} widgets={walletWidgets} onConfirm={handleConfirm} onSelectWallet={connect} />
       </div>
     </FullScreenDialog>

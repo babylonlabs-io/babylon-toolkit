@@ -67,7 +67,7 @@ export const Chains = memo(
               href="https://babylonlabs.io/terms-of-use"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline"
+              className="text-accent-primary underline"
             >
               Terms of Use
             </a>{" "}
@@ -76,7 +76,7 @@ export const Chains = memo(
               href="https://babylonlabs.io/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline"
+              className="text-accent-primary underline"
             >
               Privacy Policy
             </a>
