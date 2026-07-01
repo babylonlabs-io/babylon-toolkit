@@ -54,7 +54,7 @@ export const Chains = memo(
             disabled={disabled}
             fluid
             onClick={onConfirm}
-            className="text-sm"
+            className="text-sm disabled:!bg-[#CCCCCC] disabled:!opacity-100 dark:disabled:!bg-secondary-strokeDark"
             data-testid="chains-connect-button"
           >
             Connect

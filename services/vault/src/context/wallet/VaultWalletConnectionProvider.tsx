@@ -1,3 +1,4 @@
+import { StandardSettingsMenu } from "@babylonlabs-io/core-ui";
 import {
   APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
@@ -40,6 +41,15 @@ const DISABLED_WALLETS: string[] = [
 ];
 
 const context = typeof window !== "undefined" ? window : {};
+
+// The wallet dialog is a full-viewport overlay, so its close/settings buttons
+// position with `fixed left`/`right`, not inside the page's 1080px content
+// box. These match that box's edge (per Figma: both inset 180px on the 1512px
+// reference frame) so the buttons line up with the rest of the page on desktop.
+const WALLET_DIALOG_LEFT_INSET_CLASS =
+  "md:!left-[max(20px,calc((100vw-1080px)/2+20px))]";
+const WALLET_DIALOG_RIGHT_INSET_CLASS =
+  "md:!right-[max(20px,calc((100vw-1080px)/2+20px))]";
 
 // A late-injecting BTC extension (e.g. UniSat) can emit a transient `disconnect`
 // while its service worker wakes right after a page (re)load, then immediately
@@ -195,7 +205,7 @@ function WalletProviders({ children }: PropsWithChildren) {
  * to ensure wagmi config is created before the app renders.
  */
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
-  const { theme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const config = useMemo(
     () =>
@@ -228,6 +238,9 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       disabledWallets={DISABLED_WALLETS}
       requiredChains={["BTC", "ETH"]}
       disableTomo
+      dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
+      dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
+      dialogActionsClassName={WALLET_DIALOG_RIGHT_INSET_CLASS}
     >
       <WalletProviders>{children}</WalletProviders>
     </WalletProvider>

@@ -11,6 +11,10 @@ const HARDWARE_DOT = "bg-[#FFB300]";
 interface WalletButtonProps {
   className?: string;
   logo: string;
+  // Solid brand-color fill behind `logo`. The logo source is a circular SVG
+  // (transparent outside the circle), so this shows through the corners of
+  // the rounded-square clip below, matching the wallet's own icon color.
+  logoBackground?: string;
   disabled?: boolean;
   name: string;
   fallbackLink?: string;
@@ -25,6 +29,7 @@ export function WalletButton({
   disabled = false,
   name,
   logo,
+  logoBackground,
   fallbackLink,
   installed = true,
   hardware = false,
@@ -60,7 +65,13 @@ export function WalletButton({
       {...btnProps}
       data-testid={getTestId()}
     >
-      <Avatar variant="rounded" className="shrink-0" alt={name} url={logo} />
+      <Avatar
+        variant="rounded"
+        className="shrink-0 !rounded-[2px]"
+        style={logoBackground ? { backgroundColor: logoBackground } : undefined}
+        alt={name}
+        url={logo}
+      />
       <span className={twMerge("min-w-0 flex-1 truncate text-left", !installed && "text-accent-secondary")}>{name}</span>
 
       <Chip

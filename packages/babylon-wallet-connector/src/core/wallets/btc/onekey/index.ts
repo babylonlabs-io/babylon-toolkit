@@ -7,6 +7,7 @@ const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   id: "onekey",
   name: WALLET_PROVIDER_NAME,
   icon: logo,
+  iconBackground: "#1FE121",
   docs: "https://onekey.so/download",
   wallet: "$onekey",
   createProvider: (wallet, config) => new OneKeyProvider(wallet, config),

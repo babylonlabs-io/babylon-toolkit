@@ -78,6 +78,7 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
             key={wallet.id}
             name={wallet.name}
             logo={wallet.icon}
+            logoBackground={wallet.iconBackground}
             fallbackLink={wallet.docs}
             onClick={() => handleWalletClick(wallet)}
           />

@@ -32,7 +32,7 @@ export const ConnectedWallet = memo(({ className, logo, address }: ConnectedWall
 
   return (
     <div className={twMerge("flex items-center gap-2.5 rounded-lg bg-secondary-highlight p-2", className)}>
-      <Avatar variant="rounded" size="small" className="shrink-0" url={logo} />
+      <Avatar variant="circular" size="small" className="shrink-0" url={logo} />
 
       <Text
         as="div"
