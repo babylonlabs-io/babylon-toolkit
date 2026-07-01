@@ -634,7 +634,10 @@ function makeItem(type: DemoType): DemoItem {
   };
 }
 
-let storeEnabled = true;
+// Injection starts OFF: merely setting the feature flag must not inject a
+// mock (a demo card is pixel-identical to a real one) nor pay the merge cost
+// on every dashboard render. The panel's "Inject demo" toggle opts in.
+let storeEnabled = false;
 let storeHideReal = false;
 let storeItems: DemoItem[] = [makeItem("deposit")];
 const listeners = new Set<() => void>();

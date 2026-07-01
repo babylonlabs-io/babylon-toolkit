@@ -53,6 +53,12 @@ interface CollateralSectionProps {
   collateralVaults: CollateralVaultEntry[];
   hasCollateral: boolean;
   isConnected: boolean;
+  /**
+   * Pure on-chain collateral total. Feeds the PositionSnapshot that gates
+   * real-vault withdraw eligibility / projected HF, so it must NEVER include
+   * demo (`displayOnly`) amounts — pass the raw value even when
+   * `collateralVaults` carries demo rows for display.
+   */
   collateralBtc: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
@@ -211,7 +217,9 @@ export function CollateralSection({
 
   const handleArtifactDownload = useCallback(
     (vaultEntryId: string) => {
-      const vault = collateralVaults.find((v) => v.id === vaultEntryId);
+      // Resolve against the actionable set so demo (`displayOnly`) rows no-op
+      // by design — artifact download talks to a real vault provider.
+      const vault = actionableVaults.find((v) => v.id === vaultEntryId);
       if (!vault) return;
 
       const provider = findProvider(vault.providerAddress);
@@ -236,7 +244,7 @@ export function CollateralSection({
         unsignedPrePeginTx: vault.unsignedPrePeginTx,
       });
     },
-    [collateralVaults, findProvider],
+    [actionableVaults, findProvider],
   );
 
   return (

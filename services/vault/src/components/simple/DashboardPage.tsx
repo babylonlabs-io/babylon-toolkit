@@ -148,17 +148,21 @@ export function DashboardPage() {
   const showCollateral =
     hasDisplayCollateral || (demoCollateral?.vaults.length ?? 0) > 0;
   // When the demo changes the collateral list (adds a row or hides the real
-  // ones), the summary total must reflect the rendered list — otherwise the
-  // header reads "0 sBTC" above a demo card. Real totals are untouched
-  // otherwise (the demo can't mutate financial state).
+  // ones), the header's DISPLAY total must reflect the rendered list —
+  // otherwise it reads "0 sBTC" above a demo card. Only the display string is
+  // demo-aware: the financial `collateralBtc` prop passed below stays the pure
+  // on-chain value, so real-vault withdraw eligibility and projected-HF math
+  // never see demo amounts.
   const demoAffectsCollateral =
     demoCollateral !== null &&
     (demoCollateral.vaults.length > 0 || demoCollateral.hideReal);
-  const collateralBtcShown = demoAffectsCollateral
-    ? collateralVaultsWithDemo.reduce((sum, vault) => sum + vault.amountBtc, 0)
-    : collateralBtc;
   const totalAmountBtcShown = demoAffectsCollateral
-    ? formatBtcAmount(collateralBtcShown)
+    ? formatBtcAmount(
+        collateralVaultsWithDemo.reduce(
+          (sum, vault) => sum + vault.amountBtc,
+          0,
+        ),
+      )
     : formatBtcAmount(displayCollateralBtc);
 
   // A "Payout sent" withdrawal is terminal success — the depositor's BTC is on
@@ -333,7 +337,7 @@ export function DashboardPage() {
           collateralVaults={collateralVaultsWithDemo}
           hasCollateral={showCollateral}
           isConnected={isConnected}
-          collateralBtc={collateralBtcShown}
+          collateralBtc={collateralBtc}
           currentHealthFactor={healthFactor}
           selectedVaultIds={selectedVaultIds}
           onSelectedVaultIdsChange={setSelectedVaultIds}
