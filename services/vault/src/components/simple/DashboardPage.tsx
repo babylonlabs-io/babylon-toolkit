@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -28,6 +28,7 @@ import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { usePrices } from "@/hooks/usePrices";
+import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import {
   formatBtcAmount,
   formatLiquidationDistancePercent,
@@ -101,10 +102,28 @@ export function DashboardPage() {
     redeemedVaults,
   });
 
-  // Every redeemed vault shows its staged progress, including the terminal
-  // "Payout sent" and "Blocked" states. A vault drops off naturally once it
-  // leaves the redeemed set on-chain (payout settles / vault closes).
+  // Every redeemed vault shows its staged progress until it leaves the redeemed
+  // set on-chain (payout settles / vault closes).
   const pendingWithdrawVaults = redeemedVaults;
+
+  // A "Payout sent" withdrawal is terminal success — the depositor's BTC is on
+  // its way — so it belongs under "Withdrawals", not "Pending Withdrawals".
+  // Everything still advancing (incl. the "Blocked" error state) stays pending.
+  const { inProgressWithdrawVaults, completedWithdrawVaults } = useMemo(() => {
+    const inProgressWithdrawVaults: typeof pendingWithdrawVaults = [];
+    const completedWithdrawVaults: typeof pendingWithdrawVaults = [];
+    for (const vault of pendingWithdrawVaults) {
+      const payoutSent =
+        pegoutStatuses.get(vault.id)?.response?.claimer?.status ===
+        ClaimerPegoutStatusValue.PAYOUT_BROADCAST;
+      if (payoutSent) {
+        completedWithdrawVaults.push(vault);
+      } else {
+        inProgressWithdrawVaults.push(vault);
+      }
+    }
+    return { inProgressWithdrawVaults, completedWithdrawVaults };
+  }, [pendingWithdrawVaults, pegoutStatuses]);
 
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
@@ -226,7 +245,13 @@ export function DashboardPage() {
         <PendingDepositSection />
 
         <PendingWithdrawSection
-          pendingWithdrawVaults={pendingWithdrawVaults}
+          pendingWithdrawVaults={inProgressWithdrawVaults}
+          pegoutStatuses={pegoutStatuses}
+        />
+
+        <PendingWithdrawSection
+          title={COPY.pegout.section.completedTitle}
+          pendingWithdrawVaults={completedWithdrawVaults}
           pegoutStatuses={pegoutStatuses}
         />
 
