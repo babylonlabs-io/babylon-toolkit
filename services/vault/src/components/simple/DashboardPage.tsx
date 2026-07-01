@@ -109,20 +109,21 @@ export function DashboardPage() {
   // A "Payout sent" withdrawal is terminal success — the depositor's BTC is on
   // its way — so it belongs under "Withdrawals", not "Pending Withdrawals".
   // Everything still advancing (incl. the "Blocked" error state) stays pending.
-  const isPayoutSent = useCallback(
-    (vaultId: string) =>
-      pegoutStatuses.get(vaultId)?.response?.claimer?.status ===
-      ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
-    [pegoutStatuses],
-  );
-  const inProgressWithdrawVaults = useMemo(
-    () => pendingWithdrawVaults.filter((vault) => !isPayoutSent(vault.id)),
-    [pendingWithdrawVaults, isPayoutSent],
-  );
-  const completedWithdrawVaults = useMemo(
-    () => pendingWithdrawVaults.filter((vault) => isPayoutSent(vault.id)),
-    [pendingWithdrawVaults, isPayoutSent],
-  );
+  const { inProgressWithdrawVaults, completedWithdrawVaults } = useMemo(() => {
+    const inProgressWithdrawVaults: typeof pendingWithdrawVaults = [];
+    const completedWithdrawVaults: typeof pendingWithdrawVaults = [];
+    for (const vault of pendingWithdrawVaults) {
+      const payoutSent =
+        pegoutStatuses.get(vault.id)?.response?.claimer?.status ===
+        ClaimerPegoutStatusValue.PAYOUT_BROADCAST;
+      if (payoutSent) {
+        completedWithdrawVaults.push(vault);
+      } else {
+        inProgressWithdrawVaults.push(vault);
+      }
+    }
+    return { inProgressWithdrawVaults, completedWithdrawVaults };
+  }, [pendingWithdrawVaults, pegoutStatuses]);
 
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
