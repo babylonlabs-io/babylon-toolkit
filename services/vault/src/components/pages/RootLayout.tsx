@@ -235,6 +235,7 @@ export default function RootLayout() {
                 !isGeoBlocked &&
                 !isAddressBlocked && (
                   <DepositButton
+                    data-testid="deposit-button"
                     variant="outlined"
                     rounded
                     disabled={isDepositBlocked(gate)}
