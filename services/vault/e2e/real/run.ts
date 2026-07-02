@@ -5,7 +5,6 @@
  *   any spawned dev server; on failure captures a screenshot + DOM into the artifacts dir.
  */
 import { ACTIONS_BY_ID } from "./actions";
-import { ensureDarkTheme } from "./appTheme";
 import { createArtifacts } from "./artifacts";
 import {
   BTC_WALLET_TO_CONNECTOR,
@@ -14,11 +13,7 @@ import {
   resolveTargetUrl,
   type RunConfig,
 } from "./config";
-import {
-  deriveEthAddress,
-  deriveSignetTaproot,
-  launchWalletContext,
-} from "./connector";
+import { launchWalletContext } from "./connector";
 import { ensureDevServer, type DevServerHandle } from "./devServer";
 import {
   balanceWarnings,
@@ -34,6 +29,12 @@ export async function runE2E(config: RunConfig): Promise<void> {
   const action = ACTIONS_BY_ID[config.action];
   if (!action)
     throw new Error(`Action "${config.action}" is not implemented yet.`);
+  // Mock mode has no recorded fixtures yet; without this guard `--data=mock` would drive the REAL
+  // deployment while labeling the run "mock" — dangerous once value-moving actions (pegin/borrow) land.
+  if (config.dataMode === "mock")
+    throw new Error(
+      "mock mode is not implemented yet — only --data=real runs today.",
+    );
 
   const secrets = loadWalletSecrets();
   const artifacts = createArtifacts(config.action);
@@ -44,14 +45,14 @@ export async function runE2E(config: RunConfig): Promise<void> {
 
   let devServer: DevServerHandle | undefined;
   const context = await launchWalletContext([btcKey, ethKey], {
-    maximize: !config.headless,
+    maximize: true,
   });
   // launchWalletContext leaves exactly one about:blank page open — reuse it as our dapp page instead
   // of opening a second one (the importers open and close their own extension tabs on top of this).
   const page = context.pages()[0] ?? (await context.newPage());
   // Maximize the window FIRST — before importing wallets — so the whole run (including wallet
   // onboarding tabs) is easy to watch, not just once the dapp opens.
-  if (!config.headless) await maximizeWindow(page);
+  await maximizeWindow(page);
 
   try {
     const imported = await importWallets(
@@ -87,6 +88,9 @@ export async function runE2E(config: RunConfig): Promise<void> {
       config,
       targetUrl,
       network: NETWORKS[config.network],
+      // For a reused localhost server we cannot confirm which network it is serving — record it so the
+      // artifact is honest (see devServer.ensureDevServer). Omitted (undefined) for the website target.
+      devServerReused: devServer?.reused,
       imported,
       balances: {
         btc: {
@@ -102,30 +106,33 @@ export async function runE2E(config: RunConfig): Promise<void> {
       },
     });
 
+    // Force dark before first paint: next-themes reads localStorage["theme"] (attribute="class",
+    // default storageKey) on load, so seeding it in an init script makes the app start dark —
+    // deterministic, unlike clicking the settings toggle (which is brittle and never closes on Escape).
+    await context.addInitScript(() => {
+      try {
+        localStorage.setItem("theme", "dark");
+      } catch {
+        // storage unavailable — non-fatal; the run just renders in light theme.
+      }
+    });
+
     artifacts.log(`Opening ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
 
-    // Put the app in dark theme before the action runs (before connecting wallets).
-    await ensureDarkTheme(page, artifacts.log);
-
-    // Ground truth for verification = addresses derived locally from the mnemonic (full, canonical).
-    // The importers return what the wallet UI shows, which can be truncated (e.g. MetaMask), so we do
-    // NOT use those for the assertion.
+    // Ground truth for verification = addresses derived locally from the mnemonic (full, canonical),
+    // which the balance pre-flight already computed. The importers return what the wallet UI shows,
+    // which can be truncated (e.g. MetaMask), so we do NOT use those for the assertion.
     await action.run({
       page,
       context,
       config,
       log: artifacts.log,
       artifactsDir: artifacts.dir,
-      delayMs: config.dataMode === "mock" ? config.delayMs : 0,
-      btc: {
-        id: config.btcWallet,
-        address: deriveSignetTaproot(secrets.mnemonic),
-      },
-      eth: {
-        id: config.ethWallet,
-        address: deriveEthAddress(secrets.mnemonic),
-      },
+      // Mock-only inter-step delay; 0 in real mode (the only mode that runs today, per the guard above).
+      delayMs: config.delayMs,
+      btc: { id: config.btcWallet, address: balances.btc.address },
+      eth: { id: config.ethWallet, address: balances.eth.address },
     });
 
     artifacts.log(

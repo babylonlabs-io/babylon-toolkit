@@ -6,8 +6,6 @@
 
 /** A dapp step: click a control / wait for an element to appear on the vault UI. */
 export const STEP_TIMEOUT_MS = 30_000;
-/** The Settings gear / theme toggle to appear when forcing dark mode. */
-export const THEME_SETUP_TIMEOUT_MS = 15_000;
 /** The wallet menu content to render after clicking the avatar-group trigger. */
 export const MENU_OPEN_TIMEOUT_MS = 8_000;
 
@@ -15,12 +13,13 @@ export const MENU_OPEN_TIMEOUT_MS = 8_000;
 export const HEADER_SETTLE_MS = 1_500;
 /** Let an extension approval popup be handled + the address register in the app. */
 export const APPROVAL_WAIT_MS = 6_000;
-/** Between theme-toggle clicks while confirming the <html> dark class flipped. */
-export const THEME_TOGGLE_SETTLE_MS = 400;
 
 /** Auto-approve loop over an extension popup (MetaMask needs multiple rounds). */
-export const APPROVE_ROUNDS = 4;
+export const APPROVE_ROUNDS = 6;
 export const APPROVE_ROUND_MS = 1_500;
-
-/** Read the address from the clipboard after clicking a wallet card's copy button. */
-export const CLIPBOARD_POLL = { ATTEMPTS: 8, INTERVAL_MS: 300 } as const;
+/**
+ * Per-click actionability budget inside the approve loop. Bounded (not the 30s default) so that a
+ * control still disabled — e.g. OneKey's Approve while its "Proceed at my own risk" consent checkbox
+ * is unticked — fails fast and the next round retries, instead of blocking the whole loop.
+ */
+export const APPROVE_CLICK_TIMEOUT_MS = 3_000;

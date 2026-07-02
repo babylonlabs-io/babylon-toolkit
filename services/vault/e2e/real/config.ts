@@ -3,7 +3,7 @@
  *
  * Only `connect` (action) and `real` (data mode) are implemented today; the other actions and mock
  * mode are declared here as disabled so the CLI can show the roadmap and so the shape is ready to
- * extend (see `actions/index.ts`). Nothing here mutates env — the localhost env check is verify-only.
+ * extend (see `actions/index.ts`).
  */
 import type { SupportedWallet } from "./connector";
 
@@ -76,21 +76,14 @@ export interface ActionOption {
   id: ActionId;
   label: string;
   enabled: boolean;
-  /** Actions that must have run first (sequential model today; kept for future non-sequential entry). */
-  prerequisites: ActionId[];
 }
 
 export const ACTIONS: ActionOption[] = [
-  { id: "connect", label: "Connect", enabled: true, prerequisites: [] },
-  { id: "pegin", label: "Pegin", enabled: false, prerequisites: ["connect"] },
-  { id: "borrow", label: "Borrow", enabled: false, prerequisites: ["pegin"] },
-  { id: "repay", label: "Repay", enabled: false, prerequisites: ["borrow"] },
-  {
-    id: "withdraw",
-    label: "Withdraw",
-    enabled: false,
-    prerequisites: ["repay"],
-  },
+  { id: "connect", label: "Connect", enabled: true },
+  { id: "pegin", label: "Pegin", enabled: false },
+  { id: "borrow", label: "Borrow", enabled: false },
+  { id: "repay", label: "Repay", enabled: false },
+  { id: "withdraw", label: "Withdraw", enabled: false },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -103,8 +96,6 @@ export interface RunConfig {
   dataMode: DataMode;
   /** Artificial per-"wait" delay, in ms (mock-only; no-op for real connect). */
   delayMs: number;
-  /** Run the browser headless (default false — these are headed by nature). */
-  headless: boolean;
 }
 
 /** Resolve the target URL a run should open. */

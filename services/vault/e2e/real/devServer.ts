@@ -6,7 +6,7 @@
  * disposer that tears down the spawned process group. Used only for the `localhost` target — the
  * `website` target skips this entirely.
  */
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,8 @@ const PROBE_TIMEOUT_MS = 2000; // per-attempt abort when probing whether the dev
 
 export interface DevServerHandle {
   baseUrl: string;
+  /** True when we reused a server already listening on the port — its network is NOT verified. */
+  reused: boolean;
   dispose: () => Promise<void>;
 }
 
@@ -28,11 +30,21 @@ async function isUp(baseUrl: string): Promise<boolean> {
   const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
   try {
     const res = await fetch(baseUrl, { signal: ctrl.signal });
-    return res.ok || res.status < 500;
+    return res.status < 500;
   } catch {
     return false;
   } finally {
     clearTimeout(t);
+  }
+}
+
+/** Terminate the spawned dev server's whole process group (falls back to the child alone). */
+function killGroup(child: ChildProcess): void {
+  if (!child.pid) return;
+  try {
+    process.kill(-child.pid, "SIGTERM");
+  } catch {
+    child.kill("SIGTERM");
   }
 }
 
@@ -43,8 +55,14 @@ export async function ensureDevServer(
   const baseUrl = `http://localhost:${DEV_PORT}`;
 
   if (await isUp(baseUrl)) {
-    log(`Reusing dev server already running at ${baseUrl}`);
-    return { baseUrl, dispose: async () => {} };
+    // We can only tell that *something* is serving on the port, not which network it is — so warn
+    // loudly and record `reused` (run.ts writes it to network.json) rather than reporting a network
+    // we never actually exercised.
+    log(
+      `⚠️  Reusing dev server already on ${baseUrl} — cannot confirm it is serving "${network}". ` +
+        `Ensure it matches, or kill port ${DEV_PORT} and re-run.`,
+    );
+    return { baseUrl, reused: true, dispose: async () => {} };
   }
 
   const script = NETWORKS[network].devScript ?? "dev";
@@ -54,34 +72,27 @@ export async function ensureDevServer(
     detached: true,
     stdio: "ignore",
   });
+  // `spawn pnpm ENOENT` (bad PATH / minimal shell) surfaces as an async 'error' event; without a
+  // listener it would crash the process and bypass runE2E's catch/finally (no artifacts, no cleanup).
+  let spawnError: Error | undefined;
+  child.on("error", (e) => {
+    spawnError = e instanceof Error ? e : new Error(String(e));
+  });
 
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
+    if (spawnError)
+      throw new Error(
+        `Failed to start vault dev server: ${spawnError.message}`,
+      );
     if (await isUp(baseUrl)) {
       log(`Dev server ready at ${baseUrl}`);
-      return {
-        baseUrl,
-        dispose: async () => {
-          if (child.pid) {
-            try {
-              process.kill(-child.pid, "SIGTERM"); // kill the whole process group
-            } catch {
-              child.kill("SIGTERM");
-            }
-          }
-        },
-      };
+      return { baseUrl, reused: false, dispose: async () => killGroup(child) };
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 
-  if (child.pid) {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch {
-      child.kill("SIGTERM");
-    }
-  }
+  killGroup(child);
   throw new Error(
     `Vault dev server did not become ready at ${baseUrl} within ${READY_TIMEOUT_MS}ms`,
   );

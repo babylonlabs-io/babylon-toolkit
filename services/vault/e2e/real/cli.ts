@@ -5,7 +5,7 @@
  * dependency. Every prompt can be pre-supplied as a flag for non-interactive / programmatic runs:
  *
  *   pnpm exec tsx e2e/real/cli.ts --target=website --network=devnet --btc=unisat --eth=metamask \
- *     --action=connect [--data=real] [--delay=0] [--headless] [--yes]
+ *     --action=connect [--data=real] [--delay=0] [--yes]
  *
  * Only `connect` + `real` are implemented; other actions and mock mode show as disabled.
  */
@@ -85,13 +85,28 @@ async function select<T extends string>(
   }
 }
 
-function asChoice<T extends string>(
+/** Coerce a boolean flag: `--yes`, `--yes=true`, `--yes=1`, `--yes=yes` all mean true. */
+function flagBool(flag: string | boolean | undefined): boolean {
+  if (flag === true) return true;
+  if (typeof flag === "string")
+    return ["", "true", "1", "yes"].includes(flag.toLowerCase());
+  return false;
+}
+
+/** Validate an OPTIONAL choice flag: undefined if absent, the value if valid, else throw. */
+function optionalChoice<T extends string>(
   flag: string | boolean | undefined,
   valid: readonly T[],
+  name: string,
 ): T | undefined {
-  return typeof flag === "string" && (valid as readonly string[]).includes(flag)
-    ? (flag as T)
-    : undefined;
+  if (flag === undefined || flag === false) return undefined;
+  if (typeof flag !== "string")
+    throw new Error(`--${name} expects a value, e.g. --${name}=${valid[0]}`);
+  if (!(valid as readonly string[]).includes(flag))
+    throw new Error(
+      `Invalid --${name} "${flag}"; expected one of: ${valid.join(", ")}`,
+    );
+  return flag as T;
 }
 
 async function resolveConfig(
@@ -99,23 +114,36 @@ async function resolveConfig(
 ): Promise<RunConfig> {
   // Non-interactive when --yes is passed or stdin isn't a TTY (programmatic/CI). Then every field must
   // come from a flag, except the optional ones which take their defaults (data=real, delay=0).
-  const interactive = flags.yes !== true && Boolean(process.stdin.isTTY);
+  const interactive = !flagBool(flags.yes) && Boolean(process.stdin.isTTY);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-  /** Flag value, else prompt (interactive), else the required-field error. */
+  // Valid values derived from config so the flag validator can't drift from the interactive menu.
+  const TARGETS: readonly Target[] = ["website", "localhost"];
+  const NETWORKS_LIST: readonly NetworkName[] = ["devnet", "testnet"];
+  const BTC_IDS = BTC_WALLETS.map((w) => w.id);
+  const ETH_IDS = ETH_WALLETS.map((w) => w.id);
+  const ACTION_IDS = ACTIONS.map((a) => a.id);
+
+  /**
+   * A required field: use the flag if supplied (validated — throws "Invalid" on a bad value or a
+   * value-less flag), else prompt (interactive), else the required-field error.
+   */
   async function pick<T extends string>(
-    flagVal: T | undefined,
+    flag: string | boolean | undefined,
+    valid: readonly T[],
     prompt: () => Promise<T>,
     name: string,
   ): Promise<T> {
-    if (flagVal) return flagVal;
+    const chosen = optionalChoice<T>(flag, valid, name);
+    if (chosen) return chosen;
     if (interactive) return prompt();
     throw new Error(`Missing --${name} (required for a non-interactive run).`);
   }
 
   try {
     const target = await pick<Target>(
-      asChoice<Target>(flags.target, ["localhost", "website"]),
+      flags.target,
+      TARGETS,
       () =>
         select<Target>(rl, "1. Where are we running against?", [
           { value: "website", label: "Website (public deployment)" },
@@ -125,7 +153,8 @@ async function resolveConfig(
     );
 
     const network = await pick<NetworkName>(
-      asChoice<NetworkName>(flags.network, ["devnet", "testnet"]),
+      flags.network,
+      NETWORKS_LIST,
       () =>
         select<NetworkName>(rl, "2. Which network?", [
           { value: "devnet", label: "devnet" },
@@ -135,7 +164,8 @@ async function resolveConfig(
     );
 
     const btcWallet = await pick<BtcWalletId>(
-      asChoice<BtcWalletId>(flags.btc, ["unisat", "okx", "onekey"]),
+      flags.btc,
+      BTC_IDS,
       () =>
         select<BtcWalletId>(
           rl,
@@ -146,7 +176,8 @@ async function resolveConfig(
     );
 
     const ethWallet = await pick<EthWalletId>(
-      asChoice<EthWalletId>(flags.eth, ["metamask"]),
+      flags.eth,
+      ETH_IDS,
       () =>
         select<EthWalletId>(
           rl,
@@ -157,13 +188,8 @@ async function resolveConfig(
     );
 
     const action = await pick<ActionId>(
-      asChoice<ActionId>(flags.action, [
-        "connect",
-        "pegin",
-        "borrow",
-        "repay",
-        "withdraw",
-      ]),
+      flags.action,
+      ACTION_IDS,
       () =>
         select<ActionId>(
           rl,
@@ -179,7 +205,7 @@ async function resolveConfig(
 
     // Optional: default to real/0 when not supplied (no error non-interactively).
     const dataMode =
-      asChoice<DataMode>(flags.data, ["real", "mock"]) ??
+      optionalChoice<DataMode>(flags.data, ["real", "mock"], "data") ??
       (interactive
         ? await select<DataMode>(rl, "6. Data mode", [
             { value: "real", label: "Real data" },
@@ -213,7 +239,6 @@ async function resolveConfig(
       action,
       dataMode,
       delayMs,
-      headless: flags.headless === true,
     };
   } finally {
     rl.close();

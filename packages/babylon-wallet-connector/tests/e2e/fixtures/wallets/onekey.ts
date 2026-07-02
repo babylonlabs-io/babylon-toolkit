@@ -189,8 +189,11 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   await tab.locator('[data-testid="AccountSelectorTriggerBase"]').first().waitFor({ state: "visible", timeout: WAIT_FOR.HOME_MS }).catch(() => {});
   await switchToSignet(tab);
 
+  // Read the receive address on the wallet home FIRST, then disable multiple addresses (which
+  // navigates into Settings and away from the home screen where readAddress works). Reading here is
+  // safe: the spec asserts the returned address equals deriveSignetTaproot(mnemonic), so if OneKey ever
+  // surfaced a fresh/first-unused address while multi-address is on, that assertion would fail loudly.
   const address = await readAddress(tab);
-  // Real dApp connect requires single-address mode — disable multiple addresses before leaving.
   await disableBtcMultipleAddresses(tab);
   await closeForeignTabs(context, tab);
   await tab.close().catch(() => {}); // done — the wallet persists in the profile

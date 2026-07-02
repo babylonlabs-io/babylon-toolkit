@@ -1,11 +1,14 @@
 /**
  * Load the wallet mnemonic/password from the wallet-connector package's gitignored `.env.local`
  * (E2E_WALLET_MNEMONIC / E2E_WALLET_PASSWORD). The secret lives with the wallet harness, not the vault
- * app. Parsed with a tiny KEY=VALUE reader so we add no dotenv dependency. Never logged.
+ * app. Parsed with Node's built-in `util.parseEnv` (no new dependency), which matches the dotenv
+ * semantics the connector specs use on the SAME file — so both harnesses import identical values even
+ * for edge cases (`export KEY=…`, inline `#`). Never logged.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 const CONNECTOR_ENV_LOCAL = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -18,31 +21,6 @@ const CONNECTOR_ENV_LOCAL = join(
   ".env.local",
 );
 
-function parseEnv(contents: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const raw of contents.split("\n")) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    } else {
-      // Strip a trailing inline comment on unquoted values (standard .env convention). Requires a
-      // space before the `#` so a `#` inside a value (e.g. a password) isn't treated as a comment.
-      const commentIdx = value.indexOf(" #");
-      if (commentIdx !== -1) value = value.slice(0, commentIdx).trim();
-    }
-    out[key] = value;
-  }
-  return out;
-}
-
 export interface WalletSecrets {
   mnemonic: string;
   password: string;
@@ -54,8 +32,14 @@ export function loadWalletSecrets(): WalletSecrets {
   let password = process.env.E2E_WALLET_PASSWORD ?? "";
   if ((!mnemonic || !password) && existsSync(CONNECTOR_ENV_LOCAL)) {
     const env = parseEnv(readFileSync(CONNECTOR_ENV_LOCAL, "utf8"));
-    mnemonic ||= env.E2E_WALLET_MNEMONIC ?? "";
-    password ||= env.E2E_WALLET_PASSWORD ?? "";
+    mnemonic ||=
+      typeof env.E2E_WALLET_MNEMONIC === "string"
+        ? env.E2E_WALLET_MNEMONIC
+        : "";
+    password ||=
+      typeof env.E2E_WALLET_PASSWORD === "string"
+        ? env.E2E_WALLET_PASSWORD
+        : "";
   }
   if (!mnemonic || !password) {
     throw new Error(
