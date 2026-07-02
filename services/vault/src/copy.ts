@@ -930,7 +930,6 @@ export const COPY = {
     healthFactorLabel: "Health factor",
     availableLiquidityLabel: "Available liquidity",
     utilizationLabel: "Utilization",
-    ethereumNetworkFeeLabel: "Ethereum network fee",
     availableLabel: "Available",
     // Repay amount slider: prefixes the user's wallet balance shown beside Max.
     balanceLabel: "Balance",
