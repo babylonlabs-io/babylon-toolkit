@@ -59,6 +59,21 @@ async function clickPrimaryButton(frame: Frame): Promise<void> {
   if ((await btn.count().catch(() => 0)) > 0) await btn.click({ force: true }).catch(() => {});
 }
 
+/**
+ * OKX intermittently shows a promo/warning modal over the home (e.g. the OKT-Network shutdown notice).
+ * Its overlay blocks the settings/network/copy controls, so close it if present. Best-effort no-op when
+ * absent. NOTE: this uses OKX's generic dialog close-icon testid (the network selector shares it), so
+ * only call it when no legitimate dialog should be open — never after opening the network selector.
+ */
+async function dismissPromoDialog(tab: Page): Promise<void> {
+  const close = tab.locator('[data-testid="okd-dialog-top-close-icon"]').first();
+  await close.waitFor({ state: "visible", timeout: SETTLE.MODAL }).catch(() => {});
+  if (await close.isVisible().catch(() => false)) {
+    await close.click({ force: true, timeout: WAIT_FOR.ACTION_MS }).catch(() => {});
+    await sleep(SETTLE.SHORT);
+  }
+}
+
 /** Switch OKX's UI language to English (Settings → Preferences → Language → English). */
 async function switchToEnglish(tab: Page): Promise<void> {
   await clickByTestId(tab, "home-page-top-bar-settings-dropdown");
@@ -86,6 +101,7 @@ async function switchToEnglish(tab: Page): Promise<void> {
 async function switchToSignet(tab: Page, origin: string): Promise<void> {
   await tab.goto(`${origin}/home.html#/`).catch(() => {});
   await sleep(SETTLE.MEDIUM);
+  await dismissPromoDialog(tab); // the reload can re-trigger the promo modal — close it before opening the network selector
   await clickByTestId(tab, "home-page-networks-icon"); // the globe, top-right
   const search = tab.getByPlaceholder(/search network/i).first();
   await search.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
@@ -204,6 +220,7 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
 
   // Wait for the wallet home, then apply English and switch to signet.
   await tab.locator('[data-testid="home-page-home-root-element-id"]').waitFor({ state: "visible", timeout: WAIT_FOR.HOME_MS }).catch(() => {});
+  await dismissPromoDialog(tab); // OKX may pop a promo modal on the home that blocks the settings dropdown
   await switchToEnglish(tab);
   await switchToSignet(tab, origin);
 
