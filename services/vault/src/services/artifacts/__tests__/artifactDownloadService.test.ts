@@ -70,18 +70,64 @@ describe("fetchAndDownloadArtifacts", () => {
     expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("skips parsing for payloads above the error-size threshold and triggers download", async () => {
-    const largeBody = "x".repeat(8192);
+  it("triggers download for a large success envelope without full parsing", async () => {
+    // Above ERROR_RESPONSE_SIZE_THRESHOLD: the body is not schema-validated,
+    // but the envelope prefix is checked and looks like a JSON-RPC success.
+    const largeResult = {
+      ...VALID_ARTIFACT_RESULT,
+      verifying_key_hex: "ab".repeat(4096),
+    };
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(largeBody, {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      responseFor({ jsonrpc: "2.0", result: largeResult, id: 1 }),
     );
 
     await fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
 
     expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a large non-JSON payload without triggering download", async () => {
+    const garbage = "x".repeat(8192);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(garbage, {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a JSON-RPC error envelope padded past the size threshold", async () => {
+    // A malicious VP can pad an error past ERROR_RESPONSE_SIZE_THRESHOLD so it
+    // skips the parsed small-response path; the envelope prefix must still
+    // catch it instead of downloading it as a successful artifact.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        error: { code: -32011, message: "x".repeat(8192) },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a large envelope missing the result field", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({ jsonrpc: "2.0", id: 1, padding: "x".repeat(8192) }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
   });
 
   it("rejects an empty result object without triggering download", async () => {

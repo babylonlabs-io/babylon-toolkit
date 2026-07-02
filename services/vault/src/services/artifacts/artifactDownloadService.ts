@@ -37,12 +37,24 @@ const RPC_TIMEOUT_MS = 120 * 1000;
 const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
 
 /**
+ * How many leading bytes of a large response we decode to structurally check
+ * its JSON-RPC envelope. A genuine success envelope serializes
+ * `jsonrpc`/`result` before the (huge) artifact value, so the start of the
+ * body is enough to distinguish a success envelope from an error envelope or
+ * non-JSON garbage.
+ */
+const PREFIX_VALIDATION_BYTES = 64 * 1024;
+
+/**
  * Fetch artifacts from the vault provider and trigger a browser file download.
  *
- * Uses JsonRpcClient.callRaw() so the raw response body can be preserved
- * as a Blob for download without a separate re-serialization pass. The
- * payload is parsed once for schema validation and the download is only
- * triggered after validation succeeds.
+ * Uses JsonRpcClient.callRaw() so the raw response body can be preserved as
+ * a Blob for download without a separate re-serialization pass. Small
+ * responses (JSON-RPC error envelopes) are fully parsed and schema-validated
+ * before the download fires. Large artifact payloads cannot be parsed on the
+ * main thread, so they are validated structurally via their JSON-RPC envelope
+ * prefix; full validation of the artifact body is deferred to the streaming
+ * work.
  *
  * @param providerAddress - Vault provider's Ethereum address.
  * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
@@ -92,13 +104,15 @@ export async function fetchAndDownloadArtifacts(
  * its runtime schema. Throws JsonRpcError for RPC-level errors and
  * VpResponseValidationError for malformed or incomplete artifact data.
  *
- * Payloads above ERROR_RESPONSE_SIZE_THRESHOLD are assumed to be real
- * artifact responses and are passed through without parsing - parsing a
- * ~450 MB payload on the main thread would likely exceed V8's string
- * length limit or freeze the tab.
+ * Payloads above ERROR_RESPONSE_SIZE_THRESHOLD cannot be parsed on the main
+ * thread - a ~450 MB payload would exceed V8's max string length or freeze
+ * the tab - so they are validated structurally via their envelope prefix
+ * (see validateLargePayloadEnvelopePrefix) instead of being passed through
+ * unchecked.
  */
 function validateArtifactPayload(buffer: ArrayBuffer): void {
   if (buffer.byteLength >= ERROR_RESPONSE_SIZE_THRESHOLD) {
+    validateLargePayloadEnvelopePrefix(buffer);
     return;
   }
 
@@ -143,6 +157,51 @@ function validateArtifactPayload(buffer: ArrayBuffer): void {
   }
 
   validateRequestDepositorClaimerArtifactsResponse(record.result);
+}
+
+/**
+ * Structural validation for payloads too large to parse on the main thread.
+ * Decodes only the envelope prefix and rejects anything that isn't a JSON-RPC
+ * success envelope: non-JSON garbage, or an error envelope padded past
+ * ERROR_RESPONSE_SIZE_THRESHOLD to slip past the parsed small-response path.
+ *
+ * This does NOT prove the (unparsed) artifact body is well-formed - a VP that
+ * returns a success-shaped envelope wrapping a corrupt artifact still passes.
+ * Validating the body itself needs the deferred streaming/verification work.
+ */
+function validateLargePayloadEnvelopePrefix(buffer: ArrayBuffer): void {
+  const slice =
+    buffer.byteLength > PREFIX_VALIDATION_BYTES
+      ? buffer.slice(0, PREFIX_VALIDATION_BYTES)
+      : buffer;
+  // Default (non-fatal) decoding tolerates a multi-byte char clipped at the
+  // slice boundary rather than throwing.
+  const prefix = new TextDecoder("utf-8").decode(slice);
+
+  if (!prefix.trimStart().startsWith("{")) {
+    throw new VpResponseValidationError(
+      "Artifact response is not a JSON object",
+    );
+  }
+
+  const resultIdx = prefix.search(/"result"\s*:/);
+  const errorIdx = prefix.search(/"error"\s*:/);
+
+  // An error envelope - possibly padded past the size threshold to dodge the
+  // parsed small-response path - must never be treated as a successful
+  // download. The VP serializes the top-level `result`/`error` key before the
+  // large artifact value, so a top-level error key appears ahead of `result`.
+  if (errorIdx !== -1 && (resultIdx === -1 || errorIdx < resultIdx)) {
+    throw new VpResponseValidationError(
+      "Artifact response is a JSON-RPC error envelope, not artifact data",
+    );
+  }
+
+  if (resultIdx === -1) {
+    throw new VpResponseValidationError(
+      "Artifact response envelope is missing the result field",
+    );
+  }
 }
 
 /**
