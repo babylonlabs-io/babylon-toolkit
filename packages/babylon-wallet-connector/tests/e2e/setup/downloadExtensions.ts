@@ -56,8 +56,6 @@ interface ExtensionConfig {
   id: string;
   /** Human-readable extension name */
   name: string;
-  /** Inner extension ID (if different from the Chrome Web Store ID) */
-  innerId: string;
 }
 
 /**
@@ -67,22 +65,24 @@ export const EXTENSION_CHROME_STORE_IDS = {
   OKX: "mcohilncbfahbmgdjkbpemcciiolgcge",
   KEPLR: "dmkamcknogkgcdfhhbddcghachkejeap",
   ONEKEY: "jnmbobjmhlngoefaiojfljckilhhlhcj",
+  UNISAT: "ppbibelpcjmhbdihakflkdcoccbgbkpo",
+  METAMASK: "nkbihfbeogaeaoehlefnkodbefgpgknn",
 };
 
-// Inner chrome extension ID
-export const EXTENSION_CHROME_INNER_IDS = {
-  OKX: "aoidgejanlhnakicljcclfajchjdfceo", // 3.36.5
-  KEPLR: "ffcjkjnakmchilamdbbpmfngggmacghh", // 0.12.169
-  ONEKEY: "nkipngmnokmlggfbiemjdonfcheaplfa", // 5.5.1
-};
+// NOTE: the Web Store CRX builds of these wallets ship no manifest `key`, so Chromium derives the
+// runtime (unpacked) extension id from a hash of the unpack directory path — it changes on every
+// version bump and differs per machine/checkout. We therefore never hardcode it: resolve it at
+// runtime via `runtimeExtensionId(storeId)` in tests/e2e/utils/extensionId.ts.
 
 /**
  * List of Chrome extensions required for E2E testing
  */
 export const EXTENSIONS: ExtensionConfig[] = [
-  { name: "OKX", id: EXTENSION_CHROME_STORE_IDS.OKX, innerId: EXTENSION_CHROME_INNER_IDS.OKX },
-  { name: "Keplr", id: EXTENSION_CHROME_STORE_IDS.KEPLR, innerId: EXTENSION_CHROME_INNER_IDS.OKX },
-  { name: "OneKey", id: EXTENSION_CHROME_STORE_IDS.ONEKEY, innerId: EXTENSION_CHROME_INNER_IDS.OKX },
+  { name: "OKX", id: EXTENSION_CHROME_STORE_IDS.OKX },
+  { name: "Keplr", id: EXTENSION_CHROME_STORE_IDS.KEPLR },
+  { name: "OneKey", id: EXTENSION_CHROME_STORE_IDS.ONEKEY },
+  { name: "UniSat", id: EXTENSION_CHROME_STORE_IDS.UNISAT },
+  { name: "MetaMask", id: EXTENSION_CHROME_STORE_IDS.METAMASK },
 ];
 
 // Directory where extensions will be downloaded and stored
