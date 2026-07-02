@@ -54,7 +54,7 @@ export function LoansSection({
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4">
       <div className="flex items-center justify-between">
         <Heading
           variant="h5"
@@ -90,7 +90,7 @@ export function LoansSection({
       </div>
 
       {hasLoans ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {borrowedAssets.map((asset) => {
             const isExpanded = expandedSymbols.has(asset.symbol);
             return (
