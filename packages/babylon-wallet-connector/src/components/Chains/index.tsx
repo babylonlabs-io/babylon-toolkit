@@ -6,6 +6,8 @@ import { ChainButton } from "@/components/ChainButton";
 import { ConnectedWallet } from "@/components/ConnectedWallet";
 import type { IChain, IWallet } from "@/core/types";
 
+const DISABLED_CONNECT_BG = "disabled:!bg-[#CCCCCC] dark:disabled:!bg-secondary-strokeDark";
+
 interface ChainsProps {
   disabled?: boolean;
   chains: IChain[];
@@ -54,7 +56,7 @@ export const Chains = memo(
             disabled={disabled}
             fluid
             onClick={onConfirm}
-            className="text-sm disabled:!bg-[#CCCCCC] disabled:!opacity-100 dark:disabled:!bg-secondary-strokeDark"
+            className={twMerge("text-sm disabled:!opacity-100", DISABLED_CONNECT_BG)}
             data-testid="chains-connect-button"
           >
             Connect

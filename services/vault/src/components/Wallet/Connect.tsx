@@ -118,7 +118,6 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
                     alt={displayWallets["BTC"].name}
                     url={displayWallets["BTC"].icon}
                     size="large"
-                    className="box-content !overflow-visible object-contain"
                   />
                 )}
                 {displayWallets["ETH"] && (
@@ -126,7 +125,6 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
                     alt={displayWallets["ETH"].name}
                     url={displayWallets["ETH"].icon}
                     size="large"
-                    className="box-content !overflow-visible object-contain"
                   />
                 )}
               </AvatarGroup>

@@ -44,8 +44,9 @@ const context = typeof window !== "undefined" ? window : {};
 
 // The wallet dialog is a full-viewport overlay, so its close/settings buttons
 // position with `fixed left`/`right`, not inside the page's 1080px content
-// box. These match that box's edge (per Figma: both inset 180px on the 1512px
-// reference frame) so the buttons line up with the rest of the page on desktop.
+// box. These match that box's edge (per Figma: both inset 236px on the 1512px
+// reference frame — (1512-1080)/2 + 20px) so the buttons line up with the
+// rest of the page on desktop.
 const WALLET_DIALOG_LEFT_INSET_CLASS =
   "md:!left-[max(20px,calc((100vw-1080px)/2+20px))]";
 const WALLET_DIALOG_RIGHT_INSET_CLASS =
