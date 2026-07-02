@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-import { useETHWallet } from "@/context/wallet";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
   usePositionNotifications,
   type PositionNotificationsStatus,
-} from "../hooks/usePositionNotifications";
+} from "@/applications/aave/hooks/usePositionNotifications";
 import {
   calculate,
   deriveBannerState,
@@ -18,7 +16,22 @@ import {
   type Vault,
   type Warning,
   type WarningType,
-} from "../positionNotifications";
+} from "@/applications/aave/positionNotifications";
+import { useETHWallet } from "@/context/wallet";
+import {
+  DEBUG_DEFAULT_CF,
+  DEBUG_DEFAULT_EXPECTED_HF,
+  DEBUG_DEFAULT_MAX_LB,
+  DEBUG_DEFAULT_THF,
+  resetDebugManualParams,
+  setDebugManualMode,
+  setDebugManualParams,
+  setDebugPositionOverride,
+  setDebugSimulateStalePrice,
+  useDebugManualMode,
+  useDebugManualParams,
+  useDebugSimulateStalePrice,
+} from "@/dev/debugPositionStore";
 
 const SEVERITY_COLORS: Record<BannerSeverity, string> = {
   red: "border-red-500 bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-200",
@@ -34,7 +47,6 @@ const SEVERITY_COLORS: Record<BannerSeverity, string> = {
 const WARNING_TYPE_COLORS: Record<WarningType, string> = {
   urgent: "bg-red-600 text-white",
   cliff: "bg-orange-600 text-white",
-  rebalance: "bg-amber-500 text-white",
   reorder: "bg-yellow-500 text-black",
   dust: "bg-gray-500 text-white",
   "weird-params": "bg-blue-500 text-white",
@@ -55,21 +67,6 @@ const STATUS_MESSAGES: Record<
 const INPUT_CLASS =
   "w-28 rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
 const LABEL_CLASS = "text-xs text-gray-600 dark:text-gray-400";
-
-function makeDefaultParams(): CalculatorParams {
-  return {
-    btcPrice: 61722.5,
-    totalDebtUsd: 44287.72,
-    vaults: [
-      { id: "v-1", name: "Vault 1", btc: 0.65 },
-      { id: "v-2", name: "Vault 2", btc: 0.35 },
-    ],
-    CF: 0.75,
-    THF: 1.1,
-    maxLB: 1.05,
-    expectedHF: 0.95,
-  };
-}
 
 /** Initial counter for generated vault IDs (avoids collision with default vaults) */
 const INITIAL_VAULT_ID_COUNTER = 100;
@@ -337,7 +334,7 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.CF}
             onChange={(e) =>
-              updateField("CF", parseFloat(e.target.value) || 0.75)
+              updateField("CF", parseFloat(e.target.value) || DEBUG_DEFAULT_CF)
             }
           />
         </div>
@@ -351,7 +348,10 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.THF}
             onChange={(e) =>
-              updateField("THF", parseFloat(e.target.value) || 1.1)
+              updateField(
+                "THF",
+                parseFloat(e.target.value) || DEBUG_DEFAULT_THF,
+              )
             }
           />
         </div>
@@ -367,7 +367,10 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.maxLB}
             onChange={(e) =>
-              updateField("maxLB", parseFloat(e.target.value) || 1.05)
+              updateField(
+                "maxLB",
+                parseFloat(e.target.value) || DEBUG_DEFAULT_MAX_LB,
+              )
             }
           />
         </div>
@@ -381,7 +384,10 @@ function ManualInputPanel({
             className={INPUT_CLASS}
             value={params.expectedHF}
             onChange={(e) =>
-              updateField("expectedHF", parseFloat(e.target.value) || 0.95)
+              updateField(
+                "expectedHF",
+                parseFloat(e.target.value) || DEBUG_DEFAULT_EXPECTED_HF,
+              )
             }
           />
         </div>
@@ -437,23 +443,18 @@ function ManualInputPanel({
   );
 }
 
-interface PositionNotificationsDebugPanelProps {
-  /** Called whenever the debug panel's display result changes, so the main banner can update */
-  onResultChange?: (result: CalculatorResult | null) => void;
-  /** Called when simulated status changes (e.g. stale-price), so the main banner can show status-based UI */
-  onStatusChange?: (status: PositionNotificationsStatus | null) => void;
-}
-
-export function PositionNotificationsDebugPanel({
-  onResultChange,
-  onStatusChange,
-}: PositionNotificationsDebugPanelProps) {
+/**
+ * Position-notifications debug controls, surfaced as a section inside the
+ * god-mode panel. Reads its control state from (and publishes the derived
+ * banner override to) the shared debugPositionStore so the dashboard can pick
+ * it up and the state survives the god-mode panel's float ↔ pop-out remount.
+ */
+export function PositionNotificationsDebugPanel() {
   const { address } = useETHWallet();
   const { result: hookResult, status } = usePositionNotifications(address);
-  const [manualMode, setManualMode] = useState(false);
-  const [simulateStalePrice, setSimulateStalePrice] = useState(false);
-  const [manualParams, setManualParams] =
-    useState<CalculatorParams>(makeDefaultParams);
+  const manualMode = useDebugManualMode();
+  const simulateStalePrice = useDebugSimulateStalePrice();
+  const manualParams = useDebugManualParams();
 
   const manualResult = useMemo(
     () => (manualMode ? calculate(manualParams) : null),
@@ -462,16 +463,21 @@ export function PositionNotificationsDebugPanel({
 
   const displayResult = manualMode ? manualResult : hookResult;
 
-  // Notify parent of result and status changes so the main banner updates
+  // Publish the derived override so the dashboard banner reflects the debug
+  // state. Live mode publishes the live result (a no-op override); manual mode
+  // publishes the simulated result; stale-price publishes the status only.
   useEffect(() => {
     if (simulateStalePrice) {
-      onResultChange?.(null);
-      onStatusChange?.("stale-price");
+      setDebugPositionOverride(null, "stale-price");
     } else {
-      onResultChange?.(displayResult);
-      onStatusChange?.(null);
+      setDebugPositionOverride(displayResult, null);
     }
-  }, [displayResult, simulateStalePrice, onResultChange, onStatusChange]);
+  }, [displayResult, simulateStalePrice]);
+
+  // Stop overriding the banner once this panel unmounts (god-mode hidden or the
+  // popped-out window closed) — otherwise the last manual / stale-price override
+  // would linger in the module store and keep driving the dashboard banner.
+  useEffect(() => () => setDebugPositionOverride(null, null), []);
 
   return (
     <details className="rounded-lg border border-dashed border-purple-400 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-950/30">
@@ -487,7 +493,7 @@ export function PositionNotificationsDebugPanel({
             <input
               type="checkbox"
               checked={manualMode}
-              onChange={(e) => setManualMode(e.target.checked)}
+              onChange={(e) => setDebugManualMode(e.target.checked)}
               className="rounded"
             />
             Manual Mode
@@ -496,7 +502,7 @@ export function PositionNotificationsDebugPanel({
             <input
               type="checkbox"
               checked={simulateStalePrice}
-              onChange={(e) => setSimulateStalePrice(e.target.checked)}
+              onChange={(e) => setDebugSimulateStalePrice(e.target.checked)}
               className="rounded"
             />
             Simulate stale price
@@ -504,7 +510,7 @@ export function PositionNotificationsDebugPanel({
           {manualMode && (
             <button
               type="button"
-              onClick={() => setManualParams(makeDefaultParams())}
+              onClick={() => resetDebugManualParams()}
               className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
               Reset defaults
@@ -516,7 +522,7 @@ export function PositionNotificationsDebugPanel({
         {manualMode && (
           <ManualInputPanel
             params={manualParams}
-            onParamsChange={setManualParams}
+            onParamsChange={setDebugManualParams}
           />
         )}
 

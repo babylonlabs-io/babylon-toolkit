@@ -25,6 +25,17 @@ vi.mock("../CollateralExpandedContent", () => ({
   },
 }));
 
+// Capture the `vaults` prop handed to the withdraw modal so we can assert a
+// display-only (god-mode demo) row never enters the real withdraw signing path.
+let withdrawModalVaults: CollateralVaultEntry[] | null = null;
+vi.mock("../WithdrawVaults", () => ({
+  WithdrawVaultsModal: (props: { vaults: CollateralVaultEntry[] }) => {
+    withdrawModalVaults = props.vaults;
+    return null;
+  },
+  CollateralActionsMenu: () => null,
+}));
+
 vi.mock("@/components/deposit/ArtifactDownloadModal", () => ({
   ArtifactDownloadModal: () => null,
 }));
@@ -38,6 +49,13 @@ vi.mock("@/components/shared", () => ({
       expand
     </button>
   ),
+  ExpandablePanel: ({
+    expanded,
+    children,
+  }: {
+    expanded: boolean;
+    children: React.ReactNode;
+  }) => (expanded ? <>{children}</> : null),
 }));
 
 vi.mock("@/config", () => ({
@@ -151,5 +169,51 @@ describe("CollateralSection reorder input", () => {
       VAULT_B,
       VAULT_C,
     ]);
+  });
+});
+
+// A `displayOnly` row is a god-mode demo mock (fake vaultId): it must render in
+// the read-only list but never reach a real action flow. This guards against
+// regressing the fix where demo collateral could enter a real withdraw/reorder.
+describe("CollateralSection display-only (demo) rows", () => {
+  beforeEach(() => {
+    reorderModalVaults = null;
+    expandedVaults = null;
+    withdrawModalVaults = null;
+  });
+
+  it("excludes a display-only vault from the withdraw modal", () => {
+    renderSection([
+      entry(VAULT_A, { liquidationIndex: 0 }),
+      entry(VAULT_B, { liquidationIndex: 1 }),
+      entry(VAULT_C, { displayOnly: true, liquidationIndex: 2 }),
+    ]);
+
+    expect(withdrawModalVaults?.map((v) => v.vaultId)).toEqual([
+      VAULT_A,
+      VAULT_B,
+    ]);
+  });
+
+  it("excludes a display-only vault from the reorder modal", () => {
+    renderSection([
+      entry(VAULT_A, { liquidationIndex: 0 }),
+      entry(VAULT_B, { liquidationIndex: 1 }),
+      entry(VAULT_C, { displayOnly: true, liquidationIndex: 2 }),
+    ]);
+
+    expect(reorderModalVaults?.map((v) => v.vaultId)).toEqual([
+      VAULT_A,
+      VAULT_B,
+    ]);
+  });
+
+  it("still displays a display-only vault in the expanded collateral list", () => {
+    renderSection([entry(VAULT_A), entry(VAULT_C, { displayOnly: true })]);
+
+    // Expand to mount the list.
+    fireEvent.click(screen.getByTestId("expand-toggle"));
+
+    expect(expandedVaults?.map((v) => v.vaultId)).toEqual([VAULT_A, VAULT_C]);
   });
 });

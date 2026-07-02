@@ -15,6 +15,7 @@
 import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useCallback, useMemo } from "react";
 
+import { NotificationPermissionPrompt } from "@/components/shared/NotificationPermissionPrompt";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -367,6 +368,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             hasError={Boolean(error)}
           />
         )}
+
+        {/* Persist through errors: a retry still needs signing, so the nudge
+            stays useful. Only a finished deposit (complete / terminal success)
+            has no further signing to notify about. */}
+        {!isComplete && !isTerminalSuccess && <NotificationPermissionPrompt />}
       </div>
     </DepositCardShell>
   );

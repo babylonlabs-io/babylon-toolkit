@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useDemoDeposit } from "@/dev/demoDeposit";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
@@ -34,23 +35,36 @@ export function usePendingDeposits() {
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
-  const pendingActivities = useMemo(
-    () =>
-      activities.filter(
-        (a) =>
-          a.contractStatus === ContractStatus.PENDING ||
-          a.contractStatus === ContractStatus.VERIFIED,
-      ),
-    [activities],
-  );
+  // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
+  // is on and enabled). Injected into the render lists below — but NOT into
+  // `allActivities` — so the real section renders it while it is never polled
+  // and every click handler no-ops for it (they resolve ids against
+  // `allActivities`). When `demo.hideReal` is set, the real deposits are
+  // dropped from the render lists so only the demo shows. Inert in production.
+  const demo = useDemoDeposit();
 
-  const expiredActivities = useMemo(
-    () =>
-      activities.filter(
-        (a) =>
-          a.contractStatus === ContractStatus.EXPIRED && !!a.unsignedPrePeginTx,
-      ),
-    [activities],
+  const pendingActivities = useMemo(() => {
+    const real = activities.filter(
+      (a) =>
+        a.contractStatus === ContractStatus.PENDING ||
+        a.contractStatus === ContractStatus.VERIFIED,
+    );
+    if (!demo) return real;
+    return [...demo.pendingActivities, ...(demo.hideReal ? [] : real)];
+  }, [activities, demo]);
+
+  const expiredActivities = useMemo(() => {
+    const real = activities.filter(
+      (a) =>
+        a.contractStatus === ContractStatus.EXPIRED && !!a.unsignedPrePeginTx,
+    );
+    if (!demo) return real;
+    return [...demo.expiredActivities, ...(demo.hideReal ? [] : real)];
+  }, [activities, demo]);
+
+  const mergedVaultProviders = useMemo(
+    () => (demo ? [demo.provider, ...vaultProviders] : vaultProviders),
+    [demo, vaultProviders],
   );
 
   const broadcastModal = useBroadcastModal({
@@ -68,7 +82,7 @@ export function usePendingDeposits() {
     expiredActivities,
     allActivities: activities,
     pendingPegins,
-    vaultProviders,
+    vaultProviders: mergedVaultProviders,
     btcPublicKey,
     btcAddress,
     btcConnected,

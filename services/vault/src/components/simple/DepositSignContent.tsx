@@ -9,12 +9,14 @@
 
 import { Callout } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
+import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
@@ -66,10 +68,24 @@ export function DepositSignContent({
     Hex[] | null
   >(null);
 
+  const signingNotifier = useSigningNotificationOptional();
+
   // The flow no longer auto-starts on mount: DepositProgressView renders the
   // pre-sign entry state (started=false) and the depositor begins signing by
   // clicking "Sign Transaction". Once started, the live stepper takes over.
   const [started, setStarted] = useState(false);
+
+  // Notify the depositor (if they've tabbed away) when the active flow reaches
+  // a signing step. Gated on `started` so the initial DERIVE_VAULT_SECRET value
+  // can't notify before the user clicks Sign.
+  useDepositSigningNotification(currentStep, started);
+
+  // While the flow is running it owns notifications in-modal; tell the
+  // pending-deposit observer to stand down so it can't double-notify.
+  useEffect(() => {
+    signingNotifier?.setActiveFlow(processing);
+    return () => signingNotifier?.setActiveFlow(false);
+  }, [signingNotifier, processing]);
 
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();
@@ -89,9 +105,17 @@ export function DepositSignContent({
   const handleSign = useCallback(() => {
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
+    // The Sign click is a user gesture - the right moment to ask for OS
+    // notification permission so we can later ping the depositor when a
+    // signature is needed and they've switched tabs. Gated on
+    // `shouldPromptForPermission` so a depositor who chose "No thanks" (or who
+    // already decided) isn't shown the native OS dialog anyway.
+    if (signingNotifier?.shouldPromptForPermission) {
+      signingNotifier.requestPermission();
+    }
     setStarted(true);
     void startFlow();
-  }, [startFlow]);
+  }, [startFlow, signingNotifier]);
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =

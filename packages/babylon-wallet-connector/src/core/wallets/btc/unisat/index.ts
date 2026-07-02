@@ -7,6 +7,7 @@ const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   id: "unisat",
   name: WALLET_PROVIDER_NAME,
   icon: logo,
+  iconBackground: "#000000",
   docs: "https://unisat.io/download",
   wallet: (context) => {
     // Prefer real UniSat's own `unisat_wallet` namespace, else `window.unisat`.

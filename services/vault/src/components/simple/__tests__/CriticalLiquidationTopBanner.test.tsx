@@ -49,7 +49,6 @@ function makeResult({
     warnings: urgent ? [{ type: "urgent", title: "x", detail: "y" }] : [],
     optimalVaultOrder: null,
     suggestedNewVaultBtc: null,
-    suggestedRebalanceVaultBtc: null,
   };
 }
 

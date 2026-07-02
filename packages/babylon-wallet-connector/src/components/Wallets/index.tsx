@@ -11,6 +11,10 @@ const TAPROOT_ADDRESS_PREFIX: Record<Network, string> = {
   [Network.SIGNET]: "tb1p",
 };
 
+// Where depositors without testnet coins can request signet BTC. Only surfaced
+// on non-mainnet networks, where the "testnet BTC" prompt is meaningful.
+const BTC_TESTNET_FAUCET_URL = "https://tbv-faucet.testnet.babylonlabs.io/";
+
 export interface WalletsProps {
   chain: IChain;
   className?: string;
@@ -39,14 +43,15 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
 
   // Taproot is a hard requirement for the BTC vault, so surface the expected
   // address prefix for the connected network (bc1p on mainnet, tb1p otherwise).
-  const subtitle = useMemo(() => {
+  // The faucet prompt only makes sense off mainnet, where testnet coins apply.
+  const btcHint = useMemo(() => {
     if (chain.id !== "BTC") return null;
 
     const network = (chain.config as BTCConfig | undefined)?.network;
     const prefix = network ? TAPROOT_ADDRESS_PREFIX[network] : undefined;
     if (!prefix) return null;
 
-    return `To continue, connect a ${chain.name} wallet with a ${prefix} (Taproot) address.`;
+    return { prefix, showFaucet: network !== Network.MAINNET };
   }, [chain]);
 
   const handleWalletClick = useCallback(
@@ -62,9 +67,25 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
         <Heading variant="h5" className="text-accent-primary">
           {`Select ${chain.name} Wallet`}
         </Heading>
-        {subtitle && (
+        {btcHint && (
           <Text variant="body2" className="text-accent-secondary">
-            {subtitle}
+            {`To continue, connect a ${chain.name} wallet with a `}
+            <span className="text-accent-primary">{`${btcHint.prefix} (Taproot)`}</span>
+            {" address."}
+            {btcHint.showFaucet && (
+              <>
+                {" Don't have testnet BTC yet? Get it from "}
+                <a
+                  href={BTC_TESTNET_FAUCET_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-primary underline underline-offset-2 transition-opacity hover:opacity-80"
+                >
+                  Faucet
+                </a>
+                {"."}
+              </>
+            )}
           </Text>
         )}
       </div>
@@ -78,6 +99,7 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
             key={wallet.id}
             name={wallet.name}
             logo={wallet.icon}
+            logoBackground={wallet.iconBackground}
             fallbackLink={wallet.docs}
             onClick={() => handleWalletClick(wallet)}
           />

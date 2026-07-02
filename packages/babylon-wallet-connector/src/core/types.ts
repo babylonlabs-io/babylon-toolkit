@@ -204,6 +204,10 @@ export interface IWallet<P extends IProvider = IProvider> {
   id: string;
   name: string;
   icon: string;
+  // Solid brand-color fill shown behind `icon` in the wallet-select list, where
+  // the icon is clipped to a rounded square rather than shown as a raw circle
+  // (see WalletButton). Undefined falls back to no fill (transparent corners).
+  iconBackground?: string;
   docs: string;
   installed: boolean;
   provider: P | null;
@@ -245,6 +249,8 @@ export interface WalletMetadata<P extends IProvider, C> {
   hardware?: boolean;
   name: string | ((wallet: any, config: C) => Promise<string>);
   icon: string | ((wallet: any, config: C) => Promise<string>);
+  // See `IWallet.iconBackground`.
+  iconBackground?: string;
   docs: string;
   networks: Network[];
   createProvider: (wallet: any, config: C) => P;

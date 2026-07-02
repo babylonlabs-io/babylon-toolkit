@@ -4,6 +4,7 @@
 
 import type { PropsWithChildren } from "react";
 
+import type { DepositFlowStep } from "../hooks/deposit/depositFlowSteps/types";
 import type {
   LocalStorageStatus,
   PeginState,
@@ -39,6 +40,12 @@ export interface DepositPollingResult {
   prePeginConfirmations: number | null;
   /** Protocol-required confirmation depth (`minPrepeginDepth`) for this vault. */
   requiredPrePeginDepth: number;
+  /**
+   * Forces the card's displayed progress step instead of deriving it from
+   * `peginState`. Undefined on every production path — used only by the dev
+   * god-mode panel to mock arbitrary deposit-flow steps (1–15).
+   */
+  displayStepOverride?: DepositFlowStep;
 }
 
 /** Context value type */

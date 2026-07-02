@@ -10,9 +10,10 @@ import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
-import { ExpandMenuButton } from "@/components/shared";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { useBtcMempoolConfirmations } from "@/hooks/useBtcMempoolConfirmations";
 import { useOffchainParams } from "@/hooks/useOffchainParams";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
@@ -33,6 +34,9 @@ const ASSERT_CONFIRMATIONS_QUERY_KEY = "assertMempoolConfirmations";
 interface PendingWithdrawSectionProps {
   pendingWithdrawVaults: RedeemedVaultInfo[];
   pegoutStatuses: Map<string, PegoutPollingResult>;
+  /** Section heading. Defaults to the "Pending Withdrawals" copy; the
+   *  completed (payout-sent) section passes the "Withdrawals" copy. */
+  title?: string;
 }
 
 export function PendingWithdrawSection(props: PendingWithdrawSectionProps) {
@@ -43,6 +47,7 @@ export function PendingWithdrawSection(props: PendingWithdrawSectionProps) {
 function PendingWithdrawSectionContent({
   pendingWithdrawVaults,
   pegoutStatuses,
+  title = COPY.pegout.section.pendingTitle,
 }: PendingWithdrawSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   // Non-blocking: the withdrawal status (tx hash, Blocked → Contact Support,
@@ -96,7 +101,7 @@ function PendingWithdrawSectionContent({
           as="h2"
           className="font-normal text-accent-primary"
         >
-          Pending Withdrawals ({count})
+          {title} ({count})
         </Heading>
         {anyInProgress && (
           <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
@@ -119,12 +124,12 @@ function PendingWithdrawSectionContent({
           <ExpandMenuButton
             isExpanded={isExpanded}
             onToggle={() => setIsExpanded((prev) => !prev)}
-            aria-label="Pending withdrawal details"
+            aria-label={COPY.pegout.section.detailsAria(title)}
           />
         </div>
 
         {/* Expanded: one staged progress card per vault. */}
-        {isExpanded && (
+        <ExpandablePanel expanded={isExpanded}>
           <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
             {pendingWithdrawVaults.map((vault) => {
               const pollingResult = pegoutStatuses.get(vault.id);
@@ -150,7 +155,7 @@ function PendingWithdrawSectionContent({
               );
             })}
           </div>
-        )}
+        </ExpandablePanel>
       </Card>
     </div>
   );

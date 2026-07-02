@@ -2,7 +2,7 @@
 
 > The single source of truth for how motion is implemented across `babylon-toolkit`.
 > **Any PR that adds or changes an animation must follow this.** Derived from the
-> TBV motion spec (Figma "TBV × Master File", node `7831-25100`).
+> TBV motion spec.
 
 ## Principles
 

@@ -7,8 +7,8 @@
  */
 
 import { Callout } from "@babylonlabs-io/core-ui";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 describe("Callout", () => {
   it("renders the error variant as an alert (assertive announcement)", () => {
@@ -57,6 +57,7 @@ describe("Callout", () => {
       ["warning", "bg-warning-main"],
       ["success", "bg-success-main"],
       ["info", "bg-info-main"],
+      ["infoStrong", "bg-info-dark"],
     ];
     for (const [variant, bgClass] of cases) {
       const { container, unmount } = render(
@@ -68,7 +69,13 @@ describe("Callout", () => {
   });
 
   it("ships a default icon inside the icon box for each variant", () => {
-    for (const variant of ["error", "warning", "success", "info"] as const) {
+    for (const variant of [
+      "error",
+      "warning",
+      "success",
+      "info",
+      "infoStrong",
+    ] as const) {
       const { container, unmount } = render(
         <Callout variant={variant}>body</Callout>,
       );
@@ -86,5 +93,32 @@ describe("Callout", () => {
       </Callout>,
     );
     expect(screen.getByTestId("custom-icon")).toBeInTheDocument();
+  });
+
+  it("renders no action buttons when no actions are supplied", () => {
+    const { container } = render(<Callout variant="info">body</Callout>);
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("renders an action button per supplied action and fires its onClick", () => {
+    const onEnable = vi.fn();
+    const onDismiss = vi.fn();
+    render(
+      <Callout
+        variant="info"
+        actions={[
+          { label: "Enable", emphasis: "primary", onClick: onEnable },
+          { label: "No thanks", emphasis: "secondary", onClick: onDismiss },
+        ]}
+      >
+        body
+      </Callout>,
+    );
+
+    fireEvent.click(screen.getByText("Enable"));
+    fireEvent.click(screen.getByText("No thanks"));
+
+    expect(onEnable).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });

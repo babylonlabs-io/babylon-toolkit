@@ -17,7 +17,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 
-import { ExpandMenuButton } from "@/components/shared";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
@@ -163,7 +163,7 @@ export function PendingDepositSection() {
                 </div>
 
                 {/* Expanded deposit list */}
-                {isExpanded && (
+                <ExpandablePanel expanded={isExpanded}>
                   <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
                     {pendingGroups.map((group) =>
                       group.length > 1 ? (
@@ -189,7 +189,7 @@ export function PendingDepositSection() {
                       ),
                     )}
                   </div>
-                )}
+                </ExpandablePanel>
               </Card>
             </div>
           )}

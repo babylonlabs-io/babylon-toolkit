@@ -4,12 +4,21 @@
  * Renders a single pending deposit as a bordered sub-card within the
  * expanded summary card. Uses VaultDetailCard for the common layout.
  *
- * The card itself is the action surface: when an `onCardClick` is wired
- * (pending list) or the parent batched-group wrapper is clickable, that
- * click opens the deposit multistepper modal which owns every per-vault
- * flow (broadcast, WOTS, sign, activate, artifact download). The card no
- * longer renders its own per-action button.
+ * The card body is an action surface: when an `onCardClick` is wired
+ * (single pending list / expired list), clicking it opens the deposit
+ * multistepper (or the refund modal for expired cards) which owns every
+ * per-vault flow (broadcast, WOTS, sign, activate, refund, artifact
+ * download).
+ *
+ * When the deposit has an available next action, the card also surfaces an
+ * explicit CTA button for it: the orange primary CTA for forward actions
+ * (broadcast / sign / activate …) and a lower-emphasis outlined button for
+ * the HTLC refund on expired deposits. The button runs the same handler as
+ * the card body. Batched siblings have no `onCardClick` (the group wrapper
+ * owns the click and hoists the shared broadcast), so they render no CTA.
  */
+
+import { Button } from "@babylonlabs-io/core-ui";
 
 import {
   getActionStatus,
@@ -90,11 +99,16 @@ export function PendingDepositCard({
 
   if (!pollingResult) return null;
 
-  const { loading, peginState, prePeginConfirmations, requiredPrePeginDepth } =
-    pollingResult;
-  // `getActionStatus` still drives the disabled-with-tooltip state for
-  // wallet-ownership mismatch. Action triggering itself is no longer the
-  // card's job — the parent's click handler owns that.
+  const {
+    loading,
+    peginState,
+    prePeginConfirmations,
+    requiredPrePeginDepth,
+    displayStepOverride,
+  } = pollingResult;
+  // `getActionStatus` drives both the disabled-with-tooltip state (wallet-
+  // ownership mismatch) and the CTA below. Executing the action stays the
+  // parent's job — the CTA and the card body both route to its click handler.
   const status = getActionStatus(pollingResult);
   const { displayVariant } = peginState;
   const isDanger = displayVariant === "danger";
@@ -122,7 +136,11 @@ export function PendingDepositCard({
   // the first poll is still loading — until VP ingestion state arrives the step
   // is ambiguous (a CONFIRMING deposit could be awaiting BTC confirmation or
   // preparing payouts), so we don't assert one and risk a backward jump.
-  const step = loading ? null : getPeginDisplayStep(peginState);
+  // `displayStepOverride` is set only by the dev god-mode panel (to mock any of
+  // the 15 flow steps); production always derives the step from the live state.
+  const step = loading
+    ? null
+    : (displayStepOverride ?? getPeginDisplayStep(peginState));
 
   const btcConfirmationSummary =
     step === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
@@ -133,6 +151,33 @@ export function PendingDepositCard({
   const provider = vaultProviders.find((vp) => vp.id === providerId);
   const providerName =
     provider?.name ?? `Provider ${truncateAddress(providerId)}`;
+
+  // Surface the available next action as an explicit CTA on cards that own a
+  // click handler (single pending + expired; batched siblings defer to the
+  // group). Only an `available` status is actionable — disabled (ownership
+  // mismatch) and noAction render no button. The HTLC refund reads as a
+  // lower-emphasis outlined button; every forward action uses the orange
+  // primary CTA. The button runs the same handler as the card body and is
+  // excluded from the body click by isInteractiveEventTarget.
+  const actionCta =
+    status.type === "available" && handleCardClick ? (
+      <Button
+        variant={
+          status.action.action === PeginAction.REFUND_HTLC
+            ? "outlined"
+            : "contained"
+        }
+        color={
+          status.action.action === PeginAction.REFUND_HTLC
+            ? "primary"
+            : "secondary"
+        }
+        className="w-full"
+        onClick={handleCardClick}
+      >
+        {status.action.label}
+      </Button>
+    ) : undefined;
 
   return (
     <VaultDetailCard
@@ -190,6 +235,7 @@ export function PendingDepositCard({
           />
         )
       }
+      action={actionCta}
     />
   );
 }

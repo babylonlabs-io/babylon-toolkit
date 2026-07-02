@@ -224,7 +224,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   BlocklistedVaultKeeper:
     "This vault keeper has been blocklisted and cannot perform this action.",
   PostExpiryGraceWindowElapsed:
-    "The grace window to reclaim this expired BTC Vault has elapsed.",
+    "The grace window to refund this expired BTC Vault has elapsed.",
   BtcKeyAlreadyRegistered: "This Bitcoin public key is already registered.",
   CommissionAboveMaximum:
     "The proposed commission exceeds the protocol maximum.",
