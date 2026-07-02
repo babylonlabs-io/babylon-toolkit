@@ -263,7 +263,7 @@ export function Borrow() {
     : txError
       ? {
           variant: "error",
-          title: COPY.loans.transactionFailedTitle,
+          title: COPY.common.transactionFailedTitle,
           body: txError,
         }
       : isBorrowBlocked(gate)

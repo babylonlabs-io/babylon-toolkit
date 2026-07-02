@@ -17,6 +17,8 @@ export interface UseReorderModalResult {
   handleDragEnd: (event: DragEndEvent) => void;
   handleConfirm: () => Promise<boolean>;
   isProcessing: boolean;
+  /** Last failure message, shown inline under the action (null when none). */
+  error: string | null;
 }
 
 export function useReorderModal({
@@ -32,7 +34,7 @@ export function useReorderModal({
   const [baselineVaultIds, setBaselineVaultIds] = useState<readonly Hex[]>(() =>
     vaults.map((v) => v.vaultId as Hex),
   );
-  const { executeReorder, isProcessing } = useReorderVaults();
+  const { executeReorder, isProcessing, error } = useReorderVaults();
 
   // Initialize order only when modal opens — intentionally excludes `vaults`
   // to prevent background React Query refetches from resetting user's drag order
@@ -73,5 +75,6 @@ export function useReorderModal({
     handleDragEnd,
     handleConfirm,
     isProcessing,
+    error,
   };
 }

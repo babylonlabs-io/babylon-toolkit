@@ -90,6 +90,7 @@ vi.mock("@/applications/aave/hooks/useReorderVaults", () => ({
   useReorderVaults: () => ({
     executeReorder: mockExecuteReorder,
     isProcessing: false,
+    error: null,
   }),
 }));
 

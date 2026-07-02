@@ -11,7 +11,6 @@ import { useAccount, useWalletClient } from "wagmi";
 
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
-import { useError } from "@/context/error";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -56,6 +55,10 @@ export interface UseReorderVaultsResult {
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /** Last failure message, shown inline under the action (null when none). */
+  error: string | null;
+  /** Clear the last failure message (e.g. when the modal reopens). */
+  clearError: () => void;
 }
 
 /**
@@ -72,10 +75,12 @@ export interface UseReorderVaultsResult {
  */
 export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
-  const { handleError } = useError();
   const gate = useProtocolGateState();
+
+  const clearError = useCallback(() => setError(null), []);
 
   const executeReorder = useCallback(
     async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
@@ -86,6 +91,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
       // the path is UI-prevented, so there is nothing actionable to surface.
       if (isReorderBlocked(gate)) return false;
 
+      setError(null);
       setIsProcessing(true);
       try {
         if (!walletClient) {
@@ -144,23 +150,20 @@ export function useReorderVaults(): UseReorderVaultsResult {
             ? mapViemErrorToContractError(error, "Reorder Vaults")
             : new Error("An unexpected error occurred while reordering vaults");
 
-        handleError({
-          error: mappedError,
-          displayOptions: {
-            showModal: true,
-          },
-        });
+        setError(mappedError.message);
 
         return false;
       } finally {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, handleError, gate],
+    [walletClient, address, gate],
   );
 
   return {
     executeReorder,
     isProcessing,
+    error,
+    clearError,
   };
 }
