@@ -45,13 +45,21 @@ function parseFlags(argv: string[]): Record<string, string | boolean> {
 }
 
 /** Numbered single-select. Rejects disabled entries; empty input picks the first enabled option. */
-async function select<T extends string>(rl: Interface, title: string, choices: Choice<T>[]): Promise<T> {
+async function select<T extends string>(
+  rl: Interface,
+  title: string,
+  choices: Choice<T>[],
+): Promise<T> {
   const firstEnabled = choices.find((c) => !c.disabled);
   if (!firstEnabled) throw new Error(`No selectable options for "${title}"`);
   // eslint-disable-next-line no-console
   console.log(`\n${title}`);
   choices.forEach((c, i) => {
-    const tag = c.disabled ? " (coming soon)" : c.value === firstEnabled.value ? " (default)" : "";
+    const tag = c.disabled
+      ? " (coming soon)"
+      : c.value === firstEnabled.value
+        ? " (default)"
+        : "";
     const hint = c.hint ? ` — ${c.hint}` : "";
     // eslint-disable-next-line no-console
     console.log(`  ${i + 1}) ${c.label}${tag}${hint}`);
@@ -62,29 +70,44 @@ async function select<T extends string>(rl: Interface, title: string, choices: C
     const idx = Number(raw) - 1;
     const chosen = choices[idx];
     if (!chosen) {
+      // eslint-disable-next-line no-console
       console.log("Invalid choice, try again.");
       continue;
     }
     if (chosen.disabled) {
-      console.log(`"${chosen.label}" is not available yet — pick an enabled option.`);
+      // eslint-disable-next-line no-console
+      console.log(
+        `"${chosen.label}" is not available yet — pick an enabled option.`,
+      );
       continue;
     }
     return chosen.value;
   }
 }
 
-function asChoice<T extends string>(flag: string | boolean | undefined, valid: readonly T[]): T | undefined {
-  return typeof flag === "string" && (valid as readonly string[]).includes(flag) ? (flag as T) : undefined;
+function asChoice<T extends string>(
+  flag: string | boolean | undefined,
+  valid: readonly T[],
+): T | undefined {
+  return typeof flag === "string" && (valid as readonly string[]).includes(flag)
+    ? (flag as T)
+    : undefined;
 }
 
-async function resolveConfig(flags: Record<string, string | boolean>): Promise<RunConfig> {
+async function resolveConfig(
+  flags: Record<string, string | boolean>,
+): Promise<RunConfig> {
   // Non-interactive when --yes is passed or stdin isn't a TTY (programmatic/CI). Then every field must
   // come from a flag, except the optional ones which take their defaults (data=real, delay=0).
   const interactive = flags.yes !== true && Boolean(process.stdin.isTTY);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
   /** Flag value, else prompt (interactive), else the required-field error. */
-  async function pick<T extends string>(flagVal: T | undefined, prompt: () => Promise<T>, name: string): Promise<T> {
+  async function pick<T extends string>(
+    flagVal: T | undefined,
+    prompt: () => Promise<T>,
+    name: string,
+  ): Promise<T> {
     if (flagVal) return flagVal;
     if (interactive) return prompt();
     throw new Error(`Missing --${name} (required for a non-interactive run).`);
@@ -134,12 +157,22 @@ async function resolveConfig(flags: Record<string, string | boolean>): Promise<R
     );
 
     const action = await pick<ActionId>(
-      asChoice<ActionId>(flags.action, ["connect", "pegin", "borrow", "repay", "withdraw"]),
+      asChoice<ActionId>(flags.action, [
+        "connect",
+        "pegin",
+        "borrow",
+        "repay",
+        "withdraw",
+      ]),
       () =>
         select<ActionId>(
           rl,
           "5. Action",
-          ACTIONS.map((a) => ({ value: a.id, label: a.label, disabled: !a.enabled })),
+          ACTIONS.map((a) => ({
+            value: a.id,
+            label: a.label,
+            disabled: !a.enabled,
+          })),
         ),
       "action",
     );
@@ -150,7 +183,12 @@ async function resolveConfig(flags: Record<string, string | boolean>): Promise<R
       (interactive
         ? await select<DataMode>(rl, "6. Data mode", [
             { value: "real", label: "Real data" },
-            { value: "mock", label: "Mock (recorded responses)", disabled: true, hint: "future" },
+            {
+              value: "mock",
+              label: "Mock (recorded responses)",
+              disabled: true,
+              hint: "future",
+            },
           ])
         : "real");
 
@@ -160,12 +198,23 @@ async function resolveConfig(flags: Record<string, string | boolean>): Promise<R
         typeof flags.delay === "string"
           ? flags.delay
           : interactive
-            ? await rl.question("\n7. Artificial delay between waits (seconds) [0]: ")
+            ? await rl.question(
+                "\n7. Artificial delay between waits (seconds) [0]: ",
+              )
             : "0";
       delayMs = Math.max(0, Math.round((Number(raw) || 0) * MS_PER_SECOND));
     }
 
-    return { target, network, btcWallet, ethWallet, action, dataMode, delayMs, headless: flags.headless === true };
+    return {
+      target,
+      network,
+      btcWallet,
+      ethWallet,
+      action,
+      dataMode,
+      delayMs,
+      headless: flags.headless === true,
+    };
   } finally {
     rl.close();
   }
@@ -181,6 +230,8 @@ async function main(): Promise<void> {
 
 main().catch((error) => {
   // eslint-disable-next-line no-console
-  console.error(`\nRun failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `\nRun failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
   process.exit(1);
 });

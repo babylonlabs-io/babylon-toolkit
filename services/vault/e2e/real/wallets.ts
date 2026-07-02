@@ -5,11 +5,20 @@
  */
 import type { BrowserContext } from "@playwright/test";
 
-import { setupMetaMaskWallet, setupOKXWallet, setupOneKeyWallet, setupUnisatWallet } from "./connector";
 import type { BtcWalletId, EthWalletId } from "./config";
+import {
+  setupMetaMaskWallet,
+  setupOKXWallet,
+  setupOneKeyWallet,
+  setupUnisatWallet,
+} from "./connector";
 import type { WalletSecrets } from "./secrets";
 
-type Importer = (context: BrowserContext, mnemonic: string, password: string) => Promise<string>;
+type Importer = (
+  context: BrowserContext,
+  mnemonic: string,
+  password: string,
+) => Promise<string>;
 
 const BTC_IMPORTERS: Record<BtcWalletId, Importer> = {
   unisat: setupUnisatWallet,
@@ -34,11 +43,19 @@ export async function importWallets(
   log: (m: string) => void,
 ): Promise<ImportedWallets> {
   log(`Importing BTC wallet: ${btc}`);
-  const btcAddress = await BTC_IMPORTERS[btc](context, secrets.mnemonic, secrets.password);
+  const btcAddress = await BTC_IMPORTERS[btc](
+    context,
+    secrets.mnemonic,
+    secrets.password,
+  );
   log(`  ${btc} signet taproot: ${btcAddress}`);
 
   log(`Importing ETH wallet: ${eth}`);
-  const ethAddress = await ETH_IMPORTERS[eth](context, secrets.mnemonic, secrets.password);
+  const ethAddress = await ETH_IMPORTERS[eth](
+    context,
+    secrets.mnemonic,
+    secrets.password,
+  );
   log(`  ${eth} address: ${ethAddress}`);
 
   return { btcAddress, ethAddress };

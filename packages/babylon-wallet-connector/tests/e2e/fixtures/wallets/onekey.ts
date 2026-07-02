@@ -84,21 +84,38 @@ async function switchToSignet(tab: Page): Promise<void> {
  * reveals the switch.
  */
 async function disableBtcMultipleAddresses(tab: Page): Promise<void> {
-  await clickByTestId(tab, "bottom-menu-container");
+  // Fail loudly and specifically: if any step breaks, the dApp connect otherwise dies later with a
+  // generic "OneKey Wallet requires single address mode" that hides which setup step actually broke.
+  const fail = (step: string): never => {
+    throw new Error(
+      `OneKey setup: could not disable "BTC multiple addresses" — ${step}. Without this the dApp connect ` +
+        `fails with "OneKey Wallet requires single address mode". The OneKey settings UI likely changed; ` +
+        `re-derive the selectors in disableBtcMultipleAddresses (onekey.ts).`,
+    );
+  };
+
+  const menu = tab.locator('[data-testid="bottom-menu-container"]').first();
+  if (!(await menu.isVisible().catch(() => false))) fail("the sidebar MENU (bottom-menu-container) was not found");
+  await menu.click({ force: true }).catch(() => {});
   await sleep(SETTLE.MODAL);
   await clickByText(tab, "Settings");
   await sleep(SETTLE.MEDIUM);
+
   // Settings-panel "Wallet" tab; the suffix match covers both its active and inactive testid variants.
   const walletTab = tab.locator('[data-testid$="-item-WalletSolid"]').first();
-  await walletTab.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  if (!(await walletTab.isVisible().catch(() => false))) fail('the Settings → "Wallet" tab was not found');
   await walletTab.click({ force: true }).catch(() => {});
   await sleep(SETTLE.MEDIUM);
 
   const toggle = tab.locator('[data-testid="setting-toggle-b-t-c-fresh-address-switch"]').first();
-  await toggle.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  if (!(await toggle.isVisible().catch(() => false))) fail('the "BTC multiple addresses" toggle was not found');
   if ((await toggle.getAttribute("aria-checked").catch(() => null)) === "true") {
     await toggle.click({ force: true }).catch(() => {});
     await sleep(SETTLE.SHORT);
+  }
+  // Verify the outcome — a silent no-op here is exactly what caused confusing downstream failures.
+  if ((await toggle.getAttribute("aria-checked").catch(() => null)) !== "false") {
+    fail("the toggle did not switch to single-address mode");
   }
 }
 

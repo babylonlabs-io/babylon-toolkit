@@ -9,13 +9,16 @@
  *   error.png     screenshot at the moment of failure (only if the run throws)
  *   error.html    page DOM at the moment of failure (only if the run throws)
  */
+import type { Page } from "@playwright/test";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Page } from "@playwright/test";
-
-const ARTIFACTS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "artifacts");
+const ARTIFACTS_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "artifacts",
+);
 
 /** `2026-07-02-141530` — filesystem-safe local timestamp. */
 function stamp(now: Date): string {
@@ -36,7 +39,10 @@ export interface Artifacts {
   captureFailure: (page: Page | undefined, error: unknown) => Promise<void>;
 }
 
-export function createArtifacts(action: string, now: Date = new Date()): Artifacts {
+export function createArtifacts(
+  action: string,
+  now: Date = new Date(),
+): Artifacts {
   const dir = join(ARTIFACTS_ROOT, `${stamp(now)}-${action}`);
   mkdirSync(dir, { recursive: true });
   const logFile = join(dir, "run.log");
@@ -51,11 +57,20 @@ export function createArtifacts(action: string, now: Date = new Date()): Artifac
   return {
     dir,
     log,
-    writeNetworkState: (state) => writeFileSync(join(dir, "network.json"), JSON.stringify(state, null, 2) + "\n"),
+    writeNetworkState: (state) =>
+      writeFileSync(
+        join(dir, "network.json"),
+        JSON.stringify(state, null, 2) + "\n",
+      ),
     captureFailure: async (page, error) => {
-      appendFileSync(logFile, `\nFAILURE: ${error instanceof Error ? error.stack || error.message : String(error)}\n`);
+      appendFileSync(
+        logFile,
+        `\nFAILURE: ${error instanceof Error ? error.stack || error.message : String(error)}\n`,
+      );
       if (!page || page.isClosed()) return;
-      await page.screenshot({ path: join(dir, "error.png"), fullPage: true }).catch(() => {});
+      await page
+        .screenshot({ path: join(dir, "error.png"), fullPage: true })
+        .catch(() => {});
       const html = await page.content().catch(() => null);
       if (html) writeFileSync(join(dir, "error.html"), html);
     },

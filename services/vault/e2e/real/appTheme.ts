@@ -11,9 +11,14 @@ import { THEME_SETUP_TIMEOUT_MS, THEME_TOGGLE_SETTLE_MS } from "./timing";
 
 const MAX_TOGGLE_CLICKS = 2;
 
-export async function ensureDarkTheme(page: Page, log: (m: string) => void): Promise<void> {
+export async function ensureDarkTheme(
+  page: Page,
+  log: (m: string) => void,
+): Promise<void> {
   const isDark = () =>
-    page.evaluate(() => document.documentElement.classList.contains("dark")).catch(() => false);
+    page
+      .evaluate(() => document.documentElement.classList.contains("dark"))
+      .catch(() => false);
 
   if (await isDark()) {
     log("App theme already dark");
@@ -21,12 +26,16 @@ export async function ensureDarkTheme(page: Page, log: (m: string) => void): Pro
   }
 
   const gear = page.locator('[aria-label="Settings menu"]').first();
-  await gear.waitFor({ state: "visible", timeout: THEME_SETUP_TIMEOUT_MS }).catch(() => {});
+  await gear
+    .waitFor({ state: "visible", timeout: THEME_SETUP_TIMEOUT_MS })
+    .catch(() => {});
   await gear.click({ force: true }).catch(() => {});
 
   // Only the open Settings menu shows a Toggle; scope to the visible one.
   const toggle = page.locator('button[aria-label="Toggle"]:visible').first();
-  await toggle.waitFor({ state: "visible", timeout: THEME_SETUP_TIMEOUT_MS }).catch(() => {});
+  await toggle
+    .waitFor({ state: "visible", timeout: THEME_SETUP_TIMEOUT_MS })
+    .catch(() => {});
 
   for (let i = 0; i < MAX_TOGGLE_CLICKS && !(await isDark()); i++) {
     await toggle.click({ force: true }).catch(() => {});

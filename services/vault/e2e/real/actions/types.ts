@@ -26,7 +26,10 @@ export interface Action {
 }
 
 /** Sleep the mock-mode inter-step delay, if any. No-op when delayMs is 0 (real mode). */
-export async function waitSeam(ctx: ActionContext, label: string): Promise<void> {
+export async function waitSeam(
+  ctx: ActionContext,
+  label: string,
+): Promise<void> {
   if (ctx.delayMs <= 0) return;
   ctx.log(`(mock delay ${ctx.delayMs}ms before: ${label})`);
   await ctx.page.waitForTimeout(ctx.delayMs);

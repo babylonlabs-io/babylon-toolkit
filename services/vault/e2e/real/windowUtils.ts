@@ -15,7 +15,10 @@ export async function maximizeWindow(page: Page): Promise<void> {
   try {
     const cdp = await page.context().newCDPSession(page);
     const { windowId } = await cdp.send("Browser.getWindowForTarget");
-    await cdp.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "maximized" } });
+    await cdp.send("Browser.setWindowBounds", {
+      windowId,
+      bounds: { windowState: "maximized" },
+    });
   } catch {
     // Non-fatal: the --start-maximized launch flag is the primary mechanism.
   }

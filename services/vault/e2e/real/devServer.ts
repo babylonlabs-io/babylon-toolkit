@@ -36,7 +36,10 @@ async function isUp(baseUrl: string): Promise<boolean> {
   }
 }
 
-export async function ensureDevServer(network: NetworkName, log: (m: string) => void): Promise<DevServerHandle> {
+export async function ensureDevServer(
+  network: NetworkName,
+  log: (m: string) => void,
+): Promise<DevServerHandle> {
   const baseUrl = `http://localhost:${DEV_PORT}`;
 
   if (await isUp(baseUrl)) {
@@ -44,9 +47,13 @@ export async function ensureDevServer(network: NetworkName, log: (m: string) => 
     return { baseUrl, dispose: async () => {} };
   }
 
-  const script = NETWORKS[network].viteMode ? "dev:testnet" : "dev";
+  const script = NETWORKS[network].devScript ?? "dev";
   log(`Starting vault dev server: pnpm run ${script} (cwd ${VAULT_DIR})`);
-  const child = spawn("pnpm", ["run", script], { cwd: VAULT_DIR, detached: true, stdio: "ignore" });
+  const child = spawn("pnpm", ["run", script], {
+    cwd: VAULT_DIR,
+    detached: true,
+    stdio: "ignore",
+  });
 
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -75,5 +82,7 @@ export async function ensureDevServer(network: NetworkName, log: (m: string) => 
       child.kill("SIGTERM");
     }
   }
-  throw new Error(`Vault dev server did not become ready at ${baseUrl} within ${READY_TIMEOUT_MS}ms`);
+  throw new Error(
+    `Vault dev server did not become ready at ${baseUrl} within ${READY_TIMEOUT_MS}ms`,
+  );
 }

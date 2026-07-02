@@ -6,11 +6,14 @@
  * cross-package path here means a move only touches this one file. Run via `pnpm exec tsx` — see the
  * `e2e:cli` script.
  */
-export { launchWalletContext, type SupportedWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/launch";
-export { setupUnisatWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/unisat";
+export {
+  launchWalletContext,
+  type SupportedWallet,
+} from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/launch";
 export { setupMetaMaskWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/metamask";
 export { setupOKXWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/okx";
 export { setupOneKeyWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/onekey";
-export { deriveSignetTaproot } from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/taproot";
+export { setupUnisatWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/unisat";
 export { deriveEthAddress } from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/eth";
+export { deriveSignetTaproot } from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/taproot";
 export { addrMatches } from "../../../../packages/babylon-wallet-connector/tests/e2e/utils/walletUi";

@@ -18,8 +18,8 @@
  */
 import type { BrowserContext, Page } from "@playwright/test";
 
-import { addrMatches } from "../connector";
 import type { BtcWalletId } from "../config";
+import { addrMatches } from "../connector";
 import {
   APPROVAL_WAIT_MS,
   APPROVE_ROUNDS,
@@ -30,6 +30,7 @@ import {
   STEP_TIMEOUT_MS,
 } from "../timing";
 import { centerWindow } from "../windowUtils";
+
 import { type Action, type ActionContext, waitSeam } from "./types";
 
 /** Try every known "approve/connect" control shape inside an extension popup. Returns true if clicked. */
@@ -40,7 +41,9 @@ async function clickApprove(popup: Page): Promise<boolean> {
     await byRole.click().catch(() => {});
     return true;
   }
-  const primary = popup.locator('[preset="primary"], button[data-testid="okd-button"]').last();
+  const primary = popup
+    .locator('[preset="primary"], button[data-testid="okd-button"]')
+    .last();
   if (await primary.isVisible().catch(() => false)) {
     await primary.click({ force: true }).catch(() => {});
     return true;
@@ -54,7 +57,10 @@ async function clickApprove(popup: Page): Promise<boolean> {
 }
 
 /** Center + auto-approve any extension approval popup that opens during connect. */
-function installPopupApprover(context: BrowserContext, log: (m: string) => void): (p: Page) => void {
+function installPopupApprover(
+  context: BrowserContext,
+  log: (m: string) => void,
+): (p: Page) => void {
   const handler = (popup: Page) => {
     if (!popup.url().startsWith("chrome-extension://")) return;
     // Detached listener: guard EVERYTHING — a popup that closes mid-approve must never reject and crash
@@ -84,7 +90,10 @@ function installPopupApprover(context: BrowserContext, log: (m: string) => void)
  * `aria-haspopup="true"` + toggles `aria-expanded`, rendering the address cards in a Popover when open.
  * Click the haspopup trigger and confirm the menu opened (retry with the avatar image as a fallback).
  */
-async function openWalletMenu(page: Page, log: (m: string) => void): Promise<void> {
+async function openWalletMenu(
+  page: Page,
+  log: (m: string) => void,
+): Promise<void> {
   const isOpen = () =>
     page
       .getByText("Bitcoin Wallet", { exact: true })
@@ -95,8 +104,13 @@ async function openWalletMenu(page: Page, log: (m: string) => void): Promise<voi
 
   // The header has TWO aria-haspopup triggers: the wallet avatar group and the settings gear. Target
   // the avatar group specifically (it contains the wallet avatar images), not the gear.
-  const trigger = page.locator('[aria-haspopup="true"]').filter({ has: page.locator("img.bbn-avatar-img") }).first();
-  await trigger.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS }).catch(() => {});
+  const trigger = page
+    .locator('[aria-haspopup="true"]')
+    .filter({ has: page.locator("img.bbn-avatar-img") })
+    .first();
+  await trigger
+    .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
+    .catch(() => {});
   await page.waitForTimeout(HEADER_SETTLE_MS); // let the header settle so the first click registers
   await trigger.click({ force: true }).catch(() => {});
   if (await isOpen()) return;
@@ -110,23 +124,48 @@ async function openWalletMenu(page: Page, log: (m: string) => void): Promise<voi
 }
 
 /** Open the connected wallet menu (the avatar-group trigger) and read + verify one chain's address. */
-async function verifyMenuAddress(page: Page, walletLabel: string, expected: string, log: (m: string) => void): Promise<void> {
-  const label = page.getByText(`${walletLabel} Wallet`, { exact: true }).first();
+async function verifyMenuAddress(
+  page: Page,
+  walletLabel: string,
+  expected: string,
+  log: (m: string) => void,
+): Promise<void> {
+  const label = page
+    .getByText(`${walletLabel} Wallet`, { exact: true })
+    .first();
   await label.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
   // Nearest ancestor card that contains a button (the copy button).
   const card = label.locator("xpath=ancestor::div[.//button][1]");
-  await page.evaluate("navigator.clipboard.writeText('').catch(() => {})").catch(() => {});
-  await card.locator("button").last().click({ force: true }).catch(() => {});
+  await page
+    .evaluate("navigator.clipboard.writeText('').catch(() => {})")
+    .catch(() => {});
+  await card
+    .locator("button")
+    .last()
+    .click({ force: true })
+    .catch(() => {});
   let clip = "";
   for (let i = 0; i < CLIPBOARD_POLL.ATTEMPTS; i++) {
-    clip = (((await page.evaluate("navigator.clipboard.readText().catch(() => '')").catch(() => "")) as string) || "").trim();
+    clip = (
+      ((await page
+        .evaluate("navigator.clipboard.readText().catch(() => '')")
+        .catch(() => "")) as string) || ""
+    ).trim();
     if (clip) break;
     await page.waitForTimeout(CLIPBOARD_POLL.INTERVAL_MS);
   }
-  const displayed = (await card.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
-  const ok = (clip && addrMatches(clip, expected)) || addrMatches(displayed, expected);
-  log(`${walletLabel} address: clipboard=${clip || "(none)"} displayed="${displayed}" expected=${expected} → ${ok ? "MATCH" : "MISMATCH"}`);
-  if (!ok) throw new Error(`${walletLabel} address does not match expected ${expected} (clipboard "${clip}", shown "${displayed}")`);
+  const displayed = (await card.innerText().catch(() => ""))
+    .replace(/\s+/g, " ")
+    .trim();
+  const ok =
+    (clip && addrMatches(clip, expected)) || addrMatches(displayed, expected);
+  log(
+    `${walletLabel} address: clipboard=${clip || "(none)"} displayed="${displayed}" expected=${expected} → ${ok ? "MATCH" : "MISMATCH"}`,
+  );
+  if (!ok)
+    throw new Error(
+      `${walletLabel} address does not match expected ${expected} (clipboard "${clip}", shown "${displayed}")`,
+    );
 }
 
 const ETH_APPKIT_NAME: Record<string, RegExp> = { metamask: /metamask/i };
@@ -138,24 +177,42 @@ export const connectAction: Action = {
     const handler = installPopupApprover(context, log);
     try {
       log("Clicking Connect");
-      await page.locator('[data-testid="connect-wallet-button"]').first().click({ timeout: STEP_TIMEOUT_MS });
+      await page
+        .locator('[data-testid="connect-wallet-button"]')
+        .first()
+        .click({ timeout: STEP_TIMEOUT_MS });
 
       log(`Selecting BTC wallet: ${ctx.btc.id}`);
-      await page.locator('[data-testid="select-bitcoin-wallet-button"]').click({ timeout: STEP_TIMEOUT_MS });
-      await page.locator(`[data-testid="wallet-option-${ctx.btc.id as BtcWalletId}"]`).click({ timeout: STEP_TIMEOUT_MS });
+      await page
+        .locator('[data-testid="select-bitcoin-wallet-button"]')
+        .click({ timeout: STEP_TIMEOUT_MS });
+      await page
+        .locator(`[data-testid="wallet-option-${ctx.btc.id as BtcWalletId}"]`)
+        .click({ timeout: STEP_TIMEOUT_MS });
       // Wait for the BTC approval popup to be handled and the app to register the address.
       await page.waitForTimeout(APPROVAL_WAIT_MS);
 
       log(`Selecting ETH wallet: ${ctx.eth.id}`);
-      await page.locator('[data-testid="select-ethereum-wallet-button"]').click({ timeout: STEP_TIMEOUT_MS });
-      await page.getByText(ETH_APPKIT_NAME[ctx.eth.id] ?? /metamask/i, { exact: false }).first().click({ timeout: STEP_TIMEOUT_MS });
+      await page
+        .locator('[data-testid="select-ethereum-wallet-button"]')
+        .click({ timeout: STEP_TIMEOUT_MS });
+      await page
+        .getByText(ETH_APPKIT_NAME[ctx.eth.id] ?? /metamask/i, { exact: false })
+        .first()
+        .click({ timeout: STEP_TIMEOUT_MS });
       await page.waitForTimeout(APPROVAL_WAIT_MS);
 
       log("Finalizing (Connect)");
-      await page.locator('[data-testid="chains-connect-button"]').click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
+      await page
+        .locator('[data-testid="chains-connect-button"]')
+        .click({ timeout: STEP_TIMEOUT_MS })
+        .catch(() => {});
 
       log("Waiting for connected state (Deposit sBTC)");
-      await page.getByRole("button", { name: /^Deposit s?BTC$/i }).first().waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+      await page
+        .getByRole("button", { name: /^Deposit s?BTC$/i })
+        .first()
+        .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
 
       log("Opening wallet menu to verify addresses");
       await openWalletMenu(page, log);

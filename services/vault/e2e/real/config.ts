@@ -27,8 +27,8 @@ export const ETH_WALLET_TO_CONNECTOR: Record<EthWalletId, SupportedWallet> = {
 export interface NetworkConfig {
   /** Public deployment for the `website` target. */
   websiteUrl: string;
-  /** Vite mode for the `localhost` target (undefined ⇒ default `dev`). */
-  viteMode?: string;
+  /** pnpm script that starts the local dev server for this network (undefined ⇒ `dev`). */
+  devScript?: string;
   /** Signet mempool REST base used for the BTC balance pre-flight. */
   mempoolApiBase: string;
   /** Sepolia RPC + chain id used for the ETH balance pre-flight. */
@@ -43,14 +43,14 @@ const SEPOLIA_CHAIN_ID = 11155111;
 export const NETWORKS: Record<NetworkName, NetworkConfig> = {
   devnet: {
     websiteUrl: "https://demo.vault-devnet.babylonlabs.io/",
-    viteMode: undefined, // `pnpm dev`
+    devScript: undefined, // `pnpm dev` (runs sync-env first)
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
   },
   testnet: {
     websiteUrl: "https://btc-vaults.testnet.babylonlabs.io/",
-    viteMode: "dev-testnet", // `pnpm dev:testnet`
+    devScript: "dev:testnet", // `pnpm dev:testnet` (uses committed .env.dev-testnet)
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
@@ -68,7 +68,9 @@ export const BTC_WALLETS: WalletOption<BtcWalletId>[] = [
   { id: "onekey", label: "OneKey" },
 ];
 
-export const ETH_WALLETS: WalletOption<EthWalletId>[] = [{ id: "metamask", label: "MetaMask" }];
+export const ETH_WALLETS: WalletOption<EthWalletId>[] = [
+  { id: "metamask", label: "MetaMask" },
+];
 
 export interface ActionOption {
   id: ActionId;
@@ -83,7 +85,12 @@ export const ACTIONS: ActionOption[] = [
   { id: "pegin", label: "Pegin", enabled: false, prerequisites: ["connect"] },
   { id: "borrow", label: "Borrow", enabled: false, prerequisites: ["pegin"] },
   { id: "repay", label: "Repay", enabled: false, prerequisites: ["borrow"] },
-  { id: "withdraw", label: "Withdraw", enabled: false, prerequisites: ["repay"] },
+  {
+    id: "withdraw",
+    label: "Withdraw",
+    enabled: false,
+    prerequisites: ["repay"],
+  },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -101,6 +108,11 @@ export interface RunConfig {
 }
 
 /** Resolve the target URL a run should open. */
-export function resolveTargetUrl(config: RunConfig, localhostBaseUrl: string): string {
-  return config.target === "website" ? NETWORKS[config.network].websiteUrl : localhostBaseUrl;
+export function resolveTargetUrl(
+  config: RunConfig,
+  localhostBaseUrl: string,
+): string {
+  return config.target === "website"
+    ? NETWORKS[config.network].websiteUrl
+    : localhostBaseUrl;
 }

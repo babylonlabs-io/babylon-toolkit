@@ -4,7 +4,9 @@
  *   open the target URL → run the selected action → write artifacts. Always disposes the context and
  *   any spawned dev server; on failure captures a screenshot + DOM into the artifacts dir.
  */
-import { deriveEthAddress, deriveSignetTaproot, launchWalletContext } from "./connector";
+import { ACTIONS_BY_ID } from "./actions";
+import { ensureDarkTheme } from "./appTheme";
+import { createArtifacts } from "./artifacts";
 import {
   BTC_WALLET_TO_CONNECTOR,
   ETH_WALLET_TO_CONNECTOR,
@@ -12,18 +14,26 @@ import {
   resolveTargetUrl,
   type RunConfig,
 } from "./config";
-import { createArtifacts } from "./artifacts";
+import {
+  deriveEthAddress,
+  deriveSignetTaproot,
+  launchWalletContext,
+} from "./connector";
 import { ensureDevServer, type DevServerHandle } from "./devServer";
-import { balanceWarnings, checkBalances, formatBtc, formatEth } from "./preflight";
+import {
+  balanceWarnings,
+  checkBalances,
+  formatBtc,
+  formatEth,
+} from "./preflight";
 import { loadWalletSecrets } from "./secrets";
 import { importWallets } from "./wallets";
 import { maximizeWindow } from "./windowUtils";
-import { ensureDarkTheme } from "./appTheme";
-import { ACTIONS_BY_ID } from "./actions";
 
 export async function runE2E(config: RunConfig): Promise<void> {
   const action = ACTIONS_BY_ID[config.action];
-  if (!action) throw new Error(`Action "${config.action}" is not implemented yet.`);
+  if (!action)
+    throw new Error(`Action "${config.action}" is not implemented yet.`);
 
   const secrets = loadWalletSecrets();
   const artifacts = createArtifacts(config.action);
@@ -33,7 +43,9 @@ export async function runE2E(config: RunConfig): Promise<void> {
   const ethKey = ETH_WALLET_TO_CONNECTOR[config.ethWallet];
 
   let devServer: DevServerHandle | undefined;
-  const context = await launchWalletContext([btcKey, ethKey], { maximize: !config.headless });
+  const context = await launchWalletContext([btcKey, ethKey], {
+    maximize: !config.headless,
+  });
   // launchWalletContext leaves exactly one about:blank page open — reuse it as our dapp page instead
   // of opening a second one (the importers open and close their own extension tabs on top of this).
   const page = context.pages()[0] ?? (await context.newPage());
@@ -42,7 +54,13 @@ export async function runE2E(config: RunConfig): Promise<void> {
   if (!config.headless) await maximizeWindow(page);
 
   try {
-    const imported = await importWallets(context, config.btcWallet, config.ethWallet, secrets, artifacts.log);
+    const imported = await importWallets(
+      context,
+      config.btcWallet,
+      config.ethWallet,
+      secrets,
+      artifacts.log,
+    );
 
     // Resolve where to point the browser.
     let baseUrl: string;
@@ -56,9 +74,14 @@ export async function runE2E(config: RunConfig): Promise<void> {
 
     // Balance pre-flight (warn & proceed).
     const balances = await checkBalances(config, secrets.mnemonic);
-    artifacts.log(`BTC ${balances.btc.address}: ${balances.btc.error ?? formatBtc(balances.btc.sats)}`);
-    artifacts.log(`ETH ${balances.eth.address}: ${balances.eth.error ?? formatEth(balances.eth.wei)}`);
-    for (const warning of balanceWarnings(balances)) artifacts.log(`BALANCE WARNING: ${warning}`);
+    artifacts.log(
+      `BTC ${balances.btc.address}: ${balances.btc.error ?? formatBtc(balances.btc.sats)}`,
+    );
+    artifacts.log(
+      `ETH ${balances.eth.address}: ${balances.eth.error ?? formatEth(balances.eth.wei)}`,
+    );
+    for (const warning of balanceWarnings(balances))
+      artifacts.log(`BALANCE WARNING: ${warning}`);
 
     artifacts.writeNetworkState({
       config,
@@ -66,8 +89,16 @@ export async function runE2E(config: RunConfig): Promise<void> {
       network: NETWORKS[config.network],
       imported,
       balances: {
-        btc: { address: balances.btc.address, sats: balances.btc.sats.toString(), error: balances.btc.error },
-        eth: { address: balances.eth.address, wei: balances.eth.wei.toString(), error: balances.eth.error },
+        btc: {
+          address: balances.btc.address,
+          sats: balances.btc.sats.toString(),
+          error: balances.btc.error,
+        },
+        eth: {
+          address: balances.eth.address,
+          wei: balances.eth.wei.toString(),
+          error: balances.eth.error,
+        },
       },
     });
 
@@ -87,13 +118,23 @@ export async function runE2E(config: RunConfig): Promise<void> {
       log: artifacts.log,
       artifactsDir: artifacts.dir,
       delayMs: config.dataMode === "mock" ? config.delayMs : 0,
-      btc: { id: config.btcWallet, address: deriveSignetTaproot(secrets.mnemonic) },
-      eth: { id: config.ethWallet, address: deriveEthAddress(secrets.mnemonic) },
+      btc: {
+        id: config.btcWallet,
+        address: deriveSignetTaproot(secrets.mnemonic),
+      },
+      eth: {
+        id: config.ethWallet,
+        address: deriveEthAddress(secrets.mnemonic),
+      },
     });
 
-    artifacts.log(`✅ Action "${config.action}" completed. Artifacts: ${artifacts.dir}`);
+    artifacts.log(
+      `✅ Action "${config.action}" completed. Artifacts: ${artifacts.dir}`,
+    );
   } catch (error) {
-    artifacts.log(`❌ Action "${config.action}" failed — capturing artifacts to ${artifacts.dir}`);
+    artifacts.log(
+      `❌ Action "${config.action}" failed — capturing artifacts to ${artifacts.dir}`,
+    );
     await artifacts.captureFailure(page, error);
     throw error;
   } finally {

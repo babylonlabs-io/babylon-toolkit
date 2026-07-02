@@ -27,8 +27,16 @@ function parseEnv(contents: string): Record<string, string> {
     if (eq === -1) continue;
     const key = line.slice(0, eq).trim();
     let value = line.slice(eq + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
+    } else {
+      // Strip a trailing inline comment on unquoted values (standard .env convention). Requires a
+      // space before the `#` so a `#` inside a value (e.g. a password) isn't treated as a comment.
+      const commentIdx = value.indexOf(" #");
+      if (commentIdx !== -1) value = value.slice(0, commentIdx).trim();
     }
     out[key] = value;
   }
