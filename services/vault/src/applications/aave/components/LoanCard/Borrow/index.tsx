@@ -263,7 +263,7 @@ export function Borrow() {
     : txError
       ? {
           variant: "error",
-          title: COPY.loans.transactionFailedTitle,
+          title: COPY.common.transactionFailedTitle,
           body: txError,
         }
       : isBorrowBlocked(gate)
@@ -395,14 +395,6 @@ export function Borrow() {
           {statusCallout.body}
         </Callout>
       )}
-
-      {/* Ethereum Network Fee */}
-      <div className="mt-6 flex w-full items-center justify-between text-sm">
-        <span className="text-accent-primary">
-          {COPY.loans.ethereumNetworkFeeLabel}
-        </span>
-        <span className="text-accent-secondary">{COPY.common.emptyValue}</span>
-      </div>
     </div>
   );
 }

@@ -708,6 +708,7 @@ export const COPY = {
     confirming: "Confirming...",
     applying: "Applying...",
     checking: "Checking...",
+    transactionFailedTitle: "Transaction failed",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
@@ -930,7 +931,6 @@ export const COPY = {
     healthFactorLabel: "Health factor",
     availableLiquidityLabel: "Available liquidity",
     utilizationLabel: "Utilization",
-    ethereumNetworkFeeLabel: "Ethereum network fee",
     availableLabel: "Available",
     // Repay amount slider: prefixes the user's wallet balance shown beside Max.
     balanceLabel: "Balance",
@@ -944,7 +944,6 @@ export const COPY = {
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
-    transactionFailedTitle: "Transaction failed",
     borrowingUnavailable:
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:

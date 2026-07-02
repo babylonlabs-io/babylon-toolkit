@@ -1,4 +1,5 @@
 import {
+  Callout,
   InfoIcon,
   Notification,
   type NotificationVariant,
@@ -87,7 +88,11 @@ export function PositionNotificationBanner({
   const result = hasOverride ? resultOverride : hookResult;
 
   const gate = useProtocolGateState();
-  const { executeReorder, isProcessing: isReordering } = useReorderVaults();
+  const {
+    executeReorder,
+    isProcessing: isReordering,
+    error: reorderError,
+  } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const [dismissedAdvisories, setDismissedAdvisories] = useState<
@@ -238,7 +243,16 @@ export function PositionNotificationBanner({
   // secondary warnings (e.g. urgent + cliff).
   let suggestion: ReactNode;
   if (isStandaloneReorder && result.optimalVaultOrder) {
-    suggestion = <OptimalOrderChips vaults={result.optimalVaultOrder} />;
+    suggestion = (
+      <div className="flex flex-col gap-2">
+        <OptimalOrderChips vaults={result.optimalVaultOrder} />
+        {reorderError && (
+          <Callout variant="error" title={COPY.common.transactionFailedTitle}>
+            {reorderError}
+          </Callout>
+        )}
+      </div>
+    );
   } else {
     const primarySuggestion =
       primaryWarning && primaryWarning.type !== "urgent"

@@ -1,5 +1,6 @@
 import {
   Button,
+  Callout,
   FullScreenDialog,
   Heading,
   Text,
@@ -56,6 +57,7 @@ export function ReorderVaultsModal({
     handleDragEnd,
     handleConfirm,
     isProcessing,
+    error,
   } = useReorderModal({ vaults, isOpen });
 
   const vaultIds = orderedVaults.map((v) => v.vaultId as Hex);
@@ -149,6 +151,15 @@ export function ReorderVaultsModal({
                 ? COPY.common.confirming
                 : COPY.reorder.confirmButton}
             </Button>
+            {error && (
+              <Callout
+                variant="error"
+                title={COPY.common.transactionFailedTitle}
+                className="mt-3"
+              >
+                {error}
+              </Callout>
+            )}
             {hasOrderChanged && (
               <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">
                 <span>{NETWORK_FEE_LABEL}</span>
