@@ -26,7 +26,7 @@ export function ChainButton({ className, alt, logo, title, children, onClick }: 
     <Text
       as="button"
       className={twMerge(
-        "flex w-full cursor-pointer flex-col gap-4 rounded-lg bg-neutral-200 p-4 text-accent-primary",
+        "flex w-full cursor-pointer flex-col gap-4 rounded-lg bg-primary-contrast p-4 text-accent-primary",
         className,
       )}
       onClick={onClick}

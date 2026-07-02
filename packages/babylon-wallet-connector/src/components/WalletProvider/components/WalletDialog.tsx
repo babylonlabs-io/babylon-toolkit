@@ -1,5 +1,5 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import { HashMap } from "@/core/types";
@@ -15,11 +15,25 @@ interface WalletDialogProps {
   storage: HashMap;
   config: any;
   persistent: boolean;
+  /** Optional content rendered top-right, mirroring the close/back button (e.g. a settings trigger). */
+  actions?: ReactNode;
+  /** Overrides the default `left-4` position of the close/back button. */
+  closeButtonClassName?: string;
+  /** Overrides the default `right-4` position of the `actions` slot. */
+  actionsClassName?: string;
 }
 
 const ANIMATION_DELAY = 1000;
 
-export function WalletDialog({ persistent, storage, config, onError }: WalletDialogProps) {
+export function WalletDialog({
+  persistent,
+  storage,
+  config,
+  onError,
+  actions,
+  closeButtonClassName,
+  actionsClassName,
+}: WalletDialogProps) {
   const { visible, screen, confirmed, close, confirm, displayChains } = useWidgetState();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
@@ -64,8 +78,11 @@ export function WalletDialog({ persistent, storage, config, onError }: WalletDia
       onClose={handleClose}
       onBack={onBack}
       className="items-center justify-center p-6"
+      actions={actions}
+      closeButtonClassName={closeButtonClassName}
+      actionsClassName={actionsClassName}
     >
-      <div className="mx-auto w-full max-w-[600px]">
+      <div className="mx-auto w-full max-w-[612px]">
         <Screen current={screen} widgets={walletWidgets} onConfirm={handleConfirm} onSelectWallet={connect} />
       </div>
     </FullScreenDialog>

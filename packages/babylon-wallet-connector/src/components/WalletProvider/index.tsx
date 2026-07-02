@@ -1,4 +1,4 @@
-import { useMemo, type PropsWithChildren } from "react";
+import { useMemo, type PropsWithChildren, type ReactNode } from "react";
 
 import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
@@ -49,6 +49,12 @@ interface WalletProviderProps {
    */
   appKitConfig?: AppKitModalConfig;
   disableTomo?: boolean;
+  /** Optional content rendered top-right of the wallet dialog, mirroring the close/back button (e.g. a settings trigger). */
+  dialogActions?: ReactNode;
+  /** Overrides the wallet dialog's close/back button default `left-4` position. */
+  dialogCloseButtonClassName?: string;
+  /** Overrides the wallet dialog's `dialogActions` slot default `right-4` position. */
+  dialogActionsClassName?: string;
 }
 
 export function WalletProvider({
@@ -64,6 +70,9 @@ export function WalletProvider({
   requiredChains,
   appKitConfig,
   disableTomo = false,
+  dialogActions,
+  dialogCloseButtonClassName,
+  dialogActionsClassName,
 }: PropsWithChildren<WalletProviderProps>) {
   const networkMap = useMemo(() => deriveNetworkMap(config), [config]);
   const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
@@ -107,7 +116,15 @@ export function WalletProvider({
             <TomoBBNConnector persistent={persistent} storage={storage} />
           </>
         )}
-        <WalletDialog persistent={persistent} storage={storage} config={config} onError={onError} />
+        <WalletDialog
+          persistent={persistent}
+          storage={storage}
+          config={config}
+          onError={onError}
+          actions={dialogActions}
+          closeButtonClassName={dialogCloseButtonClassName}
+          actionsClassName={dialogActionsClassName}
+        />
       </ChainProvider>
     </LifeCycleHooksProvider>
   );

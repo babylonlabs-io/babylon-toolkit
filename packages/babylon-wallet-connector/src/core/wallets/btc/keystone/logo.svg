@@ -1,4 +1,4 @@
-<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M30 25H90L50 110H20L30 25Z" fill="black"/>
-<path d="M130 135L70 135L110 50L140 50L130 135Z" fill="#F5870A"/>
+<svg width="160" height="160" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="m120 100h240l-160 340h-120z" fill="#f5f8ff"/>
+<path d="m520 540h-240l160-340h120z" fill="#3d71ff"/>
 </svg>
