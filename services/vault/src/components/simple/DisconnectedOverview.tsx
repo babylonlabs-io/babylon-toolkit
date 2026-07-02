@@ -35,6 +35,11 @@ import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
 
 const COPY_OVERVIEW = COPY.overview.disconnected;
 
+// Stablecoin brand colors for the borrow-APR figures. No core-ui token exists for
+// these, so they are pinned here as named constants (WBTC uses the secondary-main token).
+const USDT_APR_COLOR_CLASS = "text-[#1BA27A]";
+const USDC_APR_COLOR_CLASS = "text-[#0B53BF]";
+
 function formatCapAmount(satoshis: bigint): string {
   const btc = satoshiToBtcNumber(satoshis);
   return formatSatoshisToBtcDisplay(satoshis, btc >= 1 ? 2 : 8);
@@ -63,9 +68,9 @@ interface StatCellProps {
 function StatCell({ label, value, withDivider }: StatCellProps) {
   return (
     <div
-      className={`flex flex-col gap-1 px-4 py-3 ${withDivider ? "border-l border-secondary-strokeLight dark:border-secondary-strokeDark" : ""}`}
+      className={`flex flex-col gap-2 p-4 ${withDivider ? "border-l border-secondary-strokeLight" : ""}`}
     >
-      <span className="text-xs text-accent-secondary">{label}</span>
+      <span className="text-sm text-accent-secondary">{label}</span>
       <span className="text-base text-accent-primary">{value}</span>
     </div>
   );
@@ -79,14 +84,18 @@ interface AprStat {
 
 function AprRow({ stats }: { stats: AprStat[] }) {
   return (
-    <div className="grid grid-cols-3">
+    <div className="flex">
       {stats.map((stat, i) => (
         <div
           key={stat.label}
-          className={`flex flex-col gap-1 ${i > 0 ? "border-l border-secondary-strokeLight pl-4 dark:border-secondary-strokeDark" : ""}`}
+          className={`flex flex-col items-center gap-1 ${i > 0 ? "ml-4 border-l border-secondary-strokeLight pl-4" : ""}`}
         >
-          <span className="text-xs text-accent-secondary">{stat.label}</span>
-          <span className={`text-2xl font-normal ${stat.colorClass}`}>
+          <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+            {stat.label}
+          </span>
+          <span
+            className={`text-xl font-normal leading-[1.6] tracking-[0.15px] ${stat.colorClass}`}
+          >
             {stat.value ?? "—"}
           </span>
         </div>
@@ -111,17 +120,17 @@ export function DisconnectedOverview({
       {
         label: COPY_OVERVIEW.aprLabels.usdt,
         value: borrowAprs.usdt,
-        colorClass: "text-[#26A17B]",
+        colorClass: USDT_APR_COLOR_CLASS,
       },
       {
         label: COPY_OVERVIEW.aprLabels.usdc,
         value: borrowAprs.usdc,
-        colorClass: "text-[#2775CA]",
+        colorClass: USDC_APR_COLOR_CLASS,
       },
       {
         label: COPY_OVERVIEW.aprLabels.wbtc,
         value: borrowAprs.wbtc,
-        colorClass: "text-[#F7931A]",
+        colorClass: "text-secondary-main",
       },
     ],
     [borrowAprs.usdt, borrowAprs.usdc, borrowAprs.wbtc],
@@ -165,25 +174,25 @@ export function DisconnectedOverview({
     <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-12">
       {/* Left: product pitch + stats + Connect CTA */}
       <div className="flex flex-col">
-        <div className="flex items-center gap-3">
-          <span className="[&_svg]:!h-10 [&_svg]:!w-10 [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
+        <div className="flex items-center gap-6">
+          <span className="[&_svg]:!h-16 [&_svg]:!w-16 [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
             <MobileLogo />
           </span>
           <img
             src="/images/aave.svg"
             alt="Aave"
-            className="h-10 w-10 rounded-full"
+            className="h-16 w-16 rounded-full"
           />
         </div>
 
-        <h3 className="mt-8 text-[34px] font-normal leading-tight text-accent-primary">
+        <h3 className="mt-6 text-[clamp(2rem,5vw,3rem)] font-normal leading-[1.167] text-accent-primary">
           {COPY_OVERVIEW.heroTitle}
         </h3>
-        <p className="mt-4 text-base text-accent-secondary">
+        <p className="mt-3 text-base leading-[1.5] tracking-[0.15px] text-accent-secondary">
           {COPY_OVERVIEW.heroBody}
         </p>
 
-        <div className="mt-8 grid w-full max-w-md grid-cols-3 rounded-xl border border-secondary-strokeLight dark:border-secondary-strokeDark">
+        <div className="mt-6 grid w-full max-w-lg grid-cols-3 rounded-lg border border-secondary-strokeLight">
           <StatCell
             label={COPY_OVERVIEW.stats.capLabel}
             value={capStatValue(capSnapshot)}
@@ -200,13 +209,13 @@ export function DisconnectedOverview({
           />
         </div>
 
-        <div className="mt-8">
+        <div className="mt-6">
           <Connect text={COPY_OVERVIEW.connectButton} />
         </div>
       </div>
 
       {/* Right: feature cards. Only the last two expand (single-open). */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {featureCards.map((card, index) => (
           <FeatureCard
             key={card.title}
