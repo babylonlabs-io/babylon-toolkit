@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync } from "fs";
 import { readFile, unlink, writeFile } from "fs/promises";
 import https from "https";
-import { join } from "path";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 
@@ -86,7 +86,10 @@ export const EXTENSIONS: ExtensionConfig[] = [
 ];
 
 // Directory where extensions will be downloaded and stored
-export const EXTENSIONS_DIR = join(process.cwd(), "tests/e2e/fixtures/extensions");
+// Resolve relative to THIS module (tests/e2e/setup/), not process.cwd(), so the harness and its
+// importers work when invoked from another package (e.g. the vault e2e CLI), not just from the
+// connector package root.
+export const EXTENSIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/extensions");
 
 /**
  * Downloads a Chrome extension from the Chrome Web Store

@@ -1,10 +1,13 @@
 /**
  * OneKey wallet importer for real-extension E2E.
  *
- * Imports a mnemonic, switches OneKey's network to **Bitcoin Signet**, then returns the active receive
- * (taproot) address for the spec to assert against `deriveSignetTaproot(mnemonic)`.
+ * Imports a mnemonic, switches OneKey's network to **Bitcoin Signet**, disables "BTC multiple
+ * addresses", then returns the active receive (taproot) address for the spec to assert against
+ * `deriveSignetTaproot(mnemonic)`.
  *
  * Hard-won gotchas (OneKey 6.4.0):
+ *  - The provider refuses to connect to a dApp while "BTC multiple addresses" (fresh address per tx)
+ *    is on — `connectWallet` throws "requires single address mode" — so we disable it after import.
  *  - Onboarding runs in the full-page tab `ui-expand-tab.html`; OneKey renders it in English already,
  *    so there's no in-app language switch (unlike OKX). We still drive by `data-testid` where possible.
  *  - The 12 seed inputs (`phrase-input-index0..11`) each show an autocomplete popup and do NOT
@@ -67,6 +70,36 @@ async function switchToSignet(tab: Page): Promise<void> {
   await sleep(SETTLE.MODAL);
   await clickByText(tab, "Bitcoin Signet");
   await sleep(SETTLE.MEDIUM);
+}
+
+/**
+ * Disable "BTC multiple addresses" (a fresh receive address per transaction). OneKey's provider
+ * refuses to connect to a dApp while this is on — `connectWallet` throws "OneKey Wallet requires
+ * single address mode" — so real E2E connect fails without this step. Idempotent: only toggles when
+ * the switch is currently on.
+ *
+ * Path in the full-page (ui-expand-tab) layout: the MENU is the dot-grid at the BOTTOM of the left
+ * sidebar (`bottom-menu-container`), NOT a header button. It opens a menu with Settings, whose panel
+ * has a "Wallet" tab (`…-item-WalletSolid` — distinct from the sidebar's own Wallet4Solid item) that
+ * reveals the switch.
+ */
+async function disableBtcMultipleAddresses(tab: Page): Promise<void> {
+  await clickByTestId(tab, "bottom-menu-container");
+  await sleep(SETTLE.MODAL);
+  await clickByText(tab, "Settings");
+  await sleep(SETTLE.MEDIUM);
+  // Settings-panel "Wallet" tab; the suffix match covers both its active and inactive testid variants.
+  const walletTab = tab.locator('[data-testid$="-item-WalletSolid"]').first();
+  await walletTab.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  await walletTab.click({ force: true }).catch(() => {});
+  await sleep(SETTLE.MEDIUM);
+
+  const toggle = tab.locator('[data-testid="setting-toggle-b-t-c-fresh-address-switch"]').first();
+  await toggle.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  if ((await toggle.getAttribute("aria-checked").catch(() => null)) === "true") {
+    await toggle.click({ force: true }).catch(() => {});
+    await sleep(SETTLE.SHORT);
+  }
 }
 
 /**
@@ -140,6 +173,8 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   await switchToSignet(tab);
 
   const address = await readAddress(tab);
+  // Real dApp connect requires single-address mode — disable multiple addresses before leaving.
+  await disableBtcMultipleAddresses(tab);
   await closeForeignTabs(context, tab);
   await tab.close().catch(() => {}); // done — the wallet persists in the profile
 
