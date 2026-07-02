@@ -53,6 +53,12 @@ interface CollateralSectionProps {
   collateralVaults: CollateralVaultEntry[];
   hasCollateral: boolean;
   isConnected: boolean;
+  /**
+   * Pure on-chain collateral total. Feeds the PositionSnapshot that gates
+   * real-vault withdraw eligibility / projected HF, so it must NEVER include
+   * demo (`displayOnly`) amounts — pass the raw value even when
+   * `collateralVaults` carries demo rows for display.
+   */
   collateralBtc: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
@@ -99,11 +105,20 @@ export function CollateralSection({
     [collateralBtc, currentHealthFactor],
   );
 
+  // Every action path (withdraw eligibility, selection, reorder) runs on the
+  // actionable subset only: `displayOnly` rows are dev-demo mocks that render in
+  // the list but carry a fake `vaultId` and must never reach a real transaction.
+  // The full `collateralVaults` still feeds the read-only expanded list below.
+  const actionableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.displayOnly),
+    [collateralVaults],
+  );
+
   // Per-vault eligibility: can this single vault be withdrawn alone without
   // breaching HF 1.0? Drives the per-row checkbox enabled state.
   const vaultEligibility = useMemo(() => {
     const map = new Map<string, boolean>();
-    for (const v of collateralVaults) {
+    for (const v of actionableVaults) {
       if (!v.inUse) continue;
       map.set(
         v.vaultId,
@@ -111,12 +126,12 @@ export function CollateralSection({
       );
     }
     return map;
-  }, [collateralVaults, position]);
+  }, [actionableVaults, position]);
 
   const { selectedVaultIds: effectiveSelectedVaultIds, selectedVaults } =
     useMemo(
-      () => getEffectiveVaultSelection(collateralVaults, selectedVaultIds),
-      [collateralVaults, selectedVaultIds],
+      () => getEffectiveVaultSelection(actionableVaults, selectedVaultIds),
+      [actionableVaults, selectedVaultIds],
     );
 
   const selectedBtc = useMemo(
@@ -138,8 +153,8 @@ export function CollateralSection({
 
   const hasWithdrawableVault = useMemo(() => {
     if (!hasCollateral) return false;
-    return canWithdrawAnyVault(collateralVaults, position);
-  }, [hasCollateral, collateralVaults, position]);
+    return canWithdrawAnyVault(actionableVaults, position);
+  }, [hasCollateral, actionableVaults, position]);
 
   const canWithdraw =
     hasWithdrawableVault &&
@@ -162,8 +177,8 @@ export function CollateralSection({
   // both the gate and the modal data so the two can't drift apart.
   const hasActivatingVault = collateralVaults.some((v) => v.isActivating);
   const reorderableVaults = useMemo(
-    () => collateralVaults.filter((v) => !v.isActivating),
-    [collateralVaults],
+    () => actionableVaults.filter((v) => !v.isActivating),
+    [actionableVaults],
   );
   const canReorder = reorderableVaults.length >= 2;
 
@@ -202,7 +217,9 @@ export function CollateralSection({
 
   const handleArtifactDownload = useCallback(
     (vaultEntryId: string) => {
-      const vault = collateralVaults.find((v) => v.id === vaultEntryId);
+      // Resolve against the actionable set so demo (`displayOnly`) rows no-op
+      // by design — artifact download talks to a real vault provider.
+      const vault = actionableVaults.find((v) => v.id === vaultEntryId);
       if (!vault) return;
 
       const provider = findProvider(vault.providerAddress);
@@ -227,7 +244,7 @@ export function CollateralSection({
         unsignedPrePeginTx: vault.unsignedPrePeginTx,
       });
     },
-    [collateralVaults, findProvider],
+    [actionableVaults, findProvider],
   );
 
   return (
@@ -346,7 +363,7 @@ export function CollateralSection({
       <WithdrawVaultsModal
         isOpen={isWithdrawOpen}
         onClose={handleWithdrawCancel}
-        vaults={collateralVaults}
+        vaults={actionableVaults}
         vaultEligibility={vaultEligibility}
         selectedVaultIds={effectiveSelectedVaultIds}
         selectedBtc={selectedBtc}

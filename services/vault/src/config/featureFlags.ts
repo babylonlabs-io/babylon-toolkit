@@ -100,9 +100,12 @@ export default {
   /**
    * POSITION_DEBUG_PANEL feature flag
    *
-   * Purpose: Shows the position notifications debug panel on the dashboard,
-   * allowing manual parameter overrides and simulation of notification states.
-   * Why needed: Dev/QA tool for testing position notification scenarios
+   * Purpose: Shows the position-notifications debug controls as a section
+   * inside the god-mode panel, allowing manual parameter overrides and
+   * simulation of notification states.
+   * Why needed: Dev/QA tool for testing position notification scenarios.
+   * Only surfaces when GOD_MODE_PANEL (dev builds only) and
+   * ENABLE_LIQUIDATION_NOTIFICATIONS are also enabled.
    * Default: false (disabled unless explicitly set to "true")
    */
   get isPositionDebugPanelEnabled() {
@@ -186,6 +189,27 @@ export default {
    */
   get noticeBannerMessage() {
     return (process.env.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE ?? "").trim();
+  },
+
+  /**
+   * GOD_MODE_PANEL feature flag (dev / QA only)
+   *
+   * Purpose: Shows a floating, draggable "god mode" admin panel for exercising
+   * UI states during development. Its first capability injects a controllable
+   * demo deposit into the real Pending/Expired Deposits section so every card
+   * state (CTA shown / hidden, badges, steps) can be reviewed without
+   * reproducing the on-chain conditions.
+   * Why needed: Dev/QA tool; kept fully out of users' view.
+   * Hard-gated on `import.meta.env.DEV`, so it can ONLY be enabled in a dev
+   * build — a production build forces it false at compile time (and lets the
+   * bundler drop the god-mode code; see demoDeposit.ts / DashboardPage.tsx).
+   * Default: false (panel hidden and nothing injected unless set to "true").
+   */
+  get isGodModePanelEnabled() {
+    return (
+      import.meta.env.DEV &&
+      process.env.NEXT_PUBLIC_FF_GOD_MODE_PANEL === "true"
+    );
   },
 
   get extraBtcWallets() {
