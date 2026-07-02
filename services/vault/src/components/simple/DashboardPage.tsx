@@ -190,6 +190,12 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const totalBorrowed = formatUsdValue(debtValueUsd);
+  // The Overview is purely a financial summary: an empty position renders every
+  // row as a placeholder ("Health factor –", "$0 USD", "$0 USD"), so suppress
+  // the whole panel until there is real collateral or debt to summarize. Gate on
+  // the financial flags (not the display ones) so an optimistic "activating"
+  // vault, whose values are still $0, doesn't surface an empty panel.
+  const hasOverviewData = hasCollateral || hasLoans;
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -309,15 +315,17 @@ export function DashboardPage() {
           />
         )}
 
-        <OverviewSection
-          healthFactor={healthFactor}
-          healthFactorStatus={healthFactorStatus}
-          totalCollateralValue={totalCollateralValue}
-          totalBorrowed={totalBorrowed}
-          liquidationPrice={liquidationPrice}
-          btcPrice={btcPrice}
-          pctToLiquidation={pctToLiquidation}
-        />
+        {hasOverviewData && (
+          <OverviewSection
+            healthFactor={healthFactor}
+            healthFactorStatus={healthFactorStatus}
+            totalCollateralValue={totalCollateralValue}
+            totalBorrowed={totalBorrowed}
+            liquidationPrice={liquidationPrice}
+            btcPrice={btcPrice}
+            pctToLiquidation={pctToLiquidation}
+          />
+        )}
 
         <PendingDepositSection />
 
