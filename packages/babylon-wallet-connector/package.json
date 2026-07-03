@@ -36,11 +36,18 @@
     "test:e2e:debug": "playwright test --debug --project=e2e",
     "test:e2e:headed": "playwright test --headed --project=e2e",
     "test:e2e:report": "playwright show-report",
+    "test:e2e:unisat": "playwright test -c playwright.wallets.config.ts unisat",
+    "test:e2e:metamask": "playwright test -c playwright.wallets.config.ts metamask",
+    "test:e2e:okx": "playwright test -c playwright.wallets.config.ts okx",
+    "test:e2e:onekey": "playwright test -c playwright.wallets.config.ts onekey",
+    "test:e2e:wallets": "playwright test -c playwright.wallets.config.ts walletsSession",
+    "test:e2e:wallets:all": "playwright test -c playwright.wallets.config.ts",
     "test:e2e:codegen": "playwright codegen",
     "test:unit": "playwright test --project=unit",
     "test:unit:ui": "playwright test --ui --project=unit",
     "test:unit:debug": "playwright test --debug --project=unit",
     "test:all": "npm run test:unit && npm run test:e2e",
+    "test": "vitest run",
     "visualizer": "pnpm exec vite-bundle-visualizer"
   },
   "dependencies": {
@@ -99,6 +106,8 @@
     "@storybook/react-vite": "^8.6.15",
     "@storybook/test": "^8.6.15",
     "@tanstack/react-query": "^5.74.4",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "^16.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -115,6 +124,7 @@
     "eslint-plugin-tailwindcss": "^3.18.2",
     "globals": "^16.3.0",
     "husky": "^9.1.7",
+    "jsdom": "20.0.3",
     "lint-staged": "^15.5.0",
     "postcss": "^8.4.47",
     "prettier": "^3.6.2",
@@ -129,7 +139,8 @@
     "typescript-eslint": "^8.44.1",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.3.0",
-    "vite-plugin-node-polyfills": "^0.23.0"
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vitest": "^4.0.8"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

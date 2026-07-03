@@ -8,7 +8,7 @@
 import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { ExpandMenuButton } from "@/components/shared";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -117,17 +117,19 @@ export function LoansSection({
                   )}
                 </div>
 
-                {isExpanded && asset.borrowRate && (
-                  <div className="mt-4 border-t border-secondary-strokeLight pt-4 dark:border-secondary-strokeDark">
-                    <div className="flex items-center justify-between">
-                      <span className="text-base text-accent-secondary">
-                        {COPY.loans.borrowRateLabel}
-                      </span>
-                      <span className="text-base text-accent-primary">
-                        {asset.borrowRate}
-                      </span>
+                {asset.borrowRate && (
+                  <ExpandablePanel expanded={isExpanded}>
+                    <div className="mt-4 border-t border-secondary-strokeLight pt-4 dark:border-secondary-strokeDark">
+                      <div className="flex items-center justify-between">
+                        <span className="text-base text-accent-secondary">
+                          {COPY.loans.borrowRateLabel}
+                        </span>
+                        <span className="text-base text-accent-primary">
+                          {asset.borrowRate}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </ExpandablePanel>
                 )}
               </Card>
             );

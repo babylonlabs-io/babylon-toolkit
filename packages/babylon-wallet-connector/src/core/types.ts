@@ -204,11 +204,20 @@ export interface IWallet<P extends IProvider = IProvider> {
   id: string;
   name: string;
   icon: string;
+  // Solid brand-color fill shown behind `icon` in the wallet-select list, where
+  // the icon is clipped to a rounded square rather than shown as a raw circle
+  // (see WalletButton). Undefined falls back to no fill (transparent corners).
+  iconBackground?: string;
   docs: string;
   installed: boolean;
   provider: P | null;
   account: Account | null;
   label: string;
+  // Explicit hardware-wallet marker. Drives the "available" badge and the
+  // connect-list ordering. Do NOT infer this from `label`: software wallets
+  // (injectable, AppKit) carry labels too, so label truthiness is not a
+  // hardware signal.
+  hardware?: boolean;
 }
 
 export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
@@ -235,8 +244,13 @@ export interface WalletMetadata<P extends IProvider, C> {
   id: string;
   wallet?: string | ((context: any, config: C) => any);
   label?: string;
+  // Marks the entry as a hardware wallet so the UI shows the "available" badge
+  // and groups it after installed software wallets. Set explicitly per wallet.
+  hardware?: boolean;
   name: string | ((wallet: any, config: C) => Promise<string>);
   icon: string | ((wallet: any, config: C) => Promise<string>);
+  // See `IWallet.iconBackground`.
+  iconBackground?: string;
   docs: string;
   networks: Network[];
   createProvider: (wallet: any, config: C) => P;
@@ -366,6 +380,23 @@ export interface IBTCProvider extends IProvider {
    * @returns A promise that resolves to the network of the current account.
    */
   getNetwork(): Promise<Network>;
+
+  /**
+   * Reads the wallet's live accounts WITHOUT prompting the user
+   * (non-interactive). Implemented only by wallets where an empty result is a
+   * reliable silent-lock signal: UniSat returns [] when the wallet is locked
+   * while a stale cached `getAddress()` still reports the last-known address,
+   * so it can be polled to detect a silent auto-lock that fires no event.
+   * Unlike `connectWallet()` it never surfaces the unlock / connection popup.
+   *
+   * Intentionally omitted by OKX and OneKey: their `getAccounts()` returns the
+   * cached / dApp-authorized address even when the keyring is locked, so an
+   * empty-array read is not a lock signal there. Optional — callers MUST
+   * feature-detect (`typeof provider.getAccounts === "function"`) and treat a
+   * missing method as "lock cannot be probed", never as locked.
+   * @returns A promise that resolves to the active account addresses.
+   */
+  getAccounts?(): Promise<string[]>;
 
   /**
    * Signs a message using either BIP322-Simple or ECDSA signing method.

@@ -35,6 +35,55 @@ export default {
   },
 
   /**
+   * PROTOCOL_FROZEN feature flag (governance "Freeze")
+   *
+   * Purpose: Surfaces the teal "Protocol is frozen" status banner and disables
+   * new deposits and borrows. Freeze blocks new entry but preserves all exits
+   * (repay, withdraw, liquidation, activation stay available); gating the
+   * remaining new-entry action (reorder) is the Freeze follow-up.
+   * Why needed: The on-chain Frozen/Paused state is public (each contract
+   * exposes it and emits Frozen/Paused events), but we intentionally drive the
+   * banner from an operator flag for now — reading it on-chain is the follow-up.
+   * DevOps flips this during an incident, like the DISABLE_DEPOSIT/DISABLE_BORROW
+   * kill-switches.
+   * Default: false (banner hidden unless explicitly set to "true")
+   */
+  get isProtocolFrozen() {
+    return process.env.NEXT_PUBLIC_FF_PROTOCOL_FROZEN === "true";
+  },
+
+  /**
+   * PROTOCOL_PAUSED feature flag (governance "Pause")
+   *
+   * Purpose: Surfaces the red "Protocol is paused" status banner; shares the
+   * deposit + borrow enforcement with the freeze flag (gating the remaining Aave
+   * actions is the Pause follow-up). Takes precedence over the frozen banner
+   * when both are set. Pause is the full stop (a last-resort emergency).
+   * Why needed: Same operator-controlled model as PROTOCOL_FROZEN; DevOps
+   * escalates to this when the whole market is halted.
+   * Default: false (banner hidden unless explicitly set to "true")
+   */
+  get isProtocolPaused() {
+    return process.env.NEXT_PUBLIC_FF_PROTOCOL_PAUSED === "true";
+  },
+
+  /**
+   * PROTOCOL_STATUS_MESSAGE override
+   *
+   * Purpose: Lets DevOps override the frozen/paused banner's body text per
+   * incident without a code change. When set, it replaces the active banner's
+   * body; when empty/unset, the default per-status copy from `copy.ts` is shown.
+   * Why needed: Incident messaging often needs wording the default copy can't
+   * anticipate. Non-boolean config, so it uses a plain NEXT_PUBLIC_ env (per
+   * rule 5) rather than the boolean FF prefix.
+   * Default: undefined (default copy is used).
+   */
+  get protocolStatusMessage(): string | undefined {
+    const raw = process.env.NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE?.trim();
+    return raw ? raw : undefined;
+  },
+
+  /**
    * FORCE_PARTIAL_LIQUIDATION feature flag
    *
    * Purpose: Forces partial liquidation split to always be suggested,
@@ -51,9 +100,12 @@ export default {
   /**
    * POSITION_DEBUG_PANEL feature flag
    *
-   * Purpose: Shows the position notifications debug panel on the dashboard,
-   * allowing manual parameter overrides and simulation of notification states.
-   * Why needed: Dev/QA tool for testing position notification scenarios
+   * Purpose: Shows the position-notifications debug controls as a section
+   * inside the god-mode panel, allowing manual parameter overrides and
+   * simulation of notification states.
+   * Why needed: Dev/QA tool for testing position notification scenarios.
+   * Only surfaces when GOD_MODE_PANEL (dev builds only) and
+   * ENABLE_LIQUIDATION_NOTIFICATIONS are also enabled.
    * Default: false (disabled unless explicitly set to "true")
    */
   get isPositionDebugPanelEnabled() {
@@ -87,6 +139,58 @@ export default {
    */
   get isVaultCapDisabled() {
     return process.env.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP === "true";
+  },
+
+  /**
+   * ENABLE_SIGNING_NOTIFICATIONS feature flag
+   *
+   * Purpose: Controls whether the dApp shows a browser (desktop) notification
+   * when a deposit needs the depositor to sign/act - both during an active
+   * deposit flow and for pending deposits that reach a signing-required state
+   * while the user is on another tab.
+   * Why needed: Browser notifications request OS-level permission; gating lets
+   * DevOps enable it per environment without a code change.
+   * Default: false (no browser notifications unless explicitly set to "true")
+   */
+  get isSigningNotificationsEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS === "true";
+  },
+
+  /**
+   * NOTICE_BANNER_MESSAGE config
+   *
+   * Purpose: Operator-controlled freeform banner shown at the top of the app
+   * for situations like intermittent peg-in errors or service degradation.
+   * Why needed: Lets DevOps surface an ad-hoc notice via env var without a
+   * code change. Intentionally decoupled from DISABLE_DEPOSIT so a notice can
+   * be shown while deposits remain enabled.
+   * Default: empty (banner hidden unless a non-empty message is set).
+   *
+   * Non-boolean gating config, so it uses the NEXT_PUBLIC_ prefix without _FF_.
+   */
+  get noticeBannerMessage() {
+    return (process.env.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE ?? "").trim();
+  },
+
+  /**
+   * GOD_MODE_PANEL feature flag (dev / QA only)
+   *
+   * Purpose: Shows a floating, draggable "god mode" admin panel for exercising
+   * UI states during development. Its first capability injects a controllable
+   * demo deposit into the real Pending/Expired Deposits section so every card
+   * state (CTA shown / hidden, badges, steps) can be reviewed without
+   * reproducing the on-chain conditions.
+   * Why needed: Dev/QA tool; kept fully out of users' view.
+   * Hard-gated on `import.meta.env.DEV`, so it can ONLY be enabled in a dev
+   * build — a production build forces it false at compile time (and lets the
+   * bundler drop the god-mode code; see demoDeposit.ts / DashboardPage.tsx).
+   * Default: false (panel hidden and nothing injected unless set to "true").
+   */
+  get isGodModePanelEnabled() {
+    return (
+      import.meta.env.DEV &&
+      process.env.NEXT_PUBLIC_FF_GOD_MODE_PANEL === "true"
+    );
   },
 
   get extraBtcWallets() {

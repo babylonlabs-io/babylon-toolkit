@@ -11,6 +11,7 @@ const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   createProvider: (wallet, config) => new LedgerProvider(wallet, config),
   networks: [Network.SIGNET, Network.MAINNET],
   label: "Hardware wallet",
+  hardware: true,
 };
 
 export default metadata;

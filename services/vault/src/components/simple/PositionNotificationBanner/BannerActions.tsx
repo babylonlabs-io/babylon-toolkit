@@ -1,4 +1,4 @@
-import { Button } from "@babylonlabs-io/core-ui";
+import type { NotificationAction } from "@babylonlabs-io/core-ui";
 
 import type {
   BannerState,
@@ -6,61 +6,104 @@ import type {
 } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 
-interface BannerActionsProps {
+interface BuildBannerActionsArgs {
   result: CalculatorResult;
   bannerState: BannerState;
   onDeposit: (initialAmountBtc?: string) => void;
   onRepay: () => void;
   onApplyOrder: () => void;
   isReordering: boolean;
+  /** Freeze/Pause blocks `reorderVaults`; disables the "Apply Optimal Order" CTA. */
+  reorderBlocked: boolean;
+  /** Protocol Freeze/Pause blocks new deposits; disables the add-collateral / add-vault CTAs. */
+  depositBlocked: boolean;
+  /** An aave Pause blocks repay; disables the "Repay Debt" CTA. */
+  repayBlocked: boolean;
 }
 
 /**
- * Renders the manual actions for the position banner:
- * - urgent: "Add Collateral" + "Repay Debt" (core safety actions)
- * - suggested reorder available: "Apply Suggested Order" (manual approve)
+ * Build the manual action pills for the position banner, fed to the core-ui
+ * `Notification` `actions` slot:
+ * - urgent: "Add Collateral" (primary, filled) + "Repay Debt" (secondary,
+ *   outlined) — the core safety actions, matching the Figma callout.
+ * - cliff with an affordable sacrificial size: "Add sacrificial vault" (generic
+ *   label per Figma; the amount lives in the suggestion text) — opens the
+ *   deposit flow with that amount pre-filled.
+ * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
+ *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
- * Both can appear together (urgent position whose order is also suboptimal).
+ * The groups can appear together (an urgent position whose order is also
+ * suboptimal).
  */
-export function BannerActions({
+export function buildBannerActions({
   result,
   bannerState,
   onDeposit,
   onRepay,
   onApplyOrder,
   isReordering,
-}: BannerActionsProps) {
+  reorderBlocked,
+  depositBlocked,
+  repayBlocked,
+}: BuildBannerActionsArgs): NotificationAction[] {
   const { primaryWarning, suggestReorder } = bannerState;
-
   const isUrgent = primaryWarning?.type === "urgent";
-  const showApplyOrder = suggestReorder && result.suggestedVaultOrder !== null;
+  const showApplyOrder = suggestReorder && result.optimalVaultOrder !== null;
 
-  if (!isUrgent && !showApplyOrder) return null;
+  const actions: NotificationAction[] = [];
 
-  return (
-    <div className="mt-3 flex items-center gap-2">
-      {isUrgent && (
-        <>
-          <Button variant="outlined" size="small" onClick={() => onDeposit()}>
-            {COPY.banner.addCollateral}
-          </Button>
-          <Button variant="outlined" size="small" onClick={onRepay}>
-            {COPY.banner.repayDebt}
-          </Button>
-        </>
-      )}
-      {showApplyOrder && (
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={onApplyOrder}
-          disabled={isReordering}
-        >
-          {isReordering
-            ? COPY.common.applying
-            : COPY.banner.applySuggestedOrder}
-        </Button>
-      )}
-    </div>
-  );
+  if (isUrgent) {
+    actions.push(
+      {
+        label: COPY.banner.addCollateral,
+        onClick: () => onDeposit(),
+        emphasis: "primary",
+        // Adding collateral is a deposit (protocol-scope entry) — blocked under
+        // a protocol Freeze/Pause. The status banner explains why.
+        disabled: depositBlocked,
+      },
+      {
+        label: COPY.banner.repayDebt,
+        onClick: onRepay,
+        emphasis: "secondary",
+        // Repay is blocked only by an aave Pause (preserved under Freeze).
+        disabled: repayBlocked,
+      },
+    );
+  }
+
+  // Add-sacrificial-vault CTA on a cliff when the calculator produced an
+  // actionable size — "add a sacrificial vault of this exact size". When an
+  // urgent warning is primary it rides along as a secondary action so the
+  // safety actions lead. The calculator guarantees the amount is positive and
+  // no larger than the position. Generic "Add sacrificial vault" label (the
+  // amount lives in the suggestion text per Figma).
+  const hasCliffWarning = result.warnings.some((w) => w.type === "cliff");
+  if (hasCliffWarning && result.suggestedNewVaultBtc !== null) {
+    const amountBtc = result.suggestedNewVaultBtc.toFixed(2);
+    actions.push({
+      label: COPY.banner.addSacrificialVault,
+      onClick: () => onDeposit(amountBtc),
+      emphasis: isUrgent ? "secondary" : "primary",
+      // Adding a vault is a deposit — blocked under a protocol Freeze/Pause.
+      disabled: depositBlocked,
+    });
+  }
+
+  if (showApplyOrder) {
+    actions.push({
+      label: isReordering
+        ? COPY.common.applying
+        : COPY.banner.applyOptimalOrder,
+      // Standalone reorder gets the filled (primary) gold button; when it rides
+      // alongside the urgent callout it stays secondary so "Add Collateral" leads.
+      onClick: onApplyOrder,
+      emphasis: isUrgent ? "secondary" : "primary",
+      // Disabled while a reorder is in flight, or when Freeze/Pause blocks
+      // `reorderVaults` entirely (the protocol status banner explains why).
+      disabled: isReordering || reorderBlocked,
+    });
+  }
+
+  return actions;
 }

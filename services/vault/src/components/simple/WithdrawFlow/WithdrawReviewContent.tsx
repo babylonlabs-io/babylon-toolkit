@@ -1,5 +1,5 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import {
   BPS_SCALE,
@@ -7,7 +7,6 @@ import {
   WITHDRAW_HF_WARNING_THRESHOLD,
 } from "@/applications/aave/constants";
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
-import { DetailsCard, type DetailRow } from "@/components/shared";
 import { BTC_BLOCK_TIME_MINS } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
@@ -20,6 +19,12 @@ import {
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
 import { NominatedAddressValue } from "./NominatedAddressValue";
+
+/** A single label/value pair rendered in the review card. */
+interface DetailRow {
+  label: string;
+  value: ReactNode;
+}
 
 interface WithdrawReviewContentProps {
   totalAmountBtc: number;
@@ -144,54 +149,76 @@ export function WithdrawReviewContent({
 
   return (
     <div className="w-full">
-      <Heading variant="h5" className="text-accent-primary">
-        Review withdrawal
-      </Heading>
+      <div className="rounded-t-2xl border border-b-0 border-secondary-strokeLight p-6">
+        <Heading variant="h5" className="font-normal text-accent-primary">
+          Review withdrawal
+        </Heading>
+      </div>
 
-      <div className="mt-6 flex flex-col gap-6">
-        <DetailsCard rows={rows} />
+      <div className="rounded-b-2xl border border-secondary-strokeLight p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
+            {rows.map((row) => (
+              <div
+                key={row.label}
+                className="flex items-start justify-between gap-6"
+              >
+                <Text variant="body1" className="text-accent-primary">
+                  {row.label}
+                </Text>
+                <div className="flex flex-col items-end text-right text-base text-accent-primary">
+                  {row.value}
+                </div>
+              </div>
+            ))}
+          </div>
 
-        {wouldBreachHF && (
-          <Text
-            variant="body2"
-            className="text-error-main"
-            data-testid="withdraw-hf-block-warning"
-          >
-            This withdrawal would drop your health factor below{" "}
-            {WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain.
-            Reduce the selection or repay debt first.
-          </Text>
-        )}
-        {isAtRisk && (
-          <Text
-            variant="body2"
-            className="text-warning-main"
-            data-testid="withdraw-hf-at-risk-warning"
-          >
-            Your position will be at risk of liquidation after this withdrawal
-            (health factor below {WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1)}).
-            Consider withdrawing less or repaying debt.
-          </Text>
-        )}
-
-        <Button
-          variant="contained"
-          color="secondary"
-          className="w-full"
-          disabled={isProcessing || wouldBreachHF}
-          onClick={onConfirm}
-        >
-          {isProcessing ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader size={16} className="text-accent-contrast" />
-              <Text as="span" variant="body2" className="text-accent-contrast">
-                Processing
-              </Text>
-            </span>
-          ) : (
-            "Confirm"
+          {wouldBreachHF && (
+            <Text
+              variant="body2"
+              className="text-error-main"
+              data-testid="withdraw-hf-block-warning"
+            >
+              This withdrawal would drop your health factor below{" "}
+              {WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain.
+              Reduce the selection or repay debt first.
+            </Text>
           )}
-        </Button>
+          {isAtRisk && (
+            <Text
+              variant="body2"
+              className="text-warning-main"
+              data-testid="withdraw-hf-at-risk-warning"
+            >
+              Your position will be at risk of liquidation after this withdrawal
+              (health factor below {WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1)}).
+              Consider withdrawing less or repaying debt.
+            </Text>
+          )}
+
+          <Button
+            variant="contained"
+            color="secondary"
+            className="w-full"
+            disabled={isProcessing || wouldBreachHF}
+            onClick={onConfirm}
+          >
+            {isProcessing ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader size={16} className="text-accent-contrast" />
+                <Text
+                  as="span"
+                  variant="body2"
+                  className="text-accent-contrast"
+                >
+                  Processing
+                </Text>
+              </span>
+            ) : (
+              "Confirm"
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

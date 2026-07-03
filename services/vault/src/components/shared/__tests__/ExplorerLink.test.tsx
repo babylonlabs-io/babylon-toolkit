@@ -8,11 +8,13 @@ describe("ExplorerLink", () => {
     render(
       <ExplorerLink
         href="https://explorer.test/vault/0xabc"
-        label="View vault on explorer"
+        label="View BTC Vault on explorer"
       />,
     );
 
-    const link = screen.getByRole("link", { name: "View vault on explorer" });
+    const link = screen.getByRole("link", {
+      name: "View BTC Vault on explorer",
+    });
     expect(link).toHaveAttribute("href", "https://explorer.test/vault/0xabc");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -20,7 +22,7 @@ describe("ExplorerLink", () => {
 
   it("renders nothing when href is undefined (no link when explorer is unconfigured)", () => {
     const { container } = render(
-      <ExplorerLink label="View vault on explorer" />,
+      <ExplorerLink label="View BTC Vault on explorer" />,
     );
 
     expect(container).toBeEmptyDOMElement();

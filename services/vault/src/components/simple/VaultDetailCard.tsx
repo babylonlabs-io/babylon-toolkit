@@ -8,6 +8,7 @@
 import { Avatar, Hint, WarningIcon } from "@babylonlabs-io/core-ui";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { ExplorerLink } from "@/components/shared/ExplorerLink";
 import { getNetworkConfigBTC } from "@/config";
@@ -179,14 +180,12 @@ export function VaultDetailCard({
             className="text-sm text-accent-primary"
           >
             <span className="inline-flex items-center gap-1.5">
-              {providerIconUrl && (
-                <Avatar
-                  url={providerIconUrl}
-                  alt={providerName}
-                  size="small"
-                  className="h-4 w-4"
-                />
-              )}
+              <ApplicationLogo
+                logoUrl={providerIconUrl ?? null}
+                name={providerName}
+                size="xs"
+                shape="circle"
+              />
               {providerName}
             </span>
           </Hint>
@@ -249,12 +248,19 @@ export function VaultStatusBadge({
 }) {
   return (
     <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-      {isDanger ? (
-        <WarningIcon size={14} variant="danger" />
-      ) : (
-        <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
-      )}
-      {label}
+      {/* Keyed on `label` so a status change remounts this span, replaying the
+          mount-driven reveal-in animation each time the label transitions. */}
+      <span
+        key={label}
+        className="inline-flex animate-reveal-in items-center gap-1.5"
+      >
+        {isDanger ? (
+          <WarningIcon size={14} variant="danger" />
+        ) : (
+          <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
+        )}
+        {label}
+      </span>
       {tooltip && <Hint tooltip={tooltip} />}
     </span>
   );

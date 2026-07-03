@@ -1,5 +1,10 @@
 export { AaveConfigProvider, useAaveConfig } from "./AaveConfigContext";
 export {
+  ActivatingVaultsProvider,
+  useActivatingVaults,
+  type ActivatingVaultEntry,
+} from "./ActivatingVaultsContext";
+export {
   PendingVaultsProvider,
   usePendingVaults,
   useSyncPendingVaults,

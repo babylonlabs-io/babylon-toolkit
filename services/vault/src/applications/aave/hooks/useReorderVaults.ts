@@ -9,8 +9,10 @@ import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { useError } from "@/context/error";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -21,9 +23,9 @@ import {
 import { getAaveAdapterAddress } from "../config";
 import {
   PositionChangedError,
+  assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,
   assertReorderMembership,
-  assertSuggestedOrderMatchesOnChain,
   reorderVaultOrder,
   type ReorderVerificationContext,
 } from "../services";
@@ -35,7 +37,7 @@ export interface ExecuteReorderOptions {
    * sign if the result diverges from the submitted permutation. Manual
    * drag-and-drop reorders omit this so users can pick non-optimal orders.
    */
-  suggestedOrderContext?: ReorderVerificationContext;
+  optimalOrderContext?: ReorderVerificationContext;
   /**
    * The on-chain vault ordering the caller observed at the time it built
    * the submission (e.g. the modal-open snapshot). When provided, the hook
@@ -73,9 +75,17 @@ export function useReorderVaults(): UseReorderVaultsResult {
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const { handleError } = useError();
+  const gate = useProtocolGateState();
 
   const executeReorder = useCallback(
     async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
+      // Reorder is an aave-scope entry action: Freeze or Pause blocks it. Guard
+      // the shared execution chokepoint so neither the banner CTA nor the
+      // reorder modal can broadcast while blocked, regardless of how the handler
+      // was reached (the UI buttons are disabled too). Returns a no-op failure —
+      // the path is UI-prevented, so there is nothing actionable to surface.
+      if (isReorderBlocked(gate)) return false;
+
       setIsProcessing(true);
       try {
         if (!walletClient) {
@@ -107,12 +117,12 @@ export function useReorderVaults(): UseReorderVaultsResult {
           );
         }
 
-        if (options?.suggestedOrderContext) {
-          await assertSuggestedOrderMatchesOnChain(
+        if (options?.optimalOrderContext) {
+          await assertOptimalOrderMatchesOnChain(
             permutedVaultIds,
             currentVaultIds,
             adapterAddress,
-            options.suggestedOrderContext,
+            options.optimalOrderContext,
           );
         }
 
@@ -146,7 +156,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, handleError],
+    [walletClient, address, handleError, gate],
   );
 
   return {

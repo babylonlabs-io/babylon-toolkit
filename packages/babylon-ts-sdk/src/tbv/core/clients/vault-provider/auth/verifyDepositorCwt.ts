@@ -1,26 +1,13 @@
 /**
- * Verify a vault-provider CWT bearer token (RFC 8392) wrapped in a
- * COSE Sign1 envelope (RFC 8152), signed with ES256K by the VP's
- * ephemeral token-signing key.
+ * Verify a vault-provider CWT bearer (RFC 8392 / COSE Sign1, ES256K): checks the
+ * signature against the VP's attested ephemeral key (see {@link ./serverIdentity})
+ * and binds `iss`/`sub`/`aud` to the pinned VP, subject, and depositor. TS port
+ * of btc-vault `client.rs::validate_token_with_public_key_at_time`.
  *
- * This is the TypeScript port of the btc-vault Rust client verifier
- * (`crates/btc-auth/src/client.rs::validate_token_with_public_key_at_time`
- * plus the response cross-checks from `verify_token_response_at_time`).
- * The FE previously verified only the server-identity proof
- * ({@link ./serverIdentity}) and treated the token itself as an opaque
- * blob; this closes that gap by cryptographically verifying the token
- * and binding its claims to the expected issuer, subject, and depositor.
- *
- * Trust chain: {@link ./serverIdentity} first proves the
- * `ephemeral_pubkey` is attested by the on-chain-pinned server key.
- * This function then verifies the token's COSE signature against that
- * same ephemeral key, so a token that decodes and verifies here is one
- * the pinned VP actually issued.
- *
- * The byte-level expectations (COSE tag, ES256K alg id, Sig_structure
- * layout, CWT registered-claim keys) mirror the issuer's `coset` stack
- * and are pinned by the golden-vector test against a real Rust-issued
- * token.
+ * Divergence from that reference: the FE does NOT clock-gate `nbf`/`iat`. The VP
+ * server is the temporal authority and re-checks `nbf`/`exp` on every gated call;
+ * re-checking `nbf` against the browser clock only bricked freshly minted tokens
+ * on benign skew. `exp` (wide window) and the structural `iat <= exp` are kept.
  *
  * @module tbv/core/clients/vault-provider/auth/verifyDepositorCwt
  */
@@ -85,7 +72,6 @@ export type CwtVerificationReason =
   | "issuer_mismatch"
   | "subject_mismatch"
   | "audience_mismatch"
-  | "token_not_yet_valid"
   | "token_expired"
   | "expiry_mismatch"
   | "server_identity_expires_before_token";
@@ -136,14 +122,15 @@ export interface VerifiedCwtClaims {
  * Verify a depositor CWT and return its claims, or throw
  * {@link CwtVerificationError}.
  *
- * Steps (matching the Rust reference):
+ * Steps (mirroring the Rust reference; see the divergence note above):
  *   1. Decode the COSE Sign1 envelope and assert the protected header
  *      pins ES256K.
  *   2. Verify the ECDSA signature over the reconstructed Sig_structure
  *      against the (already server-identity-verified) ephemeral key.
- *   3. Decode the CWT claims and assert `iss`/`sub`/`aud` bindings,
- *      `nbf`/`exp` validity, `cti` presence, and the outer-vs-inner
- *      expiry cross-checks.
+ *   3. Decode the CWT claims and assert `iss`/`sub`/`aud` bindings, the
+ *      structural `iat <= exp`, `exp` validity, `cti` presence, and the
+ *      outer-vs-inner expiry cross-checks. `nbf`/`iat` are intentionally not
+ *      clock-gated here (see the module note above).
  */
 export function verifyDepositorCwt(
   input: VerifyDepositorCwtInput,
@@ -263,23 +250,8 @@ export function verifyDepositorCwt(
       "audience_mismatch",
     );
   }
-  if (claims.notBefore > input.now) {
-    throw new CwtVerificationError(
-      `token not yet valid: nbf ${claims.notBefore} > now ${input.now}`,
-      "token_not_yet_valid",
-    );
-  }
-  // Reject tokens stamped in the future. The Rust reference enforces
-  // `iat <= now`; the golden tokens have iat == nbf so the `nbf` check
-  // above covers it there, but checking iat explicitly matches the
-  // reference exactly (and catches a token with nbf in the past but iat
-  // in the future).
-  if (claims.issuedAt > input.now) {
-    throw new CwtVerificationError(
-      `token issued in the future: iat ${claims.issuedAt} > now ${input.now}`,
-      "invalid_claims",
-    );
-  }
+  // No nbf/iat clock-gate on purpose — the VP server is the temporal authority
+  // (re-checks nbf/exp per call). See the module-level divergence note.
   if (claims.expiresAt <= input.now) {
     throw new CwtVerificationError(
       `token expired: exp ${claims.expiresAt} <= now ${input.now}`,

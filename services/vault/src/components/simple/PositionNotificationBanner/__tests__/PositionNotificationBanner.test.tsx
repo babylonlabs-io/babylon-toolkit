@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
 
+import { STALE_PRICE_BANNER_GRACE_MS } from "../constants";
 import { PositionNotificationBanner } from "../PositionNotificationBanner";
 
 // ---------------------------------------------------------------------------
@@ -32,15 +34,46 @@ vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: { readContract: vi.fn(), getTransactionReceipt: vi.fn() },
 }));
 
-// Mock core-ui to avoid ESM transformation issues in test environment
+// Mock core-ui Notification to avoid ESM transformation issues in the test
+// environment. Render the pieces the banner assertions depend on: title, body,
+// the suggestion sub-box, and the action pills (label + onClick + disabled),
+// and surface variant/severity as data-attributes.
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  Text: (props: Record<string, unknown>) => {
-    const { children, ...rest } = props;
-    return <span {...rest}>{children as ReactNode}</span>;
-  },
-  Button: (props: Record<string, unknown>) => {
-    const { children, ...rest } = props;
-    return <button {...rest}>{children as ReactNode}</button>;
+  InfoIcon: () => <span data-testid="suggestion-info-icon" />,
+  Notification: (props: Record<string, unknown>) => {
+    const actions = (props.actions ?? []) as Array<{
+      label: ReactNode;
+      onClick: () => void;
+      disabled?: boolean;
+    }>;
+    return (
+      <div
+        data-testid={props["data-testid"] as string}
+        data-severity={props["data-severity"] as string}
+        data-variant={props.variant as string}
+      >
+        <div>{props.title as ReactNode}</div>
+        <div>{props.children as ReactNode}</div>
+        {props.suggestion ? <div>{props.suggestion as ReactNode}</div> : null}
+        {props.onClose ? (
+          <button
+            aria-label="Dismiss notification"
+            onClick={props.onClose as () => void}
+          >
+            dismiss
+          </button>
+        ) : null}
+        {actions.map((action, index) => (
+          <button
+            key={index}
+            onClick={action.onClick}
+            disabled={action.disabled}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    );
   },
 }));
 
@@ -79,7 +112,7 @@ const mockReorderVerificationContext = {
 
 const mockUsePositionNotifications = vi.fn(() => ({
   result: null,
-  status: "ready" as const,
+  status: "ready" as PositionNotificationsStatus,
   isLoading: false,
   reorderVerificationContext: mockReorderVerificationContext as
     | typeof mockReorderVerificationContext
@@ -125,12 +158,13 @@ function makeBaseResult(
     collateralValue: 40000,
     targetSeizureBtc: 0.28,
     warnings: [],
-    suggestedVaultOrder: null,
+    optimalVaultOrder: null,
+    suggestedNewVaultBtc: null,
     ...overrides,
   };
 }
 
-const SUGGESTED_ORDER = [
+const OPTIMAL_ORDER = [
   { id: "0xabc", name: "Vault 2", btc: 0.6 },
   { id: "0xdef", name: "Vault 1", btc: 0.1 },
 ];
@@ -175,6 +209,14 @@ describe("PositionNotificationBanner", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the live status to "ready" so a per-test override (e.g. stale-price)
+    // doesn't leak into other tests.
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      status: "ready",
+      isLoading: false,
+      reorderVerificationContext: mockReorderVerificationContext,
+    });
   });
 
   it("renders nothing when result is null", () => {
@@ -186,8 +228,9 @@ describe("PositionNotificationBanner", () => {
     renderBanner(makeBaseResult(), onDeposit, onRepay);
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("green");
+    expect(banner.dataset.variant).toBe("success");
     expect(screen.getByText("Position optimally structured")).toBeTruthy();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
   it("renders red banner with Add Collateral + Repay Debt for an urgent warning", () => {
@@ -204,9 +247,10 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("red");
+    expect(banner.dataset.variant).toBe("error");
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
   it("renders soft banner for a weird-params advisory with no actions", () => {
@@ -224,38 +268,87 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("soft");
+    expect(banner.dataset.variant).toBe("info");
     expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
     expect(screen.queryByText("Add Collateral")).toBeNull();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
-  it("renders soft reorder note + Apply Suggested Order for a healthy but suboptimal position", () => {
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+  it("hides the weird-params advisory after its dismiss control is clicked", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "weird-params",
+          title: "Protocol parameters don't compute",
+          detail: "THF must be greater than expected HF.",
+          tone: "soft",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("does not render a dismiss control on the urgent banner", () => {
+    const result = makeBaseResult({
+      warnings: [
+        { type: "urgent", title: "Liquidation is 3.0% away", detail: "..." },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
+  it("does not render a dismiss control on the reorder suggestion", () => {
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
+  it("renders the gold reorder suggestion with a chip row + Apply Optimal Order for a healthy but suboptimal position", () => {
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("soft");
-    expect(
-      screen.getByText("BTC Vaults aren't in the safest liquidation order"),
-    ).toBeTruthy();
-    expect(screen.getByText("Apply Suggested Order")).toBeTruthy();
+    // Standalone reorder uses the gold `suggestion` variant, not blue `info`.
+    expect(banner.dataset.variant).toBe("suggestion");
+    expect(screen.getByText("Reorder BTC Vaults to lose less")).toBeTruthy();
+    // Optimal-order chip row renders each vault in order.
+    expect(screen.getByText("Suggested order")).toBeTruthy();
+    expect(screen.getByText(/Vault 2 ·/)).toBeTruthy();
+    expect(screen.getByText(/Vault 1 ·/)).toBeTruthy();
+    expect(screen.getByText("Apply Optimal Order")).toBeTruthy();
     // Reorder-only — no collateral/repay actions.
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Repay Debt")).toBeNull();
   });
 
-  it("shows Add Collateral, Repay Debt and Apply Suggested Order when urgent + suboptimal", () => {
+  it("shows Add Collateral, Repay Debt and Apply Optimal Order when urgent + suboptimal", () => {
     const result = makeBaseResult({
       warnings: [
         { type: "urgent", title: "Liquidation is 4.3% away", detail: "..." },
       ],
-      suggestedVaultOrder: SUGGESTED_ORDER,
+      optimalVaultOrder: OPTIMAL_ORDER,
     });
     renderBanner(result, onDeposit, onRepay);
 
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    expect(screen.getByText("Apply Suggested Order")).toBeTruthy();
+    expect(screen.getByText("Apply Optimal Order")).toBeTruthy();
   });
 
   it("calls onDeposit when Add Collateral is clicked", () => {
@@ -278,13 +371,13 @@ describe("PositionNotificationBanner", () => {
     expect(onRepay).toHaveBeenCalled();
   });
 
-  it("calls executeReorder with vault IDs and verification context when Apply Suggested Order is clicked", () => {
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+  it("calls executeReorder with vault IDs and verification context when Apply Optimal Order is clicked", () => {
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Apply Suggested Order"));
+    fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
-      suggestedOrderContext: mockReorderVerificationContext,
+      optimalOrderContext: mockReorderVerificationContext,
     });
   });
 
@@ -295,10 +388,10 @@ describe("PositionNotificationBanner", () => {
       isLoading: false,
       reorderVerificationContext: null,
     });
-    const result = makeBaseResult({ suggestedVaultOrder: SUGGESTED_ORDER });
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Apply Suggested Order"));
+    fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).not.toHaveBeenCalled();
   });
 
@@ -333,6 +426,7 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
     expect(
       screen.getByText("Position notifications temporarily unavailable"),
     ).toBeTruthy();
@@ -351,23 +445,242 @@ describe("PositionNotificationBanner", () => {
 
     expect(screen.queryByText("Add Collateral")).toBeNull();
     expect(screen.queryByText("Repay Debt")).toBeNull();
-    expect(screen.queryByText("Apply Suggested Order")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
-  it("renders nothing for dust (hidden severity)", () => {
+  it("defers the live stale-price banner until the grace window elapses", () => {
+    vi.useFakeTimers();
+    // Live feed (no debug override) reports stale price.
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      status: "stale-price",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+
+    render(
+      <Wrapper>
+        <PositionNotificationBanner onDeposit={onDeposit} onRepay={onRepay} />
+      </Wrapper>,
+    );
+
+    // Within the grace window: nothing shown (no banner, no stale price used).
+    expect(
+      screen.queryByText("Position notifications temporarily unavailable"),
+    ).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(STALE_PRICE_BANNER_GRACE_MS);
+    });
+
+    // Condition persisted past the window → banner surfaces.
+    expect(
+      screen.getByText("Position notifications temporarily unavailable"),
+    ).toBeTruthy();
+
+    vi.useRealTimers();
+  });
+
+  it("renders the dust notice as a soft (info) banner with no actions", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "dust",
-          title: "Position too small to model",
-          detail: "Too small for analysis.",
+          title: "Position too small for BTC Vault analysis",
+          detail:
+            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
       ],
     });
-    const { container } = renderBanner(result, onDeposit, onRepay);
+    renderBanner(result, onDeposit, onRepay);
 
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("soft");
+    expect(banner.dataset.variant).toBe("info");
     expect(
-      container.querySelector("[data-testid='position-notification-banner']"),
-    ).toBeNull();
+      screen.getByText("Position too small for BTC Vault analysis"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Add Collateral")).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
+  });
+
+  it("keeps a later weird-params advisory visible after the dust notice was dismissed", () => {
+    // Dismissal is per warning type: dismissing dust must not suppress a
+    // different advisory the position later transitions into while mounted.
+    const queryClient = makeQueryClient();
+    const dust = makeBaseResult({
+      warnings: [
+        {
+          type: "dust",
+          title: "Position too small for BTC Vault analysis",
+          detail:
+            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
+        },
+      ],
+    });
+    const weirdParams = makeBaseResult({
+      warnings: [
+        {
+          type: "weird-params",
+          title: "Protocol parameters don't compute",
+          detail: "THF must be greater than expected HF.",
+          tone: "soft",
+        },
+      ],
+    });
+
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <PositionNotificationBanner
+          result={dust}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+
+    // Same mounted banner, position now reads as a weird-params advisory.
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <PositionNotificationBanner
+          result={weirdParams}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+    expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
+  });
+
+  it("hides the dust notice after its dismiss control is clicked", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "dust",
+          title: "Position too small for BTC Vault analysis",
+          detail:
+            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("renders an orange cliff with the generic 'Add sacrificial BTC Vault' CTA and pre-fills the amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail:
+            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+          suggestion:
+            "Adding a sacrificial 0.72 BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
+    // Affordable cliff (CLIFF A): info-icon suggestion box, no "Suggestion" label.
+    expect(screen.getByTestId("suggestion-info-icon")).toBeTruthy();
+    expect(screen.queryByText("Suggestion")).toBeNull();
+    // Generic label per Figma; the amount lives in the suggestion text.
+    fireEvent.click(screen.getByText("Add sacrificial BTC Vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  it("renders an unaffordable cliff (CLIFF B) with a SUGGESTION label and no CTA", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail:
+            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+          suggestion:
+            "To enable partial liquidation, withdraw your 2.00 BTC and re-deposit as two smaller BTC Vaults: 1.28 BTC sacrificial + 0.72 BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.",
+        },
+      ],
+      // No affordable add → no CTA, "SUGGESTION"-labelled box.
+      suggestedNewVaultBtc: null,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
+    expect(screen.getByText("Suggestion")).toBeTruthy();
+    expect(screen.queryByTestId("suggestion-info-icon")).toBeNull();
+    expect(screen.queryByText("Add sacrificial BTC Vault")).toBeNull();
+  });
+
+  it("keeps the sacrificial CTA (secondary) when a single-vault cliff is also urgent", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "urgent",
+          title: "Liquidation is 3.0% away",
+          detail: "BTC needs to drop only 3%.",
+        },
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail:
+            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+          suggestion:
+            "Adding a sacrificial 0.72 BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("red");
+    // Safety actions still lead, and the pre-filled cliff CTA is still offered.
+    expect(screen.getByText("Add Collateral")).toBeTruthy();
+    expect(screen.getByText("Repay Debt")).toBeTruthy();
+    fireEvent.click(screen.getByText("Add sacrificial BTC Vault"));
+    expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  it("renders too-many-vaults as an orange warning with no action button", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "too-many-vaults",
+          title: "Too many BTC Vaults to optimize",
+          detail: "You have 18 vaults.",
+          suggestion:
+            "Consider consolidating smaller vaults into fewer larger ones.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("yellow");
+    expect(banner.dataset.variant).toBe("warning");
+    expect(screen.queryByText(/Add a .* BTC Vault/)).toBeNull();
+    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 });

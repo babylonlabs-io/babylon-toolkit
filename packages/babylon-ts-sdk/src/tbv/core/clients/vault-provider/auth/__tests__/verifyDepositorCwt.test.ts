@@ -132,8 +132,13 @@ describe("verifyDepositorCwt", () => {
     );
   });
 
-  it("rejects a token that is not yet valid", () => {
-    expectReason(baseInput({ now: GOLDEN_CWT_NBF - 1 }), "token_not_yet_valid");
+  it("verifies a token whose nbf is ahead of the local clock (tolerates benign skew)", () => {
+    // The VP's auth interceptor is the temporal authority and re-validates
+    // nbf/iat on every gated call against the clock that stamped them. The FE
+    // must not reject a freshly minted token just because the local clock lags
+    // by a second or two. now = nbf - 1 → nbf is 1s in the local future.
+    const claims = verifyDepositorCwt(baseInput({ now: GOLDEN_CWT_NBF - 1 }));
+    expect(claims.notBefore).toBe(GOLDEN_CWT_NBF);
   });
 
   it("rejects an expired token", () => {
@@ -257,8 +262,12 @@ describe("verifyDepositorCwt — crafted negative tokens", () => {
     );
   });
 
-  it("rejects a token issued in the future (iat > now)", () => {
-    expectReason(mintedInput({ iat: MINT_NOW + 1 }), "invalid_claims");
+  it("verifies a token whose iat is ahead of the local clock", () => {
+    // nbf stays in the past (default), so this isolates the iat-vs-clock case:
+    // a token issued ~now but seen by a slightly-lagging local clock still
+    // verifies — the VP re-checks iat authoritatively on the gated call.
+    const claims = verifyDepositorCwt(mintedInput({ iat: MINT_NOW + 1 }));
+    expect(claims.issuedAt).toBe(MINT_NOW + 1);
   });
 
   it("rejects a token with an empty cti", () => {

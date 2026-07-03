@@ -40,6 +40,13 @@ vi.mock("@/clients/eth-contract/chainlink", () => ({
   })),
 }));
 
+// RefundReviewContent reads the BTC wallet-lock state to gate the refund; drive
+// it through a mutable mock (default unlocked).
+const mockBtcWalletState = vi.hoisted(() => ({ locked: false }));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => mockBtcWalletState,
+}));
+
 const ACTIVITY: VaultActivity = {
   id: "0xdeadbeef",
   collateral: { amount: "0.01", symbol: "BTC" },
@@ -65,6 +72,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 describe("RefundModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockBtcWalletState.locked = false;
   });
 
   it("renders the review content", async () => {
@@ -103,6 +111,26 @@ describe("RefundModal", () => {
 
     expect(
       await screen.findByText(/safety cap of 2000 sat\/vB/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
+  });
+
+  it("disables Confirm and shows the lock notice when the BTC wallet is locked", async () => {
+    mockBtcWalletState.locked = true;
+
+    render(
+      <Wrapper>
+        <RefundModal
+          open
+          activity={ACTIVITY}
+          onClose={() => {}}
+          onSuccess={() => {}}
+        />
+      </Wrapper>,
+    );
+
+    expect(
+      await screen.findByText("Bitcoin wallet locked"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
   });

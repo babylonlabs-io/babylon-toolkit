@@ -7,6 +7,7 @@ const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   id: "okx",
   name: WALLET_PROVIDER_NAME,
   icon: logo,
+  iconBackground: "#000000",
   docs: "https://www.okx.com/web3",
   wallet: "okxwallet",
   createProvider: (wallet, config) => new OKXProvider(wallet, config),

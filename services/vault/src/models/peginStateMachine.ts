@@ -225,6 +225,19 @@ export function canPerformAction(
 }
 
 /**
+ * True when an EXPIRED vault's refund is already in flight (Refunding — our own
+ * broadcast, or an HTLC spend the mempool probe sees) or settled (Refunded).
+ * Both labels are produced only in the EXPIRED branch, so this is the
+ * display-layer signal that the refund modal has nothing left to do.
+ */
+export function isRefundInFlightOrSettled(state: PeginState): boolean {
+  return (
+    state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDING ||
+    state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDED
+  );
+}
+
+/**
  * PegIn actions a depositor can drive inline from the deposit flow.
  *
  * Excludes:
@@ -242,6 +255,54 @@ export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([
   PeginAction.SIGN_PAYOUT_TRANSACTIONS,
   PeginAction.ACTIVATE_VAULT,
 ]);
+
+/**
+ * Whether a vault is still a candidate for an inline continuation action: it
+ * exists, is not past activation, and is not in a warning/danger display state.
+ * Shared by the post-deposit continuation view (which sibling to surface) and
+ * the signing-required notification observer (which deposits to nudge) so the
+ * two never drift on "which deposits are actionable".
+ */
+export function isCandidateVault(state: PeginState | undefined): boolean {
+  return (
+    !!state &&
+    !isVaultPastActivation(state) &&
+    state.displayVariant !== "warning" &&
+    state.displayVariant !== "danger"
+  );
+}
+
+/**
+ * Whether a single pegin action is one the depositor can drive inline right
+ * now: the user-actionable set plus the shared Pre-PegIn broadcast (which
+ * `USER_ACTIONABLE_PEGIN_ACTIONS` deliberately omits). Payout signing also
+ * needs the depositor's BTC public key to render its resume branch, so it only
+ * counts once `btcPublicKey` is known.
+ */
+export function isActionablePeginAction(
+  action: PeginAction,
+  btcPublicKey: string | undefined,
+): boolean {
+  if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) return true;
+  if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
+  if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
+    return btcPublicKey !== undefined;
+  }
+  return true;
+}
+
+/**
+ * Whether a vault has any action the depositor can drive inline right now.
+ */
+export function hasActionableStep(
+  state: PeginState | undefined,
+  btcPublicKey: string | undefined,
+): boolean {
+  if (!state) return false;
+  return (state.availableActions ?? []).some((action) =>
+    isActionablePeginAction(action, btcPublicKey),
+  );
+}
 
 // ============================================================================
 // getPeginState — frontend display layer on top of SDK protocol state

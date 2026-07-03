@@ -91,6 +91,18 @@ Create a `.env` file with the following variables:
   - Default: `false` (disabled unless explicitly set to `"true"`)
   - Set to `"true"` to bypass the active-vaults check — useful for dev/QA testing of the split deposit flow
 
+- `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` - Shows the teal "Protocol is frozen" banner and disables new deposits and borrows (Freeze blocks new entry; exits like repay/withdraw/liquidation stay available)
+  - Default: `false` (banner hidden unless explicitly set to `"true"`)
+  - Operator-controlled; the banner reflects the flag (the on-chain Frozen/Paused state exists but isn't read yet)
+
+- `NEXT_PUBLIC_FF_PROTOCOL_PAUSED` - Shows the red "Protocol is paused" banner (the full stop; last-resort emergency)
+  - Default: `false` (banner hidden unless explicitly set to `"true"`)
+  - Takes precedence over `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` when both are set
+
+- `NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE` - Optional override for the frozen/paused banner body text (non-boolean config)
+  - Default: empty (the default per-status copy is shown)
+  - When set, replaces the active banner's body with this text
+
 ## Available Scripts
 
 ### Development

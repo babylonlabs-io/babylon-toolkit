@@ -4,74 +4,29 @@
  * Finds the vault ordering that maximizes collateral surviving a multi-group
  * liquidation cascade.
  *
- * The optimizer is a bitmask DP over seized subsets. To keep 2^n memory and
- * 3^n work bounded, vault sets larger than MAX_DP_N are first compressed into
- * pre-joint groups (the smallest vaults merged together), so the DP always runs
- * on ≤ MAX_DP_N states and never throws regardless of vault count.
+ * The optimizer is a bitmask DP over seized subsets. 2^n memory and 3^n work
+ * blow up past `MAX_DP_N` vaults, so for larger sets the optimizer falls back to
+ * a largest-first heuristic — the suggested order is then no longer guaranteed
+ * optimal, and `calculate()` surfaces a `too-many-vaults` warning to say so.
  */
 
 import {
   simulateCascade,
   type CascadeVault,
-  type PreJointVaults,
 } from "./cascadeSimulation.js";
 
 /**
- * Hard cap on the number of states for the bitmask DP optimizer.
- * 2^n memory + 3^n work blow up past this, so larger vault sets are first
- * compressed into pre-joint groups by merging the smallest vaults together.
+ * Hard cap on vault count for the bitmask DP optimizer. 2^n memory + 3^n work
+ * blow up past this. For n > MAX_DP_N the optimizer falls back to a
+ * largest-first heuristic. Benchmark: n=18 ≈ 720ms, n=20 ≈ 5.8s — anything past
+ * n=17 is too slow for interactive UI, so we cap here.
  */
-export const MAX_DP_N = 10;
-
-/**
- * Reduce a vault list to at most `maxSize` pre-joint groups for DP optimization.
- *
- * Starts with one group per vault, then repeatedly merges the two smallest
- * groups until the group count fits the DP cap. Groups are kept sorted by
- * descending BTC sum, and vaults inside each group are sorted by descending BTC
- * before returning.
- */
-function groupByPreJoints<T extends CascadeVault>(
-  vaults: T[],
-  maxSize: number,
-): PreJointVaults<T>[] {
-  const preJoints: PreJointVaults<T>[] = vaults.map((v) => ({
-    vaults: [v],
-    sum: v.btc,
-  }));
-
-  preJoints.sort((a, b) => b.sum - a.sum);
-
-  while (preJoints.length > maxSize) {
-    const first = preJoints.pop()!;
-    const second = preJoints.pop()!;
-    const combined: PreJointVaults<T> = {
-      vaults: [...first.vaults, ...second.vaults],
-      sum: first.sum + second.sum,
-    };
-
-    let inserted = false;
-    for (let i = 0; i < preJoints.length; i++) {
-      if (combined.sum > preJoints[i].sum) {
-        preJoints.splice(i, 0, combined);
-        inserted = true;
-        break;
-      }
-    }
-    if (!inserted) preJoints.push(combined);
-  }
-
-  for (const pj of preJoints) {
-    pj.vaults.sort((a, b) => b.btc - a.btc);
-  }
-
-  return preJoints;
-}
+export const MAX_DP_N = 17;
 
 /**
  * Main optimizer: bitmask DP over seized subsets.
  *
- * State: T = bitmask of pre-joint groups that have already been seized.
+ * State: T = bitmask of vaults that have already been seized.
  * Transition: for each valid "last group" G ⊆ T, dp[T] = dp[T\G] + btcAfter
  *   where btcAfter = totalBtc − btcOf(T)   (BTC remaining after T is seized).
  * Validation: btcOf(G) must cover target seizure at the moment G fires, i.e.
@@ -94,9 +49,9 @@ export function computeOptimalOrder<T extends CascadeVault>(
   maxLB: number,
   expectedHF: number,
 ): { order: T[]; sumBtcAfterEvents: number; btcAfterG1: number } {
-  if (vaults.length === 0)
-    return { order: [], sumBtcAfterEvents: 0, btcAfterG1: 0 };
-  if (vaults.length === 1) {
+  const n = vaults.length;
+  if (n === 0) return { order: [], sumBtcAfterEvents: 0, btcAfterG1: 0 };
+  if (n === 1) {
     const sim = simulateCascade(
       vaults,
       totalDebt,
@@ -110,11 +65,28 @@ export function computeOptimalOrder<T extends CascadeVault>(
     return { order: [...vaults], ...sim };
   }
 
-  const preJoints = groupByPreJoints(vaults, MAX_DP_N);
-  const n = preJoints.length;
+  // Safety cap: 2^n memory and 3^n work blow up past MAX_DP_N vaults. Real
+  // users have far fewer — each vault is a separate peg-in with a fixed fee.
+  // For the unlikely n > MAX_DP_N, fall back to a largest-first heuristic;
+  // calculate() surfaces a 'too-many-vaults' warning to flag the loss of the
+  // optimality guarantee.
+  if (n > MAX_DP_N) {
+    const order = [...vaults].sort((a, b) => b.btc - a.btc);
+    const sim = simulateCascade(
+      order,
+      totalDebt,
+      seizedFraction,
+      seizureTol,
+      CF,
+      THF,
+      maxLB,
+      expectedHF,
+    );
+    return { order, ...sim };
+  }
 
   const N = 1 << n;
-  const totalBtc = preJoints.reduce((s, v) => s + v.sum, 0);
+  const totalBtc = vaults.reduce((s, v) => s + v.btc, 0);
   const coverFraction = seizedFraction * (1 - seizureTol);
 
   // Precompute btcOf[T] — standard bitmask sum trick in O(2^n).
@@ -122,7 +94,7 @@ export function computeOptimalOrder<T extends CascadeVault>(
   for (let T = 1; T < N; T++) {
     const lsb = T & -T;
     const bit = 31 - Math.clz32(lsb);
-    btcOf[T] = btcOf[T ^ lsb] + preJoints[bit].sum;
+    btcOf[T] = btcOf[T ^ lsb] + vaults[bit].btc;
   }
 
   // dpSum[T] = best sumBtcAfterEvents to reach state T (T = seized subset).
@@ -183,10 +155,10 @@ export function computeOptimalOrder<T extends CascadeVault>(
   const groupsReversed: T[][] = [];
   for (let T = fullMask; T > 0; ) {
     const G = prev[T];
-    if (G === -1) break; // unreachable chain; length assertion below will fail
+    if (G === -1) break; // unreachable chain — fall back below
     const gVaults: T[] = [];
     for (let bit = 0; bit < n; bit++) {
-      if (G & (1 << bit)) gVaults.push(...preJoints[bit].vaults);
+      if (G & (1 << bit)) gVaults.push(vaults[bit]);
     }
     gVaults.sort((a, b) => b.btc - a.btc); // canonical within-group order
     groupsReversed.push(gVaults);
@@ -195,10 +167,28 @@ export function computeOptimalOrder<T extends CascadeVault>(
   groupsReversed.reverse();
   const order = groupsReversed.flat();
 
-  if (order.length !== vaults.length) {
-    throw new Error(
-      `DP reconstruction failed — expected ${vaults.length} vaults in order, got ${order.length}.`,
+  // Reconstruction safety: if the chain is incomplete for any reason, fall back
+  // to largest-first rather than throwing (calculate() runs in the notification
+  // render and must not crash). This path is a DP-invariant violation that
+  // should never occur for valid input — log it so a regression is observable
+  // even though the fallback keeps the UI alive and the result well-shaped.
+  if (order.length !== n) {
+    console.error(
+      `computeOptimalOrder: DP reconstruction produced ${order.length}/${n} vaults; ` +
+        `falling back to largest-first. This indicates a DP-invariant regression.`,
     );
+    const fallback = [...vaults].sort((a, b) => b.btc - a.btc);
+    const sim = simulateCascade(
+      fallback,
+      totalDebt,
+      seizedFraction,
+      seizureTol,
+      CF,
+      THF,
+      maxLB,
+      expectedHF,
+    );
+    return { order: fallback, ...sim };
   }
 
   // Compute real metrics via cascade simulation (debt-aware, matches what

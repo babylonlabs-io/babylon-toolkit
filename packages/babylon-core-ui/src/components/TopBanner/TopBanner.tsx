@@ -13,13 +13,15 @@ export interface TopBannerProps {
    */
   message: string;
   /**
-   * Callback when banner is clicked
+   * Callback when banner is clicked. Omit for a non-interactive banner — the
+   * banner then drops its `button` role and pointer affordance.
    */
-  onClick: () => void;
+  onClick?: () => void;
   /**
-   * Callback when banner is dismissed
+   * Callback when banner is dismissed. Omit to render a non-dismissible banner
+   * (no close button) — e.g. a critical alert the user must not be able to hide.
    */
-  onDismiss: () => void;
+  onDismiss?: () => void;
   /**
    * Optional custom className
    */
@@ -28,6 +30,13 @@ export interface TopBannerProps {
    * Optional custom icon
    */
   icon?: React.ReactNode;
+  /**
+   * Optional ARIA role for the banner wrapper. Use for a non-interactive banner
+   * that should still be announced — e.g. `"alert"` for a critical warning. When
+   * omitted, a clickable banner is exposed as a `button` and a non-clickable one
+   * carries no role.
+   */
+  role?: React.AriaRole;
 }
 
 export const TopBanner = ({
@@ -37,6 +46,7 @@ export const TopBanner = ({
   onDismiss,
   className,
   icon,
+  role,
 }: TopBannerProps) => {
   if (!visible) {
     return null;
@@ -44,15 +54,21 @@ export const TopBanner = ({
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onDismiss();
+    onDismiss?.();
   };
+
+  const isClickable = Boolean(onClick);
 
   return (
     <div
-      className={twJoin("bbn-top-banner", className)}
+      className={twJoin(
+        "bbn-top-banner",
+        !isClickable && "!cursor-default",
+        className,
+      )}
       onClick={onClick}
-      role="button"
-      tabIndex={0}
+      role={role ?? (isClickable ? "button" : undefined)}
+      tabIndex={isClickable ? 0 : undefined}
     >
       <div className="bbn-top-banner-content">
         {icon}
@@ -60,14 +76,16 @@ export const TopBanner = ({
           {message}
         </Text>
       </div>
-      <button
-        onClick={handleDismiss}
-        className="bbn-top-banner-dismiss-btn"
-        aria-label="Dismiss banner"
-        type="button"
-      >
-        <CloseIcon size={16} className="bbn-top-banner-dismiss-icon" />
-      </button>
+      {onDismiss && (
+        <button
+          onClick={handleDismiss}
+          className="bbn-top-banner-dismiss-btn"
+          aria-label="Dismiss banner"
+          type="button"
+        >
+          <CloseIcon size={16} className="bbn-top-banner-dismiss-icon" />
+        </button>
+      )}
     </div>
   );
 };

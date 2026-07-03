@@ -13,7 +13,7 @@
 import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
-import { ExpandMenuButton } from "@/components/shared";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import type { VaultActivity } from "@/types/activity";
@@ -84,7 +84,7 @@ export function ExpiredDepositSection({
           </div>
         </div>
 
-        {isExpanded && (
+        <ExpandablePanel expanded={isExpanded}>
           <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
             {expiredActivities.map((activity) => (
               <PendingDepositCard
@@ -100,7 +100,7 @@ export function ExpiredDepositSection({
               />
             ))}
           </div>
-        )}
+        </ExpandablePanel>
       </Card>
     </div>
   );

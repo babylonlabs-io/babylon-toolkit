@@ -13,8 +13,20 @@ import {
   type PriceMetadata,
 } from "@/clients/eth-contract/chainlink";
 
+import { hasUnhealthyPrice } from "./priceHealth";
+
 const PRICES_QUERY_KEY = "prices";
 const ONE_MINUTE = 60 * 1000;
+/** Poll cadence while every price is fresh. */
+const HEALTHY_REFETCH_INTERVAL = ONE_MINUTE;
+/**
+ * Faster cadence while any price is stale or its fetch failed, so a recovered
+ * feed (or a recovered RPC) is picked up within seconds instead of up to a
+ * minute. Staleness is the on-chain oracle's own `updatedAt` age, so polling
+ * faster cannot force a stale feed fresh — it only shortens the lag once the
+ * feed (or the RPC) actually recovers.
+ */
+const UNHEALTHY_REFETCH_INTERVAL = 15 * 1000;
 
 const SUPPORTED_TOKENS = ["BTC", "ETH", "USDC", "USDT", "DAI"];
 
@@ -45,7 +57,14 @@ export function usePrices(): UsePricesResult {
     queryKey: [PRICES_QUERY_KEY, "chainlink"],
     queryFn: () => getTokenPrices(SUPPORTED_TOKENS),
     staleTime: ONE_MINUTE,
-    refetchInterval: ONE_MINUTE,
+    // Poll faster while unhealthy so a recovered feed/RPC clears sooner, and
+    // re-check on tab focus / network reconnect.
+    refetchInterval: (query) =>
+      hasUnhealthyPrice(query.state.data?.metadata)
+        ? UNHEALTHY_REFETCH_INTERVAL
+        : HEALTHY_REFETCH_INTERVAL,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 2,
   });
 

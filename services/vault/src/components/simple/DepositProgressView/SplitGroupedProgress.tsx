@@ -6,25 +6,24 @@
  * each vault is on its own VP-paced timeline (WOTS submission, payout signing,
  * artifact download, activation) and can diverge by an hour or more. This
  * component renders the shared "Register deposit" group as a single trunk and
- * the remaining groups as one column per vault, so the UI matches the topology
- * of the underlying flow.
+ * the remaining groups as one column per vault, reusing the same GroupBlock
+ * (filled active-group card + collapsed header rows) as the single-vault stepper.
  */
 
-import { Text, type StepperItem } from "@babylonlabs-io/core-ui";
+import type { StepperItem } from "@babylonlabs-io/core-ui";
+import { Text } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
-import { GroupHeader } from "./GroupHeader";
+import { GroupBlock } from "./GroupBlock";
 import { StepConnector } from "./StepConnector";
-import { StepRow, type StepRowState } from "./StepRow";
 import {
   buildStepGroups,
   derivePerVaultStep,
   getVisualStep,
   TRUNK_END_VISUAL_STEP,
-  type StepGroupView,
 } from "./steps";
 
 interface SplitGroupedProgressProps {
@@ -37,12 +36,12 @@ interface SplitGroupedProgressProps {
   currentVaultIndex: number | null;
   /** Underlying DepositFlowStep, used to derive per-vault progression. */
   rawStep: DepositFlowStep;
+  /** When true, the current step failed — render it as an error, not active. */
+  hasError?: boolean;
   /**
    * Resolves the detail panel for a given step. Called once per region with
    * that region's own step — the trunk with `rawStep` (inline), each column
-   * with its own per-vault step (stacked, since columns are narrow) — so two
-   * columns parked on the same shared wait both render it and diverged columns
-   * each render their own. `StepRow` only shows it on the active row.
+   * with its own per-vault step (stacked, since columns are narrow).
    */
   renderStepDetail?: (
     step: DepositFlowStep,
@@ -51,82 +50,28 @@ interface SplitGroupedProgressProps {
   /**
    * Per-vault raw steps (resume path), indexed to match the columns. When
    * provided, each column renders its own vault's true polled state instead of
-   * inferring it from array position. Omit for the live sequential flow, where
-   * {@link derivePerVaultStep} handles the inference.
+   * inferring it from array position.
    */
   perVaultSteps?: DepositFlowStep[];
 }
 
-function StepList({
-  group,
-  steps,
-  currentStep,
-  activeStepDetail,
-  compact = false,
-}: {
-  group: StepGroupView;
-  steps: StepperItem[];
-  currentStep: number;
-  activeStepDetail?: ReactNode;
-  /** Stack each row's sub-counter below its label (narrow per-vault columns). */
-  compact?: boolean;
-}) {
-  const stepNumbers = Array.from(
-    { length: group.totalInGroup },
-    (_, i) => group.startStep + i,
-  );
-
-  return (
-    <div className="ml-[15px] flex flex-col border-l-2 border-secondary-strokeDark py-2 pl-6">
-      {stepNumbers.map((globalStepNum, subIndex) => {
-        const step = steps[globalStepNum - 1];
-        if (!step) return null;
-
-        const displayNumber = subIndex + 1;
-
-        const state: StepRowState =
-          globalStepNum < currentStep
-            ? "completed"
-            : globalStepNum === currentStep
-              ? "active"
-              : "pending";
-
-        return (
-          <div key={globalStepNum}>
-            {subIndex > 0 && <StepConnector />}
-            <StepRow
-              state={state}
-              number={displayNumber}
-              ariaNumber={globalStepNum}
-              label={step.label}
-              description={step.description}
-              detail={activeStepDetail}
-              hasNext={subIndex < stepNumbers.length - 1}
-              compact={compact}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
+/** One group list per vault, rendered as the new filled-card / header blocks. */
 function VaultColumn({
   vaultIndex,
   branchGroups,
   steps,
   perVaultVisualStep,
-  groupNumberOffset,
+  hasError,
   activeStepDetail,
 }: {
   vaultIndex: number;
-  branchGroups: StepGroupView[];
+  branchGroups: {
+    group: ReturnType<typeof buildStepGroups>[number];
+    number: number;
+  }[];
   steps: StepperItem[];
   perVaultVisualStep: number;
-  /** Index offset so per-vault group letters continue from the trunk (B, C, D, …). */
-  groupNumberOffset: number;
-  /** Detail panel for this column's active step. Only the active vault's
-   *  column receives it — siblings show no wait/confirmation detail. */
+  hasError: boolean;
   activeStepDetail?: ReactNode;
 }) {
   return (
@@ -139,27 +84,20 @@ function VaultColumn({
         {COPY.deposit.progress.splitVaultColumnLabel(vaultIndex + 1)}
       </Text>
       <div className="flex flex-col">
-        {branchGroups.map((group, idx) => {
+        {branchGroups.map(({ group, number }, idx) => {
           const isLast = idx === branchGroups.length - 1;
           return (
             <div key={group.startStep} className="flex flex-col">
-              <GroupHeader
-                number={groupNumberOffset + idx + 1}
-                title={group.title}
-                status={group.status}
-                completedInGroup={group.completedInGroup}
-                totalInGroup={group.totalInGroup}
+              <GroupBlock
+                group={group}
+                number={number}
+                steps={steps}
+                currentStep={perVaultVisualStep}
+                hasError={hasError}
+                activeStepDetail={activeStepDetail}
+                // Columns are narrow → stack each row's sub-counter.
+                compact
               />
-              {group.expanded && (
-                <StepList
-                  group={group}
-                  steps={steps}
-                  currentStep={perVaultVisualStep}
-                  activeStepDetail={activeStepDetail}
-                  // Columns are narrow → stack each row's sub-counter.
-                  compact
-                />
-              )}
               {!isLast && <StepConnector />}
             </div>
           );
@@ -175,63 +113,67 @@ export function SplitGroupedProgress({
   vaultCount,
   currentVaultIndex,
   rawStep,
+  hasError = false,
   renderStepDetail,
   perVaultSteps,
 }: SplitGroupedProgressProps) {
-  const trunkGroups = buildStepGroups(currentStep).filter(
-    (group) => group.endStep <= TRUNK_END_VISUAL_STEP,
-  );
+  // Shared trunk groups (Register deposit). Keep original 1-based numbers, hide
+  // completed groups (they fold into the steps-completed pill).
+  const trunkGroups = buildStepGroups(currentStep)
+    .map((group, index) => ({ group, number: index + 1 }))
+    .filter(
+      ({ group }) =>
+        group.endStep <= TRUNK_END_VISUAL_STEP && group.status !== "completed",
+    );
 
   return (
     <div className="flex flex-col">
-      {trunkGroups.map((group, groupIndex) => (
+      {trunkGroups.map(({ group, number }) => (
         <div key={group.startStep} className="flex flex-col">
-          <GroupHeader
-            number={groupIndex + 1}
-            title={group.title}
-            status={group.status}
-            completedInGroup={group.completedInGroup}
-            totalInGroup={group.totalInGroup}
+          <GroupBlock
+            group={group}
+            number={number}
+            steps={steps}
+            currentStep={currentStep}
+            hasError={hasError}
+            // Trunk is full-width → inline detail (e.g. the pegin-fee notice).
+            activeStepDetail={renderStepDetail?.(rawStep, { stacked: false })}
           />
-          {group.expanded && (
-            <StepList
-              group={group}
-              steps={steps}
-              currentStep={currentStep}
-              // Trunk is full-width → inline detail (e.g. the pegin-fee notice
-              // during live signing).
-              activeStepDetail={renderStepDetail?.(rawStep, { stacked: false })}
-            />
-          )}
           <StepConnector />
         </div>
       ))}
 
       <div className="flex gap-6">
         {Array.from({ length: vaultCount }, (_, vaultIndex) => {
-          // Resume path supplies each column's true step from its own polled
-          // state; the live flow infers it from array position. `??` (not `||`)
-          // so step 0 (DERIVE_VAULT_SECRET) isn't treated as missing.
+          // Resume path supplies each column's true step; the live flow infers
+          // it from array position. `??` (not `||`) so step 0 isn't dropped.
           const vaultRawStep =
             perVaultSteps?.[vaultIndex] ??
             derivePerVaultStep(rawStep, currentVaultIndex, vaultIndex);
           const perVaultVisualStep = getVisualStep(vaultRawStep);
-          const perVaultBranchGroups = buildStepGroups(
-            perVaultVisualStep,
-          ).filter((group) => group.startStep > TRUNK_END_VISUAL_STEP);
+          const branchGroups = buildStepGroups(perVaultVisualStep)
+            .map((group, index) => ({ group, number: index + 1 }))
+            .filter(
+              ({ group }) =>
+                group.startStep > TRUNK_END_VISUAL_STEP &&
+                group.status !== "completed",
+            );
 
           return (
             <VaultColumn
               key={vaultIndex}
               vaultIndex={vaultIndex}
-              branchGroups={perVaultBranchGroups}
+              branchGroups={branchGroups}
               steps={steps}
               perVaultVisualStep={perVaultVisualStep}
-              groupNumberOffset={trunkGroups.length}
-              // Each column resolves its detail from its OWN step (stacked for
-              // the narrow column). `StepRow` renders it only on the active row,
-              // so a column shows the panel exactly when its own active step
-              // produces one — including two columns sharing the same wait.
+              // Only the failing vault's own lane shows the error — gate on the
+              // active vault index, not just the visual step, since two lanes can
+              // sit on the same step while only the current vault was rejected.
+              hasError={
+                hasError &&
+                vaultIndex === currentVaultIndex &&
+                perVaultVisualStep === currentStep
+              }
               activeStepDetail={renderStepDetail?.(vaultRawStep, {
                 stacked: true,
               })}

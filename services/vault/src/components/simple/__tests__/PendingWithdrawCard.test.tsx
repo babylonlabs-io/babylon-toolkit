@@ -114,14 +114,61 @@ describe("PendingWithdrawCard — stage presentation", () => {
     expect(assertLinked).toBe(true);
   });
 
-  it("keeps the progress bar and shows no Contact Support for Payout sent", () => {
+  it("shows the live confirmation count toward the payout clock during the challenge period", () => {
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+      assertConfirmations: 72,
+    });
+
+    expect(screen.getByText(CARD.confirmationsLabel)).toBeInTheDocument();
+    expect(
+      screen.getByText(CARD.confirmationsValue(72, 144)),
+    ).toBeInTheDocument();
+  });
+
+  it("clamps the confirmation count so an overshoot never exceeds the timelock", () => {
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+      assertConfirmations: 200,
+    });
+
+    expect(
+      screen.getByText(CARD.confirmationsValue(144, 144)),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the confirmation count until the live count is known", () => {
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+    });
+
+    expect(screen.queryByText(CARD.confirmationsLabel)).not.toBeInTheDocument();
+  });
+
+  it("states the typical challenge-period duration derived from the timelock", () => {
+    // 144 blocks × 10 min = 1440 min = 1 day.
+    renderCard(resultForStatus(ClaimerPegoutStatusValue.ASSERT_BROADCAST), {
+      timelockAssertBlocks: 144,
+      assertConfirmations: 72,
+    });
+
+    expect(
+      screen.getByText(CARD.challengePeriodTypicalDuration("1 day"), {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the progress bar and shows no Contact Support for Payout sent", () => {
+    // Payout sent is terminal-success: the bar has nothing left to advance, so
+    // it is omitted — but this is not an error, so no Contact Support either.
     renderCard(resultForStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST));
 
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(CARD.contactSupport)).not.toBeInTheDocument();
   });
 
-  it("shows Contact Support and hides the progress bar only when truly Blocked", () => {
+  it("shows Contact Support and hides the progress bar when truly Blocked", () => {
     renderCard(resultForStatus(ClaimerPegoutStatusValue.PAYOUT_BLOCKED));
 
     expect(

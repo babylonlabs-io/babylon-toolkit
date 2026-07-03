@@ -56,3 +56,14 @@ export const Hidden: Story = {
     onDismiss: () => console.log("Banner dismissed"),
   },
 };
+
+// A non-interactive alert: no `onDismiss` (no close button) and no `onClick`, so
+// it isn't a focusable/clickable button. `role="alert"` lets assistive tech
+// announce it — e.g. a critical warning the user must not be able to hide.
+export const NonDismissibleAlert: Story = {
+  args: {
+    visible: true,
+    message: "Critical — liquidation in 4.3%",
+    role: "alert",
+  },
+};

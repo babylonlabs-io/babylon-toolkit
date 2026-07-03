@@ -12,6 +12,7 @@ import { AddressScreeningProvider } from "@/context/addressScreening";
 import { AddressTypeProvider } from "@/context/addressType";
 import { ErrorProvider } from "@/context/error";
 import { GeoFencingProvider } from "@/context/geofencing";
+import { SigningNotificationProvider } from "@/context/SigningNotificationContext";
 import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
@@ -41,7 +42,11 @@ function Providers({ children }: React.PropsWithChildren) {
                       <WalletConnectionProvider>
                         <AddressScreeningProvider>
                           <AddressTypeProvider>
-                            <AppState>{children}</AppState>
+                            <AppState>
+                              <SigningNotificationProvider>
+                                {children}
+                              </SigningNotificationProvider>
+                            </AppState>
                           </AddressTypeProvider>
                         </AddressScreeningProvider>
                       </WalletConnectionProvider>

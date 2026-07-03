@@ -11,6 +11,7 @@ const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   createProvider: (wallet, config) => new KeystoneProvider(wallet, config),
   networks: [Network.MAINNET, Network.SIGNET],
   label: "Hardware wallet",
+  hardware: true,
 };
 
 export default metadata;

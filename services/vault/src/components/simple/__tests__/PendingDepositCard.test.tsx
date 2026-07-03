@@ -1,10 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PeginAction } from "@/components/deposit/actionStatus";
 import { COPY } from "@/copy";
-import { ContractStatus, LocalStorageStatus } from "@/models/peginStateMachine";
+import {
+  ContractStatus,
+  LocalStorageStatus,
+  PEGIN_DISPLAY_LABELS,
+} from "@/models/peginStateMachine";
 
 import { PendingDepositCard } from "../PendingDepositCard";
 
@@ -28,26 +32,33 @@ vi.mock("@/components/deposit/actionStatus", async (importOriginal) => {
 // test can assert what was passed in.
 vi.mock("../VaultDetailCard", () => ({
   VaultDetailCard: ({
+    action,
     amountSubtext,
     belowHeader,
     disabled,
     disabledTooltip,
+    onClick,
     txHashRow,
   }: {
+    action?: ReactNode;
     amountSubtext?: ReactNode;
     belowHeader?: ReactNode;
     disabled?: boolean;
     disabledTooltip?: string;
+    onClick?: () => void;
     txHashRow?: ReactNode;
   }) => (
     <div
       data-testid="vault-detail-card"
       data-disabled={disabled ? "true" : "false"}
       data-disabled-tooltip={disabledTooltip ?? ""}
+      data-clickable={onClick ? "true" : "false"}
+      onClick={onClick}
     >
       <div data-testid="amount-subtext">{amountSubtext}</div>
       <div data-testid="below-header">{belowHeader}</div>
       <div data-testid="tx-hash-row">{txHashRow}</div>
+      <div data-testid="action-slot">{action}</div>
     </div>
   ),
   VaultStatusBadge: () => <div data-testid="status-badge" />,
@@ -120,9 +131,9 @@ describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
   });
 
   it("dims the card and surfaces the tooltip when the action is disabled", () => {
-    // Wallet-ownership mismatch: the card has no in-card action button
-    // anymore (clicking the card opens the multistepper), so the visual
-    // signal is dimming + a hover tooltip.
+    // Wallet-ownership mismatch: a disabled card renders no CTA button — the
+    // visual signal is dimming + a hover tooltip (the CTA is reserved for an
+    // `available` action).
     const TOOLTIP =
       "This BTC Vault was created with a different BTC public key (bcc5...f21c). Switch to that wallet to perform actions.";
     mockGetActionStatus.mockReturnValue({
@@ -143,6 +154,50 @@ describe("PendingDepositCard — disabled (ownership mismatch) surface", () => {
 
     const card = screen.getByTestId("vault-detail-card");
     expect(card).toHaveAttribute("data-disabled", "false");
+  });
+});
+
+describe("PendingDepositCard — refunded cards are not clickable", () => {
+  function renderWithClick(displayLabel: string) {
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.EXPIRED,
+        displayLabel,
+        displayVariant: "inactive",
+        availableActions: [],
+      },
+    });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={vi.fn()}
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
+  });
+
+  it("drops the click handler once the deposit is refunded", () => {
+    renderWithClick(PEGIN_DISPLAY_LABELS.REFUNDED);
+    expect(screen.getByTestId("vault-detail-card")).toHaveAttribute(
+      "data-clickable",
+      "false",
+    );
+  });
+
+  it("keeps the card clickable for an expired deposit still awaiting refund", () => {
+    renderWithClick(PEGIN_DISPLAY_LABELS.EXPIRED);
+    expect(screen.getByTestId("vault-detail-card")).toHaveAttribute(
+      "data-clickable",
+      "true",
+    );
   });
 });
 
@@ -225,5 +280,221 @@ describe("PendingDepositCard — payout signing step number", () => {
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PendingDepositCard — refunding (in-flight) cards are not clickable", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
+  });
+
+  it("is inert once a refund is in flight (Refunding)", () => {
+    // Refunding = our own broadcast OR the HTLC-spend probe seeing the refund tx
+    // in the mempool (so this also covers a refund broadcast from another
+    // device). The refund is in flight, so the card must not reopen the modal.
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.EXPIRED,
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+      },
+    });
+    const onCardClick = vi.fn();
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={onCardClick}
+      />,
+    );
+
+    const card = screen.getByTestId("vault-detail-card");
+    expect(card).toHaveAttribute("data-clickable", "false");
+    fireEvent.click(card);
+    expect(onCardClick).not.toHaveBeenCalled();
+  });
+
+  it("stays clickable for a pending vault with no available action", () => {
+    // Pending cards open the multistepper even with no primary action; the
+    // refund gate (Refunding/Refunded only) must not touch them.
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.PENDING,
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+      },
+    });
+    const onCardClick = vi.fn();
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={onCardClick}
+      />,
+    );
+
+    const card = screen.getByTestId("vault-detail-card");
+    expect(card).toHaveAttribute("data-clickable", "true");
+    fireEvent.click(card);
+    expect(onCardClick).toHaveBeenCalledWith("0xvault");
+  });
+});
+
+describe("PendingDepositCard — action CTA button", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.VERIFIED,
+        displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+        displayVariant: "pending",
+        availableActions: [PeginAction.ACTIVATE_VAULT],
+      },
+    });
+  });
+
+  it("renders the orange CTA for an available forward action and routes its click to the card handler", () => {
+    mockGetActionStatus.mockReturnValue({
+      type: "available",
+      action: {
+        action: PeginAction.ACTIVATE_VAULT,
+        label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      },
+    });
+    const onCardClick = vi.fn();
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={onCardClick}
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+    });
+    // The orange CTA is the contained/secondary button (secondary.main is the
+    // brand orange in this theme).
+    expect(button.className).toContain("bbn-btn-contained");
+    expect(button.className).toContain("bbn-btn-secondary");
+    fireEvent.click(button);
+    expect(onCardClick).toHaveBeenCalledWith("0xvault");
+  });
+
+  it("renders the HTLC refund as a lower-emphasis outlined button", () => {
+    mockUseDepositPollingResult.mockReturnValue({
+      loading: false,
+      peginState: {
+        contractStatus: ContractStatus.EXPIRED,
+        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+        displayVariant: "warning",
+        availableActions: [PeginAction.REFUND_HTLC],
+      },
+    });
+    mockGetActionStatus.mockReturnValue({
+      type: "available",
+      action: {
+        action: PeginAction.REFUND_HTLC,
+        label: COPY.pegin.primaryAction.REFUND_HTLC,
+      },
+    });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: COPY.pegin.primaryAction.REFUND_HTLC,
+    });
+    expect(button.className).toContain("bbn-btn-outlined");
+  });
+
+  it("renders no CTA when there is no available action", () => {
+    mockGetActionStatus.mockReturnValue({ type: "noAction" });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders no CTA for a batched sibling with no card handler", () => {
+    // Batched siblings have no `onCardClick` — the group wrapper owns the click
+    // and hoists the shared broadcast, so the inner card stays CTA-free even
+    // when an action is available.
+    mockGetActionStatus.mockReturnValue({
+      type: "available",
+      action: {
+        action: PeginAction.ACTIVATE_VAULT,
+        label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      },
+    });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders no CTA when the action is disabled by an ownership mismatch", () => {
+    mockGetActionStatus.mockReturnValue({
+      type: "disabled",
+      action: {
+        action: PeginAction.ACTIVATE_VAULT,
+        label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      },
+      tooltip: "Switch to the owning wallet",
+    });
+    render(
+      <PendingDepositCard
+        depositId="0xvault"
+        amount="0.05"
+        providerId="0xprovider"
+        vaultProviders={[]}
+        onCardClick={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+      }),
+    ).not.toBeInTheDocument();
   });
 });

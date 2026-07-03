@@ -14,6 +14,9 @@ interface LiquidationGroupCardProps {
 export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [collateralIcon, debtIcon] = row.tokenIcons;
+  // The overlap margin only makes sense when both icons render; on a
+  // collateral-only liquidation it would eat into the gap before the text.
+  const showDebtIcon = Boolean(debtIcon && row.summary.debt);
 
   const summary = row.summary.debt
     ? `${row.summary.collateral.value} ${row.summary.collateral.symbol} / ${row.summary.debt.value} ${row.summary.debt.symbol}`
@@ -22,27 +25,29 @@ export function LiquidationGroupCard({ row }: LiquidationGroupCardProps) {
   return (
     <article className="flex flex-col gap-6 rounded-2xl bg-secondary-highlight p-6">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex shrink-0 items-center">
             <Avatar
               url={collateralIcon}
               alt={row.summary.collateral.symbol}
-              size="small"
-              className="-mr-2"
+              size="large"
+              className={showDebtIcon ? "-mr-3" : undefined}
             />
             {debtIcon && row.summary.debt && (
               <Avatar
                 url={debtIcon}
                 alt={row.summary.debt.symbol}
-                size="small"
+                size="large"
               />
             )}
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <span className="text-xl leading-none text-accent-primary">
               {row.type}
             </span>
-            <span className="text-sm text-accent-primary">{summary}</span>
+            <span className="truncate text-sm text-accent-primary">
+              {summary}
+            </span>
           </div>
         </div>
         <ExpandMenuButton

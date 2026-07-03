@@ -22,6 +22,15 @@ const mockCalculateBtcTxHash = vi.hoisted(() =>
   vi.fn(() => "0xmatching_pre_pegin_hash"),
 );
 
+// Local override of the global gate mock so we can drive a paused scope. Plain
+// holder (not vi.fn) so `vi.clearAllMocks()` can't reset it; defaults unblocked.
+const gateMock = vi.hoisted(() => ({
+  value: { protocol: null as string | null, aave: null as string | null },
+}));
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => gateMock.value,
+}));
+
 vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
 }));
@@ -49,6 +58,19 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
       hashlock: "0xonchain_hashlock",
     }),
   ),
+}));
+
+// Fresh on-chain pause read used by the activation preflight. Holder so tests
+// can simulate a pause landing in the stale-gate window (cached gate unblocked,
+// fresh read paused). Defaults unblocked.
+const onChainPauseMock = vi.hoisted(() => ({
+  value: { protocol: null, aave: null } as {
+    protocol: string | null;
+    aave: string | null;
+  } | null,
+}));
+vi.mock("@/clients/eth-contract/pause-state/query", () => ({
+  getOnChainPauseState: () => Promise.resolve(onChainPauseMock.value),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -710,6 +732,49 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: null };
+  });
+
+  it("does not reveal the secret on-chain when a scope is paused", async () => {
+    // Activation is an EXIT blocked under Pause (either scope). The guard must
+    // short-circuit before any on-chain read or the secret-revealing tx.
+    gateMock.value = { protocol: null, aave: "paused" };
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(reader.getVaultData).not.toHaveBeenCalled();
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("re-checks pause on-chain before revealing the secret (catches a pause in the stale-gate window)", async () => {
+    // Cached gate is unblocked, but a FRESH read shows a pause landed while the
+    // user sat on the activate screen. The secret must not reach the tx.
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: "paused" };
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).not.toBeNull();
   });
 
   it("uses the on-chain hashlock and never reads the indexer hashlock", async () => {

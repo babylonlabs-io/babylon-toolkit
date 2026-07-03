@@ -1,5 +1,5 @@
 import { Text } from "../Text";
-import { BsDiscord, BsGithub, BsLinkedin, BsTelegram } from "react-icons/bs";
+import { BsDiscord, BsGithub, BsLinkedin } from "react-icons/bs";
 import { FaXTwitter } from "react-icons/fa6";
 import { GoHome } from "react-icons/go";
 import { IoMdBook } from "react-icons/io";
@@ -25,6 +25,9 @@ export interface FooterProps {
   /** Optional className */
   className?: string;
 
+  /** Optional className for the social links/copyright block */
+  socialClassName?: string;
+
   /** Copyright year */
   copyrightYear?: number;
 }
@@ -44,11 +47,6 @@ export const DEFAULT_SOCIAL_LINKS: SocialLink[] = [
     name: "GitHub",
     url: "https://github.com/babylonlabs-io",
     Icon: BsGithub,
-  },
-  {
-    name: "Telegram",
-    url: "https://t.me/babyloncommunity",
-    Icon: BsTelegram,
   },
   {
     name: "LinkedIn",
@@ -81,6 +79,7 @@ export const Footer = ({
   socialLinks = DEFAULT_SOCIAL_LINKS,
   logo,
   className,
+  socialClassName,
   copyrightYear = new Date().getFullYear(),
 }: FooterProps) => {
   return (
@@ -93,8 +92,8 @@ export const Footer = ({
       <Container className="flex flex-col items-center md:flex-row-reverse md:items-start md:justify-between">
         {logo || <Logo className="h-[61px] w-[250px] lg:h-[90px] lg:w-[367px]" />}
 
-        <div className="mt-10 md:mt-0">
-          <div className="mb:pt-0 flex flex-wrap justify-center gap-x-5 gap-y-8 pb-10 pt-2 md:justify-start md:pb-8">
+        <div className={twMerge("mt-10 md:mt-0", socialClassName)}>
+          <div className="mb:pt-0 flex flex-wrap justify-center gap-x-4 gap-y-8 pb-10 pt-2 md:justify-start md:pb-8">
             {socialLinks.map(({ name, url, Icon }) => (
               <a
                 key={name}
@@ -103,12 +102,12 @@ export const Footer = ({
                 rel="noopener noreferrer"
                 className="transition-colors hover:text-secondary-main"
               >
-                <Icon size={28} title={name} />
+                <Icon size={32} title={name} />
               </a>
             ))}
           </div>
 
-          <Text variant="body2" className="text-center md:text-left">
+          <Text variant="body2" className="text-center text-accent-secondary md:text-left">
             <a
               href="https://babylonlabs.io/terms-of-use"
               target="_blank"

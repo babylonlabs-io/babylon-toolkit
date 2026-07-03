@@ -327,7 +327,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Provider not found");
+      expect(result.current.error?.title).toBe("Vault provider not found");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 
@@ -356,7 +356,7 @@ describe("usePayoutSigningState", () => {
         await result.current.handleSign();
       });
 
-      expect(result.current.error?.title).toBe("Provider not assigned");
+      expect(result.current.error?.title).toBe("Vault provider not assigned");
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
 

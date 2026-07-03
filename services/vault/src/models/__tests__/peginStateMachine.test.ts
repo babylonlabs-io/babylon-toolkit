@@ -10,6 +10,7 @@ import {
   getPeginDisplayStep,
   getPeginState,
   getPrimaryActionButton,
+  isRefundInFlightOrSettled,
   isVaultActivated,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
@@ -559,6 +560,34 @@ describe("peginStateMachine", () => {
       expect(
         canPerformAction(state, PeginAction.SIGN_PAYOUT_TRANSACTIONS),
       ).toBe(false);
+    });
+  });
+
+  describe("isRefundInFlightOrSettled", () => {
+    it("is true while a refund is in flight (Refunding)", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundSettlement: "pending",
+      });
+      expect(isRefundInFlightOrSettled(state)).toBe(true);
+    });
+
+    it("is true once a refund has settled (Refunded)", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundSettlement: "confirmed",
+      });
+      expect(isRefundInFlightOrSettled(state)).toBe(true);
+    });
+
+    it("is false for a still-refundable expired vault", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
+      expect(isRefundInFlightOrSettled(state)).toBe(false);
+    });
+
+    it("is false for a pending vault", () => {
+      const state = getPeginState(ContractStatus.PENDING, {});
+      expect(isRefundInFlightOrSettled(state)).toBe(false);
     });
   });
 

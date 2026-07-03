@@ -14,9 +14,11 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { isRepayBlocked } from "@/components/shared/protocolStatus";
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useERC20Balance } from "@/hooks";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import {
   getCurrencyIconWithFallback,
@@ -51,6 +53,8 @@ import { validateRepayPreSign } from "./hooks/validateRepayPreSign";
 import { RepayDetailsCard } from "./RepayDetailsCard";
 
 export function Repay() {
+  const gate = useProtocolGateState();
+  const repayBlocked = isRepayBlocked(gate);
   const {
     collateralValueUsd,
     currentDebtAmount,
@@ -270,16 +274,18 @@ export function Repay() {
             title: COPY.loans.transactionFailedTitle,
             body: txError,
           }
-        : refetchError
-          ? { variant: "warning", body: refetchError }
-          : // Only when NO balance ever loaded (first load failed). A
-            // background-refetch blip keeps the last good balance, so it must
-            // not surface a load error or block repay.
-            !hasBalanceData && balanceError != null
-            ? { variant: "warning", body: COPY.loans.repay.balanceLoadError }
-            : balanceKnown && warningMessage
-              ? { variant: "warning", body: warningMessage }
-              : null;
+        : repayBlocked
+          ? { variant: "warning", body: COPY.loans.repayingUnavailable }
+          : refetchError
+            ? { variant: "warning", body: refetchError }
+            : // Only when NO balance ever loaded (first load failed). A
+              // background-refetch blip keeps the last good balance, so it must
+              // not surface a load error or block repay.
+              !hasBalanceData && balanceError != null
+              ? { variant: "warning", body: COPY.loans.repay.balanceLoadError }
+              : balanceKnown && warningMessage
+                ? { variant: "warning", body: warningMessage }
+                : null;
 
   return (
     <div>
@@ -379,13 +385,21 @@ export function Repay() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing || isSubmitting || !balanceKnown}
+        disabled={
+          isDisabled ||
+          isProcessing ||
+          isSubmitting ||
+          !balanceKnown ||
+          repayBlocked
+        }
         onClick={handleRepay}
         className="mt-6"
       >
-        {isProcessing || isSubmitting
-          ? COPY.loans.repay.processing
-          : buttonText}
+        {repayBlocked
+          ? COPY.loans.repay.unavailable
+          : isProcessing || isSubmitting
+            ? COPY.loans.repay.processing
+            : buttonText}
       </Button>
 
       {/* Single status callout (validation / transaction / balance warning) */}

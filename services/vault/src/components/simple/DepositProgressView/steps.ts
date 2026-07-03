@@ -30,32 +30,58 @@ export function buildStepItems(
       : undefined;
 
   return [
-    { label: COPY.deposit.steps.generateSecret },
-    { label: COPY.deposit.steps.signPeginBtc, description: peginCounter },
-    { label: COPY.deposit.steps.signLinkProofs },
-    { label: COPY.deposit.steps.signAndBroadcastEth },
-    { label: COPY.deposit.steps.signAndBroadcastPrePegin },
-    { label: COPY.deposit.steps.confirmingDeposit },
-    { label: COPY.deposit.steps.submitWotsKey },
-    { label: COPY.deposit.steps.awaitPayoutTransactions },
-    { label: COPY.deposit.steps.authenticateSession },
-    { label: COPY.deposit.steps.signPayouts, description: payoutCounter },
-    { label: COPY.deposit.steps.signRecoveryTxs, description: graphCounter },
-    { label: COPY.deposit.steps.awaitVpVerification },
-    { label: COPY.deposit.steps.retrieveSecret },
-    { label: COPY.deposit.steps.revealSecret },
-    { label: COPY.deposit.steps.awaitActivationConfirmation },
+    {
+      label: COPY.deposit.steps.generateSecret,
+    },
+    {
+      label: COPY.deposit.steps.signPeginBtc,
+      description: peginCounter,
+    },
+    {
+      label: COPY.deposit.steps.signLinkProofs,
+    },
+    {
+      label: COPY.deposit.steps.signAndBroadcastEth,
+    },
+    {
+      label: COPY.deposit.steps.signAndBroadcastPrePegin,
+    },
+    {
+      label: COPY.deposit.steps.confirmingDeposit,
+    },
+    {
+      label: COPY.deposit.steps.submitWotsKey,
+    },
+    {
+      label: COPY.deposit.steps.awaitPayoutTransactions,
+    },
+    {
+      label: COPY.deposit.steps.authenticateSession,
+    },
+    {
+      label: COPY.deposit.steps.signPayouts,
+      description: payoutCounter,
+    },
+    {
+      label: COPY.deposit.steps.signRecoveryTxs,
+      description: graphCounter,
+    },
+    {
+      label: COPY.deposit.steps.awaitVpVerification,
+    },
+    {
+      label: COPY.deposit.steps.retrieveSecret,
+    },
+    {
+      label: COPY.deposit.steps.revealSecret,
+    },
+    {
+      label: COPY.deposit.steps.awaitActivationConfirmation,
+    },
   ];
 }
 
 export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;
-
-/**
- * Shared max-width for the deposit progress surfaces. Both the live stepper
- * (DepositProgressView) and the pre-sign summary (DepositSummaryCard) use this
- * so the two screens stay the same width across the Sign transition.
- */
-export const DEPOSIT_VIEW_MAX_WIDTH_CLASS = "max-w-[520px]";
 
 /**
  * Logical groupings of the deposit flow. Each group covers a contiguous,
