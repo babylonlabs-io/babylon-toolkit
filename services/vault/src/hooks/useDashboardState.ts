@@ -47,8 +47,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
   const { activatingVaults, clearActivatingVault } = useActivatingVaults();
 
-  const hasDebt = debtValueUsd > 0;
-
   // Raw indexer entries (liquidationIndex straight from the indexer). These
   // drive reconciliation — they reflect what the indexer currently believes,
   // independent of any active override.
@@ -169,7 +167,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     hasLoans,
     hasCollateral,
     hasDisplayCollateral,
-    hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
     isLoading,
