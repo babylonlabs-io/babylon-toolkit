@@ -38,7 +38,6 @@ import {
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
-import featureFlags from "@/config/featureFlags";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
@@ -766,7 +765,6 @@ export function useDepositFlow(
               authAnchorHex,
               pinnedServerPubkey,
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
-              enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
             });
             primedRegistryTxids.push(peginTxid);
           }
