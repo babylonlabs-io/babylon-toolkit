@@ -2,13 +2,14 @@
  * ChallengeAssert PSBT Builder
  *
  * Builds an unsigned PSBT for a ChallengeAssert transaction
- * (depositor-as-claimer path, per challenger). The ChallengeAssert tx has
- * NUM_UTXOS_FOR_CHALLENGE_ASSERT (3) inputs, each spending a different Assert
- * output segment. The depositor signs ALL inputs, each with its own taproot
- * script derived from the per-segment connector params.
+ * (depositor-as-claimer path, per challenger). ChallengeAssert is split across
+ * two single-input transactions — ChallengeAssertX (spends the challenger's
+ * ConnectorX Assert output) and ChallengeAssertY (spends ConnectorY). This
+ * builder handles one such transaction; the depositor signs every input, each
+ * with its own taproot script derived from that input's connector params.
  *
  * @module primitives/psbt/challengeAssert
- * @see btc-vault crates/vault/docs/btc-transactions-spec.md — ChallengeAssert connector (NUM_UTXOS_FOR_CHALLENGE_ASSERT=3)
+ * @see btc-vault crates/vault/docs/btc-transactions-spec.md — ChallengeAssertX / ChallengeAssertY
  */
 
 import {
@@ -41,10 +42,10 @@ export interface ChallengeAssertParams {
 /**
  * Build unsigned ChallengeAssert PSBT.
  *
- * The ChallengeAssert transaction has 3 inputs (one per Assert output segment).
- * Each input has its own taproot script derived from its connector params.
- * The depositor signs all inputs. Every prevout is derived from the
- * authoritative Assert transaction, never trusted from external input.
+ * Each input has its own taproot script derived from its connector params; the
+ * number of connector params must match the transaction's input count. The
+ * depositor signs all inputs. Every prevout is derived from the authoritative
+ * Assert transaction, never trusted from external input.
  *
  * @param params - ChallengeAssert parameters
  * @returns Unsigned PSBT hex ready for signing

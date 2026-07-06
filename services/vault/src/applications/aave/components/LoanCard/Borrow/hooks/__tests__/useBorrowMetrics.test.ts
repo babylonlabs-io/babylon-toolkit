@@ -2,8 +2,7 @@
  * Tests for useBorrowMetrics
  *
  * Verifies that borrowAmount (in token units) is correctly converted
- * to USD via tokenPriceUsd for health factor and borrow ratio calculations
- * (Issues #48, #61).
+ * to USD via tokenPriceUsd for the projected health factor (Issues #48, #61).
  */
 
 import { describe, expect, it } from "vitest";
@@ -26,7 +25,6 @@ describe("useBorrowMetrics", () => {
     });
 
     expect(result.healthFactorValue).toBe(8.0);
-    expect(result.borrowRatioOriginal).toBeUndefined();
     expect(result.healthFactorOriginal).toBeUndefined();
   });
 
@@ -56,17 +54,17 @@ describe("useBorrowMetrics", () => {
     expect(result.healthFactorValue).toBeCloseTo((10000 * 0.8) / 7000, 5);
   });
 
-  it("shows projected and original borrow ratio when borrowing", () => {
+  it("shows projected and original health factor when borrowing", () => {
     const result = useBorrowMetrics({
       ...baseProps,
       borrowAmount: 500,
       tokenPriceUsd: 1,
     });
 
-    // Original ratio should be based on current debt only
-    expect(result.borrowRatioOriginal).toBeDefined();
-    // Projected ratio should include the new borrow
-    expect(result.borrowRatio).toBeDefined();
+    // Original health factor reflects the position before the borrow
+    expect(result.healthFactorOriginal).toBeDefined();
+    // Projected health factor includes the new borrow
+    expect(result.healthFactor).toBeDefined();
   });
 
   it("shows current values when tokenPriceUsd is null", () => {
@@ -78,7 +76,6 @@ describe("useBorrowMetrics", () => {
 
     // Should return current values with no projection, same as borrowAmount=0
     expect(result.healthFactorValue).toBe(8.0);
-    expect(result.borrowRatioOriginal).toBeUndefined();
     expect(result.healthFactorOriginal).toBeUndefined();
   });
 

@@ -36,7 +36,7 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
           )
 
-          git fetch origin main --depth=1 || true
+          git fetch origin main || true
           changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
 
           matched=()

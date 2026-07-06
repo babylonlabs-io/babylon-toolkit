@@ -27,7 +27,7 @@ import type {
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
 } from "./types.js";
-import { assertWasmBigint } from "./value-guards.js";
+import { assertPositiveBigintArray, assertWasmBigint } from "./value-guards.js";
 
 /**
  * HTLC output index for single deposits.
@@ -77,7 +77,9 @@ export async function createPrePeginTransaction(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
-    new BigUint64Array(params.pegInAmounts),
+    new BigUint64Array(
+      assertPositiveBigintArray(params.pegInAmounts, "pegInAmounts"),
+    ),
     params.timelockRefund,
     params.feeRate,
     params.minPeginFeeRate,
@@ -150,7 +152,9 @@ export async function buildPeginTxFromPrePegin(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
-    new BigUint64Array(params.pegInAmounts),
+    new BigUint64Array(
+      assertPositiveBigintArray(params.pegInAmounts, "pegInAmounts"),
+    ),
     params.timelockRefund,
     params.feeRate,
     params.minPeginFeeRate,
@@ -483,6 +487,9 @@ export type {
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
+
+// Export boundary value guards (input validation for callers)
+export { assertPositiveBigintArray } from "./value-guards.js";
 
 // Re-export WASM classes (mirrors index.ts browser entry)
 export { WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector };

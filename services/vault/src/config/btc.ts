@@ -56,7 +56,7 @@ export function getNetworkConfigBTC(): ExtendedBTCConfig {
     networkName: base.networkName,
     mempoolApiUrl: base.mempoolApiUrl,
     network: NETWORK_BY_NAME[base.network],
-    icon: isSignet ? "/images/signet_bitcoin.svg" : "/images/btc.png",
+    icon: isSignet ? "/images/signet_bitcoin.svg" : "/images/btc.svg",
     name: isSignet ? "Signet Bitcoin" : "Bitcoin",
     displayUSD: !isSignet,
   };

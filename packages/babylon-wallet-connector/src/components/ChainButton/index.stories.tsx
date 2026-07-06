@@ -22,16 +22,12 @@ export const Default: Story = {
 
 export const Connected: Story = {
   args: {
-    disabled: true,
     title: "Select Bitcoin Wallet",
     logo: "/images/chains/bitcoin.png",
     children: (
       <ConnectedWallet
-        chainId="BTC"
-        className="cursor-default"
         logo="/images/wallets/okx.png"
-        name="OKX"
-        address="bc1pnT..e4Vtc"
+        address="bc1p7wcysvdpee032xp8834vuvc40zhv77typxl5hwtafktlgcj33ves63zkyd"
       />
     ),
   },

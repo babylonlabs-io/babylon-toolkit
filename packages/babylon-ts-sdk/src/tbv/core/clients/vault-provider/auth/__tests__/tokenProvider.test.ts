@@ -6,8 +6,15 @@ import {
   type CreateDepositorTokenResponse,
   VpTokenProvider,
 } from "../tokenProvider";
+import { CwtVerificationError } from "../verifyDepositorCwt";
 
 import {
+  GOLDEN_CWT_AUDIENCE_XONLY,
+  GOLDEN_CWT_EXP,
+  GOLDEN_CWT_SHORT_EXP,
+  GOLDEN_CWT_TOKEN_GRPC,
+  GOLDEN_CWT_TOKEN_JSONRPC,
+  GOLDEN_CWT_TOKEN_JSONRPC_SHORT,
   GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED,
   GOLDEN_EXPIRES_AT,
   GOLDEN_SIGNATURE_HEX,
@@ -43,8 +50,11 @@ function buildResponse(
   overrides: Partial<CreateDepositorTokenResponse> = {},
 ): CreateDepositorTokenResponse {
   return {
-    token: "test-token",
-    expires_at: NOW + 300,
+    // A genuine Rust-issued CWT whose iss/ephemeral match the server
+    // identity fixtures below and whose exp equals `expires_at`, so the
+    // provider's new CWT verification accepts it on the happy path.
+    token: GOLDEN_CWT_TOKEN_JSONRPC,
+    expires_at: GOLDEN_CWT_EXP,
     server_identity: {
       server_pubkey: PINNED_PUBKEY,
       ephemeral_pubkey: GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED,
@@ -88,6 +98,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: new Set([
         "vaultProvider_submitDepositorWotsKey",
         "auth_createDepositorToken",
@@ -107,6 +118,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -125,6 +137,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -133,13 +146,13 @@ describe("VpTokenProvider", () => {
     const first = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(first).toBe("test-token");
+    expect(first).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
 
     // No fetch mock was queued for a second call — cache must serve this.
     const second = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(second).toBe("test-token");
+    expect(second).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
     expect(
       (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
         .length,
@@ -147,17 +160,11 @@ describe("VpTokenProvider", () => {
   });
 
   it("re-acquires after invalidate()", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          createJsonRpcSuccessResponse(buildResponse({ token: "token-1" })),
-        )
-        .mockResolvedValueOnce(
-          createJsonRpcSuccessResponse(buildResponse({ token: "token-2" }), 2),
-        ),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(createJsonRpcSuccessResponse(buildResponse()))
+      .mockResolvedValueOnce(createJsonRpcSuccessResponse(buildResponse(), 2));
+    vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient();
     const provider = new VpTokenProvider({
@@ -165,6 +172,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -173,14 +181,17 @@ describe("VpTokenProvider", () => {
     const first = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(first).toBe("token-1");
+    expect(first).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
 
     provider.invalidate();
 
+    // After invalidate the cache is empty, so this must hit the network
+    // again rather than serve the evicted token.
     const second = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(second).toBe("token-2");
+    expect(second).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("refreshes when cached token is within refreshSkewSecs of expiry", async () => {
@@ -190,14 +201,15 @@ describe("VpTokenProvider", () => {
         .fn()
         .mockResolvedValueOnce(
           createJsonRpcSuccessResponse(
+            // Short-lived token: exp = GOLDEN_CWT_SHORT_EXP = NOW + 40.
             buildResponse({
-              token: "token-1",
-              expires_at: NOW + 40, // close to now
+              token: GOLDEN_CWT_TOKEN_JSONRPC_SHORT,
+              expires_at: GOLDEN_CWT_SHORT_EXP,
             }),
           ),
         )
         .mockResolvedValueOnce(
-          createJsonRpcSuccessResponse(buildResponse({ token: "token-2" }), 2),
+          createJsonRpcSuccessResponse(buildResponse(), 2),
         ),
     );
 
@@ -208,6 +220,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       refreshSkewSecs: 30,
@@ -217,7 +230,7 @@ describe("VpTokenProvider", () => {
     const first = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(first).toBe("token-1");
+    expect(first).toBe(GOLDEN_CWT_TOKEN_JSONRPC_SHORT);
 
     // Advance clock past (expires_at - skew) = NOW + 10
     fakeNow = NOW + 11;
@@ -225,7 +238,53 @@ describe("VpTokenProvider", () => {
     const second = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(second).toBe("token-2");
+    expect(second).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+  });
+
+  it("throws and does not cache when the wire token fails CWT verification", async () => {
+    // A response whose server_identity proof is genuine but whose bearer
+    // token has been tampered with: the COSE signature no longer verifies,
+    // so acquire must throw and leave the cache empty (the bad token never
+    // reaches a downstream authenticated call). The next acquire re-fetches.
+    const tamperedIndex = GOLDEN_CWT_TOKEN_JSONRPC.length - 10;
+    const tamperedChar =
+      GOLDEN_CWT_TOKEN_JSONRPC[tamperedIndex] === "A" ? "B" : "A";
+    const tamperedToken =
+      GOLDEN_CWT_TOKEN_JSONRPC.slice(0, tamperedIndex) +
+      tamperedChar +
+      GOLDEN_CWT_TOKEN_JSONRPC.slice(tamperedIndex + 1);
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonRpcSuccessResponse(buildResponse({ token: tamperedToken })),
+      )
+      .mockResolvedValueOnce(createJsonRpcSuccessResponse(buildResponse(), 2));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = createClient();
+    const provider = new VpTokenProvider({
+      client,
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: new Set(),
+      now: () => NOW,
+    });
+
+    await expect(
+      provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).rejects.toBeInstanceOf(CwtVerificationError);
+
+    // Cache stayed empty — the next acquire must hit the network again and
+    // serve the now-valid token rather than a cached tampered one.
+    const recovered = await provider.getToken(
+      "vaultProvider_submitDepositorWotsKey",
+    );
+    expect(recovered).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("propagates server-identity errors from acquire", async () => {
@@ -246,6 +305,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -268,6 +328,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -279,9 +340,9 @@ describe("VpTokenProvider", () => {
       provider.getToken("vaultProvider_submitDepositorWotsKey"),
     ]);
 
-    expect(a).toBe("test-token");
-    expect(b).toBe("test-token");
-    expect(c).toBe("test-token");
+    expect(a).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(b).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(c).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
@@ -311,10 +372,7 @@ describe("VpTokenProvider", () => {
         )
         // Second acquire: server returns a valid response.
         .mockResolvedValueOnce(
-          createJsonRpcSuccessResponse(
-            buildResponse({ token: "recovery-token" }),
-            2,
-          ),
+          createJsonRpcSuccessResponse(buildResponse(), 2),
         ),
     );
 
@@ -324,6 +382,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -343,7 +402,7 @@ describe("VpTokenProvider", () => {
     const recovered = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(recovered).toBe("recovery-token");
+    expect(recovered).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
   });
 
   // Strictly mid-await invalidate. The earlier test sequences
@@ -366,7 +425,7 @@ describe("VpTokenProvider", () => {
         .fn()
         .mockReturnValueOnce(firstResponse)
         .mockResolvedValueOnce(
-          createJsonRpcSuccessResponse(buildResponse({ token: "after-race" })),
+          createJsonRpcSuccessResponse(buildResponse()),
         ),
     );
 
@@ -376,6 +435,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set(),
       now: () => NOW,
@@ -403,7 +463,7 @@ describe("VpTokenProvider", () => {
     const recovered = await provider.getToken(
       "vaultProvider_submitDepositorWotsKey",
     );
-    expect(recovered).toBe("after-race");
+    expect(recovered).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
   });
 
   // --- gRPC bootstrap path ---
@@ -412,7 +472,9 @@ describe("VpTokenProvider", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValueOnce(
-        createJsonRpcSuccessResponse(buildResponse({ token: "grpc-token" })),
+        createJsonRpcSuccessResponse(
+          buildResponse({ token: GOLDEN_CWT_TOKEN_GRPC }),
+        ),
       );
     vi.stubGlobal("fetch", mockFetch);
 
@@ -422,6 +484,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_GATED_METHODS,
       now: () => NOW,
@@ -430,7 +493,7 @@ describe("VpTokenProvider", () => {
     const token = await provider.getToken(
       "vaultProvider_requestDepositorClaimerArtifacts",
     );
-    expect(token).toBe("grpc-token");
+    expect(token).toBe(GOLDEN_CWT_TOKEN_GRPC);
 
     // The bootstrap RPC must be the gRPC variant — bearer subject is what
     // distinguishes the two paths server-side.
@@ -443,12 +506,10 @@ describe("VpTokenProvider", () => {
   it("caches jsonrpc and grpc tokens in independent slots", async () => {
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce(
-        createJsonRpcSuccessResponse(buildResponse({ token: "jsonrpc-token" })),
-      )
+      .mockResolvedValueOnce(createJsonRpcSuccessResponse(buildResponse()))
       .mockResolvedValueOnce(
         createJsonRpcSuccessResponse(
-          buildResponse({ token: "grpc-token" }),
+          buildResponse({ token: GOLDEN_CWT_TOKEN_GRPC }),
           2,
         ),
       );
@@ -460,6 +521,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_GATED_METHODS,
       now: () => NOW,
@@ -471,8 +533,8 @@ describe("VpTokenProvider", () => {
     const grpcToken = await provider.getToken(
       "vaultProvider_requestDepositorClaimerArtifacts",
     );
-    expect(jsonRpcToken).toBe("jsonrpc-token");
-    expect(grpcToken).toBe("grpc-token");
+    expect(jsonRpcToken).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(grpcToken).toBe(GOLDEN_CWT_TOKEN_GRPC);
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
     // Re-asking for each must hit cache (no third fetch).
@@ -482,25 +544,29 @@ describe("VpTokenProvider", () => {
     const grpcAgain = await provider.getToken(
       "vaultProvider_requestDepositorClaimerArtifacts",
     );
-    expect(jsonRpcAgain).toBe("jsonrpc-token");
-    expect(grpcAgain).toBe("grpc-token");
+    expect(jsonRpcAgain).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(grpcAgain).toBe(GOLDEN_CWT_TOKEN_GRPC);
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("invalidate() clears both slots", async () => {
     const mockFetch = vi
       .fn()
+      .mockResolvedValueOnce(createJsonRpcSuccessResponse(buildResponse()))
       .mockResolvedValueOnce(
-        createJsonRpcSuccessResponse(buildResponse({ token: "jsonrpc-1" })),
+        createJsonRpcSuccessResponse(
+          buildResponse({ token: GOLDEN_CWT_TOKEN_GRPC }),
+          2,
+        ),
       )
       .mockResolvedValueOnce(
-        createJsonRpcSuccessResponse(buildResponse({ token: "grpc-1" }), 2),
+        createJsonRpcSuccessResponse(buildResponse(), 3),
       )
       .mockResolvedValueOnce(
-        createJsonRpcSuccessResponse(buildResponse({ token: "jsonrpc-2" }), 3),
-      )
-      .mockResolvedValueOnce(
-        createJsonRpcSuccessResponse(buildResponse({ token: "grpc-2" }), 4),
+        createJsonRpcSuccessResponse(
+          buildResponse({ token: GOLDEN_CWT_TOKEN_GRPC }),
+          4,
+        ),
       );
     vi.stubGlobal("fetch", mockFetch);
 
@@ -510,6 +576,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_GATED_METHODS,
       now: () => NOW,
@@ -517,21 +584,22 @@ describe("VpTokenProvider", () => {
 
     expect(
       await provider.getToken("vaultProvider_submitDepositorWotsKey"),
-    ).toBe("jsonrpc-1");
+    ).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
     expect(
       await provider.getToken("vaultProvider_requestDepositorClaimerArtifacts"),
-    ).toBe("grpc-1");
+    ).toBe(GOLDEN_CWT_TOKEN_GRPC);
 
     // One invalidate must evict both slots (the client doesn't tell us
-    // which subject expired, so we stay correct by clearing both).
+    // which subject expired, so we stay correct by clearing both). Each
+    // re-acquire hits the network again (4 fetches total).
     provider.invalidate();
 
     expect(
       await provider.getToken("vaultProvider_submitDepositorWotsKey"),
-    ).toBe("jsonrpc-2");
+    ).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
     expect(
       await provider.getToken("vaultProvider_requestDepositorClaimerArtifacts"),
-    ).toBe("grpc-2");
+    ).toBe(GOLDEN_CWT_TOKEN_GRPC);
     expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 
@@ -543,6 +611,7 @@ describe("VpTokenProvider", () => {
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
       pinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: new Set([
         "vaultProvider_requestDepositorClaimerArtifacts",

@@ -15,6 +15,6 @@ export const Default: Story = {
   args: {
     name: "Binance Web3 Wallet",
     logo: "/images/wallets/binance.png",
-    label: "Installed",
+    installed: true,
   },
 };

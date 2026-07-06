@@ -9,6 +9,8 @@ interface AssetListItemProps {
   /** Icon URL (optional - will use fallback if not provided) */
   icon?: string;
   priceUsd?: number;
+  /** Whether this item is the currently-selected asset */
+  selected?: boolean;
   onClick: () => void;
 }
 
@@ -17,12 +19,18 @@ export function AssetListItem({
   name,
   icon,
   priceUsd,
+  selected = false,
   onClick,
 }: AssetListItemProps) {
   return (
     <button
       onClick={onClick}
-      className="flex w-full cursor-pointer items-center gap-4 rounded-lg bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
+      aria-current={selected || undefined}
+      className={`flex w-full cursor-pointer items-center gap-4 rounded-lg p-4 transition-colors ${
+        selected
+          ? "bg-secondary-strokeLight dark:bg-secondary-strokeDark"
+          : "bg-secondary-highlight hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
+      }`}
     >
       <Avatar
         url={getCurrencyIconWithFallback(icon, symbol)}

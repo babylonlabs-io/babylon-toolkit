@@ -1,31 +1,32 @@
 /**
  * DepositProgressView
  *
- * Pure view component for the deposit progress stepper UI.
- * Used by both the initial deposit flow (DepositSignContent) and
- * the resume flows (payout signing / broadcast from the deposits table).
+ * View component for the deposit progress stepper UI. Used by every BTC-signing
+ * flow: the initial deposit (DepositSignContent), the resume/broadcast and
+ * payout-signing flows, and the post-deposit continuation. Because all of these
+ * require the BTC wallet, it self-sources the wallet-lock state and surfaces an
+ * unlock notice — the page-level affordances sit behind the full-screen dialog
+ * this view always renders inside.
  *
  * Renders: Heading, progress bar (post-sign), grouped step progress, status
- * banners, action button.
+ * banners (including a silent-lock notice), action button.
  */
 
-import {
-  Button,
-  Callout,
-  Heading,
-  Loader,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useCallback, useMemo } from "react";
 
+import { NotificationPermissionPrompt } from "@/components/shared/NotificationPermissionPrompt";
+import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 import type { DepositErrorContent } from "@/utils/errors";
 
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { CompletedStepsPill } from "./CompletedStepsPill";
+import { DepositCardShell } from "./DepositCardShell";
 import { GroupedProgress } from "./GroupedProgress";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
@@ -94,6 +95,10 @@ export interface DepositProgressViewProps {
   terminalMessage?: string | null;
   /** Override the default error retry handler (defaults to onClose) */
   onRetry?: () => void;
+  /** False while the flow has not been started yet (pre-sign entry state). Defaults to true so existing callers are unaffected. */
+  started?: boolean;
+  /** Begins the deposit flow. Required only when `started` can be false. */
+  onSign?: () => void;
   /**
    * Data backing the expanded "Awaiting Bitcoin tx confirmations" detail
    * panel. Rendered while the active step is AWAIT_PAYOUT_TRANSACTIONS —
@@ -163,16 +168,35 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     terminalMessage,
     onRetry,
     btcConfirmationDetail,
+    started = true,
+    onSign,
   } = props;
+
+  // Every flow that renders this view requires the BTC wallet, so surface a
+  // silent lock here (as an error-style Callout) regardless of which flow —
+  // deposit, resume/broadcast, payout signing, or continuation — mounted it.
+  const { locked: walletLocked } = useBTCWallet();
+  const { unlock, isUnlocking } = useBtcWalletUnlock(
+    "Wallet unlock from deposit progress",
+  );
 
   // A terminal-but-not-final milestone: closeable success without marking the
   // whole flow complete (so the stepper keeps its real position).
   const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
 
+  // At the pre-sign entry (`!started`) a silently locked wallet can't sign, so
+  // the primary CTA becomes an unlock action (matching the navbar and deposit
+  // form) instead of starting a flow that would only stall at the signing call.
+  const showUnlockCta = !started && walletLocked;
+
   // On completion, advance past the last row so every circle renders as ✓.
-  const visualStep = isComplete
-    ? TOTAL_VISUAL_STEPS + 1
-    : getVisualStep(currentStep);
+  // Before the flow starts, pin visual step 0 so every group collapses and
+  // nothing reads as completed.
+  const visualStep = !started
+    ? 0
+    : isComplete
+      ? TOTAL_VISUAL_STEPS + 1
+      : getVisualStep(currentStep);
   // `currentStep` is the active action, but split deposits can have each vault
   // lane land on a different step after a recoverable per-vault failure. The
   // aggregate progress bar and completed-group pill must therefore use the
@@ -183,9 +207,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           getVisualStep(step) < getVisualStep(minStep) ? step : minStep,
         )
       : currentStep;
-  const aggregateVisualStep = isComplete
-    ? TOTAL_VISUAL_STEPS + 1
-    : getVisualStep(aggregateRawStep);
+  const aggregateVisualStep = !started
+    ? 0
+    : isComplete
+      ? TOTAL_VISUAL_STEPS + 1
+      : getVisualStep(aggregateRawStep);
   const completedSteps = Math.max(
     0,
     Math.min(TOTAL_VISUAL_STEPS, aggregateVisualStep - 1),
@@ -222,20 +248,103 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   );
 
   return (
-    <div className="w-full max-w-[520px]">
-      <Heading variant="h5" className="text-accent-primary">
-        {COPY.deposit.progress.heading}
-      </Heading>
-
-      {showOverallProgress && (
-        <div className="mt-3">
+    <DepositCardShell
+      progressBar={
+        showOverallProgress ? (
           <ProgressBar
             percent={isComplete ? 1 : getStepFillPercent(aggregateRawStep)}
+            color="rgb(var(--success-bright))"
           />
-        </div>
-      )}
+        ) : undefined
+      }
+      footer={
+        // Callouts live here (not in the scrollable body) so error/success
+        // banners stay pinned above the CTA, always visible.
+        <div className="flex flex-col gap-4">
+          {walletLocked && !isComplete && !isTerminalSuccess && (
+            <Callout variant="error" title={COPY.wallet.locked.title}>
+              {COPY.wallet.locked.description}
+            </Callout>
+          )}
 
-      <div className="mt-6 flex flex-col gap-6">
+          {error && (
+            <Callout variant="error" title={error.title}>
+              {error.body}
+            </Callout>
+          )}
+
+          {isComplete && <Callout variant="success">{successMessage}</Callout>}
+
+          {isTerminalSuccess && (
+            <Callout variant="success">{terminalMessage}</Callout>
+          )}
+
+          <Button
+            disabled={
+              showUnlockCta
+                ? isUnlocking
+                : started
+                  ? !canClose && !isTerminalSuccess
+                  : false
+            }
+            variant="contained"
+            color="secondary"
+            className="w-full"
+            onClick={
+              showUnlockCta
+                ? unlock
+                : !started
+                  ? onSign
+                  : error && onRetry
+                    ? onRetry
+                    : onClose
+            }
+          >
+            {showUnlockCta ? (
+              isUnlocking ? (
+                COPY.wallet.locked.unlocking
+              ) : (
+                COPY.wallet.locked.unlockButton
+              )
+            ) : !started ? (
+              COPY.deposit.progress.buttons.signTransaction
+            ) : canContinueInBackground ? (
+              COPY.deposit.progress.buttons.closeContinueLater
+            ) : error ? (
+              onRetry ? (
+                COPY.deposit.progress.buttons.retry
+              ) : (
+                COPY.deposit.progress.buttons.close
+              )
+            ) : isComplete || isTerminalSuccess ? (
+              COPY.deposit.progress.buttons.done
+            ) : isProcessing ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader size={16} className="text-accent-contrast" />
+                <Text
+                  as="span"
+                  variant="body2"
+                  className="text-accent-contrast"
+                >
+                  {COPY.deposit.progress.buttons.sign}
+                </Text>
+              </span>
+            ) : (
+              COPY.deposit.progress.buttons.sign
+            )}
+          </Button>
+        </div>
+      }
+      footnote={
+        <Text
+          variant="body2"
+          className="text-center text-xs text-accent-secondary"
+        >
+          {COPY.deposit.progress.doNotSpendWarning}
+        </Text>
+      }
+    >
+      <div className="flex flex-col gap-6">
         {showCompletedGroupsPill && (
           <CompletedStepsPill completed={completedGroups} total={totalGroups} />
         )}
@@ -247,6 +356,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             vaultCount={vaultCount}
             currentVaultIndex={currentVaultIndex}
             rawStep={currentStep}
+            hasError={Boolean(error)}
             renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
           />
@@ -255,57 +365,15 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             steps={steps}
             currentStep={visualStep}
             activeStepDetail={activeStepDetail}
+            hasError={Boolean(error)}
           />
         )}
 
-        {error && (
-          <Callout variant="error" title={error.title}>
-            {error.body}
-          </Callout>
-        )}
-
-        {isComplete && <Callout variant="success">{successMessage}</Callout>}
-
-        {isTerminalSuccess && (
-          <Callout variant="success">{terminalMessage}</Callout>
-        )}
-
-        <Button
-          disabled={!canClose && !isTerminalSuccess}
-          variant="contained"
-          color="secondary"
-          className="w-full"
-          onClick={error && onRetry ? onRetry : onClose}
-        >
-          {canContinueInBackground ? (
-            COPY.deposit.progress.buttons.closeContinueLater
-          ) : error ? (
-            onRetry ? (
-              COPY.deposit.progress.buttons.retry
-            ) : (
-              COPY.deposit.progress.buttons.close
-            )
-          ) : isComplete || isTerminalSuccess ? (
-            COPY.deposit.progress.buttons.done
-          ) : isProcessing ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader size={16} className="text-accent-contrast" />
-              <Text as="span" variant="body2" className="text-accent-contrast">
-                {COPY.deposit.progress.buttons.sign}
-              </Text>
-            </span>
-          ) : (
-            COPY.deposit.progress.buttons.sign
-          )}
-        </Button>
-
-        <Text
-          variant="body2"
-          className="text-center text-xs text-accent-secondary"
-        >
-          {COPY.deposit.progress.doNotSpendWarning}
-        </Text>
+        {/* Persist through errors: a retry still needs signing, so the nudge
+            stays useful. Only a finished deposit (complete / terminal success)
+            has no further signing to notify about. */}
+        {!isComplete && !isTerminalSuccess && <NotificationPermissionPrompt />}
       </div>
-    </div>
+    </DepositCardShell>
   );
 }

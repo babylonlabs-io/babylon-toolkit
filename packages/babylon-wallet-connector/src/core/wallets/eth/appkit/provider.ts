@@ -26,6 +26,12 @@ import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 // the connected account via watchAccount before we treat the close as a cancel.
 const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
 
+// Generic Ethereum logo, used only when the active wagmi connector does not
+// expose its own name/icon (e.g. some WalletConnect sessions).
+const ETH_FALLBACK_PROVIDER_NAME = "Ethereum Wallet";
+const ETH_FALLBACK_PROVIDER_ICON =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=";
+
 /**
  * AppKitProvider - ETH wallet provider using AppKit/Wagmi
  *
@@ -388,13 +394,40 @@ export class AppKitProvider implements IETHProvider {
     };
   }
 
+  /**
+   * Identity of the wallet the user actually connected through AppKit
+   * (e.g. MetaMask, Rainbow), read from the active wagmi connector. Falls back
+   * to a generic Ethereum identity when the connector doesn't expose its own.
+   */
+  private getActiveConnectorIdentity(): { name?: string; icon?: string } | undefined {
+    // AppKit tracks the actual wallet the user connected (MetaMask, Rainbow, ...)
+    // per chain namespace. The underlying wagmi connector usually reports a
+    // generic "WalletConnect"/"Injected" identity, so prefer AppKit's view.
+    const walletInfo = getAppKitModal()?.getWalletInfo("eip155");
+    if (walletInfo?.name || walletInfo?.icon) {
+      return { name: walletInfo.name, icon: walletInfo.icon };
+    }
+
+    if (!hasSharedWagmiConfig()) return undefined;
+
+    try {
+      const { connector } = getAccount(this.getWagmiConfig());
+      if (!connector) return undefined;
+
+      return { name: connector.name, icon: connector.icon };
+    } catch {
+      return undefined;
+    }
+  }
+
   getWalletProviderName(): string {
-    return "AppKit";
+    const name = this.getActiveConnectorIdentity()?.name;
+    return name?.trim() ? name : ETH_FALLBACK_PROVIDER_NAME;
   }
 
   getWalletProviderIcon(): string {
-    // Ethereum logo as base64 data URL
-    return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=";
+    const icon = this.getActiveConnectorIdentity()?.icon;
+    return icon?.trim() ? icon : ETH_FALLBACK_PROVIDER_ICON;
   }
 
   on(eventName: string, handler: (...args: any[]) => void): void {

@@ -82,6 +82,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     depositorBtcPubkey: vault.depositorBtcPubkey,
     depositorSignedPeginTx: vault.depositorSignedPeginTx,
     unsignedPrePeginTx: vault.unsignedPrePeginTx,
+    htlcVout: vault.htlcVout,
     depositorPayoutBtcAddress: vault.depositorPayoutBtcAddress,
     depositorWotsPkHash: vault.depositorWotsPkHash,
     expiredAt: vault.expiredAt,

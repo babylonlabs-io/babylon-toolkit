@@ -125,6 +125,10 @@ export function PendingWithdrawCard({
   // Support, hidden bar). The `warning` variant is also used for transient
   // polling timeouts / unknown statuses, which should keep the normal layout.
   const isBlocked = claimer?.status === ClaimerPegoutStatusValue.PAYOUT_BLOCKED;
+  // "Payout sent" is the terminal success stage: the BTC payout is on its way,
+  // so the staged progress bar has nothing left to advance.
+  const isPayoutSent =
+    claimer?.status === ClaimerPegoutStatusValue.PAYOUT_BROADCAST;
 
   const progress = getPegoutStageProgress(
     claimer?.status,
@@ -160,6 +164,31 @@ export function PendingWithdrawCard({
     }
   }
 
+  // Challenge-period extras (live confirmation count + typical total duration)
+  // only make sense once the required timelock is known.
+  //  - confirmationsValue: Assert-tx confirmations toward the payout CSV clock,
+  //    shown once the live count is also known. The numerator is clamped so an
+  //    overshoot doesn't read as "450 of 432" before the status advances.
+  //  - typicalDuration: timelockAssert × block time, the up-front expectation
+  //    alongside the live countdown (total vs. remaining).
+  let confirmationsValue: string | undefined;
+  let typicalDuration: string | undefined;
+  if (
+    isChallengePeriod &&
+    timelockAssertBlocks !== undefined &&
+    timelockAssertBlocks > 0
+  ) {
+    typicalDuration = CARD_COPY.challengePeriodTypicalDuration(
+      formatDuration(timelockAssertBlocks * BTC_BLOCK_TIME_MINS),
+    );
+    if (assertConfirmations !== undefined) {
+      confirmationsValue = CARD_COPY.confirmationsValue(
+        Math.min(assertConfirmations, timelockAssertBlocks),
+        timelockAssertBlocks,
+      );
+    }
+  }
+
   return (
     <VaultCardShell>
       {/* Header: amount (left) + stage badge with info tooltip (right). */}
@@ -185,9 +214,11 @@ export function PendingWithdrawCard({
         />
       </div>
 
-      {/* Progress bar — omitted only for a real protocol block, where the red
-          badge and Contact Support carry the message instead. */}
-      {!isBlocked && (
+      {/* Progress bar — shown only while the withdrawal is still advancing.
+          Omitted at the terminal payout stages: "Payout sent" (the green badge
+          already says it's done) and "Blocked" (the red badge + Contact Support
+          carry the message instead). */}
+      {!isBlocked && !isPayoutSent && (
         <ProgressBar percent={progress} color={ASSET_BRAND_COLOR} />
       )}
 
@@ -212,6 +243,14 @@ export function PendingWithdrawCard({
       {estRemaining && (
         <VaultCardRow label={CARD_COPY.challengePeriodEndsLabel}>
           <span className="text-sm text-accent-primary">{estRemaining}</span>
+        </VaultCardRow>
+      )}
+
+      {confirmationsValue && (
+        <VaultCardRow label={CARD_COPY.confirmationsLabel}>
+          <span className="text-sm text-accent-primary">
+            {confirmationsValue}
+          </span>
         </VaultCardRow>
       )}
 
@@ -259,7 +298,9 @@ export function PendingWithdrawCard({
       {/* Challenge-period security note. */}
       {isChallengePeriod && (
         <div className="rounded-lg bg-secondary-highlight p-3 text-sm text-accent-secondary">
-          {CARD_COPY.challengeNote} {CARD_COPY.learnMorePrefix}
+          {CARD_COPY.challengeNote}
+          {typicalDuration ? ` ${typicalDuration}` : ""}{" "}
+          {CARD_COPY.learnMorePrefix}
           <a
             href={WITHDRAWAL_LATENCY_DOCS_URL}
             target="_blank"

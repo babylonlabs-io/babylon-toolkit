@@ -31,7 +31,6 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
-import featureFlags from "@/config/featureFlags";
 import {
   useDepositPollingResult,
   usePeginPolling,
@@ -304,11 +303,11 @@ export function ResumeWotsContent({
     try {
       const peginTxHash = activity.peginTxHash ?? null;
       if (!peginTxHash) {
-        throw new Error("Missing pegin transaction hash");
+        throw new Error("Missing peg-in transaction hash");
       }
       if (!activity.unsignedPrePeginTx) {
         throw new Error(
-          "Missing pre-pegin transaction; cannot recover WOTS seed inputs",
+          "Missing Pre-Pegin transaction; cannot recover WOTS seed inputs",
         );
       }
 
@@ -401,7 +400,7 @@ export function ResumeWotsContent({
           peginTxid: primedTxid,
           authAnchorHex,
           pinnedServerPubkey,
-          enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
+          depositorBtcPubkey,
         });
         trackPrimedTxid(primedTxid);
       }
@@ -596,7 +595,7 @@ export function ResumeActivationContent({
     }
     if (!activity.unsignedPrePeginTx) {
       setLocalError(
-        "Missing pre-pegin transaction; cannot recover HTLC secret",
+        "Missing Pre-Pegin transaction; cannot recover HTLC secret",
       );
       setLoading(false);
       return;

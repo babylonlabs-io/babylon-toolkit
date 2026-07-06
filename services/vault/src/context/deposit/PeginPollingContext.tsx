@@ -20,7 +20,11 @@ import {
   useState,
 } from "react";
 
+import { useDemoDeposit } from "@/dev/demoDeposit";
+
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
+import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
+import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import {
   ContractStatus,
@@ -34,6 +38,10 @@ import {
   addMatureRefundTxid,
   loadMatureRefundTxids,
 } from "../../storage/matureRefundCache";
+import {
+  addRefundedHtlcVaultId,
+  loadRefundedHtlcVaultIds,
+} from "../../storage/refundedHtlcCache";
 import type { VaultActivity } from "../../types/activity";
 import type {
   DepositPollingResult,
@@ -48,6 +56,9 @@ import { computeDepositPollingResult } from "./computeDepositPollingResult";
 
 /** React Query namespace for the Pre-PegIn confirmation poller. */
 const PREPEGIN_CONFIRMATIONS_QUERY_KEY = "prePeginMempoolConfirmations";
+
+/** React Query namespace for the EXPIRED-vault HTLC refund-spend poller. */
+const HTLC_REFUND_QUERY_KEY = "htlcRefundOutspend";
 
 /**
  * Whether a vault's localStorage status puts it in the window where the
@@ -105,6 +116,11 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
 }: PeginPollingProviderProps) {
+  // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
+  // is on and the panel toggle is enabled). When present, its ids resolve to
+  // controlled results below instead of the live polling decision tree.
+  const demo = useDemoDeposit();
+
   // Optimistic status overrides (for immediate UI feedback after signing)
   const [optimisticStatuses, setOptimisticStatuses] = useState<
     Map<string, LocalStorageStatus>
@@ -141,6 +157,12 @@ export function PeginPollingProvider({
   // can drop the txid from the poll set forever (within TTL).
   const [matureRefundTxids, setMatureRefundTxids] = useState<Set<string>>(
     loadMatureRefundTxids,
+  );
+  // EXPIRED vaults whose HTLC spend confirmed (refund landed). A confirmed
+  // spend is terminal, so — like the caches above — drop the vault from the
+  // poll set and keep rendering "Refunded" without re-probing.
+  const [refundedHtlcVaultIds, setRefundedHtlcVaultIds] = useState<Set<string>>(
+    loadRefundedHtlcVaultIds,
   );
 
   const getRequiredPrePeginDepth = useCallback(
@@ -207,6 +229,39 @@ export function PeginPollingProvider({
       PREPEGIN_CONFIRMATIONS_QUERY_KEY,
     );
 
+  // Probe whether each EXPIRED+owned vault's HTLC output is already spent
+  // (refund landed). A pure BTC refund emits no Ethereum event, so the indexer
+  // never sees it — read it from Bitcoin directly. Drop vaults already known
+  // refunded (confirmed-spend cache) from the set.
+  const htlcRefundOutpoints = useMemo(
+    () =>
+      activities
+        .filter((a) => {
+          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
+            return false;
+          if ((a.contractStatus ?? 0) !== ContractStatus.EXPIRED) return false;
+          if (refundedHtlcVaultIds.has(a.id.toLowerCase())) return false;
+          return (
+            !!a.prePeginTxHash &&
+            a.htlcVout !== undefined &&
+            Number.isInteger(a.htlcVout)
+          );
+        })
+        // `htlcVout` is indexer-sourced and drives the DISPLAY poll only (a wrong
+        // vout → at worst mislabel/hide the refund, recoverable via cache TTL);
+        // the broadcast path re-reads htlcVout from chain, so no wrong tx signs.
+        .map((a) => ({
+          depositId: a.id,
+          prePeginTxHash: a.prePeginTxHash as string,
+          htlcVout: a.htlcVout as number,
+        })),
+    [activities, btcPublicKey, refundedHtlcVaultIds],
+  );
+  const { refundByDepositId: htlcRefundByDepositId } = useBtcHtlcRefundStatus(
+    htlcRefundOutpoints,
+    HTLC_REFUND_QUERY_KEY,
+  );
+
   // Persist newly-confirmed observations and drop them from the next
   // poll set. Side effects sit outside the updater so StrictMode's
   // double-invoke doesn't double-write; the early return prevents
@@ -262,6 +317,26 @@ export function PeginPollingProvider({
     getOffchainParamsByVersion,
   ]);
 
+  // Persist vaults whose HTLC spend has confirmed and drop them from the next
+  // poll set. Only confirmed spends are cached (a mempool-only spend can still
+  // be replaced/reorged); the live map drives the transient "Refunding" state.
+  useEffect(() => {
+    if (htlcRefundByDepositId.size === 0) return;
+    const newlyRefunded: string[] = [];
+    for (const [depositId, spend] of htlcRefundByDepositId) {
+      if (spend.confirmed && !refundedHtlcVaultIds.has(depositId)) {
+        newlyRefunded.push(depositId);
+      }
+    }
+    if (newlyRefunded.length === 0) return;
+    newlyRefunded.forEach(addRefundedHtlcVaultId);
+    setRefundedHtlcVaultIds((prev) => {
+      const next = new Set(prev);
+      newlyRefunded.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [htlcRefundByDepositId, refundedHtlcVaultIds]);
+
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(
     (
@@ -298,10 +373,30 @@ export function PeginPollingProvider({
     });
   }, []);
 
+  // Confirmed settled refund: persist to the cache AND update the in-memory set
+  // so `refundConfirmed` flips to "Refunded" this session, not just on reload.
+  // Lowercased to match the `depositId.toLowerCase()` lookup in the poll result.
+  const addConfirmedRefund = useCallback((depositId: string) => {
+    addRefundedHtlcVaultId(depositId);
+    const key = depositId.toLowerCase();
+    setRefundedHtlcVaultIds((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
+
   // Wrapper: depositId → activity, resolve per-vault thresholds, then
   // hand off to the pure decision tree in `computeDepositPollingResult`.
   const getPollingResult = useCallback(
     (depositId: string): DepositPollingResult | undefined => {
+      // God-mode demo ids resolve to their controlled result, bypassing the
+      // live polling tree (the demo is never in `activities`, so it is never
+      // polled). No-op in production (demo is null).
+      const demoResult = demo?.resultsById.get(depositId);
+      if (demoResult) return demoResult;
+
       const activity = activities.find((a) => a.id === depositId);
       if (!activity) return undefined;
       // Strict: a since-lowered latest `tRefund` could mark a vault
@@ -320,6 +415,8 @@ export function PeginPollingProvider({
         prePeginConfirmationsByTxid,
         confirmedTxids,
         matureRefundTxids,
+        htlcRefundByDepositId,
+        refundedHtlcVaultIds,
         requiredDepth: getRequiredPrePeginDepth(activity),
         refundTimelock,
         isLoading,
@@ -329,6 +426,7 @@ export function PeginPollingProvider({
       });
     },
     [
+      demo,
       activities,
       pendingPegins,
       pendingDepositorSignatures,
@@ -338,6 +436,8 @@ export function PeginPollingProvider({
       prePeginConfirmationsByTxid,
       confirmedTxids,
       matureRefundTxids,
+      htlcRefundByDepositId,
+      refundedHtlcVaultIds,
       getRequiredPrePeginDepth,
       getOffchainParamsByVersion,
       isLoading,
@@ -347,6 +447,10 @@ export function PeginPollingProvider({
     ],
   );
 
+  // Surface a browser notification when any polled deposit enters a
+  // signing/action-required state while the user is on another tab.
+  useSigningRequiredNotifications(activities, getPollingResult, btcPublicKey);
+
   const contextValue = useMemo(
     () => ({
       getPollingResult,
@@ -354,6 +458,7 @@ export function PeginPollingProvider({
       refetch: () => refetch(),
       setOptimisticStatus,
       clearOptimisticStatus,
+      addConfirmedRefund,
     }),
     [
       getPollingResult,
@@ -361,6 +466,7 @@ export function PeginPollingProvider({
       refetch,
       setOptimisticStatus,
       clearOptimisticStatus,
+      addConfirmedRefund,
     ],
   );
 

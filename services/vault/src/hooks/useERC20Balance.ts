@@ -25,6 +25,12 @@ export interface UseERC20BalanceResult {
   /** Error state */
   error: Error | null;
   /**
+   * True once a balance has successfully loaded at least once. Stays true across
+   * background-refetch errors (React Query keeps the last good `data`), letting
+   * callers distinguish "no balance yet" from "latest refetch failed".
+   */
+  hasBalanceData: boolean;
+  /**
    * Manually refetch the balance. Resolves with the fresh `QueryObserverResult`
    * whose `.data` is the up-to-date raw balance — useful when the caller needs
    * a fresh on-chain read inside a synchronous flow (e.g. computing a Max
@@ -78,6 +84,7 @@ export function useERC20Balance(
     balanceRaw: balanceRaw ?? 0n,
     isLoading,
     error: error as Error | null,
+    hasBalanceData: balanceRaw !== undefined,
     refetch,
   };
 }

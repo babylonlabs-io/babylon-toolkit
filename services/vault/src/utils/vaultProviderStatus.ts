@@ -15,14 +15,14 @@ const REASON_BY_STATUS: Record<
   Exclude<VaultProviderMetadataStatus, "ok">,
   string
 > = {
-  missing: "This provider has no RPC URL configured.",
-  invalid_url: "This provider's RPC URL is not a valid URL.",
+  missing: "This vault provider has no RPC URL configured.",
+  invalid_url: "This vault provider's RPC URL is not a valid URL.",
   unsupported_scheme:
-    "This provider's RPC URL uses an unsupported scheme (only http/https are accepted).",
+    "This vault provider's RPC URL uses an unsupported scheme (only http/https are accepted).",
   private_host:
-    "This provider's RPC URL points to a private or internal address that the proxy will reject.",
+    "This vault provider's RPC URL points to a private or internal address that the proxy will reject.",
   ipv6_literal_unsupported:
-    "This provider's RPC URL uses an IPv6 literal host that the proxy does not support.",
+    "This vault provider's RPC URL uses an IPv6 literal host that the proxy does not support.",
 };
 
 /**

@@ -1,51 +1,60 @@
-import { Avatar, Text } from "@babylonlabs-io/core-ui";
-import { memo } from "react";
+import { Avatar, CheckIcon, CopyIcon, Text, useCopy } from "@babylonlabs-io/core-ui";
+import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import { twMerge } from "tailwind-merge";
-
-import { formatAddress } from "@/utils/wallet";
 
 interface ConnectedWalletProps {
   className?: string;
-  chainId: string;
   logo: string;
-  name: string;
   address: string;
-  onDisconnect?: (chainId: string) => void;
 }
 
-export const ConnectedWallet = memo(
-  ({ className, chainId, logo, name, address, onDisconnect }: ConnectedWalletProps) => (
-    <div
-      className={twMerge("flex shrink-0 items-center gap-2.5 rounded border border-secondary-main/30 p-2", className)}
-    >
-      <Avatar variant="rounded" size="medium" url={logo} />
+// Addresses longer than this are middle-truncated (keep the head and tail) so
+// the user can verify the start and end at a glance. The full value is always
+// available via the `title` tooltip and the copy button.
+const ADDRESS_TRUNCATE_THRESHOLD = 36;
+const ADDRESS_EDGE_CHARS = 14;
 
-      <div className="flex flex-1 flex-col items-start">
-        <Text as="div" variant="body2" className="leading-4 text-accent-primary">
-          {name}
-        </Text>
-        {Boolean(address) && (
-          <Text as="div" variant="caption" className="leading-4 text-accent-secondary">
-            {formatAddress(address)}
-          </Text>
-        )}
-      </div>
+function truncateAddress(address: string) {
+  if (address.length <= ADDRESS_TRUNCATE_THRESHOLD) return address;
+  return `${address.slice(0, ADDRESS_EDGE_CHARS)}…${address.slice(-ADDRESS_EDGE_CHARS)}`;
+}
 
-      <button className="shrink-0 cursor-pointer" onClick={() => void onDisconnect?.(chainId)}>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          className="text-secondary-main"
-          fill="none"
-        >
-          <path
-            d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
-            fill="currentColor"
-          />
-        </svg>
-      </button>
+export const ConnectedWallet = memo(({ className, logo, address }: ConnectedWalletProps) => {
+  const { isCopied, copyToClipboard } = useCopy();
+  const copied = isCopied(address);
+
+  // This row renders inside the clickable chain button, so stop propagation (and
+  // use a span rather than a nested <button>) to keep the copy action isolated.
+  const handleCopy = (e: MouseEvent | KeyboardEvent) => {
+    e.stopPropagation();
+    copyToClipboard(address, address);
+  };
+
+  return (
+    <div className={twMerge("flex items-center gap-2.5 rounded-lg bg-secondary-highlight p-2", className)}>
+      <Avatar variant="circular" size="small" className="shrink-0" url={logo} />
+
+      <Text
+        as="div"
+        variant="caption"
+        title={address}
+        className="min-w-0 flex-1 truncate text-left font-mono text-accent-secondary"
+      >
+        {truncateAddress(address)}
+      </Text>
+
+      <span
+        role="button"
+        tabIndex={0}
+        aria-label={copied ? "Address copied" : "Copy address"}
+        onClick={handleCopy}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") handleCopy(e);
+        }}
+        className="flex shrink-0 cursor-pointer items-center text-accent-secondary hover:text-accent-primary"
+      >
+        {copied ? <CheckIcon size={16} variant="success" /> : <CopyIcon size={16} />}
+      </span>
     </div>
-  ),
-);
+  );
+});

@@ -46,6 +46,28 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
+// Action-required labels shared between the in-app badges
+// (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
+// surfaces can't drift.
+const KEY_REQUIRED_LABEL = "Key required";
+const SIGNING_REQUIRED_LABEL = "Signing required";
+const BROADCAST_REQUIRED_LABEL = "Broadcast required";
+const ACTIVATION_REQUIRED_LABEL = "Activation required";
+// Depositor-facing name for the multi-vault deposit option. Shared between the
+// split-option title and the "deposit too low" hint so the two never drift.
+const TWO_VAULT_SPLIT_NAME = "Two-vault split";
+// Trailing "Learn more" link label, shared by the frozen and paused status banners.
+const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
+
+/**
+ * A run of body text for the loan success modals. `emphasis` segments render in
+ * the primary text color (e.g. the repaid amount), the rest in secondary — so a
+ * single line can mix muted prose with a highlighted value.
+ */
+export interface LoanSuccessBodySegment {
+  text: string;
+  emphasis: boolean;
+}
 
 export const COPY = {
   pegin: {
@@ -62,6 +84,7 @@ export const COPY = {
       LIQUIDATED: "Liquidated",
       EXPIRED: "Expired",
       REFUNDING: "Refunding",
+      REFUNDED: "Refunded",
       FAILED: "Failed",
       INVALID: "Invalid",
       UNKNOWN: "Unknown",
@@ -78,6 +101,11 @@ export const COPY = {
     },
     // Row label for the vault creation time (rendered as relative time).
     createdLabel: "Created",
+    // Shown if activation is attempted while the protocol is paused — surfaced
+    // as the activation error so the spinner clears and the user understands
+    // it's a governance pause (not a failed secret). Activation resumes on unpause.
+    activationPaused:
+      "Activation is paused by a protocol governance action. Your BTC Vault stays safe — activation will resume once the pause is lifted.",
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
@@ -106,8 +134,10 @@ export const COPY = {
         "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      refundComplete:
+        "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
       refundMaturing: (blocks: number, hours: number) =>
-        `Refund claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
+        `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
       invalid:
         "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
@@ -116,10 +146,10 @@ export const COPY = {
     },
     statusErrors: {
       expired:
-        "This deposit has expired. You may still reclaim within the grace window — see refund options.",
+        "This deposit has expired. You may still refund within the grace window.",
       expiredCleanedUp:
         "This deposit expired and the grace window has elapsed. No further action is possible.",
-      expiredInClaim: "Deposit expired; claim transaction broadcast",
+      expiredInClaim: "Deposit expired; claim transaction has been broadcast",
       invalidSigInContract:
         "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed.",
       amlRejected: "This deposit was rejected by AML screening.",
@@ -134,10 +164,10 @@ export const COPY = {
       REFUND_HTLC: "Refund",
     },
     actionRequiredBadges: {
-      SUBMIT_WOTS_KEY: "Key required",
-      SIGN_PAYOUT_TRANSACTIONS: "Signing required",
-      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast required",
-      ACTIVATE_VAULT: "Activation required",
+      SUBMIT_WOTS_KEY: KEY_REQUIRED_LABEL,
+      SIGN_PAYOUT_TRANSACTIONS: SIGNING_REQUIRED_LABEL,
+      SIGN_AND_BROADCAST_TO_BITCOIN: BROADCAST_REQUIRED_LABEL,
+      ACTIVATE_VAULT: ACTIVATION_REQUIRED_LABEL,
       REFUND_HTLC: "Refund available",
     },
     expiration: {
@@ -164,6 +194,18 @@ export const COPY = {
     },
   },
   deposit: {
+    disabled: {
+      title: "Deposits temporarily unavailable",
+      description: "Deposits are currently disabled. Please try again later.",
+      bannerMessage:
+        "New deposits are paused for maintenance and will resume shortly.",
+    },
+    maxVaultsReached: {
+      cta: "Maximum BTC Vaults reached",
+      unavailableCta: "Unable to verify BTC Vault count — please try again",
+      splitUnavailable: (used: number, cap: number) =>
+        `${used} of ${cap} BTC Vaults used. BTC Vault split unavailable.`,
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
@@ -180,16 +222,65 @@ export const COPY = {
       awaitVpVerification: "Awaiting vault provider verification",
       retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
-      awaitActivationConfirmation: "Awaiting vault activation confirmation",
-      peginFeeWarning: "Expect high transaction fee for security reasons",
+      awaitActivationConfirmation: "Awaiting BTC Vault activation confirmation",
+      peginFeeWarning: "Expect a high transaction fee for security reasons",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
+    },
+    // Browser (desktop) notifications fired when a deposit needs the depositor
+    // to sign or act while the tab is in the background. `title` is the bold
+    // heading; `body` is the line beneath it. Titles reuse the same constants as
+    // the in-app action badges (`pegin.actionRequiredBadges`) so the two
+    // surfaces can't drift. Bodies are kept short because the OS truncates long
+    // notification text.
+    notifications: {
+      deriveVaultSecret: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Approve the request in your wallet to generate your deposit secret.",
+      },
+      signPeginBtc: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Approve the peg-in transaction in your wallet to continue your deposit.",
+      },
+      signPop: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Sign the ownership proof in your wallet to continue your deposit.",
+      },
+      submitPegin: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Confirm the registration in your wallet to continue your deposit.",
+      },
+      submitWotsKey: {
+        title: KEY_REQUIRED_LABEL,
+        body: "Your deposit is ready - submit your WOTS key to continue.",
+      },
+      signPayouts: {
+        title: SIGNING_REQUIRED_LABEL,
+        body: "Your vault provider has prepared your payout transactions - sign them to continue.",
+      },
+      signAndBroadcast: {
+        title: BROADCAST_REQUIRED_LABEL,
+        body: "Your deposit is registered - broadcast the Pre-Pegin transaction to continue.",
+      },
+      activateVault: {
+        title: ACTIVATION_REQUIRED_LABEL,
+        body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
+      },
+      // In-flow prompt nudging the depositor to allow browser notifications so
+      // we can ping them when a deposit needs a signature.
+      prompt: {
+        title: "Stay notified",
+        message:
+          "Turn on browser notifications and we'll let you know the moment your deposit needs you to sign.",
+        enable: "Enable notifications",
+        dismiss: "No thanks",
+      },
     },
     groups: {
       registerDeposit: "Register deposit",
       signWots: "Set up claim",
       signPayout: "Sign payout",
-      activateVault: "Activate vault",
+      activateVault: "Activate BTC Vault",
       stepCounter: (completed: number, total: number) =>
         `${completed}/${total}`,
     },
@@ -198,6 +289,7 @@ export const COPY = {
     a11y: {
       stepActive: (number: number) => `Step ${number} active`,
       stepPending: (number: number) => `Step ${number} not started`,
+      stepFailed: (number: number) => `Step ${number} failed`,
       groupStatus: {
         completed: "Completed",
         active: "In progress",
@@ -206,6 +298,14 @@ export const COPY = {
     },
     progress: {
       heading: "Deposit Progress",
+      // Pre-sign summary card shown before the flow starts: an estimated total
+      // duration suffixed to the heading plus a short explanation of the
+      // grouped signature counts.
+      summary: {
+        estimate: "~60 min",
+        description:
+          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the BTC Vault is activated.",
+      },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
       // Inline prefix for the pending-deposit card's active-step label
@@ -226,6 +326,7 @@ export const COPY = {
         close: "Close",
         done: "Done",
         sign: "Sign",
+        signTransaction: "Sign Transaction",
       },
     },
     btcConfirmation: {
@@ -264,8 +365,8 @@ export const COPY = {
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Broadcasting withdraw expired",
-      body: "Withdraw expired vault transaction broadcast successfully.",
+      heading: "Expired BTC Vault withdrawal broadcast",
+      body: "Your expired BTC Vault withdrawal transaction has been broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
@@ -292,6 +393,14 @@ export const COPY = {
         "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
       dustError:
         "Network fee is too high — your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
+      feeRateCapError: (maxRateSatsVb: number) =>
+        `Network fee rate exceeds the safety cap of ${maxRateSatsVb} sat/vB. Lower the fee rate to continue.`,
+      // The cap is a percentage of the vault deposit (the SDK's basis), not of
+      // the larger refund amount shown above — so frame it as the safety cap
+      // rather than "% of the refund amount", which would contradict the
+      // displayed figure.
+      feeFractionCapError: (percent: number) =>
+        `Network fee exceeds the ${percent}% refund safety cap. Lower the fee rate to continue.`,
       retryButton: "Retry",
       confirmButton: "Confirm",
     },
@@ -302,6 +411,12 @@ export const COPY = {
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate Vault",
       cancelButton: "Cancel",
+    },
+    inStepArtifact: {
+      fileName: "vault-artifacts.json",
+      recommended: "(Recommended)",
+      skip: "Skip",
+      download: "Download Artifacts",
     },
     artifactDownload: {
       title: "Download BTC Vault artifacts",
@@ -322,6 +437,11 @@ export const COPY = {
       // the artifacts are on disk; it doesn't perform activation, so the
       // label simply dismisses the dialog.
       doneButton: "Done",
+    },
+    vaultActivatedSuccess: {
+      heading: "BTC Vault activated",
+      body: "Your BTC Vault is now active and ready for borrowing.",
+      goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
@@ -352,6 +472,9 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      // Amount-input left-field label; the slider renders its Max button when
+      // this reads "max" (case-insensitive), so keep the value as "Max".
+      maxLabel: "Max",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
@@ -360,9 +483,9 @@ export const COPY = {
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
-      doNotSplit: "Do not split UTXO",
+      doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
-      providerSelectDescription: "Choose a provider to secure your BTC",
+      providerSelectDescription: "Choose a vault provider to secure your BTC",
       providerSelectEmpty: "No vault providers available at this time.",
       providerStatusUnavailable: "Unavailable",
       // Status label for a vault provider that has recently been unreachable
@@ -370,7 +493,7 @@ export const COPY = {
       providerStatusUnhealthy: "Recently unreachable",
       // Tooltip on an unhealthy provider, explaining it stays selectable.
       providerUnhealthyReason:
-        "This provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
+        "This vault provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
       // Divider label above the group of unhealthy / rejected providers.
       providerGroupUnavailableLabel: "Limited availability",
       // Per-provider metric labels shown in the picker.
@@ -381,7 +504,7 @@ export const COPY = {
       // (2.50%)"; net payout is the deposit minus that commission.
       vpCommissionLabel: "VP commission",
       vpCommissionTooltip:
-        "The vault provider's fee, deducted from your payout when you redeem. Set by the provider and shown here before you deposit.",
+        "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",
       netPayoutLabel: "Net payout",
       netPayoutTooltip:
         "What you receive at payout: your deposit minus the vault provider's commission.",
@@ -390,11 +513,41 @@ export const COPY = {
       providerMetricPlaceholder: "—",
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
+      // Split-option title. "Two-vault split" (not "UTXO split") because the
+      // UTXO concept is never introduced to the depositor; the ratio (e.g.
+      // "26/74") shows how the deposit is divided across the two BTC Vaults.
+      splitOptionLabel: (splitRatioLabel: string | null) =>
+        splitRatioLabel
+          ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
+          : TWO_VAULT_SPLIT_NAME,
+      splitOptionRecommended: "(Recommended)",
+      // Shown inside the amount card (below "Max to Borrow") when the deposit is
+      // below the minimum needed to split across two vaults; the split selector
+      // below stays visible with its two-vault option disabled. `minBtc` already
+      // carries the network coin symbol (e.g. "0.4 BTC"). The split name and
+      // minimum are
+      // emphasized (primary text) by the component; the rest stays secondary.
+      // The component joins these fragments with explicit `{" "}` separators.
+      splitTooLowHint: (minBtc: string) => ({
+        prefix: "To use",
+        splitName: TWO_VAULT_SPLIT_NAME,
+        middle: ", increase your deposit to",
+        minimum: `at least ${minBtc}`,
+      }),
       splitOptionDescription:
-        "Split your Bitcoin into multiple vaults to enable partial liquidation.",
+        "Split your BTC into two BTC Vaults to enable partial liquidation.",
       noSplitOptionDescription:
-        "Your BTC will be deposited into a single BTC Vault",
-      learnWhyRecommended: "Learn why we recommend this.",
+        "Your BTC will be deposited into a single BTC Vault.",
+      // "Learn more here." link appended to the split-option description in
+      // UtxoSplitSelector, pointing at the partial-liquidation docs.
+      learnMore: "Learn more here.",
+      // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
+      maxToBorrowLabel: "Max to Borrow:",
+      cfParenthetical: (percent: string) => `(CF=${percent})`,
+      // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
+      depositFeeLabel: "Deposit Fee",
+      depositFeeTooltip:
+        "A one-time fee charged by the protocol to process your deposit.",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
@@ -428,6 +581,11 @@ export const COPY = {
     errors: {
       invalidSecret:
         "Invalid secret: SHA256(secret) does not match the BTC Vault's hashlock. Please check your secret and try again.",
+      // Surfaced if deposit execution is reached while the protocol is frozen or
+      // paused — aborted up front, before the on-chain registration and the BTC
+      // broadcast, so no funds are locked and the user can retry once it resumes.
+      protocolPaused:
+        "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -499,7 +657,7 @@ export const COPY = {
             "The vault provider took too long to respond. Please try again.",
         },
         providerNotFound: {
-          title: "Provider not found",
+          title: "Vault provider not found",
           message:
             "The vault provider could not be found in the on-chain registry. It may have been deregistered.",
         },
@@ -509,12 +667,12 @@ export const COPY = {
             "Unable to connect to the vault provider. Please check your connection and try again.",
         },
         providerTimeout: {
-          title: "Provider timeout",
+          title: "Vault provider timeout",
           message:
             "The vault provider took too long to respond. Please try again later.",
         },
         providerUnavailable: {
-          title: "Provider unavailable",
+          title: "Vault provider unavailable",
           message:
             "The vault provider is temporarily unreachable. Please try again later.",
         },
@@ -547,12 +705,12 @@ export const COPY = {
           "The payout address from the indexer does not match your connected wallet. This may indicate a data integrity issue. Please verify your wallet connection.",
       },
       providerNotAssigned: {
-        title: "Provider not assigned",
+        title: "Vault provider not assigned",
         message:
           "No vault provider is associated with this deposit. Please wait for indexer sync and try again.",
       },
       providerNotFound: {
-        title: "Provider not found",
+        title: "Vault provider not found",
         message: "Vault provider not found.",
       },
       walletNotConnected: {
@@ -568,10 +726,16 @@ export const COPY = {
   },
   common: {
     zeroUsdValue: "$0.00 USD",
+    // Placeholder shown where a value is not yet available (e.g. an
+    // oracle-priced figure still loading after an asset switch).
+    emptyValue: "–",
+    // Separator between a metric's current and projected value (before → after).
+    valueTransitionArrow: "→",
     loading: "Loading...",
     confirming: "Confirming...",
     applying: "Applying...",
     checking: "Checking...",
+    transactionFailedTitle: "Transaction failed",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
@@ -580,6 +744,11 @@ export const COPY = {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "An unexpected error occurred. Please try again later.",
       retryButton: "Try again",
+      // Shown instead of the generic crash when the failure is a stale-deploy
+      // chunk 404 (a newer app version was deployed); body reuses
+      // `classifiedErrors.staleDeploy`.
+      staleDeployHeading: "A new version is available",
+      reloadButton: "Reload",
     },
     // Friendly copy for known viem / EIP-1193 / wallet-connector failure
     // categories. Consumed by `sanitizeErrorMessage` in
@@ -615,6 +784,12 @@ export const COPY = {
       addressMismatch:
         "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
     },
+    locked: {
+      title: "Bitcoin wallet locked",
+      description: "Unlock your Bitcoin wallet in your extension to continue.",
+      unlockButton: "Unlock wallet",
+      unlocking: "Unlocking wallet...",
+    },
   },
   collateral: {
     releaseDisabledTooltip:
@@ -622,25 +797,48 @@ export const COPY = {
     releaseHfBreachTooltip: (threshold: number) =>
       `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
+    // Shown on an optimistic collateral row right after the activation ETH tx,
+    // while the indexer catches up and the vault becomes "In use".
+    activating: "Activating collateral...",
     empty: {
       title: "Deposit Bitcoin to get started",
       body: (symbol: string) =>
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
+    },
+    // The "⋯" actions menu on the Collateral summary card.
+    menu: {
+      triggerLabel: "Collateral options",
+      withdraw: "Withdraw",
+      reorder: "Reorder",
+    },
+    artifactCallout: {
+      fileName: "vault-artifacts.json",
+      recommended: "(Recommended)",
+      downloadNow: "Download now",
     },
   },
   // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
   // accessible name + tooltip.
   explorer: {
-    vaultLinkLabel: "View vault on explorer",
+    vaultLinkLabel: "View BTC Vault on explorer",
     providerLinkLabel: "View vault provider on explorer",
     // Callout under the Protocol Cap section. `calloutLinkText` renders as the
     // anchor to the explorer home; `callout` is the plain lead-in.
     callout:
-      "Explore vault activity, liquidity metrics, and protocol statistics in the",
+      "Explore BTC Vault activity, liquidity metrics, and protocol statistics in the",
     calloutLinkText: "BTC Trustless Vault Explorer",
   },
   withdraw: {
+    // Collateral-selection modal opened from the Collateral "⋯" menu. Picks
+    // which vaults to withdraw before handing off to the withdrawal flow.
+    modal: {
+      title: "Withdraw",
+      subtitle:
+        "Choose the collateral you want to withdraw. Remaining BTC Vaults will move up in priority order.",
+      confirmButton: "Withdraw",
+      confirmButtonWithAmount: (amount: string) => `Withdraw ${amount}`,
+    },
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",
@@ -694,6 +892,17 @@ export const COPY = {
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
     },
+    // Dashboard section headings. A "Payout sent" withdrawal is terminal
+    // success, so it moves out of "Pending Withdrawals" into a plain
+    // "Withdrawals" section while it lingers in the redeemed set.
+    section: {
+      pendingTitle: "Pending Withdrawals",
+      completedTitle: "Withdrawals",
+      // Derived from the section title so each section's expand button is
+      // distinctly labelled ("Pending Withdrawals details" vs "Withdrawals
+      // details") when both render at once.
+      detailsAria: (title: string) => `${title} details`,
+    },
     // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
     card: {
       // When the withdrawal was initiated (the VP's claimer-record timestamp).
@@ -711,9 +920,22 @@ export const COPY = {
       challengePeriodEndsIn: (duration: string) => `in ~${duration}`,
       // Shown once the challenge-period clock has elapsed (payout eligible).
       challengePeriodEndsSoon: "shortly",
+      // Live Assert-tx confirmation count toward the payout CSV clock, shown
+      // during the challenge period. `confirmed`/`required` are BTC blocks.
+      confirmationsLabel: "Confirmations",
+      confirmationsValue: (confirmed: number, required: number) =>
+        `${confirmed} of ${required}`,
+      // Typical total length of the challenge period, derived from the vault's
+      // timelockAssert (display-only). Sets the up-front expectation; the live
+      // countdown above shows the remaining time, so total-vs-remaining don't
+      // conflict.
+      challengePeriodTypicalDuration: (duration: string) =>
+        `This typically takes about ${duration}.`,
       // Challenge-period help note. Explains this is one step (the on-chain
-      // challenge period) and that a payout step follows — no fixed duration
-      // here, to avoid conflicting with the live countdown above it.
+      // challenge period) and that a payout step follows. The concrete typical
+      // duration is appended separately (challengePeriodTypicalDuration), kept
+      // out of this base sentence so the live countdown stays the source of
+      // remaining time.
       challengeNote:
         "For your security, your withdrawal goes through an on-chain challenge period. After it ends, the payout is broadcast to your nominated address.",
       learnMorePrefix: "Read more about the withdrawal latency ",
@@ -726,14 +948,90 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
-    // The interest rate Aave charges on the borrowed asset. Aave compounds
-    // continuously, so this is an APY (effective rate), matching Aave's own UI.
-    borrowRateLabel: "Borrow APY",
-    // Detail-card metric: debt-to-collateral ratio (debtUsd / collateralUsd),
-    // distinct from the borrow APY above.
-    borrowRatioLabel: "Borrow ratio",
+    // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
+    // an APR, the same figure the asset picker labels "Borrow APR". One number,
+    // one label.
+    borrowRateLabel: "Borrow APR",
+    // Repay detail-card metric: outstanding debt for the selected reserve, in
+    // token units (before → after the repayment).
+    debtLabel: "Debt",
     healthFactorLabel: "Health factor",
+    availableLiquidityLabel: "Available liquidity",
+    utilizationLabel: "Utilization",
+    availableLabel: "Available",
+    // Repay amount slider: prefixes the user's wallet balance shown beside Max.
+    balanceLabel: "Balance",
+    atRiskOfLiquidation: "At risk of liquidation",
+    borrowAprTooltip:
+      "The annual interest rate charged on your borrowed amount.",
+    utilizationTooltip:
+      "The share of this market's supplied liquidity currently borrowed.",
+    debtTooltip:
+      "The total amount you currently owe for this asset, including accrued interest.",
+    healthFactorTooltip:
+      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
+    borrowingUnavailable:
+      "Borrowing is temporarily unavailable. Please check back later.",
+    priceUnavailable:
+      "Price data unavailable. Borrowing is temporarily disabled.",
+    // Shown on the Repay tab when repay is blocked by a protocol pause (not a
+    // technical/user error), so a user near liquidation knows it's governance,
+    // not a bug. Repay is gated only by an aave-scope pause.
+    repayingUnavailable:
+      "Repaying is temporarily unavailable while the protocol is paused. It will resume once the pause is lifted.",
+    // Borrow tab — action-button labels (also used as the status-callout title).
+    borrow: {
+      action: "Borrow",
+      processing: "Processing...",
+      unavailable: "Borrowing Unavailable",
+      enterAmount: "Enter an amount",
+      refreshingPosition: "Refreshing position...",
+      amountTooSmall: "Amount too small",
+      amountExceedsMax: "Amount exceeds maximum",
+      amountExceedsLiquidity: "Amount exceeds available liquidity",
+      healthFactorTooLow: "Health factor too low",
+    },
+    // Borrow validation-error descriptions (the Callout title comes from the
+    // action button label above, e.g. "Amount exceeds maximum").
+    validation: {
+      minBorrow: (min: string) =>
+        `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
+      maxBorrow: (max: string, symbol: string) =>
+        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and try again.`,
+      exceedsLiquidity: (available: string, symbol: string) =>
+        `Only ${available} ${symbol} is available to borrow from this market right now. Enter a lower amount and try again.`,
+      healthFactorTooLow: (min: number) =>
+        `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
+    },
+    assetSelection: {
+      title: "Select asset",
+      columnAsset: "Asset",
+      columnPrice: "Price",
+      columnAvailable: "Available",
+      columnBorrowApr: "Borrow APR",
+      loading: "Loading assets...",
+      emptyBorrow: "No borrowable assets available",
+      emptyRepay: "No assets available",
+    },
+    borrowSuccess: {
+      title: "Borrow successful",
+      body: (amount: string, symbol: string): LoanSuccessBodySegment[] => [
+        {
+          text: `${amount} ${symbol} has been credited to your wallet.`,
+          emphasis: false,
+        },
+      ],
+      doneButton: "Done",
+    },
+    repaySuccess: {
+      title: "Repay successful",
+      body: (amount: string, symbol: string): LoanSuccessBodySegment[] => [
+        { text: "You have repaid ", emphasis: false },
+        { text: `${amount} ${symbol}`, emphasis: true },
+      ],
+      doneButton: "Done",
+    },
     empty: {
       title: (symbol: string) => `Borrow assets using your ${symbol}`,
       body: (symbol: string) =>
@@ -743,6 +1041,8 @@ export const COPY = {
     repay: {
       action: "Repay",
       processing: "Processing...",
+      // Action-button label when repay is blocked by a protocol pause.
+      unavailable: "Repaying Unavailable",
       enterAmount: "Enter an amount",
       amountTooSmall: "Amount too small",
       amountExceedsDebt: "Amount exceeds debt",
@@ -771,36 +1071,58 @@ export const COPY = {
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",
+    healthFactorTooltip:
+      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     healthFactorHealthy: "Healthy",
-    ltvLabel: "Current LTV",
+    healthFactorAtRisk: "At Risk",
+    healthFactorLiquidatable: "Liquidatable",
+    liquidationRiskLabel: "Liquidation Risk",
     totalCollateralValueLabel: "Total collateral value",
-    amountToRepayLabel: "Amount to repay",
+    totalCollateralValueTooltip:
+      "The current USD value of all Bitcoin collateral backing your loans.",
+    totalBorrowedLabel: "Total borrowed",
+    liquidationPriceLabel: "Liquidation price",
+    btcPriceLabel: "BTC price",
+    pctToLiquidationLabel: "% to liquidation",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
-      heroBody: [
-        "Powered by Babylon trustless Bitcoin vault protocol and Aave V4.",
-        "Collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave.",
-        "Trustless, non-custodial, no bridging, no wrapping.",
-      ],
+      heroBody:
+        "Powered by Babylon Trustless Bitcoin Vault protocol, collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave V4.",
       connectButton: "Connect Wallet",
       aprLabels: {
         usdt: "USDT APR",
         usdc: "USDC APR",
         wbtc: "WBTC APR",
       },
-      steps: {
-        stepLabel: (n: number) => `step ${n}`,
-        one: {
-          title: "Deposit BTC as collateral",
-          body: "Lock your BTC in a BTC Vault.",
+      stats: {
+        capLabel: "Cap",
+        capValue: (deposited: string, total: string) =>
+          `${deposited}/${total} Bitcoin`,
+        capUncapped: "Uncapped",
+        maxCfLabel: "Max CF",
+        loanProcessTimeLabel: "Loan process time",
+        loanProcessTimeValue: "~3 hours",
+      },
+      features: {
+        competitiveRates: {
+          title: "Competitive borrowing rates",
+          body: "Access to Aave V4 liquidity & its transparent, market-based variable rates.",
         },
-        two: {
-          title: "Borrow USDC, USDT or WBTC",
-          body: "Get stablecoin liquidity powered by Aave.",
+        fastAccess: {
+          title: "Fast access to liquidity",
+          body: "Vault setup and borrowing complete in about 3 hours.",
         },
-        three: {
-          title: "Repay anytime to unlock BTC",
-          body: "Repay debt plus interest to reclaim BTC.",
+        partialLiquidation: {
+          title: "Partial liquidation supported",
+          body: "for any loan position backed by multiple trustless Bitcoin vaults.",
+        },
+        selfCustodial: {
+          title: "Self-custodial and native",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault — with no third party or signing quorum able to move or rehypothecate it.",
+        },
+        trustless: {
+          title: "Trustless, permissionless execution",
+          body: "Collateral rules are enforced by code and cryptographic proofs — not by discretionary gatekeepers, committees, or off-chain liquidation decisions.",
         },
       },
     },
@@ -808,7 +1130,7 @@ export const COPY = {
   activity: {
     pageTitle: "Activity",
     filterAll: "Show all",
-    // Visible filter options in dropdown order (matches Figma node 6602-64485).
+    // Visible filter options in dropdown order
     // Redeem / Pending Deposit rows still render but are not filterable —
     // they don't appear here on purpose.
     filterTypes: {
@@ -820,7 +1142,7 @@ export const COPY = {
       "Fully Liquidated": "Fully Liquidated",
     },
     hashPending: "Pending…",
-    refundedTooltip: "Transaction was refunded",
+    expiredTooltip: "Deposit expired",
     // Labels for the two child rows nested inside a LiquidationGroupRow.
     liquidation: {
       collateralLabel: "Collateral Liquidated",
@@ -834,7 +1156,8 @@ export const COPY = {
   banner: {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
-    applySuggestedOrder: "Apply Suggested Order",
+    applyOptimalOrder: "Apply Optimal Order",
+    addSacrificialVault: "Add sacrificial BTC Vault",
   },
   geoBlock: {
     title: "Service unavailable in your region",
@@ -868,8 +1191,46 @@ export const COPY = {
       tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
     },
   },
+  // Operator-controlled protocol governance-status banners (Freeze / Pause). The
+  // body may be overridden per incident via NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE;
+  // these are the defaults. Each renders a trailing "Learn more" link.
+  //
+  // INTERIM copy: states only what the dApp currently *enforces* (new deposits
+  // and borrows are disabled — see `isDepositBlocked` / `isBorrowBlocked`). The
+  // wording deliberately does not claim the remaining ops are blocked yet; those
+  // gates land with the Freeze (reorder) and Pause (withdraw/repay/activation/…)
+  // follow-ups, and the final freeze/pause wording is owned by design.
+  protocolStatus: {
+    frozen: {
+      title: "Protocol is frozen",
+      // Non-specific about which actions: gating is per-scope, so naming
+      // "deposits and borrows" can be inaccurate (e.g. an aave-only freeze
+      // leaves deposits working). Exits are always preserved under a freeze, so
+      // that reassurance is safe to state. The per-action buttons are the
+      // precise source of truth.
+      body: "Some new actions are temporarily restricted while the protocol is frozen. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
+      learnMore: PROTOCOL_STATUS_LEARN_MORE,
+    },
+    paused: {
+      title: "Protocol is paused",
+      // Non-specific for the same reason — under a per-scope pause the exact set
+      // of blocked actions varies. Each affected button explains itself.
+      body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
+      learnMore: PROTOCOL_STATUS_LEARN_MORE,
+    },
+  },
+  // Full-width critical banner rendered above the header when the position is at
+  // imminent liquidation risk (red severity). The warning glyph is supplied via
+  // the banner's icon slot, not the message string.
+  topBanner: {
+    critical: (distancePct: string) =>
+      `Critical — liquidation in ${distancePct}`,
+    liquidatable: "Critical — liquidation can trigger now",
+  },
   // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // three warning types produced by the calculator (urgent / dust / weird-params).
+  // warning types produced by the calculator: urgent / cliff / reorder / dust /
+  // weird-params / too-many-vaults. Wording is ported from the reference
+  // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
@@ -886,13 +1247,78 @@ export const COPY = {
     },
     // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
     // engine finds a safer liquidation order than the current on-chain order.
+    // Single reorder notification (matches Figma 6502-111184). Emitted whenever
+    // the calculator finds a strictly safer order than the current one; the
+    // suggested order is rendered as chips from `optimalVaultOrder`, not text.
     reorder: {
-      title: "BTC Vaults aren't in the safest liquidation order",
+      title: "Reorder BTC Vaults to lose less",
       detail:
-        "Reordering puts a smaller BTC Vault first so less collateral is seized in the first liquidation event. Apply the suggested order to improve your partial-liquidation protection.",
+        "A different BTC Vault order makes the first liquidation event smaller — less BTC seized when it triggers.",
+      suggestedOrderLabel: "Suggested order",
+      vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
+    },
+    // Cliff: all vaults consolidate into one liquidation group, so partial
+    // liquidation is no longer possible. One Figma title/body across every case
+    // (CLIFF A 6502-110902 / CLIFF B 7064-77201); only the suggestion varies by
+    // what action is feasible.
+    cliff: {
+      title: "First liquidation takes everything",
+      body: "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+      // Header shown above the suggestion text when there is no actionable CTA
+      // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
+      suggestionLabel: "Suggestion",
+      // Variant A (#1948): an affordable sacrificial vault buffers the existing
+      // position. The amount lives here; the CTA label stays generic.
+      addSacrificialSuggestion: (sacrificialBtc: string) =>
+        `Adding a sacrificial ${sacrificialBtc} BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.`,
+      // Variant B (#1949): the single vault is too large to buffer cheaply —
+      // withdraw it and re-deposit as two smaller vaults instead.
+      withdrawResplitSuggestion: (
+        withdrawBtc: string,
+        sacrificialBtc: string,
+        protectedBtc: string,
+      ) =>
+        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTC Vaults: ${sacrificialBtc} BTC sacrificial + ${protectedBtc} BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.`,
+      // Protocol params disallow splitting entirely — no re-split is possible.
+      noSplitSuggestion:
+        "Current protocol parameters do not allow BTC Vault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
+      // 2-vault / 3+ cliffs share the title/body/severity but keep their
+      // structural suggestion, since "re-deposit as two smaller vaults" doesn't
+      // apply when you already hold multiple vaults.
+      twoVault: {
+        enablePartial: (deficitBtc: string, largestName: string) =>
+          `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
+        suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
+          `Neither BTC Vault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial BTC Vault.`,
+      },
+      multiVault: {
+        suggestion: (
+          nVaults: number,
+          hasReorderFix: boolean,
+          orderStr: string,
+        ) =>
+          hasReorderFix
+            ? `All ${nVaults} BTC Vaults land in the first liquidation group. Reordering BTC Vaults will fix this — suggested order: ${orderStr}.`
+            : `All ${nVaults} BTC Vaults land in the first liquidation group, and no combination of BTC Vaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
+      },
+    },
+    // Too many vaults: beyond the optimizer cap, ordering falls back to a
+    // largest-first heuristic and the reorder suggestion is no longer optimal.
+    // Copy matches Figma 7048-61969 (count + cap stay interpolated).
+    tooManyVaults: {
+      title: "Too many BTC Vaults to optimize",
+      detail: (nVaults: number, cap: number) =>
+        `You have ${nVaults} BTC Vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
+      suggestion:
+        "Consider consolidating smaller BTC Vaults into fewer larger ones — fewer BTC Vaults means lower fees and better optimization.",
+    },
+    maxVaults: {
+      title: "Maximum BTC Vaults reached",
+      detail: (cap: number) =>
+        `This position already has the maximum number of BTC Vaults (${cap}).`,
     },
     dust: {
-      title: "Position too small to model",
+      title: "Position too small for BTC Vault analysis",
       detail:
         "Below $1,000 the cascade simplifies — all BTC Vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },

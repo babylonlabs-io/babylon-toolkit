@@ -11,15 +11,17 @@ import {
   formatAprPercent,
   formatBasisPointsAsPercent,
   formatBtcAmount,
+  formatCompactTokenAmount,
   formatCompactUsd,
   formatDateTime,
   formatDuration,
+  formatLiquidationDistancePercent,
   formatLLTV,
-  formatLtvPercent,
   formatOrdinal,
   formatProviderDisplayName,
   formatTimeAgo,
   formatUsd,
+  formatUsdPrice,
   formatUsdValue,
 } from "../formatting";
 
@@ -194,31 +196,22 @@ describe("Formatting Utilities", () => {
     });
   });
 
-  describe("formatLtvPercent", () => {
-    it("formats a typical position to 1 decimal", () => {
-      // Matches the values in the user-report screenshot.
-      expect(formatLtvPercent(1941.26, 2986.56)).toBe("65.0%");
+  describe("formatUsdPrice", () => {
+    it("rounds to whole dollars with thousands separators", () => {
+      expect(formatUsdPrice(88400)).toBe("$88,400");
+      expect(formatUsdPrice(70000.49)).toBe("$70,000");
+      expect(formatUsdPrice(70000.5)).toBe("$70,001");
+    });
+  });
+
+  describe("formatLiquidationDistancePercent", () => {
+    it("formats a positive buffer to one decimal", () => {
+      expect(formatLiquidationDistancePercent(19.23)).toBe("19.2%");
     });
 
-    it("renders exact halves", () => {
-      expect(formatLtvPercent(500, 1000)).toBe("50.0%");
-    });
-
-    it("renders ratios above 100% for underwater positions", () => {
-      expect(formatLtvPercent(1200, 1000)).toBe("120.0%");
-    });
-
-    it("returns '-' when debt is zero (no loan)", () => {
-      expect(formatLtvPercent(0, 1000)).toBe("-");
-    });
-
-    it("returns '-' when collateral is zero (would divide by zero)", () => {
-      expect(formatLtvPercent(100, 0)).toBe("-");
-    });
-
-    it("returns '-' for negative inputs", () => {
-      expect(formatLtvPercent(-1, 1000)).toBe("-");
-      expect(formatLtvPercent(100, -1)).toBe("-");
+    it("clamps a non-positive buffer to 0%", () => {
+      expect(formatLiquidationDistancePercent(0)).toBe("0.0%");
+      expect(formatLiquidationDistancePercent(-4.3)).toBe("0.0%");
     });
   });
 
@@ -446,6 +439,32 @@ describe("Formatting Utilities", () => {
   // ~5-day wait reads as "5 days", not "114 hours". Thresholds are on the raw
   // minutes (< 60 minutes, < 1440 hours, else days); the value within the unit
   // is rounded to the nearest whole.
+  describe("formatCompactTokenAmount", () => {
+    it("collapses thousands and up into K/M/B suffixes", () => {
+      expect(formatCompactTokenAmount(45200)).toBe("45.2K");
+      expect(formatCompactTokenAmount(1234567)).toBe("1.23M");
+      expect(formatCompactTokenAmount(1500000000)).toBe("1.5B");
+    });
+
+    it("shows amounts below one thousand in full, grouped, up to two decimals", () => {
+      expect(formatCompactTokenAmount(999)).toBe("999");
+      expect(formatCompactTokenAmount(500.25)).toBe("500.25");
+      expect(formatCompactTokenAmount(2.5)).toBe("2.5");
+    });
+
+    it("returns '0' for zero or negative input", () => {
+      expect(formatCompactTokenAmount(0)).toBe("0");
+      expect(formatCompactTokenAmount(-5)).toBe("0");
+    });
+
+    it("rounds to two decimals before the compact threshold so the boundary is consistent", () => {
+      // 999.995 rounds up to 1,000 → compact "1K", not the full "1,000".
+      expect(formatCompactTokenAmount(999.995)).toBe("1K");
+      // Just under the rounding boundary stays in full form.
+      expect(formatCompactTokenAmount(999.99)).toBe("999.99");
+    });
+  });
+
   describe("formatDuration", () => {
     it("shows 'less than a minute' at or below zero", () => {
       expect(formatDuration(0)).toBe("less than a minute");

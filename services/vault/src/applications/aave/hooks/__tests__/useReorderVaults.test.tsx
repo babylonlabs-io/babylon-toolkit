@@ -28,16 +28,16 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn() },
 }));
 
-const mockHandleError = vi.fn();
-vi.mock("@/context/error", () => ({
-  useError: () => ({ handleError: mockHandleError }),
-}));
-
 const mockUseAccount = vi.fn();
 const mockUseWalletClient = vi.fn();
 vi.mock("wagmi", () => ({
   useAccount: () => mockUseAccount(),
   useWalletClient: () => mockUseWalletClient(),
+}));
+
+const mockIsReorderBlocked = vi.fn(() => false);
+vi.mock("@/components/shared/protocolStatus", () => ({
+  isReorderBlocked: () => mockIsReorderBlocked(),
 }));
 
 const mockGetAaveAdapterAddress = vi.fn(
@@ -49,7 +49,7 @@ vi.mock("../../config", () => ({
 
 const mockAssertMembership = vi.fn();
 const mockAssertBaseline = vi.fn();
-const mockAssertSuggestedOrder = vi.fn();
+const mockAssertOptimalOrder = vi.fn();
 const mockReorderVaultOrder = vi.fn();
 
 const { FakePositionChangedError } = vi.hoisted(() => {
@@ -64,8 +64,8 @@ vi.mock("../../services", () => ({
   assertReorderMembership: (...args: unknown[]) =>
     mockAssertMembership(...args),
   assertReorderBaseline: (...args: unknown[]) => mockAssertBaseline(...args),
-  assertSuggestedOrderMatchesOnChain: (...args: unknown[]) =>
-    mockAssertSuggestedOrder(...args),
+  assertOptimalOrderMatchesOnChain: (...args: unknown[]) =>
+    mockAssertOptimalOrder(...args),
   reorderVaultOrder: (...args: unknown[]) => mockReorderVaultOrder(...args),
 }));
 
@@ -97,12 +97,13 @@ describe("useReorderVaults — on-chain integrity guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupConnectedWallet();
+    mockIsReorderBlocked.mockReturnValue(false);
     // Guard A now returns the on-chain ordering so Guard B can feed it
     // into calculate(...). Default mock returns the same IDs the test
     // submits — individual tests can override.
     mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
     mockAssertBaseline.mockReturnValue(undefined);
-    mockAssertSuggestedOrder.mockResolvedValue(undefined);
+    mockAssertOptimalOrder.mockResolvedValue(undefined);
     mockReorderVaultOrder.mockResolvedValue({
       transactionHash: "0xtx",
     });
@@ -136,17 +137,33 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).toHaveBeenCalled();
+    expect(result.current.error).not.toBeNull();
   });
 
-  it("runs the optimal-order recompute only when suggestedOrderContext is provided", async () => {
+  it("refuses to broadcast when Freeze/Pause blocks reorder (before any on-chain read)", async () => {
+    mockIsReorderBlocked.mockReturnValue(true);
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+    });
+
+    expect(resolved).toBe(false);
+    expect(mockAssertMembership).not.toHaveBeenCalled();
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("runs the optimal-order recompute only when optimalOrderContext is provided", async () => {
     const { result } = renderHook(() => useReorderVaults());
 
     await act(async () => {
       await result.current.executeReorder([VAULT_A, VAULT_B]);
     });
 
-    expect(mockAssertSuggestedOrder).not.toHaveBeenCalled();
+    expect(mockAssertOptimalOrder).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
   });
 
@@ -159,11 +176,11 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     await act(async () => {
       await result.current.executeReorder([VAULT_B, VAULT_A], {
-        suggestedOrderContext: CTX,
+        optimalOrderContext: CTX,
       });
     });
 
-    expect(mockAssertSuggestedOrder).toHaveBeenCalledWith(
+    expect(mockAssertOptimalOrder).toHaveBeenCalledWith(
       [VAULT_B, VAULT_A],
       [VAULT_A, VAULT_B],
       "0xaaaa000000000000000000000000000000000ada",
@@ -173,20 +190,20 @@ describe("useReorderVaults — on-chain integrity guards", () => {
   });
 
   it("blocks the reorder tx when the optimal-order recompute rejects", async () => {
-    mockAssertSuggestedOrder.mockRejectedValue(new Error("order mismatch"));
+    mockAssertOptimalOrder.mockRejectedValue(new Error("order mismatch"));
 
     const { result } = renderHook(() => useReorderVaults());
 
     let resolved: boolean | undefined;
     await act(async () => {
       resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
-        suggestedOrderContext: CTX,
+        optimalOrderContext: CTX,
       });
     });
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).toHaveBeenCalled();
+    expect(result.current.error).not.toBeNull();
   });
 
   it("rejects when the wallet is not connected (before any on-chain read)", async () => {
@@ -254,7 +271,6 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).toHaveBeenCalledTimes(1);
-    expect(mockHandleError.mock.calls[0][0].error).toBe(positionChangedError);
+    expect(result.current.error).toBe(positionChangedError.message);
   });
 });

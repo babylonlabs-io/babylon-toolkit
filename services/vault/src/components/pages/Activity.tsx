@@ -1,4 +1,4 @@
-import { Card, Container, Loader } from "@babylonlabs-io/core-ui";
+import { Container, Loader } from "@babylonlabs-io/core-ui";
 import type { Hex } from "viem";
 
 import { useConnection, useETHWallet } from "../../context/wallet";
@@ -18,7 +18,7 @@ export default function Activity() {
       as="main"
       className={`${PAGE_CONTENT_CLASS} mx-auto flex flex-1 flex-col gap-6 pb-6 max-md:flex-none max-md:gap-4 max-md:pb-4 max-md:pt-0`}
     >
-      <Card className="w-full">
+      <div className="w-full">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader />
@@ -29,7 +29,7 @@ export default function Activity() {
             isConnected={isConnected}
           />
         )}
-      </Card>
+      </div>
     </Container>
   );
 }

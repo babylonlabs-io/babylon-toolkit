@@ -17,23 +17,15 @@ export interface VpTokenRegistryInput {
   peginTxid: string;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
-  /**
-   * Opt into gRPC-subject auth for {@link GRPC_AUTH_GATED_METHODS}
-   * (currently the artifact stream). Defaults to `false`: those methods
-   * fall back into the JSON-RPC-subject set and authenticate via
-   * `auth_createDepositorToken`, matching a proxy that runs with
-   * `ENABLE_GRPC_ARTIFACTS` off. Set `true` only against a proxy that
-   * serves `auth_createDepositorTokenGrpc`.
-   */
-  enableGrpcArtifactAuth?: boolean;
+  /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
+  expectedAudienceXOnlyPubkey: string;
 }
 
 interface RegistryEntry {
   provider: VpTokenProvider;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
-  /** Resolved (defaulted) gRPC-auth gating the provider was built with. */
-  enableGrpcArtifactAuth: boolean;
+  expectedAudienceXOnlyPubkey: string;
 }
 
 export class VpTokenRegistry {
@@ -41,21 +33,11 @@ export class VpTokenRegistry {
 
   /**
    * Return the cached `VpTokenProvider` for `peginTxid` if one exists
-   * with matching `authAnchorHex`, `pinnedServerPubkey`, and
-   * `enableGrpcArtifactAuth`, otherwise construct and cache a fresh
-   * provider. A mismatch on any of those throws — silent overwrite would
-   * mask derivation drift, VP pubkey rotation, or a caller that disagrees
-   * on the auth subject (which the cached provider can't switch).
+   * with matching `authAnchorHex` and `pinnedServerPubkey`, otherwise
+   * construct and cache a fresh provider. A mismatch on either throws —
+   * silent overwrite would mask derivation drift or VP pubkey rotation.
    */
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider {
-    // gRPC-subject auth is opt-in. When off (default), the gRPC-gated
-    // methods are folded into the JSON-RPC-subject set so they keep
-    // minting their bearer via `auth_createDepositorToken` — the
-    // pre-PR-#1789 behaviour, and the only path a proxy without
-    // `ENABLE_GRPC_ARTIFACTS` accepts. Resolved once here so the cache-hit
-    // mismatch check and the miss-path construction agree on the default.
-    const useGrpcAuth = input.enableGrpcArtifactAuth ?? false;
-
     const existing = this.entries.get(input.peginTxid);
     if (existing) {
       if (existing.authAnchorHex !== input.authAnchorHex) {
@@ -68,13 +50,12 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to pinnedServerPubkey ${existing.pinnedServerPubkey.slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
         );
       }
-      // The provider's gated-method sets are fixed at construction, so a
-      // later caller asking for a different subject can't be honoured by
-      // the cached instance. Fail loudly rather than silently serve the
-      // wrong-subject token (a Subject-mismatch rejection at the VP).
-      if (existing.enableGrpcArtifactAuth !== useGrpcAuth) {
+      if (
+        existing.expectedAudienceXOnlyPubkey !==
+        input.expectedAudienceXOnlyPubkey
+      ) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to enableGrpcArtifactAuth=${existing.enableGrpcArtifactAuth}; got ${useGrpcAuth}`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
         );
       }
       // Refresh the inner transport on every reuse so a VP URL
@@ -89,16 +70,15 @@ export class VpTokenRegistry {
       peginTxid: input.peginTxid,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
-      authGatedMethods: useGrpcAuth
-        ? AUTH_GATED_METHODS
-        : new Set([...AUTH_GATED_METHODS, ...GRPC_AUTH_GATED_METHODS]),
-      grpcGatedMethods: useGrpcAuth ? GRPC_AUTH_GATED_METHODS : new Set(),
+      expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: GRPC_AUTH_GATED_METHODS,
     });
     this.entries.set(input.peginTxid, {
       provider,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
-      enableGrpcArtifactAuth: useGrpcAuth,
+      expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
     });
     return provider;
   }

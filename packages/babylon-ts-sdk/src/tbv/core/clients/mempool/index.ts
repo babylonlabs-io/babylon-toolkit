@@ -11,6 +11,7 @@ export {
   getAddressUtxos,
   getMempoolApiUrl,
   getNetworkFees,
+  getOutspend,
   getTipHeight,
   getTxHex,
   getTxInfo,
@@ -24,6 +25,7 @@ export type { AddressTx } from "./mempoolApi";
 export type {
   MempoolUTXO,
   NetworkFees,
+  OutspendStatus,
   TxInfo,
   TxInput,
   TxOutput,

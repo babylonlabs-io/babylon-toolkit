@@ -9,7 +9,7 @@ import { buildStepItems } from "../steps";
 const steps = buildStepItems(null);
 
 describe("GroupedProgress", () => {
-  it("always renders all four group headers", () => {
+  it("renders all four group headers before any group completes", () => {
     render(<GroupedProgress steps={steps} currentStep={1} />);
 
     expect(
@@ -44,12 +44,17 @@ describe("GroupedProgress", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the per-group completed counter on a finished group", () => {
+  it("hides a finished group (it folds into the steps-completed pill)", () => {
     render(<GroupedProgress steps={steps} currentStep={8} />);
 
-    // Register deposit (steps 1-6) is fully done.
+    // Register deposit (steps 1-6) is fully done → its header is not rendered.
     expect(
-      screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
+      screen.queryByText(COPY.deposit.groups.registerDeposit),
+    ).not.toBeInTheDocument();
+
+    // The active "Set up claim" group still shows its in-progress counter.
+    expect(
+      screen.getByText(COPY.deposit.groups.stepCounter(1, 2)),
     ).toBeInTheDocument();
   });
 
@@ -80,29 +85,22 @@ describe("GroupedProgress", () => {
     expect(screen.getByTestId("active-detail")).toBeInTheDocument();
   });
 
-  it("collapses every group on completion", () => {
+  it("hides every group on completion (all fold into the pill)", () => {
     render(<GroupedProgress steps={steps} currentStep={steps.length + 1} />);
 
-    // No sub-step labels are rendered when all groups are collapsed.
+    // All groups are complete → none render, neither headers nor sub-steps.
+    expect(
+      screen.queryByText(COPY.deposit.groups.registerDeposit),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.groups.activateVault),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText(COPY.deposit.steps.submitWotsKey),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(COPY.deposit.steps.generateSecret),
     ).not.toBeInTheDocument();
-    // Every group reports itself fully complete (6/6, 2/2, 4/4, 3/3).
-    expect(
-      screen.getByText(COPY.deposit.groups.stepCounter(6, 6)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(COPY.deposit.groups.stepCounter(2, 2)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(COPY.deposit.groups.stepCounter(4, 4)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(COPY.deposit.groups.stepCounter(3, 3)),
-    ).toBeInTheDocument();
   });
 
   describe("accessibility", () => {
@@ -126,13 +124,14 @@ describe("GroupedProgress", () => {
       ).toBeInTheDocument();
     });
 
-    it("exposes each group's status to screen readers", () => {
+    it("exposes visible groups' status to screen readers (completed groups are hidden)", () => {
       render(<GroupedProgress steps={steps} currentStep={8} />);
 
-      // Register deposit done, Set up claim active, the latter two not started.
+      // Register deposit is done and therefore hidden — no completed indicator.
       expect(
-        screen.getByLabelText(COPY.deposit.a11y.groupStatus.completed),
-      ).toBeInTheDocument();
+        screen.queryByLabelText(COPY.deposit.a11y.groupStatus.completed),
+      ).not.toBeInTheDocument();
+      // Set up claim is active; Sign payout and Activate vault are upcoming.
       expect(
         screen.getByLabelText(COPY.deposit.a11y.groupStatus.active),
       ).toBeInTheDocument();

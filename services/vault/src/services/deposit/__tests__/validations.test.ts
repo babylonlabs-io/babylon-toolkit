@@ -309,15 +309,24 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
 
-    it("returns 'Depositing Unavailable' when deposits are disabled", () => {
+    it("returns disabled 'Deposits unavailable' when deposits are disabled", () => {
       const result = getDepositCtaState({
         ...readyParams,
         isDepositDisabled: true,
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Depositing Unavailable",
+        label: "Deposits unavailable",
       });
+    });
+
+    it("prioritizes deposit-disabled over geo-blocked", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositDisabled: true,
+        isGeoBlocked: true,
+      });
+      expect(result.label).toBe("Deposits unavailable");
     });
 
     it("returns geo-blocked message when geo-blocked", () => {
@@ -400,6 +409,15 @@ describe("Deposit Validations", () => {
         disabled: true,
         label: "Select a vault provider",
       });
+    });
+
+    it("prioritizes 'Enter an amount' over 'Select a vault provider' when no amount is entered", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        amountSats: 0n,
+        hasProvider: false,
+      });
+      expect(result.label).toBe("Enter an amount");
     });
 
     it("blocks with 'Loading commission...' when the selected provider commission is unavailable", () => {
@@ -498,15 +516,6 @@ describe("Deposit Validations", () => {
       });
     });
 
-    it("prioritizes deposit-disabled over geo-blocked", () => {
-      const result = getDepositCtaState({
-        ...readyParams,
-        isDepositDisabled: true,
-        isGeoBlocked: true,
-      });
-      expect(result.label).toBe("Depositing Unavailable");
-    });
-
     it("prioritizes geo-blocked over wallet-not-connected", () => {
       const result = getDepositCtaState({
         ...readyParams,
@@ -598,7 +607,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Vault size exceeds remaining capacity (0.005 BTC)",
+        label: "BTC Vault size exceeds remaining capacity (0.005 BTC)",
       });
     });
 
@@ -648,7 +657,7 @@ describe("Deposit Validations", () => {
       });
     });
 
-    it("returns 'Vault size exceeds remaining capacity' when amount > effectiveRemaining", () => {
+    it("returns 'BTC Vault size exceeds remaining capacity' when amount > effectiveRemaining", () => {
       // Amount + fee + claim (806_000) still fits readyParams.btcBalance
       // (1_000_000), so this test isolates the cap branch from the balance
       // check. effectiveRemaining 500_000 sats = "0.005" via
@@ -660,7 +669,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Vault size exceeds remaining capacity (0.005 BTC)",
+        label: "BTC Vault size exceeds remaining capacity (0.005 BTC)",
       });
     });
 
@@ -718,11 +727,11 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: maxBelowMinimumLabel(960_398n, 1_000_000n),
+        label: maxBelowMinimumLabel(1_000_000n),
       });
     });
 
-    it("shows 'available balance below minimum' regardless of the entered amount (terminal state)", () => {
+    it("does not show the balance-below-minimum message before an amount is entered", () => {
       const result = getDepositCtaState({
         ...readyParams,
         minDeposit: 1_000_000n,
@@ -730,7 +739,7 @@ describe("Deposit Validations", () => {
         effectiveRemaining: null,
         amountSats: 0n,
       });
-      expect(result.label).toBe(maxBelowMinimumLabel(960_398n, 1_000_000n));
+      expect(result.label).toBe("Enter an amount");
     });
 
     it("prefers the cap message over the balance message when both are below the minimum", () => {
@@ -742,7 +751,7 @@ describe("Deposit Validations", () => {
         minDeposit: 1_000_000n,
         effectiveRemaining: 300_000n,
         maxDepositSats: 300_000n,
-        amountSats: 0n,
+        amountSats: 100_000n,
       });
       expect(result.label).toBe(
         "Remaining capacity (0.003 BTC) is below the minimum deposit (0.01 BTC)",
@@ -845,10 +854,9 @@ describe("Deposit Validations", () => {
   });
 
   describe("maxBelowMinimumLabel", () => {
-    it("names the available balance and the minimum deposit", () => {
-      const label = maxBelowMinimumLabel(500_000n, 1_000_000n);
-      expect(label).toContain("Available balance (0.005");
-      expect(label).toContain("is below the minimum deposit (0.01");
+    it("names the minimum deposit", () => {
+      const label = maxBelowMinimumLabel(1_000_000n);
+      expect(label).toContain("Minimum deposit is 0.01");
     });
   });
 });

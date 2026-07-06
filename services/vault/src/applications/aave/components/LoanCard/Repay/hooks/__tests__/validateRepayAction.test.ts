@@ -115,6 +115,22 @@ describe("validateRepayAction", () => {
       const result = validateRepayAction(0, 0, 0, 0, 8);
       expect(result.buttonText).toBe("Enter an amount");
     });
+
+    it("does not classify an unknown (undefined) balance as a real zero", () => {
+      // The Repay component passes `undefined` while the balance is still
+      // loading/errored, so outstanding debt must NOT render "Insufficient
+      // balance" before the balance is actually known.
+      const result = validateRepayAction(
+        0,
+        0,
+        0.00000003,
+        undefined,
+        8,
+        "WBTC",
+      );
+      expect(result.buttonText).toBe("Enter an amount");
+      expect(result.errorMessage).toBeNull();
+    });
   });
 
   describe("balance below debt (dust partial repay)", () => {

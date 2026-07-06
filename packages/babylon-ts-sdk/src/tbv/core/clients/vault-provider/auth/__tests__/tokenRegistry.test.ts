@@ -9,17 +9,23 @@ import {
 } from "../tokenRegistry";
 
 import {
+  GOLDEN_CWT_AUDIENCE_XONLY,
   GOLDEN_SIGNING_KEY_XONLY,
 } from "./goldenVectors";
 
 // The gating tests drive a real `getToken` acquire, which verifies the
-// server-identity proof. That check is exercised exhaustively in
-// serverIdentity / tokenProvider specs; here we only care which
-// bootstrap method the registry-built provider calls, so stub it out to
-// stay independent of the golden proof's wall-clock.
+// server-identity proof and the issued CWT. Both checks are exercised
+// exhaustively in serverIdentity / tokenProvider / verifyDepositorCwt
+// specs; here we only care which bootstrap method the registry-built
+// provider calls, so stub them out to stay independent of the golden
+// fixtures' wall-clock and token bytes.
 vi.mock("../serverIdentity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../serverIdentity")>()),
   verifyServerIdentity: vi.fn(),
+}));
+vi.mock("../verifyDepositorCwt", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../verifyDepositorCwt")>()),
+  verifyDepositorCwt: vi.fn(),
 }));
 
 const PEGIN_TXID_A = "a".repeat(64);
@@ -51,6 +57,7 @@ function buildInput(
     peginTxid: PEGIN_TXID_A,
     authAnchorHex: AUTH_ANCHOR_HEX,
     pinnedServerPubkey: PINNED_PUBKEY,
+    expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
     ...overrides,
   };
 }
@@ -114,24 +121,18 @@ describe("VpTokenRegistry", () => {
     ).toThrow(/already bound to pinnedServerPubkey/);
   });
 
-  it("throws on getOrCreate reuse with a different enableGrpcArtifactAuth", () => {
-    // The provider's gated-method sets are fixed at construction, so the
-    // cached instance can't switch auth subjects. A second caller that
-    // disagrees (e.g. flag flipped, or a primer that didn't pass it) must
-    // fail loud rather than silently get the wrong-subject token.
-    registry.getOrCreate(buildInput({ enableGrpcArtifactAuth: false }));
+  it("throws on getOrCreate with the same peginTxid but a different expectedAudienceXOnlyPubkey", () => {
+    // The token's CWT `aud` is bound to the depositor; a second caller
+    // disagreeing on the depositor pubkey must fail loud rather than
+    // share a provider that would reject the issued token's audience.
+    registry.getOrCreate(
+      buildInput({ expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY }),
+    );
     expect(() =>
-      registry.getOrCreate(buildInput({ enableGrpcArtifactAuth: true })),
-    ).toThrow(/already bound to enableGrpcArtifactAuth=false/);
-  });
-
-  it("treats an omitted enableGrpcArtifactAuth as false for reuse", () => {
-    // The default is resolved before the mismatch check, so priming
-    // without the flag and reusing with an explicit `false` must NOT throw.
-    registry.getOrCreate(buildInput());
-    expect(() =>
-      registry.getOrCreate(buildInput({ enableGrpcArtifactAuth: false })),
-    ).not.toThrow();
+      registry.getOrCreate(
+        buildInput({ expectedAudienceXOnlyPubkey: "f".repeat(64) }),
+      ),
+    ).toThrow(/already bound to expectedAudienceXOnlyPubkey/);
   });
 
   it("getOrCreate cache-hit swaps in the new client so URL changes don't leave a stale transport", () => {
@@ -299,18 +300,12 @@ describe("VpTokenRegistry gRPC artifact auth gating", () => {
     return body.method;
   }
 
-  it("defaults to the JSON-RPC bearer for the artifact method", async () => {
-    // Flag unset: the artifact method must fall back into the
-    // JSON-RPC-subject set and mint via `auth_createDepositorToken`,
-    // the only path a proxy without ENABLE_GRPC_ARTIFACTS accepts.
+  it("mints the gRPC bearer for the artifact method", async () => {
+    // The artifact method is always gRPC-subject gated: the proxy
+    // translates it into a gRPC call to vaultd, so it must mint via
+    // `auth_createDepositorTokenGrpc`. A JSON-RPC-subject token would be
+    // rejected by `GrpcAuthInterceptor`.
     const method = await issueMethodFor(buildInput());
-    expect(method).toBe("auth_createDepositorToken");
-  });
-
-  it("uses the gRPC bearer for the artifact method when enabled", async () => {
-    const method = await issueMethodFor(
-      buildInput({ enableGrpcArtifactAuth: true }),
-    );
     expect(method).toBe("auth_createDepositorTokenGrpc");
   });
 });

@@ -7,7 +7,6 @@
 
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   decodeFunctionData,
   zeroAddress,
@@ -15,11 +14,9 @@ import {
   type Chain,
   type PublicClient,
 } from "viem";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  MockBitcoinWallet,
-  MockEthereumWallet,
-} from "../../../../testing";
+import { MockBitcoinWallet, MockEthereumWallet } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { BTCVaultRegistryABI } from "../../contracts";
 import {
@@ -42,11 +39,11 @@ vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
     await importOriginal<typeof import("../../primitives/psbt/peginInput")>();
   return {
     ...actual,
-    buildPeginInputPsbt: vi
-      .fn()
-      .mockResolvedValue({ psbtHex: "deadbeef" }),
+    buildPeginInputPsbt: vi.fn().mockResolvedValue({ psbtHex: "deadbeef" }),
     extractPeginInputSignature: vi.fn().mockReturnValue("a".repeat(128)),
-    finalizePeginInputPsbt: vi.fn().mockReturnValue("mock-depositor-signed-pegin-tx"),
+    finalizePeginInputPsbt: vi
+      .fn()
+      .mockReturnValue("mock-depositor-signed-pegin-tx"),
   };
 });
 
@@ -64,6 +61,13 @@ vi.mock(
     };
   },
 );
+
+// Schnorr-signature verification needs a real PSBT + real signature, which the
+// mock wallet cannot produce. It is verified in its own dedicated real-PSBT
+// tests (primitives/psbt/__tests__/verifyScriptPathSchnorrSignature.test.ts).
+vi.mock("../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
+  assertScriptPathSchnorrSignature: vi.fn(),
+}));
 
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {
@@ -102,8 +106,7 @@ const TEST_PUBLIC_CLIENT = {
 
 // Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
-  DEPOSITOR:
-    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   VAULT_PROVIDER:
     "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   VAULT_KEEPER_1:
@@ -139,21 +142,24 @@ const TEST_UTXOS: UTXO[] = [
     vout: 0,
     value: 800_000,
     scriptPubKey:
-      "5120" + "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "5120" +
+      "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   },
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000002",
     vout: 0,
     value: 800_000,
     scriptPubKey:
-      "5120" + "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "5120" +
+      "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   },
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000003",
     vout: 1,
     value: 800_000,
     scriptPubKey:
-      "5120" + "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "5120" +
+      "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
   },
 ];
 
@@ -431,9 +437,7 @@ describe("PeginManager", () => {
       expect(result.derivedSecrets.htlcSecretHexes[0]).toMatch(
         /^[0-9a-f]{64}$/,
       );
-      expect(result.derivedSecrets.wotsPkHashes[0]).toMatch(
-        /^0x[0-9a-f]{64}$/,
-      );
+      expect(result.derivedSecrets.wotsPkHashes[0]).toMatch(/^0x[0-9a-f]{64}$/);
       expect(result.derivedSecrets.authAnchorHex).toMatch(/^[0-9a-f]{64}$/);
 
       // Pubkey snapshot returned at top level (safe to persist).
@@ -494,7 +498,10 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amounts: [TEST_AMOUNTS.PEGIN],
         ...BASE_PREPARE_PEGIN_PARAMS,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        vaultKeeperBtcPubkeys: [
+          TEST_KEYS.VAULT_KEEPER_1,
+          TEST_KEYS.VAULT_KEEPER_2,
+        ],
       });
 
       expect(result.transaction.fundedPrePeginTxHex.length).toBeGreaterThan(0);
@@ -756,9 +763,7 @@ describe("PeginManager", () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
-      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
-        "0xDEADBEEF",
-      );
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce("0xDEADBEEF");
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
@@ -792,9 +797,7 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      await expect(manager.signProofOfPossession()).rejects.toThrow(
-        /empty/i,
-      );
+      await expect(manager.signProofOfPossession()).rejects.toThrow(/empty/i);
     });
 
     it("rejects a malformed (non-canonical) base64 signature", async () => {
@@ -815,9 +818,7 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      await expect(manager.signProofOfPossession()).rejects.toThrow(
-        /base64/i,
-      );
+      await expect(manager.signProofOfPossession()).rejects.toThrow(/base64/i);
     });
 
     it("rejects a malformed hex signature", async () => {
@@ -837,9 +838,7 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
-      await expect(manager.signProofOfPossession()).rejects.toThrow(
-        /hex/i,
-      );
+      await expect(manager.signProofOfPossession()).rejects.toThrow(/hex/i);
     });
 
     it("treats unprefixed hex-looking output as hex, not base64", async () => {
@@ -957,8 +956,7 @@ describe("PeginManager", () => {
         vaultProvider: TEST_CONTRACT_ADDRESS,
         hashlock: MOCK_HASHLOCK,
         htlcVout: 0,
-        depositorPayoutBtcAddress:
-          TEST_PAYOUT_ADDRESS,
+        depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
       });
@@ -989,8 +987,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
           htlcVout: 0,
-          depositorPayoutBtcAddress:
-            TEST_PAYOUT_ADDRESS,
+          depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
         }),
@@ -998,8 +995,7 @@ describe("PeginManager", () => {
     });
 
     it("should throw when BTC wallet is connected to a different pubkey than the PoP", async () => {
-      const { manager, btcWallet, popSignature } =
-        await makeManagerWithPop();
+      const { manager, btcWallet, popSignature } = await makeManagerWithPop();
       // Simulate BTC wallet swap between signing PoP and submitting.
       vi.spyOn(btcWallet, "getPublicKeyHex").mockResolvedValue(
         TEST_KEYS.VAULT_KEEPER_1,
@@ -1012,8 +1008,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
           htlcVout: 0,
-          depositorPayoutBtcAddress:
-            TEST_PAYOUT_ADDRESS,
+          depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
         }),
@@ -1047,8 +1042,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
           htlcVout: 0,
-          depositorPayoutBtcAddress:
-            TEST_PAYOUT_ADDRESS,
+          depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
         }),
@@ -1065,8 +1059,7 @@ describe("PeginManager", () => {
         vaultProvider: TEST_CONTRACT_ADDRESS,
         hashlock: MOCK_HASHLOCK,
         htlcVout: 0,
-        depositorPayoutBtcAddress:
-          TEST_PAYOUT_ADDRESS,
+        depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
       });
@@ -1079,8 +1072,7 @@ describe("PeginManager", () => {
         vaultProvider: TEST_CONTRACT_ADDRESS,
         hashlock: MOCK_HASHLOCK,
         htlcVout: 0,
-        depositorPayoutBtcAddress:
-          TEST_PAYOUT_ADDRESS,
+        depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
       });
@@ -1088,7 +1080,9 @@ describe("PeginManager", () => {
     });
 
     it("should throw when transaction receipt status is reverted", async () => {
-      vi.mocked(TEST_PUBLIC_CLIENT.waitForTransactionReceipt).mockResolvedValueOnce({
+      vi.mocked(
+        TEST_PUBLIC_CLIENT.waitForTransactionReceipt,
+      ).mockResolvedValueOnce({
         status: "reverted",
         transactionHash: `0x${"ab".repeat(32)}`,
       } as never);
@@ -1102,8 +1096,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           hashlock: MOCK_HASHLOCK,
           htlcVout: 0,
-          depositorPayoutBtcAddress:
-            TEST_PAYOUT_ADDRESS,
+          depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
         }),
@@ -1113,9 +1106,11 @@ describe("PeginManager", () => {
     describe("resolveMaxAcceptableCommissionBps (boundary cases)", () => {
       // The shared TEST_PUBLIC_CLIENT.readContract mock is reset to its
       // default after each case so per-test overrides don't leak.
-      const DEFAULT_READ_CONTRACT_IMPL = (
-        { functionName }: { functionName: string },
-      ) => {
+      const DEFAULT_READ_CONTRACT_IMPL = ({
+        functionName,
+      }: {
+        functionName: string;
+      }) => {
         if (functionName === "getPegInFee") return Promise.resolve(0n);
         if (functionName === "getVaultProviderCommission")
           return Promise.resolve(0);
@@ -1222,7 +1217,6 @@ describe("PeginManager", () => {
           }),
         ).rejects.toThrow(/commission changed since quote/);
       });
-
     });
   });
 
@@ -1231,8 +1225,7 @@ describe("PeginManager", () => {
     const baseRequest = {
       depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
       hashlock: MOCK_HASHLOCK,
-      depositorPayoutBtcAddress:
-        TEST_PAYOUT_ADDRESS,
+      depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
       depositorWotsPkHash: MOCK_WOTS_PK_HASH,
     } as const;
 
@@ -1356,7 +1349,6 @@ describe("PeginManager", () => {
       // Depositor BTC pubkey comes from PopSignature, not per-request.
       expect(sentData).toContain(popSignature.depositorBtcPubkey);
     });
-
   });
 
   describe("signAndBroadcast", () => {
@@ -1646,7 +1638,9 @@ describe("PeginManager", () => {
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
-      const tx = bitcoin.Transaction.fromHex(result.transaction.fundedPrePeginTxHex);
+      const tx = bitcoin.Transaction.fromHex(
+        result.transaction.fundedPrePeginTxHex,
+      );
       const opReturnVout = 2; // vault outputs at 0, 1; OP_RETURN at vaultCount
       const script = tx.outs[opReturnVout].script;
 
@@ -1951,9 +1945,7 @@ describe("PeginManager", () => {
             depositorWotsPkHash: MOCK_WOTS_PK_HASH,
             popSignature,
           }),
-        ).rejects.toThrow(
-          /P2WPKH .* x-only public key.*Use a P2TR/i,
-        );
+        ).rejects.toThrow(/P2WPKH .* x-only public key.*Use a P2TR/i);
       }
     });
 

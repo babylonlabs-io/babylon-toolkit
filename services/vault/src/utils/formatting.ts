@@ -130,24 +130,27 @@ export function formatAprPercent(percent: number): string {
   return `${rounded}%`;
 }
 
-/** Decimal places shown in the Overview "Current LTV" row. Matches
- * `formatLLTV` so the user-facing current LTV and protocol max-LTV render at
- * the same resolution. */
-const LTV_DISPLAY_DECIMALS = 1;
+/** Decimal places shown for the Overview "% to liquidation" figure. */
+const LIQUIDATION_DISTANCE_DECIMALS = 1;
 
 /**
- * Format current loan-to-value (debt / collateral) as a percentage string.
- * Returns "-" when either side is non-positive (no debt or no collateral →
- * no meaningful LTV), matching the empty-state convention of the Health
- * Factor row in OverviewSection.
+ * Format a BTC/USD price for display at whole-dollar resolution, without a
+ * currency suffix (e.g. "$88,400"). Used for the Overview liquidation-price
+ * and BTC-price stats where the bare "$…" form reads cleanest.
  */
-export function formatLtvPercent(
-  debtUsd: number,
-  collateralUsd: number,
-): string {
-  if (debtUsd <= 0 || collateralUsd <= 0) return "-";
-  const percent = (debtUsd / collateralUsd) * 100;
-  return `${percent.toFixed(LTV_DISPLAY_DECIMALS)}%`;
+export function formatUsdPrice(usdValue: number): string {
+  return `$${Math.round(usdValue).toLocaleString("en-US")}`;
+}
+
+/**
+ * Format the distance from the current BTC price down to the liquidation price
+ * as a percentage (e.g. "19.2%"). A position already at or past its
+ * liquidation price has no remaining buffer, so non-positive inputs render as
+ * "0%".
+ */
+export function formatLiquidationDistancePercent(percent: number): string {
+  const clamped = Math.max(0, percent);
+  return `${clamped.toFixed(LIQUIDATION_DISTANCE_DECIMALS)}%`;
 }
 
 /**
@@ -236,6 +239,21 @@ export function formatAmount(amount: number, maxDecimals = 2): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: safeMaxDecimals,
   });
+}
+
+/**
+ * Amount for display in validation/error copy: thousands-separated, with 2
+ * decimals for values >= 1 (stablecoin-friendly, e.g. "8,079.98") and the
+ * token's native precision below 1 so small balances don't round to "0".
+ *
+ * @param amount - The amount to format.
+ * @param displayDecimals - The token's display precision (used when < 1).
+ */
+export function formatDisplayAmount(
+  amount: number,
+  displayDecimals: number,
+): string {
+  return formatAmount(amount, amount >= 1 ? 2 : displayDecimals);
 }
 
 /**
@@ -355,4 +373,32 @@ export function formatTokenAmount(amount: number, maxDecimals = 6): string {
     return `${parts[0]}.${parts[1]}0`;
   }
   return trimmed;
+}
+
+/** At/above this magnitude a token amount renders in compact K/M/B notation. */
+const COMPACT_NOTATION_THRESHOLD = 1000;
+
+/**
+ * Format a token amount for compact display. Figures of one thousand or more
+ * collapse to grouped magnitude suffixes (45_200 → "45.2K", 1_234_567 →
+ * "1.23M", 1.5e9 → "1.5B"); smaller amounts render in full (grouped, up to two
+ * decimals). The token symbol, if any, is appended by the caller. Returns "0"
+ * for zero or negative input.
+ *
+ * Sibling of `formatCompactUsd` for bare token quantities (no "$" prefix,
+ * uppercase suffix).
+ */
+export function formatCompactTokenAmount(amount: number): string {
+  if (amount <= 0) return "0";
+  // Round to the two decimals shown before testing the compact threshold, so a
+  // value that rounds up to 1,000 (e.g. 999.995) renders as "1K" rather than
+  // the full "1,000" — keeping the boundary consistent and not overstating.
+  const rounded = Number(amount.toFixed(2));
+  if (rounded >= COMPACT_NOTATION_THRESHOLD) {
+    return new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 2,
+    }).format(rounded);
+  }
+  return formatAmount(amount, 2);
 }

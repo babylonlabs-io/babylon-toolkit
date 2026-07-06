@@ -37,9 +37,10 @@ import {
   getVaultKeeperReader,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
-import featureFlags from "@/config/featureFlags";
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -86,6 +87,7 @@ import {
   waitForWotsReadiness,
   type DepositUtxo,
 } from "./depositFlowSteps";
+import type { DepositWarning } from "./depositWarnings";
 import { useBtcWalletState } from "./useBtcWalletState";
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -135,12 +137,13 @@ export interface UseDepositFlowReturn {
   /** Mapped error content (title + body) if any step failed */
   error: DepositErrorContent | null;
   /**
-   * Soft warnings accumulated by the most recent flow (e.g. "couldn't save a
-   * local copy" when the deposit registered on-chain but `addPendingPegin`
-   * failed). Empty until the flow finishes or errors out; persists for the
-   * UI to surface until the next run starts.
+   * Structured soft warnings from the most recent flow (e.g. a per-vault WOTS
+   * readiness timeout, or "couldn't save a local copy"). Empty until the flow
+   * finishes or errors out. Non-terminal per-vault warnings are dropped by the
+   * continuation view once their vault advances past the warned stage — see
+   * {@link DepositWarning}.
    */
-  lastWarnings: string[];
+  lastWarnings: DepositWarning[];
   /** Whether currently waiting for external action (e.g., wallet signature) */
   isWaiting: boolean;
   /** Payout signing progress (X of Y signings) */
@@ -192,8 +195,8 @@ export interface MultiVaultDepositResult {
   pegins: PeginCreationResult[];
   /** Batch ID linking the vaults */
   batchId: string;
-  /** Warning messages for recoverable per-vault failures. */
-  warnings?: string[];
+  /** Structured warnings for recoverable/terminal per-vault failures. */
+  warnings?: DepositWarning[];
 }
 
 // ============================================================================
@@ -232,7 +235,7 @@ export function useDepositFlow(
   // failures, localStorage write failures, etc.). Exposed so the UI can
   // surface them after completion — these are informational, the flow
   // itself doesn't abort on them.
-  const [lastWarnings, setLastWarnings] = useState<string[]>([]);
+  const [lastWarnings, setLastWarnings] = useState<DepositWarning[]>([]);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
   const [peginSigningProgress, setPeginSigningProgress] =
@@ -276,6 +279,7 @@ export function useDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const queryClient = useQueryClient();
+  const gate = useProtocolGateState();
   const { findProvider } = useVaultProviders(selectedApplication);
   const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
     useProtocolParamsContext();
@@ -300,8 +304,8 @@ export function useDepositFlow(
       );
 
       // Track background operation failures
-      const warnings: string[] = [];
-      const recordWarning = (warning: string) => {
+      const warnings: DepositWarning[] = [];
+      const recordWarning = (warning: DepositWarning) => {
         warnings.push(warning);
         setLastWarnings([...warnings]);
       };
@@ -311,6 +315,15 @@ export function useDepositFlow(
       const primedRegistryTxids: string[] = [];
 
       try {
+        // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
+        // gated and the on-chain register below is contract-enforced
+        // (`whenNotFrozen`), but guard the execution path too: abort cleanly
+        // here — before the wallet popup and the doomed on-chain register —
+        // rather than letting it revert, if the protocol is frozen/paused.
+        if (isDepositBlocked(gate)) {
+          throw new Error(COPY.deposit.errors.protocolPaused);
+        }
+
         // ========================================================================
         // Step 0: Validation
         // ========================================================================
@@ -394,11 +407,11 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
-        // Sign each peg-in PSBT one at a time so the (x of n) sub-counter can
-        // advance per signature. A native batch signPsbts signs every tx in a
-        // single popup and returns one result, hiding intra-batch progress
-        // from the dApp — so we override signPsbts to loop signPsbt instead,
-        // trading one popup for N popups in exchange for live progress.
+        // Sign the peg-in PSBTs in a single native batch popup when the wallet
+        // supports signPsbts; the (x of n) sub-counter jumps 0 -> N around the
+        // one call. Wallets without native batch signing fall back to
+        // sequential signPsbt (via the SDK's signPsbtsWithFallback), where the
+        // per-tx wrapper ticks the counter once per signature.
         const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
           psbtHex,
           opts,
@@ -412,6 +425,21 @@ export function useDepositFlow(
           );
           return signed;
         };
+        // Native batch path: one popup; the counter jumps 0 -> N around the call.
+        const signPeginBatch: typeof confirmedBtcWallet.signPsbts = async (
+          psbtHexes,
+          opts,
+        ) => {
+          setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+          setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
+          const signed = await confirmedBtcWallet.signPsbts!(psbtHexes, opts);
+          setPeginSigningProgress({
+            completed: psbtHexes.length,
+            total: psbtHexes.length,
+          });
+          return signed;
+        };
+
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
           ...confirmedBtcWallet,
           deriveContextHash: (appName, context) => {
@@ -419,13 +447,9 @@ export function useDepositFlow(
             return confirmedBtcWallet.deriveContextHash(appName, context);
           },
           signPsbt: signOnePeginPsbt,
-          signPsbts: async (psbtHexes, opts) => {
-            const signed: string[] = [];
-            for (let i = 0; i < psbtHexes.length; i++) {
-              signed.push(await signOnePeginPsbt(psbtHexes[i], opts?.[i]));
-            }
-            return signed;
-          },
+          ...(typeof confirmedBtcWallet.signPsbts === "function"
+            ? { signPsbts: signPeginBatch }
+            : {}),
         };
 
         // No hard pre-filter. `DuplicateHashlock` on `BTCVaultRegistry`
@@ -633,10 +657,12 @@ export function useDepositFlow(
                 data: { vaultId: peginResult.vaultId },
               },
             );
-            if (
-              !warnings.includes(COPY.deposit.warnings.depositRecordNotSaved)
-            ) {
-              recordWarning(COPY.deposit.warnings.depositRecordNotSaved);
+            if (!warnings.some((w) => w.stage === "persistence")) {
+              recordWarning({
+                stage: "persistence",
+                terminal: true,
+                message: COPY.deposit.warnings.depositRecordNotSaved,
+              });
             }
           }
         }
@@ -738,7 +764,7 @@ export function useDepositFlow(
               peginTxid,
               authAnchorHex,
               pinnedServerPubkey,
-              enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
+              depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
             primedRegistryTxids.push(peginTxid);
           }
@@ -869,15 +895,18 @@ export function useDepositFlow(
           signal.throwIfAborted();
 
           if (!readyVaultIds.has(result.vaultId)) {
-            recordWarning(
-              terminalVaultIds.has(result.vaultId)
+            recordWarning({
+              vaultId: result.vaultId,
+              stage: "wots",
+              terminal: terminalVaultIds.has(result.vaultId),
+              message: terminalVaultIds.has(result.vaultId)
                 ? COPY.deposit.warnings.wotsReadinessTerminal(
                     result.vaultIndex + 1,
                   )
                 : COPY.deposit.warnings.wotsReadinessTimeout(
                     result.vaultIndex + 1,
                   ),
-            );
+            });
             wotsFailedVaultIds.add(result.vaultId);
             continue;
           }
@@ -933,12 +962,15 @@ export function useDepositFlow(
 
               const errorMsg =
                 error instanceof Error ? error.message : String(error);
-              recordWarning(
-                COPY.deposit.warnings.wotsSubmissionFailed(
+              recordWarning({
+                vaultId: result.vaultId,
+                stage: "wots",
+                terminal: false,
+                message: COPY.deposit.warnings.wotsSubmissionFailed(
                   result.vaultIndex + 1,
                   errorMsg,
                 ),
-              );
+              });
               logger.error(
                 error instanceof Error ? error : new Error(String(error)),
                 {
@@ -1000,11 +1032,14 @@ export function useDepositFlow(
 
           if (!payoutReadyVaultIds.has(result.vaultId)) {
             if (payoutTerminalVaultIds.has(result.vaultId)) {
-              recordWarning(
-                COPY.deposit.warnings.payoutReadinessTerminal(
+              recordWarning({
+                vaultId: result.vaultId,
+                stage: "payout",
+                terminal: true,
+                message: COPY.deposit.warnings.payoutReadinessTerminal(
                   result.vaultIndex + 1,
                 ),
-              );
+              });
             }
             setPerVaultSteps((prev) =>
               prev.map((step, index) =>
@@ -1072,12 +1107,15 @@ export function useDepositFlow(
 
             const errorMsg =
               error instanceof Error ? error.message : String(error);
-            recordWarning(
-              COPY.deposit.warnings.payoutSigningFailed(
+            recordWarning({
+              vaultId: result.vaultId,
+              stage: "payout",
+              terminal: false,
+              message: COPY.deposit.warnings.payoutSigningFailed(
                 result.vaultIndex + 1,
                 errorMsg,
               ),
-            );
+            });
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {
@@ -1154,6 +1192,7 @@ export function useDepositFlow(
         abortControllerRef.current = null;
       }
     }, [
+      gate,
       vaultAmounts,
       mempoolFeeRate,
       btcWalletProvider,

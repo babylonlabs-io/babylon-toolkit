@@ -6,14 +6,15 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
+import { isRepayBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
-import { useError } from "@/context/error";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -91,6 +92,10 @@ export interface UseRepayTransactionResult {
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /** Last failure message, shown inline under the action (null when none). */
+  error: string | null;
+  /** Clear the last failure message (e.g. when the repay asset changes). */
+  clearError: () => void;
 }
 
 /**
@@ -103,11 +108,14 @@ export function useRepayTransaction({
   proxyContract,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
-  const { handleError } = useError();
+  const gate = useProtocolGateState();
+
+  const clearError = useCallback(() => setError(null), []);
 
   const executeRepay = async (
     repayAmount: number,
@@ -119,6 +127,11 @@ export function useRepayTransaction({
 
     if (repayAmount <= 0) return false;
 
+    // Repay is an aave-scope EXIT: blocked only by an aave Pause (not a protocol
+    // pause, and never by Freeze). Guard the chokepoint behind the disabled button.
+    if (isRepayBlocked(gate)) return false;
+
+    setError(null);
     setIsProcessing(true);
     try {
       // Validate prerequisites
@@ -240,15 +253,7 @@ export function useRepayTransaction({
             ? mapViemErrorToContractError(error, "Repay")
             : new Error("An unexpected error occurred while repaying");
 
-      // Repay deliberately has no `retryAction`. If one is added later, mirror
-      // the borrow hook and gate it on `!(error instanceof ReserveMismatchError)`
-      // — retrying can't help against a compromised indexer.
-      handleError({
-        error: mappedError,
-        displayOptions: {
-          showModal: true,
-        },
-      });
+      setError(mappedError.message);
 
       return false;
     } finally {
@@ -259,5 +264,7 @@ export function useRepayTransaction({
   return {
     executeRepay,
     isProcessing,
+    error,
+    clearError,
   };
 }

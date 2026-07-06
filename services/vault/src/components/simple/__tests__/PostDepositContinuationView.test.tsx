@@ -1,5 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,39 +43,14 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   },
 }));
 
-vi.mock("@/models/peginStateMachine", () => ({
-  PeginAction: {
-    SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY",
-    SIGN_PAYOUT_TRANSACTIONS: "SIGN_PAYOUT_TRANSACTIONS",
-    ACTIVATE_VAULT: "ACTIVATE_VAULT",
-    NONE: "NONE",
-  },
-  ContractStatus: {
-    PENDING: 0,
-    VERIFIED: 1,
-    ACTIVE: 2,
-    REDEEMED: 3,
-    LIQUIDATED: 4,
-    INVALID: 5,
-    DEPOSITOR_WITHDRAWN: 6,
-    EXPIRED: 7,
-  },
-  LocalStorageStatus: {
-    PENDING: "pending",
-    PAYOUT_SIGNED: "payout_signed",
-    CONFIRMING: "confirming",
-    CONFIRMED: "confirmed",
-    REFUND_BROADCAST: "refund_broadcast",
-  },
-  getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
-  getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
-  // Mirrors the production set; ContractStatus literals match the mock above.
-  USER_ACTIONABLE_PEGIN_ACTIONS: new Set([
+vi.mock("@/models/peginStateMachine", () => {
+  // Mirrors the production set; ContractStatus literals match the mock below.
+  const USER_ACTIONABLE_PEGIN_ACTIONS = new Set([
     "SUBMIT_WOTS_KEY",
     "SIGN_PAYOUT_TRANSACTIONS",
     "ACTIVATE_VAULT",
-  ]),
-  isVaultPastActivation: (
+  ]);
+  const isVaultPastActivation = (
     state: { contractStatus: number; localStatus?: string } | undefined,
   ) => {
     if (!state) return false;
@@ -84,17 +60,84 @@ vi.mock("@/models/peginStateMachine", () => ({
     }
     // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
     return [2, 3, 4, 6].includes(state.contractStatus);
-  },
-  // Narrower than isVaultPastActivation: only ACTIVE or optimistic
-  // VERIFIED+CONFIRMED count as "activated".
-  isVaultActivated: (
-    state: { contractStatus: number; localStatus?: string } | undefined,
+  };
+  // Faithful stand-ins for the shared predicates the continuation view imports.
+  // They mirror production so the tests still drive selection through the
+  // peginState data (displayVariant / availableActions / btcPublicKey).
+  const isCandidateVault = (
+    state:
+      | {
+          contractStatus: number;
+          localStatus?: string;
+          displayVariant?: string;
+        }
+      | undefined,
+  ) =>
+    !!state &&
+    !isVaultPastActivation(state) &&
+    state.displayVariant !== "warning" &&
+    state.displayVariant !== "danger";
+  const isActionablePeginAction = (
+    action: string,
+    btcPublicKey: string | undefined,
   ) => {
-    if (!state) return false;
-    if (state.contractStatus === 2) return true; // ACTIVE
-    return state.contractStatus === 1 && state.localStatus === "confirmed";
-  },
-}));
+    if (action === "SIGN_AND_BROADCAST_TO_BITCOIN") return true;
+    if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
+    if (action === "SIGN_PAYOUT_TRANSACTIONS") {
+      return btcPublicKey !== undefined;
+    }
+    return true;
+  };
+  const hasActionableStep = (
+    state: { availableActions?: string[] } | undefined,
+    btcPublicKey: string | undefined,
+  ) =>
+    !!state &&
+    (state.availableActions ?? []).some((action) =>
+      isActionablePeginAction(action, btcPublicKey),
+    );
+  return {
+    PeginAction: {
+      SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY",
+      SIGN_PAYOUT_TRANSACTIONS: "SIGN_PAYOUT_TRANSACTIONS",
+      ACTIVATE_VAULT: "ACTIVATE_VAULT",
+      NONE: "NONE",
+    },
+    ContractStatus: {
+      PENDING: 0,
+      VERIFIED: 1,
+      ACTIVE: 2,
+      REDEEMED: 3,
+      LIQUIDATED: 4,
+      INVALID: 5,
+      DEPOSITOR_WITHDRAWN: 6,
+      EXPIRED: 7,
+    },
+    LocalStorageStatus: {
+      PENDING: "pending",
+      PAYOUT_SIGNED: "payout_signed",
+      CONFIRMING: "confirming",
+      CONFIRMED: "confirmed",
+      REFUND_BROADCAST: "refund_broadcast",
+    },
+    getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    USER_ACTIONABLE_PEGIN_ACTIONS,
+    isVaultPastActivation,
+    // Narrower than isVaultPastActivation: only ACTIVE or optimistic
+    // VERIFIED+CONFIRMED count as "activated".
+    isVaultActivated: (
+      state: { contractStatus: number; localStatus?: string } | undefined,
+    ) => {
+      if (!state) return false;
+      if (state.contractStatus === 2) return true; // ACTIVE
+      return state.contractStatus === 1 && state.localStatus === "confirmed";
+    },
+    isCandidateVault,
+    isActionablePeginAction,
+    hasActionableStep,
+  };
+});
 
 vi.mock("@/copy", () => ({
   COPY: {
@@ -102,6 +145,11 @@ vi.mock("@/copy", () => ({
       resume: {
         activationSuccessMessage: "Deposit successfully submitted!",
         activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
+      },
+      vaultActivatedSuccess: {
+        heading: "BTC Vault activated",
+        body: "Your BTC Vault is now active and ready for borrowing.",
+        goToDashboard: "Go to Dashboard",
       },
       errors: {
         defaultTitle: "Transaction failed",
@@ -264,6 +312,7 @@ function renderView(
       }
       onClose={overrides.onClose ?? vi.fn()}
     />,
+    { wrapper: MemoryRouter },
   );
 }
 
@@ -334,7 +383,7 @@ describe("PostDepositContinuationView", () => {
     ]);
     mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
-    const { getByTestId, rerender } = renderView({
+    const { getByTestId, getByText, queryByTestId, rerender } = renderView({
       vaultIds: ["0xvault0" as Hex],
     });
     expect(getByTestId("activate")).toBeTruthy();
@@ -359,17 +408,16 @@ describe("PostDepositContinuationView", () => {
       />,
     );
 
-    // With no vault left to continue, the modal lands on the completed view
-    // rather than parking on a generic "awaiting confirmation" step.
-    expect(getByTestId("step").textContent).toBe("COMPLETED");
-    expect(getByTestId("complete").textContent).toBe("true");
-    // Single deposit → singular success copy.
-    expect(getByTestId("success-message").textContent).toBe(
-      "Deposit successfully submitted!",
-    );
+    // With no vault left to continue, the modal lands on the activated success
+    // screen (replacing the progress view) rather than parking on a generic
+    // "awaiting confirmation" step.
+    expect(getByText("BTC Vault activated")).toBeInTheDocument();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    // The deposit progress view is replaced, not layered behind.
+    expect(queryByTestId("step")).toBeNull();
   });
 
-  it("uses the plural success message when a whole split batch is complete", () => {
+  it("shows the activated success screen when a whole split batch is complete", () => {
     const VERIFIED = 1;
     const done = () =>
       resultWith({
@@ -383,16 +431,15 @@ describe("PostDepositContinuationView", () => {
     ]);
     mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
-    const { getByTestId } = renderView({
+    const { getByText, queryByTestId } = renderView({
       vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
       activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
     });
 
-    // No candidate vault remains → complete view; a 2-vault batch reads plural.
-    expect(getByTestId("step").textContent).toBe("COMPLETED");
-    expect(getByTestId("success-message").textContent).toBe(
-      "Your BTC Vaults have been activated.",
-    );
+    // No candidate vault remains → the single activated success screen shows.
+    expect(getByText("BTC Vault activated")).toBeInTheDocument();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    expect(queryByTestId("step")).toBeNull();
   });
 
   it("advances to the next vault once the current vault finishes activating", () => {
@@ -702,6 +749,7 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey={undefined}
         onClose={vi.fn()}
       />,
+      { wrapper: MemoryRouter },
     );
     expect(queryByTestId("payout")).toBeNull();
     expect(queryByTestId("progress-view")).toBeNull();

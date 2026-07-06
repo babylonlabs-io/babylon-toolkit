@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { FullScreenDialog } from "@babylonlabs-io/core-ui";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
-import { ResponsiveDialog } from "@/components/ResponsiveDialog/ResponsiveDialog";
 import { useChainProviders } from "@/context/Chain.context";
-import { useInscriptionProvider } from "@/context/Inscriptions.context";
 import { HashMap } from "@/core/types";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
@@ -16,17 +15,29 @@ interface WalletDialogProps {
   storage: HashMap;
   config: any;
   persistent: boolean;
-  simplifiedTerms?: boolean;
+  /** Optional content rendered top-right, mirroring the close/back button (e.g. a settings trigger). */
+  actions?: ReactNode;
+  /** Overrides the default `left-4` position of the close/back button. */
+  closeButtonClassName?: string;
+  /** Overrides the default `right-4` position of the `actions` slot. */
+  actionsClassName?: string;
 }
 
 const ANIMATION_DELAY = 1000;
 
-export function WalletDialog({ persistent, storage, config, onError, simplifiedTerms }: WalletDialogProps) {
+export function WalletDialog({
+  persistent,
+  storage,
+  config,
+  onError,
+  actions,
+  closeButtonClassName,
+  actionsClassName,
+}: WalletDialogProps) {
   const { visible, screen, confirmed, close, confirm, displayChains } = useWidgetState();
-  const { toggleShowAgain, toggleLockInscriptions } = useInscriptionProvider();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
-  const { connect, disconnect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
+  const { connect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
   const { disconnect: disconnectAll } = useWalletConnect();
 
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -46,19 +57,6 @@ export function WalletDialog({ persistent, storage, config, onError, simplifiedT
 
   useEffect(() => clearDisconnectTimer, [clearDisconnectTimer]);
 
-  const handleAccepTermsOfService = useCallback(() => {
-    displayChains?.();
-  }, [displayChains]);
-
-  const handleToggleInscriptions = useCallback(
-    (lockInscriptions: boolean, showAgain: boolean) => {
-      toggleShowAgain?.(showAgain);
-      toggleLockInscriptions?.(lockInscriptions);
-      displayChains?.();
-    },
-    [toggleShowAgain, toggleLockInscriptions, displayChains],
-  );
-
   const handleClose = useCallback(() => {
     close?.();
     if (!confirmed) {
@@ -70,22 +68,23 @@ export function WalletDialog({ persistent, storage, config, onError, simplifiedT
   const handleConfirm = useCallback(() => {
     confirm?.();
     close?.();
-  }, [confirm]);
+  }, [confirm, close]);
+
+  const onBack = screen.type === "WALLETS" ? displayChains : undefined;
 
   return (
-    <ResponsiveDialog className="min-h-[80%]" open={visible} onClose={handleClose}>
-      <Screen
-        current={screen}
-        widgets={walletWidgets}
-        className="min-h-0 md:size-[600px]"
-        onClose={handleClose}
-        onConfirm={handleConfirm}
-        onSelectWallet={connect}
-        onAccepTermsOfService={handleAccepTermsOfService}
-        onToggleInscriptions={handleToggleInscriptions}
-        onDisconnectWallet={disconnect}
-        simplifiedTerms={simplifiedTerms}
-      />
-    </ResponsiveDialog>
+    <FullScreenDialog
+      open={visible}
+      onClose={handleClose}
+      onBack={onBack}
+      className="items-center justify-center p-6"
+      actions={actions}
+      closeButtonClassName={closeButtonClassName}
+      actionsClassName={actionsClassName}
+    >
+      <div className="mx-auto w-full max-w-[612px]">
+        <Screen current={screen} widgets={walletWidgets} onConfirm={handleConfirm} onSelectWallet={connect} />
+      </div>
+    </FullScreenDialog>
   );
 }

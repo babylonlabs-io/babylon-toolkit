@@ -28,6 +28,10 @@ vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn().mockReturnValue("https://mempool.space/api"),
 }));
 
+vi.mock("../../../clients/btc/outspend", () => ({
+  fetchHtlcSpend: vi.fn(),
+}));
+
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: vi.fn(() => "0xmatching_pre_pegin_hash"),
 }));
@@ -74,6 +78,7 @@ vi.mock("../fetchVaults", () => ({
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import * as bitcoin from "bitcoinjs-lib";
 import {
   afterEach,
   beforeEach,
@@ -84,12 +89,14 @@ import {
   type Mock,
 } from "vitest";
 
+import { fetchHtlcSpend } from "../../../clients/btc/outspend";
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
 import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
+  RefundAlreadySettledError,
 } from "../vaultRefundService";
 
 const VAULT_ID = "0xvaultid" as `0x${string}`;
@@ -123,8 +130,22 @@ const VP_BTC_PUBKEY_X_ONLY = "f".repeat(64);
 const VAULT_PROVIDER = { btcPubKey: `0x${VP_BTC_PUBKEY_X_ONLY}` };
 const VAULT_KEEPERS = [{ btcPubKey: "vk1" }, { btcPubKey: "vk2" }];
 const UNIVERSAL_CHALLENGERS = [{ btcPubKey: "uc1" }];
+// Funded Pre-PegIn tx whose HTLC output (vout 0, matching ON_CHAIN_VAULT
+// .htlcVout) carries the deposit amount (100_000) PLUS the protocol reserve.
+// The refund preview must report this funded value — what the depositor
+// actually reclaims — not the bare on-chain deposit amount.
+const FUNDED_HTLC_VALUE_SATS = 133_668n; // 100_000 deposit + 33_668 reserve
+const FUNDED_PRE_PEGIN_TX_HEX = (() => {
+  const tx = new bitcoin.Transaction();
+  tx.addInput(Buffer.alloc(32, 0), 0);
+  tx.addOutput(
+    Buffer.from(`0014${"bb".repeat(20)}`, "hex"),
+    Number(FUNDED_HTLC_VALUE_SATS),
+  );
+  return tx.toHex();
+})();
 const INDEXER_VAULT = {
-  unsignedPrePeginTx: "0xrawtx",
+  unsignedPrePeginTx: `0x${FUNDED_PRE_PEGIN_TX_HEX}`,
   depositorBtcPubkey: "indexer_depositor_pubkey",
 };
 const BTC_WALLET_PROVIDER = {
@@ -141,6 +162,13 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("fetch", mockFetch);
   mockFetch.mockResolvedValue({ status: 200 });
+  // Default: HTLC output unspent, so the refund proceeds normally. Individual
+  // tests override to exercise the already-settled path. `clearAllMocks` (used
+  // per-describe) preserves this implementation.
+  (fetchHtlcSpend as Mock).mockResolvedValue({
+    spent: false,
+    confirmed: false,
+  });
 });
 
 afterEach(() => {
@@ -434,6 +462,101 @@ describe("vaultRefundService - adapter wiring", () => {
     expect(observed).toEqual({ txId: "broadcast_txid" });
     expect(txId).toBe("broadcast_txid");
   });
+
+  it("throws RefundAlreadySettledError (before signing) when the HTLC is already spent", async () => {
+    (fetchHtlcSpend as Mock).mockResolvedValue({
+      spent: true,
+      confirmed: true,
+      spendingTxid: "existing_refund_txid",
+    });
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(RefundAlreadySettledError);
+    await expect(promise).rejects.toMatchObject({
+      spendingTxid: "existing_refund_txid",
+      confirmed: true,
+    });
+    // Guard fires before the wallet popup — never builds/signs/broadcasts.
+    expect(mockBuildAndBroadcastRefund).not.toHaveBeenCalled();
+  });
+
+  it("classifies a -27 broadcast rejection as already-settled when the re-probe finds the HTLC spent", async () => {
+    // Guard passes (unspent), then the broadcast races a confirmed refund:
+    // bitcoind returns -27, the re-probe finds the HTLC spent → success.
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({
+        spent: true,
+        confirmed: true,
+        spendingTxid: "raced_refund_txid",
+      });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+      ),
+    );
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toBeInstanceOf(RefundAlreadySettledError);
+  });
+
+  it("propagates the original error when a -27 rejection's re-probe finds the HTLC still unspent", async () => {
+    // Guard passes (unspent); broadcast hits -27, but the re-probe ALSO finds
+    // the HTLC unspent (a genuine unrelated -27, or probe lag). Fail open: the
+    // original error must propagate, never be misread as already-settled.
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({ spent: false, confirmed: false });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+      ),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toThrow(/-27|already in block chain/);
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
+  });
+
+  it("does not classify a -26 broadcast rejection as already-settled (re-throws)", async () => {
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-26,"message":"min relay fee not met"}',
+      ),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toThrow(/-26|min relay fee/);
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
+  });
 });
 
 describe("getRefundPreview", () => {
@@ -445,9 +568,15 @@ describe("getRefundPreview", () => {
     mockFetch.mockResolvedValue({ status: 200 });
   });
 
-  it("returns the on-chain HTLC amount and mempool halfHourFee", async () => {
+  it("returns the funded HTLC value (deposit + reserve) as the refund amount, with the deposit amount as the fee-cap basis", async () => {
     const preview = await getRefundPreview(VAULT_ID);
-    expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
+    // The reclaimed amount is the funded HTLC output value, not the bare
+    // on-chain deposit amount — the reserve returns to the depositor.
+    expect(preview.amountSats).toBe(FUNDED_HTLC_VALUE_SATS);
+    expect(preview.amountSats).not.toBe(ON_CHAIN_VAULT.amount);
+    // The SDK caps the fee against the deposit amount; the preview surfaces it
+    // separately so the UI cap mirrors the SDK exactly.
+    expect(preview.feeCapBasisSats).toBe(ON_CHAIN_VAULT.amount);
     expect(preview.halfHourFeeSatsVb).toBe(7);
     expect(preview.prePeginOnChain).toBe(true);
   });
@@ -464,7 +593,7 @@ describe("getRefundPreview", () => {
       new Error("mempool unreachable"),
     );
     const preview = await getRefundPreview(VAULT_ID);
-    expect(preview.amountSats).toBe(ON_CHAIN_VAULT.amount);
+    expect(preview.amountSats).toBe(FUNDED_HTLC_VALUE_SATS);
     expect(preview.halfHourFeeSatsVb).toBeNull();
   });
 

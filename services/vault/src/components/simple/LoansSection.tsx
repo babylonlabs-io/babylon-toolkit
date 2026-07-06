@@ -5,14 +5,11 @@
  * the visual pattern used by PendingDeposits / Collateral.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { ExpandMenuButton } from "@/components/shared";
-import {
-  CARD_DARK_BG_CLASS,
-  SUMMARY_CARD_CLASS,
-} from "@/components/shared/layoutClasses";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
+import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 
@@ -57,11 +54,15 @@ export function LoansSection({
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-[24px] font-normal text-accent-primary">
+        <Heading
+          variant="h5"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
           {COPY.loans.heading}
-        </h2>
+        </Heading>
         <div className="flex gap-3">
           <Button
             variant="outlined"
@@ -89,14 +90,14 @@ export function LoansSection({
       </div>
 
       {hasLoans ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
           {borrowedAssets.map((asset) => {
             const isExpanded = expandedSymbols.has(asset.symbol);
             return (
               <Card
                 key={asset.symbol}
                 variant="filled"
-                className={`${SUMMARY_CARD_CLASS} ${CARD_DARK_BG_CLASS}`}
+                className={SUMMARY_CARD_CLASS}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -116,17 +117,19 @@ export function LoansSection({
                   )}
                 </div>
 
-                {isExpanded && asset.borrowRate && (
-                  <div className="mt-4 border-t border-secondary-strokeLight pt-4 dark:border-secondary-strokeDark">
-                    <div className="flex items-center justify-between">
-                      <span className="text-base text-accent-secondary">
-                        {COPY.loans.borrowRateLabel}
-                      </span>
-                      <span className="text-base text-accent-primary">
-                        {asset.borrowRate}
-                      </span>
+                {asset.borrowRate && (
+                  <ExpandablePanel expanded={isExpanded}>
+                    <div className="mt-4 border-t border-secondary-strokeLight pt-4 dark:border-secondary-strokeDark">
+                      <div className="flex items-center justify-between">
+                        <span className="text-base text-accent-secondary">
+                          {COPY.loans.borrowRateLabel}
+                        </span>
+                        <span className="text-base text-accent-primary">
+                          {asset.borrowRate}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </ExpandablePanel>
                 )}
               </Card>
             );
@@ -138,29 +141,29 @@ export function LoansSection({
             {/* Overlapping token icons */}
             <div className="mb-4 flex items-center">
               <Avatar
-                url="/images/btc.png"
+                url="/images/btc.svg"
                 alt="BTC"
                 size="xlarge"
                 className="h-14 w-14"
               />
               <Avatar
-                url="/images/usdc.png"
+                url="/images/usdc.svg"
                 alt="USDC"
                 size="xlarge"
                 className="-ml-4 h-14 w-14"
               />
               <Avatar
-                url="/images/usdt.png"
+                url="/images/usdt.svg"
                 alt="USDT"
                 size="xlarge"
                 className="-ml-4 h-14 w-14"
               />
             </div>
 
-            <p className="text-[20px] text-accent-primary">
+            <p className="text-xl text-accent-primary">
               {COPY.loans.empty.title(btcConfig.coinSymbol)}
             </p>
-            <p className="text-[16px] text-accent-secondary">
+            <p className="text-base text-accent-secondary">
               {COPY.loans.empty.body(btcConfig.coinSymbol)}
             </p>
           </div>

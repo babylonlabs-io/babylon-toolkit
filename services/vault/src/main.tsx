@@ -13,6 +13,7 @@ import { BrowserRouter } from "react-router";
 import GlobalError from "@/components/pages/global-error";
 import Providers from "@/providers";
 import { Router } from "@/router";
+import { reloadForStaleDeploy } from "@/utils/lazyWithRetry";
 
 import "@/globals.css";
 import "../sentry.client.config";
@@ -20,6 +21,15 @@ import "../sentry.client.config";
 // Initialize ECC library for bitcoinjs-lib (required by p2tr, Taproot operations).
 // Must run before any code that touches Bitcoin addresses or PSBTs.
 initEccLib(ecc);
+
+// Vite fires this on a dynamic-import preload failure (stale chunk 404 after a
+// redeploy) — trigger the bounded one-shot reload. No preventDefault: letting
+// Vite rethrow keeps the rejection a real stale-deploy error so lazyWithRetry's
+// catch classifies it and stays suspended (preventDefault would resolve the
+// import to undefined → a spurious TypeError).
+window.addEventListener("vite:preloadError", () => {
+  reloadForStaleDeploy();
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

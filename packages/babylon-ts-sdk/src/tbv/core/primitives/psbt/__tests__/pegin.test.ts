@@ -472,6 +472,22 @@ describe("buildPrePeginPsbt", () => {
         ),
       ).rejects.toThrow();
     });
+
+    it("rejects a non-positive pegInAmount before WASM construction", async () => {
+      await expect(
+        buildPrePeginPsbt(makePrePeginParams({ pegInAmounts: [0n] })),
+      ).rejects.toThrow(/pegInAmounts\[0\] must be > 0/);
+    });
+
+    it("rejects a non-bigint pegInAmount that bypassed the type check", async () => {
+      await expect(
+        buildPrePeginPsbt(
+          makePrePeginParams({
+            pegInAmounts: [100_000 as unknown as bigint],
+          }),
+        ),
+      ).rejects.toThrow(/pegInAmounts\[0\] must be a bigint \(got number\)/);
+    });
   });
 });
 
@@ -627,6 +643,24 @@ describe("buildPeginTxFromFundedPrePegin", () => {
       });
 
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
+    });
+  });
+
+  describe("Error handling", () => {
+    // The reconstruction path has no assertWasmPeginSizing amount-echo backstop,
+    // so the input guard at the BigUint64Array construction is its only defense
+    // against a bad pegInAmount.
+    it("rejects a non-positive pegInAmount during reconstruction", async () => {
+      const { txHex } = await buildFundedPrePeginTxHex();
+
+      await expect(
+        buildPeginTxFromFundedPrePegin({
+          prePeginParams: makePrePeginParams({ pegInAmounts: [0n] }),
+          timelockPegin: TEST_TIMELOCK_PEGIN,
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+        }),
+      ).rejects.toThrow(/pegInAmounts\[0\] must be > 0/);
     });
   });
 });

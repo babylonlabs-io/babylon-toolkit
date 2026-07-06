@@ -28,7 +28,7 @@ export {
   simulateCascade,
 } from "./cascadeSimulation.js";
 export type { CascadeVault } from "./cascadeSimulation.js";
-export { computeOptimalOrder } from "./optimalOrder.js";
+export { computeOptimalOrder, MAX_DP_N } from "./optimalOrder.js";
 export {
   computeTargetSeizureSats,
   simulatePrefixSeizure,

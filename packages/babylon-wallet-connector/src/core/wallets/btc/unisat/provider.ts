@@ -277,6 +277,31 @@ export class UnisatProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
+  getAccounts = async (): Promise<string[]> => {
+    if (!this.walletInfo)
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: "Unisat Wallet not connected",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+
+    if (typeof this.provider.getAccounts !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+        message: "Unisat Wallet does not support getAccounts",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    // `getAccounts` is the non-interactive read (unlike `requestAccounts`): a
+    // locked wallet resolves with [] without surfacing the unlock popup, which
+    // is what makes it usable as a silent lock-detection poll. Bounded by the
+    // RPC timeout so a stalled extension can't hang the poll.
+    return withTimeout(this.provider.getAccounts(), UNISAT_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading its accounts"),
+    );
+  };
+
   signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)
       throw new WalletError({

@@ -37,6 +37,14 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
 }));
 
+// Local override of the global gate mock so we can drive a frozen/paused scope.
+const depositGateMock = vi.hoisted(() => ({
+  value: { protocol: null as string | null, aave: null as string | null },
+}));
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => depositGateMock.value,
+}));
+
 // Avoid threading a real QueryClientProvider through every renderHook —
 // `useDepositFlow` only uses the client to invalidate the UTXO query
 // after broadcast; a stub is sufficient for adapter-wiring tests.
@@ -368,7 +376,40 @@ async function setupDefaultMocks() {
 describe("useDepositFlow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    depositGateMock.value = { protocol: null, aave: null };
     await setupDefaultMocks();
+  });
+
+  describe("Protocol pause gating", () => {
+    it("aborts before any side effect when the protocol is frozen/paused", async () => {
+      depositGateMock.value = { protocol: "paused", aave: null };
+
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      let resolved: unknown;
+      await act(async () => {
+        resolved = await result.current.executeDeposit();
+      });
+
+      expect(resolved).toBeNull();
+      expect(result.current.error?.body).toBe(
+        COPY.deposit.errors.protocolPaused,
+      );
+      // No BTC was sent and nothing was registered — aborted up front.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
   });
 
   describe("Batch Pre-PegIn Creation", () => {
@@ -787,7 +828,9 @@ describe("useDepositFlow", () => {
       // Flow should complete with warnings, not error
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(1);
-      expect(depositResult?.warnings?.[0]).toContain("Payout signing failed");
+      expect(depositResult?.warnings?.[0]?.message).toContain(
+        "Payout signing failed",
+      );
 
       // Second vault should still attempt
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
@@ -814,7 +857,7 @@ describe("useDepositFlow", () => {
 
       expect(depositResult).not.toBeNull();
       expect(depositResult?.warnings).toHaveLength(1);
-      expect(depositResult?.warnings?.[0]).toContain(
+      expect(depositResult?.warnings?.[0]?.message).toContain(
         "WOTS key submission failed",
       );
 
@@ -876,9 +919,11 @@ describe("useDepositFlow", () => {
       expect(depositResult).not.toBeNull();
       expect(result.current.lastWarnings).toEqual(
         expect.arrayContaining([
-          expect.stringContaining(
-            "Vault 1: WOTS key submission skipped - vault provider was not ready",
-          ),
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "Vault 1: WOTS key submission skipped - vault provider was not ready",
+            ),
+          }),
         ]),
       );
       expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
@@ -913,9 +958,11 @@ describe("useDepositFlow", () => {
       expect(depositResult).not.toBeNull();
       expect(result.current.lastWarnings).toEqual(
         expect.arrayContaining([
-          expect.stringContaining(
-            "Vault 1: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue",
-          ),
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "Vault 1: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue",
+            ),
+          }),
         ]),
       );
       expect(submitWotsPublicKey).toHaveBeenCalledTimes(1);
@@ -945,7 +992,9 @@ describe("useDepositFlow", () => {
       expect(signAndSubmitPayouts).not.toHaveBeenCalled();
       expect(result.current.lastWarnings).not.toEqual(
         expect.arrayContaining([
-          expect.stringContaining("Payout signing failed"),
+          expect.objectContaining({
+            message: expect.stringContaining("Payout signing failed"),
+          }),
         ]),
       );
       expect(result.current.perVaultSteps).toEqual([
@@ -996,7 +1045,9 @@ describe("useDepositFlow", () => {
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(2);
       expect(result.current.lastWarnings).not.toEqual(
         expect.arrayContaining([
-          expect.stringContaining("Payout signing failed"),
+          expect.objectContaining({
+            message: expect.stringContaining("Payout signing failed"),
+          }),
         ]),
       );
       expect(result.current.perVaultSteps).toEqual([
@@ -1156,31 +1207,7 @@ describe("useDepositFlow", () => {
   });
 
   describe("Peg-in signing progress", () => {
-    it("advances the counter to n of n by signing each peg-in tx in its own popup", async () => {
-      const { preparePeginTransaction } = vi.mocked(
-        await import("@/services/vault/vaultTransactionService"),
-      );
-      // The SDK signs the peg-in PSBTs by calling the wallet wrapper's
-      // signPsbts once; the wrapper forces per-tx signing underneath.
-      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
-        await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
-        return MOCK_BATCH_RESULT as any;
-      });
-
-      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-      await executeDepositFlow(result);
-
-      await waitFor(() => {
-        expect(result.current.peginSigningProgress).toEqual({
-          completed: 2,
-          total: 2,
-        });
-      });
-      // Per-tx: the single-PSBT signer is invoked once per vault.
-      expect(MOCK_BTC_WALLET.signPsbt).toHaveBeenCalledTimes(2);
-    });
-
-    it("never uses the wallet's native batch signPsbts for peg-in, so the counter can tick", async () => {
+    it("uses the wallet's native batch signPsbts so the peg-in txs sign in one popup", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
       );
@@ -1193,6 +1220,8 @@ describe("useDepositFlow", () => {
         signPsbt: nativeSignPsbt,
         signPsbts: nativeSignPsbts,
       };
+      // The SDK signs the peg-in PSBTs by calling the wallet wrapper's
+      // signPsbts once; the wrapper delegates to the native batch call.
       vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
         await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
         return MOCK_BATCH_RESULT as any;
@@ -1212,9 +1241,37 @@ describe("useDepositFlow", () => {
           total: 2,
         });
       });
-      // Peg-in is signed per-tx via signPsbt; the native batch path is unused.
-      expect(nativeSignPsbts).not.toHaveBeenCalled();
-      expect(nativeSignPsbt).toHaveBeenCalledTimes(2);
+      // One native batch call signs every peg-in tx; the per-tx signer is unused.
+      expect(nativeSignPsbts).toHaveBeenCalledTimes(1);
+      expect(nativeSignPsbts).toHaveBeenCalledWith(
+        ["psbt0", "psbt1"],
+        [{}, {}],
+      );
+      expect(nativeSignPsbt).not.toHaveBeenCalled();
+    });
+
+    it("falls back to sequential signPsbt for wallets without native batch signing, ticking the counter per tx", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      // MOCK_BTC_WALLET has no signPsbts, so the SDK's signPsbtsWithFallback
+      // signs each PSBT via the wrapper's signPsbt; the counter ticks per tx.
+      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
+        await wallet.signPsbt("psbt0", {});
+        await wallet.signPsbt("psbt1", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.peginSigningProgress).toEqual({
+          completed: 2,
+          total: 2,
+        });
+      });
+      expect(MOCK_BTC_WALLET.signPsbt).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -1241,7 +1298,7 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toBeFalsy();
       expect(
         result.current.lastWarnings.some((w) =>
-          w.includes("couldn't save a local copy"),
+          w.message.includes("couldn't save a local copy"),
         ),
       ).toBe(true);
     });
@@ -1298,7 +1355,7 @@ describe("useDepositFlow", () => {
       // error must still be visible.
       expect(
         result.current.lastWarnings.some((w) =>
-          w.includes("couldn't save a local copy"),
+          w.message.includes("couldn't save a local copy"),
         ),
       ).toBe(true);
     });

@@ -65,6 +65,7 @@ function seedHotCache(): void {
     pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
       typeof createAuthenticatedVpClient
     >[0]["pinnedServerPubkey"],
+    depositorBtcPubkey: DEPOSITOR_PK,
   });
 }
 

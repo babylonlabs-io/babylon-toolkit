@@ -21,6 +21,7 @@ import { logger } from "@/infrastructure";
 interface EnvVars {
   BTC_VAULT_REGISTRY: Address;
   AAVE_ADAPTER: Address;
+  AAVE_ADAPTER_CONFIG: Address;
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string | undefined;
   BTC_PRICE_FEED: Address | undefined;
@@ -170,6 +171,11 @@ function validateEnvVars(): EnvValidationResult {
     "NEXT_PUBLIC_TBV_AAVE_ADAPTER",
     errors,
   );
+  const AAVE_ADAPTER_CONFIG = validateRequiredAddress(
+    process.env.NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG,
+    "NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG",
+    errors,
+  );
   const GRAPHQL_ENDPOINT = validateRequiredUrl(
     process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
     "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
@@ -247,6 +253,7 @@ function validateEnvVars(): EnvValidationResult {
   const env: EnvVars = {
     BTC_VAULT_REGISTRY,
     AAVE_ADAPTER,
+    AAVE_ADAPTER_CONFIG,
     GRAPHQL_ENDPOINT,
     SIDECAR_API_URL,
     VP_PROXY_URL,

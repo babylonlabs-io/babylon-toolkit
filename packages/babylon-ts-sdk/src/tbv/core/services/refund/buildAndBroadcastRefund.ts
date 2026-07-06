@@ -10,18 +10,16 @@
  * @module services/refund
  */
 
-import {
-  computeMinClaimValue,
-  computeMinPeginFee,
-  type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
 import { findAuthAnchorOpReturn } from "../../managers/pegin";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import { extractPayoutSignature } from "../../primitives/psbt/payout";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
+import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
 import {
   processPublicKeyToXOnly,
   stripHexPrefix,
@@ -114,7 +112,13 @@ function assertBytes32(value: string, label: string): void {
 export interface VaultBatchEntry {
   /** SHA-256 hashlock commitment for this vault (bytes32, 0x-prefixed). */
   hashlock: Hex;
-  /** HTLC output value in satoshis for this vault. */
+  /**
+   * Vault deposit (peg-in) amount in satoshis — the on-chain contract's
+   * `amount` field. This is the peg-in amount WASM expects in `pegInAmounts`,
+   * NOT the funded HTLC output value (which is `amount + depositorClaimValue +
+   * minPeginFee`). WASM re-adds that reserve internally when it sizes the HTLC
+   * output, so this value is passed straight through.
+   */
   amount: bigint;
   /** Index of this vault's HTLC output in the funded Pre-PegIn tx. */
   htlcVout: number;
@@ -141,7 +145,7 @@ export interface VaultRefundData {
   universalChallengersVersion: number;
   vaultProvider: Address;
   applicationEntryPoint: Address;
-  /** Pre-PegIn HTLC output value in satoshis. */
+  /** Vault deposit (peg-in) amount in satoshis — the on-chain `amount` field. */
   amount: bigint;
   /**
    * Funded, pre-witness Pre-PegIn transaction hex. 0x prefix optional.
@@ -190,9 +194,8 @@ export interface BtcBroadcastResult {
   txId: string;
 }
 
-export type BtcBroadcaster<
-  R extends BtcBroadcastResult = BtcBroadcastResult,
-> = (signedTxHex: string) => Promise<R>;
+export type BtcBroadcaster<R extends BtcBroadcastResult = BtcBroadcastResult> =
+  (signedTxHex: string) => Promise<R>;
 
 export type RefundPsbtSigner = (
   psbtHex: string,
@@ -294,7 +297,10 @@ function validateVaultRefundData(v: VaultRefundData): void {
     v.universalChallengersVersion,
     "universalChallengersVersion",
   );
-  if (typeof v.unsignedPrePeginTxHex !== "string" || v.unsignedPrePeginTxHex.length === 0) {
+  if (
+    typeof v.unsignedPrePeginTxHex !== "string" ||
+    v.unsignedPrePeginTxHex.length === 0
+  ) {
     throw new Error("unsignedPrePeginTxHex must be a non-empty hex string");
   }
   if (!BTC_HEX_BYTES_RE.test(v.unsignedPrePeginTxHex)) {
@@ -337,10 +343,7 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
       `minPeginFeeRate must be a positive bigint, got ${c.minPeginFeeRate}`,
     );
   }
-  if (
-    !Number.isInteger(c.numLocalChallengers) ||
-    c.numLocalChallengers < 0
-  ) {
+  if (!Number.isInteger(c.numLocalChallengers) || c.numLocalChallengers < 0) {
     throw new Error("numLocalChallengers must be a non-negative integer");
   }
   if (
@@ -354,58 +357,6 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
       `councilQuorum (${c.councilQuorum}) must be in [1, councilSize=${c.councilSize}]`,
     );
   }
-}
-
-/**
- * Re-derive each HTLC's original peg-in amount from its on-chain HTLC output
- * value, inverting the protocol formula
- * `htlcValue = peginAmount + depositorClaimValue + minPeginFee`.
- *
- * The original peg-in amount is not persisted anywhere — only the HTLC output
- * value (`batch[i].amount`) survives on-chain. WASM refund template
- * reconstruction needs the *peg-in amount*, not the HTLC value: feeding the
- * HTLC value would size the template's HTLC output above what the funded tx
- * carries, and `buildRefundPsbt`'s value cross-check would refuse the refund.
- *
- * `depositorClaimValue` and `minPeginFee` are constant across the batch
- * (fixed by the version-pinned protocol params in {@link ctx}), so they are
- * computed once via the same WASM entry points the peg-in path uses, then
- * subtracted from every entry's value. The subtraction is the inverse of the
- * sizing WASM performs internally; `buildRefundPsbt` then re-binds the result
- * to the funded tx bytes, so a wrong derivation fails closed rather than
- * signing a mis-sized refund.
- */
-export async function deriveRefundPeginAmounts(
-  batch: ReadonlyArray<VaultBatchEntry>,
-  ctx: RefundPrePeginContext,
-): Promise<bigint[]> {
-  const depositorClaimValue = await computeMinClaimValue(
-    ctx.numLocalChallengers,
-    ctx.universalChallengerPubkeys.length,
-    ctx.councilQuorum,
-    ctx.councilSize,
-    ctx.feeRate,
-  );
-  const minPeginFee = await computeMinPeginFee(
-    ctx.vaultKeeperPubkeys.length,
-    ctx.universalChallengerPubkeys.length,
-    ctx.minPeginFeeRate,
-  );
-  const reserved = depositorClaimValue + minPeginFee;
-
-  return batch.map((entry, i) => {
-    const peginAmount = entry.amount - reserved;
-    if (peginAmount <= 0n) {
-      throw new Error(
-        `Re-derived peginAmount for batch[${i}] is non-positive ` +
-          `(${peginAmount}): HTLC value ${entry.amount} does not exceed ` +
-          `depositorClaimValue ${depositorClaimValue} + minPeginFee ` +
-          `${minPeginFee}. Refusing to build a refund from an inconsistent ` +
-          `(amount, protocol params) pair.`,
-      );
-    }
-    return peginAmount;
-  });
 }
 
 function finalizeAndExtract(signedPsbtHex: string): string {
@@ -545,15 +496,6 @@ export async function buildAndBroadcastRefund<
     );
   }
 
-  // Re-derive the original peg-in amounts from the on-chain HTLC values.
-  // `batch[i].amount` is the HTLC *output* value, not the peg-in amount the
-  // WASM template constructor expects; feeding it verbatim mis-sizes the
-  // template. The derivation is bound back to the funded tx bytes by
-  // `buildRefundPsbt`'s value cross-check, so an inconsistent result fails
-  // closed instead of producing a mis-sized refund.
-  const refundPeginAmounts = await deriveRefundPeginAmounts(vault.batch, ctx);
-  signal?.throwIfAborted();
-
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
       depositorPubkey: xOnlyDepositorPubkey,
@@ -563,7 +505,13 @@ export async function buildAndBroadcastRefund<
         ctx.universalChallengerPubkeys.map(stripHexPrefix),
       hashlocks: vault.batch.map((b) => stripHexPrefix(b.hashlock)),
       timelockRefund: ctx.timelockRefund,
-      pegInAmounts: refundPeginAmounts,
+      // `batch[i].amount` is the on-chain vault deposit (peg-in) amount, which
+      // is exactly what WASM's `pegInAmounts` expects — it re-adds the protocol
+      // reserve (`depositorClaimValue + minPeginFee`) internally when sizing the
+      // HTLC output. `buildRefundPsbt`'s value cross-check then binds the result
+      // to the funded tx bytes, refusing the refund if the template's HTLC value
+      // disagrees with the on-chain commitment.
+      pegInAmounts: vault.batch.map((b) => b.amount),
       feeRate: ctx.feeRate,
       minPeginFeeRate: ctx.minPeginFeeRate,
       numLocalChallengers: ctx.numLocalChallengers,
@@ -592,6 +540,22 @@ export async function buildAndBroadcastRefund<
   assertPsbtUnsignedTxMatches({
     requestedPsbtHex: psbtHex,
     returnedPsbtHex: signedPsbtHex,
+  });
+
+  // Critical Path #7: verify the depositor's script-path signature against a
+  // sighash recomputed from the PSBT we built before finalizing and broadcasting.
+  // The refund spends a single input (the HTLC output) on input 0.
+  const REFUND_SIGNED_INPUT_INDEX = 0;
+  const refundSignature = extractPayoutSignature(
+    signedPsbtHex,
+    xOnlyDepositorPubkey,
+    REFUND_SIGNED_INPUT_INDEX,
+  );
+  assertScriptPathSchnorrSignature({
+    requestedPsbtHex: psbtHex,
+    signatureHex: refundSignature,
+    signerXOnlyPubkeyHex: xOnlyDepositorPubkey,
+    inputIndex: REFUND_SIGNED_INPUT_INDEX,
   });
 
   const signedTxHex = finalizeAndExtract(signedPsbtHex);

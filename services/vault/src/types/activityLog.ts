@@ -4,6 +4,12 @@
  */
 
 /**
+ * Internal sentinel activity type for an in-flight peg-in. Kept out of the
+ * filter menu and rendered as a normal "Deposit" row with a spinner.
+ */
+export const PENDING_DEPOSIT_TYPE = "Pending Deposit";
+
+/**
  * Types of activities that can be recorded. Liquidation events are pre-classified
  * by `fetchActivities` into Partially / Fully Liquidated based on whether the
  * depositor had remaining open vaults at the moment of liquidation.
@@ -16,7 +22,7 @@ export type ActivityType =
   | "Borrow"
   | "Repay"
   | "Redeem"
-  | "Pending Deposit";
+  | typeof PENDING_DEPOSIT_TYPE;
 
 /**
  * Chain that the transaction hash belongs to.
@@ -47,8 +53,11 @@ export interface ActivityLog {
   date: Date;
   /** Source URL for the left avatar. BTC icon for native rows, reserve token icon for borrow/repay. */
   tokenIcon: string;
-  /** Whether the deposit was refunded via the peg-in refund path. Shown as a red dot with tooltip. */
-  isRefunded?: boolean;
+  /**
+   * Whether the deposit expired before activation and was reclaimed via the
+   * peg-in refund path. Shown as a red dot with the "Deposit expired" tooltip.
+   */
+  isExpired?: boolean;
   /** Type of activity */
   type: ActivityType;
   /** Amount involved in the activity */

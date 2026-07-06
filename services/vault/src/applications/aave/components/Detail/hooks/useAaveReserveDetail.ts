@@ -59,6 +59,12 @@ export interface UseAaveReserveDetailResult {
   /** Price of the selected borrow token in USD (null if unavailable) */
   tokenPriceUsd: number | null;
   /**
+   * True while `tokenPriceUsd` still reflects the previously-selected reserve
+   * (carried over on asset switch to avoid a remount). Price-derived figures
+   * (max borrow, available) must be withheld from display until this clears.
+   */
+  isPriceStale: boolean;
+  /**
    * Position/debt-discovery error — hard-block the LoanCard (audit
    * #311 fail-closed). A failure here means we can't trust the debt
    * amount, so signing repay against it would risk under-/over-paying.
@@ -131,6 +137,7 @@ export function useAaveReserveDetail({
   const {
     priceUsd: aavePriceUsd,
     isLoading: pricesLoading,
+    isPriceStale,
     error: pricesError,
   } = useAaveReservePrice({
     spokeAddress: config?.coreSpokeAddress,
@@ -198,6 +205,7 @@ export function useAaveReserveDetail({
     totalDebtValueUsd: debtValueUsd,
     healthFactor,
     tokenPriceUsd,
+    isPriceStale,
     positionError: positionError ?? null,
     ancillaryError: pricesError ?? splitParamsError ?? null,
     isPositionDataStale,

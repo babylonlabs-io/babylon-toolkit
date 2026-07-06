@@ -44,7 +44,8 @@ function WithdrawFlowContent({
   preSelectedVaultIds,
 }: WithdrawFlowProps) {
   const { step, goToProgress, reset } = useWithdrawFlow();
-  const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
+  const { executeWithdraw, isProcessing, error } =
+    useWithdrawCollateralTransaction();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
 
   const renderedStep = useDialogStep(open, step, reset);
@@ -59,12 +60,22 @@ function WithdrawFlowContent({
   const [submittedAssertTimelockBlocks, setSubmittedAssertTimelockBlocks] =
     useState(0);
 
+  // Signing-surface guard: god-mode demo rows are display-only (`displayOnly`,
+  // fake vaultId) and must never be selectable for a real withdraw, even if a
+  // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
+  // actionableVaults filter. Always a no-op in production (the flag is never
+  // set there).
+  const withdrawableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.displayOnly),
+    [collateralVaults],
+  );
+
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
     selectedVaults: effectiveSelectedVaults,
   } = useMemo(
-    () => getEffectiveVaultSelection(collateralVaults, preSelectedVaultIds),
-    [collateralVaults, preSelectedVaultIds],
+    () => getEffectiveVaultSelection(withdrawableVaults, preSelectedVaultIds),
+    [withdrawableVaults, preSelectedVaultIds],
   );
 
   const selectedPayoutAddresses = useMemo(
@@ -133,7 +144,7 @@ function WithdrawFlowContent({
     >
       <FadeTransition stepKey={renderedStep}>
         {renderedStep === WithdrawStep.REVIEW && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className="mx-auto w-full max-w-[612px]">
             <WithdrawReviewContent
               totalAmountBtc={selectedBtc}
               totalAmountUsd={selectedUsd}
@@ -142,6 +153,7 @@ function WithdrawFlowContent({
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
               isProcessing={isProcessing}
+              error={error}
               onConfirm={handleConfirm}
             />
           </div>

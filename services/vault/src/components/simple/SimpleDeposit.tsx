@@ -3,6 +3,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
@@ -13,6 +14,9 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { useVaultCountCap } from "@/hooks/useVaultCountCap";
+import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -71,12 +75,16 @@ function SimpleDepositContent({
   onClose,
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
+  const gate = useProtocolGateState();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
-  const { address: connectedBtcAddress, reconnect: reconnectBtcWallet } =
-    useBTCWallet();
+  const {
+    address: connectedBtcAddress,
+    reconnect: reconnectBtcWallet,
+    locked: isBtcWalletLocked,
+  } = useBTCWallet();
   const btcConnector = useChainConnector("BTC");
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
@@ -112,12 +120,14 @@ function SimpleDepositContent({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
-    isPartialLiquidation,
-    setIsPartialLiquidation,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
     canSplit,
     vaultAmounts,
     isSplitLoading,
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     depositorClaimValue,
     depositorClaimValueError,
     ordinalsCheckPending,
@@ -126,7 +136,7 @@ function SimpleDepositContent({
   } = useDepositPageForm();
 
   const depositBatchSize =
-    isPartialLiquidation && vaultAmounts ? vaultAmounts.length : 1;
+    isTwoVaultSplit && vaultAmounts ? vaultAmounts.length : 1;
 
   const {
     feeEthFormatted: protocolFeeAmount,
@@ -149,10 +159,9 @@ function SimpleDepositContent({
   // keep the per-vault values distinct to preserve each floor operation.
   const commissionHtlcValues =
     depositorClaimValue !== undefined && minPeginFee != null
-      ? (isPartialLiquidation && vaultAmounts
-          ? vaultAmounts
-          : [amountSats]
-        ).map((vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee)
+      ? (isTwoVaultSplit && vaultAmounts ? vaultAmounts : [amountSats]).map(
+          (vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee,
+        )
       : undefined;
 
   // Live commission (bps) for the selected provider, read from the current
@@ -188,9 +197,29 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
+  // block the deposit when even a single vault won't fit (`isAtCap`), force a
+  // single vault when a split would overflow (`isSplitUnavailable`), and fail
+  // closed if the cap read errors (`vaultCountCapUnavailable`). The count comes
+  // from `useVaultCountCap` (ACTIVE + PENDING + VERIFIED, adapter-scoped), which
+  // keeps the in-flight margin so concurrent deposits can't slip past the cap
+  // and revert at activation.
+  const {
+    maxVaults,
+    currentCount: collateralizableVaultCount,
+    capUnavailable: vaultCountCapUnavailable,
+  } = useVaultCountCap(connectedEthAddress);
+  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+    resolveVaultCapState({
+      existingVaultCount: collateralizableVaultCount,
+      maxVaultsPerPosition: maxVaults,
+      enabled: true,
+    });
+
   const isSupplementalDeposit = !!initialAmountBtc;
   const allowSplit =
     !isSupplementalDeposit &&
+    !isSplitCapReached &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Auto-enable split once when it first becomes available and allowed
@@ -198,11 +227,11 @@ function SimpleDepositContent({
   useEffect(() => {
     if (canSplit && allowSplit && !hasAutoChecked.current) {
       hasAutoChecked.current = true;
-      setIsPartialLiquidation(true);
+      setIsTwoVaultSplit(true);
     }
-  }, [canSplit, allowSplit, setIsPartialLiquidation]);
+  }, [canSplit, allowSplit, setIsTwoVaultSplit]);
 
-  const partialLiquidationProps = !allowSplit
+  const twoVaultSplitProps = !allowSplit
     ? undefined
     : {
         // Show the split as selected only when the user wants it AND the
@@ -211,11 +240,13 @@ function SimpleDepositContent({
         // raising it back above restores the selection because the underlying
         // intent is preserved. An explicit "Do not split" click (intent =
         // false) still sticks.
-        isEnabled: isPartialLiquidation && canSplit,
-        onChange: setIsPartialLiquidation,
+        isEnabled: isTwoVaultSplit && canSplit,
+        onChange: setIsTwoVaultSplit,
         canSplit,
         isLoading: isSplitLoading,
         splitRatioLabel,
+        minDepositForSplit,
+        isSplitAmountTooLow,
       };
 
   // UTXO-overlap advisory: count is computed on click and rendered as a
@@ -243,7 +274,7 @@ function SimpleDepositContent({
 
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
-    setIsPartialLiquidation(false);
+    setIsTwoVaultSplit(false);
     setWalletConnectionError(null);
     setOverlappingPendingVaultCount(null);
     resetDeposit();
@@ -254,7 +285,7 @@ function SimpleDepositContent({
       setFormData({ amountBtc: initialAmountBtc });
     }
   }, [
-    setIsPartialLiquidation,
+    setIsTwoVaultSplit,
     resetDeposit,
     resetForm,
     initialAmountBtc,
@@ -283,12 +314,24 @@ function SimpleDepositContent({
   };
 
   const handleDeposit = async () => {
+    // Kill-switch / pause guard on the submit path: blocks the deposit flow even
+    // if a deposit entry point that bypasses the disabled buttons (e.g. the
+    // Activity empty-state CTA or the urgent Add Collateral banner) opens this
+    // dialog.
+    if (isDepositBlocked(gate)) return;
+
+    // Per-position BTC Vault cap: never start a deposit that would push the
+    // position past the on-chain cap, or when the cap couldn't be read (fail
+    // closed) — defense-in-depth behind the disabled CTA.
+    if (isVaultCapReached || vaultCountCapUnavailable) return;
+
     // The CTA doubles as the recovery action when the wallet-liveness probe
-    // has failed: clicking it re-runs the underlying provider's connect flow
+    // has failed OR the proactive lock poll has flagged a silently-locked
+    // wallet: clicking it re-runs the underlying provider's connect flow
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
     // attempting another deposit. The deposit attempt itself is only retried
-    // once the user successfully reconnects and the error state clears.
-    if (walletConnectionError) {
+    // once the user successfully reconnects and the error/lock state clears.
+    if (walletConnectionError || isBtcWalletLocked) {
       await handleReconnectWallet();
       return;
     }
@@ -310,9 +353,8 @@ function SimpleDepositContent({
             ? err.message
             : "BTC wallet check failed. Please reconnect your wallet and try again.",
         );
-        return;
-      } finally {
         setIsVerifyingWallet(false);
+        return;
       }
     } else {
       // The `!isWalletConnected` branch in getDepositCtaState should prevent
@@ -328,10 +370,16 @@ function SimpleDepositContent({
 
     setWalletConnectionError(null);
 
-    // Ensure the signing path sees post-mempool state, not the cached snapshot.
-    await refetchUtxos();
+    // Keep the button in its loading state through the UTXO refetch so there's
+    // no dead air between the wallet check and the signing screen.
+    try {
+      // Ensure the signing path sees post-mempool state, not the cached snapshot.
+      await refetchUtxos();
+    } finally {
+      setIsVerifyingWallet(false);
+    }
 
-    const shouldSplit = isPartialLiquidation && allowSplit && !!vaultAmounts;
+    const shouldSplit = isTwoVaultSplit && allowSplit && !!vaultAmounts;
     const effectiveVaultAmounts =
       shouldSplit && vaultAmounts ? [...vaultAmounts] : [amountSats];
     setOverlappingPendingVaultCount(runOverlapCheck(effectiveVaultAmounts));
@@ -363,57 +411,83 @@ function SimpleDepositContent({
     >
       <FadeTransition stepKey={stepKey}>
         {showForm && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className="mx-auto w-full max-w-[564px]">
             <Heading variant="h5">Deposit</Heading>
             <div className="mt-4">
               <DepositForm
-                amount={formData.amountBtc}
-                amountSats={amountSats}
-                btcBalance={btcBalance}
-                unconfirmedBalance={unconfirmedBalance}
-                hasUnconfirmedBalanceOnly={hasUnconfirmedBalanceOnly}
-                minDeposit={minDeposit}
-                maxDeposit={maxDeposit}
-                maxDepositSats={maxDepositSats}
-                effectiveRemaining={effectiveRemaining}
-                capUnavailable={capUnavailable}
-                minPeginFee={minPeginFee}
-                minPeginFeeError={minPeginFeeError}
-                btcPrice={btcPrice}
-                hasPriceFetchError={hasPriceFetchError}
+                amountState={{
+                  amount: formData.amountBtc,
+                  amountSats,
+                  btcBalance,
+                  unconfirmedBalance,
+                  hasUnconfirmedBalanceOnly,
+                  minDeposit,
+                  maxDeposit,
+                  maxDepositSats,
+                  effectiveRemaining,
+                  capUnavailable,
+                }}
+                feeState={{
+                  minPeginFee,
+                  minPeginFeeError,
+                  btcPrice,
+                  hasPriceFetchError,
+                  estimatedFeeSats,
+                  estimatedFeeRate,
+                  isLoadingFee,
+                  feeError,
+                  depositorClaimValue: totalDepositorClaimValue,
+                  commissionHtlcValues,
+                  depositorClaimValueError,
+                  protocolFeeAmount,
+                  protocolFeePrice,
+                  protocolFeeIsError,
+                  feeRows,
+                }}
+                providerState={{
+                  applications,
+                  selectedApplication: effectiveSelectedApplication,
+                  providers,
+                  isLoadingProviders,
+                  selectedProvider: formData.selectedProvider,
+                  onProviderSelect: (providerId) =>
+                    setFormData({ selectedProvider: providerId }),
+                }}
+                walletState={{
+                  isWalletConnected,
+                  // A click-time liveness failure OR the proactive lock poll
+                  // promotes the CTA to the reconnect/unlock action. A lock
+                  // relabels the CTA to "Unlock wallet" (see DepositForm) instead
+                  // of showing a red inline string; a liveness failure keeps its
+                  // detail message.
+                  hasWalletConnectionError:
+                    Boolean(walletConnectionError) || isBtcWalletLocked,
+                  walletConnectionErrorMessage: walletConnectionError,
+                  isWalletLocked: isBtcWalletLocked,
+                  isVerifyingWallet,
+                  isReconnectingWallet,
+                }}
+                gatingState={{
+                  isDepositDisabled: isDepositBlocked(gate),
+                  isGeoBlocked: isGeoBlocked || isGeoLoading,
+                  isAddressBlocked: isAddressBlocked || isScreeningLoading,
+                  ordinalsCheckPending,
+                  isVaultCapReached,
+                  vaultCountCapUnavailable,
+                  vaultCapSplitUnavailable: isSplitCapReached,
+                  vaultCapUsage:
+                    isSplitCapReached && maxVaults != null
+                      ? {
+                          used: collateralizableVaultCount,
+                          cap: maxVaults,
+                        }
+                      : undefined,
+                }}
+                collateralFactor={collateralFactor}
+                twoVaultSplit={twoVaultSplitProps}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
-                applications={applications}
-                selectedApplication={effectiveSelectedApplication}
-                providers={providers}
-                isLoadingProviders={isLoadingProviders}
-                selectedProvider={formData.selectedProvider}
-                onProviderSelect={(providerId) =>
-                  setFormData({ selectedProvider: providerId })
-                }
-                isWalletConnected={isWalletConnected}
-                depositorClaimValue={totalDepositorClaimValue}
-                commissionHtlcValues={commissionHtlcValues}
-                depositorClaimValueError={depositorClaimValueError}
-                estimatedFeeSats={estimatedFeeSats}
-                estimatedFeeRate={estimatedFeeRate}
-                isLoadingFee={isLoadingFee}
-                feeError={feeError}
-                isDepositDisabled={FeatureFlags.isDepositDisabled}
-                isGeoBlocked={isGeoBlocked || isGeoLoading}
-                isAddressBlocked={isAddressBlocked || isScreeningLoading}
                 onDeposit={handleDeposit}
-                partialLiquidation={partialLiquidationProps}
-                collateralFactor={collateralFactor}
-                protocolFeeAmount={protocolFeeAmount}
-                protocolFeePrice={protocolFeePrice}
-                protocolFeeIsError={protocolFeeIsError}
-                feeRows={feeRows}
-                ordinalsCheckPending={ordinalsCheckPending}
-                hasWalletConnectionError={Boolean(walletConnectionError)}
-                walletConnectionErrorMessage={walletConnectionError}
-                isVerifyingWallet={isVerifyingWallet}
-                isReconnectingWallet={isReconnectingWallet}
               />
             </div>
           </div>

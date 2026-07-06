@@ -10,16 +10,18 @@ import {
   useWalletConnect,
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
-import { useMemo, useState } from "react";
-import { twMerge } from "tailwind-merge";
+import { useMemo } from "react";
 
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
+import { useUTXOs } from "@/hooks/useUTXOs";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
 
+import { shouldShowInscriptionsToggle } from "./inscriptionToggle";
 import { resolveDisplayWallets } from "./resolveDisplayWallets";
 
 interface ConnectProps {
@@ -30,14 +32,20 @@ interface ConnectProps {
 
 export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { open, disconnect } = useWalletConnect();
-  const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
 
   const {
     connected: btcConnected,
     address: btcAddress,
     publicKeyNoCoord,
+    locked: btcLocked,
   } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
+  // Re-runs the wallet's connect flow, surfacing the extension's unlock prompt.
+  // On success the provider clears `locked` and this button reverts to the
+  // connected wallet menu.
+  const { unlock: handleUnlock, isUnlocking } = useBtcWalletUnlock(
+    "Wallet unlock from navbar",
+  );
   const { selectedWallets } = useWidgetState();
   const btcConnector = useChainConnector("BTC");
   const ethConnector = useChainConnector("ETH");
@@ -48,6 +56,23 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     useAddressScreening();
 
   const isWalletConnected = btcConnected && ethConnected;
+
+  // Single source for both the UTXO query gate and the menu render branch below.
+  const canShowWalletMenu = isWalletConnected && !isGeoBlocked && !isGeoLoading;
+
+  // Scope this subscription to when the menu can render; the query is shared
+  // (same key) with the deposit form, so this only adds an observer.
+  const utxoOptions = useMemo(
+    () => ({ enabled: canShowWalletMenu }),
+    [canShowWalletMenu],
+  );
+  const { inscriptionUTXOs } = useUTXOs(btcAddress, utxoOptions);
+  // While ordinals are loading or errored, useUTXOs reports 0 inscriptions, so
+  // the toggle stays hidden then — fine, toggling is a no-op until it resolves.
+  const showInscriptionsToggle = shouldShowInscriptionsToggle(
+    inscriptionUTXOs.length,
+    ordinalsExcluded,
+  );
 
   // Icon source must stay aligned with the (provider-level) connection state:
   // `selectedWallets` is volatile widget state that can lag a reconnect on
@@ -65,29 +90,34 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     [selectedWallets, btcConnected, ethConnected, btcConnector, ethConnector],
   );
 
-  const handleOpenChange = (open: boolean) => {
-    setIsWalletMenuOpen(open);
-  };
+  // A silently locked BTC wallet keeps `connected` true (cached session), so it
+  // would otherwise render the connected wallet menu. Surface an unlock button
+  // in the navbar instead so the user can re-authorize in one click.
+  if (btcLocked && !isGeoBlocked && !isGeoLoading) {
+    return (
+      <ConnectButton
+        connected={false}
+        loading={isUnlocking}
+        onClick={handleUnlock}
+        text={COPY.wallet.locked.unlockButton}
+      />
+    );
+  }
 
   // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
-  if (isWalletConnected && !isGeoBlocked && !isGeoLoading) {
+  if (canShowWalletMenu) {
     return (
       <div className="flex flex-row items-center gap-4">
         <BtcEthWalletMenu
           trigger={
             <div className="cursor-pointer">
-              <AvatarGroup max={3} variant="circular">
+              <AvatarGroup max={3} variant="circular" className="!-space-x-2">
                 {displayWallets["BTC"] && (
                   <Avatar
                     alt={displayWallets["BTC"].name}
                     url={displayWallets["BTC"].icon}
                     size="large"
-                    className={twMerge(
-                      "box-content bg-accent-contrast object-contain",
-                      isWalletMenuOpen &&
-                        "outline outline-[2px] outline-accent-primary",
-                    )}
                   />
                 )}
                 {displayWallets["ETH"] && (
@@ -95,11 +125,6 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
                     alt={displayWallets["ETH"].name}
                     url={displayWallets["ETH"].icon}
                     size="large"
-                    className={twMerge(
-                      "box-content bg-accent-contrast object-contain",
-                      isWalletMenuOpen &&
-                        "outline outline-[2px] outline-accent-primary",
-                    )}
                   />
                 )}
               </AvatarGroup>
@@ -112,10 +137,10 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           ordinalsExcluded={ordinalsExcluded}
           onIncludeOrdinals={includeOrdinals}
           onExcludeOrdinals={excludeOrdinals}
+          showInscriptionsToggle={showInscriptionsToggle}
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
-          onOpenChange={handleOpenChange}
         />
       </div>
     );

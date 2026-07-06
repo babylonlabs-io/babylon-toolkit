@@ -9,13 +9,14 @@
 
 import { Callout } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
-import { useRunOnce } from "@/hooks/useRunOnce";
+import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
@@ -67,6 +68,25 @@ export function DepositSignContent({
     Hex[] | null
   >(null);
 
+  const signingNotifier = useSigningNotificationOptional();
+
+  // The flow no longer auto-starts on mount: DepositProgressView renders the
+  // pre-sign entry state (started=false) and the depositor begins signing by
+  // clicking "Sign Transaction". Once started, the live stepper takes over.
+  const [started, setStarted] = useState(false);
+
+  // Notify the depositor (if they've tabbed away) when the active flow reaches
+  // a signing step. Gated on `started` so the initial DERIVE_VAULT_SECRET value
+  // can't notify before the user clicks Sign.
+  useDepositSigningNotification(currentStep, started);
+
+  // While the flow is running it owns notifications in-modal; tell the
+  // pending-deposit observer to stand down so it can't double-notify.
+  useEffect(() => {
+    signingNotifier?.setActiveFlow(processing);
+    return () => signingNotifier?.setActiveFlow(false);
+  }, [signingNotifier, processing]);
+
   const startFlow = useCallback(async () => {
     const result = await executeDeposit();
     if (result) {
@@ -75,7 +95,27 @@ export function DepositSignContent({
     }
   }, [executeDeposit, onRefetchActivities]);
 
-  useRunOnce(startFlow);
+  // `executeDeposit` broadcasts BTC and has no internal re-entrancy guard, and
+  // dropping `useRunOnce` removed its exactly-once protection. A fast double
+  // click on Sign fires `handleSign` twice before the `started` re-render
+  // unmounts the button, which would start (and broadcast) the deposit twice.
+  // This ref restores the exactly-once guarantee regardless of click cadence.
+  const hasStartedRef = useRef(false);
+
+  const handleSign = useCallback(() => {
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    // The Sign click is a user gesture - the right moment to ask for OS
+    // notification permission so we can later ping the depositor when a
+    // signature is needed and they've switched tabs. Gated on
+    // `shouldPromptForPermission` so a depositor who chose "No thanks" (or who
+    // already decided) isn't shown the native OS dialog anyway.
+    if (signingNotifier?.shouldPromptForPermission) {
+      signingNotifier.requestPermission();
+    }
+    setStarted(true);
+    void startFlow();
+  }, [startFlow, signingNotifier]);
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =
@@ -116,10 +156,16 @@ export function DepositSignContent({
     );
   // Soft deposit-flow warnings from `useDepositFlow`: recoverable issues such
   // as local persistence failures or per-vault WOTS/payout steps that were
-  // skipped/failed while the rest of the split deposit kept moving.
+  // skipped/failed while the rest of the split deposit kept moving. Rendered
+  // unfiltered here: in-progress warnings are final-by-construction (no resume
+  // has happened, and there is no polling context to filter against). The
+  // continuation branch filters stale ones via `ContinuationWarnings`.
   const warningCallouts = lastWarnings.map((warning) => (
-    <Callout key={warning} variant="warning">
-      {warning}
+    <Callout
+      key={`${warning.vaultId ?? "global"}:${warning.stage}`}
+      variant="warning"
+    >
+      {warning.message}
     </Callout>
   ));
 
@@ -131,10 +177,10 @@ export function DepositSignContent({
     return (
       <>
         {banner}
-        {warningCallouts}
         <PostDepositContinuationContent
           vaultIds={continuationVaultIds}
           depositorEthAddress={flowParams.depositorEthAddress}
+          warnings={lastWarnings}
           onClose={onClose}
         />
       </>
@@ -159,6 +205,8 @@ export function DepositSignContent({
         currentVaultIndex={currentVaultIndex}
         perVaultSteps={perVaultSteps}
         onClose={handleClose}
+        started={started}
+        onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}
       />
     </>

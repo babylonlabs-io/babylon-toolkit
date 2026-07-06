@@ -26,9 +26,11 @@ import {
   type VaultRefundData,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
+import { fetchHtlcSpend } from "../../clients/btc/outspend";
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
   getProtocolParamsReader,
@@ -62,7 +64,27 @@ export interface BroadcastRefundParams {
 }
 
 export interface RefundPreview {
+  /**
+   * The amount actually reclaimed by the refund: the funded HTLC output value
+   * at `htlcVout` in the on-chain Pre-PegIn tx. This is the vault deposit
+   * amount PLUS the protocol reserve (`depositorClaimValue + minPeginFee`)
+   * that peg-in baked into the HTLC output — the depositor reclaims all of it
+   * (minus the network fee) because activation never spent the reserve. NOT
+   * the bare on-chain `amount` field, which is only the deposit amount. The
+   * broadcast path pins the refund output to exactly this value minus the fee
+   * (see `buildRefundPsbt`), so the preview must show the same figure.
+   */
   amountSats: bigint;
+  /**
+   * The deposit amount (`amount` field) the SDK's fee-fraction safety cap is
+   * computed against (`buildAndBroadcastRefund` caps the refund fee at a
+   * fraction of `vault.amount`). The review UI mirrors that cap to avoid
+   * letting the user confirm a fee the SDK is about to reject — so it must
+   * use this deposit-amount basis, not the larger `amountSats`, otherwise the
+   * mirror drifts (notably for small vaults where the reserve is a large
+   * fraction of the deposit).
+   */
+  feeCapBasisSats: bigint;
   /**
    * Mempool's halfHourFee, or null if the fee endpoint failed. Vault data
    * loads independently — a fee fetch failure must not block the refund.
@@ -120,6 +142,30 @@ async function isPrePeginOnChain(
   }
 }
 
+/**
+ * Read the funded HTLC output value (satoshis) the refund will reclaim — the
+ * output at `htlcVout` in the funded Pre-PegIn tx. This is the deposit amount
+ * plus the protocol reserve peg-in baked into the HTLC; it is the value the
+ * broadcast path pins the refund output to (minus the fee). The funded tx hex
+ * is authenticated against the on-chain `prePeginTxHash` in
+ * {@link readTargetVault} before it reaches here.
+ */
+function readFundedHtlcValueSats(
+  fundedTxHex: string,
+  htlcVout: number,
+): bigint {
+  const fundedTx = Transaction.fromHex(stripHexPrefix(fundedTxHex));
+  const htlcOutput = fundedTx.outs[htlcVout];
+  if (!htlcOutput) {
+    throw new Error(
+      `Funded Pre-PegIn tx has no output at htlcVout ${htlcVout} ` +
+        `(it has ${fundedTx.outs.length} outputs). Cannot preview the ` +
+        `refund amount.`,
+    );
+  }
+  return BigInt(htlcOutput.value);
+}
+
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
   // The fee fetch doesn't depend on vault data — start it now so it overlaps
@@ -132,7 +178,16 @@ export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
     isPrePeginOnChain(target.onChainVault.prePeginTxHash, mempoolApiUrl),
   ]);
   return {
-    amountSats: target.onChainVault.amount,
+    // Reclaimed amount = the funded HTLC output value, not the bare deposit
+    // `amount`. The reserve peg-in baked into the HTLC returns to the
+    // depositor since activation never spent it.
+    amountSats: readFundedHtlcValueSats(
+      target.unsignedPrePeginTx,
+      target.onChainVault.htlcVout,
+    ),
+    // The SDK caps the refund fee against the deposit amount; mirror that
+    // basis in the UI cap so the two never disagree.
+    feeCapBasisSats: target.onChainVault.amount,
     halfHourFeeSatsVb:
       feeRecommendation && feeRecommendation.halfHourFee > 0
         ? feeRecommendation.halfHourFee
@@ -387,6 +442,36 @@ async function readPrePeginContext(
 }
 
 /**
+ * Thrown when the refund cannot proceed because the vault's HTLC output is
+ * already spent — the depositor's refund has already landed, often from
+ * another device or session. Carries the spending (refund) txid so the UI can
+ * show success instead of a doomed retry. A pure BTC refund emits no Ethereum
+ * event, so this is detected by probing the HTLC outpoint's spend status, not
+ * from the indexer.
+ */
+export class RefundAlreadySettledError extends Error {
+  /** The transaction that already spent the HTLC output, when known. */
+  public readonly spendingTxid?: string;
+  /** True when that spending tx is confirmed in a block. */
+  public readonly confirmed: boolean;
+
+  constructor(spendingTxid: string | undefined, confirmed: boolean) {
+    super("Refund already settled: the HTLC output has already been spent.");
+    this.name = "RefundAlreadySettledError";
+    this.spendingTxid = spendingTxid;
+    this.confirmed = confirmed;
+  }
+}
+
+// bitcoind sendrawtransaction rejection codes that mean "this refund already
+// happened", relayed verbatim by mempool.space as `...RPC error: {"code":-N,...}`.
+// -27 = RPC_VERIFY_ALREADY_IN_UTXO_SET (the tx is already confirmed); -25 =
+// missing/already-spent inputs (the HTLC was already spent). Verified against
+// bitcoin/bitcoin src/rpc/protocol.h + src/node/transaction.cpp.
+const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
+const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
+
+/**
  * Build, sign, and broadcast a refund transaction for an expired vault.
  *
  * The broadcast will be rejected by the Bitcoin network if timelockRefund
@@ -394,6 +479,7 @@ async function readPrePeginContext(
  * in that case the SDK throws {@link BIP68NotMatureError}.
  *
  * @returns The broadcasted refund transaction ID
+ * @throws {@link RefundAlreadySettledError} if the HTLC output is already spent
  * @throws If vault data is missing or the broadcast fails
  */
 export async function buildAndBroadcastRefundTransaction(
@@ -425,6 +511,25 @@ export async function buildAndBroadcastRefundTransaction(
     throw new Error(COPY.deposit.refundNotBroadcast.broadcastGuardError);
   }
 
+  // The Pre-PegIn exists, but its HTLC output may already be spent — the refund
+  // already landed (e.g. from another device/session). The refund tx is
+  // deterministic, so re-broadcasting hits bitcoind -27 (already in chain) or
+  // -25 (input already spent); surface the existing refund as success instead
+  // of a doomed retry. On-chain `htlcVout` (never the indexer's) keys the
+  // probe. Fail-open: a flaky probe must not block a legitimate refund — the
+  // broadcast-time classification below is the backstop.
+  const htlcSpend = await fetchHtlcSpend(
+    target.onChainVault.prePeginTxHash,
+    target.onChainVault.htlcVout,
+    mempoolApiUrl,
+  ).catch(() => undefined);
+  if (htlcSpend?.spent) {
+    throw new RefundAlreadySettledError(
+      htlcSpend.spendingTxid,
+      htlcSpend.confirmed,
+    );
+  }
+
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.
   const { txId } = await buildAndBroadcastRefund({
@@ -437,9 +542,33 @@ export async function buildAndBroadcastRefundTransaction(
     feeRate,
     signPsbt: (psbtHex, options) =>
       btcWalletProvider.signPsbt(psbtHex, options),
-    broadcastTx: async (signedTxHex) => ({
-      txId: await pushTx(signedTxHex, mempoolApiUrl),
-    }),
+    broadcastTx: async (signedTxHex) => {
+      try {
+        return { txId: await pushTx(signedTxHex, mempoolApiUrl) };
+      } catch (err) {
+        // Race: the HTLC was spent between the guard above and this broadcast.
+        // On bitcoind -27/-25, re-probe the outpoint; if spent, the refund is
+        // already done — report success rather than a retryable failure.
+        const message = err instanceof Error ? err.message : String(err);
+        if (
+          ALREADY_IN_CHAIN_CODE_RE.test(message) ||
+          MISSING_OR_SPENT_INPUTS_CODE_RE.test(message)
+        ) {
+          const spend = await fetchHtlcSpend(
+            target.onChainVault.prePeginTxHash,
+            target.onChainVault.htlcVout,
+            mempoolApiUrl,
+          ).catch(() => undefined);
+          if (spend?.spent) {
+            throw new RefundAlreadySettledError(
+              spend.spendingTxid,
+              spend.confirmed,
+            );
+          }
+        }
+        throw err;
+      }
+    },
     signal,
   });
 

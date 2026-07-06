@@ -1,4 +1,4 @@
-import { useMemo, type PropsWithChildren } from "react";
+import { useMemo, type PropsWithChildren, type ReactNode } from "react";
 
 import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
@@ -48,12 +48,13 @@ interface WalletProviderProps {
    * Provide eth and/or btc properties to enable respective chains
    */
   appKitConfig?: AppKitModalConfig;
-  /**
-   * When true, only show the T&C checkbox in the terms of service dialog
-   * instead of all three checkboxes (inscriptions, hardware wallet warnings)
-   */
-  simplifiedTerms?: boolean;
   disableTomo?: boolean;
+  /** Optional content rendered top-right of the wallet dialog, mirroring the close/back button (e.g. a settings trigger). */
+  dialogActions?: ReactNode;
+  /** Overrides the wallet dialog's close/back button default `left-4` position. */
+  dialogCloseButtonClassName?: string;
+  /** Overrides the wallet dialog's `dialogActions` slot default `right-4` position. */
+  dialogActionsClassName?: string;
 }
 
 export function WalletProvider({
@@ -68,8 +69,10 @@ export function WalletProvider({
   disabledWallets = [],
   requiredChains,
   appKitConfig,
-  simplifiedTerms = false,
   disableTomo = false,
+  dialogActions,
+  dialogCloseButtonClassName,
+  dialogActionsClassName,
 }: PropsWithChildren<WalletProviderProps>) {
   const networkMap = useMemo(() => deriveNetworkMap(config), [config]);
   const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
@@ -113,7 +116,15 @@ export function WalletProvider({
             <TomoBBNConnector persistent={persistent} storage={storage} />
           </>
         )}
-        <WalletDialog persistent={persistent} storage={storage} config={config} onError={onError} simplifiedTerms={simplifiedTerms} />
+        <WalletDialog
+          persistent={persistent}
+          storage={storage}
+          config={config}
+          onError={onError}
+          actions={dialogActions}
+          closeButtonClassName={dialogCloseButtonClassName}
+          actionsClassName={dialogActionsClassName}
+        />
       </ChainProvider>
     </LifeCycleHooksProvider>
   );

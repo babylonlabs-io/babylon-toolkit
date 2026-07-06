@@ -12,6 +12,7 @@
  */
 
 import {
+  assertPositiveBigintArray,
   getPrePeginHtlcConnectorInfo,
   initWasm,
   tapInternalPubkey,
@@ -112,7 +113,9 @@ export async function buildRefundPsbt(
     prePeginParams.vaultKeeperPubkeys,
     prePeginParams.universalChallengerPubkeys,
     [...prePeginParams.hashlocks],
-    new BigUint64Array(prePeginParams.pegInAmounts),
+    new BigUint64Array(
+      assertPositiveBigintArray(prePeginParams.pegInAmounts, "pegInAmounts"),
+    ),
     prePeginParams.timelockRefund,
     prePeginParams.feeRate,
     prePeginParams.minPeginFeeRate,

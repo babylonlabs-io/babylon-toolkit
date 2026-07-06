@@ -21,7 +21,10 @@
 import { type Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
-import type { BitcoinWallet, SignPsbtOptions } from "../../../../shared/wallets/interfaces";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "../../../../shared/wallets/interfaces";
 import type {
   DepositorAsClaimerPresignatures,
   DepositorGraphTransactions,
@@ -40,6 +43,7 @@ import {
   buildPayoutPsbt,
   extractPayoutSignature,
 } from "../../primitives/psbt/payout";
+import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
 import {
   stripHexPrefix,
   uint8ArrayToHex,
@@ -432,20 +436,38 @@ function extractDepositorGraphSignatures(
   // Set up by `collectDepositorGraphPsbts` (payout pushed first, then each
   // nopayout). A future refactor that reorders the array would silently
   // extract the wrong signature for the wrong slot — Critical Path #3.
+  // Payout and every NoPayout PSBT are signed on input 0 (depositor script-path).
+  const DEPOSITOR_SIGNED_INPUT_INDEX = 0;
+
   assertPsbtUnsignedTxMatches(psbtPairs[0]);
   const payoutSignature = extractPayoutSignature(
     psbtPairs[0].returnedPsbtHex,
     depositorPubkey,
   );
+  // Critical Path #7: verify the wallet's signature against a sighash recomputed
+  // from the PSBT we built (psbtPairs[0].requestedPsbtHex), not the returned one.
+  assertScriptPathSchnorrSignature({
+    requestedPsbtHex: psbtPairs[0].requestedPsbtHex,
+    signatureHex: payoutSignature,
+    signerXOnlyPubkeyHex: depositorPubkey,
+    inputIndex: DEPOSITOR_SIGNED_INPUT_INDEX,
+  });
 
   const perChallenger: Record<string, DepositorPreSigsPerChallenger> = {};
   for (const entry of challengerEntries) {
     assertPsbtUnsignedTxMatches(psbtPairs[entry.noPayoutIdx]);
+    const nopayoutSignature = extractPayoutSignature(
+      psbtPairs[entry.noPayoutIdx].returnedPsbtHex,
+      depositorPubkey,
+    );
+    assertScriptPathSchnorrSignature({
+      requestedPsbtHex: psbtPairs[entry.noPayoutIdx].requestedPsbtHex,
+      signatureHex: nopayoutSignature,
+      signerXOnlyPubkeyHex: depositorPubkey,
+      inputIndex: DEPOSITOR_SIGNED_INPUT_INDEX,
+    });
     perChallenger[entry.challengerPubkey] = {
-      nopayout_signature: extractPayoutSignature(
-        psbtPairs[entry.noPayoutIdx].returnedPsbtHex,
-        depositorPubkey,
-      ),
+      nopayout_signature: nopayoutSignature,
     };
   }
 

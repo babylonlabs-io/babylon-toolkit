@@ -12,6 +12,11 @@ export {
   type UseAaveOracleAddressResult,
 } from "./useAaveOracleAddress";
 export {
+  useAaveReserveLiquidity,
+  type ReserveLiquidity,
+  type UseAaveReserveLiquidityResult,
+} from "./useAaveReserveLiquidity";
+export {
   useAaveReservePrice,
   type UseAaveReservePriceResult,
 } from "./useAaveReservePrice";
@@ -34,6 +39,10 @@ export {
   type PositionNotificationsStatus,
   type UsePositionNotificationsResult,
 } from "./usePositionNotifications";
+export {
+  useProjectedBorrowApr,
+  type UseProjectedBorrowAprResult,
+} from "./useProjectedBorrowApr";
 export {
   useReorderVaults,
   type UseReorderVaultsResult,

@@ -38,6 +38,12 @@ export interface LoanContextValue {
   oracleAddress: Address | null;
   /** Price of the selected borrow token in USD (null when oracle price is temporarily unavailable) */
   tokenPriceUsd: number | null;
+  /**
+   * True while `tokenPriceUsd` still reflects the previously-selected reserve
+   * during an asset switch. The Borrow form withholds price-derived figures
+   * (available / max) and stays disabled until the fresh price lands.
+   */
+  isPriceStale: boolean;
   /** Whether position data may be stale (oracle-derived values possibly outdated) */
   isPositionDataStale: boolean;
   /** Refetch position data — returns fresh position (or null if unavailable) */
@@ -52,6 +58,13 @@ export interface LoanContextValue {
   onBorrowSuccess: (borrowAmount: number) => void;
   /** Callback when repay succeeds */
   onRepaySuccess: (repayAmount: number, withdrawAmount: number) => void;
+  /**
+   * Reports whether a borrow/repay transaction is currently in flight (signing
+   * or submitting). The detail screen uses it to lock the full-screen dialog's
+   * close affordances so the flow can't be dismissed mid-transaction — which
+   * would discard the success screen even though the tx lands on-chain.
+   */
+  onProcessingChange: (processing: boolean) => void;
 }
 
 const LoanContext = createContext<LoanContextValue | null>(null);

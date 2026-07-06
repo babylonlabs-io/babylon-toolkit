@@ -59,6 +59,27 @@ export interface TxStatus {
 }
 
 /**
+ * Spend status of a single transaction output, from the esplora-compatible
+ * `GET /tx/{txid}/outspend/{vout}` endpoint served by the mempool.space
+ * backend.
+ *
+ * Source: mempool/electrs `src/rest.rs` `SpendingValue` — an unspent output
+ * serializes as `{ "spent": false }` (the optional fields use
+ * `skip_serializing_if`); a spent output serializes as
+ * `{ "spent": true, "txid", "vin", "status" }`.
+ */
+export interface OutspendStatus {
+  /** True when the output has been spent (mempool or a block). */
+  spent: boolean;
+  /** Spending transaction id; present only when `spent`. */
+  txid?: string;
+  /** Input index within the spending tx; present only when `spent`. */
+  vin?: number;
+  /** Confirmation status of the spending tx; present only when `spent`. */
+  status?: TxStatus;
+}
+
+/**
  * Full transaction info from mempool API.
  */
 export interface TxInfo {

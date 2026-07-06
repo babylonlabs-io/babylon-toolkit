@@ -14,7 +14,6 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     logo: "/images/wallets/okx.png",
-    name: "OKX",
-    address: "bc1pnT..e4Vtc",
+    address: "bc1p7wcysvdpee032xp8834vuvc40zhv77typxl5hwtafktlgcj33ves63zkyd",
   },
 };

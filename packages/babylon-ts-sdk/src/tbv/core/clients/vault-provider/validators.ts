@@ -9,6 +9,7 @@
  * construction. Only `progress.presigning` sub-fields are checked.
  */
 
+import { CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER } from "../../primitives/psbt/constants";
 import {
   COMPRESSED_PUBKEY_HEX_LEN,
   X_ONLY_PUBKEY_HEX_LEN,
@@ -300,6 +301,15 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
   if (!Array.isArray(d.challenge_assert_connectors)) {
     throw new VpResponseValidationError(
       `VP response validation failed: "${field}.challenge_assert_connectors" must be an array`,
+    );
+  }
+
+  if (
+    d.challenge_assert_connectors.length !==
+    CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}.challenge_assert_connectors" must have exactly ${CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER} entries, got ${d.challenge_assert_connectors.length}`,
     );
   }
 

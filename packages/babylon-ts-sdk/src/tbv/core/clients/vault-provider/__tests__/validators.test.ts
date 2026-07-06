@@ -216,6 +216,7 @@ describe("VP Response Validators", () => {
       nopayout_psbt: "cHNidA==",
       challenge_assert_connectors: [
         { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+        { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
       ],
       output_label_hashes: ["aabb"],
     };
@@ -373,6 +374,66 @@ describe("VP Response Validators", () => {
           },
         }),
       ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects too few challenge_assert_connectors", () => {
+      expect(() =>
+        validateRequestDepositorPresignTransactionsResponse({
+          txs: [],
+          depositor_graph: {
+            ...validDepositorGraph,
+            challenger_presign_data: [
+              {
+                ...validChallengerPresignData,
+                challenge_assert_connectors: [
+                  { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+                ],
+              },
+            ],
+          },
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects too many challenge_assert_connectors", () => {
+      expect(() =>
+        validateRequestDepositorPresignTransactionsResponse({
+          txs: [],
+          depositor_graph: {
+            ...validDepositorGraph,
+            challenger_presign_data: [
+              {
+                ...validChallengerPresignData,
+                challenge_assert_connectors: [
+                  { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+                  { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+                  { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+                ],
+              },
+            ],
+          },
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("accepts exactly two challenge_assert_connectors", () => {
+      expect(() =>
+        validateRequestDepositorPresignTransactionsResponse({
+          txs: [],
+          depositor_graph: {
+            ...validDepositorGraph,
+            challenger_presign_data: [
+              {
+                ...validChallengerPresignData,
+                challenge_assert_connectors: [
+                  { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+                  { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
+                ],
+              },
+            ],
+          },
+        }),
+      ).not.toThrow();
     });
 
     it("rejects non-array output_label_hashes", () => {

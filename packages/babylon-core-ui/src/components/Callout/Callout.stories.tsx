@@ -52,10 +52,31 @@ export const Info: Story = {
   },
 };
 
+export const InfoStrong: Story = {
+  args: {
+    variant: "infoStrong",
+    title: "Stay notified",
+    children: "A prominent, non-urgent prompt using the deeper navy accent.",
+  },
+};
+
 export const WithoutTitle: Story = {
   args: {
     variant: "info",
     children: "A short standalone callout with no title.",
+  },
+};
+
+export const WithActions: Story = {
+  args: {
+    variant: "infoStrong",
+    title: "Stay notified",
+    children:
+      "Turn on browser notifications and we'll let you know the moment your deposit needs you to sign.",
+    actions: [
+      { label: "Enable notifications", emphasis: "primary", onClick: () => {} },
+      { label: "No thanks", emphasis: "secondary", onClick: () => {} },
+    ],
   },
 };
 

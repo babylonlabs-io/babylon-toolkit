@@ -150,7 +150,7 @@ describe("useDepositValidation", () => {
       );
     });
 
-    it("returns the 'available balance below minimum' error when the fee-adjusted max is below the minimum deposit", () => {
+    it("returns the 'minimum deposit' error when the fee-adjusted max is below the minimum deposit", () => {
       // maxDepositSats (8_000) is below the 10_000 minimum, so no amount is
       // valid. Must win over the base minimum error so the inline/submit path
       // matches the CTA instead of telling the user to raise an unraisable
@@ -169,10 +169,7 @@ describe("useDepositValidation", () => {
       const validationResult = result.current.validateAmount("0.0001");
 
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain("Available balance (0.00008");
-      expect(validationResult.error).toContain(
-        "is below the minimum deposit (0.0001",
-      );
+      expect(validationResult.error).toContain("Minimum deposit is 0.0001");
     });
   });
 

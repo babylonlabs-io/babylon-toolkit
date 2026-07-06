@@ -30,21 +30,54 @@ export function buildStepItems(
       : undefined;
 
   return [
-    { label: COPY.deposit.steps.generateSecret },
-    { label: COPY.deposit.steps.signPeginBtc, description: peginCounter },
-    { label: COPY.deposit.steps.signLinkProofs },
-    { label: COPY.deposit.steps.signAndBroadcastEth },
-    { label: COPY.deposit.steps.signAndBroadcastPrePegin },
-    { label: COPY.deposit.steps.confirmingDeposit },
-    { label: COPY.deposit.steps.submitWotsKey },
-    { label: COPY.deposit.steps.awaitPayoutTransactions },
-    { label: COPY.deposit.steps.authenticateSession },
-    { label: COPY.deposit.steps.signPayouts, description: payoutCounter },
-    { label: COPY.deposit.steps.signRecoveryTxs, description: graphCounter },
-    { label: COPY.deposit.steps.awaitVpVerification },
-    { label: COPY.deposit.steps.retrieveSecret },
-    { label: COPY.deposit.steps.revealSecret },
-    { label: COPY.deposit.steps.awaitActivationConfirmation },
+    {
+      label: COPY.deposit.steps.generateSecret,
+    },
+    {
+      label: COPY.deposit.steps.signPeginBtc,
+      description: peginCounter,
+    },
+    {
+      label: COPY.deposit.steps.signLinkProofs,
+    },
+    {
+      label: COPY.deposit.steps.signAndBroadcastEth,
+    },
+    {
+      label: COPY.deposit.steps.signAndBroadcastPrePegin,
+    },
+    {
+      label: COPY.deposit.steps.confirmingDeposit,
+    },
+    {
+      label: COPY.deposit.steps.submitWotsKey,
+    },
+    {
+      label: COPY.deposit.steps.awaitPayoutTransactions,
+    },
+    {
+      label: COPY.deposit.steps.authenticateSession,
+    },
+    {
+      label: COPY.deposit.steps.signPayouts,
+      description: payoutCounter,
+    },
+    {
+      label: COPY.deposit.steps.signRecoveryTxs,
+      description: graphCounter,
+    },
+    {
+      label: COPY.deposit.steps.awaitVpVerification,
+    },
+    {
+      label: COPY.deposit.steps.retrieveSecret,
+    },
+    {
+      label: COPY.deposit.steps.revealSecret,
+    },
+    {
+      label: COPY.deposit.steps.awaitActivationConfirmation,
+    },
   ];
 }
 

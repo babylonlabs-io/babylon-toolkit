@@ -15,11 +15,13 @@ import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
 } from "@/services/token/tokenService";
-import { formatAmount } from "@/utils/formatting";
+import { formatAmount, formatAprPercent } from "@/utils/formatting";
 
 import { useAaveConfig } from "../context";
 import type { AavePositionWithLiveData, DebtPosition } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+
+import { useAaveBorrowAprs } from "./useAaveBorrowAprs";
 
 /**
  * Borrowed asset for display
@@ -27,12 +29,14 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
 export interface BorrowedAsset {
   /** Token symbol */
   symbol: string;
+  /** Full token name (e.g. "USD Coin"); falls back to the symbol. */
+  name: string;
   /** Display amount (formatted native token amount) */
   amount: string;
   /** Token icon URL */
   icon: string;
-  /** Borrow APY as a formatted string (e.g. "5.861%"). Optional until the
-   *  reserve-data fetch that produces this is wired up. */
+  /** Borrow APY as a formatted string (e.g. "5.861%"). Undefined only while
+   *  the per-reserve APR read (`useAaveBorrowAprs`) hasn't resolved yet. */
   borrowRate?: string;
 }
 
@@ -87,23 +91,47 @@ function resolveTokenSymbol(
 }
 
 /**
+ * Resolve a display name. Prefers the registry's curated name (e.g. "USD Coin")
+ * only on a real registry hit — `getTokenByAddress` returns a "Loading..."
+ * placeholder for addresses it doesn't know (testnet deployments), so detect
+ * that the same way `resolveTokenSymbol` does and fall back to the reserve's
+ * on-chain name, then the symbol.
+ */
+function resolveTokenName(
+  tokenMetadata: ReturnType<typeof getTokenByAddress>,
+  indexerName: string,
+  symbol: string,
+): string {
+  const isRegistryHit =
+    tokenMetadata != null && !tokenMetadata.symbol.startsWith("0x");
+  if (isRegistryHit) {
+    return tokenMetadata.name;
+  }
+  return indexerName?.trim() || symbol;
+}
+
+/**
  * Transform a reserve with debt into a display-ready BorrowedAsset
  */
 function transformToBorrowedAsset(
   reserveWithDebt: ReserveWithDebt,
+  aprPercent: number | null | undefined,
 ): BorrowedAsset {
   const { reserve, debtPosition } = reserveWithDebt;
 
   const tokenMetadata = getTokenByAddress(reserve.token.address);
   const symbol = resolveTokenSymbol(tokenMetadata, reserve.token.symbol);
+  const name = resolveTokenName(tokenMetadata, reserve.token.name, symbol);
   const icon = getCurrencyIconWithFallback(tokenMetadata?.icon, symbol);
 
   const tokenAmount = Number(
     formatUnits(debtPosition.totalDebt, reserve.token.decimals),
   );
   const amount = formatAmount(tokenAmount, reserve.token.decimals);
+  const borrowRate =
+    aprPercent != null ? formatAprPercent(aprPercent) : undefined;
 
-  return { symbol, amount, icon };
+  return { symbol, name, amount, icon, borrowRate };
 }
 
 /**
@@ -123,26 +151,38 @@ export function useAaveBorrowedAssets({
 
   const debtPositions = position?.debtPositions;
 
-  const borrowedAssets = useMemo((): BorrowedAsset[] => {
+  // Resolve debts against the full reserve set, not just borrowable ones, so
+  // existing debt in a frozen/paused/un-borrowable reserve still surfaces.
+  const reservesWithDebt = useMemo((): ReserveWithDebt[] => {
     if (!debtPositions || debtPositions.size === 0) {
       return [];
     }
-
-    // Resolve debts against the full reserve set, not just borrowable ones,
-    // so existing debt in a frozen/paused/un-borrowable reserve still surfaces.
-    const reservesWithDebt: ReserveWithDebt[] = allBorrowReserves
+    return allBorrowReserves
       .filter((r) => debtPositions.has(r.reserveId))
       .map((reserve) => ({
         reserve,
         debtPosition: debtPositions.get(reserve.reserveId)!,
       }));
-
-    if (reservesWithDebt.length === 0) {
-      return [];
-    }
-
-    return reservesWithDebt.map(transformToBorrowedAsset);
   }, [debtPositions, allBorrowReserves]);
+
+  const reservesOnly = useMemo(
+    () => reservesWithDebt.map((r) => r.reserve),
+    [reservesWithDebt],
+  );
+  const { aprPercentByReserveId } = useAaveBorrowAprs({
+    reserves: reservesOnly,
+  });
+
+  const borrowedAssets = useMemo(
+    (): BorrowedAsset[] =>
+      reservesWithDebt.map((rwd) =>
+        transformToBorrowedAsset(
+          rwd,
+          aprPercentByReserveId[rwd.reserve.reserveId.toString()],
+        ),
+      ),
+    [reservesWithDebt, aprPercentByReserveId],
+  );
 
   return {
     borrowedAssets,

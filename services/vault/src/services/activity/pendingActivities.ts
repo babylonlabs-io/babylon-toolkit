@@ -10,7 +10,10 @@ import {
   getPendingPegins,
   type PendingPeginRequest,
 } from "../../storage/peginStorage";
-import type { ActivityLog } from "../../types/activityLog";
+import {
+  type ActivityLog,
+  PENDING_DEPOSIT_TYPE,
+} from "../../types/activityLog";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -28,7 +31,7 @@ function convertPendingPeginToActivity(
     kind: "row",
     id: pending.id,
     date: new Date(pending.timestamp),
-    type: "Pending Deposit",
+    type: PENDING_DEPOSIT_TYPE,
     tokenIcon: btcConfig.icon,
     amount: {
       value: pending.amount,

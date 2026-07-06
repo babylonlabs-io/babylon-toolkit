@@ -2,17 +2,17 @@
  * GroupedProgress
  *
  * Renders the deposit flow steps grouped into logical sections (see STEP_GROUPS).
- * Exactly one section — the one containing the current step — is expanded to
- * reveal its sub-steps; the rest collapse to a header with a completed counter.
- * Expansion is derived entirely from `currentStep` (no local state, no toggles).
+ * Completed groups are hidden — they fold into the "X of N steps completed" pill
+ * — so only the active and upcoming groups render. The active group expands into
+ * a filled card revealing its sub-steps; upcoming groups collapse to a header
+ * row. Visibility and expansion are derived entirely from `currentStep`.
  */
 
 import type { StepperItem } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
-import { GroupHeader } from "./GroupHeader";
+import { GroupBlock } from "./GroupBlock";
 import { StepConnector } from "./StepConnector";
-import { StepRow, type StepRowState } from "./StepRow";
 import { buildStepGroups } from "./steps";
 
 interface GroupedProgressProps {
@@ -21,66 +21,40 @@ interface GroupedProgressProps {
   currentStep: number;
   /** Optional detail panel rendered inside the active step row. */
   activeStepDetail?: ReactNode;
+  /** When true, the current step failed — render it as an error, not active. */
+  hasError?: boolean;
 }
 
 export function GroupedProgress({
   steps,
   currentStep,
   activeStepDetail,
+  hasError = false,
 }: GroupedProgressProps) {
   const groups = buildStepGroups(currentStep);
 
+  // Completed groups are represented by the steps-completed pill, so hide their
+  // rows. Original 1-based group numbers are preserved (after group 1 finishes,
+  // the active group still reads "2") to match the design.
+  const visibleGroups = groups
+    .map((group, index) => ({ group, number: index + 1 }))
+    .filter(({ group }) => group.status !== "completed");
+
   return (
     <div className="flex flex-col">
-      {groups.map((group, groupIndex) => {
-        const isLastGroup = groupIndex === groups.length - 1;
-        const stepNumbers = Array.from(
-          { length: group.totalInGroup },
-          (_, i) => group.startStep + i,
-        );
+      {visibleGroups.map(({ group, number }, visibleIndex) => {
+        const isLastGroup = visibleIndex === visibleGroups.length - 1;
 
         return (
           <div key={group.startStep} className="flex flex-col">
-            <GroupHeader
-              number={groupIndex + 1}
-              title={group.title}
-              status={group.status}
-              completedInGroup={group.completedInGroup}
-              totalInGroup={group.totalInGroup}
+            <GroupBlock
+              group={group}
+              number={number}
+              steps={steps}
+              currentStep={currentStep}
+              hasError={hasError}
+              activeStepDetail={activeStepDetail}
             />
-
-            {group.expanded && (
-              <div className="ml-[15px] flex flex-col border-l-2 border-secondary-strokeDark py-2 pl-6">
-                {stepNumbers.map((globalStepNum, subIndex) => {
-                  const step = steps[globalStepNum - 1];
-                  if (!step) return null;
-
-                  const displayNumber = subIndex + 1;
-
-                  const state: StepRowState =
-                    globalStepNum < currentStep
-                      ? "completed"
-                      : globalStepNum === currentStep
-                        ? "active"
-                        : "pending";
-
-                  return (
-                    <div key={globalStepNum}>
-                      {subIndex > 0 && <StepConnector />}
-                      <StepRow
-                        state={state}
-                        number={displayNumber}
-                        ariaNumber={globalStepNum}
-                        label={step.label}
-                        description={step.description}
-                        detail={activeStepDetail}
-                        hasNext={subIndex < stepNumbers.length - 1}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
 
             {!isLastGroup && <StepConnector />}
           </div>

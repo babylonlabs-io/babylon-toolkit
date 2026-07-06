@@ -10,8 +10,9 @@ import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
-import { useError } from "@/context/error";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -31,6 +32,10 @@ export interface UseWithdrawCollateralTransactionResult {
   executeWithdraw: (vaultIds: string[]) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /** Last failure message, shown inline under the action (null when none). */
+  error: string | null;
+  /** Clear the last failure message (e.g. when the dialog reopens). */
+  clearError: () => void;
 }
 
 /**
@@ -44,14 +49,24 @@ export interface UseWithdrawCollateralTransactionResult {
  */
 export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
   const queryClient = useQueryClient();
-  const { handleError } = useError();
   const { markVaultsAsPending } = usePendingVaults();
+  const gate = useProtocolGateState();
+
+  const clearError = useCallback(() => setError(null), []);
 
   const executeWithdraw = useCallback(
     async (vaultIds: string[]) => {
+      // Withdraw is an EXIT: blocked only when either scope is paused (Freeze
+      // preserves exits). Guard the execution chokepoint so a pause that lands
+      // mid-session can't broadcast even if a modal was already open; the menu
+      // item is disabled too.
+      if (isWithdrawBlocked(gate)) return false;
+
+      setError(null);
       setIsProcessing(true);
       try {
         // Validate wallet connection
@@ -97,23 +112,20 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
                 "An unexpected error occurred while withdrawing collateral",
               );
 
-        handleError({
-          error: mappedError,
-          displayOptions: {
-            showModal: true,
-          },
-        });
+        setError(mappedError.message);
 
         return false;
       } finally {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, queryClient, handleError, markVaultsAsPending],
+    [walletClient, address, queryClient, markVaultsAsPending, gate],
   );
 
   return {
     executeWithdraw,
     isProcessing,
+    error,
+    clearError,
   };
 }

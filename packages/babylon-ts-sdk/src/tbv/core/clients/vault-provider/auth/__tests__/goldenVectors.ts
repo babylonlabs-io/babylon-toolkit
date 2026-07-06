@@ -50,3 +50,48 @@ export const GOLDEN_PAYLOAD_HEX =
 /** 64-byte BIP-322 Schnorr signature for the above payload + signing key. */
 export const GOLDEN_SIGNATURE_HEX =
   "89c7473a2b4128f7c015272d535c535d7508b8ca9d9a06e4863d7da4cea8feb99fc20f9cbbb49f67594a81fdd31406f9654e4964b9176e8d47259a0fbc322fdf";
+
+/*
+ * --- CWT bearer-token golden vectors ---
+ *
+ * Real ES256K COSE Sign1 CWT tokens produced by the btc-vault Rust
+ * reference (`crates/btc-auth/src/token_signer.rs::build_cose_sign1_token`
+ * + `coset::cwt::ClaimsSetBuilder`). They are signed by the **same**
+ * ephemeral key as {@link GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED} (seed 42)
+ * and carry {@link GOLDEN_SIGNING_KEY_XONLY} (seed 7) as their `iss`, so
+ * a token verifies against the server-identity golden above as one
+ * consistent issuance.
+ *
+ * Reproduce: add a temporary `#[test]` to that module that builds a
+ * COSE Sign1 over a `ClaimsSetBuilder` payload with the seed-42 signing
+ * key, iss = seed-7 x-only, aud = seed-99 x-only, and prints the
+ * base64url token. Run with
+ * `cargo test -p btc-auth --lib --features test-utils <test> -- --nocapture`,
+ * then revert.
+ *
+ * Claims (all three tokens): iss = GOLDEN_SIGNING_KEY_XONLY,
+ * aud = GOLDEN_CWT_AUDIENCE_XONLY, iat = nbf = GOLDEN_CWT_NBF.
+ */
+
+/** Depositor x-only pubkey carried in the `aud` claim (seed 99). */
+export const GOLDEN_CWT_AUDIENCE_XONLY =
+  "4f401063cc0f559467937a3fad43929058922478886f70505e7d29569af2ab5e";
+
+/** `iat`/`nbf` of every CWT golden token. */
+export const GOLDEN_CWT_NBF = 1_699_996_000;
+/** `exp` of the normal-lifetime tokens. ≤ GOLDEN_EXPIRES_AT (server-identity expiry). */
+export const GOLDEN_CWT_EXP = 1_699_999_000;
+/** `exp` of the short-lifetime token used to exercise refresh-on-skew. */
+export const GOLDEN_CWT_SHORT_EXP = 1_699_996_440;
+
+/** JSON-RPC-subject token (`sub` = "vaultd-jsonrpc"), exp = GOLDEN_CWT_EXP. */
+export const GOLDEN_CWT_TOKEN_JSONRPC =
+  "0oREoQE4LqBYu6cBeEA0OTE2NGEwMmFjODFiNDJjYzRkY2RlN2E4MzExYmVjZjU2ODg2ODUwZjA2M2E4NmM2NmFmZWY1YzhhZTA3NzhjAm52YXVsdGQtanNvbnJwYwN4QDRmNDAxMDYzY2MwZjU1OTQ2NzkzN2EzZmFkNDM5MjkwNTg5MjI0Nzg4ODZmNzA1MDVlN2QyOTU2OWFmMmFiNWUEGmVT7RgFGmVT4WAGGmVT4WAHUKurq6urq6urq6urq6urq6tYQFYf_JPwc-IvtuwABdhlKk78PWG0KS2u30pRQ2U1CE4GHGrfmcLIrhZsoDifabPwgtcMLTuDEUHLGJM5dOC_Bi8";
+
+/** Same issuance shape but short-lived (exp = GOLDEN_CWT_SHORT_EXP). */
+export const GOLDEN_CWT_TOKEN_JSONRPC_SHORT =
+  "0oREoQE4LqBYu6cBeEA0OTE2NGEwMmFjODFiNDJjYzRkY2RlN2E4MzExYmVjZjU2ODg2ODUwZjA2M2E4NmM2NmFmZWY1YzhhZTA3NzhjAm52YXVsdGQtanNvbnJwYwN4QDRmNDAxMDYzY2MwZjU1OTQ2NzkzN2EzZmFkNDM5MjkwNTg5MjI0Nzg4ODZmNzA1MDVlN2QyOTU2OWFmMmFiNWUEGmVT4xgFGmVT4WAGGmVT4WAHUM3Nzc3Nzc3Nzc3Nzc3Nzc1YQDayqqB4bTlHAaFOwyNcAMIEpiBW5GrgnkarO0yJ7bnkHjsmHlFcA9XDFupahH9wIQMGN8R6FVDax52MdYdg3Wc";
+
+/** gRPC-subject token (`sub` = "vaultd-grpc"), exp = GOLDEN_CWT_EXP. */
+export const GOLDEN_CWT_TOKEN_GRPC =
+  "0oREoQE4LqBYuKcBeEA0OTE2NGEwMmFjODFiNDJjYzRkY2RlN2E4MzExYmVjZjU2ODg2ODUwZjA2M2E4NmM2NmFmZWY1YzhhZTA3NzhjAmt2YXVsdGQtZ3JwYwN4QDRmNDAxMDYzY2MwZjU1OTQ2NzkzN2EzZmFkNDM5MjkwNTg5MjI0Nzg4ODZmNzA1MDVlN2QyOTU2OWFmMmFiNWUEGmVT7RgFGmVT4WAGGmVT4WAHUO_v7-_v7-_v7-_v7-_v7-9YQJhF3CJH5sFKdi7jwGeqVxErk95edujMvMVF6JiU-Io6cbBBbcJtHWZPF_Cc3_SIlAO6s6Oi9N6u0XUOPQf5ZW8";

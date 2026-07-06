@@ -32,13 +32,6 @@ async function setupStorybookEnvironment(page: Page, storybook: FrameLocator) {
   await page.getByRole("link", { name: "With Connected Data" }).click();
   await page.getByRole("button", { name: "Hide addons [⌥ A]" }).click();
   await storybook.getByRole("button", { name: "Connect Wallet" }).click();
-
-  // Accept terms
-  const terms = ["I certify that I have read", "I certify that I wish to"];
-  for (const term of terms) {
-    await storybook.getByText(term).click();
-  }
-  await storybook.getByRole("button", { name: "Next" }).click();
 }
 
 async function connectBitcoinWallet(storybook: FrameLocator, context: BrowserContext) {
@@ -46,9 +39,6 @@ async function connectBitcoinWallet(storybook: FrameLocator, context: BrowserCon
   await storybook.getByRole("button", { name: "OKX" }).click();
 
   await connectWalletViaPopup(context, "Connect");
-
-  await storybook.getByText("Use", { exact: true }).click();
-  await storybook.getByRole("button", { name: "Save" }).click();
 }
 
 async function connectBabylonWallet(storybook: FrameLocator, context: BrowserContext) {
@@ -57,7 +47,7 @@ async function connectBabylonWallet(storybook: FrameLocator, context: BrowserCon
 
   await connectWalletViaPopup(context, "Approve");
 
-  await storybook.getByRole("button", { name: "Done" }).click();
+  await storybook.getByRole("button", { name: "Connect", exact: true }).click();
 }
 
 async function connectWalletViaPopup(context: BrowserContext, buttonName: string) {

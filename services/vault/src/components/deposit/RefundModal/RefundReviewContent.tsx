@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
+import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -26,7 +27,14 @@ import { FeeRateField } from "./FeeRateField";
 const DUST_LIMIT_SATS = 546n;
 
 interface RefundReviewContentProps {
+  /** Amount reclaimed by the refund (funded HTLC value); drives the display. */
   amountSats: bigint | null;
+  /**
+   * Deposit amount the SDK's fee-fraction cap is computed against. Mirror it
+   * here (not {@link amountSats}) so the UI cap matches the SDK and never lets
+   * the user confirm a fee the SDK is about to reject.
+   */
+  feeCapBasisSats: bigint | null;
   defaultFeeRateSatsVb: number | null;
   previewError: string | null;
   refunding: boolean;
@@ -36,6 +44,7 @@ interface RefundReviewContentProps {
 
 export function RefundReviewContent({
   amountSats,
+  feeCapBasisSats,
   defaultFeeRateSatsVb,
   previewError,
   refunding,
@@ -44,6 +53,10 @@ export function RefundReviewContent({
 }: RefundReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
+  // The refund signs+broadcasts a BTC transaction, so a silently locked wallet
+  // must block confirmation. This full-screen modal covers the navbar unlock
+  // affordance, so surface the lock here and gate the CTA until it clears.
+  const { locked: walletLocked } = useBTCWallet();
 
   const [feeRate, setFeeRate] = useState<number | null>(null);
   // True when the seeded feeRate came from the hard-coded floor because the
@@ -95,8 +108,8 @@ export function RefundReviewContent({
   const exceedsRateCap =
     feeRate !== null && feeRate > REFUND_MAX_FEE_RATE_SATS_VB;
   const maxFeeByFractionSats =
-    amountSats !== null
-      ? (amountSats * REFUND_MAX_FEE_FRACTION_NUMERATOR) /
+    feeCapBasisSats !== null
+      ? (feeCapBasisSats * REFUND_MAX_FEE_FRACTION_NUMERATOR) /
         REFUND_MAX_FEE_FRACTION_DENOMINATOR
       : null;
   const exceedsFractionCap =
@@ -106,6 +119,7 @@ export function RefundReviewContent({
 
   const canConfirm =
     !refunding &&
+    !walletLocked &&
     feeRate !== null &&
     feeRate > 0 &&
     youReceiveSats !== null &&
@@ -115,9 +129,14 @@ export function RefundReviewContent({
     !usingFallback;
 
   const feeCapMessage = exceedsRateCap
-    ? `Network fee rate exceeds the safety cap of ${REFUND_MAX_FEE_RATE_SATS_VB} sat/vB. Lower the fee rate to continue.`
+    ? COPY.deposit.refundReview.feeRateCapError(REFUND_MAX_FEE_RATE_SATS_VB)
     : exceedsFractionCap
-      ? `Network fee exceeds ${(REFUND_MAX_FEE_FRACTION_NUMERATOR * 100n) / REFUND_MAX_FEE_FRACTION_DENOMINATOR}% of the refund amount. Lower the fee rate to continue.`
+      ? COPY.deposit.refundReview.feeFractionCapError(
+          Number(
+            (REFUND_MAX_FEE_FRACTION_NUMERATOR * 100n) /
+              REFUND_MAX_FEE_FRACTION_DENOMINATOR,
+          ),
+        )
       : null;
 
   const handleConfirmClick = () => {
@@ -195,6 +214,11 @@ export function RefundReviewContent({
             emphasis
           />
 
+          {walletLocked && (
+            <Callout variant="error" title={COPY.wallet.locked.title}>
+              {COPY.wallet.locked.description}
+            </Callout>
+          )}
           {previewError && <Callout variant="error">{previewError}</Callout>}
           {!error && !isDust && usingFallback && (
             <Callout variant="warning">

@@ -23,6 +23,11 @@ import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
 import { sortVaultProviders } from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
+import {
+  assertMinClaimValue,
+  assertMinPeginFee,
+  assertNumLocalChallengers,
+} from "../../utils/wasm";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
@@ -157,9 +162,9 @@ export interface UseDepositPageFormResult {
    */
   ordinalsCheckPending: boolean;
 
-  // Partial liquidation (multi-vault)
-  isPartialLiquidation: boolean;
-  setIsPartialLiquidation: (v: boolean) => void;
+  // Two-vault split (multi-vault) intent
+  isTwoVaultSplit: boolean;
+  setIsTwoVaultSplit: (v: boolean) => void;
   canSplit: boolean;
   /** Per-vault amounts when splitting, null when not applicable */
   vaultAmounts: readonly [bigint, bigint] | null;
@@ -167,6 +172,10 @@ export interface UseDepositPageFormResult {
   isSplitLoading: boolean;
   /** Display label for the split ratio, null when not applicable */
   splitRatioLabel: string | null;
+  /** Minimum deposit required to split across two vaults, in satoshis */
+  minDepositForSplit: bigint;
+  /** True when the amount is positive but below the two-vault split minimum */
+  isSplitAmountTooLow: boolean;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
   /**
@@ -344,9 +353,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
-  // Partial liquidation (multi-vault deposit) — declared early so the fee
+  // Two-vault split (multi-vault deposit) intent — declared early so the fee
   // estimate below can account for the batch output count.
-  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
+  const [isTwoVaultSplit, setIsTwoVaultSplit] = useState(false);
 
   // Split planning first: `canSplit` gates the effective vault count below,
   // which drives the fee/output budgeting. Depends only on `amountSats` + the
@@ -356,14 +365,16 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     vaultAmounts: splitVaultAmounts,
     canSplit,
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     isLoading: isSplitLoading,
   } = useAllocationPlanning({
     amountSats,
-    isPartialLiquidation,
+    isTwoVaultSplit,
   });
 
   // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor +
-  // 1 OP_RETURN auth-anchor. When partial liquidation is on, N = 2.
+  // 1 OP_RETURN auth-anchor. When the two-vault split is on, N = 2.
   // `hasAuthAnchor: true` mirrors the OP_RETURN output that
   // `PeginManager.preparePegin` will include in its UTXO selection at
   // signing time, so the Max fee budget here matches the fee the UTXO
@@ -375,7 +386,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // splittable threshold the deposit falls back to a single vault, so the
   // Max/fee reserves must follow — otherwise Max is understated and can
   // falsely read "below the minimum deposit".
-  const vaultCount = isPartialLiquidation && canSplit ? 2 : 1;
+  const vaultCount = isTwoVaultSplit && canSplit ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 
   const {
@@ -389,18 +400,30 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
   // vaultKeepers.length, making this a conservative estimate.
-  const numLocalChallengers = useMemo(() => {
-    if (!selectedVpBtcPubkey || !depositorBtcPubkey) return undefined;
+  const numLocalChallengersResult = useMemo(() => {
+    if (!selectedVpBtcPubkey || !depositorBtcPubkey) {
+      return { value: undefined, error: null };
+    }
     try {
-      return computeNumLocalChallengers(
-        selectedVpBtcPubkey,
-        vaultKeeperBtcPubkeys,
-        depositorBtcPubkey,
-      );
-    } catch {
-      return undefined;
+      return {
+        value: assertNumLocalChallengers(
+          computeNumLocalChallengers(
+            selectedVpBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            depositorBtcPubkey,
+          ),
+        ),
+        error: null,
+      };
+    } catch (err) {
+      return {
+        value: undefined,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
+  const numLocalChallengers = numLocalChallengersResult.value;
+  const challengerCountError = numLocalChallengersResult.error;
 
   const { data: depositorClaimValue, error: depositorClaimValueError } =
     useQuery({
@@ -419,7 +442,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
           config.offchainParams.councilQuorum,
           config.offchainParams.securityCouncilKeys.length,
           config.offchainParams.feeRate,
-        ),
+        ).then(assertMinClaimValue),
       enabled:
         latestUniversalChallengers.length > 0 && numLocalChallengers != null,
       staleTime: STALE_TIME_MS,
@@ -451,7 +474,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         vaultKeeperBtcPubkeys.length,
         latestUniversalChallengers.length,
         config.offchainParams.minPeginFeeRate,
-      ),
+      ).then(assertMinPeginFee),
     enabled: vaultKeeperBtcPubkeys.length > 0,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
@@ -644,14 +667,22 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     minPeginFee: minPeginFee ?? null,
     minPeginFeeError: toError(minPeginFeeError),
     ordinalsCheckPending,
-    isPartialLiquidation,
-    setIsPartialLiquidation,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
     canSplit,
     vaultAmounts: splitVaultAmounts,
     isSplitLoading,
     depositorClaimValue,
-    depositorClaimValueError: toError(depositorClaimValueError),
+    // Fold the local challenger-count guard failure into the same terminal
+    // error: when `assertNumLocalChallengers` throws, `numLocalChallengers`
+    // is undefined, which disables the claim-value query, so its rejection
+    // never fires. Surfacing `challengerCountError` here keeps the CTA from
+    // silently degrading to a zero-reserve Max.
+    depositorClaimValueError:
+      challengerCountError ?? toError(depositorClaimValueError),
     splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
     validateForm,
     validateAmountOnBlur,
     resetForm,

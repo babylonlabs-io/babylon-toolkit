@@ -151,7 +151,8 @@ export function DepositFeesBreakdown({
         price={transactionReserve.price}
       />
       <FeeLine
-        label="Protocol Fee"
+        label={FORM_COPY.depositFeeLabel}
+        tooltip={FORM_COPY.depositFeeTooltip}
         amount={protocolFeeAmount}
         amountIsError={protocolFeeIsError}
         price={protocolFeePrice}

@@ -27,7 +27,13 @@ export interface LiquidationGroup {
   btcRemainingAfter: number;
 }
 
-export type WarningType = "urgent" | "dust" | "weird-params";
+export type WarningType =
+  | "urgent"
+  | "cliff"
+  | "reorder"
+  | "dust"
+  | "weird-params"
+  | "too-many-vaults";
 
 export interface Warning {
   type: WarningType;
@@ -58,10 +64,18 @@ export interface CalculatorResult {
   targetSeizureBtc: number;
   warnings: Warning[];
   /**
-   * The liquidation-optimal vault order the calculator settled on. The group
-   * breakdown is computed against this order. Null on early exits (no debt /
-   * dust). Not surfaced in the banner yet — consumed by the (deferred)
-   * auto-reorder-on-EVM-action flow.
+   * The liquidation-optimal vault order the calculator settled on, or `null`
+   * when no reorder strictly helps (or under invalid/dust params). Surfaced in
+   * the reorder notification as the optimal-order chips and the "Apply Optimal
+   * Order" action, and re-derived by `assertOptimalOrderMatchesOnChain`.
+   * (The reference calculator calls this `suggestedVaultOrder`.)
    */
-  suggestedVaultOrder: Vault[] | null;
+  optimalVaultOrder: Vault[] | null;
+  /**
+   * Single-vault cliff only: exact size of a sacrificial vault to add at
+   * position 1 so the existing vault becomes protected. Accounts for the new
+   * vault increasing total BTC (and therefore target seizure). `null` when not
+   * actionable (extreme params, or the amount would exceed the position).
+   */
+  suggestedNewVaultBtc: number | null;
 }
