@@ -22,6 +22,7 @@ import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import { getDemoStepperBatch } from "@/dev/demoDeposit";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { getBatchSiblings, groupActivitiesByBatch } from "@/utils/batchedPegin";
 import { formatBtcAmount } from "@/utils/formatting";
@@ -54,6 +55,7 @@ export function PendingDepositSection() {
     hasExpiredDeposits,
     broadcastModal,
     refundModal,
+    demo,
   } = usePendingDeposits();
 
   // Display-only summary total (rendered via formatBtcAmount, 8 dp). Never
@@ -81,11 +83,23 @@ export function PendingDepositSection() {
   const handleCardClick = useCallback(
     (depositId: string) => {
       const activity = allActivities.find((a) => a.id === depositId);
-      if (!activity) return;
+      if (!activity) {
+        // God-mode: a demo card click opens the deposit multistepper so the
+        // whole flow can be walked (read-only progress per step, with an
+        // interactive simulated activation). Only owned flow-state demo cards
+        // open; different-wallet/expired stay inert. `import.meta.env.DEV`
+        // tree-shakes this — and the demoDeposit import — from production,
+        // where `demo` is always null.
+        if (import.meta.env.DEV) {
+          const demoBatch = getDemoStepperBatch(demo, depositId);
+          if (demoBatch) setViewingBatch(demoBatch);
+        }
+        return;
+      }
       const siblings = getBatchSiblings(allActivities, activity);
       setViewingBatch(siblings.map((s) => s.id as Hex));
     },
-    [allActivities],
+    [allActivities, demo],
   );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);

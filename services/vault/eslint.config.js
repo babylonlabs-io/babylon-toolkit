@@ -151,6 +151,11 @@ export default tseslint.config(
       "src/components/simple/DashboardPage.tsx",
       "src/hooks/usePendingDeposits.ts",
       "src/context/deposit/PeginPollingContext.tsx",
+      // God-mode simulated-activation walk: routes demo card clicks to the
+      // multistepper and feeds the demo activity into it (the demo activation
+      // content is loaded via a dev-gated dynamic import in the view).
+      "src/components/simple/PendingDepositSection.tsx",
+      "src/components/simple/PostDepositContinuationContent.tsx",
     ],
     rules: {
       "no-restricted-imports": [

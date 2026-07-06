@@ -14,6 +14,7 @@
  * routed through copy.ts — none of it is shown to depositors.
  */
 
+import { useTheme } from "next-themes";
 import {
   type ReactNode,
   useCallback,
@@ -28,6 +29,8 @@ import {
   type DemoCta,
   type DemoItem,
   type DemoType,
+  DEPOSIT_EXPIRED_SCENARIO_COUNT,
+  DEPOSIT_FLOW_SCENARIO_COUNT,
   itemSectionHint,
   removeDemoItem,
   scenariosForType,
@@ -60,13 +63,57 @@ const CTA_BADGE: Record<DemoCta, { label: string; className: string }> = {
 const CONTROL_BUTTON_CLASS =
   "rounded border border-zinc-600 px-2 py-1 text-xs disabled:opacity-40";
 
+/**
+ * Deposit "mode" segments over the flat DEPOSIT_SCENARIOS list. The mode select
+ * picks a segment; the slider/dropdown scrub within it. Different wallet is a
+ * single state (count 1), so its slider is inert.
+ */
+const DEPOSIT_SEGMENTS: {
+  mode: string;
+  label: string;
+  offset: number;
+  count: number;
+}[] = [
+  {
+    mode: "normal",
+    label: "Normal",
+    offset: 0,
+    count: DEPOSIT_FLOW_SCENARIO_COUNT,
+  },
+  {
+    mode: "expired",
+    label: "Expired",
+    offset: DEPOSIT_FLOW_SCENARIO_COUNT,
+    count: DEPOSIT_EXPIRED_SCENARIO_COUNT,
+  },
+  {
+    mode: "different-wallet",
+    label: "Different wallet",
+    offset: DEPOSIT_FLOW_SCENARIO_COUNT + DEPOSIT_EXPIRED_SCENARIO_COUNT,
+    count: 1,
+  },
+];
+
 function ItemRow({ item, index }: { item: DemoItem; index: number }) {
   const scenarios = scenariosForType(item.type);
   const total = scenarios.length;
+  // Deposits pick a "mode" (Normal / Expired / Different wallet); the slider and
+  // dropdown then scrub within that mode's segment. Other types are one flat
+  // segment with no mode select. `stateIndex` still addresses the flat list.
+  const isDeposit = item.type === "deposit";
+  const segment = isDeposit
+    ? (DEPOSIT_SEGMENTS.find(
+        (s) =>
+          item.stateIndex >= s.offset && item.stateIndex < s.offset + s.count,
+      ) ?? DEPOSIT_SEGMENTS[0])
+    : null;
+  const offset = segment?.offset ?? 0;
+  const count = segment?.count ?? total;
+  const localIndex = item.stateIndex - offset;
   const scenario = scenarios[item.stateIndex] ?? scenarios[0];
   const badge = CTA_BADGE[scenario.expectedCta];
   const position = index + 1;
-  const clamp = (next: number) => Math.min(total - 1, Math.max(0, next));
+  const clampLocal = (next: number) => Math.min(count - 1, Math.max(0, next));
 
   return (
     <div className="space-y-2 rounded-lg border border-zinc-700/60 p-2">
@@ -87,7 +134,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
         </select>
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs tabular-nums text-zinc-400">
-            {item.stateIndex + 1}/{total}
+            {localIndex + 1}/{count}
           </span>
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
@@ -105,13 +152,40 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
         </div>
       </div>
 
-      {/* Step slider + dropdown both drive the state — slider for quick
-          stepping, dropdown for jumping straight to a state. */}
+      {/* Mode select (deposit only) sits above the slider: it picks the segment
+          the slider scrubs — Normal (flow), Expired, or Different wallet. */}
+      {isDeposit && segment && (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          <span className="shrink-0">Mode</span>
+          <select
+            value={segment.mode}
+            onChange={(e) => {
+              const next = DEPOSIT_SEGMENTS.find(
+                (s) => s.mode === e.target.value,
+              );
+              if (next) setDemoItemState(item.key, next.offset);
+            }}
+            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs"
+            aria-label={`Mock ${position} mode`}
+          >
+            {DEPOSIT_SEGMENTS.map((s) => (
+              <option key={s.mode} value={s.mode}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {/* Slider + dropdown both scrub within the current mode's segment —
+          slider for quick stepping, dropdown for jumping straight to a state. */}
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setDemoItemState(item.key, clamp(item.stateIndex - 1))}
-          disabled={item.stateIndex === 0}
+          onClick={() =>
+            setDemoItemState(item.key, offset + clampLocal(localIndex - 1))
+          }
+          disabled={localIndex === 0}
           className={CONTROL_BUTTON_CLASS}
         >
           Prev
@@ -119,34 +193,36 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
         <input
           type="range"
           min={0}
-          max={total - 1}
-          value={item.stateIndex}
-          onChange={(e) => setDemoItemState(item.key, Number(e.target.value))}
-          className="min-w-0 flex-1 accent-orange-500"
+          max={count - 1}
+          value={localIndex}
+          disabled={count <= 1}
+          onChange={(e) =>
+            setDemoItemState(item.key, offset + Number(e.target.value))
+          }
+          className="min-w-0 flex-1 accent-orange-500 disabled:opacity-40"
           aria-label={`Mock ${position} step`}
         />
         <button
           type="button"
-          onClick={() => setDemoItemState(item.key, clamp(item.stateIndex + 1))}
-          disabled={item.stateIndex === total - 1}
+          onClick={() =>
+            setDemoItemState(item.key, offset + clampLocal(localIndex + 1))
+          }
+          disabled={localIndex === count - 1}
           className={CONTROL_BUTTON_CLASS}
         >
           Next
         </button>
       </div>
 
-      <select
-        value={item.stateIndex}
-        onChange={(e) => setDemoItemState(item.key, Number(e.target.value))}
-        className="w-full rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs"
+      {/* Current-state readout. The mode select + slider drive the state, so
+          this is just a label — no redundant jump-to-state dropdown. */}
+      <div
+        className="truncate text-xs text-zinc-400"
+        title={scenario.label}
         aria-label={`Mock ${position} state`}
       >
-        {scenarios.map((s, i) => (
-          <option key={s.key} value={i}>
-            {s.label}
-          </option>
-        ))}
-      </select>
+        {scenario.label}
+      </div>
 
       <label className="flex items-center justify-between gap-2 text-xs">
         <span>Amount (BTC)</span>
@@ -224,9 +300,41 @@ function DemoControls() {
   );
 }
 
+/** Dev theme switch — drives the app's next-themes provider so the dashboard
+ *  behind the panel can be previewed in light / dark / system. */
+const THEME_OPTIONS = ["light", "dark", "system"] as const;
+
+function ThemeControls() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <div className="space-y-2">
+      <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
+        Theme
+      </div>
+      <div className="flex gap-2">
+        {THEME_OPTIONS.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => setTheme(option)}
+            className={`flex-1 rounded border px-2 py-1 text-xs capitalize ${
+              theme === option
+                ? "border-orange-500 bg-orange-500/20 text-white"
+                : "border-zinc-600 text-zinc-300"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PanelBody({ children }: { children?: ReactNode }) {
   return (
     <div className="space-y-4">
+      <ThemeControls />
       <div className="space-y-2">
         <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
           Mocks

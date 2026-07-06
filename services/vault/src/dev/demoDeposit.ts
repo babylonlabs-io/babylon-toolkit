@@ -11,8 +11,12 @@
  *  - States are built by the REAL state machines (getPeginState /
  *    getPegoutDisplayState), so the gallery can't drift from production.
  *  - Demo activities are injected ONLY into the section render lists (never into
- *    `allActivities`), so they are never polled and every click handler no-ops
- *    for them.
+ *    `allActivities`), so they are never polled. Click handlers no-op for them,
+ *    with one deliberate exception: owned flow-state deposit cards open the real
+ *    deposit multistepper, which walks the flow SAFELY — read-only progress per
+ *    step, plus a SIMULATED activation (see {@link getDemoStepperBatch} /
+ *    {@link submitDemoVaultActivation} and DemoActivationContent) — never the
+ *    real wallet/registry/contract path.
  *  - When the flag is off (or the toggle is off), the hooks return null and
  *    nothing is injected — zero behavioural change.
  */
@@ -43,6 +47,7 @@ import type { VaultActivity } from "@/types/activity";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
+import { getBatchSiblings } from "@/utils/batchedPegin";
 
 /** Whether (and how) a scenario is expected to render the action CTA. */
 export type DemoCta = "primary" | "outlined" | "none";
@@ -246,7 +251,8 @@ const UNOWNED: Partial<DepositPollingResult> = {
   depositorBtcPubkey: "f".repeat(64),
 };
 
-const EXPIRED_SCENARIOS: DemoScenario[] = [
+/** The "Expired" mode's sub-states — the panel slider scrubs across these. */
+const DEPOSIT_EXPIRED_SCENARIOS: DemoScenario[] = [
   {
     key: "expired-refundable",
     label: "Expired — refund available",
@@ -286,22 +292,76 @@ const EXPIRED_SCENARIOS: DemoScenario[] = [
     contractStatus: ContractStatus.EXPIRED,
     options: { refundSettlement: "confirmed" },
   },
-  {
-    key: "unowned-disabled",
-    label: "Different wallet (disabled)",
-    expectedCta: "none",
-    contractStatus: ContractStatus.VERIFIED,
-    options: {},
-    overrides: UNOWNED,
-  },
 ];
 
-/** All deposit states: the flow steps then the expired/edge states. The
- *  contract status of the chosen state decides the section it renders in. */
-export const DEPOSIT_SCENARIOS: DemoScenario[] = [
+/** The "Different wallet" mode — a single disabled, unowned-vault state. */
+const DIFFERENT_WALLET_SCENARIO: DemoScenario = {
+  key: "unowned-disabled",
+  label: "Different wallet (disabled)",
+  expectedCta: "none",
+  contractStatus: ContractStatus.VERIFIED,
+  options: {},
+  overrides: UNOWNED,
+};
+
+/** Resting state after the whole walk: the contract reports the vault ACTIVE.
+ *  Also the terminal the simulated activation lands on. */
+const ACTIVATED_SCENARIO: DemoScenario = {
+  key: "activated",
+  label: "Activated (vault active)",
+  expectedCta: "none",
+  contractStatus: ContractStatus.ACTIVE,
+  options: {},
+};
+
+/** The ordered deposit flow: the 15 steps then the activated terminal. The
+ *  panel presents these on the step slider. */
+const DEPOSIT_FLOW_SCENARIOS: DemoScenario[] = [
   ...PENDING_FLOW_SCENARIOS,
-  ...EXPIRED_SCENARIOS,
+  ACTIVATED_SCENARIO,
 ];
+
+/** All deposit states as one flat list, grouped by panel "mode": the flow
+ *  prefix (Normal), then the expired variants (Expired), then the single
+ *  different-wallet state. A `DemoItem.stateIndex` addresses any of them; the
+ *  panel derives the mode + within-mode offset from the segment boundaries
+ *  below. The chosen state's contract status decides the rendering section. */
+export const DEPOSIT_SCENARIOS: DemoScenario[] = [
+  ...DEPOSIT_FLOW_SCENARIOS,
+  ...DEPOSIT_EXPIRED_SCENARIOS,
+  DIFFERENT_WALLET_SCENARIO,
+];
+
+/** Length of the "Normal" flow segment leading {@link DEPOSIT_SCENARIOS}. */
+export const DEPOSIT_FLOW_SCENARIO_COUNT = DEPOSIT_FLOW_SCENARIOS.length;
+
+/** Length of the "Expired" segment that follows the flow prefix. The single
+ *  different-wallet state is the sole trailing entry after it. */
+export const DEPOSIT_EXPIRED_SCENARIO_COUNT = DEPOSIT_EXPIRED_SCENARIOS.length;
+
+/** Index into {@link DEPOSIT_SCENARIOS} for a pending-flow step (the flow
+ *  scenarios lead the list, so the config index carries over). */
+function flowScenarioIndex(step: DepositFlowStep): number {
+  const index = PENDING_FLOW_CONFIG.findIndex((config) => config.step === step);
+  if (index === -1) {
+    throw new Error(`No pending-flow demo scenario for step ${step}`);
+  }
+  return index;
+}
+
+/** "Ready to activate" (VERIFIED, primary Activate CTA) — the state the
+ *  simulated activation starts from. */
+export const READY_TO_ACTIVATE_SCENARIO_INDEX = flowScenarioIndex(
+  DepositFlowStep.RETRIEVE_SECRET,
+);
+/** Optimistic post-submit state (VERIFIED + CONFIRMED, "activation
+ *  submitted") — already `isVaultActivated`, so the stepper shows success. */
+export const ACTIVATION_CONFIRMING_SCENARIO_INDEX = flowScenarioIndex(
+  DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+);
+/** Terminal ACTIVE state the simulated confirmation lands on. */
+export const ACTIVATED_SCENARIO_INDEX =
+  DEPOSIT_SCENARIOS.indexOf(ACTIVATED_SCENARIO);
 
 // --- Withdrawal (peg-out) scenarios ----------------------------------------
 
@@ -708,8 +768,78 @@ export function setDemoItemAmount(key: number, amount: string) {
   emit();
 }
 
+// --- Simulated activation --------------------------------------------------
+
+/** Simulated on-chain lag between "activation submitted" (VERIFIED+CONFIRMED)
+ *  and the contract reporting the vault ACTIVE. */
+const DEMO_ACTIVATION_CONFIRM_MS = 2500;
+
+/** In-flight simulated-confirmation timers keyed by demo vault id. */
+const demoActivationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function findDemoDepositItem(vaultId: string): DemoItem | undefined {
+  return storeItems.find(
+    (item) => item.type === "deposit" && itemHexId(item.key) === vaultId,
+  );
+}
+
+/**
+ * Simulate submitting the activation transaction for a demo vault: advance the
+ * item to the optimistic VERIFIED+CONFIRMED scenario immediately (mirroring the
+ * real flow's `setOptimisticStatus(CONFIRMED)`), then to the ACTIVE terminal
+ * after a simulated confirmation delay. No-op unless the item is currently at
+ * "ready to activate", so a re-fire (StrictMode remount) can't double-advance.
+ */
+export function submitDemoVaultActivation(vaultId: string) {
+  const item = findDemoDepositItem(vaultId);
+  if (!item || item.stateIndex !== READY_TO_ACTIVATE_SCENARIO_INDEX) return;
+  setDemoItemState(item.key, ACTIVATION_CONFIRMING_SCENARIO_INDEX);
+  // A pending timer can only exist here if the user rewound the state by hand
+  // and re-activated; replace it so the stale timer can't fire early.
+  const existing = demoActivationTimers.get(vaultId);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    demoActivationTimers.delete(vaultId);
+    const current = findDemoDepositItem(vaultId);
+    // The user may have removed the item or jumped its state mid-wait.
+    if (!current || current.stateIndex !== ACTIVATION_CONFIRMING_SCENARIO_INDEX)
+      return;
+    setDemoItemState(current.key, ACTIVATED_SCENARIO_INDEX);
+  }, DEMO_ACTIVATION_CONFIRM_MS);
+  demoActivationTimers.set(vaultId, timer);
+}
+
+/**
+ * Resolve a clicked demo deposit to the batch of owned vault ids the deposit
+ * multistepper should open with, or `null` when the click must stay a no-op.
+ *
+ * Opens for any OWNED flow-state demo deposit (the 15 flow steps + the
+ * activated terminal), so the whole Deposit Progress view can be walked with
+ * god mode. Stays inert for a different-wallet (unowned) preview and for
+ * expired deposits (those live in `expiredActivities`, not the pending list).
+ *
+ * There is no "would this auto-run real signing?" guard: for every demo id
+ * PostDepositContinuationView renders a SAFE view (read-only progress, or the
+ * simulated activation walk) — the real signing/registry branches never mount.
+ */
+export function getDemoStepperBatch(
+  demo: ActiveDemo | null,
+  depositId: string,
+): Hex[] | null {
+  if (!demo) return null;
+  const activity = demo.pendingActivities.find((a) => a.id === depositId);
+  if (!activity) return null;
+  // Different-wallet demo cards are disabled previews — never open.
+  if (!demo.resultsById.get(depositId)?.isOwnedByCurrentWallet) return null;
+  return getBatchSiblings(demo.pendingActivities, activity)
+    .filter((s) => demo.resultsById.get(s.id)?.isOwnedByCurrentWallet)
+    .map((s) => s.id as Hex);
+}
+
 /** Reset to a single default deposit item (used by tests). */
 export function resetDemoState() {
+  for (const timer of demoActivationTimers.values()) clearTimeout(timer);
+  demoActivationTimers.clear();
   storeEnabled = true;
   storeHideReal = false;
   itemCounter = 0;

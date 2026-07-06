@@ -37,10 +37,12 @@ export function usePendingDeposits() {
 
   // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
   // is on and enabled). Injected into the render lists below — but NOT into
-  // `allActivities` — so the real section renders it while it is never polled
-  // and every click handler no-ops for it (they resolve ids against
-  // `allActivities`). When `demo.hideReal` is set, the real deposits are
-  // dropped from the render lists so only the demo shows. Inert in production.
+  // `allActivities` — so the real section renders it while it is never polled.
+  // Broadcast/refund click handlers resolve ids against `allActivities` and so
+  // no-op for it; only the activation walk opts in, by resolving demo ids from
+  // the `demo` aggregate returned below (see PendingDepositSection). When
+  // `demo.hideReal` is set, the real deposits are dropped from the render lists
+  // so only the demo shows. Inert in production.
   const demo = useDemoDeposit();
 
   const pendingActivities = useMemo(() => {
@@ -92,5 +94,8 @@ export function usePendingDeposits() {
     refetchActivities,
     broadcastModal,
     refundModal,
+    // God-mode demo aggregate (null in production). Only the activation-walk
+    // click routing reads it; every other consumer uses the real lists above.
+    demo,
   };
 }

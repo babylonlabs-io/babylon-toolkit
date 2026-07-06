@@ -3,6 +3,7 @@ import type { Address, Hex } from "viem";
 
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { useBTCWallet } from "@/context/wallet";
+import { useDemoDeposit } from "@/dev/demoDeposit";
 import type { DepositWarning } from "@/hooks/deposit/depositWarnings";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
@@ -31,13 +32,29 @@ export function PostDepositContinuationContent({
   const btcPublicKey = useBtcPublicKey(btcConnected);
   const { activities, pendingPegins } = useVaultDeposits(depositorEthAddress);
 
+  // God-mode demo aggregate (null in production). Its activities are never in
+  // `useVaultDeposits` (never fetched), so merging them in for the viewed batch
+  // is what lets PostDepositContinuationView find the demo VaultActivity and
+  // mount the activation branch; the nested PeginPollingProvider already
+  // resolves demo polling results by id. Inert in production.
+  const demo = useDemoDeposit();
+
   const scoped = useMemo(() => {
     const ids = new Set<string>(vaultIds);
+    const demoActivities = demo
+      ? demo.pendingActivities.filter((a) => ids.has(a.id))
+      : [];
     return {
-      activities: activities.filter((a) => ids.has(a.id)),
+      // Demo activity ids can never collide with real ones (distinct id space),
+      // so the concat introduces no duplicates.
+      activities: [
+        ...demoActivities,
+        ...activities.filter((a) => ids.has(a.id)),
+      ],
       pendingPegins: pendingPegins.filter((p) => ids.has(p.id)),
+      demoVaultIds: new Set(demoActivities.map((a) => a.id)),
     };
-  }, [vaultIds, activities, pendingPegins]);
+  }, [vaultIds, activities, pendingPegins, demo]);
 
   return (
     <PeginPollingProvider
@@ -51,6 +68,7 @@ export function PostDepositContinuationContent({
         activities={scoped.activities}
         depositorEthAddress={depositorEthAddress}
         btcPublicKey={btcPublicKey}
+        demoVaultIds={scoped.demoVaultIds}
         onClose={onClose}
       />
     </PeginPollingProvider>
