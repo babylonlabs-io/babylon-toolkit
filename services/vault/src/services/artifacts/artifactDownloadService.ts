@@ -5,7 +5,7 @@
  * their vault funds. They are retrieved from the vault provider after
  * the WOTS key has been submitted and the vault is fully set up.
  *
- * Artifacts can be very large (~450 MB today). The raw response body is
+ * Artifacts can be very large (~1 GB today). The raw response body is
  * retained as a Blob so the download step does not need to re-serialize
  * it, and payloads above an RPC-error-sized threshold are not parsed on
  * the main thread (doing so would risk exceeding V8's string length limit
@@ -31,8 +31,8 @@ import { getVpProxyUrl } from "@/utils/rpc";
 const RPC_TIMEOUT_MS = 120 * 1000;
 
 /**
- * Error responses are typically small; artifact payloads can be hundreds
- * of MB. Only responses under this threshold are parsed on the main thread.
+ * Error responses are typically small; artifact payloads can be around a
+ * gigabyte. Only responses under this threshold are parsed on the main thread.
  */
 const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
 

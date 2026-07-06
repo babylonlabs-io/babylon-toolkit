@@ -126,6 +126,15 @@ export function ArtifactDownloadModal({
     onClose();
   };
 
+  // While a download is in flight the footer button only cancels the
+  // download and keeps the modal open (in-place cancel-and-retry): the
+  // hook reset flips `isDownloading` back via onLoadingChange, restoring
+  // the pre-download copy and the card's Download button. Dismissal
+  // paths (the X button) still go through handleClose.
+  const handleCancelDownload = () => {
+    cardRef.current?.cancel();
+  };
+
   return (
     <ResponsiveDialog
       open={open}
@@ -197,7 +206,7 @@ export function ArtifactDownloadModal({
           <Button
             variant="outlined"
             className="h-10 w-full"
-            onClick={handleClose}
+            onClick={isDownloading ? handleCancelDownload : handleClose}
           >
             {isDownloading
               ? COPY.deposit.artifactDownload.cancelDownloadButton

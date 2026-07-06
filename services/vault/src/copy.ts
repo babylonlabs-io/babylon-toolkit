@@ -411,6 +411,7 @@ export const COPY = {
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate Vault",
       cancelButton: "Cancel",
+      cancelDownloadButton: "Cancel download",
     },
     inStepArtifact: {
       fileName: "vault-artifacts.json",
