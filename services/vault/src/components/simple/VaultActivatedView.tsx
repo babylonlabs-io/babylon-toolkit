@@ -7,7 +7,6 @@
  */
 
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
-import { IoCheckmarkSharp } from "react-icons/io5";
 
 import { COPY } from "@/copy";
 
@@ -22,14 +21,33 @@ export function VaultActivatedView({
 }: VaultActivatedViewProps) {
   return (
     <div
-      className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} overflow-hidden rounded-xl border border-secondary-strokeDark px-6 pb-6 pt-10`}
+      className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} overflow-hidden rounded-2xl border border-secondary-strokeLight bg-primary-contrast px-6 pb-6 pt-10`}
     >
-      <div className="flex flex-col items-center gap-6 pb-10 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-accent-primary">
-          <IoCheckmarkSharp size={40} className="text-accent-primary" />
-        </div>
-        <div className="flex flex-col items-center gap-2">
-          <Heading variant="h5" className="text-accent-primary">
+      <div className="flex flex-col items-center gap-10 pb-10 text-center">
+        <svg
+          width="92"
+          height="92"
+          viewBox="0 0 92 92"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="text-black dark:text-white"
+          aria-hidden="true"
+        >
+          <path
+            d="M23.5 48.6417L40.3755 65.1235L73 32.4995"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <circle
+            cx="46"
+            cy="46"
+            r="45"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+        </svg>
+        <div className="flex flex-col items-center gap-4">
+          <Heading variant="h4" className="text-black dark:text-white">
             {COPY.deposit.vaultActivatedSuccess.heading}
           </Heading>
           <Text variant="body1" className="text-accent-secondary">
