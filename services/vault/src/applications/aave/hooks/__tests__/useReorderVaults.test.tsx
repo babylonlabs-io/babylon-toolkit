@@ -28,11 +28,6 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn() },
 }));
 
-const mockHandleError = vi.fn();
-vi.mock("@/context/error", () => ({
-  useError: () => ({ handleError: mockHandleError }),
-}));
-
 const mockUseAccount = vi.fn();
 const mockUseWalletClient = vi.fn();
 vi.mock("wagmi", () => ({
@@ -142,7 +137,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).toHaveBeenCalled();
+    expect(result.current.error).not.toBeNull();
   });
 
   it("refuses to broadcast when Freeze/Pause blocks reorder (before any on-chain read)", async () => {
@@ -158,7 +153,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(resolved).toBe(false);
     expect(mockAssertMembership).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
   });
 
   it("runs the optimal-order recompute only when optimalOrderContext is provided", async () => {
@@ -208,7 +203,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).toHaveBeenCalled();
+    expect(result.current.error).not.toBeNull();
   });
 
   it("rejects when the wallet is not connected (before any on-chain read)", async () => {
@@ -276,7 +271,6 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
-    expect(mockHandleError).toHaveBeenCalledTimes(1);
-    expect(mockHandleError.mock.calls[0][0].error).toBe(positionChangedError);
+    expect(result.current.error).toBe(positionChangedError.message);
   });
 });

@@ -15,11 +15,13 @@ import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
 } from "@/services/token/tokenService";
-import { formatAmount } from "@/utils/formatting";
+import { formatAmount, formatAprPercent } from "@/utils/formatting";
 
 import { useAaveConfig } from "../context";
 import type { AavePositionWithLiveData, DebtPosition } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+
+import { useAaveBorrowAprs } from "./useAaveBorrowAprs";
 
 /**
  * Borrowed asset for display
@@ -33,8 +35,8 @@ export interface BorrowedAsset {
   amount: string;
   /** Token icon URL */
   icon: string;
-  /** Borrow APY as a formatted string (e.g. "5.861%"). Optional until the
-   *  reserve-data fetch that produces this is wired up. */
+  /** Borrow APY as a formatted string (e.g. "5.861%"). Undefined only while
+   *  the per-reserve APR read (`useAaveBorrowAprs`) hasn't resolved yet. */
   borrowRate?: string;
 }
 
@@ -113,6 +115,7 @@ function resolveTokenName(
  */
 function transformToBorrowedAsset(
   reserveWithDebt: ReserveWithDebt,
+  aprPercent: number | null | undefined,
 ): BorrowedAsset {
   const { reserve, debtPosition } = reserveWithDebt;
 
@@ -125,8 +128,10 @@ function transformToBorrowedAsset(
     formatUnits(debtPosition.totalDebt, reserve.token.decimals),
   );
   const amount = formatAmount(tokenAmount, reserve.token.decimals);
+  const borrowRate =
+    aprPercent != null ? formatAprPercent(aprPercent) : undefined;
 
-  return { symbol, name, amount, icon };
+  return { symbol, name, amount, icon, borrowRate };
 }
 
 /**
@@ -146,26 +151,38 @@ export function useAaveBorrowedAssets({
 
   const debtPositions = position?.debtPositions;
 
-  const borrowedAssets = useMemo((): BorrowedAsset[] => {
+  // Resolve debts against the full reserve set, not just borrowable ones, so
+  // existing debt in a frozen/paused/un-borrowable reserve still surfaces.
+  const reservesWithDebt = useMemo((): ReserveWithDebt[] => {
     if (!debtPositions || debtPositions.size === 0) {
       return [];
     }
-
-    // Resolve debts against the full reserve set, not just borrowable ones,
-    // so existing debt in a frozen/paused/un-borrowable reserve still surfaces.
-    const reservesWithDebt: ReserveWithDebt[] = allBorrowReserves
+    return allBorrowReserves
       .filter((r) => debtPositions.has(r.reserveId))
       .map((reserve) => ({
         reserve,
         debtPosition: debtPositions.get(reserve.reserveId)!,
       }));
-
-    if (reservesWithDebt.length === 0) {
-      return [];
-    }
-
-    return reservesWithDebt.map(transformToBorrowedAsset);
   }, [debtPositions, allBorrowReserves]);
+
+  const reservesOnly = useMemo(
+    () => reservesWithDebt.map((r) => r.reserve),
+    [reservesWithDebt],
+  );
+  const { aprPercentByReserveId } = useAaveBorrowAprs({
+    reserves: reservesOnly,
+  });
+
+  const borrowedAssets = useMemo(
+    (): BorrowedAsset[] =>
+      reservesWithDebt.map((rwd) =>
+        transformToBorrowedAsset(
+          rwd,
+          aprPercentByReserveId[rwd.reserve.reserveId.toString()],
+        ),
+      ),
+    [reservesWithDebt, aprPercentByReserveId],
+  );
 
   return {
     borrowedAssets,

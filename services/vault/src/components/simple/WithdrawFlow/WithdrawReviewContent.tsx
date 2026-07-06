@@ -1,4 +1,10 @@
-import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Heading,
+  Loader,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import { useMemo, type ReactNode } from "react";
 
 import {
@@ -43,6 +49,8 @@ interface WithdrawReviewContentProps {
   /** Max `timelockAssert` (BTC blocks) across the selected vaults; drives the ETA. */
   assertTimelockBlocks: number;
   isProcessing: boolean;
+  /** Last failed-withdraw message, shown inline under the action (null when none). */
+  error: string | null;
   onConfirm: () => void;
 }
 
@@ -54,6 +62,7 @@ export function WithdrawReviewContent({
   payoutAddresses,
   assertTimelockBlocks,
   isProcessing,
+  error,
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
@@ -218,6 +227,12 @@ export function WithdrawReviewContent({
               "Confirm"
             )}
           </Button>
+
+          {error && (
+            <Callout variant="error" title={COPY.common.transactionFailedTitle}>
+              {error}
+            </Callout>
+          )}
         </div>
       </div>
     </div>

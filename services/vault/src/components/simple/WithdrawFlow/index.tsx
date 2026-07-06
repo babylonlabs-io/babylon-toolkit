@@ -44,7 +44,8 @@ function WithdrawFlowContent({
   preSelectedVaultIds,
 }: WithdrawFlowProps) {
   const { step, goToProgress, reset } = useWithdrawFlow();
-  const { executeWithdraw, isProcessing } = useWithdrawCollateralTransaction();
+  const { executeWithdraw, isProcessing, error } =
+    useWithdrawCollateralTransaction();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
 
   const renderedStep = useDialogStep(open, step, reset);
@@ -152,6 +153,7 @@ function WithdrawFlowContent({
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
               isProcessing={isProcessing}
+              error={error}
               onConfirm={handleConfirm}
             />
           </div>
