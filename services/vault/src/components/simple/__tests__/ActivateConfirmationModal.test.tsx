@@ -30,9 +30,6 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
   ResponsiveDialog: (props: Record<string, unknown>) =>
     props.open ? <div>{props.children as ReactNode}</div> : null,
-  DialogHeader: (props: Record<string, unknown>) => (
-    <div>{props.title as string}</div>
-  ),
   DialogBody: (props: Record<string, unknown>) => (
     <div>{props.children as ReactNode}</div>
   ),
@@ -165,7 +162,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("enables Activate vault directly and hides the checkbox when artifacts were already downloaded", () => {
+  it("enables Activate vault, hides the checkbox, and shows the downloaded heading when artifacts were already downloaded", () => {
     markArtifactsDownloaded(VAULT_ID);
     render(
       <ActivateConfirmationModal
@@ -176,6 +173,7 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    expect(screen.getByText("Artifacts downloaded")).toBeInTheDocument();
     expect(screen.getByText("Activate vault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });

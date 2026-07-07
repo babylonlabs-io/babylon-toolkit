@@ -62,13 +62,22 @@ const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
 // artifact-download and activate-confirmation dialog footers so the two
 // can't drift.
 const CANCEL_DOWNLOAD_LABEL = "Cancel download";
+// Wallet-signature action/status label, shared by the deposit-stepper button
+// and the recovery-artifacts card status so the two can't drift.
+const SIGN_TRANSACTION_LABEL = "Sign Transaction";
+// Downloaded-state heading/body of the artifact dialogs, shared by the
+// standalone download dialog and the activate-confirmation dialog so the
+// two can't drift.
+const ARTIFACTS_DOWNLOADED_TITLE = "Artifacts downloaded";
+const ARTIFACTS_DOWNLOADED_BODY =
+  "Your files are stored locally and never uploaded.";
 
 /**
- * A run of body text for the loan success modals. `emphasis` segments render in
- * the primary text color (e.g. the repaid amount), the rest in secondary — so a
- * single line can mix muted prose with a highlighted value.
+ * A run of modal body text. `emphasis` segments render in the primary text
+ * color (e.g. a repaid amount or a key instruction), the rest in secondary —
+ * so a single line can mix muted prose with highlighted phrases.
  */
-export interface LoanSuccessBodySegment {
+export interface EmphasisBodySegment {
   text: string;
   emphasis: boolean;
 }
@@ -330,7 +339,7 @@ export const COPY = {
         close: "Close",
         done: "Done",
         sign: "Sign",
-        signTransaction: "Sign Transaction",
+        signTransaction: SIGN_TRANSACTION_LABEL,
       },
     },
     btcConfirmation: {
@@ -410,18 +419,26 @@ export const COPY = {
     },
     activateConfirmation: {
       title: "Activate your BTC Vault",
-      body: "Before activating, download your BTC Vault artifacts. These files may be needed later to recover access to your BTC Vault.",
+      // The download instruction is emphasized (primary text color) per the
+      // design; the surrounding prose stays secondary.
+      body: [
+        { text: "Before activating, ", emphasis: false },
+        { text: "download the recovery artifacts", emphasis: true },
+        {
+          text: " of your BTC Vault. These files will make sure your BTC Vault is fully functional even if your vault provider becomes unavailable.",
+          emphasis: false,
+        },
+      ] satisfies EmphasisBodySegment[],
+      // Shown once the artifacts are on disk (the download just finished, or
+      // the modal opened for a vault whose artifacts were saved earlier);
+      // pairs with the green-card layout.
+      titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
+      bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate vault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
-    },
-    inStepArtifact: {
-      fileName: "vault-artifacts.json",
-      recommended: "(Recommended)",
-      skip: "Skip",
-      download: "Download Artifacts",
     },
     artifactDownload: {
       title: "Download BTC Vault artifacts",
@@ -434,17 +451,14 @@ export const COPY = {
         "This may take a few minutes depending on your connection.",
       // Shown after the download completes (third copy bucket for the
       // same modal); the green-card layout pairs with this title.
-      titleDownloaded: "Artifacts downloaded",
-      bodyDownloaded: "Your files are stored locally and never uploaded.",
+      titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
+      bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
-      // Right footer button in the downloaded state when the modal only
+      // Right footer button in the downloaded state. This dialog only
       // confirms the artifacts are on disk (collateral list); it doesn't
-      // perform activation, so the label simply dismisses the dialog.
+      // perform activation, so the label simply dismisses it.
       doneButton: "Done",
-      // Downloaded-state primary action in the activation flow, where
-      // confirming the download proceeds to vault activation.
-      activateButton: "Activate vault",
     },
     vaultActivatedSuccess: {
       heading: "Vault activated",
@@ -460,9 +474,6 @@ export const COPY = {
       cardSizeDownloaded: "~1 GB",
       downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      // Label of the in-step callout's download button once the artifacts
-      // are already on disk (see InStepArtifactCallout).
-      downloadedLabel: "Downloaded",
       retryButton: "Retry",
       walletSignatureHint:
         "You may be asked to approve a signature in your wallet to authenticate.",
@@ -472,6 +483,9 @@ export const COPY = {
         "Cannot authenticate with the vault provider. Please refresh and try again.",
       // Progress/status lines surfaced in the card while the download hook
       // works through its fetch / re-auth / wait-for-signatures states.
+      // The signature status shows while the cold-cache auth prime waits on
+      // the BTC wallet's signature prompt.
+      signTransaction: SIGN_TRANSACTION_LABEL,
       fetchingArtifacts: "Fetching artifacts from vault provider...",
       reauthenticating: "Re-authenticating with vault provider...",
       waitingForSignatures:
@@ -1023,7 +1037,7 @@ export const COPY = {
     },
     borrowSuccess: {
       title: "Borrow successful",
-      body: (amount: string, symbol: string): LoanSuccessBodySegment[] => [
+      body: (amount: string, symbol: string): EmphasisBodySegment[] => [
         {
           text: `${amount} ${symbol} has been credited to your wallet.`,
           emphasis: false,
@@ -1033,7 +1047,7 @@ export const COPY = {
     },
     repaySuccess: {
       title: "Repay successful",
-      body: (amount: string, symbol: string): LoanSuccessBodySegment[] => [
+      body: (amount: string, symbol: string): EmphasisBodySegment[] => [
         { text: "You have repaid ", emphasis: false },
         { text: `${amount} ${symbol}`, emphasis: true },
       ],

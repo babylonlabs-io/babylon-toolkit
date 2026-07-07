@@ -195,6 +195,42 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(result.current.downloaded).toBe(false);
   });
 
+  it("shows the wallet-signature status while the cold-cache prime awaits the wallet", async () => {
+    let resolveEnsure: () => void = () => {};
+    const ensureDeferred = new Promise<unknown>((resolve) => {
+      resolveEnsure = () => resolve(undefined);
+    });
+    ensureAuthMock.mockImplementationOnce(
+      () =>
+        ensureDeferred as unknown as ReturnType<
+          typeof ensureAuthenticatedVpClient
+        >,
+    );
+    fetchMock.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current.progress).toBe("Sign Transaction"),
+    );
+
+    await act(async () => {
+      resolveEnsure();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
+  });
+
   it("does not let a cancelled flow parked in the retry sleep clobber a restarted download", async () => {
     vi.useFakeTimers();
     try {

@@ -132,6 +132,12 @@ export function useArtifactDownload(options?: {
           setError(COPY.deposit.recoveryArtifacts.cannotAuthenticate);
           return false;
         }
+        // The cold-cache prime asks the BTC wallet for a signature; surface
+        // that as the card's status while the wallet prompt is up.
+        setState((prev) => ({
+          ...prev,
+          progress: COPY.deposit.recoveryArtifacts.signTransaction,
+        }));
         try {
           await ensureAuthenticatedVpClient({
             btcWallet: primeContext.btcWallet,
@@ -150,7 +156,13 @@ export function useArtifactDownload(options?: {
           );
           return false;
         }
-        return !isStale();
+        if (isStale()) return false;
+        // Signature done — back to the fetch status for the artifact request.
+        setState((prev) => ({
+          ...prev,
+          progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
+        }));
+        return true;
       };
 
       if (!(await ensurePrimedOrFail())) return;

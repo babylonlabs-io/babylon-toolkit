@@ -16,11 +16,6 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
   ResponsiveDialog: (props: Record<string, unknown>) =>
     props.open ? <div>{props.children as ReactNode}</div> : null,
-  DialogHeader: (props: Record<string, unknown>) => (
-    <button data-testid="dialog-close" onClick={props.onClose as () => void}>
-      close
-    </button>
-  ),
   DialogBody: (props: Record<string, unknown>) => (
     <div>{props.children as ReactNode}</div>
   ),
@@ -108,24 +103,6 @@ describe("ArtifactDownloadModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("cancels any in-flight download and closes when the X button is clicked", () => {
-    const onClose = vi.fn();
-    render(
-      <ArtifactDownloadModal
-        open
-        {...COMMON_PROPS}
-        onClose={onClose}
-        onComplete={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("card-download-start"));
-
-    fireEvent.click(screen.getByTestId("dialog-close"));
-    expect(cardCancelSpy).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
   it("switches to the artifacts-downloaded confirmation once the card reports completion", () => {
     render(
       <ArtifactDownloadModal
@@ -144,40 +121,21 @@ describe("ArtifactDownloadModal", () => {
     ).toBeTruthy();
   });
 
-  it("shows Cancel and Done firing onComplete in the downloaded state when no activate action is provided", () => {
+  it("shows Cancel and Done in the downloaded state, with Done firing onComplete", () => {
     markArtifactsDownloaded(VAULT_ID);
+    const onClose = vi.fn();
     const onComplete = vi.fn();
     render(
       <ArtifactDownloadModal
         open
         {...COMMON_PROPS}
-        onClose={vi.fn()}
+        onClose={onClose}
         onComplete={onComplete}
       />,
     );
 
-    expect(screen.queryByText("Activate vault")).toBeNull();
     fireEvent.click(screen.getByText("Done"));
     expect(onComplete).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows Cancel and Activate vault in the downloaded state when an activate action is provided", () => {
-    markArtifactsDownloaded(VAULT_ID);
-    const onClose = vi.fn();
-    const onActivate = vi.fn();
-    render(
-      <ArtifactDownloadModal
-        open
-        {...COMMON_PROPS}
-        onClose={onClose}
-        onActivate={onActivate}
-      />,
-    );
-
-    expect(screen.queryByText("Done")).toBeNull();
-
-    fireEvent.click(screen.getByText("Activate vault"));
-    expect(onActivate).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledTimes(1);
