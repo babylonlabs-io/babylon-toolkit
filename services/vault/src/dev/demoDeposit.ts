@@ -295,14 +295,16 @@ const DEPOSIT_EXPIRED_SCENARIOS: DemoScenario[] = [
 ];
 
 /** The "Different wallet" mode — a single disabled, unowned-vault state. */
-const DIFFERENT_WALLET_SCENARIO: DemoScenario = {
-  key: "unowned-disabled",
-  label: "Different wallet (disabled)",
-  expectedCta: "none",
-  contractStatus: ContractStatus.VERIFIED,
-  options: {},
-  overrides: UNOWNED,
-};
+const DIFFERENT_WALLET_SCENARIOS: DemoScenario[] = [
+  {
+    key: "unowned-disabled",
+    label: "Different wallet (disabled)",
+    expectedCta: "none",
+    contractStatus: ContractStatus.VERIFIED,
+    options: {},
+    overrides: UNOWNED,
+  },
+];
 
 /** Resting state after the whole walk: the contract reports the vault ACTIVE.
  *  Also the terminal the simulated activation lands on. */
@@ -322,22 +324,25 @@ const DEPOSIT_FLOW_SCENARIOS: DemoScenario[] = [
 ];
 
 /** All deposit states as one flat list, grouped by panel "mode": the flow
- *  prefix (Normal), then the expired variants (Expired), then the single
- *  different-wallet state. A `DemoItem.stateIndex` addresses any of them; the
+ *  prefix (Normal), then the expired variants (Expired), then the
+ *  different-wallet states. A `DemoItem.stateIndex` addresses any of them; the
  *  panel derives the mode + within-mode offset from the segment boundaries
  *  below. The chosen state's contract status decides the rendering section. */
 export const DEPOSIT_SCENARIOS: DemoScenario[] = [
   ...DEPOSIT_FLOW_SCENARIOS,
   ...DEPOSIT_EXPIRED_SCENARIOS,
-  DIFFERENT_WALLET_SCENARIO,
+  ...DIFFERENT_WALLET_SCENARIOS,
 ];
 
 /** Length of the "Normal" flow segment leading {@link DEPOSIT_SCENARIOS}. */
 export const DEPOSIT_FLOW_SCENARIO_COUNT = DEPOSIT_FLOW_SCENARIOS.length;
 
-/** Length of the "Expired" segment that follows the flow prefix. The single
- *  different-wallet state is the sole trailing entry after it. */
+/** Length of the "Expired" segment that follows the flow prefix. */
 export const DEPOSIT_EXPIRED_SCENARIO_COUNT = DEPOSIT_EXPIRED_SCENARIOS.length;
+
+/** Length of the trailing "Different wallet" segment. */
+export const DEPOSIT_DIFFERENT_WALLET_SCENARIO_COUNT =
+  DIFFERENT_WALLET_SCENARIOS.length;
 
 /** Index into {@link DEPOSIT_SCENARIOS} for a pending-flow step (the flow
  *  scenarios lead the list, so the config index carries over). */

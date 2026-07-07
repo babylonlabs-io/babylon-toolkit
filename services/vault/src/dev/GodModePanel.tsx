@@ -29,6 +29,7 @@ import {
   type DemoCta,
   type DemoItem,
   type DemoType,
+  DEPOSIT_DIFFERENT_WALLET_SCENARIO_COUNT,
   DEPOSIT_EXPIRED_SCENARIO_COUNT,
   DEPOSIT_FLOW_SCENARIO_COUNT,
   itemSectionHint,
@@ -90,7 +91,7 @@ const DEPOSIT_SEGMENTS: {
     mode: "different-wallet",
     label: "Different wallet",
     offset: DEPOSIT_FLOW_SCENARIO_COUNT + DEPOSIT_EXPIRED_SCENARIO_COUNT,
-    count: 1,
+    count: DEPOSIT_DIFFERENT_WALLET_SCENARIO_COUNT,
   },
 ];
 
