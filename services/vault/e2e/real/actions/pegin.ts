@@ -24,7 +24,7 @@
  * NEVER run without an explicit go-ahead: it spends real signet BTC + Sepolia ETH and is not
  * idempotent (a crash after the Pre-PegIn broadcast leaves an on-chain in-flight deposit).
  */
-import type { Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 import {
   DASHBOARD_VAULT_TIMEOUT_MS,
@@ -36,13 +36,10 @@ import {
   STEP_TIMEOUT_MS,
 } from "../timing";
 
-import { installPopupApprover } from "./approver";
+import { installPopupApprover, sweepApprovals } from "./approver";
 import { startRecording } from "./recording";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
-
-/** Default deposit size in BTC when `--amount` isn't supplied (small, well above the protocol min). */
-const DEFAULT_PEGIN_AMOUNT_BTC = "0.01";
 
 // Form-phase matchers use exact copy strings (verified against the deployed build the run drives) with
 // a comment pointing at their `services/vault/src/copy.ts` source. Finish-line matchers below are
@@ -249,13 +246,16 @@ async function readActiveStep(page: Page): Promise<string> {
 }
 
 /**
- * Walk the 15-step signing machine to the activated vault. The pop-up approver auto-approves every
- * wallet prompt asynchronously; this loop only drives the two dapp-page gates the approver can't reach
- * (Activate Vault + Skip) and follows the progress UI, logging each transition, until the terminal
- * heading appears. `onStep` tags the recorder's HTTP fixtures with the current step.
+ * Walk the 15-step signing machine to the activated vault. Two approval mechanisms run in parallel:
+ * the event-driven `installPopupApprover` (for NEW wallet windows) and, each tick, an active
+ * `sweepApprovals` pass over already-open windows — OKX reuses one approval window, so a later signing
+ * prompt fires no `page` event and would otherwise never be clicked. This loop also drives the two
+ * dapp-page gates the approver can't reach (Activate Vault + Skip) and follows the progress UI, logging
+ * each transition, until the terminal view appears. `onStep` tags the recorder's HTTP fixtures.
  */
 async function walkStepMachine(
   page: Page,
+  context: BrowserContext,
   log: (m: string) => void,
   onStep: (step: string) => void,
 ): Promise<void> {
@@ -266,6 +266,9 @@ async function walkStepMachine(
 
   while (Date.now() < deadline) {
     if (await activatedViewReached(page)) return;
+
+    // Actively approve any reused wallet window (OKX) that the event approver can't see.
+    await sweepApprovals(context, page, log);
 
     // Two dapp-page interactions the wallet pop-up approver can't perform.
     if (!activated) activated = await handleActivateConfirmation(page, log);
@@ -340,14 +343,21 @@ export const peginAction: Action = {
   id: "pegin",
   async run(ctx: ActionContext): Promise<void> {
     const { page, context, log, artifactsDir } = ctx;
-    const amountBtc = (
-      ctx.config.peginAmountBtc ?? DEFAULT_PEGIN_AMOUNT_BTC
-    ).trim();
+    // Amount is resolved by the CLI to the fetched protocol minimum (or --amount). If it's unresolved
+    // — the min-fetch failed non-interactively and no --amount was given — fail loudly rather than
+    // silently depositing a stale hardcoded amount (CLAUDE.md: no silent fallbacks on critical paths).
+    const amountBtc = ctx.config.peginAmountBtc?.trim();
+    if (!amountBtc)
+      throw new Error(
+        "pegin: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>, or against a reachable network.",
+      );
     const provider = ctx.config.peginProvider?.trim() || undefined;
 
     // Approver stays installed for the whole run (auto-approves every wallet pop-up).
     const handler = installPopupApprover(context, log);
     let currentStep = "connect";
+    // No signing capture for pegin: the sign-conformance fixtures come from the `observe` run, and a
+    // pegin doesn't need signing.jsonl — keeping it off shrinks the sensitive-artifact surface.
     const recorder = await startRecording(
       context,
       page,
@@ -365,7 +375,7 @@ export const peginAction: Action = {
       await startSigning(page, log);
 
       currentStep = "step-machine";
-      await walkStepMachine(page, log, (step) => {
+      await walkStepMachine(page, context, log, (step) => {
         currentStep = step;
       });
 

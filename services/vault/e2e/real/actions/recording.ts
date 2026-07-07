@@ -203,6 +203,11 @@ function declaredSize(response: Response): number | null {
  * Start recording. `currentStep` is sampled per captured response so each fixture line is tagged with
  * the step it belongs to (a step index/label for pegin; an elapsed marker for the human-driven observe
  * run). Returns a `Recorder` whose `stop()` the caller MUST invoke (in a finally) to flush the trace.
+ *
+ * `captureSigning` (default off) enables layer 3 — the wallet signing capture. It's OPT-IN because it
+ * writes real (testnet) message/psbt/psbts fixtures; only the `observe` run (which exists to build the
+ * conformance fixtures) turns it on. A plain peg-in leaves it off to keep the sensitive-artifact
+ * surface minimal. These are testnet artifacts with no key material, and `artifacts/` is gitignored.
  */
 export async function startRecording(
   context: BrowserContext,
@@ -210,6 +215,7 @@ export async function startRecording(
   dir: string,
   log: (m: string) => void,
   currentStep: () => string = () => "",
+  { captureSigning = false }: { captureSigning?: boolean } = {},
 ): Promise<Recorder> {
   const recordingDir = join(dir, "recording");
   mkdirSync(recordingDir, { recursive: true });
@@ -221,9 +227,14 @@ export async function startRecording(
     .start({ screenshots: true, snapshots: true, sources: true })
     .catch((e) => log(`recorder: tracing.start failed (non-fatal): ${e}`));
 
-  // Layer 3: wrap the injected wallet provider's signing methods (read-through) to save the real
-  // message/psbt/psbts fixtures for per-wallet conformance tests.
-  await installSigningCapture(page, signingLog, log);
+  // Layer 3 (opt-in): wrap the injected wallet provider's signing methods (read-through) to save the
+  // real message/psbt/psbts fixtures for per-wallet conformance tests.
+  if (captureSigning) {
+    log(
+      "⚠️ signing capture ON → recording/signing.jsonl will hold real testnet message/psbt/psbts + signatures (no keys). Gitignored; don't share broadly.",
+    );
+    await installSigningCapture(page, signingLog, log);
+  }
 
   const onResponse = (response: Response) => {
     void (async () => {

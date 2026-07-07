@@ -37,12 +37,14 @@ export const observeAction: Action = {
       "Connected. Approver uninstalled — you now drive + approve the peg-in manually.",
     );
 
+    // Observe exists to build the per-wallet signing fixtures, so it opts into the signing capture.
     const recorder = await startRecording(
       context,
       page,
       artifactsDir,
       log,
       () => "observe",
+      { captureSigning: true },
     );
     const rl = createInterface({
       input: process.stdin,

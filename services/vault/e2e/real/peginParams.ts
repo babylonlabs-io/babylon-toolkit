@@ -31,6 +31,9 @@ const SATS_PER_BTC = 100_000_000n;
 /** The vault service root (holds .env / .env.local / .env.dev-testnet), relative to this file. */
 const VAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
+/** Networks whose resolved env we've already surfaced, so we log it once per process (not per call). */
+const loggedNetworks = new Set<NetworkName>();
+
 /** A vault provider as offered in the CLI menu. `available` mirrors the app's metadata gating. */
 export interface ProviderChoice {
   id: string;
@@ -59,6 +62,24 @@ function resolveNetworkContracts(network: NetworkName): NetworkContracts {
     throw new Error(
       `Missing NEXT_PUBLIC_TBV_* env for ${network} (Vite mode "${NETWORKS[network].viteMode}", dir ${VAULT_ROOT}). Run 'pnpm --filter vault sync-env' or check .env / .env.dev-testnet.`,
     );
+
+  // Surface which network's values were resolved (once per process), and warn loudly if they look
+  // like they came from another network — `loadEnv` merges shared `.env` under the mode file, so a key
+  // missing from `.env.<mode>` would silently inherit e.g. devnet's value. The endpoint host naming
+  // (…vault-devnet… / …testnet…) is a cheap cross-check for that footgun.
+  if (!loggedNetworks.has(network)) {
+    loggedNetworks.add(network);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[pegin-params] ${network}: registry ${registry}, graphql ${graphqlEndpoint}`,
+    );
+    if (!graphqlEndpoint.includes(network))
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[pegin-params] ⚠️ ${network}: GraphQL endpoint "${graphqlEndpoint}" does not mention "${network}" — env may be resolving another network's values (a key missing from .env.${NETWORKS[network].viteMode}?).`,
+      );
+  }
+
   return {
     registry: registry as Address,
     appController,

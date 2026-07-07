@@ -51,6 +51,14 @@ const STYLED_APPROVE_SELECTORS = [
   'button[data-testid="okd-button"]',
 ];
 
+/**
+ * Negative gate for styled controls: skip a `primary`/`primaryV2`/OKD control whose text is clearly a
+ * cancel/reject. A positive approve-word gate can't be used here — it would block the legitimate
+ * intermediate `"(0/5) Signed"` and batch `"Sign all N transactions at once"` controls (neither is an
+ * exact approve word) — so we only refuse the obviously-destructive labels and click the rest.
+ */
+const REJECT_NAME_RX = /^(cancel|reject|deny|back|close|no)$/i;
+
 /** UniSat's "use at your own risk" gate (SIGN_PEGIN_BTC): a danger Confirm behind a text input. */
 const UNISAT_RISK_DANGER = '[preset="danger"]';
 const UNISAT_RISK_INPUT = 'input[preset="text"]';
@@ -98,6 +106,8 @@ async function clickStyledApprove(popup: Page): Promise<string | null> {
     const control = popup.locator(selector).last();
     if (!(await control.isVisible().catch(() => false))) continue;
     const name = await readLabel(control, "(primary)");
+    // Never dismiss via a cancel/reject control styled as primary; skip it and try the next shape.
+    if (REJECT_NAME_RX.test(name)) continue;
     await control.click({ force: true }).catch(() => {});
     return name;
   }
@@ -161,6 +171,30 @@ export async function tickConsent(popup: Page): Promise<void> {
     await consent
       .click({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
       .catch(() => {});
+}
+
+/**
+ * One active-approval pass over the currently-open extension windows: for each `chrome-extension://`
+ * page except `mainPage`, tick any consent gate and click its approve control. Unlike
+ * `installPopupApprover` (which reacts only to NEW-window `page` events), this catches approvals
+ * rendered into a REUSED window — OKX reuses a single approval window, so a later signing prompt fires
+ * no `page` event and would otherwise never be clicked. Best-effort; never throws.
+ */
+export async function sweepApprovals(
+  context: BrowserContext,
+  mainPage: Page,
+  log: (m: string) => void,
+): Promise<void> {
+  for (const popup of context.pages()) {
+    if (popup === mainPage || !popup.url().startsWith("chrome-extension://"))
+      continue;
+    await tickConsent(popup).catch(() => {});
+    const clicked = await clickApprove(popup).catch(() => null);
+    if (clicked)
+      log(
+        `  approved "${clicked}" in ${popup.url().split("/").pop() ?? "popup"}`,
+      );
+  }
 }
 
 /**

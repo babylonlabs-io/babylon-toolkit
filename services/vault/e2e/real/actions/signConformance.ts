@@ -26,7 +26,7 @@ import {
   SIGN_CALL_TIMEOUT_MS,
 } from "../timing";
 
-import { clickApprove, tickConsent } from "./approver";
+import { sweepApprovals } from "./approver";
 import { type Action, type ActionContext } from "./types";
 
 /** The signing methods we replay (the three the dapp uses on the BTC wallet). */
@@ -228,16 +228,7 @@ async function driveApprovals(
   // Let the approval UI render (OKX parses PSBTs first) before the first pass.
   await mainPage.waitForTimeout(POPUP_OPEN_WAIT_MS).catch(() => {});
   while (!isStopped()) {
-    for (const pg of context.pages()) {
-      if (pg === mainPage || !pg.url().startsWith("chrome-extension://"))
-        continue;
-      await tickConsent(pg).catch(() => {});
-      const clicked = await clickApprove(pg).catch(() => null);
-      if (clicked)
-        log(
-          `  approved "${clicked}" in ${pg.url().split("/").pop() ?? "popup"}`,
-        );
-    }
+    await sweepApprovals(context, mainPage, log);
     await mainPage.waitForTimeout(APPROVE_ROUND_MS).catch(() => {});
   }
 }
