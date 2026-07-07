@@ -142,10 +142,6 @@ vi.mock("@/models/peginStateMachine", () => {
 vi.mock("@/copy", () => ({
   COPY: {
     deposit: {
-      resume: {
-        activationSuccessMessage: "Deposit successfully submitted!",
-        activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
-      },
       vaultActivatedSuccess: {
         heading: "BTC Vault activated",
         body: "Your BTC Vault is now active and ready for borrowing.",
