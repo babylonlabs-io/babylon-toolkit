@@ -453,6 +453,9 @@ export const COPY = {
       cardSizeDownloaded: "~1 GB",
       downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
+      // Label of the in-step callout's download button once the artifacts
+      // are already on disk (see InStepArtifactCallout).
+      downloadedLabel: "Downloaded",
       retryButton: "Retry",
       walletSignatureHint:
         "You may be asked to approve a signature in your wallet to authenticate.",
