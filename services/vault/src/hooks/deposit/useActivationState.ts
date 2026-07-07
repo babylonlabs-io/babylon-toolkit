@@ -80,7 +80,9 @@ export function useActivationState({
           pendingPegin,
           updatePendingPeginStatus,
           onRefetchActivities: () => {
-            // No-op: dashboard refetches after the user clicks Done.
+            // No-op: the optimistic CONFIRMED status set below drives the
+            // activated terminal, and the polling interval refreshes
+            // activities on its own.
           },
           onShowSuccessModal: () => {
             if (!mountedRef.current) return;

@@ -188,8 +188,6 @@ vi.mock("@/models/peginStateMachine", () => ({
     EXPIRED: 7,
   },
   getPeginDisplayStep: mockGetPeginDisplayStep,
-  isVaultActivated: (state: { contractStatus?: number } | undefined) =>
-    state?.contractStatus === 2 /* ACTIVE */,
 }));
 
 vi.mock("../DepositProgressView", () => ({
@@ -217,6 +215,10 @@ vi.mock("../DepositProgressView", () => ({
       <span data-testid="background">{String(!!canContinueInBackground)}</span>
     </div>
   ),
+}));
+
+vi.mock("../VaultActivatedView", () => ({
+  VaultActivatedView: () => <div data-testid="vault-activated-view" />,
 }));
 
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
@@ -401,7 +403,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         activity={baseActivity}
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
-        onSuccess={vi.fn()}
+        onGoToDashboard={vi.fn()}
       />,
     );
 
@@ -426,7 +428,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         activity={baseActivity}
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
-        onSuccess={vi.fn()}
+        onGoToDashboard={vi.fn()}
       />,
     );
 
@@ -502,19 +504,13 @@ describe("ResumeSignContent — reactive verification terminal", () => {
   });
 });
 
-describe("ResumeActivationContent — reactive activation terminal", () => {
+describe("ResumeActivationContent — activated success terminal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
     mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
     mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
     mockUseDepositPollingResult.mockReturnValue(undefined);
-    vi.mocked(useActivationState).mockReturnValue({
-      activating: false,
-      activated: true,
-      error: null,
-      handleActivation: mockHandleActivation,
-    });
   });
 
   function renderActivation() {
@@ -523,30 +519,64 @@ describe("ResumeActivationContent — reactive activation terminal", () => {
         activity={baseActivity}
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
-        onSuccess={vi.fn()}
+        onGoToDashboard={vi.fn()}
       />,
     );
   }
 
-  it("keeps awaiting confirmation after broadcast until the contract is ACTIVE", async () => {
+  it("shows the activated success screen (not the completed stepper) once activation is submitted", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: true,
+      error: null,
+      handleActivation: mockHandleActivation,
+    });
     mockUseDepositPollingResult.mockReturnValue({
       peginState: { contractStatus: 1 }, // VERIFIED — broadcast landed, not yet ACTIVE
     } as never);
 
-    const { getByTestId } = renderActivation();
+    const { getByTestId, queryByTestId } = renderActivation();
 
-    // AWAIT_ACTIVATION_CONFIRMATION
-    await waitFor(() => expect(getByTestId("step").textContent).toBe("15"));
+    await waitFor(() =>
+      expect(getByTestId("vault-activated-view")).toBeTruthy(),
+    );
+    expect(queryByTestId("progress-view")).toBeNull();
   });
 
-  it("completes once the contract reports ACTIVE", async () => {
+  it("shows the activated success screen when the contract reports ACTIVE without a local activation", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: null,
+      handleActivation: mockHandleActivation,
+    });
     mockUseDepositPollingResult.mockReturnValue({
-      peginState: { contractStatus: 2 }, // ACTIVE
+      peginState: { contractStatus: 2 }, // ACTIVE — activated elsewhere
     } as never);
 
-    const { getByTestId } = renderActivation();
+    const { getByTestId, queryByTestId } = renderActivation();
 
-    // COMPLETED
-    await waitFor(() => expect(getByTestId("step").textContent).toBe("16"));
+    await waitFor(() =>
+      expect(getByTestId("vault-activated-view")).toBeTruthy(),
+    );
+    expect(queryByTestId("progress-view")).toBeNull();
+  });
+
+  it("keeps the activation stepper while activation is still in flight", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: true,
+      activated: false,
+      error: null,
+      handleActivation: mockHandleActivation,
+    });
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 1 }, // VERIFIED — ready to activate
+    } as never);
+
+    const { getByTestId, queryByTestId } = renderActivation();
+
+    // ACTIVATE_VAULT
+    await waitFor(() => expect(getByTestId("step").textContent).toBe("14"));
+    expect(queryByTestId("vault-activated-view")).toBeNull();
   });
 });
