@@ -70,7 +70,8 @@ export function ActivateConfirmationModal({
     onClose();
   };
 
-  // In-place cancel: aborts the download but keeps the modal open. The
+  // While a download is in flight the footer button only cancels the
+  // download and keeps the modal open (in-place cancel-and-retry): the
   // hook's cancel() resets its state, which flips `isDownloading` back via
   // onLoadingChange and restores the card's Download button. Dismissal
   // paths (the X button) still go through handleClose.

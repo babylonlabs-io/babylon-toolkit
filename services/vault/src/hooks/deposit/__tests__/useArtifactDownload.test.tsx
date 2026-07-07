@@ -8,9 +8,18 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/services/artifacts", () => ({
-  fetchAndDownloadArtifacts: vi.fn(),
-}));
+vi.mock("@/services/artifacts", async () => {
+  // Re-export the real cancellation sentinel so the hook's
+  // `err instanceof ArtifactDownloadCancelledError` check matches the
+  // class instances test cases may throw from the mocked fetch.
+  const actual = await vi.importActual<typeof import("@/services/artifacts")>(
+    "@/services/artifacts",
+  );
+  return {
+    ...actual,
+    fetchAndDownloadArtifacts: vi.fn(),
+  };
+});
 
 vi.mock("@/utils/artifactDownloadStorage", () => ({
   markArtifactsDownloaded: vi.fn(),
@@ -20,7 +29,10 @@ vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
 
-import { fetchAndDownloadArtifacts } from "@/services/artifacts";
+import {
+  ArtifactDownloadCancelledError,
+  fetchAndDownloadArtifacts,
+} from "@/services/artifacts";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
 import { useArtifactDownload } from "../useArtifactDownload";
@@ -180,83 +192,6 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(result.current.downloaded).toBe(false);
-  });
-
-  it("propagates byte progress from the in-flight fetch", async () => {
-    seedHotCache();
-    let resolveFetch: () => void = () => {};
-    fetchMock.mockImplementationOnce((_provider, _txid, _pk, options) => {
-      options?.onProgress?.(500, 1000);
-      return new Promise<void>((resolve) => {
-        resolveFetch = resolve;
-      });
-    });
-
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
-
-    let downloadPromise: Promise<void> | undefined;
-    act(() => {
-      downloadPromise = result.current.download(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-      );
-    });
-
-    await waitFor(() => {
-      expect(result.current.receivedBytes).toBe(500);
-      expect(result.current.totalBytes).toBe(1000);
-    });
-
-    await act(async () => {
-      resolveFetch();
-      await downloadPromise;
-    });
-
-    expect(result.current.downloaded).toBe(true);
-    expect(result.current.receivedBytes).toBe(0);
-  });
-
-  it("aborts the wire request and resets state when cancelled mid-download", async () => {
-    seedHotCache();
-    let abortSignal: AbortSignal | undefined;
-    fetchMock.mockImplementationOnce(
-      (_provider, _txid, _pk, options) =>
-        new Promise<void>((_resolve, reject) => {
-          abortSignal = options?.signal;
-          options?.signal?.addEventListener("abort", () =>
-            reject(
-              new DOMException("The operation was aborted.", "AbortError"),
-            ),
-          );
-        }),
-    );
-
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
-
-    let downloadPromise: Promise<void> | undefined;
-    act(() => {
-      downloadPromise = result.current.download(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-      );
-    });
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    act(() => {
-      result.current.cancel();
-    });
-    expect(abortSignal?.aborted).toBe(true);
-
-    await act(async () => {
-      await downloadPromise;
-    });
-
-    // cancel() resets UI state; the abort rejection must not surface.
-    expect(result.current.error).toBeNull();
-    expect(result.current.loading).toBe(false);
     expect(result.current.downloaded).toBe(false);
   });
 
@@ -434,5 +369,80 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(ensureAuthMock).not.toHaveBeenCalled();
     expect(result.current.downloaded).toBe(false);
+  });
+
+  it("aborts the request on cancel and swallows the resulting sentinel without surfacing an error", async () => {
+    seedHotCache();
+    // Mirror the real service: reject with the cancellation sentinel once the
+    // caller aborts the signal. This exercises both the abort wiring and the
+    // hook's `instanceof ArtifactDownloadCancelledError` swallow path.
+    fetchMock.mockImplementationOnce(
+      (_provider, _txid, _pk, options) =>
+        new Promise<void>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () =>
+            reject(new ArtifactDownloadCancelledError()),
+          );
+        }),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      result.current.cancel();
+    });
+
+    await act(async () => {
+      await downloadPromise;
+    });
+
+    // cancel() resets UI state; the swallowed sentinel must not surface.
+    expect(result.current.error).toBeNull();
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("propagates received/total bytes from the in-flight progress callback", async () => {
+    seedHotCache();
+    let resolveFetch: () => void = () => {};
+    fetchMock.mockImplementationOnce((_provider, _txid, _pk, options) => {
+      options?.onProgress?.(500, 1000);
+      return new Promise<void>((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.receivedBytes).toBe(500);
+      expect(result.current.totalBytes).toBe(1000);
+    });
+
+    await act(async () => {
+      resolveFetch();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
   });
 });

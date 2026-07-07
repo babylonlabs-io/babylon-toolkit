@@ -15,21 +15,22 @@ import {
 import { COPY } from "@/copy";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
-// The modal states share the document-with-folded-corner outline and differ
-// only in the inner glyph: a shield before the download starts, a download
-// arrow while it streams, a checkmark once the artifacts are on disk.
-const MODAL_ICON_GLYPHS = {
-  pending:
-    "M50.625 58.5C50.625 56.4999 63.75 52.5 63.75 52.5C63.75 52.5 76.875 56.4999 76.875 58.5C76.875 74.4999 63.75 82.5 63.75 82.5C63.75 82.5 50.625 74.4999 50.625 58.5Z",
+// Path for the inner glyph of the modal's 90x90 icon. The states share the
+// same document-with-corner outline and differ only here: a shield before
+// the download starts, a download arrow while it streams, a checkmark once
+// the artifacts are on disk.
+const ARTIFACT_ICON_GLYPH = {
+  downloaded: "M48.75 71.25L60 80.625L76.875 60",
   downloading:
     "M63.75 52.5V75M50.625 61.875L63.75 75L76.875 61.875M50.625 82.5H76.875",
-  downloaded: "M48.75 71.25L60 80.625L76.875 60",
+  pending:
+    "M50.625 58.5C50.625 56.4999 63.75 52.5 63.75 52.5C63.75 52.5 76.875 56.4999 76.875 58.5C76.875 74.4999 63.75 82.5 63.75 82.5C63.75 82.5 50.625 74.4999 50.625 58.5Z",
 } as const;
 
 function ArtifactModalIcon({
-  glyph,
+  variant,
 }: {
-  glyph: keyof typeof MODAL_ICON_GLYPHS;
+  variant: keyof typeof ARTIFACT_ICON_GLYPH;
 }) {
   return (
     <svg
@@ -49,7 +50,7 @@ function ArtifactModalIcon({
         strokeLinejoin="round"
       />
       <path
-        d={MODAL_ICON_GLYPHS[glyph]}
+        d={ARTIFACT_ICON_GLYPH[variant]}
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
@@ -63,63 +64,6 @@ function ArtifactModalIcon({
         strokeLinejoin="round"
       />
     </svg>
-  );
-}
-
-/**
- * Static summary card for the downloaded state. Unlike RecoveryArtifactsCard
- * it carries no download logic — by the time it renders the files are on
- * disk, so it only confirms what was saved.
- */
-function DownloadedArtifactsCard() {
-  return (
-    <div className="flex items-center gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
-      <div className="flex h-11 w-[47px] shrink-0 items-center justify-center rounded-lg bg-success-dark text-white">
-        <svg
-          width="27"
-          height="24"
-          viewBox="0 0 27 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          <path
-            d="M22.5 11.5V7L17.4375 2H5.625C5.00368 2 4.5 2.44771 4.5 3V21C4.5 21.5523 5.00368 22 5.625 22H12.375"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M15.1875 15.6C15.1875 15.0667 19.125 14 19.125 14C19.125 14 23.0625 15.0667 23.0625 15.6C23.0625 19.8667 19.125 22 19.125 22C19.125 22 15.1875 19.8667 15.1875 15.6Z"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M16.875 2V7H22.5"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-          {COPY.deposit.recoveryArtifacts.cardTitle}
-        </span>
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-base leading-[1.5] tracking-[0.15px] text-accent-secondary">
-            {COPY.deposit.recoveryArtifacts.cardSubtitle}
-          </span>
-          <span className="shrink-0 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-            {COPY.deposit.recoveryArtifacts.cardSizeDownloaded}
-          </span>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -146,11 +90,12 @@ interface ArtifactDownloadModalBaseProps extends ArtifactDownloadModalParams {
 }
 
 /**
- * The downloaded state offers exactly one completion action. `onComplete`
- * renders a single Continue button (collateral list — the vault is already
- * active, so confirming the download is all there is to do). `onActivate`
- * renders the Cancel + "Activate vault" pair (activation flow, where
- * confirming the download proceeds to vault activation).
+ * The downloaded state offers exactly one primary action. `onComplete`
+ * renders a Done button that just dismisses the dialog (collateral list —
+ * the vault is already active, so confirming the download is all there is
+ * to do). `onActivate` renders an "Activate vault" button instead
+ * (activation flow, where confirming the download proceeds to vault
+ * activation).
  */
 type ArtifactDownloadModalProps = ArtifactDownloadModalBaseProps &
   (
@@ -170,14 +115,15 @@ export function ArtifactDownloadModal({
   unsignedPrePeginTxHex,
 }: ArtifactDownloadModalProps) {
   // Seed from localStorage so a reopened modal for an already-downloaded
-  // vault renders the downloaded confirmation immediately. Re-seeded whenever
-  // the modal opens against a different vault.
+  // vault renders the Continue path immediately (the card itself flips to
+  // its green "Downloaded" state via the same check). Re-seeded whenever the
+  // modal opens against a different vault.
   const [downloaded, setDownloaded] = useState(() =>
     hasArtifactsDownloaded(vaultId),
   );
-  // Mirrors RecoveryArtifactsCard's internal `loading` flag via
-  // onLoadingChange so the whole modal (icon, title, body, footer) reads as
-  // a single "downloading" state once the user kicks off the request.
+  // Mirrors RecoveryArtifactsCard's internal `loading` flag via onLoadingChange
+  // so the whole modal (title, body, footer button) reads as a single
+  // "downloading" state once the user kicks off the request.
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
@@ -197,7 +143,8 @@ export function ArtifactDownloadModal({
     onClose();
   };
 
-  // In-place cancel: aborts the download but keeps the modal open. The
+  // While a download is in flight the footer button only cancels the
+  // download and keeps the modal open (in-place cancel-and-retry): the
   // hook's cancel() resets its state, which flips `isDownloading` back via
   // onLoadingChange and restores the pre-download copy and the card's
   // Download button. Dismissal paths (the X button) still go through
@@ -222,62 +169,48 @@ export function ArtifactDownloadModal({
       />
 
       <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-2 text-accent-primary">
-        {downloaded ? (
-          <div className="flex flex-col items-center gap-10">
-            <ArtifactModalIcon glyph="downloaded" />
-            <div className="flex w-full flex-col items-center gap-4">
-              <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-                {COPY.deposit.artifactDownload.titleDownloaded}
-              </h2>
-              <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-                {COPY.deposit.artifactDownload.bodyDownloaded}
-              </p>
-            </div>
-          </div>
-        ) : isDownloading ? (
-          <div className="flex flex-col items-center gap-10">
-            <ArtifactModalIcon glyph="downloading" />
-            <div className="flex w-full flex-col items-center gap-4">
-              <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-                {COPY.deposit.artifactDownload.titleDownloading}
-              </h2>
-              <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-                {COPY.deposit.artifactDownload.bodyDownloading}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-start gap-10">
-            <ArtifactModalIcon glyph="pending" />
-            <div className="flex w-full flex-col items-start gap-4">
-              <h2 className="text-left text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-                {COPY.deposit.artifactDownload.title}
-              </h2>
-              <p className="text-left text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-                {COPY.deposit.artifactDownload.body}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {downloaded ? (
-          <DownloadedArtifactsCard />
-        ) : (
-          <RecoveryArtifactsCard
-            ref={cardRef}
-            providerAddress={providerAddress}
-            peginTxid={peginTxid}
-            depositorPk={depositorPk}
-            vaultId={vaultId}
-            unsignedPrePeginTxHex={unsignedPrePeginTxHex}
-            onDownloaded={() => setDownloaded(true)}
-            onLoadingChange={setIsDownloading}
+        <div className="flex flex-col items-center gap-10">
+          <ArtifactModalIcon
+            variant={
+              downloaded
+                ? "downloaded"
+                : isDownloading
+                  ? "downloading"
+                  : "pending"
+            }
           />
-        )}
+          <div className="flex w-full flex-col items-center gap-4">
+            <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
+              {downloaded
+                ? COPY.deposit.artifactDownload.titleDownloaded
+                : isDownloading
+                  ? COPY.deposit.artifactDownload.titleDownloading
+                  : COPY.deposit.artifactDownload.title}
+            </h2>
+            <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
+              {downloaded
+                ? COPY.deposit.artifactDownload.bodyDownloaded
+                : isDownloading
+                  ? COPY.deposit.artifactDownload.bodyDownloading
+                  : COPY.deposit.artifactDownload.body}
+            </p>
+          </div>
+        </div>
+
+        <RecoveryArtifactsCard
+          ref={cardRef}
+          providerAddress={providerAddress}
+          peginTxid={peginTxid}
+          depositorPk={depositorPk}
+          vaultId={vaultId}
+          unsignedPrePeginTxHex={unsignedPrePeginTxHex}
+          onDownloaded={() => setDownloaded(true)}
+          onLoadingChange={setIsDownloading}
+        />
       </DialogBody>
 
       <DialogFooter className="flex flex-row gap-4 px-6 pb-6 pt-4">
-        {downloaded && onActivate ? (
+        {downloaded ? (
           <>
             <Button
               variant="outlined"
@@ -290,19 +223,13 @@ export function ArtifactDownloadModal({
               variant="contained"
               color="secondary"
               className="h-10 flex-1"
-              onClick={onActivate}
+              onClick={onActivate ?? onComplete}
             >
-              {COPY.deposit.artifactDownload.activateButton}
+              {onActivate
+                ? COPY.deposit.artifactDownload.activateButton
+                : COPY.deposit.artifactDownload.doneButton}
             </Button>
           </>
-        ) : downloaded ? (
-          <Button
-            variant="contained"
-            className="h-10 w-full"
-            onClick={onComplete}
-          >
-            {COPY.deposit.artifactDownload.continueButton}
-          </Button>
         ) : (
           <Button
             variant="outlined"

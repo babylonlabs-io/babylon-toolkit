@@ -11,7 +11,10 @@ import type { Hex } from "viem";
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
-import { fetchAndDownloadArtifacts } from "@/services/artifacts";
+import {
+  ArtifactDownloadCancelledError,
+  fetchAndDownloadArtifacts,
+} from "@/services/artifacts";
 import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
@@ -21,13 +24,17 @@ interface ArtifactDownloadState {
   progress: string;
   error: string | null;
   downloaded: boolean;
-  /** Bytes received so far for the in-flight artifact response. */
+  /** Bytes received so far from the in-flight artifact stream. */
   receivedBytes: number;
-  /** Content-Length of the artifact response; 0 while unknown. */
+  /**
+   * Expected total bytes — Content-Length when the server sends it,
+   * otherwise the service's fallback estimate. Always defined while
+   * `loading` is true.
+   */
   totalBytes: number;
 }
 
-const IDLE_STATE: ArtifactDownloadState = {
+const INITIAL_STATE: ArtifactDownloadState = {
   loading: false,
   progress: "",
   error: null,
@@ -75,10 +82,14 @@ export function useArtifactDownload(options?: {
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
 
-  const [state, setState] = useState<ArtifactDownloadState>(IDLE_STATE);
+  const [state, setState] = useState<ArtifactDownloadState>(INITIAL_STATE);
 
   // Always points at the LATEST flow's controller so cancel() aborts it.
-  const abortRef = useRef<AbortController | null>(null);
+  // Aborting stops both the request itself (threaded into callRaw -> fetch)
+  // and the in-flight stream (polled by fetchAndDownloadArtifacts between
+  // chunks via `isCancelled`), so cancel actually releases the connection
+  // instead of letting it run to completion in the background.
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
@@ -88,11 +99,12 @@ export function useArtifactDownload(options?: {
       // stale, so it can never resurrect and clobber the state of a newer
       // download started after the cancel.
       const abortController = new AbortController();
-      abortRef.current = abortController;
+      abortControllerRef.current = abortController;
       const isStale = () =>
-        abortController.signal.aborted || abortRef.current !== abortController;
+        abortController.signal.aborted ||
+        abortControllerRef.current !== abortController;
       setState({
-        ...IDLE_STATE,
+        ...INITIAL_STATE,
         loading: true,
         progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
       });
@@ -102,7 +114,10 @@ export function useArtifactDownload(options?: {
       // Stop the flow with an error message. Used by every fail path
       // below so the rendered modal state stays consistent.
       const setError = (message: string) =>
-        setState({ ...IDLE_STATE, error: message });
+        setState({
+          ...INITIAL_STATE,
+          error: message,
+        });
 
       // Ensure the bearer is in cache before any artifact request. The
       // RPC is auth-gated server-side (AUTH_GATED_METHODS), so a
@@ -153,6 +168,8 @@ export function useArtifactDownload(options?: {
         setState((prev) => ({
           ...prev,
           progress: COPY.deposit.recoveryArtifacts.reauthenticating,
+          // Reset byte counters so the bar doesn't linger between attempts;
+          // the next fetchAndDownloadArtifacts call seeds them from 0 again.
           receivedBytes: 0,
           totalBytes: 0,
         }));
@@ -182,11 +199,16 @@ export function useArtifactDownload(options?: {
             peginTxid,
             depositorPk,
             {
-              signal: abortController.signal,
               onProgress: (receivedBytes, totalBytes) => {
+                // Drop progress events that arrive after cancel — they would
+                // otherwise re-show the bar after the UI has reset.
                 if (isStale()) return;
-                setState((prev) => ({ ...prev, receivedBytes, totalBytes }));
+                setState((prev) =>
+                  prev.loading ? { ...prev, receivedBytes, totalBytes } : prev,
+                );
               },
+              isCancelled: isStale,
+              signal: abortController.signal,
             },
           );
 
@@ -194,9 +216,13 @@ export function useArtifactDownload(options?: {
           if (vaultId) {
             markArtifactsDownloaded(vaultId);
           }
-          setState({ ...IDLE_STATE, downloaded: true });
+          setState({
+            ...INITIAL_STATE,
+            downloaded: true,
+          });
           return;
         } catch (err) {
+          if (err instanceof ArtifactDownloadCancelledError) return;
           if (isStale()) return;
 
           if (isPreDepositorSignaturesError(err)) {
@@ -220,8 +246,6 @@ export function useArtifactDownload(options?: {
                 setState((prev) => ({
                   ...prev,
                   progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
-                  receivedBytes: 0,
-                  totalBytes: 0,
                 }));
                 continue;
               }
@@ -250,8 +274,8 @@ export function useArtifactDownload(options?: {
   );
 
   const cancel = useCallback(() => {
-    abortRef.current?.abort();
-    setState(IDLE_STATE);
+    abortControllerRef.current?.abort();
+    setState(INITIAL_STATE);
   }, []);
 
   return {

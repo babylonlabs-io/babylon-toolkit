@@ -8,11 +8,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import {
-  IoCheckmarkCircle,
-  IoDocumentText,
-  IoDownloadOutline,
-} from "react-icons/io5";
+import { IoDownloadOutline } from "react-icons/io5";
 import type { Hex } from "viem";
 
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
@@ -30,6 +26,41 @@ const BYTES_PER_GB = BYTES_PER_MB * DECIMAL_UNIT_STEP;
 // Brand orange (Tailwind's `secondary-main` token), inlined because
 // ProgressBar takes a raw CSS color rather than a class name.
 const PROGRESS_BAR_FILL_COLOR = "#CE6533";
+
+function RecoveryArtifactsIcon() {
+  return (
+    <svg
+      width="27"
+      height="24"
+      viewBox="0 0 27 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M22.5 11.5V7L17.4375 2H5.625C5.00368 2 4.5 2.44771 4.5 3V21C4.5 21.5523 5.00368 22 5.625 22H12.375"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15.1875 15.6C15.1875 15.0667 19.125 14 19.125 14C19.125 14 23.0625 15.0667 23.0625 15.6C23.0625 19.8667 19.125 22 19.125 22C19.125 22 15.1875 19.8667 15.1875 15.6Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16.875 2V7H22.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 // Unit rollover keys off the ROUNDED value so e.g. 999.5 MB renders
 // "1.00 GB", never "1000 MB".
@@ -133,21 +164,22 @@ export const RecoveryArtifactsCard = forwardRef<
     download(providerAddress, peginTxid, depositorPk);
   };
 
-  // While the download is in flight the parent modal swaps its own
-  // title/body/footer (the footer owns cancellation), so the card reduces
-  // to a byte-progress panel — no icon header, no inline cancel link. The
-  // loader fallback covers the phases before bytes stream (auth priming,
-  // waiting on VP signatures) and responses without a Content-Length.
+  // While the download is in flight, the parent modal swaps its own
+  // title/body/footer (see ArtifactDownloadModal) and we drop the icon
+  // header + inline Cancel link — the modal's footer button handles
+  // cancellation. The container styling stays consistent across states
+  // so the box position in the dialog doesn't jump.
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
         {totalBytes > 0 ? (
           <>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-baseline justify-between gap-2">
               <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-                {/* Clamp to total so a compressed-transfer Content-Length
-                    can't render "1.40 GB / 1.30 GB" — matches the
-                    percent/bar clamps below. */}
+                {/* Clamp to total so a gzip'd Content-Length or an
+                    underestimated fallback can't render "1.40 GB / 1.30 GB"
+                    — matches the percent/bar clamps below. The separator
+                    stays in the primary segment per the design. */}
                 {`${formatBytes(Math.min(receivedBytes, totalBytes))} / `}
                 <span className="text-accent-secondary">
                   {formatBytes(totalBytes)}
@@ -180,8 +212,12 @@ export const RecoveryArtifactsCard = forwardRef<
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
       <div className="flex items-center gap-4">
-        <div className="flex h-11 w-[47px] shrink-0 items-center justify-center rounded-lg bg-secondary-main text-white">
-          <IoDocumentText size={24} />
+        <div
+          className={`flex h-11 w-[47px] shrink-0 items-center justify-center rounded-lg text-white ${
+            isDownloaded ? "bg-success-main" : "bg-secondary-main"
+          }`}
+        >
+          <RecoveryArtifactsIcon />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
@@ -192,20 +228,15 @@ export const RecoveryArtifactsCard = forwardRef<
               {COPY.deposit.recoveryArtifacts.cardSubtitle}
             </span>
             <span className="shrink-0 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-              {COPY.deposit.recoveryArtifacts.cardSize}
+              {isDownloaded
+                ? COPY.deposit.recoveryArtifacts.cardSizeDownloaded
+                : COPY.deposit.recoveryArtifacts.cardSize}
             </span>
           </div>
         </div>
       </div>
 
-      {isDownloaded ? (
-        <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-success-main/40 bg-success-main/10 px-4 text-success-main">
-          <IoCheckmarkCircle size={16} />
-          <span className="text-sm leading-[1.43] tracking-[0.17px]">
-            {COPY.deposit.recoveryArtifacts.downloadedLabel}
-          </span>
-        </div>
-      ) : (
+      {!isDownloaded && (
         <div className="flex flex-col items-stretch">
           <button
             type="button"
