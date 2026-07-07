@@ -1,5 +1,6 @@
 import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
+import { IoInformationCircle } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
@@ -11,7 +12,11 @@ import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
-import { UtxoSplitSelector } from "./UtxoSplitSelector";
+import { SplitTooLowHint } from "./SplitTooLowHint";
+import {
+  UtxoSplitSelector,
+  type TwoVaultSplitProps,
+} from "./UtxoSplitSelector";
 import { VaultProviderSelector } from "./VaultProviderSelector";
 
 const btcConfig = getNetworkConfigBTC();
@@ -22,15 +27,7 @@ interface Application {
   logoUrl: string | null;
 }
 
-interface PartialLiquidationProps {
-  isEnabled: boolean;
-  onChange: (checked: boolean) => void;
-  canSplit: boolean;
-  isLoading: boolean;
-  splitRatioLabel: string | null;
-}
-
-interface DepositFormProps {
+export interface DepositAmountState {
   amount: string;
   amountSats: bigint;
   btcBalance: bigint;
@@ -60,6 +57,9 @@ interface DepositFormProps {
   effectiveRemaining: bigint | null;
   /** True when the supply-cap read errored — CTA must reflect this. */
   capUnavailable: boolean;
+}
+
+export interface DepositFeeState {
   /**
    * Exact per-HTLC PegIn (activation) tx fee in satoshis. Null while the
    * WASM query is loading. The CTA must block submission while this is
@@ -74,18 +74,6 @@ interface DepositFormProps {
   minPeginFeeError: Error | null;
   btcPrice: number;
   hasPriceFetchError: boolean;
-  onAmountChange: (value: string) => void;
-  onMaxClick: () => void;
-
-  applications: Application[];
-  selectedApplication: string;
-
-  providers: VaultProviderListItem[];
-  isLoadingProviders: boolean;
-  selectedProvider: string;
-  onProviderSelect: (providerId: string) => void;
-
-  isWalletConnected: boolean;
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
   isLoadingFee: boolean;
@@ -103,35 +91,29 @@ interface DepositFormProps {
    * state. Null while the query is healthy.
    */
   depositorClaimValueError: Error | null;
-  isDepositDisabled: boolean;
-  isGeoBlocked: boolean;
-  isAddressBlocked: boolean;
-  onDeposit: () => void;
-
-  partialLiquidation?: PartialLiquidationProps;
-
-  collateralFactor?: number | null;
-
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
   protocolFeeIsError?: boolean;
-
   feeRows?: FeeRow[];
+}
 
-  /**
-   * True while the inscription (ordinals) check is still in flight. Blocks
-   * submission so the user cannot deposit before the spendable set has been
-   * filtered against inscriptions.
-   */
-  ordinalsCheckPending?: boolean;
+export interface DepositProviderState {
+  applications: Application[];
+  selectedApplication: string;
+  providers: VaultProviderListItem[];
+  isLoadingProviders: boolean;
+  selectedProvider: string;
+  onProviderSelect: (providerId: string) => void;
+}
 
+export interface DepositWalletState {
+  isWalletConnected: boolean;
   /**
    * True when the click-time wallet-liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
    * the click handler upstream branches to the reconnect flow.
    */
   hasWalletConnectionError?: boolean;
-
   /**
    * Detail string for the current wallet connection error. Rendered inline
    * above the CTA so the user sees the underlying cause (locked extension,
@@ -139,13 +121,18 @@ interface DepositFormProps {
    * "Reconnect Wallet" button label.
    */
   walletConnectionErrorMessage?: string | null;
-
+  /**
+   * True when the silent lock poll flagged the BTC wallet as locked. The CTA is
+   * already promoted to a recovery action via `hasWalletConnectionError`; this
+   * relabels it "Unlock wallet" (vs "Reconnect Wallet" for a liveness failure)
+   * so the button matches what the user must do.
+   */
+  isWalletLocked?: boolean;
   /**
    * True while the click-time wallet liveness probe is running. Used to
    * disable the Deposit button so the user cannot double-trigger the check.
    */
   isVerifyingWallet?: boolean;
-
   /**
    * True while a reconnect attempt is in flight. Disables the CTA and
    * swaps its label to a progress indicator.
@@ -153,53 +140,116 @@ interface DepositFormProps {
   isReconnectingWallet?: boolean;
 }
 
+export interface DepositGatingState {
+  isDepositDisabled: boolean;
+  isGeoBlocked: boolean;
+  isAddressBlocked: boolean;
+  /**
+   * True while the inscription (ordinals) check is still in flight. Blocks
+   * submission so the user cannot deposit before the spendable set has been
+   * filtered against inscriptions.
+   */
+  ordinalsCheckPending?: boolean;
+  /**
+   * True when even a single new vault would exceed the on-chain per-position
+   * BTC Vault cap — disables the deposit CTA.
+   */
+  isVaultCapReached?: boolean;
+  /**
+   * True when the vault-count cap read terminally failed — fail closed (block
+   * the CTA) so an at-cap user can't lock BTC only to revert at activation.
+   */
+  vaultCountCapUnavailable?: boolean;
+  /**
+   * True when a single vault still fits but a 2-vault split would exceed the
+   * cap — the deposit proceeds as a single vault and we surface the inline
+   * "vaults used / split unavailable" hint.
+   */
+  vaultCapSplitUnavailable?: boolean;
+  /** Vault usage (used / cap) for the split-unavailable hint copy. */
+  vaultCapUsage?: { used: number; cap: number };
+}
+
+interface DepositFormProps {
+  amountState: DepositAmountState;
+  feeState: DepositFeeState;
+  providerState: DepositProviderState;
+  walletState: DepositWalletState;
+  gatingState: DepositGatingState;
+  collateralFactor?: number | null;
+  twoVaultSplit?: TwoVaultSplitProps;
+  onAmountChange: (value: string) => void;
+  onMaxClick: () => void;
+  onDeposit: () => void;
+}
+
 export function DepositForm({
-  amount,
-  amountSats,
-  btcBalance,
-  unconfirmedBalance,
-  hasUnconfirmedBalanceOnly,
-  minDeposit,
-  maxDeposit,
-  maxDepositSats,
-  effectiveRemaining,
-  capUnavailable,
-  minPeginFee,
-  minPeginFeeError,
-  btcPrice,
-  hasPriceFetchError,
+  amountState,
+  feeState,
+  providerState,
+  walletState,
+  gatingState,
+  collateralFactor = null,
+  twoVaultSplit,
   onAmountChange,
   onMaxClick,
-  applications,
-  selectedApplication,
-  providers,
-  isLoadingProviders,
-  selectedProvider,
-  onProviderSelect,
-  isWalletConnected,
-  estimatedFeeSats,
-  estimatedFeeRate,
-  isLoadingFee,
-  feeError,
-  depositorClaimValue,
-  commissionHtlcValues,
-  depositorClaimValueError,
-  isDepositDisabled,
-  isGeoBlocked,
-  isAddressBlocked,
   onDeposit,
-  partialLiquidation,
-  collateralFactor = null,
-  protocolFeeAmount = "--",
-  protocolFeePrice = "",
-  protocolFeeIsError = false,
-  feeRows,
-  ordinalsCheckPending = false,
-  hasWalletConnectionError = false,
-  walletConnectionErrorMessage = null,
-  isVerifyingWallet = false,
-  isReconnectingWallet = false,
 }: DepositFormProps) {
+  const {
+    amount,
+    amountSats,
+    btcBalance,
+    unconfirmedBalance,
+    hasUnconfirmedBalanceOnly,
+    minDeposit,
+    maxDeposit,
+    maxDepositSats,
+    effectiveRemaining,
+    capUnavailable,
+  } = amountState;
+  const {
+    minPeginFee,
+    minPeginFeeError,
+    btcPrice,
+    hasPriceFetchError,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    depositorClaimValue,
+    commissionHtlcValues,
+    depositorClaimValueError,
+    protocolFeeAmount = "--",
+    protocolFeePrice = "",
+    protocolFeeIsError = false,
+    feeRows,
+  } = feeState;
+  const {
+    applications,
+    selectedApplication,
+    providers,
+    isLoadingProviders,
+    selectedProvider,
+    onProviderSelect,
+  } = providerState;
+  const {
+    isWalletConnected,
+    hasWalletConnectionError = false,
+    walletConnectionErrorMessage = null,
+    isWalletLocked = false,
+    isVerifyingWallet = false,
+    isReconnectingWallet = false,
+  } = walletState;
+  const {
+    isDepositDisabled,
+    isGeoBlocked,
+    isAddressBlocked,
+    ordinalsCheckPending = false,
+    isVaultCapReached = false,
+    vaultCountCapUnavailable = false,
+    vaultCapSplitUnavailable = false,
+    vaultCapUsage,
+  } = gatingState;
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
@@ -317,6 +367,17 @@ export function DepositForm({
     isReconnectingWallet,
   });
 
+  // A locked wallet reuses the same recovery CTA as a liveness failure (both
+  // reconnect on click), but reads "Unlock wallet" so the action matches the
+  // cause. `getDepositCtaState` already handled `disabled`; only the label
+  // differs here.
+  const ctaLabel =
+    isWalletLocked && hasWalletConnectionError
+      ? isReconnectingWallet
+        ? COPY.wallet.locked.unlocking
+        : COPY.wallet.locked.unlockButton
+      : cta.label;
+
   return (
     <div className="flex w-full flex-col gap-4">
       <Card variant="filled" className="flex flex-col gap-4 !rounded-lg">
@@ -339,11 +400,7 @@ export function DepositForm({
           }
           sliderVariant="primary"
           leftField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-              : usdValue,
-          }}
-          rightField={{
+            label: COPY.deposit.form.maxLabel,
             value: maxDepositLabel,
             // Mention the supply cap only when one exists for this user.
             // `effectiveRemaining` is null both when no cap applies and while
@@ -359,7 +416,12 @@ export function DepositForm({
                   hasSupplyCap: effectiveRemaining !== null,
                 }),
           }}
-          maxPosition="right"
+          rightField={{
+            value: !hasAmount
+              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+              : usdValue,
+          }}
+          maxPosition="left"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
@@ -369,11 +431,40 @@ export function DepositForm({
           btcPrice={btcPrice}
           hasPriceFetchError={hasPriceFetchError}
         />
+        {/* When the amount is too low to split, an inline hint sits inside the
+            amount card (below "Max to Borrow") telling the user the minimum
+            they need. The split selector below stays visible with its
+            two-vault option disabled. */}
+        {twoVaultSplit?.isSplitAmountTooLow && (
+          <SplitTooLowHint
+            minDepositForSplit={twoVaultSplit.minDepositForSplit}
+          />
+        )}
+        {/* Near the per-position vault cap: a split would overflow, so the
+            deposit proceeds as a single vault. Surface usage + why split is off. */}
+        {vaultCapSplitUnavailable && vaultCapUsage && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center"
+          >
+            <IoInformationCircle
+              size={18}
+              className="mt-px shrink-0 text-accent-primary"
+            />
+            <span className="min-w-0 text-sm text-accent-secondary">
+              {COPY.deposit.maxVaultsReached.splitUnavailable(
+                vaultCapUsage.used,
+                vaultCapUsage.cap,
+              )}
+            </span>
+          </div>
+        )}
       </Card>
 
-      {partialLiquidation && (
+      {twoVaultSplit && (
         <UtxoSplitSelector
-          partialLiquidation={partialLiquidation}
+          twoVaultSplit={twoVaultSplit}
           expanded={openPanel === "split"}
           onExpandedChange={setPanelExpanded("split")}
         />
@@ -402,21 +493,36 @@ export function DepositForm({
         onExpandedChange={setPanelExpanded("provider")}
       />
 
-      {/* CTA button */}
-      {hasWalletConnectionError && walletConnectionErrorMessage && (
-        <p className="text-sm text-error-main" role="alert">
-          {walletConnectionErrorMessage}
-        </p>
-      )}
+      {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
+          ("Unlock wallet") is the affordance. A liveness failure still surfaces
+          its detail string so the user sees the underlying cause. */}
+      {hasWalletConnectionError &&
+        !isWalletLocked &&
+        walletConnectionErrorMessage && (
+          <p className="text-sm text-error-main" role="alert">
+            {walletConnectionErrorMessage}
+          </p>
+        )}
       <DepositButton
         variant="contained"
         color="primary"
         size="large"
         fluid
-        disabled={cta.disabled || isVerifyingWallet}
+        disabled={
+          cta.disabled ||
+          isVerifyingWallet ||
+          isVaultCapReached ||
+          vaultCountCapUnavailable
+        }
         onClick={onDeposit}
       >
-        {isVerifyingWallet ? "Checking wallet..." : cta.label}
+        {isVaultCapReached
+          ? COPY.deposit.maxVaultsReached.cta
+          : vaultCountCapUnavailable
+            ? COPY.deposit.maxVaultsReached.unavailableCta
+            : isVerifyingWallet
+              ? "Checking wallet..."
+              : ctaLabel}
       </DepositButton>
 
       {/* Fee breakdown */}

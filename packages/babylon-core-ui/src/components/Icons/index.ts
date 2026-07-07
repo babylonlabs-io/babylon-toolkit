@@ -41,5 +41,6 @@ export { BugReportIcon } from "./common/BugReportIcon";
 export { ThemeIcon } from "./common/ThemeIcon";
 export { ThreeDotsMenuIcon } from "./common/ThreeDotsMenuIcon";
 export { InfoIcon } from "./common/InfoIcon";
+export { PauseIcon } from "./common/PauseIcon";
 export { CheckIcon } from "./common/CheckIcon";
 export { FilterIcon } from "./common/FilterIcon";

@@ -18,13 +18,10 @@ const baseProps = {
   amountBtc: 1,
   providerName: "Provider X",
   providerAddress: "0x" + "b".repeat(40),
-  selected: false,
-  selectable: false,
-  onToggleSelect: vi.fn(),
 };
 
 describe("CollateralVaultItem", () => {
-  it("shows the activating status with a disabled checkbox and no actions", () => {
+  it("shows the activating status and suppresses indexed-metadata actions", () => {
     render(
       <CollateralVaultItem
         {...baseProps}
@@ -43,7 +40,6 @@ describe("CollateralVaultItem", () => {
       screen.queryByText(COPY.pegin.labels.AVAILABLE),
     ).not.toBeInTheDocument();
     // Indexed-metadata actions are suppressed.
-    expect(screen.getByRole("checkbox")).toBeDisabled();
     expect(
       screen.queryByRole("button", { name: /download artifacts/i }),
     ).not.toBeInTheDocument();
@@ -54,7 +50,7 @@ describe("CollateralVaultItem", () => {
   });
 
   it("shows the normal status badge and provider row when not activating", () => {
-    render(<CollateralVaultItem {...baseProps} inUse={true} selectable />);
+    render(<CollateralVaultItem {...baseProps} inUse={true} />);
 
     expect(screen.getByText(COPY.pegin.labels.IN_USE)).toBeInTheDocument();
     expect(

@@ -8,7 +8,7 @@
 import { Avatar, Button, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { ExpandMenuButton } from "@/components/shared";
+import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -54,7 +54,7 @@ export function LoansSection({
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4">
       <div className="flex items-center justify-between">
         <Heading
           variant="h5"
@@ -90,7 +90,7 @@ export function LoansSection({
       </div>
 
       {hasLoans ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
           {borrowedAssets.map((asset) => {
             const isExpanded = expandedSymbols.has(asset.symbol);
             return (
@@ -117,17 +117,19 @@ export function LoansSection({
                   )}
                 </div>
 
-                {isExpanded && asset.borrowRate && (
-                  <div className="mt-4 border-t border-secondary-strokeLight pt-4 dark:border-secondary-strokeDark">
-                    <div className="flex items-center justify-between">
-                      <span className="text-base text-accent-secondary">
-                        {COPY.loans.borrowRateLabel}
-                      </span>
-                      <span className="text-base text-accent-primary">
-                        {asset.borrowRate}
-                      </span>
+                {asset.borrowRate && (
+                  <ExpandablePanel expanded={isExpanded}>
+                    <div className="mt-4 border-t border-secondary-strokeLight pt-4 dark:border-secondary-strokeDark">
+                      <div className="flex items-center justify-between">
+                        <span className="text-base text-accent-secondary">
+                          {COPY.loans.borrowRateLabel}
+                        </span>
+                        <span className="text-base text-accent-primary">
+                          {asset.borrowRate}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </ExpandablePanel>
                 )}
               </Card>
             );

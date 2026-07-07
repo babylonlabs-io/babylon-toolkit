@@ -1,7 +1,7 @@
 export { BackButton } from "./BackButton";
 export { DepositButton } from "./DepositButton";
-export { DetailsCard, type DetailRow } from "./DetailsCard";
 export { EmptyState } from "./EmptyState";
+export { ExpandablePanel } from "./ExpandablePanel";
 export { ExpandMenuButton } from "./ExpandMenuButton";
 export { ExplorerLink } from "./ExplorerLink";
 export {

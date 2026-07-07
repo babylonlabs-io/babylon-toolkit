@@ -57,7 +57,7 @@ const SettingMenuBase: React.FC<SettingMenuProps> = ({
 }) => {
   const defaultTrigger = (
     <button
-      className="flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-accent-primary/10"
+      className="flex h-10 w-10 items-center justify-center rounded-lg text-accent-secondary transition-colors hover:bg-accent-primary/10"
       aria-label="Settings menu"
     >
       <SettingsIcon />

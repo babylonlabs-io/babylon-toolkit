@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card, Heading, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading, Loader } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
@@ -23,17 +23,28 @@ import {
   ArtifactDownloadModal,
   type ArtifactDownloadModalParams,
 } from "@/components/deposit/ArtifactDownloadModal";
-import { DepositButton, ExpandMenuButton } from "@/components/shared";
+import {
+  DepositButton,
+  ExpandablePanel,
+  ExpandMenuButton,
+} from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
+import {
+  isDepositBlocked,
+  isReorderBlocked,
+  isWithdrawBlocked,
+} from "@/components/shared/protocolStatus";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
 import { ReorderSuccessModal, ReorderVaultsModal } from "./ReorderVaults";
+import { CollateralActionsMenu, WithdrawVaultsModal } from "./WithdrawVaults";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -42,6 +53,12 @@ interface CollateralSectionProps {
   collateralVaults: CollateralVaultEntry[];
   hasCollateral: boolean;
   isConnected: boolean;
+  /**
+   * Pure on-chain collateral total. Feeds the PositionSnapshot that gates
+   * real-vault withdraw eligibility / projected HF, so it must NEVER include
+   * demo (`displayOnly`) amounts — pass the raw value even when
+   * `collateralVaults` carries demo rows for display.
+   */
   collateralBtc: number;
   /** User's current on-chain health factor (null when no debt). */
   currentHealthFactor: number | null;
@@ -75,9 +92,11 @@ export function CollateralSection({
       })
     | null
   >(null);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
   const { findProvider } = useVaultProviders();
+  const gate = useProtocolGateState();
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -86,11 +105,20 @@ export function CollateralSection({
     [collateralBtc, currentHealthFactor],
   );
 
+  // Every action path (withdraw eligibility, selection, reorder) runs on the
+  // actionable subset only: `displayOnly` rows are dev-demo mocks that render in
+  // the list but carry a fake `vaultId` and must never reach a real transaction.
+  // The full `collateralVaults` still feeds the read-only expanded list below.
+  const actionableVaults = useMemo(
+    () => collateralVaults.filter((v) => !v.displayOnly),
+    [collateralVaults],
+  );
+
   // Per-vault eligibility: can this single vault be withdrawn alone without
   // breaching HF 1.0? Drives the per-row checkbox enabled state.
   const vaultEligibility = useMemo(() => {
     const map = new Map<string, boolean>();
-    for (const v of collateralVaults) {
+    for (const v of actionableVaults) {
       if (!v.inUse) continue;
       map.set(
         v.vaultId,
@@ -98,12 +126,12 @@ export function CollateralSection({
       );
     }
     return map;
-  }, [collateralVaults, position]);
+  }, [actionableVaults, position]);
 
   const { selectedVaultIds: effectiveSelectedVaultIds, selectedVaults } =
     useMemo(
-      () => getEffectiveVaultSelection(collateralVaults, selectedVaultIds),
-      [collateralVaults, selectedVaultIds],
+      () => getEffectiveVaultSelection(actionableVaults, selectedVaultIds),
+      [actionableVaults, selectedVaultIds],
     );
 
   const selectedBtc = useMemo(
@@ -125,8 +153,8 @@ export function CollateralSection({
 
   const hasWithdrawableVault = useMemo(() => {
     if (!hasCollateral) return false;
-    return canWithdrawAnyVault(collateralVaults, position);
-  }, [hasCollateral, collateralVaults, position]);
+    return canWithdrawAnyVault(actionableVaults, position);
+  }, [hasCollateral, actionableVaults, position]);
 
   const canWithdraw =
     hasWithdrawableVault &&
@@ -149,8 +177,8 @@ export function CollateralSection({
   // both the gate and the modal data so the two can't drift apart.
   const hasActivatingVault = collateralVaults.some((v) => v.isActivating);
   const reorderableVaults = useMemo(
-    () => collateralVaults.filter((v) => !v.isActivating),
-    [collateralVaults],
+    () => actionableVaults.filter((v) => !v.isActivating),
+    [actionableVaults],
   );
   const canReorder = reorderableVaults.length >= 2;
 
@@ -164,6 +192,19 @@ export function CollateralSection({
     [selectedVaultIds, onSelectedVaultIdsChange],
   );
 
+  const handleWithdrawConfirm = useCallback(() => {
+    setIsWithdrawOpen(false);
+    onWithdraw();
+  }, [onWithdraw]);
+
+  // Dismissing the selection modal (Escape / backdrop / close) drops any
+  // selection from the canceled attempt, so a later withdraw can't confirm
+  // with stale vault choices.
+  const handleWithdrawCancel = useCallback(() => {
+    setIsWithdrawOpen(false);
+    onSelectedVaultIdsChange([]);
+  }, [onSelectedVaultIdsChange]);
+
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
     if (address) {
@@ -176,7 +217,9 @@ export function CollateralSection({
 
   const handleArtifactDownload = useCallback(
     (vaultEntryId: string) => {
-      const vault = collateralVaults.find((v) => v.id === vaultEntryId);
+      // Resolve against the actionable set so demo (`displayOnly`) rows no-op
+      // by design — artifact download talks to a real vault provider.
+      const vault = actionableVaults.find((v) => v.id === vaultEntryId);
       if (!vault) return;
 
       const provider = findProvider(vault.providerAddress);
@@ -201,7 +244,7 @@ export function CollateralSection({
         unsignedPrePeginTx: vault.unsignedPrePeginTx,
       });
     },
-    [collateralVaults, findProvider],
+    [actionableVaults, findProvider],
   );
 
   return (
@@ -216,31 +259,30 @@ export function CollateralSection({
           Collateral
         </Heading>
         <div className="flex items-center gap-2">
-          {canReorder && (
-            <Button
-              variant="outlined"
-              size="large"
-              onClick={() => setIsReorderOpen(true)}
-              className="rounded-full"
-            >
-              Reorder
-            </Button>
-          )}
           <DepositButton
             variant="outlined"
             size="large"
             onClick={() => onDeposit()}
-            disabled={!isConnected || FeatureFlags.isDepositDisabled}
+            disabled={!isConnected || isDepositBlocked(gate)}
             className="rounded-full"
           >
             Deposit
           </DepositButton>
+          {hasCollateral && (
+            <CollateralActionsMenu
+              onWithdraw={() => setIsWithdrawOpen(true)}
+              onReorder={() => setIsReorderOpen(true)}
+              canReorder={canReorder}
+              reorderBlocked={isReorderBlocked(gate)}
+              withdrawBlocked={isWithdrawBlocked(gate)}
+            />
+          )}
         </div>
       </div>
 
       {hasCollateral ? (
         <Card variant="filled" className={SUMMARY_CARD_CLASS}>
-          {/* Summary row: BTC icon + total amount + three-dots toggle */}
+          {/* Summary row: BTC icon + total amount + expand chevron */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Avatar
@@ -272,19 +314,12 @@ export function CollateralSection({
           </div>
 
           {/* Expanded vault list */}
-          {isExpanded && (
+          <ExpandablePanel expanded={isExpanded}>
             <CollateralExpandedContent
               vaults={collateralVaults}
-              vaultEligibility={vaultEligibility}
-              selectedVaultIds={effectiveSelectedVaultIds}
-              selectedBtc={selectedBtc}
-              canWithdraw={canWithdraw}
-              onToggleVaultSelect={handleToggleVaultSelect}
-              onWithdraw={onWithdraw}
-              disabledReason={disabledReason}
               onArtifactDownload={handleArtifactDownload}
             />
-          )}
+          </ExpandablePanel>
         </Card>
       ) : (
         <Card variant="filled" className="w-full border-0">
@@ -324,6 +359,19 @@ export function CollateralSection({
           unsignedPrePeginTxHex={artifactParams.unsignedPrePeginTx}
         />
       )}
+
+      <WithdrawVaultsModal
+        isOpen={isWithdrawOpen}
+        onClose={handleWithdrawCancel}
+        vaults={actionableVaults}
+        vaultEligibility={vaultEligibility}
+        selectedVaultIds={effectiveSelectedVaultIds}
+        selectedBtc={selectedBtc}
+        canWithdraw={canWithdraw}
+        onToggleVaultSelect={handleToggleVaultSelect}
+        onConfirm={handleWithdrawConfirm}
+        disabledReason={disabledReason}
+      />
 
       <ReorderVaultsModal
         isOpen={isReorderOpen}

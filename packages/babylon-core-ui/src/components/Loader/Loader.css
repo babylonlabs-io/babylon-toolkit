@@ -24,10 +24,10 @@
 
 .bbn-loader {
   display: inline-block;
-  animation: 1.4s linear 0s infinite normal none running bbn-loader-rotate-animation;
+  animation: var(--motion-duration-spinner, 1.4s) linear 0s infinite normal none running bbn-loader-rotate-animation;
 
   & circle {
-    animation: bbn-loader-stroke-animation 1.4s ease-in-out infinite;
+    animation: bbn-loader-stroke-animation var(--motion-duration-spinner, 1.4s) ease-in-out infinite;
     stroke: currentColor;
     stroke-dasharray: 80px, 200px;
     stroke-dashoffset: 0;

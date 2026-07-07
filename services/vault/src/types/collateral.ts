@@ -29,6 +29,13 @@ export interface CollateralVaultEntry {
    * reflects the vault. See ActivatingVaultsContext.
    */
   isActivating?: boolean;
+  /**
+   * True for a render-only row that must never enter an action flow (withdraw,
+   * reorder, selection). Set only by the dev-only god-mode demo panel so its
+   * mock rows preview in the collateral list without a fake `vaultId` reaching
+   * a real transaction. Always absent in production.
+   */
+  displayOnly?: boolean;
   /** Vault provider Ethereum address */
   providerAddress: string;
   /** Vault provider display name */

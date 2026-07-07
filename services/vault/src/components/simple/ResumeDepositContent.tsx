@@ -31,11 +31,7 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
-import featureFlags from "@/config/featureFlags";
-import {
-  useDepositPollingResult,
-  usePeginPolling,
-} from "@/context/deposit/PeginPollingContext";
+import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import {
@@ -52,7 +48,6 @@ import { logger } from "@/infrastructure";
 import {
   ContractStatus,
   getPeginDisplayStep,
-  isVaultActivated,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -63,6 +58,7 @@ import { mapDepositError } from "@/utils/errors";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
+import { VaultActivatedView } from "./VaultActivatedView";
 
 // ---------------------------------------------------------------------------
 // Sign Payouts Content
@@ -304,11 +300,11 @@ export function ResumeWotsContent({
     try {
       const peginTxHash = activity.peginTxHash ?? null;
       if (!peginTxHash) {
-        throw new Error("Missing pegin transaction hash");
+        throw new Error("Missing peg-in transaction hash");
       }
       if (!activity.unsignedPrePeginTx) {
         throw new Error(
-          "Missing pre-pegin transaction; cannot recover WOTS seed inputs",
+          "Missing Pre-Pegin transaction; cannot recover WOTS seed inputs",
         );
       }
 
@@ -402,7 +398,6 @@ export function ResumeWotsContent({
           authAnchorHex,
           pinnedServerPubkey,
           depositorBtcPubkey,
-          enableGrpcArtifactAuth: featureFlags.isGrpcArtifactsEnabled,
         });
         trackPrimedTxid(primedTxid);
       }
@@ -546,7 +541,8 @@ export interface ResumeActivationContentProps {
   /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
   siblingVaultIds?: string[];
   onClose: () => void;
-  onSuccess: () => void;
+  /** Navigates to the dashboard; drives the activated success screen's CTA. */
+  onGoToDashboard: () => void;
 }
 
 export function ResumeActivationContent({
@@ -554,7 +550,7 @@ export function ResumeActivationContent({
   depositorEthAddress,
   siblingVaultIds,
   onClose,
-  onSuccess,
+  onGoToDashboard,
 }: ResumeActivationContentProps) {
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
@@ -597,7 +593,7 @@ export function ResumeActivationContent({
     }
     if (!activity.unsignedPrePeginTx) {
       setLocalError(
-        "Missing pre-pegin transaction; cannot recover HTLC secret",
+        "Missing Pre-Pegin transaction; cannot recover HTLC secret",
       );
       setLoading(false);
       return;
@@ -692,55 +688,34 @@ export function ResumeActivationContent({
 
   const error = localError ?? activationError;
 
-  // After broadcasting the activation transaction the deposit waits for the
-  // contract to confirm. Track the live status so "Awaiting vault activation
-  // confirmation" has a terminal condition: once the contract reports ACTIVE we
-  // mark the flow complete instead of spinning forever (the dashboard already
-  // shows the vault as active by then).
+  // Track the live contract status so an activation completed elsewhere
+  // (another tab, a previous session) still lands on the success terminal
+  // while this branch is mounted.
   const pollingResult = useDepositPollingResult(activity.id);
   const active =
     pollingResult?.peginState?.contractStatus === ContractStatus.ACTIVE;
 
-  const renderStep = active
-    ? DepositFlowStep.COMPLETED
-    : activated
-      ? DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION
-      : activating
-        ? DepositFlowStep.ACTIVATE_VAULT
-        : DepositFlowStep.RETRIEVE_SECRET;
-  // Waiting only while the broadcast is in flight or confirmation is pending;
-  // the ACTIVE milestone is a completed terminal, not a background wait.
+  const renderStep = activating
+    ? DepositFlowStep.ACTIVATE_VAULT
+    : DepositFlowStep.RETRIEVE_SECRET;
   const derived = computeDepositDerivedState(
     renderStep,
     activating || loading,
-    activated && !active,
+    false,
     error != null,
   );
-
-  const handleDone = useCallback(() => {
-    if (activated) {
-      onSuccess();
-    } else {
-      onClose();
-    }
-  }, [activated, onSuccess, onClose]);
 
   const { vaultCount, currentVaultIndex, perVaultSteps } =
     useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
-  // For a split, only say "Vaults have been activated" (plural) once EVERY
-  // sibling is past activation — so finishing the first of two still reads
-  // singular. When this view shows its ACTIVE terminal, the active vault's own
-  // polling already reports ACTIVE, so it counts itself correctly.
-  const { getPollingResult } = usePeginPolling();
-  const allSiblingsActivated =
-    vaultCount > 1 &&
-    (siblingVaultIds ?? []).every((id) =>
-      isVaultActivated(getPollingResult(id)?.peginState),
-    );
-  const activationSuccessMessage = allSiblingsActivated
-    ? COPY.deposit.resume.activationSuccessMessagePlural
-    : COPY.deposit.resume.activationSuccessMessage;
+  // Terminal: once activation is submitted (optimistic CONFIRMED) or the
+  // contract reports ACTIVE, show the activated success screen — never the
+  // completed stepper. PostDepositContinuationView swaps to the same screen
+  // when it re-selects on the polling update; this covers any window where
+  // this branch is still mounted.
+  if (activated || active) {
+    return <VaultActivatedView onGoToDashboard={onGoToDashboard} />;
+  }
 
   return (
     <DepositProgressView
@@ -755,8 +730,7 @@ export function ResumeActivationContent({
       vaultCount={vaultCount}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
-      onClose={handleDone}
-      successMessage={activationSuccessMessage}
+      onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
     />
   );

@@ -42,7 +42,7 @@ export function Popover({
         style={{ ...styles.popper, ...style, pointerEvents: 'auto' }}
         className={twJoin("bbn-popover", className)}
       >
-        {children}
+        <div className="bbn-popover-content">{children}</div>
       </div>
     </Portal>
   );

@@ -210,6 +210,13 @@ export class OneKeyProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
+  // `getAccounts` is intentionally omitted: OneKey's getProviderState reports
+  // isUnlocked: true and getAccounts() returns the dApp-authorized address
+  // regardless of keyring lock, so an empty-array read is not a reliable
+  // silent-lock signal. Omitting it makes the lock poll feature-detect OneKey
+  // out (see BTCWalletProvider) instead of showing a banner that never fires.
+  // Re-add only alongside a real lock signal.
+
   signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)
       throw new WalletError({
@@ -249,6 +256,12 @@ export class OneKeyProvider implements IBTCProvider {
         message: "psbts hexes are required and must be a non-empty array",
         wallet: WALLET_PROVIDER_NAME,
       });
+    }
+
+    // OneKey renders a blank popup for signPsbts with a single-element
+    // array. Route through signPsbt instead.
+    if (psbtsHexes.length === 1) {
+      return [await this.signPsbt(psbtsHexes[0], options?.[0])];
     }
 
     // If options provided, map them to OneKey format

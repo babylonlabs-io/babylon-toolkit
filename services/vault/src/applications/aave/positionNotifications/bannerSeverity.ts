@@ -1,11 +1,24 @@
-import type { CalculatorResult, Warning } from "./types";
+import type { CalculatorResult, Warning, WarningType } from "./types";
 
 /**
- * "yellow" is reserved for the stale-price banner path (driven by a status
- * override, not by a calculator warning). Calculator warnings map to red
- * (urgent), soft (weird-params), green (none), or hidden (dust / no groups).
+ * Calculator warnings map to red (urgent), yellow (cliff / too-many-vaults — the
+ * orange warning banner per Figma), soft (everything else advisory, including the
+ * dismissible dust notice), green (none), or hidden (no groups). "yellow" also
+ * backs the stale-price banner, which is driven separately by a status override
+ * rather than a calculator warning.
  */
 export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
+
+/**
+ * Per-type severity for the primary warning. Anything not listed renders soft.
+ * `cliff` is orange per Figma ("First liquidation takes everything"); it only
+ * surfaces as the primary banner when no `urgent` (red) warning is present.
+ */
+const SEVERITY_BY_TYPE: Partial<Record<WarningType, BannerSeverity>> = {
+  urgent: "red",
+  cliff: "yellow",
+  "too-many-vaults": "yellow",
+};
 
 export interface BannerState {
   severity: BannerSeverity;
@@ -13,59 +26,64 @@ export interface BannerState {
   secondaryWarnings: Warning[];
   /**
    * The engine found a safer liquidation order than the current on-chain order.
-   * Drives the manual "Apply Suggested Order" affordance, independent of the
-   * risk warnings — it can accompany an urgent/soft banner or stand alone on an
+   * Drives the manual "Apply Optimal Order" affordance, independent of the
+   * risk warnings — it can accompany an urgent/cliff banner or stand alone on an
    * otherwise-healthy position.
    */
   suggestReorder: boolean;
 }
 
 /**
+ * Primary-warning precedence, highest first. `urgent` is the only red severity;
+ * the rest render soft. `dust` is handled before this list — it surfaces as a
+ * soft advisory that suppresses every other warning. `weird-params` is emitted
+ * exclusively, but kept here so it is still selected if present.
+ */
+const PRIMARY_ORDER: WarningType[] = [
+  "urgent",
+  "weird-params",
+  "cliff",
+  "too-many-vaults",
+  "reorder",
+];
+
+/**
  * Map a CalculatorResult to a banner display state.
  *
  * Red:    urgent warning present (already liquidatable or within 5%)
- * Soft:   weird-params (invalid protocol params), or a healthy position whose
- *         vault order is suboptimal — muted gray advisory
+ * Yellow: cliff or too-many-vaults (the orange warning banner per Figma)
+ * Soft:   any other advisory warning (reorder / weird-params), or a
+ *         healthy position whose vault order is suboptimal
  * Green:  no warnings and order already optimal
- * Hidden: no groups, or dust position (too small to matter)
+ * Hidden: no groups
  */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
-  const suggestReorder = result.suggestedVaultOrder != null;
+  const suggestReorder = result.optimalVaultOrder != null;
 
-  // Warnings are evaluated before the "no groups" check so that an advisory
-  // with no computable cascade (e.g. weird-params, which leaves groups empty)
-  // still renders instead of being hidden.
-
-  // Dust suppresses all other warnings — position is too small to matter.
+  // Dust suppresses all other warnings — a sub-$1k position has no meaningful
+  // multi-event cascade. It still surfaces as a dismissible soft advisory.
   const dustWarning = warnings.find((w) => w.type === "dust");
   if (dustWarning) {
     return {
-      severity: "hidden",
+      severity: "soft",
       primaryWarning: dustWarning,
       secondaryWarnings: [],
       suggestReorder: false,
     };
   }
 
-  // Red severity: urgent takes priority as primary.
-  const urgentWarning = warnings.find((w) => w.type === "urgent");
-  if (urgentWarning) {
-    return {
-      severity: "red",
-      primaryWarning: urgentWarning,
-      secondaryWarnings: warnings.filter((w) => w !== urgentWarning),
-      suggestReorder,
-    };
-  }
+  // Pick the highest-precedence warning as primary; the rest become secondary.
+  const primaryWarning =
+    PRIMARY_ORDER.map((type) => warnings.find((w) => w.type === type)).find(
+      (w): w is Warning => w !== undefined,
+    ) ?? null;
 
-  // Soft severity: weird-params advisory.
-  const weirdParamsWarning = warnings.find((w) => w.type === "weird-params");
-  if (weirdParamsWarning) {
+  if (primaryWarning) {
     return {
-      severity: "soft",
-      primaryWarning: weirdParamsWarning,
-      secondaryWarnings: [],
+      severity: SEVERITY_BY_TYPE[primaryWarning.type] ?? "soft",
+      primaryWarning,
+      secondaryWarnings: warnings.filter((w) => w !== primaryWarning),
       suggestReorder,
     };
   }

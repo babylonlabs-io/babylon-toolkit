@@ -17,8 +17,9 @@ import {
 import { useEffect } from "react";
 
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
-import { FeatureFlags } from "@/config";
+import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import {
   getCurrencyIconWithFallback,
@@ -62,6 +63,7 @@ import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
 const MAX_BORROWABLE_LIQUIDITY_FRACTION = 0.999;
 
 export function Borrow() {
+  const gate = useProtocolGateState();
   const {
     collateralValueUsd,
     totalDebtValueUsd,
@@ -244,7 +246,7 @@ export function Borrow() {
   };
 
   const getBorrowButtonText = () => {
-    if (FeatureFlags.isBorrowDisabled) return COPY.loans.borrow.unavailable;
+    if (isBorrowBlocked(gate)) return COPY.loans.borrow.unavailable;
     if (isProcessing) return COPY.loans.borrow.processing;
     return buttonText;
   };
@@ -261,10 +263,10 @@ export function Borrow() {
     : txError
       ? {
           variant: "error",
-          title: COPY.loans.transactionFailedTitle,
+          title: COPY.common.transactionFailedTitle,
           body: txError,
         }
-      : FeatureFlags.isBorrowDisabled
+      : isBorrowBlocked(gate)
         ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
         : tokenPriceUsd == null || oracleAddress == null
           ? { variant: "warning", body: COPY.loans.priceUnavailable }
@@ -373,7 +375,7 @@ export function Borrow() {
         disabled={
           isDisabled ||
           isProcessing ||
-          FeatureFlags.isBorrowDisabled ||
+          isBorrowBlocked(gate) ||
           !isPriceReady ||
           oracleAddress == null
         }
@@ -393,14 +395,6 @@ export function Borrow() {
           {statusCallout.body}
         </Callout>
       )}
-
-      {/* Ethereum Network Fee */}
-      <div className="mt-6 flex w-full items-center justify-between text-sm">
-        <span className="text-accent-primary">
-          {COPY.loans.ethereumNetworkFeeLabel}
-        </span>
-        <span className="text-accent-secondary">{COPY.common.emptyValue}</span>
-      </div>
     </div>
   );
 }

@@ -10,21 +10,25 @@ export const createWallet = async <P extends IProvider, C>({ metadata, context, 
     wallet: walletGetter,
     name: nameGetter,
     icon: iconGetter,
+    iconBackground,
     docs = "",
     networks = [],
     createProvider,
     label,
+    hardware,
   } = metadata;
 
   const options: WalletOptions<P> = {
     id,
     name: "",
     icon: "",
+    iconBackground,
     origin: null,
     provider: null,
     docs,
     networks,
     label,
+    hardware,
   };
 
   if (walletGetter) {

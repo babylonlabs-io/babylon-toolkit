@@ -53,7 +53,7 @@ export function AccordionDetails({
       }}
     >
       {mounted ? (
-        <div ref={contentRef} className={twJoin("bbn-accordion-content", className)}>
+        <div ref={contentRef} data-expanded={expanded} className={twJoin("bbn-accordion-content", className)}>
           {children}
         </div>
       ) : null}

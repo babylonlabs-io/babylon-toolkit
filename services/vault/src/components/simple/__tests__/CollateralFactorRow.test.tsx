@@ -16,7 +16,7 @@ describe("CollateralFactorRow", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders percent only when amount is empty", () => {
+  it("shows -- for max-to-borrow with the CF when amount is empty", () => {
     render(
       <CollateralFactorRow
         collateralFactor={0.72}
@@ -25,12 +25,13 @@ describe("CollateralFactorRow", () => {
         hasPriceFetchError={false}
       />,
     );
-    expect(screen.getByText("Collateral Factor:")).toBeInTheDocument();
-    expect(screen.getByText("72%")).toBeInTheDocument();
-    expect(screen.queryByText(/max USD/)).not.toBeInTheDocument();
+    expect(screen.getByText("Max to Borrow:")).toBeInTheDocument();
+    expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
+    expect(screen.getByText("--")).toBeInTheDocument();
+    expect(screen.queryByText(/USD/)).not.toBeInTheDocument();
   });
 
-  it("renders percent only when amount is zero", () => {
+  it("shows -- for max-to-borrow with the CF when amount is zero", () => {
     render(
       <CollateralFactorRow
         collateralFactor={0.72}
@@ -39,11 +40,11 @@ describe("CollateralFactorRow", () => {
         hasPriceFetchError={false}
       />,
     );
-    expect(screen.getByText("72%")).toBeInTheDocument();
-    expect(screen.queryByText(/max USD/)).not.toBeInTheDocument();
+    expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
+    expect(screen.getByText("--")).toBeInTheDocument();
   });
 
-  it("renders percent and compact USD max when CF, amount, and price are present", () => {
+  it("shows the compact USD max-to-borrow and CF when CF, amount, and price are present", () => {
     render(
       <CollateralFactorRow
         collateralFactor={0.72}
@@ -52,11 +53,11 @@ describe("CollateralFactorRow", () => {
         hasPriceFetchError={false}
       />,
     );
-    expect(screen.getByText("72%")).toBeInTheDocument();
-    expect(screen.getByText(/\$63\.6k max USD/)).toBeInTheDocument();
+    expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
+    expect(screen.getByText(/\$63\.6k USD/)).toBeInTheDocument();
   });
 
-  it("hides USD suffix when hasPriceFetchError is true", () => {
+  it("shows -- for max-to-borrow when hasPriceFetchError is true", () => {
     render(
       <CollateralFactorRow
         collateralFactor={0.72}
@@ -65,7 +66,8 @@ describe("CollateralFactorRow", () => {
         hasPriceFetchError={true}
       />,
     );
-    expect(screen.getByText("72%")).toBeInTheDocument();
-    expect(screen.queryByText(/max USD/)).not.toBeInTheDocument();
+    expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
+    expect(screen.getByText("--")).toBeInTheDocument();
+    expect(screen.queryByText(/USD/)).not.toBeInTheDocument();
   });
 });

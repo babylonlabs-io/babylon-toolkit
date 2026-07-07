@@ -1,6 +1,8 @@
 import {
   computeOptimalOrder,
   computeSeizedFractionDetailed,
+  getGroup1FromOrder,
+  MAX_DP_N,
   MAX_GROUPS,
   MIN_DEBT_THRESHOLD,
   SEIZURE_TOL,
@@ -33,14 +35,28 @@ const URGENT_DISTANCE_PCT = 5;
 const REORDER_TOL = 0.001;
 
 /**
+ * Safety buffer applied to the target seizure when recommending a sacrificial
+ * vault size, so the sacrificial group reliably covers the seizure at the
+ * liquidation moment. Hard-coded per the protocol/liquidation spec.
+ */
+const SAFETY_MARGIN = 1.05;
+
+/** Format a BTC amount to 2 decimals for user-facing copy. */
+const btc2 = (n: number): string => n.toFixed(2);
+
+/**
  * Compute the partial-liquidation cascade and position warnings.
  *
  * Liquidation follows the current on-chain vault order, so the group breakdown
  * is computed against that order. Separately, the optimizer is run and — when
- * it finds a strictly better order — `suggestedVaultOrder` is returned so the
- * banner can offer a manual "Apply Suggested Order" action. Warnings are limited
- * to three types: `weird-params` (invalid protocol params, soft), `urgent`
- * (already liquidatable or within 5% of the trigger), or `dust`.
+ * it finds a strictly better order — `optimalVaultOrder` is returned so the
+ * banner can offer a manual "Apply Optimal Order" action.
+ *
+ * Warnings: `weird-params` (invalid protocol params, soft — suppresses all
+ * other advisories), `too-many-vaults` (optimizer fell back past its cap),
+ * `urgent` (already liquidatable or within 5%), `cliff` (all vaults consolidate
+ * into one liquidation group — partial liquidation impossible), `reorder` (a
+ * safer order exists), or `dust`.
  */
 export function calculate(params: CalculatorParams): CalculatorResult {
   const {
@@ -54,6 +70,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   } = params;
 
   const totalBtc = vaults.reduce((s, v) => s + v.btc, 0);
+  const nVaults = vaults.length;
   const collateralValue = totalBtc * btcPrice;
   const currentHF =
     totalDebtUsd > 0 ? (collateralValue * CF) / totalDebtUsd : Infinity;
@@ -71,7 +88,8 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       collateralValue,
       targetSeizureBtc: 0,
       warnings,
-      suggestedVaultOrder: null,
+      optimalVaultOrder: null,
+      suggestedNewVaultBtc: null,
     };
   }
 
@@ -111,7 +129,8 @@ export function calculate(params: CalculatorParams): CalculatorResult {
           detail: COPY.liquidationWarnings.dust.detail,
         },
       ],
-      suggestedVaultOrder: null,
+      optimalVaultOrder: null,
+      suggestedNewVaultBtc: null,
     };
   }
 
@@ -124,10 +143,12 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     expectedHF,
   );
   const targetSeizureBtc = totalBtc * seizedFraction;
+  // Combined seizure-with-safety-margin factor, used for vault-sizing advice.
+  const liqFactor = seizedFraction * SAFETY_MARGIN;
   const liqPenalty = maxLB * CF;
   // Invalid governance params: the seizure formula produced a fraction outside
-  // [0, 1]. We surface this as a soft advisory and suppress both the urgent
-  // signal and the reorder suggestion (liq math is meaningless here).
+  // [0, 1]. We surface this as a soft advisory and suppress every other
+  // advisory (the liq math is meaningless here).
   const seizedParamsInvalid = seizedFractionRaw <= 0 || seizedFractionRaw > 1;
 
   // ── 3. Group calculation (against the current on-chain order) ──
@@ -225,50 +246,14 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     groupIndex++;
   }
 
-  // ── 4. Optimal-order analysis (manual "Apply Suggested Order") ──
-  //
-  // We never reorder automatically. Score the current order against the
-  // optimizer's best order; only when the optimizer strictly improves the
-  // cascade (more BTC surviving across events, tie-broken by BTC after the
-  // first event) do we surface a suggested order for the user to apply.
-  // Skipped under invalid params — the cascade scores are meaningless there.
-
-  let suggestedVaultOrder: Vault[] | null = null;
-  if (!seizedParamsInvalid) {
-    const current = simulateCascade(
-      vaults,
-      totalDebtUsd,
-      seizedFraction,
-      SEIZURE_TOL,
-      CF,
-      THF,
-      maxLB,
-      expectedHF,
-    );
-    const optimal = computeOptimalOrder(
-      vaults,
-      totalDebtUsd,
-      seizedFraction,
-      SEIZURE_TOL,
-      CF,
-      THF,
-      maxLB,
-      expectedHF,
-    );
-    const sumImproves =
-      optimal.sumBtcAfterEvents > current.sumBtcAfterEvents + REORDER_TOL;
-    const afterG1Improves =
-      Math.abs(optimal.sumBtcAfterEvents - current.sumBtcAfterEvents) <=
-        REORDER_TOL && optimal.btcAfterG1 > current.btcAfterG1 + REORDER_TOL;
-    if (sumImproves || afterG1Improves) suggestedVaultOrder = optimal.order;
-  }
-
-  // ── 5. Warnings ────────────────────────────────────────────────
-
   const firstGroup = groups[0];
+  const isCliff =
+    firstGroup != null && firstGroup.vaults.length === nVaults && nVaults > 1;
 
-  // weird-params: seizedFraction raw value was outside [0, 1]. Protocol params
-  // are set by governance — the user can't change them — so this is advisory.
+  // ── 4. weird-params advisory (exclusive) ───────────────────────
+  //
+  // Protocol params are set by governance — the user can't change them — so
+  // this is advisory and suppresses every other warning.
   if (seizedParamsInvalid) {
     const { weirdParams } = COPY.liquidationWarnings;
     let detail: string;
@@ -289,14 +274,114 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       detail,
       tone: "soft",
     });
+
+    return {
+      groups,
+      currentHF,
+      collateralValue,
+      targetSeizureBtc,
+      warnings,
+      optimalVaultOrder: null,
+      suggestedNewVaultBtc: null,
+    };
   }
 
-  const hasWeirdParams = warnings.some((w) => w.type === "weird-params");
+  // ── 5. Optimal-order analysis (manual "Apply Optimal Order") ──
+  //
+  // We never reorder automatically. Score the current order against the
+  // optimizer's best order; only when the optimizer strictly improves the
+  // cascade do we surface the optimal order for the user to apply.
+
+  const {
+    order: globalOptimalOrder,
+    sumBtcAfterEvents: optimalSum,
+    btcAfterG1: optimalBtcAfterG1,
+  } = computeOptimalOrder(
+    vaults,
+    totalDebtUsd,
+    seizedFraction,
+    SEIZURE_TOL,
+    CF,
+    THF,
+    maxLB,
+    expectedHF,
+  );
+  const { sumBtcAfterEvents: currentSum, btcAfterG1: currentBtcAfterG1 } =
+    simulateCascade(
+      vaults,
+      totalDebtUsd,
+      seizedFraction,
+      SEIZURE_TOL,
+      CF,
+      THF,
+      maxLB,
+      expectedHF,
+    );
+
+  // Past the DP cap the optimizer returns a largest-first heuristic, not a
+  // guaranteed optimum — don't trust reorder comparisons in that mode.
+  const optimizerReliable = nVaults <= MAX_DP_N;
+  const sumImproves =
+    optimizerReliable && optimalSum > currentSum + REORDER_TOL;
+  const afterG1Improves =
+    optimizerReliable &&
+    !sumImproves &&
+    optimalBtcAfterG1 > currentBtcAfterG1 + REORDER_TOL;
+  let reorderWouldHelp = sumImproves || afterG1Improves;
+  const globalOptimalOrderStr = globalOptimalOrder
+    .map((v) => v.name)
+    .join(" → ");
+
+  const optimalG1Vaults = getGroup1FromOrder(
+    globalOptimalOrder,
+    seizedFraction,
+    SEIZURE_TOL,
+  );
+  const optimalG1Btc = optimalG1Vaults.reduce((s, v) => s + v.btc, 0);
+  const currentGroup1Btc = firstGroup?.combinedBtc ?? Infinity;
+  const group1ReorderWouldHelp =
+    reorderWouldHelp && currentGroup1Btc > optimalG1Btc + REORDER_TOL;
+
+  // Don't suggest a reorder that would newly introduce an over-seizure
+  // condition (Group 1 loses more in excess than it protects) that the current
+  // order doesn't already have — a reorder should never make the position
+  // worse. Cliff cases are exempt: for a cliff, reordering is always an
+  // improvement even if the result over-seizes.
+  if (reorderWouldHelp && nVaults >= 2 && !isCliff) {
+    const currentOverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
+    const currentProtected = firstGroup ? firstGroup.btcRemainingAfter : 0;
+    const currentHasOverSeizure = currentOverSeizure > currentProtected;
+
+    const optTarget = totalBtc * seizedFraction;
+    const optOver = Math.max(0, optimalG1Btc - optTarget);
+    const optProtected = totalBtc - optimalG1Btc;
+    const optIsCliff = optimalG1Vaults.length === nVaults;
+    const optWouldOverSeize = optOver > optProtected && !optIsCliff;
+
+    if (!currentHasOverSeizure && optWouldOverSeize) {
+      reorderWouldHelp = false;
+    }
+  }
+
+  const optimalVaultOrder: Vault[] | null = reorderWouldHelp
+    ? globalOptimalOrder
+    : null;
+
+  // ── 6. Warnings: too-many-vaults / urgent ──────────────────────
+
+  // Too many vaults — optimizer fell back to largest-first, so the suggested
+  // order is no longer guaranteed optimal.
+  if (nVaults > MAX_DP_N) {
+    warnings.push({
+      type: "too-many-vaults",
+      title: COPY.liquidationWarnings.tooManyVaults.title,
+      detail: COPY.liquidationWarnings.tooManyVaults.detail(nVaults, MAX_DP_N),
+      suggestion: COPY.liquidationWarnings.tooManyVaults.suggestion,
+    });
+  }
 
   // urgent: position already liquidatable (distancePct >= 0) or within 5%.
-  // Skip when weird-params fired — liq-price math is meaningless under invalid
-  // params.
-  if (!hasWeirdParams && firstGroup) {
+  if (firstGroup) {
     const { urgent } = COPY.liquidationWarnings;
     const liqPriceStr = firstGroup.liquidationPrice.toLocaleString("en-US", {
       maximumFractionDigits: 0,
@@ -319,7 +404,128 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     }
   }
 
-  // ── 6. Return ──────────────────────────────────────────────────
+  // ── 7. Warnings: cliff / reorder ───────────────────────────────
+
+  const { cliff, reorder } = COPY.liquidationWarnings;
+
+  // Single reorder notification (per Figma) reused across every case that wants
+  // to suggest a safer order; the order itself renders as chips from
+  // `optimalVaultOrder`, so no per-case suggestion text is needed.
+  const reorderWarning: Warning = {
+    type: "reorder",
+    title: reorder.title,
+    detail: reorder.detail,
+  };
+
+  // CASE 1: Single vault — always fully seized. Two Figma variants share the
+  // title/body and differ only by which fix is feasible:
+  //  • Affordable add (CLIFF A, #1948): a sacrificial vault smaller than the
+  //    position buffers it. s >= existingBtc × liqFactor / (1 − liqFactor).
+  //  • Oversized (CLIFF B, #1949): that add would exceed the position, so the
+  //    fix is to withdraw and re-deposit the same BTC as two smaller vaults.
+  let suggestedNewVaultBtc: number | null = null;
+  if (nVaults === 1) {
+    const canSplit = liqFactor < 1;
+    const raw = canSplit
+      ? (vaults[0].btc * liqFactor) / (1 - liqFactor)
+      : Infinity;
+    const rounded = canSplit ? Math.ceil(raw * 100) / 100 : Infinity;
+    // Actionable only if positive AND no larger than the existing position.
+    if (canSplit && rounded > 0 && rounded <= totalBtc) {
+      suggestedNewVaultBtc = rounded;
+    }
+
+    let suggestion: string;
+    if (suggestedNewVaultBtc !== null) {
+      // Variant A — affordable sacrificial add; the CTA carries the action.
+      suggestion = cliff.addSacrificialSuggestion(btc2(suggestedNewVaultBtc));
+    } else {
+      // Variant B — re-split the existing vault. seizedFraction depends only on
+      // CF/maxLB/THF, so re-splitting the same total is valid; size the
+      // sacrificial to cover the seizure first and protect the remainder.
+      // Snap the withdraw to cents first so the three displayed amounts
+      // reconcile exactly: sacrificial (ceil) + protected (remainder) ===
+      // withdraw. Deriving the parts from a full-precision withdraw lets the
+      // cent-rounded parts sum to more than the (also-rounded) withdraw.
+      const withdrawBtc = Math.round(vaults[0].btc * 100) / 100;
+      const sacrificialBtc = Math.ceil(withdrawBtc * liqFactor * 100) / 100;
+      const protectedBtc =
+        Math.round((withdrawBtc - sacrificialBtc) * 100) / 100;
+      if (canSplit && protectedBtc > 0) {
+        suggestion = cliff.withdrawResplitSuggestion(
+          btc2(withdrawBtc),
+          btc2(sacrificialBtc),
+          btc2(protectedBtc),
+        );
+      } else {
+        // Splitting disallowed or the re-split degenerates — fall back.
+        suggestion = cliff.noSplitSuggestion;
+      }
+    }
+
+    warnings.push({
+      type: "cliff",
+      title: cliff.title,
+      detail: cliff.body,
+      suggestion,
+    });
+  }
+
+  // CASE 2: Exactly two vaults — shared shell, keep the structural suggestion.
+  else if (nVaults === 2) {
+    if (isCliff && group1ReorderWouldHelp && optimalVaultOrder) {
+      // Cliff that swapping the order fixes — surfaced as the reorder
+      // notification (the order itself renders as chips).
+      warnings.push(reorderWarning);
+    } else if (isCliff) {
+      // Informational deficit text (no actionable button for 2 vaults).
+      const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
+      let enablePartialStr = "";
+      if (liqFactor < 1 && totalBtc * liqFactor > largest.btc) {
+        const deficit = (totalBtc * liqFactor - largest.btc) / (1 - liqFactor);
+        const rounded = Math.ceil(deficit * 100) / 100;
+        if (rounded <= totalBtc) {
+          enablePartialStr = cliff.twoVault.enablePartial(
+            btc2(rounded),
+            largest.name,
+          );
+        }
+      }
+      warnings.push({
+        type: "cliff",
+        title: cliff.title,
+        detail: cliff.body,
+        suggestion: cliff.twoVault.suggestion(
+          btc2(targetSeizureBtc),
+          enablePartialStr,
+        ),
+      });
+    } else if (reorderWouldHelp) {
+      warnings.push(reorderWarning);
+    }
+  }
+
+  // CASE 3+: three or more vaults — shared shell, keep the structural suggestion.
+  else if (nVaults >= 3) {
+    if (isCliff) {
+      const cliffReorderFix =
+        group1ReorderWouldHelp && optimalVaultOrder !== null;
+      warnings.push({
+        type: "cliff",
+        title: cliff.title,
+        detail: cliff.body,
+        suggestion: cliff.multiVault.suggestion(
+          nVaults,
+          cliffReorderFix,
+          globalOptimalOrderStr,
+        ),
+      });
+    } else if (reorderWouldHelp) {
+      warnings.push(reorderWarning);
+    }
+  }
+
+  // ── 8. Return ──────────────────────────────────────────────────
 
   return {
     groups,
@@ -327,6 +533,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     collateralValue,
     targetSeizureBtc,
     warnings,
-    suggestedVaultOrder,
+    optimalVaultOrder,
+    suggestedNewVaultBtc,
   };
 }

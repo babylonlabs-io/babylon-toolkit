@@ -117,7 +117,7 @@ describe("SupplyCapSection", () => {
       <SupplyCapSection snapshot={null} isLoading />,
     );
     expect(screen.getByText("Protocol Cap")).toBeInTheDocument();
-    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(2);
+    expect(container.querySelectorAll(".bbn-skeleton")).toHaveLength(2);
   });
 
   it("renders real data (not skeleton) once the snapshot arrives even if isLoading is still true", () => {
@@ -126,6 +126,6 @@ describe("SupplyCapSection", () => {
       <SupplyCapSection snapshot={cappedSnapshot} isLoading />,
     );
     expect(screen.getByText("Total Cap")).toBeInTheDocument();
-    expect(container.querySelector(".animate-pulse")).toBeNull();
+    expect(container.querySelector(".bbn-skeleton")).toBeNull();
   });
 });

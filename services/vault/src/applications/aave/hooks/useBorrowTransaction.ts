@@ -9,7 +9,9 @@ import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
+import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
@@ -55,6 +57,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const chain = getETHChain();
+  const gate = useProtocolGateState();
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -64,6 +67,11 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
     preSignValidation?: () => Promise<void>,
   ) => {
     if (borrowAmount <= 0) return false;
+
+    // Borrow is an aave-scope ENTRY action: Freeze or Pause blocks it. Guard the
+    // execution chokepoint behind the disabled button so a programmatic call
+    // can't broadcast while blocked.
+    if (isBorrowBlocked(gate)) return false;
 
     setError(null);
     setIsProcessing(true);

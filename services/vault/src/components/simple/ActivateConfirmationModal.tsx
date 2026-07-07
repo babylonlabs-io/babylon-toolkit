@@ -13,7 +13,9 @@ import {
   RecoveryArtifactsCard,
   type RecoveryArtifactsCardHandle,
 } from "@/components/deposit/RecoveryArtifactsCard";
+import { isActivationBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 interface ActivateConfirmationModalProps {
@@ -47,11 +49,16 @@ export function ActivateConfirmationModal({
     hasArtifactsDownloaded(vaultId),
   );
   const [acknowledged, setAcknowledged] = useState(false);
+  // Mirrors RecoveryArtifactsCard's internal `loading` flag via
+  // onLoadingChange so the footer Cancel button can switch to an in-place
+  // "Cancel download" action while a download is in flight.
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setDownloaded(hasArtifactsDownloaded(vaultId));
     setAcknowledged(false);
+    setIsDownloading(false);
   }, [open, vaultId]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
@@ -63,8 +70,19 @@ export function ActivateConfirmationModal({
     onClose();
   };
 
+  // While a download is in flight the footer button only cancels the
+  // download and keeps the modal open (in-place cancel-and-retry): the
+  // hook reset flips `isDownloading` back via onLoadingChange, restoring
+  // the card's Download button. Dismissal paths (the X button) still go
+  // through handleClose.
+  const handleCancelDownload = () => {
+    cardRef.current?.cancel();
+  };
+
   const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
-  const canActivate = downloaded || acknowledged;
+  const gate = useProtocolGateState();
+  const canActivate =
+    (downloaded || acknowledged) && !isActivationBlocked(gate);
 
   return (
     <ResponsiveDialog
@@ -118,6 +136,7 @@ export function ActivateConfirmationModal({
             vaultId={vaultId}
             unsignedPrePeginTxHex={unsignedPrePeginTxHex}
             onDownloaded={() => setDownloaded(true)}
+            onLoadingChange={setIsDownloading}
           />
         )}
 
@@ -140,9 +159,11 @@ export function ActivateConfirmationModal({
         <Button
           variant="outlined"
           className="h-10 flex-1"
-          onClick={handleClose}
+          onClick={isDownloading ? handleCancelDownload : handleClose}
         >
-          {COPY.deposit.activateConfirmation.cancelButton}
+          {isDownloading
+            ? COPY.deposit.activateConfirmation.cancelDownloadButton
+            : COPY.deposit.activateConfirmation.cancelButton}
         </Button>
         <Button
           variant="contained"

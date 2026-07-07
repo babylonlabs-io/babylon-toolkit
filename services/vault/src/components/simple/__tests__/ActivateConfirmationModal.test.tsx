@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef, useImperativeHandle, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 import { ActivateConfirmationModal } from "../ActivateConfirmationModal";
+
+const cardCancelSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Text: (props: Record<string, unknown>) => (
@@ -40,8 +42,12 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 }));
 
 vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
-  RecoveryArtifactsCard: forwardRef<unknown, { onDownloaded?: () => void }>(
-    (props) => (
+  RecoveryArtifactsCard: forwardRef<
+    { cancel: () => void },
+    { onDownloaded?: () => void; onLoadingChange?: (loading: boolean) => void }
+  >((props, ref) => {
+    useImperativeHandle(ref, () => ({ cancel: cardCancelSpy }));
+    return (
       <div data-testid="recovery-card">
         <button
           type="button"
@@ -50,9 +56,16 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
         >
           download
         </button>
+        <button
+          type="button"
+          data-testid="card-download-start"
+          onClick={() => props.onLoadingChange?.(true)}
+        >
+          start
+        </button>
       </div>
-    ),
-  ),
+    );
+  }),
 }));
 
 const VAULT_ID = "0xabc123";
@@ -66,6 +79,7 @@ const COMMON_PROPS = {
 describe("ActivateConfirmationModal", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    cardCancelSpy.mockClear();
   });
 
   it("disables the Activate button until the risk checkbox is ticked when not downloaded", () => {
@@ -114,6 +128,24 @@ describe("ActivateConfirmationModal", () => {
 
     fireEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the download in place without closing the modal while a download is in flight", () => {
+    const onClose = vi.fn();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={onClose}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("card-download-start"));
+
+    fireEvent.click(screen.getByText("Cancel download"));
+    expect(cardCancelSpy).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("enables Activate Vault directly and hides the checkbox when artifacts were already downloaded", () => {

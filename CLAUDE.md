@@ -205,6 +205,17 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ---
 
+## MOTION & ANIMATION
+
+- **Any PR that adds or changes an animation must follow `docs/motion-system.md`** — it is the standard for motion across the monorepo.
+- **Tokens, not magic numbers.** Timing/easing/distance are CSS custom properties (`--motion-*`); never inline `ms`/easing/`px` in components.
+- **Knobs in core-ui, values in the app.** core-ui animations read `var(--motion-…, <legacy default>)`; an app opts in by defining the token in its `globals.css`. Don't define app-spec tokens in core-ui `:root`.
+- **No animation library** (no framer-motion/react-spring) — use the existing mount/unmount seam for exits.
+- **`prefers-reduced-motion` is mandatory:** handled by a single global `*` animation/transition reset in core-ui `index.css` — no per-token or per-app zeroing. The functional spinner is the one re-enabled exception; JS motion reads `useReducedMotion()`.
+- **Never animate `transform` on a popper/tooltip-positioned element** — animate opacity on it, translate on an inner wrapper.
+
+---
+
 ## SECURITY
 
 - **Never log sensitive key material** — no `console.log` of private keys, derived secrets, or signing data.

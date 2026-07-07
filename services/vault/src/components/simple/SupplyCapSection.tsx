@@ -48,7 +48,7 @@ function CapCard({ label, btcDisplay, usd }: CapCardProps) {
 
 function CapCardSkeleton() {
   return (
-    <div className={`${CAP_CARD_CLASS} animate-pulse`}>
+    <div className={`${CAP_CARD_CLASS} bbn-skeleton`}>
       <div className="h-4 w-32 rounded bg-accent-secondary/20" />
       <div className="h-5 w-48 rounded bg-accent-secondary/20" />
     </div>

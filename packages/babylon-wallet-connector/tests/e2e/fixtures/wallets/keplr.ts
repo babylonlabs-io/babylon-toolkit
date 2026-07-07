@@ -1,6 +1,7 @@
 import { BrowserContext } from "@playwright/test";
 
-import { EXTENSION_CHROME_INNER_IDS } from "../../setup/downloadExtensions";
+import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
+import { runtimeExtensionId } from "../../utils/extensionId";
 import { fillInputsByName } from "../../utils/fillInputs";
 import { findServiceWorkerForExtension } from "../../utils/findServiceWorkerForExtension";
 
@@ -8,9 +9,9 @@ export async function setupKeplrWallet(context: BrowserContext, mnemonic: string
   if (!mnemonic) throw new Error("Missing E2E_WALLET_MNEMONIC in environment variables");
   if (!password) throw new Error("Missing E2E_WALLET_PASSWORD in environment variables");
 
-  // Setup extension page
-  const keplrSW = await findServiceWorkerForExtension(context, EXTENSION_CHROME_INNER_IDS.KEPLR);
-  const keplrId = keplrSW.url().split("/")[2];
+  // Resolve the runtime id deterministically, then ensure the service worker is up before driving UI.
+  const keplrId = runtimeExtensionId(EXTENSION_CHROME_STORE_IDS.KEPLR);
+  await findServiceWorkerForExtension(context, keplrId);
   const page = await context.newPage();
   await page.goto(`chrome-extension://${keplrId}/register.html`);
 

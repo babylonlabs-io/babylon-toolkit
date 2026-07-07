@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
@@ -9,11 +10,11 @@ import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress"
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
+  hasActionableStep,
+  isCandidateVault,
   isVaultActivated,
   isVaultPastActivation,
   PeginAction,
-  type PeginState,
-  USER_ACTIONABLE_PEGIN_ACTIONS,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { type DepositErrorContent, mapDepositError } from "@/utils/errors";
@@ -29,6 +30,7 @@ import {
   ResumeSignContent,
   ResumeWotsContent,
 } from "./ResumeDepositContent";
+import { VaultActivatedView } from "./VaultActivatedView";
 
 interface PostDepositContinuationViewProps {
   vaultIds: Hex[];
@@ -36,41 +38,6 @@ interface PostDepositContinuationViewProps {
   depositorEthAddress: Address;
   btcPublicKey: string | undefined;
   onClose: () => void;
-}
-
-function isCandidateVault(state: PeginState | undefined): boolean {
-  return (
-    !!state &&
-    !isVaultPastActivation(state) &&
-    state.displayVariant !== "warning" &&
-    state.displayVariant !== "danger"
-  );
-}
-
-function hasActionableStep(
-  state: PeginState | undefined,
-  btcPublicKey: string | undefined,
-): boolean {
-  if (!state) return false;
-  return (state.availableActions ?? []).some((action) => {
-    // This continuation view also drives the shared Pre-PegIn broadcast (see
-    // the SIGN_AND_BROADCAST branch below), which `USER_ACTIONABLE_PEGIN_ACTIONS`
-    // deliberately omits. Count it here so selection is explicit rather than
-    // relying on the no-actionable fallback. Hardening only: broadcast is a
-    // single shared tx, so when it's pending every sibling is at this same step
-    // together — there is never an "earlier sibling past broadcast" to skip, so
-    // the chosen index is index 0 either way.
-    if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) return true;
-    if (!USER_ACTIONABLE_PEGIN_ACTIONS.has(action)) return false;
-    // Mirror the render-branch prerequisite: payout signing also needs the
-    // depositor's BTC public key. Without this check a payout-only vault
-    // wins actionableIndex, fails the payout branch, and renders the wait
-    // view — stalling a later vault with a genuinely-actionable step.
-    if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
-      return btcPublicKey !== undefined;
-    }
-    return true;
-  });
 }
 
 function StatusView({
@@ -127,6 +94,12 @@ export function PostDepositContinuationView({
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  const navigate = useNavigate();
+
+  const handleGoToDashboard = useCallback(() => {
+    navigate("/", { replace: true });
+    onClose();
+  }, [navigate, onClose]);
 
   const isActionable = (id: string): boolean => {
     const state = getPollingResult(id)?.peginState;
@@ -281,27 +254,9 @@ export function PostDepositContinuationView({
         />
       );
     }
-    return (
-      <StatusView
-        currentStep={DepositFlowStep.COMPLETED}
-        isComplete
-        onClose={onClose}
-        // Plural only when EVERY vault in the batch is actually activated
-        // (ACTIVE / optimistic VERIFIED+CONFIRMED) — an explicit guard rather
-        // than trusting the "no candidate ⇒ all done" invariant, so a
-        // terminal-but-not-activated sibling can never read as "activated".
-        successMessage={
-          vaultCount > 1 &&
-          vaultIds.every((id) =>
-            isVaultActivated(getPollingResult(id)?.peginState),
-          )
-            ? COPY.deposit.resume.activationSuccessMessagePlural
-            : COPY.deposit.resume.activationSuccessMessage
-        }
-        vaultCount={vaultCount}
-        currentVaultIndex={null}
-      />
-    );
+    // Terminal success: show only the activated screen — one surface at a time,
+    // so the deposit progress view is replaced rather than layered behind it.
+    return <VaultActivatedView onGoToDashboard={handleGoToDashboard} />;
   }
 
   const actions = peginState?.availableActions ?? [];
@@ -370,7 +325,7 @@ export function PostDepositContinuationView({
           depositorEthAddress={depositorEthAddress}
           siblingVaultIds={siblingVaultIds}
           onClose={onClose}
-          onSuccess={refetch}
+          onGoToDashboard={handleGoToDashboard}
         />
       </ActivationGate>
     );

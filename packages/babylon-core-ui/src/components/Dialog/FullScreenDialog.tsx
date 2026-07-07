@@ -1,5 +1,5 @@
-import { type DetailedHTMLProps, type HTMLAttributes } from "react";
-import { twJoin } from "tailwind-merge";
+import { type DetailedHTMLProps, type HTMLAttributes, type ReactNode } from "react";
+import { twJoin, twMerge } from "tailwind-merge";
 
 import { Portal } from "@/components/Portal";
 import { useModalManager } from "@/hooks/useModalManager";
@@ -15,6 +15,12 @@ export interface FullScreenDialogProps extends DetailedHTMLProps<HTMLAttributes<
    */
   onBack?: () => void;
   disableEscapeClose?: boolean;
+  /** Optional content rendered top-right, mirroring the close/back button. */
+  actions?: ReactNode;
+  /** Overrides the default `left-4` position of the close/back button. */
+  closeButtonClassName?: string;
+  /** Overrides the default `right-4` position of the `actions` slot. */
+  actionsClassName?: string;
 }
 
 export const FullScreenDialog = ({
@@ -24,6 +30,9 @@ export const FullScreenDialog = ({
   onClose,
   onBack,
   disableEscapeClose,
+  actions,
+  closeButtonClassName,
+  actionsClassName,
   ...restProps
 }: FullScreenDialogProps) => {
   const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
@@ -40,7 +49,10 @@ export const FullScreenDialog = ({
         {onBack ? (
           <button
             onClick={onBack}
-            className="fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center"
+            className={twMerge(
+              "fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center",
+              closeButtonClassName,
+            )}
             aria-label="Back"
           >
             <ChevronLeftIcon size={20} variant="accent-primary" />
@@ -49,12 +61,26 @@ export const FullScreenDialog = ({
           onClose && (
             <button
               onClick={onClose}
-              className="fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center"
+              className={twMerge(
+                "fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center",
+                closeButtonClassName,
+              )}
               aria-label="Close"
             >
               <CloseIcon size={16} variant="accent-primary" />
             </button>
           )
+        )}
+
+        {actions && (
+          <div
+            className={twMerge(
+              "fixed top-4 right-4 z-10 flex items-center",
+              actionsClassName,
+            )}
+          >
+            {actions}
+          </div>
         )}
 
         <div
