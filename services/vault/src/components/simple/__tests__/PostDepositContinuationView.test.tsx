@@ -142,13 +142,9 @@ vi.mock("@/models/peginStateMachine", () => {
 vi.mock("@/copy", () => ({
   COPY: {
     deposit: {
-      resume: {
-        activationSuccessMessage: "Deposit successfully submitted!",
-        activationSuccessMessagePlural: "Your BTC Vaults have been activated.",
-      },
       vaultActivatedSuccess: {
-        heading: "BTC Vault activated",
-        body: "Your BTC Vault is now active and ready for borrowing.",
+        heading: "Vault activated",
+        body: "Your vault is now active and ready for borrowing.",
         goToDashboard: "Go to Dashboard",
       },
       errors: {
@@ -466,7 +462,7 @@ describe("PostDepositContinuationView", () => {
     // With no vault left to continue, the modal lands on the activated success
     // screen (replacing the progress view) rather than parking on a generic
     // "awaiting confirmation" step.
-    expect(getByText("BTC Vault activated")).toBeInTheDocument();
+    expect(getByText("Vault activated")).toBeInTheDocument();
     expect(getByText("Go to Dashboard")).toBeInTheDocument();
     // The deposit progress view is replaced, not layered behind.
     expect(queryByTestId("step")).toBeNull();
@@ -492,7 +488,7 @@ describe("PostDepositContinuationView", () => {
     });
 
     // No candidate vault remains → the single activated success screen shows.
-    expect(getByText("BTC Vault activated")).toBeInTheDocument();
+    expect(getByText("Vault activated")).toBeInTheDocument();
     expect(getByText("Go to Dashboard")).toBeInTheDocument();
     expect(queryByTestId("step")).toBeNull();
   });

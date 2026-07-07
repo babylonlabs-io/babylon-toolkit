@@ -389,7 +389,7 @@ export function PostDepositContinuationView({
           depositorEthAddress={depositorEthAddress}
           siblingVaultIds={siblingVaultIds}
           onClose={onClose}
-          onSuccess={refetch}
+          onGoToDashboard={handleGoToDashboard}
         />
       </ActivationGate>
     );

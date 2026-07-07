@@ -8,9 +8,18 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/services/artifacts", () => ({
-  fetchAndDownloadArtifacts: vi.fn(),
-}));
+vi.mock("@/services/artifacts", async () => {
+  // Re-export the real cancellation sentinel so the hook's
+  // `err instanceof ArtifactDownloadCancelledError` check matches the
+  // class instances test cases may throw from the mocked fetch.
+  const actual = await vi.importActual<typeof import("@/services/artifacts")>(
+    "@/services/artifacts",
+  );
+  return {
+    ...actual,
+    fetchAndDownloadArtifacts: vi.fn(),
+  };
+});
 
 vi.mock("@/utils/artifactDownloadStorage", () => ({
   markArtifactsDownloaded: vi.fn(),
@@ -20,7 +29,10 @@ vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
 
-import { fetchAndDownloadArtifacts } from "@/services/artifacts";
+import {
+  ArtifactDownloadCancelledError,
+  fetchAndDownloadArtifacts,
+} from "@/services/artifacts";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
 import { useArtifactDownload } from "../useArtifactDownload";
@@ -183,6 +195,99 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(result.current.downloaded).toBe(false);
   });
 
+  it("shows the wallet-signature status while the cold-cache prime awaits the wallet", async () => {
+    let resolveEnsure: () => void = () => {};
+    const ensureDeferred = new Promise<unknown>((resolve) => {
+      resolveEnsure = () => resolve(undefined);
+    });
+    ensureAuthMock.mockImplementationOnce(
+      () =>
+        ensureDeferred as unknown as ReturnType<
+          typeof ensureAuthenticatedVpClient
+        >,
+    );
+    fetchMock.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current.progress).toBe("Sign Transaction"),
+    );
+
+    await act(async () => {
+      resolveEnsure();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
+  });
+
+  it("does not let a cancelled flow parked in the retry sleep clobber a restarted download", async () => {
+    vi.useFakeTimers();
+    try {
+      seedHotCache();
+      // Flow #1: VP still pre-signatures — enters the 10s retry sleep.
+      fetchMock.mockRejectedValueOnce(
+        new Error("Invalid state: PendingBabeSetup"),
+      );
+      // Flow #2 (started after cancelling #1): succeeds.
+      fetchMock.mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() =>
+        useArtifactDownload({ primeContext }),
+      );
+
+      let firstDownload: Promise<void> | undefined;
+      act(() => {
+        firstDownload = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+      // Let flow #1's rejection reach the catch and start its sleep.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      act(() => {
+        result.current.cancel();
+      });
+
+      let secondDownload: Promise<void> | undefined;
+      act(() => {
+        secondDownload = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+
+      // Flow #2 completes; flow #1's sleep then expires and must die
+      // silently instead of re-fetching or wiping flow #2's result.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+        await firstDownload;
+        await secondDownload;
+      });
+
+      expect(result.current.downloaded).toBe(true);
+      expect(result.current.error).toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
     seedHotCache();
     const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);
@@ -300,5 +405,80 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(ensureAuthMock).not.toHaveBeenCalled();
     expect(result.current.downloaded).toBe(false);
+  });
+
+  it("aborts the request on cancel and swallows the resulting sentinel without surfacing an error", async () => {
+    seedHotCache();
+    // Mirror the real service: reject with the cancellation sentinel once the
+    // caller aborts the signal. This exercises both the abort wiring and the
+    // hook's `instanceof ArtifactDownloadCancelledError` swallow path.
+    fetchMock.mockImplementationOnce(
+      (_provider, _txid, _pk, options) =>
+        new Promise<void>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () =>
+            reject(new ArtifactDownloadCancelledError()),
+          );
+        }),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      result.current.cancel();
+    });
+
+    await act(async () => {
+      await downloadPromise;
+    });
+
+    // cancel() resets UI state; the swallowed sentinel must not surface.
+    expect(result.current.error).toBeNull();
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("propagates received/total bytes from the in-flight progress callback", async () => {
+    seedHotCache();
+    let resolveFetch: () => void = () => {};
+    fetchMock.mockImplementationOnce((_provider, _txid, _pk, options) => {
+      options?.onProgress?.(500, 1000);
+      return new Promise<void>((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.receivedBytes).toBe(500);
+      expect(result.current.totalBytes).toBe(1000);
+    });
+
+    await act(async () => {
+      resolveFetch();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
   });
 });
