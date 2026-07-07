@@ -352,6 +352,22 @@ describe("GodModePanel", () => {
     expect(amount).toHaveValue(2.5);
   });
 
+  it("exposes the artifact-download mock toggle, off by default", () => {
+    renderExpanded();
+
+    const mockDownload = screen.getByRole("checkbox", {
+      name: "Mock artifact download",
+    });
+    expect(mockDownload).not.toBeChecked();
+
+    fireEvent.click(mockDownload);
+    expect(mockDownload).toBeChecked();
+
+    // Reset so the session-level store doesn't leak into other tests.
+    fireEvent.click(mockDownload);
+    expect(mockDownload).not.toBeChecked();
+  });
+
   it("steps a mock's state with the slider", () => {
     renderExpanded();
 

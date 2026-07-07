@@ -156,6 +156,9 @@ export default tseslint.config(
       // content is loaded via a dev-gated dynamic import in the view).
       "src/components/simple/PendingDepositSection.tsx",
       "src/components/simple/PostDepositContinuationContent.tsx",
+      // Artifact-download demo (god-mode-toggled fetch simulation) seams.
+      "src/hooks/deposit/useArtifactDownload.ts",
+      "src/components/simple/CollateralSection.tsx",
     ],
     rules: {
       "no-restricted-imports": [

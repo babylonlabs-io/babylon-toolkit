@@ -25,6 +25,10 @@ import {
 import { createPortal } from "react-dom";
 
 import {
+  setArtifactDownloadMockEnabled,
+  useArtifactDownloadMockEnabled,
+} from "./demoArtifactDownload";
+import {
   addDemoItem,
   type DemoCta,
   type DemoItem,
@@ -260,6 +264,7 @@ function DemoControls() {
   const enabled = useDemoEnabled();
   const hideReal = useDemoHideReal();
   const items = useDemoItems();
+  const mockArtifactDownload = useArtifactDownloadMockEnabled();
 
   return (
     <div className="space-y-3">
@@ -269,6 +274,17 @@ function DemoControls() {
           type="checkbox"
           checked={enabled}
           onChange={(e) => setDemoEnabled(e.target.checked)}
+        />
+      </label>
+
+      {/* Independent of "Inject demo": the simulated fetch also applies to
+          real vault rows, and demo rows only become downloadable through it. */}
+      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm">
+        <span>Mock artifact download</span>
+        <input
+          type="checkbox"
+          checked={mockArtifactDownload}
+          onChange={(e) => setArtifactDownloadMockEnabled(e.target.checked)}
         />
       </label>
 

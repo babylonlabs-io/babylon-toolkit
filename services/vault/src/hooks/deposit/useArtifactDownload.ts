@@ -9,6 +9,10 @@ import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import {
+  demoFetchAndDownloadArtifacts,
+  isArtifactDownloadDemoEnabled,
+} from "@/dev/demoArtifactDownload";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import {
@@ -111,6 +115,15 @@ export function useArtifactDownload(options?: {
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
 
+      // Dev/QA-only simulation of the artifact fetch (never reaches a VP),
+      // so the dialogs' progress states can be exercised. Opted into via the
+      // god-mode panel's "Mock artifact download" toggle; off in production
+      // builds, where the god-mode gate is compile-time false.
+      const demoDownload = isArtifactDownloadDemoEnabled();
+      const fetchArtifacts = demoDownload
+        ? demoFetchAndDownloadArtifacts
+        : fetchAndDownloadArtifacts;
+
       // Stop the flow with an error message. Used by every fail path
       // below so the rendered modal state stays consistent.
       const setError = (message: string) =>
@@ -127,6 +140,9 @@ export function useArtifactDownload(options?: {
       // already set) if the prime fails or the caller cancels during
       // the await.
       const ensurePrimedOrFail = async (): Promise<boolean> => {
+        // The simulated fetch never talks to a vault provider, so it needs
+        // no bearer (and must not prompt the wallet for one).
+        if (demoDownload) return true;
         if (vpTokenRegistry.peek(normalizedPeginTxid)) return true;
         if (!primeContext) {
           setError(COPY.deposit.recoveryArtifacts.cannotAuthenticate);
@@ -206,23 +222,18 @@ export function useArtifactDownload(options?: {
         if (isStale()) return;
 
         try {
-          await fetchAndDownloadArtifacts(
-            providerAddress,
-            peginTxid,
-            depositorPk,
-            {
-              onProgress: (receivedBytes, totalBytes) => {
-                // Drop progress events that arrive after cancel — they would
-                // otherwise re-show the bar after the UI has reset.
-                if (isStale()) return;
-                setState((prev) =>
-                  prev.loading ? { ...prev, receivedBytes, totalBytes } : prev,
-                );
-              },
-              isCancelled: isStale,
-              signal: abortController.signal,
+          await fetchArtifacts(providerAddress, peginTxid, depositorPk, {
+            onProgress: (receivedBytes, totalBytes) => {
+              // Drop progress events that arrive after cancel — they would
+              // otherwise re-show the bar after the UI has reset.
+              if (isStale()) return;
+              setState((prev) =>
+                prev.loading ? { ...prev, receivedBytes, totalBytes } : prev,
+              );
             },
-          );
+            isCancelled: isStale,
+            signal: abortController.signal,
+          });
 
           if (isStale()) return;
           if (vaultId) {

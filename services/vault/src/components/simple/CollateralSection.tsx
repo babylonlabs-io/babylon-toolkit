@@ -36,6 +36,7 @@ import {
 } from "@/components/shared/protocolStatus";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
+import { isArtifactDownloadDemoEnabled } from "@/dev/demoArtifactDownload";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
@@ -218,12 +219,21 @@ export function CollateralSection({
   const handleArtifactDownload = useCallback(
     (vaultEntryId: string) => {
       // Resolve against the actionable set so demo (`displayOnly`) rows no-op
-      // by design — artifact download talks to a real vault provider.
-      const vault = actionableVaults.find((v) => v.id === vaultEntryId);
+      // by design — artifact download talks to a real vault provider. The
+      // dev-only download demo lifts that restriction (and the known-provider
+      // check below): its fetch is simulated locally and never reaches a VP.
+      const demoDownload = isArtifactDownloadDemoEnabled();
+      const vault = (demoDownload ? collateralVaults : actionableVaults).find(
+        (v) => v.id === vaultEntryId,
+      );
       if (!vault) return;
 
       const provider = findProvider(vault.providerAddress);
-      if (!provider || !vault.depositorBtcPubkey || !vault.peginTxHash) {
+      if (
+        (!provider && !demoDownload) ||
+        !vault.depositorBtcPubkey ||
+        !vault.peginTxHash
+      ) {
         logger.warn(
           `[CollateralSection] Cannot download artifacts: missing provider, depositor public key, or peginTxHash for vault ${vaultEntryId}`,
         );
@@ -244,7 +254,7 @@ export function CollateralSection({
         unsignedPrePeginTx: vault.unsignedPrePeginTx,
       });
     },
-    [actionableVaults, findProvider],
+    [actionableVaults, collateralVaults, findProvider],
   );
 
   return (
