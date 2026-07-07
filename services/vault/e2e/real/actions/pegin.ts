@@ -382,7 +382,9 @@ async function assertActivatedAndOnDashboard(
     : null;
   const byAmount = cards
     .filter({
-      hasText: new RegExp(`${amountBtc.replace(/\./g, "\\.")}\\s*sBTC`),
+      hasText: new RegExp(
+        `${amountBtc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*sBTC`,
+      ),
     })
     .first();
 
