@@ -235,6 +235,28 @@ async function handleArtifactSkip(
   return true;
 }
 
+/**
+ * Capture this deposit's Pre-PegIn txid from the progress view. Explorer links render as
+ * `<host>/tx/<txid>` anchors (CopyableHash); the depositor broadcasts + links the Pre-PegIn early in
+ * the flow (well before the VP broadcasts the peg-in), so the first BTC txid to appear is this run's
+ * Pre-PegIn. Used to pin the dashboard cross-check to THIS run's vault — a returning depositor's
+ * dashboard lists several. Scans hrefs Node-side (no page-context function) and skips ETH links: an
+ * ETH `/tx/0x…` hash never matches the 64-hex-no-0x BTC pattern.
+ */
+async function readPrePeginTxid(page: Page): Promise<string | undefined> {
+  const links = page.locator('a[href*="/tx/"]');
+  const count = await links.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const href = await links
+      .nth(i)
+      .getAttribute("href")
+      .catch(() => null);
+    const match = href?.match(/\/tx\/([0-9a-fA-F]{64})(?:$|[/?#])/);
+    if (match) return match[1].toLowerCase();
+  }
+  return undefined;
+}
+
 /** Read the active step for the run log: "Step N active (P%)" from the stepper + progress bar. */
 async function readActiveStep(page: Page): Promise<string> {
   const active = page.locator('[aria-label$="active"]').first();
@@ -252,20 +274,24 @@ async function readActiveStep(page: Page): Promise<string> {
  * prompt fires no `page` event and would otherwise never be clicked. This loop also drives the two
  * dapp-page gates the approver can't reach (Activate Vault + Skip) and follows the progress UI, logging
  * each transition, until the terminal view appears. `onStep` tags the recorder's HTTP fixtures.
+ *
+ * Returns this run's Pre-PegIn txid (captured once, as soon as the progress view links it) so the
+ * finish-line check can target THIS run's vault card among a returning depositor's several.
  */
 async function walkStepMachine(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
   onStep: (step: string) => void,
-): Promise<void> {
+): Promise<string | undefined> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
   let lastStep = "";
   let activated = false;
   let skipped = false;
+  let prePeginTxid: string | undefined;
 
   while (Date.now() < deadline) {
-    if (await activatedViewReached(page)) return;
+    if (await activatedViewReached(page)) return prePeginTxid;
 
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
@@ -273,6 +299,13 @@ async function walkStepMachine(
     // Two dapp-page interactions the wallet pop-up approver can't perform.
     if (!activated) activated = await handleActivateConfirmation(page, log);
     if (activated && !skipped) skipped = await handleArtifactSkip(page, log);
+
+    // Capture the Pre-PegIn txid once, the first tick the progress view links it.
+    if (!prePeginTxid) {
+      prePeginTxid = await readPrePeginTxid(page);
+      if (prePeginTxid)
+        log(`Captured this run's Pre-PegIn txid: ${prePeginTxid}`);
+    }
 
     const step = await readActiveStep(page);
     if (step && step !== lastStep) {
@@ -297,6 +330,7 @@ async function assertActivatedAndOnDashboard(
   page: Page,
   log: (m: string) => void,
   amountBtc: string,
+  prePeginTxid: string | undefined,
 ): Promise<void> {
   log("✅ Activated view reached — clicking Go to Dashboard");
   await page
@@ -319,23 +353,59 @@ async function assertActivatedAndOnDashboard(
     return;
   }
 
-  const card = page.locator(VAULT_CARD_TESTID).first();
-  if (!(await card.isVisible().catch(() => false))) {
-    await options.click().catch(() => {}); // expand the collateral panel
-    await card
+  // Expand the collateral panel so the vault cards render.
+  const cards = page.locator(VAULT_CARD_TESTID);
+  if (
+    !(await cards
+      .first()
+      .isVisible()
+      .catch(() => false))
+  ) {
+    await options.click().catch(() => {});
+    await cards
+      .first()
       .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
       .catch(() => {});
   }
+
+  // A returning depositor's dashboard lists several vault cards, so `.first()` is not necessarily the
+  // one this run created — matching the first card against the requested amount produced a false
+  // mismatch warning against an older vault. Prefer THIS run's Pre-PegIn txid captured mid-flow: the
+  // card links it in its "TX Hash" row (PeginTxHashRow, linkPrePegin default) as `<a href=".../tx/…">`.
+  // But that row is indexer-sourced, and for a JUST-activated vault the indexer commonly lags the click
+  // to the dashboard — the fresh card shows its amount (from activation state) before its tx-hash row
+  // populates. So the amount match is the expected, immediately-authoritative identifier for a fresh
+  // vault; the txid match engages once the indexer has caught up (e.g. an already-indexed vault). First
+  // card is the last resort when neither is captured.
+  const byTxid = prePeginTxid
+    ? cards.filter({ has: page.locator(`a[href*="${prePeginTxid}"]`) }).first()
+    : null;
+  const byAmount = cards
+    .filter({
+      hasText: new RegExp(`${amountBtc.replace(/\./g, "\\.")}\\s*sBTC`),
+    })
+    .first();
+
+  let card = cards.first();
+  let matchedBy = "first card (fallback)";
+  if (byTxid && (await byTxid.isVisible().catch(() => false))) {
+    card = byTxid;
+    matchedBy = `Pre-PegIn txid ${prePeginTxid?.slice(0, 8)}…`;
+  } else if (await byAmount.isVisible().catch(() => false)) {
+    card = byAmount;
+    matchedBy = `amount ${amountBtc}`;
+  }
+
   const cardText = (await card.innerText().catch(() => ""))
     .replace(/\s+/g, " ")
     .trim();
   if (cardText.includes(amountBtc))
     log(
-      `Dashboard shows the activated vault as collateral (${amountBtc} sBTC).`,
+      `Dashboard shows this run's vault as collateral (${amountBtc} sBTC, matched by ${matchedBy}).`,
     );
   else
     log(
-      `⚠️ Dashboard vault card did not clearly show "${amountBtc}" (card: "${cardText.slice(0, 120)}") — activation still succeeded.`,
+      `⚠️ Dashboard vault card did not clearly show "${amountBtc}" (matched by ${matchedBy}; card: "${cardText.slice(0, 120)}") — activation still succeeded.`,
     );
 }
 
@@ -375,12 +445,12 @@ export const peginAction: Action = {
       await startSigning(page, log);
 
       currentStep = "step-machine";
-      await walkStepMachine(page, context, log, (step) => {
+      const prePeginTxid = await walkStepMachine(page, context, log, (step) => {
         currentStep = step;
       });
 
       currentStep = "finish";
-      await assertActivatedAndOnDashboard(page, log, amountBtc);
+      await assertActivatedAndOnDashboard(page, log, amountBtc, prePeginTxid);
       log("✅ Pegin complete: BTC Vault activated and shown on the dashboard.");
     } finally {
       await recorder.stop();
