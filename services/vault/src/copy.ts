@@ -58,6 +58,10 @@ const ACTIVATION_REQUIRED_LABEL = "Activation required";
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
 // Trailing "Learn more" link label, shared by the frozen and paused status banners.
 const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
+// In-place cancel action for an in-flight artifact download, shared by the
+// artifact-download and activate-confirmation dialog footers so the two
+// can't drift.
+const CANCEL_DOWNLOAD_LABEL = "Cancel download";
 
 /**
  * A run of body text for the loan success modals. `emphasis` segments render in
@@ -409,8 +413,9 @@ export const COPY = {
       body: "Before activating, download your BTC Vault artifacts. These files may be needed later to recover access to your BTC Vault.",
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
-      activateButton: "Activate Vault",
+      activateButton: "Activate vault",
       cancelButton: "Cancel",
+      cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
     },
     inStepArtifact: {
       fileName: "vault-artifacts.json",
@@ -421,8 +426,22 @@ export const COPY = {
     artifactDownload: {
       title: "Activate your BTC Vault",
       body: "Before activating, download the recovery artifacts of your BTC Vault. These files will make sure your BTC Vault is fully functional even if your vault provider becomes unavailable.",
+      // Shown by the same modal while the download is in flight (title +
+      // body swap so the dialog reads as a focused progress screen).
+      titleDownloading: "Downloading vault artifacts",
+      bodyDownloading:
+        "This may take a few minutes depending on your connection.",
+      // Shown by the same modal once the artifacts are on disk (the download
+      // just finished, or the modal was reopened for a vault whose artifacts
+      // were downloaded earlier).
+      titleDownloaded: "Artifacts downloaded",
+      bodyDownloaded: "Your files are stored locally and never uploaded.",
       cancelButton: "Cancel",
+      cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
       continueButton: "Continue",
+      // Downloaded-state primary action in the activation flow, where
+      // confirming the download proceeds to vault activation.
+      activateButton: "Activate vault",
     },
     vaultActivatedSuccess: {
       heading: "BTC Vault activated",
@@ -433,15 +452,30 @@ export const COPY = {
       cardTitle: "Recovery artifacts",
       cardSubtitle: "Encrypted backup files",
       cardSize: "Up to ~1 GB",
+      // Size shown once the download has completed — the "Up to" hedge no
+      // longer applies when the files are on disk.
+      cardSizeDownloaded: "~1 GB",
       downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      cancelDownloadButton: "Cancel",
+      // Caption under the progress bar while bytes are streaming.
+      doNotCloseHint: "Do not close this window while downloading.",
       downloadedLabel: "Downloaded",
       retryButton: "Retry",
       walletSignatureHint:
         "You may be asked to approve a signature in your wallet to authenticate.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
+      // Progress/status lines surfaced in the card's loader chip while the
+      // download hook works through its fetch / re-auth / wait-for-signatures
+      // phases.
+      fetchingArtifacts: "Fetching artifacts from vault provider...",
+      reauthenticating: "Re-authenticating with vault provider...",
+      waitingForSignatures:
+        "Waiting for vault provider to process signatures...",
+      // Error fallbacks shown when a thrown error carries no usable message.
+      authenticationFailed: "Authentication failed",
+      reauthenticationFailed: "Re-authentication failed",
+      downloadFailed: "Download failed",
     },
     form: {
       computingAllocation: "Computing allocation...",

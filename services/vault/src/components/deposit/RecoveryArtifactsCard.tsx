@@ -15,9 +15,35 @@ import {
 } from "react-icons/io5";
 import type { Hex } from "viem";
 
+import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
 import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+
+// Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
+// and the "~1 GB" card copy.
+const DECIMAL_UNIT_STEP = 1000;
+const BYTES_PER_KB = DECIMAL_UNIT_STEP;
+const BYTES_PER_MB = BYTES_PER_KB * DECIMAL_UNIT_STEP;
+const BYTES_PER_GB = BYTES_PER_MB * DECIMAL_UNIT_STEP;
+
+// Brand orange (Tailwind's `secondary-main` token), inlined because
+// ProgressBar takes a raw CSS color rather than a class name.
+const PROGRESS_BAR_FILL_COLOR = "#CE6533";
+
+// Unit rollover keys off the ROUNDED value so e.g. 999.5 MB renders
+// "1.00 GB", never "1000 MB".
+function formatBytes(bytes: number): string {
+  const megabytes = Math.round(bytes / BYTES_PER_MB);
+  if (megabytes >= DECIMAL_UNIT_STEP) {
+    return `${(bytes / BYTES_PER_GB).toFixed(2)} GB`;
+  }
+  const kilobytes = Math.round(bytes / BYTES_PER_KB);
+  if (kilobytes >= DECIMAL_UNIT_STEP) {
+    return `${megabytes} MB`;
+  }
+  return `${kilobytes} KB`;
+}
 
 interface RecoveryArtifactsCardProps {
   providerAddress: string;
@@ -33,6 +59,12 @@ interface RecoveryArtifactsCardProps {
   unsignedPrePeginTxHex?: string;
   /** Fired the first time the artifact download completes within this card. */
   onDownloaded?: () => void;
+  /**
+   * Fired whenever the in-card download flag flips. Lets a parent modal
+   * swap its own title/body/footer copy in lockstep with the card so the
+   * whole dialog reads as a single "downloading" state.
+   */
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 /**
@@ -55,6 +87,7 @@ export const RecoveryArtifactsCard = forwardRef<
     vaultId,
     unsignedPrePeginTxHex,
     onDownloaded,
+    onLoadingChange,
   },
   ref,
 ) {
@@ -68,8 +101,16 @@ export const RecoveryArtifactsCard = forwardRef<
     return { vaultId, unsignedPrePeginTxHex, btcWallet };
   }, [btcWallet, unsignedPrePeginTxHex, vaultId]);
 
-  const { loading, progress, error, downloaded, download, cancel } =
-    useArtifactDownload({ vaultId, primeContext });
+  const {
+    loading,
+    progress,
+    error,
+    downloaded,
+    receivedBytes,
+    totalBytes,
+    download,
+    cancel,
+  } = useArtifactDownload({ vaultId, primeContext });
 
   useImperativeHandle(ref, () => ({ cancel }), [cancel]);
 
@@ -84,9 +125,57 @@ export const RecoveryArtifactsCard = forwardRef<
     }
   }, [downloaded, onDownloaded]);
 
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
+
   const handleDownload = () => {
     download(providerAddress, peginTxid, depositorPk);
   };
+
+  // While the download is in flight the parent modal swaps its own
+  // title/body/footer (the footer owns cancellation), so the card reduces
+  // to a byte-progress panel — no icon header, no inline cancel link. The
+  // loader fallback covers the phases before bytes stream (auth priming,
+  // waiting on VP signatures) and responses without a Content-Length.
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
+        {totalBytes > 0 ? (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+                {/* Clamp to total so a compressed-transfer Content-Length
+                    can't render "1.40 GB / 1.30 GB" — matches the
+                    percent/bar clamps below. */}
+                {`${formatBytes(Math.min(receivedBytes, totalBytes))} / `}
+                <span className="text-accent-secondary">
+                  {formatBytes(totalBytes)}
+                </span>
+              </span>
+              <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-secondary">
+                {Math.min(100, Math.round((receivedBytes / totalBytes) * 100))}%
+              </span>
+            </div>
+            <ProgressBar
+              percent={Math.min(1, receivedBytes / totalBytes)}
+              color={PROGRESS_BAR_FILL_COLOR}
+            />
+            <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
+              {COPY.deposit.recoveryArtifacts.doNotCloseHint}
+            </span>
+          </>
+        ) : (
+          <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary">
+            <Loader size={16} />
+            <span className="text-sm leading-[1.43] tracking-[0.17px]">
+              {progress || COPY.deposit.recoveryArtifacts.downloadingButton}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
@@ -115,27 +204,6 @@ export const RecoveryArtifactsCard = forwardRef<
           <span className="text-sm leading-[1.43] tracking-[0.17px]">
             {COPY.deposit.recoveryArtifacts.downloadedLabel}
           </span>
-        </div>
-      ) : loading ? (
-        <div className="flex flex-col items-stretch gap-2">
-          <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary">
-            <Loader size={16} />
-            <span className="text-sm leading-[1.43] tracking-[0.17px]">
-              {COPY.deposit.recoveryArtifacts.downloadingButton}
-            </span>
-          </div>
-          {progress && (
-            <span className="text-center text-xs text-accent-secondary">
-              {progress}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={cancel}
-            className="text-center text-xs text-accent-secondary underline hover:text-accent-primary"
-          >
-            {COPY.deposit.recoveryArtifacts.cancelDownloadButton}
-          </button>
         </div>
       ) : (
         <div className="flex flex-col items-stretch">

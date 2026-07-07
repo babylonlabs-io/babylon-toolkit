@@ -80,7 +80,7 @@ export function InStepArtifactCallout({
         <ArtifactDownloadModal
           open={modalOpen}
           onClose={handleModalClose}
-          onComplete={handleDownloadComplete}
+          onActivate={handleDownloadComplete}
           vaultId={vaultId}
           providerAddress={providerAddress as string}
           peginTxid={peginTxid as string}

@@ -21,7 +21,20 @@ interface ArtifactDownloadState {
   progress: string;
   error: string | null;
   downloaded: boolean;
+  /** Bytes received so far for the in-flight artifact response. */
+  receivedBytes: number;
+  /** Content-Length of the artifact response; 0 while unknown. */
+  totalBytes: number;
 }
+
+const IDLE_STATE: ArtifactDownloadState = {
+  loading: false,
+  progress: "",
+  error: null,
+  downloaded: false,
+  receivedBytes: 0,
+  totalBytes: 0,
+};
 
 interface PrimeContext {
   vaultId: Hex;
@@ -62,26 +75,26 @@ export function useArtifactDownload(options?: {
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
 
-  const [state, setState] = useState<ArtifactDownloadState>({
-    loading: false,
-    progress: "",
-    error: null,
-    downloaded: false,
-  });
+  const [state, setState] = useState<ArtifactDownloadState>(IDLE_STATE);
 
-  // TODO: Remove cancelledRef once the backend delivers artifacts via streaming
-  // instead of a single oversized RPC response (~450 MB). Until then, the
-  // download reliably times out and users need a way to dismiss the modal.
-  const cancelledRef = useRef(false);
+  // Always points at the LATEST flow's controller so cancel() aborts it.
+  const abortRef = useRef<AbortController | null>(null);
 
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
-      cancelledRef.current = false;
+      // Each invocation owns its controller, and staleness is derived from
+      // it rather than a shared flag: a cancelled flow parked in a
+      // non-abortable await (wallet prime, retry sleep) stays permanently
+      // stale, so it can never resurrect and clobber the state of a newer
+      // download started after the cancel.
+      const abortController = new AbortController();
+      abortRef.current = abortController;
+      const isStale = () =>
+        abortController.signal.aborted || abortRef.current !== abortController;
       setState({
+        ...IDLE_STATE,
         loading: true,
-        progress: "Fetching artifacts from vault provider...",
-        error: null,
-        downloaded: false,
+        progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
       });
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
@@ -89,12 +102,7 @@ export function useArtifactDownload(options?: {
       // Stop the flow with an error message. Used by every fail path
       // below so the rendered modal state stays consistent.
       const setError = (message: string) =>
-        setState({
-          loading: false,
-          progress: "",
-          error: message,
-          downloaded: false,
-        });
+        setState({ ...IDLE_STATE, error: message });
 
       // Ensure the bearer is in cache before any artifact request. The
       // RPC is auth-gated server-side (AUTH_GATED_METHODS), so a
@@ -119,15 +127,15 @@ export function useArtifactDownload(options?: {
             depositorBtcPubkey: depositorPk,
           });
         } catch (primeErr) {
-          if (cancelledRef.current) return false;
+          if (isStale()) return false;
           setError(
             primeErr instanceof Error
               ? primeErr.message
-              : "Authentication failed",
+              : COPY.deposit.recoveryArtifacts.authenticationFailed,
           );
           return false;
         }
-        return !cancelledRef.current;
+        return !isStale();
       };
 
       if (!(await ensurePrimedOrFail())) return;
@@ -144,7 +152,9 @@ export function useArtifactDownload(options?: {
 
         setState((prev) => ({
           ...prev,
-          progress: "Re-authenticating with vault provider...",
+          progress: COPY.deposit.recoveryArtifacts.reauthenticating,
+          receivedBytes: 0,
+          totalBytes: 0,
         }));
 
         // Drop any cached token so the next acquire goes back to the server.
@@ -164,31 +174,37 @@ export function useArtifactDownload(options?: {
       };
 
       while (true) {
-        if (cancelledRef.current) return;
+        if (isStale()) return;
 
         try {
           await fetchAndDownloadArtifacts(
             providerAddress,
             peginTxid,
             depositorPk,
+            {
+              signal: abortController.signal,
+              onProgress: (receivedBytes, totalBytes) => {
+                if (isStale()) return;
+                setState((prev) => ({ ...prev, receivedBytes, totalBytes }));
+              },
+            },
           );
 
-          if (cancelledRef.current) return;
+          if (isStale()) return;
           if (vaultId) {
             markArtifactsDownloaded(vaultId);
           }
-          setState({
-            loading: false,
-            progress: "",
-            error: null,
-            downloaded: true,
-          });
+          setState({ ...IDLE_STATE, downloaded: true });
           return;
         } catch (err) {
+          if (isStale()) return;
+
           if (isPreDepositorSignaturesError(err)) {
             setState((prev) => ({
               ...prev,
-              progress: "Waiting for vault provider to process signatures...",
+              progress: COPY.deposit.recoveryArtifacts.waitingForSignatures,
+              receivedBytes: 0,
+              totalBytes: 0,
             }));
             await new Promise((resolve) =>
               setTimeout(resolve, ARTIFACT_RETRY_INTERVAL_MS),
@@ -196,30 +212,36 @@ export function useArtifactDownload(options?: {
             continue;
           }
 
-          if (!primeAttempted && isAuthFailure(err) && !cancelledRef.current) {
+          if (!primeAttempted && isAuthFailure(err)) {
             primeAttempted = true;
             try {
               const primed = await tryPrimeAndRetry();
-              if (primed && !cancelledRef.current) {
+              if (primed && !isStale()) {
                 setState((prev) => ({
                   ...prev,
-                  progress: "Fetching artifacts from vault provider...",
+                  progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
+                  receivedBytes: 0,
+                  totalBytes: 0,
                 }));
                 continue;
               }
             } catch (primeErr) {
-              if (cancelledRef.current) return;
+              if (isStale()) return;
               setError(
                 primeErr instanceof Error
                   ? primeErr.message
-                  : "Re-authentication failed",
+                  : COPY.deposit.recoveryArtifacts.reauthenticationFailed,
               );
               return;
             }
           }
 
-          if (cancelledRef.current) return;
-          setError(err instanceof Error ? err.message : "Download failed");
+          if (isStale()) return;
+          setError(
+            err instanceof Error
+              ? err.message
+              : COPY.deposit.recoveryArtifacts.downloadFailed,
+          );
           return;
         }
       }
@@ -228,28 +250,13 @@ export function useArtifactDownload(options?: {
   );
 
   const cancel = useCallback(() => {
-    cancelledRef.current = true;
-    setState({
-      loading: false,
-      progress: "",
-      error: null,
-      downloaded: false,
-    });
-  }, []);
-
-  const reset = useCallback(() => {
-    setState({
-      loading: false,
-      progress: "",
-      error: null,
-      downloaded: false,
-    });
+    abortRef.current?.abort();
+    setState(IDLE_STATE);
   }, []);
 
   return {
     ...state,
     download,
     cancel,
-    reset,
   };
 }

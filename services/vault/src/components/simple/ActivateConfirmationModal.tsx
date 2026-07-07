@@ -49,11 +49,16 @@ export function ActivateConfirmationModal({
     hasArtifactsDownloaded(vaultId),
   );
   const [acknowledged, setAcknowledged] = useState(false);
+  // Mirrors RecoveryArtifactsCard's internal `loading` flag via
+  // onLoadingChange so the footer Cancel button can switch to an in-place
+  // "Cancel download" action while a download is in flight.
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setDownloaded(hasArtifactsDownloaded(vaultId));
     setAcknowledged(false);
+    setIsDownloading(false);
   }, [open, vaultId]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
@@ -65,10 +70,22 @@ export function ActivateConfirmationModal({
     onClose();
   };
 
+  // In-place cancel: aborts the download but keeps the modal open. The
+  // hook's cancel() resets its state, which flips `isDownloading` back via
+  // onLoadingChange and restores the card's Download button. Dismissal
+  // paths (the X button) still go through handleClose.
+  const handleCancelDownload = () => {
+    cardRef.current?.cancel();
+  };
+
   const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
   const gate = useProtocolGateState();
+  // Blocked while a download streams: confirming unmounts this modal and
+  // would abandon the in-flight transfer uncancelled.
   const canActivate =
-    (downloaded || acknowledged) && !isActivationBlocked(gate);
+    (downloaded || acknowledged) &&
+    !isDownloading &&
+    !isActivationBlocked(gate);
 
   return (
     <ResponsiveDialog
@@ -122,6 +139,7 @@ export function ActivateConfirmationModal({
             vaultId={vaultId}
             unsignedPrePeginTxHex={unsignedPrePeginTxHex}
             onDownloaded={() => setDownloaded(true)}
+            onLoadingChange={setIsDownloading}
           />
         )}
 
@@ -144,9 +162,11 @@ export function ActivateConfirmationModal({
         <Button
           variant="outlined"
           className="h-10 flex-1"
-          onClick={handleClose}
+          onClick={isDownloading ? handleCancelDownload : handleClose}
         >
-          {COPY.deposit.activateConfirmation.cancelButton}
+          {isDownloading
+            ? COPY.deposit.activateConfirmation.cancelDownloadButton
+            : COPY.deposit.activateConfirmation.cancelButton}
         </Button>
         <Button
           variant="contained"

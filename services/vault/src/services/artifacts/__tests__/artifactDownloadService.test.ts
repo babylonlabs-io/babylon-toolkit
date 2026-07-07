@@ -70,6 +70,96 @@ describe("fetchAndDownloadArtifacts", () => {
     expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("reports byte progress from the response stream and still triggers the download", async () => {
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      result: VALID_ARTIFACT_RESULT,
+      id: 1,
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(body, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": String(body.length),
+        },
+      }),
+    );
+    const onProgress = vi.fn();
+
+    await fetchAndDownloadArtifacts(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+      { onProgress },
+    );
+
+    expect(onProgress).toHaveBeenCalled();
+    const [receivedBytes, totalBytes] = onProgress.mock.calls.at(-1) as [
+      number,
+      number,
+    ];
+    expect(receivedBytes).toBe(body.length);
+    expect(totalBytes).toBe(body.length);
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a zero total when the response has no Content-Length header", async () => {
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      result: VALID_ARTIFACT_RESULT,
+      id: 1,
+    });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(body));
+        controller.close();
+      },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(stream, { status: 200 }),
+    );
+    const onProgress = vi.fn();
+
+    await fetchAndDownloadArtifacts(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+      { onProgress },
+    );
+
+    const [receivedBytes, totalBytes] = onProgress.mock.calls.at(-1) as [
+      number,
+      number,
+    ];
+    expect(receivedBytes).toBe(body.length);
+    expect(totalBytes).toBe(0);
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects with AbortError and never saves the file when cancelled mid-stream", async () => {
+    const abortController = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("x".repeat(8192)));
+        // Never closes — only the abort can terminate the read.
+      },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(stream, { status: 200 }),
+    );
+    // Simulate the user cancelling while bytes are streaming.
+    const onProgress = vi.fn(() => abortController.abort());
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK, {
+        signal: abortController.signal,
+        onProgress,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
   it("skips parsing for payloads above the error-size threshold and triggers download", async () => {
     const largeBody = "x".repeat(8192);
     vi.mocked(fetch).mockResolvedValueOnce(
