@@ -8,7 +8,10 @@ vi.mock("@/utils/rpc", () => ({
   getVpProxyUrl: (address: string) => `https://proxy.example.com/vp/${address}`,
 }));
 
-import { fetchAndDownloadArtifacts } from "../artifactDownloadService";
+import {
+  ArtifactDownloadCancelledError,
+  fetchAndDownloadArtifacts,
+} from "../artifactDownloadService";
 
 const PROVIDER_ADDRESS = "0x0000000000000000000000000000000000000000";
 const PEGIN_TXID =
@@ -31,6 +34,30 @@ function responseFor(body: unknown): Response {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * Build a Response backed by a real ReadableStream so the streaming path
+ * (readBodyWithProgress) is exercised, with Content-Length present only when
+ * asked. A stream body never auto-populates Content-Length, which lets us
+ * test the header-absent fallback deterministically.
+ */
+function streamingResponse(
+  body: string,
+  { withContentLength = false }: { withContentLength?: boolean } = {},
+): Response {
+  const bytes = new TextEncoder().encode(body);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (withContentLength) {
+    headers.set("Content-Length", String(bytes.byteLength));
+  }
+  return new Response(stream, { status: 200, headers });
 }
 
 describe("fetchAndDownloadArtifacts", () => {
@@ -246,6 +273,94 @@ describe("fetchAndDownloadArtifacts", () => {
       kind: "auth_expired",
       expiresAt: 1700000000,
     });
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("streams the body and reports progress against Content-Length", async () => {
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      result: VALID_ARTIFACT_RESULT,
+      id: 1,
+    });
+    const byteLength = new TextEncoder().encode(body).byteLength;
+    vi.mocked(fetch).mockResolvedValueOnce(
+      streamingResponse(body, { withContentLength: true }),
+    );
+    const onProgress = vi.fn();
+
+    await fetchAndDownloadArtifacts(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+      {
+        onProgress,
+      },
+    );
+
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+    // Final progress event reports the full payload against the real total.
+    expect(onProgress).toHaveBeenLastCalledWith(byteLength, byteLength);
+  });
+
+  it("falls back to an estimated total when Content-Length is absent", async () => {
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      result: VALID_ARTIFACT_RESULT,
+      id: 1,
+    });
+    const byteLength = new TextEncoder().encode(body).byteLength;
+    vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
+    const onProgress = vi.fn();
+
+    await fetchAndDownloadArtifacts(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+      {
+        onProgress,
+      },
+    );
+
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+    const [received, total] = onProgress.mock.calls.at(-1)!;
+    expect(received).toBe(byteLength);
+    // No header -> total is the fixed fallback estimate, far above the tiny
+    // actual payload.
+    expect(total).toBeGreaterThan(byteLength);
+  });
+
+  it("throws the cancellation sentinel and skips download when isCancelled is set", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          result: VALID_ARTIFACT_RESULT,
+          id: 1,
+        }),
+        { withContentLength: true },
+      ),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK, {
+        isCancelled: () => true,
+      }),
+    ).rejects.toBeInstanceOf(ArtifactDownloadCancelledError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("maps an aborted request to the cancellation sentinel", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    vi.mocked(fetch).mockRejectedValue(
+      new DOMException("The operation was aborted.", "AbortError"),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK, {
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(ArtifactDownloadCancelledError);
     expect(triggerDownloadSpy).not.toHaveBeenCalled();
   });
 });
