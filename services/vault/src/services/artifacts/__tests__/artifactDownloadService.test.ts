@@ -113,6 +113,24 @@ describe("fetchAndDownloadArtifacts", () => {
     expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("triggers download for a large success envelope whose body nests error keys", async () => {
+    // The prefix scan counts only top-level envelope keys: `"error":`
+    // appearing inside the result body is artifact data, not an error
+    // envelope, and must not fail the download.
+    const largeResult = {
+      ...VALID_ARTIFACT_RESULT,
+      metadata: { error: "artifact body text, not an envelope error" },
+      padding: "x".repeat(8192),
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({ jsonrpc: "2.0", result: largeResult, id: 1 }),
+    );
+
+    await fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a large non-JSON payload without triggering download", async () => {
     const garbage = "x".repeat(8192);
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -149,6 +167,88 @@ describe("fetchAndDownloadArtifacts", () => {
   it("rejects a large envelope missing the result field", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       responseFor({ jsonrpc: "2.0", id: 1, padding: "x".repeat(8192) }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a padded error envelope that also declares result null", async () => {
+    // A malicious VP can serialize `result` before `error` so that a
+    // first-substring-wins check would classify the envelope as success.
+    // A non-null top-level error must reject regardless of key order.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        result: null,
+        error: { code: -32011, message: "x".repeat(8192) },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a padded envelope declaring both a result object and an error", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        result: VALID_ARTIFACT_RESULT,
+        error: { code: -32011, message: "x".repeat(8192) },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a padded error envelope whose body nests a result key", async () => {
+    // A nested `"result":` before the top-level `error` must not make the
+    // envelope read as success — only top-level keys count.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      responseFor({
+        jsonrpc: "2.0",
+        meta: { result: "nested, not the envelope result" },
+        error: { code: -32011, message: "x".repeat(8192) },
+        id: 1,
+      }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("routes a payload at exactly the size threshold to the prefix validation path", async () => {
+    // ERROR_RESPONSE_SIZE_THRESHOLD is 4096 bytes and the size check is
+    // inclusive (>=): at exactly 4096 the parsed small-response path must
+    // not run, so an error envelope surfaces as the prefix path's
+    // VpResponseValidationError rather than a parsed JsonRpcError.
+    const errorEnvelope = (message: string) =>
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32011, message },
+        id: 1,
+      });
+    const paddingLength =
+      4096 - new TextEncoder().encode(errorEnvelope("")).byteLength;
+    const body = errorEnvelope("x".repeat(paddingLength));
+    expect(new TextEncoder().encode(body).byteLength).toBe(4096);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(body, {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
 
     await expect(

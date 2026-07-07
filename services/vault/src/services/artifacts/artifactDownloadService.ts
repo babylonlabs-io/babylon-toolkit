@@ -85,10 +85,13 @@ export class ArtifactDownloadCancelledError extends Error {
 
 /**
  * How many leading bytes of a large response we decode to structurally check
- * its JSON-RPC envelope. A genuine success envelope serializes
- * `jsonrpc`/`result` before the (huge) artifact value, so the start of the
- * body is enough to distinguish a success envelope from an error envelope or
- * non-JSON garbage.
+ * its JSON-RPC envelope. A genuine success envelope's top-level keys
+ * (`jsonrpc`, `id`, `result`) plus separators occupy well under a hundred
+ * bytes before the huge artifact value begins, so 64 KiB gives roughly three
+ * orders of magnitude of headroom for benign variation (pretty-printing,
+ * extra metadata fields) while staying a trivial allocation. An envelope
+ * whose top-level `result` key sits past this bound is not a plausible
+ * honest response and is rejected fail-closed.
  */
 const PREFIX_VALIDATION_BYTES = 64 * 1024;
 
@@ -335,6 +338,13 @@ function validateArtifactPayload(
  * success envelope: non-JSON garbage, or an error envelope padded past
  * ERROR_RESPONSE_SIZE_THRESHOLD to slip past the parsed small-response path.
  *
+ * The prefix is scanned with a depth-aware tokenizer so only keys of the
+ * top-level envelope object count — `"result"`/`"error"` text nested inside
+ * the artifact body cannot flip the verdict, and key order is irrelevant.
+ * The verdict mirrors the parsed small-response path: any non-null top-level
+ * `error` rejects (even alongside a `result` key), and a top-level `result`
+ * that is absent from the prefix rejects fail-closed.
+ *
  * This does NOT prove the (unparsed) artifact body is well-formed - a VP that
  * returns a success-shaped envelope wrapping a corrupt artifact still passes.
  * Validating the body itself needs the deferred streaming/verification work.
@@ -348,30 +358,147 @@ function validateLargePayloadEnvelopePrefix(bytes: Uint8Array): void {
   // slice boundary rather than throwing.
   const prefix = new TextDecoder("utf-8").decode(slice);
 
-  if (!prefix.trimStart().startsWith("{")) {
+  const scan = scanEnvelopePrefix(prefix);
+
+  if (!scan.isJsonObject) {
     throw new VpResponseValidationError(
       "Artifact response is not a JSON object",
     );
   }
 
-  const resultIdx = prefix.search(/"result"\s*:/);
-  const errorIdx = prefix.search(/"error"\s*:/);
-
-  // An error envelope - possibly padded past the size threshold to dodge the
-  // parsed small-response path - must never be treated as a successful
-  // download. The VP serializes the top-level `result`/`error` key before the
-  // large artifact value, so a top-level error key appears ahead of `result`.
-  if (errorIdx !== -1 && (resultIdx === -1 || errorIdx < resultIdx)) {
+  if (scan.hasNonNullTopLevelError) {
     throw new VpResponseValidationError(
       "Artifact response is a JSON-RPC error envelope, not artifact data",
     );
   }
 
-  if (resultIdx === -1) {
+  if (!scan.hasTopLevelResult) {
     throw new VpResponseValidationError(
       "Artifact response envelope is missing the result field",
     );
   }
+}
+
+/** JSON whitespace per RFC 8259: space, tab, line feed, carriage return. */
+const JSON_WHITESPACE = new Set([" ", "\t", "\n", "\r"]);
+
+interface EnvelopePrefixScan {
+  /** The first non-whitespace character opens a JSON object. */
+  isJsonObject: boolean;
+  /** The top-level object declares a `result` key within the prefix. */
+  hasTopLevelResult: boolean;
+  /**
+   * The top-level object declares an `error` key whose value is anything
+   * other than the literal `null` — the same condition the parsed
+   * small-response path treats as an error envelope.
+   */
+  hasNonNullTopLevelError: boolean;
+}
+
+/**
+ * Structurally scan a (possibly truncated) JSON document prefix for the
+ * top-level `result`/`error` keys. Tracks string/escape state and nesting
+ * depth instead of substring matching, so occurrences nested inside values
+ * are ignored. Truncation is safe: keys seen before the cut are reliable,
+ * and anything cut off simply stays unreported (callers treat missing
+ * `result` as a rejection, so truncation fails closed).
+ */
+function scanEnvelopePrefix(prefix: string): EnvelopePrefixScan {
+  const scan: EnvelopePrefixScan = {
+    isJsonObject: false,
+    hasTopLevelResult: false,
+    hasNonNullTopLevelError: false,
+  };
+
+  const start = skipJsonWhitespace(prefix, 0);
+  if (prefix[start] !== "{") {
+    return scan;
+  }
+  scan.isJsonObject = true;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let stringValue = "";
+  let stringDepth = 0;
+
+  for (let index = start; index < prefix.length; index++) {
+    const char = prefix[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char !== '"') {
+        stringValue += char;
+        continue;
+      }
+      inString = false;
+      if (stringDepth !== 1) {
+        continue;
+      }
+      // A string directly inside the top-level object is a key only when
+      // followed by a colon; otherwise it is a top-level value string.
+      const colonIndex = skipJsonWhitespace(prefix, index + 1);
+      if (prefix[colonIndex] !== ":") {
+        continue;
+      }
+      if (stringValue === "result") {
+        scan.hasTopLevelResult = true;
+      }
+      if (
+        stringValue === "error" &&
+        !isNullLiteral(prefix, skipJsonWhitespace(prefix, colonIndex + 1))
+      ) {
+        scan.hasNonNullTopLevelError = true;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      escaped = false;
+      stringValue = "";
+      stringDepth = depth;
+    } else if (char === "{" || char === "[") {
+      depth++;
+    } else if (char === "}" || char === "]") {
+      depth--;
+    }
+  }
+
+  return scan;
+}
+
+function skipJsonWhitespace(text: string, from: number): number {
+  let index = from;
+  while (index < text.length && JSON_WHITESPACE.has(text[index])) {
+    index++;
+  }
+  return index;
+}
+
+/**
+ * True when `text` holds the JSON literal `null` at `from`, i.e. followed by
+ * a value delimiter or the end of the (truncated) prefix. A truncated
+ * `null` reads as non-null, which fails closed on the error-envelope check.
+ */
+function isNullLiteral(text: string, from: number): boolean {
+  if (!text.startsWith("null", from)) {
+    return false;
+  }
+  const next = text[from + "null".length];
+  return (
+    next === undefined ||
+    next === "," ||
+    next === "}" ||
+    JSON_WHITESPACE.has(next)
+  );
 }
 
 /**
