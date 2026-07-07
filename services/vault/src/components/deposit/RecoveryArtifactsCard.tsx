@@ -16,9 +16,12 @@ import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
-const BYTES_PER_KB = 1024;
-const BYTES_PER_MB = BYTES_PER_KB * 1024;
-const BYTES_PER_GB = BYTES_PER_MB * 1024;
+// Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
+// and the "~1 GB" card copy.
+const DECIMAL_UNIT_STEP = 1000;
+const BYTES_PER_KB = DECIMAL_UNIT_STEP;
+const BYTES_PER_MB = BYTES_PER_KB * DECIMAL_UNIT_STEP;
+const BYTES_PER_GB = BYTES_PER_MB * DECIMAL_UNIT_STEP;
 
 // Brand orange (Tailwind's `secondary-main` token), inlined because
 // ProgressBar takes a raw CSS color rather than a class name.
@@ -59,14 +62,18 @@ function RecoveryArtifactsIcon() {
   );
 }
 
+// Unit rollover keys off the ROUNDED value so e.g. 999.5 MB renders
+// "1.00 GB", never "1000 MB".
 function formatBytes(bytes: number): string {
-  if (bytes >= BYTES_PER_GB) {
+  const megabytes = Math.round(bytes / BYTES_PER_MB);
+  if (megabytes >= DECIMAL_UNIT_STEP) {
     return `${(bytes / BYTES_PER_GB).toFixed(2)} GB`;
   }
-  if (bytes >= BYTES_PER_MB) {
-    return `${Math.round(bytes / BYTES_PER_MB)} MB`;
+  const kilobytes = Math.round(bytes / BYTES_PER_KB);
+  if (kilobytes >= DECIMAL_UNIT_STEP) {
+    return `${megabytes} MB`;
   }
-  return `${Math.round(bytes / BYTES_PER_KB)} KB`;
+  return `${kilobytes} KB`;
 }
 
 interface RecoveryArtifactsCardProps {
@@ -171,10 +178,10 @@ export const RecoveryArtifactsCard = forwardRef<
               <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
                 {/* Clamp to total so a gzip'd Content-Length or an
                     underestimated fallback can't render "1.40 GB / 1.30 GB"
-                    — matches the percent/bar clamps below. */}
-                <span>{formatBytes(Math.min(receivedBytes, totalBytes))}</span>
+                    — matches the percent/bar clamps below. The separator
+                    stays in the primary segment per the design. */}
+                {`${formatBytes(Math.min(receivedBytes, totalBytes))} / `}
                 <span className="text-accent-secondary">
-                  {" / "}
                   {formatBytes(totalBytes)}
                 </span>
               </span>

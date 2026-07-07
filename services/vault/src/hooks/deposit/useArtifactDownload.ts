@@ -84,22 +84,25 @@ export function useArtifactDownload(options?: {
 
   const [state, setState] = useState<ArtifactDownloadState>(INITIAL_STATE);
 
-  // Stops both the UI state machine (post-await guards) and the in-flight
-  // stream (polled by fetchAndDownloadArtifacts between chunks) so cancel
-  // actually releases the connection instead of letting it run to completion
-  // in the background.
-  const cancelledRef = useRef(false);
-
-  // Aborts the request itself (threaded into callRaw -> fetch). cancelledRef
-  // is only polled between chunk reads, so a stalled read on a silent
-  // connection would otherwise hang Cancel until the next byte / EOF /
-  // timeout; aborting the signal unblocks reader.read() immediately.
+  // Always points at the LATEST flow's controller so cancel() aborts it.
+  // Aborting stops both the request itself (threaded into callRaw -> fetch)
+  // and the in-flight stream (polled by fetchAndDownloadArtifacts between
+  // chunks via `isCancelled`), so cancel actually releases the connection
+  // instead of letting it run to completion in the background.
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
-      cancelledRef.current = false;
-      abortControllerRef.current = new AbortController();
+      // Each invocation owns its controller, and staleness is derived from
+      // it rather than a shared flag: a cancelled flow parked in a
+      // non-abortable await (wallet prime, retry sleep) stays permanently
+      // stale, so it can never resurrect and clobber the state of a newer
+      // download started after the cancel.
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      const isStale = () =>
+        abortController.signal.aborted ||
+        abortControllerRef.current !== abortController;
       setState({
         ...INITIAL_STATE,
         loading: true,
@@ -129,6 +132,12 @@ export function useArtifactDownload(options?: {
           setError(COPY.deposit.recoveryArtifacts.cannotAuthenticate);
           return false;
         }
+        // The cold-cache prime asks the BTC wallet for a signature; surface
+        // that as the card's status while the wallet prompt is up.
+        setState((prev) => ({
+          ...prev,
+          progress: COPY.deposit.recoveryArtifacts.signTransaction,
+        }));
         try {
           await ensureAuthenticatedVpClient({
             btcWallet: primeContext.btcWallet,
@@ -139,7 +148,7 @@ export function useArtifactDownload(options?: {
             depositorBtcPubkey: depositorPk,
           });
         } catch (primeErr) {
-          if (cancelledRef.current) return false;
+          if (isStale()) return false;
           setError(
             primeErr instanceof Error
               ? primeErr.message
@@ -147,7 +156,13 @@ export function useArtifactDownload(options?: {
           );
           return false;
         }
-        return !cancelledRef.current;
+        if (isStale()) return false;
+        // Signature done — back to the fetch status for the artifact request.
+        setState((prev) => ({
+          ...prev,
+          progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
+        }));
+        return true;
       };
 
       if (!(await ensurePrimedOrFail())) return;
@@ -188,7 +203,7 @@ export function useArtifactDownload(options?: {
       };
 
       while (true) {
-        if (cancelledRef.current) return;
+        if (isStale()) return;
 
         try {
           await fetchAndDownloadArtifacts(
@@ -199,17 +214,17 @@ export function useArtifactDownload(options?: {
               onProgress: (receivedBytes, totalBytes) => {
                 // Drop progress events that arrive after cancel — they would
                 // otherwise re-show the bar after the UI has reset.
-                if (cancelledRef.current) return;
+                if (isStale()) return;
                 setState((prev) =>
                   prev.loading ? { ...prev, receivedBytes, totalBytes } : prev,
                 );
               },
-              isCancelled: () => cancelledRef.current,
-              signal: abortControllerRef.current?.signal,
+              isCancelled: isStale,
+              signal: abortController.signal,
             },
           );
 
-          if (cancelledRef.current) return;
+          if (isStale()) return;
           if (vaultId) {
             markArtifactsDownloaded(vaultId);
           }
@@ -220,6 +235,8 @@ export function useArtifactDownload(options?: {
           return;
         } catch (err) {
           if (err instanceof ArtifactDownloadCancelledError) return;
+          if (isStale()) return;
+
           if (isPreDepositorSignaturesError(err)) {
             setState((prev) => ({
               ...prev,
@@ -233,11 +250,11 @@ export function useArtifactDownload(options?: {
             continue;
           }
 
-          if (!primeAttempted && isAuthFailure(err) && !cancelledRef.current) {
+          if (!primeAttempted && isAuthFailure(err)) {
             primeAttempted = true;
             try {
               const primed = await tryPrimeAndRetry();
-              if (primed && !cancelledRef.current) {
+              if (primed && !isStale()) {
                 setState((prev) => ({
                   ...prev,
                   progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
@@ -245,7 +262,7 @@ export function useArtifactDownload(options?: {
                 continue;
               }
             } catch (primeErr) {
-              if (cancelledRef.current) return;
+              if (isStale()) return;
               setError(
                 primeErr instanceof Error
                   ? primeErr.message
@@ -255,7 +272,7 @@ export function useArtifactDownload(options?: {
             }
           }
 
-          if (cancelledRef.current) return;
+          if (isStale()) return;
           setError(
             err instanceof Error
               ? err.message
@@ -269,7 +286,6 @@ export function useArtifactDownload(options?: {
   );
 
   const cancel = useCallback(() => {
-    cancelledRef.current = true;
     abortControllerRef.current?.abort();
     setState(INITIAL_STATE);
   }, []);

@@ -3,7 +3,6 @@ import { type ReactNode, useState } from "react";
 import type { VaultActivity } from "@/types/activity";
 
 import { ActivateConfirmationModal } from "./ActivateConfirmationModal";
-import { InStepArtifactCallout } from "./InStepArtifactCallout";
 
 interface ActivationGateProps {
   activity: VaultActivity;
@@ -13,7 +12,10 @@ interface ActivationGateProps {
 }
 
 /**
- * Gate before activation: risk acknowledgement → artifact download → proceed.
+ * Gate before activation: artifact download / risk acknowledgement →
+ * proceed. The confirmation modal owns the whole pre-activation flow
+ * (download with progress, or explicit risk acknowledgement), so confirming
+ * goes straight to the activation step.
  */
 export function ActivationGate({
   activity,
@@ -21,22 +23,8 @@ export function ActivationGate({
   children,
 }: ActivationGateProps) {
   const [confirmed, setConfirmed] = useState(false);
-  const [proceeding, setProceeding] = useState(false);
 
-  if (proceeding) return <>{children}</>;
-
-  if (confirmed) {
-    return (
-      <InStepArtifactCallout
-        vaultId={activity.id}
-        providerAddress={activity.providers?.[0]?.id}
-        peginTxid={activity.peginTxHash}
-        depositorPk={activity.depositorBtcPubkey}
-        unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
-        onSkip={() => setProceeding(true)}
-      />
-    );
-  }
+  if (confirmed) return <>{children}</>;
 
   // Always render the confirmation gate (even when the activity is missing
   // any of providerAddress / peginTxid / depositorPk) so the user still

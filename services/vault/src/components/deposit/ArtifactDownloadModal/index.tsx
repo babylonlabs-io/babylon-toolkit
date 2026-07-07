@@ -2,67 +2,18 @@ import {
   Button,
   DialogBody,
   DialogFooter,
-  DialogHeader,
   ResponsiveDialog,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import { ArtifactModalIcon } from "@/components/deposit/ArtifactModalIcon";
 import {
   RecoveryArtifactsCard,
   type RecoveryArtifactsCardHandle,
 } from "@/components/deposit/RecoveryArtifactsCard";
 import { COPY } from "@/copy";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
-
-// Path for the inner glyph of the modal's 90x90 icon. The two states share
-// the same document-with-corner outline and differ only here: a checkmark
-// once the artifacts are downloaded, a shield while the download is pending.
-const ARTIFACT_ICON_GLYPH = {
-  downloaded: "M48.75 71.25L60 80.625L76.875 60",
-  pending:
-    "M50.625 58.5C50.625 56.4999 63.75 52.5 63.75 52.5C63.75 52.5 76.875 56.4999 76.875 58.5C76.875 74.4999 63.75 82.5 63.75 82.5C63.75 82.5 50.625 74.4999 50.625 58.5Z",
-} as const;
-
-function ArtifactModalIcon({
-  variant,
-}: {
-  variant: keyof typeof ARTIFACT_ICON_GLYPH;
-}) {
-  return (
-    <svg
-      width="90"
-      height="90"
-      viewBox="0 0 90 90"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="text-accent-primary"
-      aria-hidden="true"
-    >
-      <path
-        d="M75 43.125V26.25L58.125 7.5H18.75C16.6789 7.5 15 9.17893 15 11.25V78.75C15 80.8211 16.6789 82.5 18.75 82.5H41.25"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d={ARTIFACT_ICON_GLYPH[variant]}
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M56.25 7.5V26.25H75"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 /** The vault-provider routing inputs an artifact download needs. */
 export interface ArtifactDownloadModalParams {
@@ -128,9 +79,10 @@ export function ArtifactDownloadModal({
 
   // While a download is in flight the footer button only cancels the
   // download and keeps the modal open (in-place cancel-and-retry): the
-  // hook reset flips `isDownloading` back via onLoadingChange, restoring
-  // the pre-download copy and the card's Download button. Dismissal
-  // paths (the X button) still go through handleClose.
+  // hook's cancel() resets its state, which flips `isDownloading` back via
+  // onLoadingChange and restores the pre-download copy and the card's
+  // Download button. Dismissal paths (Escape / backdrop) still go through
+  // handleClose.
   const handleCancelDownload = () => {
     cardRef.current?.cancel();
   };
@@ -142,17 +94,21 @@ export function ArtifactDownloadModal({
       className="w-[564px] max-w-full"
       dialogClassName="!rounded-2xl"
     >
-      <DialogHeader
-        title=""
-        onClose={handleClose}
-        // Float the close (×) button at the top-right with no border, so the
-        // title row sits absolutely over the body padding (matches the design).
-        className="text-accent-primary [&_.bbn-dialog-title]:!absolute [&_.bbn-dialog-title]:!right-5 [&_button]:!border-0"
-      />
-
-      <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-2 text-accent-primary">
+      {/* No header: this inner-flow dialog offers no X — dismissal goes
+          through the footer actions (Escape/backdrop still route through
+          handleClose via ResponsiveDialog). The top padding stands in for
+          the removed header row. */}
+      <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-10 text-accent-primary">
         <div className="flex flex-col items-center gap-10">
-          <ArtifactModalIcon variant={downloaded ? "downloaded" : "pending"} />
+          <ArtifactModalIcon
+            variant={
+              downloaded
+                ? "downloaded"
+                : isDownloading
+                  ? "downloading"
+                  : "pending"
+            }
+          />
           <div className="flex w-full flex-col items-center gap-4">
             <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
               {downloaded
@@ -183,11 +139,14 @@ export function ArtifactDownloadModal({
         />
       </DialogBody>
 
+      {/* size="medium" gives the design's 14px label and 16px side padding;
+          h-10 restores the design's 40px height over medium's default. */}
       <DialogFooter className="flex flex-row gap-4 px-6 pb-6 pt-4">
         {downloaded ? (
           <>
             <Button
               variant="outlined"
+              size="medium"
               className="h-10 flex-1"
               onClick={handleClose}
             >
@@ -196,6 +155,7 @@ export function ArtifactDownloadModal({
             <Button
               variant="contained"
               color="secondary"
+              size="medium"
               className="h-10 flex-1"
               onClick={onComplete}
             >
@@ -205,6 +165,7 @@ export function ArtifactDownloadModal({
         ) : (
           <Button
             variant="outlined"
+            size="medium"
             className="h-10 w-full"
             onClick={isDownloading ? handleCancelDownload : handleClose}
           >

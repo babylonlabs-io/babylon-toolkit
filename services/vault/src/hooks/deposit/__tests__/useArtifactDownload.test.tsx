@@ -195,6 +195,99 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(result.current.downloaded).toBe(false);
   });
 
+  it("shows the wallet-signature status while the cold-cache prime awaits the wallet", async () => {
+    let resolveEnsure: () => void = () => {};
+    const ensureDeferred = new Promise<unknown>((resolve) => {
+      resolveEnsure = () => resolve(undefined);
+    });
+    ensureAuthMock.mockImplementationOnce(
+      () =>
+        ensureDeferred as unknown as ReturnType<
+          typeof ensureAuthenticatedVpClient
+        >,
+    );
+    fetchMock.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current.progress).toBe("Sign Transaction"),
+    );
+
+    await act(async () => {
+      resolveEnsure();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
+  });
+
+  it("does not let a cancelled flow parked in the retry sleep clobber a restarted download", async () => {
+    vi.useFakeTimers();
+    try {
+      seedHotCache();
+      // Flow #1: VP still pre-signatures — enters the 10s retry sleep.
+      fetchMock.mockRejectedValueOnce(
+        new Error("Invalid state: PendingBabeSetup"),
+      );
+      // Flow #2 (started after cancelling #1): succeeds.
+      fetchMock.mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() =>
+        useArtifactDownload({ primeContext }),
+      );
+
+      let firstDownload: Promise<void> | undefined;
+      act(() => {
+        firstDownload = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+      // Let flow #1's rejection reach the catch and start its sleep.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      act(() => {
+        result.current.cancel();
+      });
+
+      let secondDownload: Promise<void> | undefined;
+      act(() => {
+        secondDownload = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+
+      // Flow #2 completes; flow #1's sleep then expires and must die
+      // silently instead of re-fetching or wiping flow #2's result.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+        await firstDownload;
+        await secondDownload;
+      });
+
+      expect(result.current.downloaded).toBe(true);
+      expect(result.current.error).toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
     seedHotCache();
     const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);

@@ -30,9 +30,6 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
   ResponsiveDialog: (props: Record<string, unknown>) =>
     props.open ? <div>{props.children as ReactNode}</div> : null,
-  DialogHeader: (props: Record<string, unknown>) => (
-    <div>{props.title as string}</div>
-  ),
   DialogBody: (props: Record<string, unknown>) => (
     <div>{props.children as ReactNode}</div>
   ),
@@ -82,54 +79,6 @@ describe("ActivateConfirmationModal", () => {
     cardCancelSpy.mockClear();
   });
 
-  it("disables the Activate button until the risk checkbox is ticked when not downloaded", () => {
-    render(
-      <ActivateConfirmationModal
-        open
-        {...COMMON_PROPS}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-      />,
-    );
-
-    const activateBtn = screen.getByText("Activate Vault");
-    expect(activateBtn).toBeDisabled();
-
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-    expect(activateBtn).not.toBeDisabled();
-  });
-
-  it("calls onConfirm when Activate Vault is clicked", () => {
-    const onConfirm = vi.fn();
-    render(
-      <ActivateConfirmationModal
-        open
-        {...COMMON_PROPS}
-        onClose={vi.fn()}
-        onConfirm={onConfirm}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-    fireEvent.click(screen.getByText("Activate Vault"));
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onClose when Cancel is clicked", () => {
-    const onClose = vi.fn();
-    render(
-      <ActivateConfirmationModal
-        open
-        {...COMMON_PROPS}
-        onClose={onClose}
-        onConfirm={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByText("Cancel"));
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
   it("cancels the download in place without closing the modal while a download is in flight", () => {
     const onClose = vi.fn();
     render(
@@ -148,7 +97,72 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("enables Activate Vault directly and hides the checkbox when artifacts were already downloaded", () => {
+  it("disables Activate vault while a download is in flight even when the risk is acknowledged", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    expect(screen.getByText("Activate vault")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("card-download-start"));
+    expect(screen.getByText("Activate vault")).toBeDisabled();
+  });
+
+  it("disables the Activate button until the risk checkbox is ticked when not downloaded", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const activateBtn = screen.getByText("Activate vault");
+    expect(activateBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    expect(activateBtn).not.toBeDisabled();
+  });
+
+  it("calls onConfirm when Activate vault is clicked", () => {
+    const onConfirm = vi.fn();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    fireEvent.click(screen.getByText("Activate vault"));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onClose when Cancel is clicked", () => {
+    const onClose = vi.fn();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={onClose}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("enables Activate vault, hides the checkbox, and shows the downloaded heading when artifacts were already downloaded", () => {
     markArtifactsDownloaded(VAULT_ID);
     render(
       <ActivateConfirmationModal
@@ -159,11 +173,12 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    expect(screen.getByText("Activate Vault")).not.toBeDisabled();
+    expect(screen.getByText("Artifacts downloaded")).toBeInTheDocument();
+    expect(screen.getByText("Activate vault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 
-  it("enables Activate Vault and removes the checkbox once the card reports a download", () => {
+  it("enables Activate vault and removes the checkbox once the card reports a download", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -173,12 +188,12 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    expect(screen.getByText("Activate Vault")).toBeDisabled();
+    expect(screen.getByText("Activate vault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("card-download-complete"));
 
-    expect(screen.getByText("Activate Vault")).not.toBeDisabled();
+    expect(screen.getByText("Activate vault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 });
