@@ -2,6 +2,8 @@ import { Loader } from "@babylonlabs-io/core-ui";
 import { Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
+import featureFlags from "@/config/featureFlags";
+
 import { getAllApplications } from "./applications";
 import { AAVE_APP_ID } from "./applications/aave/config";
 import { LOAN_TAB } from "./applications/aave/constants";
@@ -28,6 +30,9 @@ const importAaveReserveDetail = () =>
 const AaveReserveDetail = lazyWithRetry(() =>
   importAaveReserveDetail().then((m) => ({ default: m.AaveReserveDetail })),
 );
+
+// Guarded as whole subtrees, so a v3 deep link redirects rather than 404s.
+const V3_ROUTE_PATHS = ["vaults", "loans", "liquidations"] as const;
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -128,6 +133,14 @@ export const Router = () => {
           );
         })}
       </Route>
+      {!featureFlags.isV3UiEnabled &&
+        V3_ROUTE_PATHS.map((path) => (
+          <Route
+            key={path}
+            path={`${path}/*`}
+            element={<Navigate to="/" replace />}
+          />
+        ))}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -7,6 +7,8 @@
  * 2. The reserve detail (/app/aave/reserve/:reserveId) is an overlay on top of
  *    the dashboard, not a sibling route that replaces it. The dashboard must
  *    stay mounted underneath so opening the overlay never blanks the page.
+ * 3. The v3-only sections are reachable only when ENABLE_V3_UI is on. With the
+ *    flag off a direct load of one of them redirects to the v2 dashboard.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -16,7 +18,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Outlet } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const featureFlagsState = vi.hoisted(() => ({ isV3UiEnabled: false }));
+
+vi.mock("@/config/featureFlags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/config/featureFlags")>();
+  return {
+    default: Object.create(actual.default, {
+      isV3UiEnabled: {
+        get: () => featureFlagsState.isV3UiEnabled,
+        enumerable: true,
+      },
+    }),
+  };
+});
 
 vi.mock("../components/pages/RootLayout", () => ({
   default: () => <Outlet context={{ openDeposit: () => {} }} />,
@@ -182,4 +198,55 @@ describe("Router — reserve detail is an overlay over the persistent dashboard"
       "borrow",
     );
   });
+});
+
+describe("Router — v3-only routes are gated on the ENABLE_V3_UI flag", () => {
+  const V3_ROUTE_PATHS = ["vaults", "loans", "liquidations"];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    featureFlagsState.isV3UiEnabled = false;
+  });
+
+  afterEach(() => {
+    featureFlagsState.isV3UiEnabled = false;
+  });
+
+  it.each(V3_ROUTE_PATHS)(
+    "redirects a direct load of /%s to the v2 dashboard while the flag is off",
+    async (path) => {
+      await renderAt(`/${path}`);
+
+      await waitFor(() => {
+        expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Page not found")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(V3_ROUTE_PATHS)(
+    "redirects a deep link under /%s, not just the section root",
+    async (path) => {
+      await renderAt(`/${path}/some-deep-link`);
+
+      await waitFor(() => {
+        expect(screen.getByText(DASHBOARD_MARKER)).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Page not found")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(V3_ROUTE_PATHS)(
+    "stops redirecting /%s to the dashboard once the flag is on",
+    async (path) => {
+      featureFlagsState.isV3UiEnabled = true;
+
+      await renderAt(`/${path}`);
+
+      await waitFor(() => {
+        expect(screen.getByText("Page not found")).toBeInTheDocument();
+      });
+      expect(screen.queryByText(DASHBOARD_MARKER)).not.toBeInTheDocument();
+    },
+  );
 });
