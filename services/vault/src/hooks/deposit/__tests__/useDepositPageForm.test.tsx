@@ -470,6 +470,7 @@ describe("useDepositPageForm", () => {
       ordinalsCheckPending: false,
       confirmedBalance: 800000n,
       unconfirmedBalance: 0n,
+      error: null,
     } as unknown as ReturnType<typeof useUTXOs>);
   });
 
@@ -515,6 +516,7 @@ describe("useDepositPageForm", () => {
         ordinalsCheckPending: false,
         confirmedBalance: 0n,
         unconfirmedBalance: 50000n,
+        error: null,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
@@ -533,12 +535,41 @@ describe("useDepositPageForm", () => {
         ordinalsCheckPending: false,
         confirmedBalance: 500000n,
         unconfirmedBalance: 50000n,
+        error: null,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcBalance).toBe(500000n);
       expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
+    });
+
+    it("exposes utxoError when the UTXO query fails", () => {
+      // A failed balance fetch (mempool API outage, wrong-network address)
+      // must reach the form: without this surface it renders identically to
+      // an empty wallet ("Max -- sBTC", $0.00) with no hint anything failed.
+      const fetchError = new Error(
+        "Failed to get UTXOs for address tb1qtest: Mempool API request timed out after 30000ms",
+      );
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 0n,
+        unconfirmedBalance: 0n,
+        error: fetchError,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.utxoError).toBe(fetchError);
+      expect(result.current.btcBalance).toBe(0n);
+    });
+
+    it("exposes utxoError as null when the UTXO query succeeds", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.utxoError).toBeNull();
     });
 
     it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
@@ -552,6 +583,7 @@ describe("useDepositPageForm", () => {
         ordinalsCheckPending: false,
         confirmedBalance: 300000n,
         unconfirmedBalance: 50000n,
+        error: null,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });

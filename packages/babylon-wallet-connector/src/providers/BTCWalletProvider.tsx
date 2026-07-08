@@ -12,7 +12,7 @@ import type { networks } from "bitcoinjs-lib";
 
 import { ACCOUNT_CHANGE_EVENTS, DISCONNECT_EVENT } from "@/constants/walletEvents";
 import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
-import { toXOnlyPublicKeyHex } from "@/core/utils/wallet";
+import { toXOnlyPublicKeyHex, validateAddress } from "@/core/utils/wallet";
 import {
   BTC_WALLET_LOCK_POLL_INTERVAL_MS,
   classifyBtcAccountsProbe,
@@ -132,6 +132,25 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const btcConnector = useChainConnector("BTC");
   const { open = () => {} } = useWalletConnect();
 
+  // Reject an address that does not belong to the configured BTC network
+  // before it is committed to state and flows into network-scoped balance /
+  // UTXO queries. The provider hands back whatever network the extension is
+  // currently on; if the user switched networks (a persisted session
+  // reconnecting after the dApp was closed, or a mid-session switch), a
+  // foreign-network address would otherwise be adopted and read a silent zero
+  // balance. Prefix-level check only (mainnet `bc1` vs signet/testnet `tb1`);
+  // signet and testnet share an encoding and cannot be told apart this way.
+  // Throws on mismatch so each caller routes the failure through its own error
+  // handling (connect refuses + disconnects; the mid-session paths disconnect
+  // via their catch; reconnect re-throws to its caller).
+  const assertConfiguredNetwork = useCallback(
+    (candidateAddress: string) => {
+      if (!btcConnector) return;
+      validateAddress(btcConnector.config.network, candidateAddress);
+    },
+    [btcConnector],
+  );
+
   const disconnect = useCallback(async () => {
     // Invalidate any in-flight lock probe synchronously. The ref is otherwise
     // mirrored in a passive effect that runs only after these state setters
@@ -165,6 +184,27 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           throw new Error("BTC wallet provider returned an empty address");
         }
 
+        // Refuse a wrong-network session before its address reaches app state,
+        // rather than at the widget layer, whose disconnect races this async
+        // adopt and can be clobbered by the later setAddress below. On mismatch,
+        // tear the session down (which also clears the persisted entry and
+        // widget state via the disconnect event) instead of committing the
+        // address. The same guard is applied to the mid-session commit paths
+        // (account change, visibility re-check, manual reconnect) so a
+        // network switch after connect is caught too.
+        try {
+          assertConfiguredNetwork(address);
+        } catch (validationError) {
+          setLoading(false);
+          const normalizedError =
+            validationError instanceof Error
+              ? validationError
+              : new Error(String(validationError));
+          callbacks?.onError?.(normalizedError, { address });
+          await btcConnector?.disconnect();
+          return;
+        }
+
         const publicKeyHex = await walletProvider.getPublicKeyHex();
         if (!publicKeyHex) {
           throw new Error("BTC wallet provider returned an empty public key");
@@ -193,7 +233,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         throw error;
       }
     },
-    [callbacks, address, publicKeyNoCoord],
+    [callbacks, address, publicKeyNoCoord, btcConnector, assertConfiguredNetwork],
   );
 
   useEffect(() => {
@@ -253,6 +293,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         }
 
         if (newAddress !== address) {
+          // A mid-session account change can also be a network switch; refuse a
+          // foreign-network address (the catch below disconnects) rather than
+          // committing it to the network-scoped balance queries.
+          assertConfiguredNetwork(newAddress);
           // Also fetch the new public key (different accounts have different keys)
           const newPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
           if (!newPublicKeyHex) {
@@ -301,7 +345,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
       }
     };
-  }, [btcWalletProvider, address, callbacks, disconnect]);
+  }, [btcWalletProvider, address, callbacks, disconnect, assertConfiguredNetwork]);
 
   // Keep the lock-probe context in sync so an in-flight `getAccounts` resolution
   // can detect that the session changed underneath it (see checkLock). This
@@ -372,7 +416,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         // Wallet is disconnected
         disconnect();
       } else if (currentAddress !== address) {
-        // Account changed while tab was in background
+        // Account changed while tab was in background — which may also be a
+        // network switch. Refuse a foreign-network address (the catch below
+        // disconnects) rather than committing it to the balance queries.
+        assertConfiguredNetwork(currentAddress);
         const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
         if (!pubKeyHex) {
           // Missing public key is an error - disconnect to avoid inconsistent state
@@ -392,7 +439,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       console.error("BTC wallet connection check failed:", error instanceof Error ? error.message : "Unknown error");
       disconnect();
     }
-  }, [btcWalletProvider, address, callbacks, disconnect]);
+  }, [btcWalletProvider, address, callbacks, disconnect, assertConfiguredNetwork]);
 
   useVisibilityCheck(checkBTCConnection, {
     enabled: Boolean(btcWalletProvider && address),
@@ -513,6 +560,11 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         throw new Error("BTC wallet provider returned an empty address");
       }
 
+      // A re-auth can land on a different network than the app is configured
+      // for; refuse a foreign-network address (the catch below reports it and
+      // re-throws to the caller) rather than committing it to balance queries.
+      assertConfiguredNetwork(refreshedAddress);
+
       const refreshedPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
       if (!refreshedPublicKeyHex) {
         throw new Error("BTC wallet provider returned an empty public key");
@@ -540,7 +592,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       callbacks?.onError?.(err, { address, publicKeyNoCoord });
       throw error;
     }
-  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks]);
+  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks, assertConfiguredNetwork]);
 
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),

@@ -508,6 +508,11 @@ export const COPY = {
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
+      // Shown when the UTXO fetch that backs the balance display fails
+      // (mempool API outage, wrong-network address). Without it a failed
+      // balance fetch is indistinguishable from an empty wallet.
+      balanceLoadError:
+        "Unable to load your Bitcoin balance. Your funds are unaffected. Refresh the page to try again — deposits are unavailable until your balance loads.",
       doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a vault provider to secure your BTC",

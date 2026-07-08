@@ -100,6 +100,13 @@ export interface UseDepositPageFormResult {
    * the "pending confirmation" notice in the deposit form.
    */
   hasUnconfirmedBalanceOnly: boolean;
+  /**
+   * Terminal failure from the UTXO query that backs the balance display
+   * (mempool API outage / timeout, wrong-network address rejected by the
+   * API). Must be surfaced in the form: without it a failed balance fetch
+   * renders identically to an empty wallet ("Max -- sBTC", $0.00).
+   */
+  utxoError: Error | null;
   btcPrice: number;
   priceMetadata: Record<string, PriceMetadata>;
   hasStalePrices: boolean;
@@ -307,6 +314,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     ordinalsCheckPending,
     confirmedBalance,
     unconfirmedBalance,
+    error: utxoError,
   } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
@@ -646,6 +654,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     btcBalanceFormatted,
     unconfirmedBalance,
     hasUnconfirmedBalanceOnly,
+    utxoError,
     btcPrice: btcPriceUSD,
     priceMetadata: metadata,
     hasStalePrices,

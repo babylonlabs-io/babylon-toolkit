@@ -39,6 +39,12 @@ export interface DepositAmountState {
    * form reads zero while their wallet shows a balance.
    */
   hasUnconfirmedBalanceOnly: boolean;
+  /**
+   * Terminal failure from the UTXO query that backs the balance display.
+   * Rendered as an inline alert: without it a mempool API outage or a
+   * wrong-network address is indistinguishable from an empty wallet.
+   */
+  utxoError: Error | null;
   minDeposit: bigint;
   maxDeposit?: bigint;
   /**
@@ -201,6 +207,7 @@ export function DepositForm({
     btcBalance,
     unconfirmedBalance,
     hasUnconfirmedBalanceOnly,
+    utxoError,
     minDeposit,
     maxDeposit,
     maxDepositSats,
@@ -425,6 +432,14 @@ export function DepositForm({
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
+        {/* A failed balance fetch renders the same "--"/"$0.00" as an empty
+            wallet, so it must announce itself — otherwise a mempool API outage
+            or a wrong-network address looks like the user simply has no funds. */}
+        {utxoError && (
+          <p className="text-sm text-error-main" role="alert">
+            {COPY.deposit.form.balanceLoadError}
+          </p>
+        )}
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}
@@ -512,7 +527,13 @@ export function DepositForm({
           cta.disabled ||
           isVerifyingWallet ||
           isVaultCapReached ||
-          vaultCountCapUnavailable
+          vaultCountCapUnavailable ||
+          // A failed balance fetch can leave stale UTXOs in place (React Query
+          // keeps prior data on a refetch error), so the CTA could otherwise
+          // stay enabled while the balance alert says deposits are unavailable.
+          // Block submission until the balance reloads — depositing against a
+          // stale/unknown UTXO set risks an underfunded transaction.
+          !!utxoError
         }
         onClick={onDeposit}
       >

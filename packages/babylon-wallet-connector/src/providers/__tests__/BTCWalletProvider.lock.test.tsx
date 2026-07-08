@@ -2,6 +2,8 @@ import { type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Network } from "@/core/types";
+
 import { BTCWalletProvider, useBTCWallet } from "../BTCWalletProvider";
 
 // Minimal stand-in for the injected wallet provider. Only the methods the lock
@@ -18,7 +20,9 @@ interface FakeBtcProvider {
 const harness = vi.hoisted(() => ({
   connector: null as {
     connectedWallet: { provider: FakeBtcProvider } | undefined;
+    config: { network: Network };
     on: () => () => void;
+    disconnect: () => Promise<void>;
   } | null,
 }));
 
@@ -53,9 +57,14 @@ function makeProvider(overrides: Partial<FakeBtcProvider> = {}): FakeBtcProvider
 }
 
 function connectWith(provider: FakeBtcProvider): void {
+  // The fixture addresses are mainnet taproot (bc1p...), so the connector's
+  // configured network must be mainnet for the connect-time network check to
+  // accept them and exercise the lock engine rather than reject the session.
   harness.connector = {
     connectedWallet: { provider },
+    config: { network: Network.MAINNET },
     on: () => () => {},
+    disconnect: async () => {},
   };
 }
 
