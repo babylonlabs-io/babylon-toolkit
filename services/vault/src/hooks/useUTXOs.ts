@@ -200,6 +200,14 @@ export function useUTXOs(
     isLoading,
     /** Loading state (ordinals detection) */
     isLoadingOrdinals,
+    /**
+     * True once a UTXO fetch has resolved and its result is still cached
+     * (possibly stale). React Query keeps the last-good `data` when a
+     * background refetch errors, so consumers can distinguish a hard failure
+     * with no usable balance (`error && !hasData`) from a transient refetch
+     * blip over a still-usable balance.
+     */
+    hasData: data !== undefined,
     /** Error state */
     error: error as Error | null,
     /** Error state (ordinals - non-blocking) */

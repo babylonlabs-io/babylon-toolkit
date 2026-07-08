@@ -471,6 +471,7 @@ describe("useDepositPageForm", () => {
       confirmedBalance: 800000n,
       unconfirmedBalance: 0n,
       error: null,
+      hasData: true,
     } as unknown as ReturnType<typeof useUTXOs>);
   });
 
@@ -517,6 +518,7 @@ describe("useDepositPageForm", () => {
         confirmedBalance: 0n,
         unconfirmedBalance: 50000n,
         error: null,
+        hasData: true,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
@@ -536,6 +538,7 @@ describe("useDepositPageForm", () => {
         confirmedBalance: 500000n,
         unconfirmedBalance: 50000n,
         error: null,
+        hasData: true,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
@@ -544,8 +547,8 @@ describe("useDepositPageForm", () => {
       expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
     });
 
-    it("exposes utxoError when the UTXO query fails", () => {
-      // A failed balance fetch (mempool API outage, wrong-network address)
+    it("exposes utxoError when the UTXO query fails with no usable data", () => {
+      // A first-load balance failure (mempool API outage) with no cached data
       // must reach the form: without this surface it renders identically to
       // an empty wallet ("Max -- sBTC", $0.00) with no hint anything failed.
       const fetchError = new Error(
@@ -558,12 +561,46 @@ describe("useDepositPageForm", () => {
         confirmedBalance: 0n,
         unconfirmedBalance: 0n,
         error: fetchError,
+        hasData: false,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.utxoError).toBe(fetchError);
       expect(result.current.btcBalance).toBe(0n);
+    });
+
+    it("does not surface utxoError when a background refetch fails but usable data remains", () => {
+      // React Query keeps the last-good UTXO set on a failed background refetch.
+      // A ~30s-old balance is still fundable, so the error must NOT surface —
+      // otherwise a transient blip blocks an otherwise-valid deposit.
+      const refetchError = new Error(
+        "Mempool API request timed out after 30000ms",
+      );
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [
+          { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        ],
+        spendableMempoolUTXOs: [
+          {
+            txid: "0x123",
+            vout: 0,
+            value: 500000,
+            scriptPubKey: "0xabc",
+            confirmed: true,
+          },
+        ],
+        ordinalsCheckPending: false,
+        confirmedBalance: 500000n,
+        unconfirmedBalance: 0n,
+        error: refetchError,
+        hasData: true,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.utxoError).toBeNull();
+      expect(result.current.btcBalance).toBe(500000n);
     });
 
     it("exposes utxoError as null when the UTXO query succeeds", () => {
@@ -584,6 +621,7 @@ describe("useDepositPageForm", () => {
         confirmedBalance: 300000n,
         unconfirmedBalance: 50000n,
         error: null,
+        hasData: true,
       } as unknown as ReturnType<typeof useUTXOs>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });

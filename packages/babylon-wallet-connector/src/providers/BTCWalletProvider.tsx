@@ -140,15 +140,39 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   // foreign-network address would otherwise be adopted and read a silent zero
   // balance. Prefix-level check only (mainnet `bc1` vs signet/testnet `tb1`);
   // signet and testnet share an encoding and cannot be told apart this way.
-  // Throws on mismatch so each caller routes the failure through its own error
-  // handling (connect refuses + disconnects; the mid-session paths disconnect
-  // via their catch; reconnect re-throws to its caller).
-  const assertConfiguredNetwork = useCallback(
-    (candidateAddress: string) => {
-      if (!btcConnector) return;
-      validateAddress(btcConnector.config.network, candidateAddress);
+  //
+  // Returns `true` when the address is rejected, having ALREADY performed the
+  // full teardown: it reports the mismatch via `onError` and calls
+  // `btcConnector.disconnect()`, which is what clears the persisted session
+  // entry and the wallet-widget state (via the connector's `disconnect` event)
+  // so the rejected session can't silently auto-reconnect on the next load.
+  // Every commit path routes through this single helper so the teardown can't
+  // drift out of sync between them. Fails closed: if the connector is missing
+  // the network can't be checked, so the address is rejected rather than
+  // trusted.
+  const rejectWrongNetworkAddress = useCallback(
+    async (candidateAddress: string): Promise<boolean> => {
+      if (!btcConnector) {
+        callbacks?.onError?.(
+          new Error("BTC connector unavailable; cannot validate address network"),
+          { address: candidateAddress },
+        );
+        return true;
+      }
+      try {
+        validateAddress(btcConnector.config.network, candidateAddress);
+        return false;
+      } catch (validationError) {
+        const normalizedError =
+          validationError instanceof Error
+            ? validationError
+            : new Error(String(validationError));
+        callbacks?.onError?.(normalizedError, { address: candidateAddress });
+        await btcConnector.disconnect();
+        return true;
+      }
     },
-    [btcConnector],
+    [btcConnector, callbacks],
   );
 
   const disconnect = useCallback(async () => {
@@ -186,22 +210,12 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
 
         // Refuse a wrong-network session before its address reaches app state,
         // rather than at the widget layer, whose disconnect races this async
-        // adopt and can be clobbered by the later setAddress below. On mismatch,
-        // tear the session down (which also clears the persisted entry and
-        // widget state via the disconnect event) instead of committing the
-        // address. The same guard is applied to the mid-session commit paths
-        // (account change, visibility re-check, manual reconnect) so a
-        // network switch after connect is caught too.
-        try {
-          assertConfiguredNetwork(address);
-        } catch (validationError) {
+        // adopt and can be clobbered by the later setAddress below. The helper
+        // tears the session down on mismatch; the same guard runs on every
+        // mid-session commit path (account change, visibility re-check,
+        // reconnect) so a network switch after connect is caught too.
+        if (await rejectWrongNetworkAddress(address)) {
           setLoading(false);
-          const normalizedError =
-            validationError instanceof Error
-              ? validationError
-              : new Error(String(validationError));
-          callbacks?.onError?.(normalizedError, { address });
-          await btcConnector?.disconnect();
           return;
         }
 
@@ -233,7 +247,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         throw error;
       }
     },
-    [callbacks, address, publicKeyNoCoord, btcConnector, assertConfiguredNetwork],
+    [callbacks, address, publicKeyNoCoord, rejectWrongNetworkAddress],
   );
 
   useEffect(() => {
@@ -293,10 +307,11 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         }
 
         if (newAddress !== address) {
-          // A mid-session account change can also be a network switch; refuse a
-          // foreign-network address (the catch below disconnects) rather than
-          // committing it to the network-scoped balance queries.
-          assertConfiguredNetwork(newAddress);
+          // A mid-session account change can also be a network switch. Refuse a
+          // foreign-network address; the helper reports it and fully tears the
+          // session down (connector disconnect -> clears the persisted entry +
+          // widget state), so it can't silently auto-reconnect on reload.
+          if (await rejectWrongNetworkAddress(newAddress)) return;
           // Also fetch the new public key (different accounts have different keys)
           const newPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
           if (!newPublicKeyHex) {
@@ -345,7 +360,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
       }
     };
-  }, [btcWalletProvider, address, callbacks, disconnect, assertConfiguredNetwork]);
+  }, [btcWalletProvider, address, callbacks, disconnect, rejectWrongNetworkAddress]);
 
   // Keep the lock-probe context in sync so an in-flight `getAccounts` resolution
   // can detect that the session changed underneath it (see checkLock). This
@@ -417,9 +432,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         disconnect();
       } else if (currentAddress !== address) {
         // Account changed while tab was in background — which may also be a
-        // network switch. Refuse a foreign-network address (the catch below
-        // disconnects) rather than committing it to the balance queries.
-        assertConfiguredNetwork(currentAddress);
+        // network switch. Refuse a foreign-network address; the helper reports
+        // it (via onError) and fully tears the session down, so this path can't
+        // leave a rejected session to auto-reconnect or fail silently.
+        if (await rejectWrongNetworkAddress(currentAddress)) return;
         const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
         if (!pubKeyHex) {
           // Missing public key is an error - disconnect to avoid inconsistent state
@@ -439,7 +455,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       console.error("BTC wallet connection check failed:", error instanceof Error ? error.message : "Unknown error");
       disconnect();
     }
-  }, [btcWalletProvider, address, callbacks, disconnect, assertConfiguredNetwork]);
+  }, [btcWalletProvider, address, callbacks, disconnect, rejectWrongNetworkAddress]);
 
   useVisibilityCheck(checkBTCConnection, {
     enabled: Boolean(btcWalletProvider && address),
@@ -561,9 +577,11 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       }
 
       // A re-auth can land on a different network than the app is configured
-      // for; refuse a foreign-network address (the catch below reports it and
-      // re-throws to the caller) rather than committing it to balance queries.
-      assertConfiguredNetwork(refreshedAddress);
+      // for. Refuse a foreign-network address: the helper reports it and tears
+      // the session down, leaving the wallet disconnected. Returning here (the
+      // address is never committed) surfaces to the user as a disconnected
+      // wallet rather than a false "reconnected" state.
+      if (await rejectWrongNetworkAddress(refreshedAddress)) return;
 
       const refreshedPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
       if (!refreshedPublicKeyHex) {
@@ -592,7 +610,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       callbacks?.onError?.(err, { address, publicKeyNoCoord });
       throw error;
     }
-  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks, assertConfiguredNetwork]);
+  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks, rejectWrongNetworkAddress]);
 
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),

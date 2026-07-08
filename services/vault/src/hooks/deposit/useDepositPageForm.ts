@@ -314,8 +314,17 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     ordinalsCheckPending,
     confirmedBalance,
     unconfirmedBalance,
-    error: utxoError,
+    error: utxoQueryError,
+    hasData: hasUtxoData,
   } = useUTXOs(btcAddress);
+
+  // Only surface the balance-load failure when there is no usable balance to
+  // fall back on. React Query keeps the last-good UTXO set when a background
+  // refetch errors (staleTime 30s), and a ~30s-old balance is still fundable —
+  // blocking the deposit and showing the error banner in that case would be a
+  // false alarm that self-heals on the next refetch. A first-load failure
+  // (error with no cached data) is the real "can't load your balance" case.
+  const utxoError = utxoQueryError && !hasUtxoData ? utxoQueryError : null;
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
