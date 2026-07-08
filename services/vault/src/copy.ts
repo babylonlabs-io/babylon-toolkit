@@ -1091,6 +1091,14 @@ export const COPY = {
       refetchError: "Couldn't refresh balance/debt — please try again.",
     },
   },
+  nav: {
+    overview: "Overview",
+    vaults: "Vaults",
+    loans: "Loans",
+    activity: "Activity",
+    liquidations: "Liquidations",
+    explore: "Explore",
+  },
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",
