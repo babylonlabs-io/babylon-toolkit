@@ -11,8 +11,9 @@
  * the main thread (doing so would risk exceeding V8's string length limit
  * or freezing the tab). Full schema validation of the artifact body is
  * deferred until the backend delivers artifacts via streaming; for now
- * only small responses (expected to be JSON-RPC error envelopes) are
- * parsed and validated.
+ * small responses (expected to be JSON-RPC error envelopes) are parsed and
+ * validated, and large responses are structurally checked via their
+ * JSON-RPC envelope prefix.
  */
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -83,12 +84,27 @@ export class ArtifactDownloadCancelledError extends Error {
 }
 
 /**
+ * How many leading bytes of a large response we decode to structurally check
+ * its JSON-RPC envelope. A genuine success envelope's top-level keys
+ * (`jsonrpc`, `id`, `result`) plus separators occupy well under a hundred
+ * bytes before the huge artifact value begins, so 64 KiB gives roughly three
+ * orders of magnitude of headroom for benign variation (pretty-printing,
+ * extra metadata fields) while staying a trivial allocation. An envelope
+ * whose top-level `result` key sits past this bound is not a plausible
+ * honest response and is rejected fail-closed.
+ */
+const PREFIX_VALIDATION_BYTES = 64 * 1024;
+
+/**
  * Fetch artifacts from the vault provider and trigger a browser file download.
  *
- * Uses JsonRpcClient.callRaw() so the raw response body can be preserved
- * as a Blob for download without a separate re-serialization pass. The
- * payload is parsed once for schema validation and the download is only
- * triggered after validation succeeds.
+ * Uses JsonRpcClient.callRaw() so the raw response body can be preserved as
+ * a Blob for download without a separate re-serialization pass. Small
+ * responses (JSON-RPC error envelopes) are fully parsed and schema-validated
+ * before the download fires. Large artifact payloads cannot be parsed on the
+ * main thread, so they are validated structurally via their JSON-RPC envelope
+ * prefix; full validation of the artifact body is deferred to the streaming
+ * work.
  *
  * @param providerAddress - Vault provider's Ethereum address.
  * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
@@ -155,12 +171,13 @@ interface ReadBodyResult {
   /** Exact number of bytes received. */
   byteLength: number;
   /**
-   * Contiguous bytes for the small-payload validation branch only. Left
-   * undefined for real (large) artifact payloads, which are never decoded
-   * on the main thread (see ERROR_RESPONSE_SIZE_THRESHOLD), so we skip the
-   * extra full-size allocation on that path.
+   * Contiguous bytes for validation: the full body for sub-threshold
+   * payloads (see ERROR_RESPONSE_SIZE_THRESHOLD), or only the leading
+   * PREFIX_VALIDATION_BYTES for real (large) artifact payloads, which are
+   * never fully decoded on the main thread — the prefix is enough for the
+   * envelope check and skips the extra full-size allocation on that path.
    */
-  validationBytes?: Uint8Array;
+  validationBytes: Uint8Array;
 }
 
 /**
@@ -172,9 +189,9 @@ interface ReadBodyResult {
  * once. Falls back to `Response.arrayBuffer()` when the body is not a
  * ReadableStream (e.g. some test doubles).
  *
- * Returns the assembled Blob plus its exact byte length, and — only for
- * sub-threshold payloads — a contiguous byte copy for validation. Large
- * payloads skip that copy entirely.
+ * Returns the assembled Blob plus its exact byte length, and a contiguous
+ * byte copy for validation: the full body for sub-threshold payloads, only
+ * the leading PREFIX_VALIDATION_BYTES for large ones.
  */
 async function readBodyWithProgress(
   response: Response,
@@ -196,10 +213,11 @@ async function readBodyWithProgress(
     return {
       blob: new Blob([buffer], { type: ARTIFACT_BLOB_TYPE }),
       byteLength: buffer.byteLength,
-      validationBytes:
-        buffer.byteLength < ERROR_RESPONSE_SIZE_THRESHOLD
-          ? new Uint8Array(buffer)
-          : undefined,
+      validationBytes: new Uint8Array(
+        buffer,
+        0,
+        Math.min(buffer.byteLength, PREFIX_VALIDATION_BYTES),
+      ),
     };
   }
 
@@ -227,16 +245,20 @@ async function readBodyWithProgress(
     reader.releaseLock();
   }
 
-  // Only the small-payload branch needs contiguous bytes; large artifact
-  // payloads are never decoded, so we don't pay for the concat copy there.
-  let validationBytes: Uint8Array | undefined;
-  if (received < ERROR_RESPONSE_SIZE_THRESHOLD) {
-    validationBytes = new Uint8Array(received);
-    let offset = 0;
-    for (const chunk of chunks) {
-      validationBytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
+  // Small payloads need their full body for parsing; large artifact payloads
+  // only need the leading PREFIX_VALIDATION_BYTES for the envelope check
+  // (ERROR_RESPONSE_SIZE_THRESHOLD < PREFIX_VALIDATION_BYTES, so one bound
+  // covers both), keeping the copy far below full payload size on that path.
+  const validationLength = Math.min(received, PREFIX_VALIDATION_BYTES);
+  const validationBytes = new Uint8Array(validationLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    if (offset >= validationLength) break;
+    const remaining = validationLength - offset;
+    const source =
+      chunk.byteLength > remaining ? chunk.subarray(0, remaining) : chunk;
+    validationBytes.set(source, offset);
+    offset += source.byteLength;
   }
 
   return {
@@ -251,24 +273,20 @@ async function readBodyWithProgress(
  * its runtime schema. Throws JsonRpcError for RPC-level errors and
  * VpResponseValidationError for malformed or incomplete artifact data.
  *
- * Payloads at or above ERROR_RESPONSE_SIZE_THRESHOLD are assumed to be real
- * artifact responses and are passed through without decoding - turning a
- * ~1 GB payload into a string on the main thread would likely exceed V8's
- * string length limit or freeze the tab. For those, `validationBytes` is
- * undefined and this is a no-op.
+ * Payloads at or above ERROR_RESPONSE_SIZE_THRESHOLD cannot be parsed on the
+ * main thread - turning a ~1 GB payload into a string would exceed V8's max
+ * string length or freeze the tab - so they are validated structurally via
+ * their envelope prefix (see validateLargePayloadEnvelopePrefix) instead of
+ * being passed through unchecked. For those, `validationBytes` holds only
+ * the leading PREFIX_VALIDATION_BYTES of the body.
  */
 function validateArtifactPayload(
-  validationBytes: Uint8Array | undefined,
+  validationBytes: Uint8Array,
   byteLength: number,
 ): void {
   if (byteLength >= ERROR_RESPONSE_SIZE_THRESHOLD) {
+    validateLargePayloadEnvelopePrefix(validationBytes);
     return;
-  }
-
-  if (!validationBytes) {
-    throw new VpResponseValidationError(
-      "Artifact response body was not captured for validation",
-    );
   }
 
   const text = new TextDecoder("utf-8").decode(validationBytes);
@@ -312,6 +330,175 @@ function validateArtifactPayload(
   }
 
   validateRequestDepositorClaimerArtifactsResponse(record.result);
+}
+
+/**
+ * Structural validation for payloads too large to parse on the main thread.
+ * Decodes only the envelope prefix and rejects anything that isn't a JSON-RPC
+ * success envelope: non-JSON garbage, or an error envelope padded past
+ * ERROR_RESPONSE_SIZE_THRESHOLD to slip past the parsed small-response path.
+ *
+ * The prefix is scanned with a depth-aware tokenizer so only keys of the
+ * top-level envelope object count — `"result"`/`"error"` text nested inside
+ * the artifact body cannot flip the verdict, and key order is irrelevant.
+ * The verdict mirrors the parsed small-response path: any non-null top-level
+ * `error` rejects (even alongside a `result` key), and a top-level `result`
+ * that is absent from the prefix rejects fail-closed.
+ *
+ * This does NOT prove the (unparsed) artifact body is well-formed - a VP that
+ * returns a success-shaped envelope wrapping a corrupt artifact still passes.
+ * Validating the body itself needs the deferred streaming/verification work.
+ */
+function validateLargePayloadEnvelopePrefix(bytes: Uint8Array): void {
+  const slice =
+    bytes.byteLength > PREFIX_VALIDATION_BYTES
+      ? bytes.subarray(0, PREFIX_VALIDATION_BYTES)
+      : bytes;
+  // Default (non-fatal) decoding tolerates a multi-byte char clipped at the
+  // slice boundary rather than throwing.
+  const prefix = new TextDecoder("utf-8").decode(slice);
+
+  const scan = scanEnvelopePrefix(prefix);
+
+  if (!scan.isJsonObject) {
+    throw new VpResponseValidationError(
+      "Artifact response is not a JSON object",
+    );
+  }
+
+  if (scan.hasNonNullTopLevelError) {
+    throw new VpResponseValidationError(
+      "Artifact response is a JSON-RPC error envelope, not artifact data",
+    );
+  }
+
+  if (!scan.hasTopLevelResult) {
+    throw new VpResponseValidationError(
+      "Artifact response envelope is missing the result field",
+    );
+  }
+}
+
+/** JSON whitespace per RFC 8259: space, tab, line feed, carriage return. */
+const JSON_WHITESPACE = new Set([" ", "\t", "\n", "\r"]);
+
+interface EnvelopePrefixScan {
+  /** The first non-whitespace character opens a JSON object. */
+  isJsonObject: boolean;
+  /** The top-level object declares a `result` key within the prefix. */
+  hasTopLevelResult: boolean;
+  /**
+   * The top-level object declares an `error` key whose value is anything
+   * other than the literal `null` — the same condition the parsed
+   * small-response path treats as an error envelope.
+   */
+  hasNonNullTopLevelError: boolean;
+}
+
+/**
+ * Structurally scan a (possibly truncated) JSON document prefix for the
+ * top-level `result`/`error` keys. Tracks string/escape state and nesting
+ * depth instead of substring matching, so occurrences nested inside values
+ * are ignored. Truncation is safe: keys seen before the cut are reliable,
+ * and anything cut off simply stays unreported (callers treat missing
+ * `result` as a rejection, so truncation fails closed).
+ */
+function scanEnvelopePrefix(prefix: string): EnvelopePrefixScan {
+  const scan: EnvelopePrefixScan = {
+    isJsonObject: false,
+    hasTopLevelResult: false,
+    hasNonNullTopLevelError: false,
+  };
+
+  const start = skipJsonWhitespace(prefix, 0);
+  if (prefix[start] !== "{") {
+    return scan;
+  }
+  scan.isJsonObject = true;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let stringValue = "";
+  let stringDepth = 0;
+
+  for (let index = start; index < prefix.length; index++) {
+    const char = prefix[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char !== '"') {
+        stringValue += char;
+        continue;
+      }
+      inString = false;
+      if (stringDepth !== 1) {
+        continue;
+      }
+      // A string directly inside the top-level object is a key only when
+      // followed by a colon; otherwise it is a top-level value string.
+      const colonIndex = skipJsonWhitespace(prefix, index + 1);
+      if (prefix[colonIndex] !== ":") {
+        continue;
+      }
+      if (stringValue === "result") {
+        scan.hasTopLevelResult = true;
+      }
+      if (
+        stringValue === "error" &&
+        !isNullLiteral(prefix, skipJsonWhitespace(prefix, colonIndex + 1))
+      ) {
+        scan.hasNonNullTopLevelError = true;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      escaped = false;
+      stringValue = "";
+      stringDepth = depth;
+    } else if (char === "{" || char === "[") {
+      depth++;
+    } else if (char === "}" || char === "]") {
+      depth--;
+    }
+  }
+
+  return scan;
+}
+
+function skipJsonWhitespace(text: string, from: number): number {
+  let index = from;
+  while (index < text.length && JSON_WHITESPACE.has(text[index])) {
+    index++;
+  }
+  return index;
+}
+
+/**
+ * True when `text` holds the JSON literal `null` at `from`, i.e. followed by
+ * a value delimiter or the end of the (truncated) prefix. A truncated
+ * `null` reads as non-null, which fails closed on the error-envelope check.
+ */
+function isNullLiteral(text: string, from: number): boolean {
+  if (!text.startsWith("null", from)) {
+    return false;
+  }
+  const next = text[from + "null".length];
+  return (
+    next === undefined ||
+    next === "," ||
+    next === "}" ||
+    JSON_WHITESPACE.has(next)
+  );
 }
 
 /**
