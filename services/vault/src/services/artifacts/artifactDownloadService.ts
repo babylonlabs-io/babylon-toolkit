@@ -341,9 +341,14 @@ function validateArtifactPayload(
  * The prefix is scanned with a depth-aware tokenizer so only keys of the
  * top-level envelope object count — `"result"`/`"error"` text nested inside
  * the artifact body cannot flip the verdict, and key order is irrelevant.
- * The verdict mirrors the parsed small-response path: any non-null top-level
- * `error` rejects (even alongside a `result` key), and a top-level `result`
- * that is absent from the prefix rejects fail-closed.
+ * Within the prefix the verdict matches the parsed small-response path: any
+ * non-null top-level `error` rejects (even alongside a `result` key), and a
+ * missing top-level `result` rejects. The match is not exact under
+ * truncation, though: an envelope that declares `result` early and pads a
+ * top-level `error` past the prefix window passes here where the parsed
+ * path would reject. That divergence adds nothing exploitable — the body is
+ * not validated on this path, so a malicious VP already passes with a plain
+ * `{"result": <garbage>}` envelope (see below).
  *
  * This does NOT prove the (unparsed) artifact body is well-formed - a VP that
  * returns a success-shaped envelope wrapping a corrupt artifact still passes.
@@ -399,9 +404,11 @@ interface EnvelopePrefixScan {
  * Structurally scan a (possibly truncated) JSON document prefix for the
  * top-level `result`/`error` keys. Tracks string/escape state and nesting
  * depth instead of substring matching, so occurrences nested inside values
- * are ignored. Truncation is safe: keys seen before the cut are reliable,
- * and anything cut off simply stays unreported (callers treat missing
- * `result` as a rejection, so truncation fails closed).
+ * are ignored. Under truncation, keys seen before the cut are reliable and
+ * anything cut off stays unreported: callers treat a missing `result` as a
+ * rejection, so truncation fails closed for `result` — but an `error` key
+ * pushed past the cut goes unseen, so its absence from the scan does not
+ * prove the envelope is error-free.
  */
 function scanEnvelopePrefix(prefix: string): EnvelopePrefixScan {
   const scan: EnvelopePrefixScan = {

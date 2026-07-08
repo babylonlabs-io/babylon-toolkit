@@ -40,16 +40,24 @@ function responseFor(body: unknown): Response {
  * Build a Response backed by a real ReadableStream so the streaming path
  * (readBodyWithProgress) is exercised, with Content-Length present only when
  * asked. A stream body never auto-populates Content-Length, which lets us
- * test the header-absent fallback deterministically.
+ * test the header-absent fallback deterministically. `chunkSizeBytes` splits
+ * the body across multiple stream chunks (default: one chunk) so multi-chunk
+ * assembly paths can be exercised.
  */
 function streamingResponse(
   body: string,
-  { withContentLength = false }: { withContentLength?: boolean } = {},
+  {
+    withContentLength = false,
+    chunkSizeBytes,
+  }: { withContentLength?: boolean; chunkSizeBytes?: number } = {},
 ): Response {
   const bytes = new TextEncoder().encode(body);
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(bytes);
+      const size = chunkSizeBytes ?? bytes.byteLength;
+      for (let offset = 0; offset < bytes.byteLength; offset += size) {
+        controller.enqueue(bytes.subarray(offset, offset + size));
+      }
       controller.close();
     },
   });
@@ -129,6 +137,55 @@ describe("fetchAndDownloadArtifacts", () => {
     await fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
 
     expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("triggers download for a body larger than the validation prefix when result precedes the cut", async () => {
+    // Body exceeds PREFIX_VALIDATION_BYTES (64 KiB), so validation sees only
+    // the truncated prefix. Streaming in 10 000-byte chunks exercises the
+    // prefix-copy loop in readBodyWithProgress across chunk boundaries,
+    // including the final-chunk clamp at the 64 KiB cut. The top-level
+    // `result` key sits well before the cut, so the envelope reads as
+    // success and the full body must still download.
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      result: {
+        ...VALID_ARTIFACT_RESULT,
+        verifying_key_hex: "ab".repeat(48 * 1024),
+      },
+      id: 1,
+    });
+    expect(new TextEncoder().encode(body).byteLength).toBeGreaterThan(
+      64 * 1024,
+    );
+    vi.mocked(fetch).mockResolvedValueOnce(
+      streamingResponse(body, { chunkSizeBytes: 10_000 }),
+    );
+
+    await fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an error envelope whose top-level keys are padded past the validation prefix", async () => {
+    // Padding pushes both the top-level `result` and `error` keys past
+    // PREFIX_VALIDATION_BYTES (64 KiB), so the truncated prefix scan sees
+    // neither. Missing `result` rejects fail-closed — the padded error must
+    // not download as a successful artifact.
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      padding: "x".repeat(80 * 1024),
+      result: null,
+      error: { code: -32011, message: "hidden past the prefix cut" },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      streamingResponse(body, { chunkSizeBytes: 10_000 }),
+    );
+
+    await expect(
+      fetchAndDownloadArtifacts(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
+    expect(triggerDownloadSpy).not.toHaveBeenCalled();
   });
 
   it("rejects a large non-JSON payload without triggering download", async () => {
