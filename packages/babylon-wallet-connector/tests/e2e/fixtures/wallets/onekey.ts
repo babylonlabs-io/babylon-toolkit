@@ -136,6 +136,43 @@ async function readAddress(tab: Page): Promise<string | null> {
   return null;
 }
 
+/** The app auto-lock value OneKey ships with (its Security screen shows a word, not a duration). */
+const ONEKEY_EXPECTED_AUTO_LOCK = "Never";
+
+/**
+ * Verify OneKey's app auto-lock is "Never" so the wallet doesn't re-lock during a run (a real peg-in
+ * takes ~30 min–2 hr and would otherwise stall at "Bitcoin wallet locked"). Path: sidebar menu
+ * (bottom-menu-container) → "Security" → the "Auto-lock" list row shows its current value. Fails loudly
+ * if it isn't "Never" (or the row can't be found) — the signal to capture OneKey's auto-lock SETTER and
+ * switch this from a verify to a set. The per-wallet spec (test:e2e:onekey) exercises this.
+ */
+async function verifyAutoLockNever(tab: Page): Promise<void> {
+  const menu = tab.locator('[data-testid="bottom-menu-container"]').first();
+  if (!(await menu.isVisible().catch(() => false)))
+    throw new Error("OneKey auto-lock: sidebar menu (bottom-menu-container) not found");
+  await menu.click({ force: true }).catch(() => {});
+  await sleep(SETTLE.MODAL);
+  await clickByText(tab, "Security");
+  await sleep(SETTLE.MEDIUM);
+
+  // The "Auto-lock" list item renders its label + current value side by side; read the whole row.
+  const row = tab
+    .locator('[data-sentry-component="TabSettingsListItem"]')
+    .filter({ hasText: "Auto-lock" })
+    .first();
+  if ((await row.count()) === 0)
+    throw new Error('OneKey auto-lock: "Auto-lock" row not found on the Security screen');
+  const rowText = (await row.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  if (!new RegExp(ONEKEY_EXPECTED_AUTO_LOCK, "i").test(rowText))
+    throw new Error(
+      `OneKey auto-lock: expected "${ONEKEY_EXPECTED_AUTO_LOCK}" but the Auto-lock row reads "${rowText}"`,
+    );
+
+  // Return to a clean state (close the Security screen) for the next setup step.
+  await tab.locator('[data-testid="nav-header-close"]').first().click({ force: true }).catch(() => {});
+  await sleep(SETTLE.SHORT);
+}
+
 /**
  * Import `mnemonic` into OneKey and return the active Bitcoin Signet taproot (`tb1p…`) address.
  * The extension must already be loaded into `context` (see `launchWalletContext`).
@@ -194,6 +231,8 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   // safe: the spec asserts the returned address equals deriveSignetTaproot(mnemonic), so if OneKey ever
   // surfaced a fresh/first-unused address while multi-address is on, that assertion would fail loudly.
   const address = await readAddress(tab);
+  // Confirm OneKey's app auto-lock is "Never" so it doesn't re-lock mid-run (expected default).
+  await verifyAutoLockNever(tab);
   await disableBtcMultipleAddresses(tab);
   await closeForeignTabs(context, tab);
   await tab.close().catch(() => {}); // done — the wallet persists in the profile

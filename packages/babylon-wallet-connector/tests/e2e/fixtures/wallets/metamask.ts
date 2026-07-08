@@ -100,6 +100,52 @@ async function readAddress(page: Page): Promise<string | null> {
   return truncated ? truncated[0] : null;
 }
 
+/** The auto-lock value MetaMask ships with (its Security settings show it as a word, not minutes). */
+const MM_EXPECTED_AUTO_LOCK = "Never";
+
+/**
+ * Verify MetaMask's auto-lock is "Never" so the wallet doesn't re-lock during a run (steps 4 and 14 of
+ * a peg-in are MetaMask transactions; a locked wallet stalls them). Path: account options
+ * (account-options-menu-button) → Settings (global-menu-settings) → "Security and password" → the
+ * "Auto lock" row. Fails loudly if it isn't "Never" (or the row can't be found) — that's the signal to
+ * capture MetaMask's auto-lock SETTER and switch this from a verify to a set. The per-wallet spec
+ * (test:e2e:metamask) exercises this.
+ */
+async function verifyAutoLockNever(page: Page): Promise<void> {
+  await page
+    .getByTestId("account-options-menu-button")
+    .first()
+    .click()
+    .catch(() => {});
+  await page.waitForTimeout(SETTLE.SHORT);
+  const settings = page.getByTestId("global-menu-settings").first();
+  if ((await settings.count()) === 0)
+    throw new Error(
+      "MetaMask auto-lock: Settings menu item (global-menu-settings) not found",
+    );
+  await settings.click().catch(() => {});
+  await page.waitForTimeout(SETTLE.MODAL);
+  const section = page.getByText("Security and password", { exact: true }).first();
+  if ((await section.count()) === 0)
+    throw new Error(
+      'MetaMask auto-lock: "Security and password" section not found',
+    );
+  await section.click().catch(() => {});
+  await page.waitForTimeout(SETTLE.MODAL);
+
+  const label = page.getByText("Auto lock", { exact: true }).first();
+  if ((await label.count()) === 0)
+    throw new Error('MetaMask auto-lock: "Auto lock" row not found');
+  // The row div holds the label <p> and the current-value <p> side by side; read the whole row.
+  const rowText = (await label.locator("xpath=..").innerText().catch(() => ""))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!new RegExp(MM_EXPECTED_AUTO_LOCK, "i").test(rowText))
+    throw new Error(
+      `MetaMask auto-lock: expected "${MM_EXPECTED_AUTO_LOCK}" but the Auto lock row reads "${rowText}"`,
+    );
+}
+
 /**
  * Import `mnemonic` into MetaMask, close its side panel, and return the account's Ethereum address.
  * The extension must already be loaded into `context` (see `launchWalletContext`).
@@ -203,6 +249,10 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
   await closeSidePanel(walletPage, SIDE_PANEL_RECHECK_MS); // in case a panel re-opened
 
   const address = await readAddress(walletPage);
+
+  // Confirm auto-lock won't re-lock the wallet mid-run (expected to already be "Never").
+  await verifyAutoLockNever(walletPage);
+
   await walletPage.close().catch(() => {}); // done — the wallet persists in the profile
   if (!address) throw new Error("MetaMask: could not read an address after import");
   return address;

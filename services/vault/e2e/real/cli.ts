@@ -7,7 +7,9 @@
  *   pnpm exec tsx e2e/real/cli.ts --target=website --network=devnet --btc=unisat --eth=metamask \
  *     --action=connect [--data=real] [--delay=0] [--yes]
  *
- * Only `connect` + `real` are implemented; other actions and mock mode show as disabled.
+ * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
+ * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
+ * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
@@ -23,6 +25,7 @@ import {
   type RunConfig,
   type Target,
 } from "./config";
+import { fetchMinDepositBtc, fetchProviders } from "./peginParams";
 import { runE2E } from "./run";
 
 const MS_PER_SECOND = 1000;
@@ -120,8 +123,11 @@ async function resolveConfig(
   // Valid values derived from config so the flag validator can't drift from the interactive menu.
   const TARGETS: readonly Target[] = ["website", "localhost"];
   const NETWORKS_LIST: readonly NetworkName[] = ["devnet", "testnet"];
-  const BTC_IDS = BTC_WALLETS.map((w) => w.id);
-  const ETH_IDS = ETH_WALLETS.map((w) => w.id);
+  // Only enabled wallets are selectable (disabled ones — e.g. OneKey — are hidden + rejected).
+  const enabledBtcWallets = BTC_WALLETS.filter((w) => w.enabled);
+  const enabledEthWallets = ETH_WALLETS.filter((w) => w.enabled);
+  const BTC_IDS = enabledBtcWallets.map((w) => w.id);
+  const ETH_IDS = enabledEthWallets.map((w) => w.id);
   const ACTION_IDS = ACTIONS.map((a) => a.id);
 
   /**
@@ -170,7 +176,7 @@ async function resolveConfig(
         select<BtcWalletId>(
           rl,
           "3. BTC wallet",
-          BTC_WALLETS.map((w) => ({ value: w.id, label: w.label })),
+          enabledBtcWallets.map((w) => ({ value: w.id, label: w.label })),
         ),
       "btc",
     );
@@ -182,7 +188,7 @@ async function resolveConfig(
         select<EthWalletId>(
           rl,
           "4. ETH wallet",
-          ETH_WALLETS.map((w) => ({ value: w.id, label: w.label })),
+          enabledEthWallets.map((w) => ({ value: w.id, label: w.label })),
         ),
       "eth",
     );
@@ -231,6 +237,66 @@ async function resolveConfig(
       delayMs = Math.max(0, Math.round((Number(raw) || 0) * MS_PER_SECOND));
     }
 
+    // Pegin extras. A flag always wins; otherwise, for the pegin action, fetch the network's real
+    // values (like the balance pre-flight) and offer them as defaults — amount ⇒ protocol minimum,
+    // provider ⇒ first available — prompting interactively when there's a TTY.
+    let peginAmountBtc =
+      typeof flags.amount === "string" ? flags.amount : undefined;
+    if (peginAmountBtc !== undefined) {
+      const parsed = Number(peginAmountBtc);
+      if (!Number.isFinite(parsed) || parsed <= 0)
+        throw new Error(
+          `--amount must be a positive number of BTC (got "${peginAmountBtc}")`,
+        );
+    }
+    let peginProvider = typeof flags.vp === "string" ? flags.vp : undefined;
+
+    if (action === "pegin") {
+      // Amount: default to the fetched protocol minimum for this network (unless --amount given).
+      if (peginAmountBtc === undefined) {
+        const minBtc = await fetchMinDepositBtc(network).catch((error) => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `\nCould not fetch the minimum deposit (${error instanceof Error ? error.message : error}); the run will fall back to the form's minimum.`,
+          );
+          return undefined;
+        });
+        if (interactive) {
+          const hint = minBtc
+            ? `${minBtc} = protocol minimum`
+            : "protocol minimum";
+          const raw = (
+            await rl.question(`\nPegin amount in BTC [${hint}]: `)
+          ).trim();
+          peginAmountBtc = raw || minBtc;
+        } else {
+          peginAmountBtc = minBtc; // non-interactive: use the fetched minimum
+        }
+      }
+
+      // Provider: interactive menu from the live list (default = first available); --vp overrides.
+      if (peginProvider === undefined && interactive) {
+        const providers = await fetchProviders(network).catch((error) => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `\nCould not fetch providers (${error instanceof Error ? error.message : error}); the run will pick the first available.`,
+          );
+          return [];
+        });
+        const available = providers.filter((p) => p.available);
+        if (available.length > 0)
+          peginProvider = await select(
+            rl,
+            "Vault provider",
+            available.map((p) => ({ value: p.name, label: p.name })),
+          );
+      }
+    }
+
+    // Sign-conformance extra: explicit fixtures file (else the action auto-detects the newest pegin's).
+    const fixturesPath =
+      typeof flags.fixtures === "string" ? flags.fixtures : undefined;
+
     return {
       target,
       network,
@@ -239,6 +305,9 @@ async function resolveConfig(
       action,
       dataMode,
       delayMs,
+      peginAmountBtc,
+      peginProvider,
+      fixturesPath,
     };
   } finally {
     rl.close();

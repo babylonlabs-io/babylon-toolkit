@@ -76,6 +76,61 @@ async function readReceiveAddress(page: Page): Promise<string | null> {
   return trunc; // fall back to the truncated on-screen value (spec compares prefix/suffix)
 }
 
+/** UniSat's longest "Automatic Lock Time" option (its dropdown tops out here). */
+const UNISAT_MAX_AUTO_LOCK = "4Hours";
+
+/** Coordinate-click a UniSat control by testid (its buttons are pointer-events:none div/span). */
+async function clickTestId(page: Page, testid: string): Promise<boolean> {
+  const box = await page
+    .locator(`[data-testid="${testid}"]`)
+    .first()
+    .boundingBox()
+    .catch(() => null);
+  if (!box) return false;
+  await page.mouse
+    .click(box.x + box.width / 2, box.y + box.height / 2)
+    .catch(() => {});
+  return true;
+}
+
+/**
+ * Raise UniSat's auto-lock timeout to its maximum (4 Hours). The default is **3 minutes**, which
+ * re-locks the wallet mid-run — a real peg-in takes ~30 min–2 hr and would otherwise stall at
+ * "Bitcoin wallet locked". Path: bottom tab Settings → Advanced (settings_advanced) → "Automatic Lock
+ * Time" → "4Hours". Fails loudly: a silent no-op reintroduces the exact lock stall this prevents, so
+ * the per-wallet spec (test:e2e:unisat) surfaces any UniSat settings-UI drift immediately.
+ */
+async function extendAutoLock(page: Page): Promise<void> {
+  // Land on the wallet home deterministically (readReceiveAddress leaves us on the Receive screen).
+  await page.goto(page.url().replace(/#.*$/, "") + "#/main").catch(() => {});
+  await page.waitForTimeout(SETTLE.MODAL);
+
+  if (!(await clickTestId(page, "tab-settings")))
+    throw new Error("UniSat auto-lock: Settings tab (tab-settings) not found");
+  await page.waitForTimeout(SETTLE.SHORT);
+  if (!(await clickTestId(page, "settings_advanced")))
+    throw new Error(
+      "UniSat auto-lock: Advanced settings (settings_advanced) not found",
+    );
+  await page.waitForTimeout(SETTLE.SHORT);
+  await tap(page, /Automatic Lock Time/i); // open the options list
+  await page.waitForTimeout(SETTLE.SHORT);
+  await tap(page, new RegExp(`^${UNISAT_MAX_AUTO_LOCK}$`)); // pick the max option
+  await page.waitForTimeout(SETTLE.MODAL);
+
+  // Verify it took: the options list closed (no "30Seconds" option visible) AND the row shows 4Hours.
+  // Checking the list closed avoids a false pass from the still-open list (which also contains "4Hours").
+  const body = (await page
+    .evaluate("document.body.innerText")
+    .catch(() => "")) as string;
+  const listClosed = !/30\s*Seconds/i.test(body);
+  const showsMax = new RegExp(UNISAT_MAX_AUTO_LOCK).test(body);
+  if (!listClosed || !showsMax)
+    throw new Error(
+      `UniSat auto-lock: expected "${UNISAT_MAX_AUTO_LOCK}" to be selected, but the setting did not update`,
+    );
+}
+
 /**
  * Import `mnemonic` into UniSat and return the active Bitcoin Signet taproot (`tb1p…`) address.
  * The extension must already be loaded into `context` (see `launchWalletContext`).
@@ -138,6 +193,9 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   await page.waitForTimeout(SETTLE.MEDIUM);
   await switchToSignet(page);
   const address = await readReceiveAddress(page);
+
+  // Keep the wallet unlocked for the length of a real peg-in run (default auto-lock is 3 minutes).
+  await extendAutoLock(page);
 
   await page.close().catch(() => {}); // done — the wallet persists in the profile
   if (!address) throw new Error("UniSat: could not read a signet taproot address after import");

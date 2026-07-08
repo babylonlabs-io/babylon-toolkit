@@ -140,6 +140,32 @@ async function readAddress(tab: Page): Promise<string | null> {
   return truncated;
 }
 
+/** OKX's "Never lock" auto-lock option carries this stable numeric data-value (label is localized). */
+const OKX_NEVER_LOCK_VALUE = "9999999999";
+
+/**
+ * Set OKX's wallet auto-lock to "Never lock" so it doesn't re-lock mid-run (a real peg-in takes
+ * ~30 min–2 hr and would otherwise stall at "Bitcoin wallet locked"). OKX honors direct hash-route
+ * navigation (used above for onboarding), so go straight to the auto-lock page and select the option by
+ * its language-agnostic data-value. Fails loudly if the option is missing or doesn't become active — a
+ * silent no-op reintroduces the exact lock stall this prevents; the per-wallet spec (test:e2e:okx)
+ * surfaces any OKX settings-UI drift.
+ */
+async function setNeverLock(tab: Page, origin: string): Promise<void> {
+  await tab.goto(`${origin}/home.html#/wallet-lock?pageType=AutoLock`).catch(() => {});
+  await sleep(SETTLE.MEDIUM);
+  await dismissPromoDialog(tab); // the reload can re-trigger the promo modal over the settings page
+
+  const never = tab.locator(`[data-value="${OKX_NEVER_LOCK_VALUE}"][role="radio"]`).first();
+  await never.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  if ((await never.count()) === 0)
+    throw new Error('OKX auto-lock: "Never lock" option (data-value=9999999999) not found');
+  await never.click({ force: true, timeout: WAIT_FOR.ACTION_MS }).catch(() => {});
+  await sleep(SETTLE.SHORT);
+  if ((await never.getAttribute("aria-checked").catch(() => null)) !== "true")
+    throw new Error('OKX auto-lock: selected "Never lock" but it did not become the active option');
+}
+
 /**
  * Import `mnemonic` into OKX and return the active Bitcoin Signet taproot (`tb1p…`) address.
  * The extension must already be loaded into `context` (see `launchWalletContext`).
@@ -225,6 +251,11 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
   await switchToSignet(tab, origin);
 
   const address = await readAddress(tab);
+
+  // Keep the wallet unlocked for the length of a real peg-in run (read the address first — this
+  // navigates away from the home to the auto-lock settings page).
+  await setNeverLock(tab, origin);
+
   await closeForeignTabs(context, tab);
   await tab.close().catch(() => {}); // done — the wallet persists in the profile
 
