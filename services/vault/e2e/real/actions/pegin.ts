@@ -387,11 +387,18 @@ async function readActiveStep(page: Page): Promise<string> {
  *
  * Returns this run's Pre-PegIn txid (captured once, as soon as the progress view links it) so the
  * finish-line check can target THIS run's vault card among a returning depositor's several.
+ *
+ * `expectedVaults` (1, or 2 for a split) gates the finish: the terminal "Go to Dashboard" view is
+ * accepted only once we've driven that many activations. The app renders a TRANSIENT per-vault
+ * "Go to Dashboard" (scoped to a single vault) that can appear after just one split vault activates —
+ * so keying on that button alone could finish a split at 1/2. Counting the activations WE drove ties
+ * completion to "both vaults activated", which is exactly what we did.
  */
 async function walkStepMachine(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
+  expectedVaults: number,
   onStep: (step: string) => void,
 ): Promise<string | undefined> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
@@ -402,10 +409,17 @@ async function walkStepMachine(
   // fire a duplicate ETH tx).
   let activateClickedThisModal = false;
   let skipClickedThisCallout = false;
+  // Count the activations we've driven; the finish gate needs `expectedVaults` of them (see below).
+  let activationCount = 0;
   let prePeginTxid: string | undefined;
 
   while (Date.now() < deadline) {
-    if (await activatedViewReached(page)) return prePeginTxid;
+    // Finish only when the activated view is up AND we've driven every expected activation. The second
+    // clause rejects the transient per-vault "Go to Dashboard" that can flash after just one split
+    // vault activates, before the sibling is done. Single-vault (expectedVaults=1) is satisfied by the
+    // one activation this fresh deposit always performs.
+    if ((await activatedViewReached(page)) && activationCount >= expectedVaults)
+      return prePeginTxid;
 
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
@@ -415,8 +429,10 @@ async function walkStepMachine(
       .isVisible()
       .catch(() => false);
     if (activateVisible) {
-      if (!activateClickedThisModal)
+      if (!activateClickedThisModal) {
         activateClickedThisModal = await handleActivateConfirmation(page, log);
+        if (activateClickedThisModal) activationCount += 1;
+      }
     } else {
       activateClickedThisModal = false;
     }
@@ -504,9 +520,10 @@ async function assertActivatedAndOnDashboard(
 
   // Two-vault split: both fresh cards share THIS run's single (batched) Pre-PegIn txid, and each shows
   // its own split sub-amount (not the full requested amount), so the single-vault amount cross-check
-  // below doesn't apply. The indexer commonly lags a just-activated vault's tx-hash row, so a miss here
-  // is logged (not failed) — the activated view we came from is the real signal that BOTH vaults
-  // activated (its "Go to Dashboard" only appears once every lane completes).
+  // below doesn't apply. "Both vaults activated" is already guaranteed upstream — walkStepMachine only
+  // finishes once it has driven both activations — so this dashboard count is a SOFT secondary
+  // confirmation: the indexer commonly lags a just-activated vault's tx-hash row, so a miss is logged
+  // (not failed) rather than turning indexer lag into a false failure on a real-funds run.
   if (expectedVaults > 1) {
     // Both fresh split cards share this run's Pre-PegIn txid, but the indexer commonly lags a
     // just-activated vault's tx-hash row — so poll (bounded) for both cards to link the txid rather
@@ -616,9 +633,15 @@ export const peginAction: Action = {
       await startSigning(page, log);
 
       currentStep = "step-machine";
-      const prePeginTxid = await walkStepMachine(page, context, log, (step) => {
-        currentStep = step;
-      });
+      const prePeginTxid = await walkStepMachine(
+        page,
+        context,
+        log,
+        split ? 2 : 1,
+        (step) => {
+          currentStep = step;
+        },
+      );
 
       currentStep = "finish";
       await assertActivatedAndOnDashboard(

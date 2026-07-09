@@ -296,14 +296,25 @@ async function resolveConfig(
           peginAmountBtc = minBtc; // non-interactive: use the fetched minimum
         }
       } else if (split) {
-        // --amount was given with --split: guard it against the fetched split minimum before launching
-        // the browser (the form is the ultimate gate; this is a fast, actionable pre-flight fail).
+        // --amount was given with --split: a best-effort pre-flight heads-up, NOT a hard gate. The
+        // estimate uses the reserve's current dynamic config key (not the depositor's position key), so
+        // it can differ slightly from the form — the live form is the authoritative, position-aware gate
+        // and fails loudly at the split selector within ~30-60s if the amount is truly too low. So we
+        // WARN rather than throw: an approximate estimate must never wrongly reject a valid run, and a
+        // failed fetch must not silently skip the heads-up.
         const minBtc = await fetchMinDepositForSplitBtc(network).catch(
-          () => undefined,
+          (error) => {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `\n⚠️ Could not fetch the two-vault split minimum (${error instanceof Error ? error.message : error}); skipping the pre-flight amount check — the form will gate it.`,
+            );
+            return undefined;
+          },
         );
         if (minBtc !== undefined && Number(peginAmountBtc) < Number(minBtc))
-          throw new Error(
-            `--amount ${peginAmountBtc} is below the two-vault split minimum ${minBtc} sBTC for ${network}. Increase --amount to at least ${minBtc}, or drop --split.`,
+          // eslint-disable-next-line no-console
+          console.warn(
+            `\n⚠️ --amount ${peginAmountBtc} looks below the two-vault split minimum (~${minBtc} sBTC estimated for ${network}); the form will confirm the exact position-aware threshold and stop the run there if it's genuinely too low.`,
           );
       }
 

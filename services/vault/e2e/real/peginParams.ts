@@ -167,8 +167,11 @@ interface VbtcReserveIdResponse {
  * hint. This is NOT a plain protocol param: it mirrors the app's `useOptimalSplit` / `useVaultSplitParams`
  * chain — `minPegin` from ProtocolParams, plus the Aave Core Spoke risk params (THF/CF/LB) — fed through
  * the SDK's `computeSeizedFraction` + `computeMinDepositForSplit` (the frozen split math is NOT
- * reimplemented). It uses the reserve's current `dynamicConfigKey` (the no-position baseline); a wallet
- * with an existing position may see a slightly different threshold, so the live form stays authoritative.
+ * reimplemented). It uses the reserve's current `dynamicConfigKey` (the no-position baseline), so a
+ * depositor with an existing position opened under a since-rotated config may see a slightly different
+ * threshold. Treat the result as a best-effort ESTIMATE for defaults/warnings — NEVER a hard gate: the
+ * live deposit form (read by the pegin action's split selector) is the authoritative, position-aware
+ * minimum and is what actually blocks a too-low split.
  */
 export async function fetchMinDepositForSplitBtc(
   network: NetworkName,
