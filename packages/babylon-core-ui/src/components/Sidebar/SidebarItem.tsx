@@ -8,6 +8,10 @@ export interface SidebarItemProps {
   className?: string;
 }
 
+// Exact row from Figma Sidebar nav items (node 10084:23112): 40px row height,
+// 24px icon, 16px/0.15px-tracking label, 8px gap. Active state is a text-color
+// change only (text/primary vs text/secondary) — Figma defines no background
+// or border treatment for the active row.
 export const SidebarItem = ({
   icon,
   label,
@@ -16,14 +20,14 @@ export const SidebarItem = ({
 }: SidebarItemProps) => (
   <div
     className={twJoin(
-      "flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors",
+      "flex h-10 items-center gap-2 rounded py-2 text-base tracking-[0.15px] transition-colors",
       isActive
-        ? "bg-accent-secondary/10 font-medium text-accent-primary"
-        : "text-accent-secondary hover:bg-accent-secondary/5 hover:text-accent-primary",
+        ? "text-accent-primary"
+        : "text-accent-secondary hover:text-accent-primary",
       className,
     )}
   >
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+    <span className="flex size-6 shrink-0 items-center justify-center">
       {icon}
     </span>
     <span>{label}</span>

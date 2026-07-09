@@ -155,6 +155,7 @@ export default function RootLayout() {
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
+  const showV3Sidebar = FeatureFlags.isV3UiEnabled && !isMobileView;
 
   const isWalletConnected = btcConnected && ethConnected;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
@@ -173,11 +174,23 @@ export default function RootLayout() {
     setInitialDepositAmountBtc(undefined);
   }, []);
 
-  return (
-    <div className="relative flex min-h-svh w-full flex-col bg-surface">
-      {/* Portal target for the critical near-liquidation banner. Owned by the
-          dashboard (where the Aave data + debug override live) but portaled
-          here so it renders above the header, atop the operational banners. */}
+  // Extracted so it can render in one of two positions depending on
+  // `showV3Sidebar`: above the row (v2, v3-mobile — unchanged, full-bleed
+  // above everything) or inside the content column (v3 desktop). The
+  // desktop sidebar is `sticky top-0 h-svh` (see core-ui's `Sidebar`) —
+  // if a banner rendered above the row it would push the row's, and thus
+  // the sidebar's, natural top position down by the banner's height,
+  // clipping the sidebar's bottom (its footer) by that same amount until
+  // the user scrolled past it. Moving banners into the content column for
+  // v3 desktop keeps the sidebar's natural position at y=0 so it's fully
+  // in the viewport immediately, with zero clipping, regardless of which
+  // banners are visible.
+  const banners = (
+    <>
+      {/* Portal target for the critical near-liquidation banner. Owned by
+          the dashboard (where the Aave data + debug override live) but
+          portaled here so it renders above the header, atop the
+          operational banners. */}
       <div id={CRITICAL_BANNER_SLOT_ID} />
       <TestingBanner visible={shouldDisplayTestingMsg()} />
       {/* Intentionally not gated on `isGeoBlocked`: an operator notice
@@ -203,9 +216,16 @@ export default function RootLayout() {
           resolveBannerStatus(gate) === null
         }
       />
-      <div className="flex flex-1">
-        {FeatureFlags.isV3UiEnabled && !isMobileView && <AppSidebar />}
-        <div className="flex min-h-svh flex-1 flex-col">
+    </>
+  );
+
+  return (
+    <div className="relative flex min-h-svh w-full flex-col bg-surface">
+      {!showV3Sidebar && banners}
+      <div className="flex min-w-0 flex-1">
+        {showV3Sidebar && <AppSidebar />}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {showV3Sidebar && banners}
           <Header
             size="md"
             // `PAGE_CONTENT_CLASS` carries `!max-w-[1080px]`, overriding the
@@ -300,29 +320,34 @@ export default function RootLayout() {
               </AaveConfigProvider>
             </ActivatingVaultsProvider>
           )}
-          <div className="mt-auto">
-            {/* The footer bar background is full-bleed, and per Figma its content is too:
-                the social/copyright block's left edge lines up with the navbar/body's
-                1080px `PAGE_CONTENT_CLASS` box, but the logo sits close to the true
-                viewport edge rather than being boxed into that same 1080px cap.
-                `[&>div]:!max-w-none` drops the Footer's default `container` cap so the
-                row can span the full width; `[&>div]:!px-5` keeps the page's standard
-                20px edge inset on the left (and on the right below `md`).
-                `[&>div]:md:!pr-[90px]` widens the right inset at `md`+ to match Figma's
-                footer-specific right margin exactly. `FOOTER_SOCIAL_MARGIN_CLASS` (passed
-                via `socialClassName`) pushes the social block in from the left edge by the
-                same amount the 1080px box is inset at the current viewport width, so it
-                lines up with the navbar/body starting point instead of the raw edge.
-                `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
-                mode background (and its decorative top-edge pseudo) from the
-                default teal to brand orange; dark mode keeps `primary-main`. */}
-            <Footer
-              socialLinks={FOOTER_SOCIAL_LINKS}
-              copyrightYear={new Date().getFullYear()}
-              className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-none [&>div]:!px-5 [&>div]:md:!pr-[90px]"
-              socialClassName={FOOTER_SOCIAL_MARGIN_CLASS}
-            />
-          </div>
+          {!FeatureFlags.isV3UiEnabled && (
+            <div className="mt-auto">
+              {/* The footer bar background is full-bleed, and per Figma its content is too:
+                  the social/copyright block's left edge lines up with the navbar/body's
+                  1080px `PAGE_CONTENT_CLASS` box, but the logo sits close to the true
+                  viewport edge rather than being boxed into that same 1080px cap.
+                  `[&>div]:!max-w-none` drops the Footer's default `container` cap so the
+                  row can span the full width; `[&>div]:!px-5` keeps the page's standard
+                  20px edge inset on the left (and on the right below `md`).
+                  `[&>div]:md:!pr-[90px]` widens the right inset at `md`+ to match Figma's
+                  footer-specific right margin exactly. `FOOTER_SOCIAL_MARGIN_CLASS` (passed
+                  via `socialClassName`) pushes the social block in from the left edge by the
+                  same amount the 1080px box is inset at the current viewport width, so it
+                  lines up with the navbar/body starting point instead of the raw edge.
+                  `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
+                  mode background (and its decorative top-edge pseudo) from the
+                  default teal to brand orange; dark mode keeps `primary-main`.
+                  Only rendered in v2 — the v3 Figma frame has no page-level footer at
+                  all (confirmed via Dev Mode MCP metadata on node 10084:22951): the
+                  sidebar's own bottom block (social + Terms/Privacy) fully replaces it. */}
+              <Footer
+                socialLinks={FOOTER_SOCIAL_LINKS}
+                copyrightYear={new Date().getFullYear()}
+                className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-none [&>div]:!px-5 [&>div]:md:!pr-[90px]"
+                socialClassName={FOOTER_SOCIAL_MARGIN_CLASS}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
