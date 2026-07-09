@@ -26,6 +26,22 @@ vi.mock("../../../hooks/useActivitiesWithPending", () => ({
   useActivitiesWithPending: (arg: unknown) => useActivitiesWithPendingMock(arg),
 }));
 
+const featureFlagsMock = vi.hoisted(() => ({
+  isV3UiEnabled: false,
+}));
+
+// Local override of the global `@/config` mock (src/test/setup.ts) — that
+// default doesn't export `FeatureFlags`, which `ActivityList` (rendered
+// here via the `Activity` page) reads. Same pattern as RootLayout.test.tsx.
+// `getBTCNetwork` is also required here: ActivityCard/LiquidationGroupCard
+// resolve explorer links via `@/utils/explorer`, which reads it off this
+// same barrel.
+vi.mock("@/config", () => ({
+  FeatureFlags: featureFlagsMock,
+  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getBTCNetwork: () => "signet",
+}));
+
 import Activity from "../Activity";
 
 function renderActivity() {
@@ -43,6 +59,7 @@ function renderActivity() {
 describe("Activity page — wallet gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    featureFlagsMock.isV3UiEnabled = false;
     useActivitiesWithPendingMock.mockReturnValue({
       data: [],
       isLoading: false,

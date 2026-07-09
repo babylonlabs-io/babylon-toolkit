@@ -1,6 +1,8 @@
 import { Avatar, Heading } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
+import { twJoin } from "tailwind-merge";
 
+import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
 
@@ -42,26 +44,35 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <Heading
-          variant="h5"
-          as="h2"
-          className="font-normal text-accent-primary"
+      {(!FeatureFlags.isV3UiEnabled || isConnected) && (
+        <div
+          className={twJoin(
+            "flex items-center gap-4",
+            FeatureFlags.isV3UiEnabled ? "justify-end" : "justify-between",
+          )}
         >
-          {COPY.activity.pageTitle}
-        </Heading>
-        {isConnected && (
-          <div className="flex items-center gap-4">
-            <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
-            <FilterDropdown
-              value={filter}
-              placeholder={COPY.activity.filterAll}
-              options={FILTER_OPTIONS}
-              onChange={setFilter}
-            />
-          </div>
-        )}
-      </div>
+          {!FeatureFlags.isV3UiEnabled && (
+            <Heading
+              variant="h5"
+              as="h2"
+              className="font-normal text-accent-primary"
+            >
+              {COPY.activity.pageTitle}
+            </Heading>
+          )}
+          {isConnected && (
+            <div className="flex items-center gap-4">
+              <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
+              <FilterDropdown
+                value={filter}
+                placeholder={COPY.activity.filterAll}
+                options={FILTER_OPTIONS}
+                onChange={setFilter}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <ActivityEmptyState

@@ -1,9 +1,31 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ActivityLog } from "../../../types/activityLog";
+import { COPY } from "@/copy";
+import type { ActivityLog } from "@/types/activityLog";
+
+const featureFlagsMock = vi.hoisted(() => ({
+  isV3UiEnabled: false,
+}));
+
+// Local override of the global `@/config` mock (src/test/setup.ts) — that
+// default doesn't export `FeatureFlags`, and `isV3UiEnabled` must be
+// flippable per test case. Same pattern as RootLayout.test.tsx.
+// `getBTCNetwork` is also required here: ActivityCard/LiquidationGroupCard
+// resolve explorer links via `@/utils/explorer`, which reads it off this
+// same barrel.
+vi.mock("@/config", () => ({
+  FeatureFlags: featureFlagsMock,
+  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getBTCNetwork: () => "signet",
+}));
+
 import { ActivityList } from "../ActivityList";
+
+beforeEach(() => {
+  featureFlagsMock.isV3UiEnabled = false;
+});
 
 const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   kind: "row",
@@ -160,6 +182,38 @@ describe("ActivityList", () => {
 
     expect(
       screen.getByText(/connect your wallet to view your activity/i),
+    ).toBeInTheDocument();
+  });
+
+  it("v3 UI + disconnected: renders no in-page heading and no avatar/filter row", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    renderList({ activities: [], isConnected: false });
+
+    expect(
+      screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /show all/i }),
+    ).not.toBeInTheDocument();
+    // The persistent app header owns the title in v3; the disconnected
+    // empty state below must still render on its own.
+    expect(
+      screen.getByText(/connect your wallet to view your activity/i),
+    ).toBeInTheDocument();
+  });
+
+  it("v3 UI + connected: renders no in-page heading but keeps the avatar and filter dropdown", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    const rows = [makeRow({ id: "a", type: "Deposit" })];
+    renderList({ activities: rows, isConnected: true });
+
+    expect(
+      screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByAltText("Aave")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /show all/i }),
     ).toBeInTheDocument();
   });
 });

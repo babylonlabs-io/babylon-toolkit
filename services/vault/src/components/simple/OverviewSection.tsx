@@ -20,6 +20,7 @@ import {
   type HealthFactorGaugeStat,
   HeartIcon,
 } from "@/components/shared";
+import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 
 interface OverviewSectionProps {
@@ -87,15 +88,17 @@ export function OverviewSection({
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex items-center justify-between">
-        <Heading
-          variant="h5"
-          as="h2"
-          className="font-normal text-accent-primary"
-        >
-          {COPY.overview.heading}
-        </Heading>
-      </div>
+      {!FeatureFlags.isV3UiEnabled && (
+        <div className="flex items-center justify-between">
+          <Heading
+            variant="h5"
+            as="h2"
+            className="font-normal text-accent-primary"
+          >
+            {COPY.overview.heading}
+          </Heading>
+        </div>
+      )}
 
       <div className="w-full rounded-2xl bg-secondary-highlight p-6">
         <div className="space-y-4">
