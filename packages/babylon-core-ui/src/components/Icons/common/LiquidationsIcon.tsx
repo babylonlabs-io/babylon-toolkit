@@ -3,32 +3,23 @@ interface LiquidationsIconProps {
   className?: string;
 }
 
-// TODO(#2015): replace with the exact Figma nav-icon geometry
-// (https://www.figma.com/design/NgDfn7fVnkQZP0XH9Uki63/TBV-v.3--Premium-Design-?node-id=10084-22951).
-export function LiquidationsIcon({ size = 20, className }: LiquidationsIconProps) {
+// Exact geometry from Figma Sidebar node 10084:23112 (WaterfallChartOutlined).
+// Figma insets this glyph within the 24px slot: 12.5% (3px) left/right,
+// 16.67% (4px) top/bottom.
+export function LiquidationsIcon({ size = 24, className }: LiquidationsIconProps) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 20 20"
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       className={className}
     >
-      <path
-        d="M10 3.5 17 16H3L10 3.5Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10 8.5v3.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <circle cx="10" cy="14" r="0.9" fill="currentColor" />
+      <g transform="translate(3, 4)">
+        <path d="M15 0H18V16H15V0ZM0 9H3V16H0V9ZM11 0H14V3H11V0ZM7 1H10V5H7V1ZM4 6H7V10H4V6Z" fill="currentColor" />
+      </g>
     </svg>
   );
 }
