@@ -25,7 +25,11 @@ import {
   type RunConfig,
   type Target,
 } from "./config";
-import { fetchMinDepositBtc, fetchProviders } from "./peginParams";
+import {
+  fetchMinDepositBtc,
+  fetchMinDepositForSplitBtc,
+  fetchProviders,
+} from "./peginParams";
 import { runE2E } from "./run";
 
 const MS_PER_SECOND = 1000;
@@ -240,6 +244,22 @@ async function resolveConfig(
     // Pegin extras. A flag always wins; otherwise, for the pegin action, fetch the network's real
     // values (like the balance pre-flight) and offer them as defaults — amount ⇒ protocol minimum,
     // provider ⇒ first available — prompting interactively when there's a TTY.
+
+    // Split (pegin only): `--split` wins; else prompt (default = single vault). Resolved first because
+    // the deposit minimum depends on it — a two-vault split needs a larger deposit than a single vault.
+    let split = false;
+    if (action === "pegin") {
+      if (flags.split !== undefined) {
+        split = flagBool(flags.split);
+      } else if (interactive) {
+        split =
+          (await select<"single" | "split">(rl, "Deposit type", [
+            { value: "single", label: "Single-vault deposit" },
+            { value: "split", label: "Two-vault split deposit" },
+          ])) === "split";
+      }
+    }
+
     let peginAmountBtc =
       typeof flags.amount === "string" ? flags.amount : undefined;
     if (peginAmountBtc !== undefined) {
@@ -252,19 +272,22 @@ async function resolveConfig(
     let peginProvider = typeof flags.vp === "string" ? flags.vp : undefined;
 
     if (action === "pegin") {
-      // Amount: default to the fetched protocol minimum for this network (unless --amount given).
+      // The deposit minimum depends on the deposit type: the single-vault protocol minimum, or the
+      // (larger) two-vault split minimum computed from Aave risk params + the SDK split math.
+      const fetchMin = split ? fetchMinDepositForSplitBtc : fetchMinDepositBtc;
+      const minLabel = split ? "two-vault split minimum" : "protocol minimum";
+
+      // Amount: default to the fetched minimum for this network + deposit type (unless --amount given).
       if (peginAmountBtc === undefined) {
-        const minBtc = await fetchMinDepositBtc(network).catch((error) => {
+        const minBtc = await fetchMin(network).catch((error) => {
           // eslint-disable-next-line no-console
           console.warn(
-            `\nCould not fetch the minimum deposit (${error instanceof Error ? error.message : error}); the run will fall back to the form's minimum.`,
+            `\nCould not fetch the ${minLabel} (${error instanceof Error ? error.message : error}); the run will fall back to the form's minimum.`,
           );
           return undefined;
         });
         if (interactive) {
-          const hint = minBtc
-            ? `${minBtc} = protocol minimum`
-            : "protocol minimum";
+          const hint = minBtc ? `${minBtc} = ${minLabel}` : minLabel;
           const raw = (
             await rl.question(`\nPegin amount in BTC [${hint}]: `)
           ).trim();
@@ -272,6 +295,16 @@ async function resolveConfig(
         } else {
           peginAmountBtc = minBtc; // non-interactive: use the fetched minimum
         }
+      } else if (split) {
+        // --amount was given with --split: guard it against the fetched split minimum before launching
+        // the browser (the form is the ultimate gate; this is a fast, actionable pre-flight fail).
+        const minBtc = await fetchMinDepositForSplitBtc(network).catch(
+          () => undefined,
+        );
+        if (minBtc !== undefined && Number(peginAmountBtc) < Number(minBtc))
+          throw new Error(
+            `--amount ${peginAmountBtc} is below the two-vault split minimum ${minBtc} sBTC for ${network}. Increase --amount to at least ${minBtc}, or drop --split.`,
+          );
       }
 
       // Provider: interactive menu from the live list (default = first available); --vp overrides.
@@ -307,6 +340,7 @@ async function resolveConfig(
       delayMs,
       peginAmountBtc,
       peginProvider,
+      split,
       fixturesPath,
     };
   } finally {

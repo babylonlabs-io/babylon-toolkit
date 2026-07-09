@@ -6,9 +6,15 @@
  *   - DAPP actions (this file drives them on `ctx.page`): open the deposit form, enter the amount,
  *     select a vault provider, submit, click "Sign Transaction" to start signing, then — mid-flow —
  *     acknowledge + "Activate Vault", "Skip" the artifact download, and finally "Go to Dashboard".
- *   - WALLET actions (the shared pop-up approver handles them on the chrome-extension pop-ups): the 8
- *     UniSat BTC signing prompts and the 2 MetaMask ETH transactions. The approver is installed for
+ *   - WALLET actions (the shared pop-up approver handles them on the chrome-extension pop-ups): the
+ *     UniSat BTC signing prompts and the MetaMask ETH transactions. The approver is installed for
  *     the WHOLE run (unlike observe, which uninstalls it) so every pop-up auto-approves.
+ *
+ * With `--split` (`ctx.config.split`) the same flow runs a TWO-VAULT split deposit: the form's
+ * "Two-vault split" option is selected (one provider, two HTLC outputs), and from the per-vault phase
+ * the progress view fans into two columns — so there are more signing pop-ups and TWO Activate-Vault
+ * ETH txs. The step machine handles both (the approver + re-armed Activate/Skip gates), and finishes
+ * only when both columns reach the shared activated view.
  *
  * The 15-step machine is walked by AWAITING UI transitions (the `role="progressbar"` and the active
  * step's `aria-label="Step N active"`), never fixed sleeps, and tolerates the multi-minute on-chain
@@ -33,6 +39,7 @@ import {
   PEGIN_POLL_INTERVAL_MS,
   PEGIN_STEP_MACHINE_BUDGET_MS,
   PROVIDER_LIST_TIMEOUT_MS,
+  SPLIT_ALLOCATION_TIMEOUT_MS,
   STEP_TIMEOUT_MS,
 } from "../timing";
 
@@ -50,7 +57,20 @@ const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
 const SIGN_TRANSACTION_LABEL = "Sign Transaction"; // COPY.deposit.progress.buttons.signTransaction
-const ACTIVATE_VAULT_LABEL = "Activate Vault"; // COPY.deposit.activateConfirmation.activateButton
+// The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
+// tolerant-text fallback: the button copy drifts (COPY.deposit.activateConfirmation.activateButton
+// renders "Activate vault", lowercase v — an exact string silently stalled the run here), and the
+// data-testid isn't on the deployed build until it ships, so the fallback carries the current build.
+const ACTIVATE_VAULT_TESTID = '[data-testid="activate-vault-button"]';
+const ACTIVATE_VAULT_RX = /activate vault/i; // COPY.deposit.activateConfirmation.activateButton
+
+/** The activation modal's confirm button — testid if present (future-proof), else tolerant wording. */
+function activateButton(page: Page): Locator {
+  return page
+    .locator(ACTIVATE_VAULT_TESTID)
+    .or(page.getByRole("button", { name: ACTIVATE_VAULT_RX }))
+    .first();
+}
 const RISK_ACK_LABEL =
   "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
 const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
@@ -61,6 +81,11 @@ const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
 const GO_TO_DASHBOARD_RX = /go to dashboard/i; // COPY.deposit.vaultActivatedSuccess.goToDashboard
 const VAULT_OPTIONS_RX = /vault options/i; // CollateralSection ExpandMenuButton aria-label ("[BTC ]Vault options")
 const VAULT_CARD_TESTID = '[data-testid="vault-card"]'; // CollateralVaultItem VaultCardShell (stable testid)
+// Two-vault split: the UtxoSplitSelector is an Accordion with NO testids (rows are `role="button"`
+// divs), so it's driven by role + visible text. The selector header shows "Do not split" while
+// single-vault (the default) and relabels to the split option once enabled.
+const DO_NOT_SPLIT_TEXT = "Do not split"; // COPY.deposit.form.doNotSplit
+const TWO_VAULT_SPLIT_RX = /Two-vault split/; // COPY.deposit.form.splitOptionLabel / TWO_VAULT_SPLIT_NAME
 
 /**
  * Fill the deposit form (amount → provider → submit). The form has almost no testids, so selectors
@@ -72,9 +97,10 @@ async function fillDepositForm(
   log: (m: string) => void,
   amountBtc: string,
   provider: string | undefined,
+  split: boolean,
 ): Promise<void> {
   log(
-    `Opening deposit form (amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
+    `Opening deposit form (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
   );
   await page
     .locator(DEPOSIT_BUTTON_TESTID)
@@ -86,11 +112,83 @@ async function fillDepositForm(
   await amount.fill(amountBtc);
   await page.waitForTimeout(FORM_SETTLE_MS);
 
+  if (split) await enableTwoVaultSplit(page, log, amountBtc);
+
   await selectVaultProvider(page, log, provider);
 
   const cta = await waitForDepositCta(page, log);
   log("Deposit CTA enabled — submitting the form");
   await cta.click();
+}
+
+/**
+ * Switch the deposit into a two-vault split. Expand the `UtxoSplitSelector` (its header shows the
+ * current choice — "Do not split" while single-vault), wait for the "Two-vault split" row to leave its
+ * `aria-disabled` state (it stays disabled while the allocation computes and whenever the amount is
+ * below the split minimum), then select it. If it never enables, the amount is below the form's split
+ * minimum — surface the form's own `role="status"` threshold hint and fail loudly rather than silently
+ * fall back to a single vault (real funds; never guess an amount).
+ */
+async function enableTwoVaultSplit(
+  page: Page,
+  log: (m: string) => void,
+  amountBtc: string,
+): Promise<void> {
+  log("Enabling two-vault split");
+  const splitRow = page
+    .getByRole("button", { name: TWO_VAULT_SPLIT_RX })
+    .first();
+
+  // Expand the selector if the option rows aren't visible yet (collapsed header shows "Do not split").
+  if (!(await splitRow.isVisible().catch(() => false))) {
+    const header = page
+      .getByRole("button", { name: DO_NOT_SPLIT_TEXT })
+      .first();
+    if (await header.isVisible().catch(() => false))
+      await header.click().catch(() => {});
+  }
+  await splitRow.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+
+  // Poll for the row to leave aria-disabled (allocation resolved AND amount clears the split minimum).
+  const deadline = Date.now() + SPLIT_ALLOCATION_TIMEOUT_MS;
+  let disabled = await splitRow.getAttribute("aria-disabled").catch(() => null);
+  while (disabled === "true" && Date.now() < deadline) {
+    await page.waitForTimeout(FORM_SETTLE_MS);
+    disabled = await splitRow.getAttribute("aria-disabled").catch(() => null);
+  }
+  if (disabled === "true") {
+    const hint = (
+      await page
+        .getByRole("status")
+        .first()
+        .innerText()
+        .catch(() => "")
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    throw new Error(
+      `Two-vault split stayed unavailable for ${amountBtc} sBTC — the form keeps it disabled${hint ? ` ("${hint}")` : ""}. Increase --amount above the split minimum.`,
+    );
+  }
+
+  await splitRow.click();
+  await page.waitForTimeout(FORM_SETTLE_MS);
+
+  // Confirm the split took: the selector header relabels to the split option ("Two-vault split - <ratio>").
+  const selectedLabel = (
+    await page
+      .getByRole("button", { name: TWO_VAULT_SPLIT_RX })
+      .first()
+      .innerText()
+      .catch(() => "")
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  log(
+    selectedLabel
+      ? `Two-vault split selected: "${selectedLabel}"`
+      : "⚠️ Clicked the two-vault split row but could not confirm the split label.",
+  );
 }
 
 /**
@@ -195,9 +293,7 @@ async function handleActivateConfirmation(
   page: Page,
   log: (m: string) => void,
 ): Promise<boolean> {
-  const activate = page
-    .getByRole("button", { name: ACTIVATE_VAULT_LABEL, exact: true })
-    .first();
+  const activate = activateButton(page);
   if (!(await activate.isVisible().catch(() => false))) return false;
 
   const checkbox = page.locator('[data-testid="checkbox-input"]').first();
@@ -257,14 +353,28 @@ async function readPrePeginTxid(page: Page): Promise<string | undefined> {
   return undefined;
 }
 
-/** Read the active step for the run log: "Step N active (P%)" from the stepper + progress bar. */
+/**
+ * Read the active step(s) for the run log: "Step N active (P%)" from the stepper + progress bar. In a
+ * two-vault split the progress view shows two per-vault columns, each emitting its own
+ * `aria-label="Step N active"` (the columns carry no distinguishing testid), so we collect ALL active
+ * labels — the two lanes advance independently and may sit on different steps. The single progressbar
+ * reflects the aggregate (slowest lane).
+ */
 async function readActiveStep(page: Page): Promise<string> {
-  const active = page.locator('[aria-label$="active"]').first();
-  const label = await active.getAttribute("aria-label").catch(() => null);
+  const actives = page.locator('[aria-label$="active"]');
+  const count = await actives.count().catch(() => 0);
+  const labels: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const label = await actives
+      .nth(i)
+      .getAttribute("aria-label")
+      .catch(() => null);
+    if (label && !labels.includes(label)) labels.push(label);
+  }
   const bar = page.locator('[role="progressbar"]').first();
   const percent = await bar.getAttribute("aria-valuenow").catch(() => null);
-  if (!label && percent === null) return "";
-  return `${label ?? "Step ?"} (${percent ?? "?"}%)`;
+  if (labels.length === 0 && percent === null) return "";
+  return `${labels.length ? labels.join(", ") : "Step ?"} (${percent ?? "?"}%)`;
 }
 
 /**
@@ -286,8 +396,12 @@ async function walkStepMachine(
 ): Promise<string | undefined> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
   let lastStep = "";
-  let activated = false;
-  let skipped = false;
+  // Per-appearance guards (NOT one-shot): a two-vault split has TWO activations, so the Activate modal
+  // and the artifact-Skip callout can each appear twice. We click once per appearance and re-arm when
+  // the control disappears — handling both vaults without double-clicking a single modal (which could
+  // fire a duplicate ETH tx).
+  let activateClickedThisModal = false;
+  let skipClickedThisCallout = false;
   let prePeginTxid: string | undefined;
 
   while (Date.now() < deadline) {
@@ -296,9 +410,28 @@ async function walkStepMachine(
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
 
-    // Two dapp-page interactions the wallet pop-up approver can't perform.
-    if (!activated) activated = await handleActivateConfirmation(page, log);
-    if (activated && !skipped) skipped = await handleArtifactSkip(page, log);
+    // Two dapp-page interactions the wallet pop-up approver can't perform, each re-armed per appearance.
+    const activateVisible = await activateButton(page)
+      .isVisible()
+      .catch(() => false);
+    if (activateVisible) {
+      if (!activateClickedThisModal)
+        activateClickedThisModal = await handleActivateConfirmation(page, log);
+    } else {
+      activateClickedThisModal = false;
+    }
+
+    const skipVisible = await page
+      .getByRole("button", { name: SKIP_LABEL, exact: true })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (skipVisible) {
+      if (!skipClickedThisCallout)
+        skipClickedThisCallout = await handleArtifactSkip(page, log);
+    } else {
+      skipClickedThisCallout = false;
+    }
 
     // Capture the Pre-PegIn txid once, the first tick the progress view links it.
     if (!prePeginTxid) {
@@ -331,6 +464,7 @@ async function assertActivatedAndOnDashboard(
   log: (m: string) => void,
   amountBtc: string,
   prePeginTxid: string | undefined,
+  expectedVaults: number,
 ): Promise<void> {
   log("✅ Activated view reached — clicking Go to Dashboard");
   await page
@@ -366,6 +500,40 @@ async function assertActivatedAndOnDashboard(
       .first()
       .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
       .catch(() => {});
+  }
+
+  // Two-vault split: both fresh cards share THIS run's single (batched) Pre-PegIn txid, and each shows
+  // its own split sub-amount (not the full requested amount), so the single-vault amount cross-check
+  // below doesn't apply. The indexer commonly lags a just-activated vault's tx-hash row, so a miss here
+  // is logged (not failed) — the activated view we came from is the real signal that BOTH vaults
+  // activated (its "Go to Dashboard" only appears once every lane completes).
+  if (expectedVaults > 1) {
+    // Both fresh split cards share this run's Pre-PegIn txid, but the indexer commonly lags a
+    // just-activated vault's tx-hash row — so poll (bounded) for both cards to link the txid rather
+    // than snapshotting once and warning on a transient 1/2.
+    const matchingCards = () =>
+      prePeginTxid
+        ? cards
+            .filter({ has: page.locator(`a[href*="${prePeginTxid}"]`) })
+            .count()
+            .catch(() => 0)
+        : Promise.resolve(0);
+    let matched = await matchingCards();
+    const deadline = Date.now() + DASHBOARD_VAULT_TIMEOUT_MS;
+    while (matched < expectedVaults && Date.now() < deadline) {
+      await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
+      matched = await matchingCards();
+    }
+    const total = await cards.count().catch(() => 0);
+    if (matched >= expectedVaults)
+      log(
+        `Dashboard shows ${matched} split vaults for this run (matched by Pre-PegIn txid ${prePeginTxid?.slice(0, 8)}…).`,
+      );
+    else
+      log(
+        `⚠️ Dashboard matched ${matched}/${expectedVaults} split vaults by Pre-PegIn txid within the wait (${total} cards total) — activation succeeded; the indexer may still be catching up to the fresh vaults' tx-hash rows.`,
+      );
+    return;
   }
 
   // A returning depositor's dashboard lists several vault cards, so `.first()` is not necessarily the
@@ -424,6 +592,7 @@ export const peginAction: Action = {
         "pegin: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>, or against a reachable network.",
       );
     const provider = ctx.config.peginProvider?.trim() || undefined;
+    const split = ctx.config.split ?? false;
 
     // Approver stays installed for the whole run (auto-approves every wallet pop-up).
     const handler = installPopupApprover(context, log);
@@ -441,7 +610,7 @@ export const peginAction: Action = {
       await connectWallets(ctx);
 
       currentStep = "deposit-form";
-      await fillDepositForm(page, log, amountBtc, provider);
+      await fillDepositForm(page, log, amountBtc, provider, split);
 
       currentStep = "sign-transaction";
       await startSigning(page, log);
@@ -452,8 +621,16 @@ export const peginAction: Action = {
       });
 
       currentStep = "finish";
-      await assertActivatedAndOnDashboard(page, log, amountBtc, prePeginTxid);
-      log("✅ Pegin complete: BTC Vault activated and shown on the dashboard.");
+      await assertActivatedAndOnDashboard(
+        page,
+        log,
+        amountBtc,
+        prePeginTxid,
+        split ? 2 : 1,
+      );
+      log(
+        `✅ Pegin complete: ${split ? "two BTC Vaults" : "BTC Vault"} activated and shown on the dashboard.`,
+      );
     } finally {
       await recorder.stop();
       context.off("page", handler);
