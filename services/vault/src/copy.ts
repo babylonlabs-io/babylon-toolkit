@@ -1096,6 +1096,8 @@ export const COPY = {
     activity: "Activity",
     liquidations: "Liquidations",
     explore: "Explore",
+    termsOfUse: "Terms of Use",
+    privacyPolicy: "Privacy Policy",
   },
   overview: {
     heading: "Overview",

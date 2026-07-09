@@ -3,26 +3,23 @@ interface LoansIconProps {
   className?: string;
 }
 
-// TODO(#2015): replace with the exact Figma nav-icon geometry
-// (https://www.figma.com/design/NgDfn7fVnkQZP0XH9Uki63/TBV-v.3--Premium-Design-?node-id=10084-22951).
-export function LoansIcon({ size = 20, className }: LoansIconProps) {
+// Exact geometry from Figma Sidebar node 10084:23112 (AttachMoneyOutlined).
+// Figma insets this glyph asymmetrically within the 24px slot
+// (top/bottom 12.5% = 3px, left 26.33% = ~6.32px, right 31.25% = 7.5px).
+export function LoansIcon({ size = 24, className }: LoansIconProps) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 20 20"
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       className={className}
     >
-      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M10 6.5v7M12.25 8.25c0-.97-1.007-1.75-2.25-1.75s-2.25.78-2.25 1.75.879 1.35 2.25 1.5c1.371.15 2.25.53 2.25 1.5S11.243 13.25 10 13.25s-2.25-.78-2.25-1.75"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+      <g transform="translate(6.32, 3)">
+        <path d="M5.48 7.9C3.21 7.31 2.48 6.7 2.48 5.75C2.48 4.66 3.49 3.9 5.18 3.9C6.96 3.9 7.62 4.75 7.68 6H9.89C9.82 4.28 8.77 2.7 6.68 2.19V0H3.68V2.16C1.74 2.58 0.18 3.84 0.18 5.77C0.18 8.08 2.09 9.23 4.88 9.9C7.38 10.5 7.88 11.38 7.88 12.31C7.88 13 7.39 14.1 5.18 14.1C3.12 14.1 2.31 13.18 2.2 12H0C0.12 14.19 1.76 15.42 3.68 15.83V18H6.68V15.85C8.63 15.48 10.18 14.35 10.18 12.3C10.18 9.46 7.75 8.49 5.48 7.9Z" fill="currentColor" />
+      </g>
     </svg>
   );
 }
