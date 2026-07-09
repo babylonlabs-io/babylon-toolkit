@@ -132,6 +132,8 @@ export interface RunConfig {
   peginAmountBtc?: string;
   /** Pegin only: vault provider name to select (`--vp`); defaults to the first available. */
   peginProvider?: string;
+  /** Pegin only: run a two-vault (split) deposit (`--split`) instead of a single vault. */
+  split?: boolean;
   /** Sign-conformance only: path to a `signing.jsonl` (`--fixtures`); defaults to the newest pegin's. */
   fixturesPath?: string;
 }

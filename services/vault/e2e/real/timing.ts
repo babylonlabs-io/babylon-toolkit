@@ -35,6 +35,13 @@ export const PROVIDER_LIST_TIMEOUT_MS = 15_000;
  * inscription check complete, so this must outlast those async passes.
  */
 export const DEPOSIT_CTA_ENABLE_TIMEOUT_MS = 90_000;
+/**
+ * The two-vault split option to become selectable after entering a split-eligible amount: the form
+ * fetches Aave risk params + runs the allocation ("Computing allocation…") before the "Two-vault split"
+ * row flips from `aria-disabled` to enabled. Generous so a slow risk-param fetch isn't mistaken for a
+ * too-low amount (which is a hard fail).
+ */
+export const SPLIT_ALLOCATION_TIMEOUT_MS = 30_000;
 
 // ── pegin: step machine ──────────────────────────────────────────────────────
 /**

@@ -194,6 +194,7 @@ export function ActivateConfirmationModal({
           className="h-10 flex-1"
           onClick={onConfirm}
           disabled={!canActivate}
+          data-testid="activate-vault-button"
         >
           {COPY.deposit.activateConfirmation.activateButton}
         </Button>

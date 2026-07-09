@@ -17,16 +17,39 @@ import {
   resolveProtocolAddresses,
   ViemProtocolParamsReader,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  AaveIntegrationAdapterABI,
+  BPS_SCALE,
+  computeMinDepositForSplit,
+  computeSeizedFraction,
+  getDynamicReserveConfig,
+  getReserve,
+  getTargetHealthFactor,
+  wadToNumber,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql, GraphQLClient } from "graphql-request";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, http, type Address } from "viem";
+import {
+  createPublicClient,
+  http,
+  type Address,
+  type PublicClient,
+} from "viem";
 import { sepolia } from "viem/chains";
 import { loadEnv } from "vite";
 
 import { NETWORKS, type NetworkName } from "./config";
 
 const SATS_PER_BTC = 100_000_000n;
+
+// Two-vault split risk constants — mirror `services/vault/src/applications/aave/constants.ts`
+// (EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION, VAULT_SPLIT_SAFETY_MARGIN). They feed the SDK split math
+// exactly as the app's `useOptimalSplit` does, so the fetched split minimum matches the form.
+const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
+const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
+/** The immutable Core Spoke getter on the AaveIntegrationAdapter (read on-chain, never trusted from GraphQL). */
+const CORE_SPOKE_FN = "BTC_VAULT_CORE_SPOKE";
 
 /** The vault service root (holds .env / .env.local / .env.dev-testnet), relative to this file. */
 const VAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -97,19 +120,119 @@ function satsToBtc(sats: bigint): string {
   return `${whole}.${fracStr}`;
 }
 
+/** A Sepolia public client for the network's ETH RPC (the same reads the app performs). */
+function createEthClient(ethRpcUrl: string): PublicClient {
+  return createPublicClient({
+    chain: sepolia,
+    transport: http(ethRpcUrl),
+  }) as PublicClient;
+}
+
+/**
+ * Read the peg-in configuration from the ProtocolParams contract via the SDK reader (addresses
+ * resolved off the network's BTCVaultRegistry) — identical to the app's `getPegInConfiguration()`.
+ * Shared by the single-vault minimum and the two-vault split minimum so neither can drift.
+ */
+async function getPegInConfig(client: PublicClient, registry: Address) {
+  const addresses = await resolveProtocolAddresses(client, registry);
+  const reader = new ViemProtocolParamsReader(client, addresses.protocolParams);
+  return reader.getPegInConfiguration();
+}
+
 /** Fetch the protocol minimum pegin amount for `network`, formatted as a BTC string. */
 export async function fetchMinDepositBtc(
   network: NetworkName,
 ): Promise<string> {
   const { registry, ethRpcUrl } = resolveNetworkContracts(network);
-  const client = createPublicClient({
-    chain: sepolia,
-    transport: http(ethRpcUrl),
-  });
-  const addresses = await resolveProtocolAddresses(client, registry);
-  const reader = new ViemProtocolParamsReader(client, addresses.protocolParams);
-  const config = await reader.getPegInConfiguration();
+  const client = createEthClient(ethRpcUrl);
+  const config = await getPegInConfig(client, registry);
   return satsToBtc(config.minimumPegInAmount);
+}
+
+const GET_VBTC_RESERVE_ID = gql`
+  query GetVaultBtcReserveId {
+    aaveConfig(id: 1) {
+      vaultBtcReserveId
+    }
+  }
+`;
+
+interface VbtcReserveIdResponse {
+  aaveConfig: { vaultBtcReserveId: string } | null;
+}
+
+/**
+ * Fetch the minimum deposit required to enable a TWO-VAULT split for `network`, formatted as a BTC
+ * string — the same value the deposit form shows in its "increase your deposit to at least X sBTC"
+ * hint. This is NOT a plain protocol param: it mirrors the app's `useOptimalSplit` / `useVaultSplitParams`
+ * chain — `minPegin` from ProtocolParams, plus the Aave Core Spoke risk params (THF/CF/LB) — fed through
+ * the SDK's `computeSeizedFraction` + `computeMinDepositForSplit` (the frozen split math is NOT
+ * reimplemented). It uses the reserve's current `dynamicConfigKey` (the no-position baseline), so a
+ * depositor with an existing position opened under a since-rotated config may see a slightly different
+ * threshold. Treat the result as a best-effort ESTIMATE for defaults/warnings — NEVER a hard gate: the
+ * live deposit form (read by the pegin action's split selector) is the authoritative, position-aware
+ * minimum and is what actually blocks a too-low split.
+ */
+export async function fetchMinDepositForSplitBtc(
+  network: NetworkName,
+): Promise<string> {
+  const { registry, appController, graphqlEndpoint, ethRpcUrl } =
+    resolveNetworkContracts(network);
+  const client = createEthClient(ethRpcUrl);
+
+  // Single-vault minimum (minPegin) — the same read fetchMinDepositBtc uses.
+  const peginConfig = await getPegInConfig(client, registry);
+  const minPegin = peginConfig.minimumPegInAmount;
+
+  // Resolve the Core Spoke on-chain from the env-pinned adapter (mirrors the app's getCoreSpokeAddress —
+  // never trust a GraphQL-supplied spoke), and the vBTC reserve id from the indexer's singleton config.
+  const spokeAddress = (await client.readContract({
+    address: appController as Address,
+    abi: AaveIntegrationAdapterABI,
+    functionName: CORE_SPOKE_FN,
+    args: [],
+  })) as Address;
+
+  const gqlClient = new GraphQLClient(graphqlEndpoint);
+  const { aaveConfig } =
+    await gqlClient.request<VbtcReserveIdResponse>(GET_VBTC_RESERVE_ID);
+  if (!aaveConfig)
+    throw new Error(
+      `No aaveConfig from the indexer at ${graphqlEndpoint} — cannot resolve the vBTC reserve id for the split minimum.`,
+    );
+  const reserveId = BigInt(aaveConfig.vaultBtcReserveId);
+
+  // Aave risk params from the spoke, using the reserve's current dynamicConfigKey (no-position baseline).
+  const { dynamicConfigKey } = await getReserve(
+    client,
+    spokeAddress,
+    reserveId,
+  );
+  const [thfWad, dynamicConfig] = await Promise.all([
+    getTargetHealthFactor(client, spokeAddress),
+    getDynamicReserveConfig(client, spokeAddress, reserveId, dynamicConfigKey),
+  ]);
+  const THF = wadToNumber(thfWad);
+  const CF = Number(dynamicConfig.collateralFactor) / BPS_SCALE;
+  const LB = Number(dynamicConfig.maxLiquidationBonus) / BPS_SCALE;
+
+  // SDK split math, identical to useOptimalSplit: seized fraction → minimum deposit for a split.
+  const seizedFraction = computeSeizedFraction(
+    CF,
+    LB,
+    THF,
+    EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  );
+  const minSplitSats = computeMinDepositForSplit({
+    minPegin,
+    seizedFraction,
+    safetyMargin: VAULT_SPLIT_SAFETY_MARGIN,
+  });
+  if (minSplitSats <= 0n)
+    throw new Error(
+      `Computed split minimum is ${minSplitSats} sats (seizedFraction ${seizedFraction}, CF ${CF}, LB ${LB}, THF ${THF}) — two-vault split is not available for this reserve.`,
+    );
+  return satsToBtc(minSplitSats);
 }
 
 const GET_APP_PROVIDERS = gql`
