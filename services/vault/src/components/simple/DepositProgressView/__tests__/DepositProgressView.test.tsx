@@ -14,6 +14,14 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
   ),
 }));
 
+// DepositCardShell derives the header estimate from the on-chain confirmation
+// depth; the estimate itself is covered in DepositCardShell.test.tsx.
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: () => ({
+    config: { offchainParams: { minPrepeginDepth: 6 } },
+  }),
+}));
+
 // DepositProgressView self-sources the BTC wallet-lock state to render its
 // unlock notice and pre-sign unlock CTA. Drive it through a mutable mock;
 // default unlocked.

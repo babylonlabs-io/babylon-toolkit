@@ -21,7 +21,10 @@ import { Heading, Text } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 import { COPY } from "@/copy";
+import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
+import { formatDurationShort } from "@/utils/formatting";
 
+import { computeTotalEstimateMinutes } from "./btcConfirmationProgress";
 import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./layout";
 
 interface DepositCardShellProps {
@@ -45,6 +48,12 @@ interface DepositCardShellProps {
    * do-not-spend warning shown while the deposit is in flight.
    */
   footnote?: ReactNode;
+  /**
+   * The deposit's registered offchain-params version, so the header estimate
+   * uses the same pinned confirmation depth the flow actually gates on.
+   * Omitted pre-sign, where no version is registered yet → latest params.
+   */
+  offchainParamsVersion?: number;
 }
 
 export function DepositCardShell({
@@ -52,7 +61,11 @@ export function DepositCardShell({
   footer,
   progressBar,
   footnote,
+  offchainParamsVersion,
 }: DepositCardShellProps) {
+  const requiredDepth = useRequiredPrePeginDepth(offchainParamsVersion);
+  const estimateMinutes = computeTotalEstimateMinutes(requiredDepth);
+
   return (
     <div
       // Cap the card height to the viewport and lay it out as a column so the
@@ -64,7 +77,11 @@ export function DepositCardShell({
         <Heading variant="h5" className="text-accent-primary">
           {COPY.deposit.progress.heading}{" "}
           <Text as="span" variant="body1" className="text-accent-secondary">
-            ({COPY.deposit.progress.summary.estimate})
+            (
+            {COPY.deposit.progress.summary.estimate(
+              formatDurationShort(estimateMinutes),
+            )}
+            )
           </Text>
         </Heading>
 

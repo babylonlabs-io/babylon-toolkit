@@ -3,9 +3,9 @@ import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import {
   getPeginDisplayStep,
@@ -52,6 +52,7 @@ function StatusView({
   vaultCount = 1,
   currentVaultIndex = null,
   perVaultSteps,
+  offchainParamsVersion,
 }: {
   currentStep: DepositFlowStep;
   onClose: () => void;
@@ -64,6 +65,7 @@ function StatusView({
   vaultCount?: number;
   currentVaultIndex?: number | null;
   perVaultSteps?: DepositFlowStep[];
+  offchainParamsVersion?: number;
 }) {
   return (
     <DepositProgressView
@@ -81,6 +83,7 @@ function StatusView({
       onClose={onClose}
       successMessage={successMessage}
       btcConfirmationDetail={btcConfirmationDetail}
+      offchainParamsVersion={offchainParamsVersion}
     />
   );
 }
@@ -93,7 +96,6 @@ export function PostDepositContinuationView({
   onClose,
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
-  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
   const navigate = useNavigate();
 
   const handleGoToDashboard = useCallback(() => {
@@ -161,6 +163,11 @@ export function PostDepositContinuationView({
 
   // Hoisted above the early returns to satisfy Rules of Hooks. When no
   // vault is selected, showBtcDepthPanel is false and the hook no-ops.
+  // requiredDepth pinned to the deposit's registered offchain-params version
+  // (matches PeginPollingContext.getRequiredPrePeginDepth).
+  const requiredDepth = useRequiredPrePeginDepth(
+    activity?.offchainParamsVersion,
+  );
   const peginState = pollingResult?.peginState;
   const waitStep = peginState
     ? (getPeginDisplayStep(peginState) ?? DepositFlowStep.ACTIVATE_VAULT)
@@ -331,13 +338,6 @@ export function PostDepositContinuationView({
     );
   }
 
-  // requiredDepth pinned to the deposit's registered offchain-params version
-  // (matches PeginPollingContext.getRequiredPrePeginDepth).
-  const requiredDepth =
-    (activity?.offchainParamsVersion !== undefined
-      ? getOffchainParamsByVersion(activity.offchainParamsVersion)
-          ?.minPrepeginDepth
-      : undefined) ?? config.offchainParams.minPrepeginDepth;
   const btcConfirmationDetail: BtcConfirmationDetailData | null =
     showBtcDepthPanel && activity?.prePeginTxHash
       ? {
@@ -368,6 +368,7 @@ export function PostDepositContinuationView({
       canContinueInBackground
       onClose={onClose}
       btcConfirmationDetail={btcConfirmationDetail}
+      offchainParamsVersion={activity?.offchainParamsVersion}
     />
   );
 }

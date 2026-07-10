@@ -332,6 +332,25 @@ export function formatDuration(totalMinutes: number): string {
   return pluralizeUnit(Math.round(totalMinutes / MINS_PER_DAY), "day");
 }
 
+/** Below this (after rounding), a short duration reads better in minutes. */
+const SHORT_DURATION_HOURS_FROM_MINS = 90;
+/** Minute estimates snap to 5-minute steps; hour estimates to half hours. */
+const SHORT_DURATION_MINUTE_STEP = 5;
+const SHORT_DURATION_HALF_HOUR_MINS = 30;
+
+/** Compact approximate duration for headline estimates: "70 min", "1.5 h",
+ *  "2 h". Rounds to 5-minute steps under 90 minutes, half hours above. */
+export function formatDurationShort(totalMinutes: number): string {
+  const roundedMinutes =
+    Math.round(totalMinutes / SHORT_DURATION_MINUTE_STEP) *
+    SHORT_DURATION_MINUTE_STEP;
+  if (roundedMinutes < SHORT_DURATION_HOURS_FROM_MINS) {
+    return `${roundedMinutes} min`;
+  }
+  const halfHours = Math.round(totalMinutes / SHORT_DURATION_HALF_HOUR_MINS);
+  return `${halfHours / 2} h`;
+}
+
 /**
  * Format a 1-based position as an ordinal string (1st, 2nd, 3rd, 4th, etc.)
  * @param n - 1-based position number

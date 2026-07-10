@@ -15,6 +15,7 @@ import {
   formatCompactUsd,
   formatDateTime,
   formatDuration,
+  formatDurationShort,
   formatLiquidationDistancePercent,
   formatLLTV,
   formatOrdinal,
@@ -496,6 +497,21 @@ describe("Formatting Utilities", () => {
 
     it("formats a 91-block assert timelock (~15h) in hours", () => {
       expect(formatDuration(91 * 10)).toBe("15 hours");
+    });
+  });
+
+  describe("formatDurationShort", () => {
+    it("rounds sub-90-minute durations to 5-minute steps", () => {
+      expect(formatDurationShort(30)).toBe("30 min");
+      expect(formatDurationShort(68)).toBe("70 min");
+      expect(formatDurationShort(84)).toBe("85 min");
+    });
+
+    it("switches to half-hour-rounded hours from 90 minutes", () => {
+      expect(formatDurationShort(89)).toBe("1.5 h"); // rounds to 90 → hours
+      expect(formatDurationShort(100)).toBe("1.5 h");
+      expect(formatDurationShort(130)).toBe("2 h");
+      expect(formatDurationShort(170)).toBe("3 h");
     });
   });
 });
