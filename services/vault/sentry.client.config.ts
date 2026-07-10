@@ -18,22 +18,38 @@ import { redactData, scrubSentryEvent, scrubString } from "@/utils/telemetry";
 
 const SENTRY_DEVICE_ID_KEY = "sentry_device_id";
 
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+
+// Telemetry is gated on the DSN alone. Events go directly to Sentry unless a tunnel is
+// configured. A tunnel proxies events through our own host to dodge ad-blockers; it is an
+// optimization, not a requirement, and is deliberately independent of the (logo) sidecar so
+// that unrelated infrastructure can never silently disable telemetry again.
+const tunnelUrl = process.env.NEXT_PUBLIC_SENTRY_TUNNEL_URL;
+const sentryEnabled = Boolean(sentryDsn);
+
+// This environment variable is provided in the CI; its absence means a local build.
+const LOCAL_ENVIRONMENT = "local";
+const sentryEnvironment =
+  process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? LOCAL_ENVIRONMENT;
+
+// A deployed build with Sentry off is a defect that reports nothing — including its own
+// silence. Say so at boot. Local builds legitimately run without a DSN, so stay quiet there.
+if (!sentryEnabled && sentryEnvironment !== LOCAL_ENVIRONMENT) {
+  console.warn(
+    `[sentry] disabled in "${sentryEnvironment}" — no events will be transmitted. Missing: NEXT_PUBLIC_SENTRY_DSN`,
+  );
+}
+
 Sentry.init({
-  enabled: Boolean(
-    process.env.NEXT_PUBLIC_SIDECAR_API_URL &&
-      process.env.NEXT_PUBLIC_SENTRY_DSN,
-  ),
+  enabled: sentryEnabled,
   // This is pointing to the DSN (Data Source Name) for the Sentry project
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn: sentryDsn,
 
-  // Tunnel endpoint for proxying Sentry events through our own server
-  // This helps avoid ad-blockers and CSP issues
-  tunnel: process.env.NEXT_PUBLIC_SIDECAR_API_URL
-    ? `${process.env.NEXT_PUBLIC_SIDECAR_API_URL}/sentry-tunnel`
-    : "http://localhost:8092/sentry-tunnel",
+  // Tunnel endpoint for proxying Sentry events through our own host (ad-blocker/CSP
+  // resistance). Omitted when unset so events go directly to Sentry.
+  ...(tunnelUrl ? { tunnel: tunnelUrl } : {}),
 
-  // This environment variable is provided in the CI
-  environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "local",
+  environment: sentryEnvironment,
 
   // Ensure this release ID matches the one used during 'vite build' for source map uploads
   // It's passed via NEXT_PUBLIC_RELEASE_ID in the build environment (e.g., GitHub Actions)
