@@ -23,7 +23,9 @@ import { getNetworkConfigETH } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 // Vault deposits need the BTC wallet's `deriveContextHash` (docs/specs/derive-context-hash.md).
-// UniSat/OneKey/OKX are always enabled (OKX self-gates on version >= 4.5.0 at the connector).
+// UniSat/OneKey/OKX are enabled by default (OKX self-gates on version >= 4.5.0 at the connector),
+// but DevOps can disable any of them per environment via NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS
+// (e.g. if a wallet's signing conformance regresses).
 // Other wallets (e.g. utila) opt in per env via NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS; this list
 // keeps non-conforming adapters out of the connect UI.
 const ALWAYS_DISABLED_WALLETS: string[] = [
@@ -38,6 +40,7 @@ const OPT_IN_WALLETS = ["utila"];
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,
   ...OPT_IN_WALLETS.filter((id) => !featureFlags.extraBtcWallets.has(id)),
+  ...featureFlags.disabledBtcWallets,
 ];
 
 const context = typeof window !== "undefined" ? window : {};
