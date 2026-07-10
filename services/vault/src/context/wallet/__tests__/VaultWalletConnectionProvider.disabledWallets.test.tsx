@@ -62,16 +62,16 @@ describe("WalletConnectionProvider — NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS leve
     expect(h.captured.disabledWallets).toContain("onekey");
   });
 
-  it("disables both wallets when the env lists onekey,okx", async () => {
-    await renderWithDisabledWallets("onekey,okx");
+  it("disables both wallets when the env lists onekey,utila", async () => {
+    await renderWithDisabledWallets("onekey,utila");
     expect(h.captured.disabledWallets).toEqual(
-      expect.arrayContaining(["onekey", "okx"]),
+      expect.arrayContaining(["onekey", "utila"]),
     );
   });
 
-  it("disables no default wallet when the env is unset", async () => {
+  it("hides no experimental wallet when the env is unset", async () => {
     await renderWithDisabledWallets(undefined);
     expect(h.captured.disabledWallets).not.toContain("onekey");
-    expect(h.captured.disabledWallets).not.toContain("okx");
+    expect(h.captured.disabledWallets).not.toContain("utila");
   });
 });

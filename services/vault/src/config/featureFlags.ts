@@ -196,32 +196,23 @@ export default {
   /**
    * DISABLED_BTC_WALLETS config
    *
-   * Purpose: Operator-controlled kill-list of BTC wallet ids to remove from the
-   * connect UI. Comma-separated, matched case-insensitively against each
-   * wallet's connector `id` (e.g. "onekey", "okx", or "onekey,okx"). Any
-   * connector wallet id is accepted — unisat, onekey, okx, keystone, and the
-   * opt-in utila (see packages/babylon-wallet-connector btc wallets).
-   * Why needed: Lets DevOps disable one or more otherwise-always-enabled wallets
-   * per environment (e.g. if a wallet's signing conformance regresses) without a
-   * code change. The inverse of extraBtcWallets; an entry here disables a wallet
-   * even if it was opt-in enabled.
-   * Default: empty (no wallets disabled unless listed).
+   * Purpose: The single per-environment lever for which BTC wallets are hidden
+   * from the connect UI. Comma-separated wallet ids, matched case-insensitively
+   * against each wallet's connector `id` (e.g. "onekey" or "onekey,utila").
+   * Valid ids: unisat, onekey, okx, keystone, utila
+   * (see packages/babylon-wallet-connector btc wallets).
+   * Why needed: Lets DevOps hide a wallet per environment without a code change —
+   * both to keep experimental/not-yet-ready wallets (onekey, utila) out of an
+   * environment and to pull a wallet fast if its signing behavior regresses.
+   * Default: empty (nothing hidden). Experimental wallets must be listed in
+   * every environment where they should stay hidden.
    *
    * Non-boolean gating config, so it uses the NEXT_PUBLIC_ prefix without _FF_
-   * (per rule 5), matching NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS.
+   * (per rule 5).
    */
   get disabledBtcWallets() {
     return new Set(
       (process.env.NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS ?? "")
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean),
-    );
-  },
-
-  get extraBtcWallets() {
-    return new Set(
-      (process.env.NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS ?? "")
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean),
