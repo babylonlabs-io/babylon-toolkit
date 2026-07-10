@@ -23,9 +23,11 @@ import { getNetworkConfigETH } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 // Vault deposits need the BTC wallet's `deriveContextHash` (docs/specs/derive-context-hash.md).
-// UniSat/OneKey/OKX are always enabled (OKX self-gates on version >= 4.5.0 at the connector).
-// Other wallets (e.g. utila) opt in per env via NEXT_PUBLIC_TBV_EXTRA_BTC_WALLETS; this list
-// keeps non-conforming adapters out of the connect UI.
+// ALWAYS_DISABLED_WALLETS keeps non-conforming adapters (appkit/injectable/ledger) permanently out
+// of the connect UI. Every other wallet is on by default; which ones are hidden per environment —
+// experimental wallets not yet ready for production (onekey, utila) and any wallet we need to pull
+// during an incident — is controlled entirely by NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS, so no code
+// change or redeploy is needed to toggle one.
 const ALWAYS_DISABLED_WALLETS: string[] = [
   APPKIT_BTC_CONNECTOR_ID,
   "injectable",
@@ -33,11 +35,9 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc_v2",
 ];
 
-const OPT_IN_WALLETS = ["utila"];
-
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,
-  ...OPT_IN_WALLETS.filter((id) => !featureFlags.extraBtcWallets.has(id)),
+  ...featureFlags.disabledBtcWallets,
 ];
 
 const context = typeof window !== "undefined" ? window : {};
