@@ -1,20 +1,11 @@
-/**
- * Aave Reserve Detail
- *
- * Borrow/Repay card with real position data from Aave oracle, rendered as a
- * full-screen modal (like the deposit flow). The reserve comes from the route
- * (`/app/aave/reserve/:reserveId/borrow` or `/repay`) and the mode is passed in
- * as `tab`, so the route stays deep-linkable; closing navigates back to the
- * dashboard.
- */
-
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate } from "react-router";
 
 import { EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { ROUTES } from "@/routes";
 
 import type { LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
@@ -28,9 +19,14 @@ import { PositionGate } from "./PositionGate";
 
 const btcConfig = getNetworkConfigBTC();
 
-export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
+export function AaveReserveDetail({
+  reserveId,
+  tab,
+}: {
+  reserveId: string;
+  tab: LoanTab;
+}) {
   const navigate = useNavigate();
-  const { reserveId } = useParams<{ reserveId: string }>();
 
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
@@ -82,16 +78,16 @@ export function AaveReserveDetail({ tab }: { tab: LoanTab }) {
 
   // Use `replace` so dismissing the overlay doesn't leave a history entry that
   // browser Back would use to reopen the just-closed flow.
-  const handleClose = () => navigate("/", { replace: true });
+  const handleClose = () => navigate(ROUTES.OVERVIEW, { replace: true });
 
   const handleCloseBorrowSuccess = () => {
     closeBorrowSuccess();
-    navigate("/", { replace: true });
+    navigate(ROUTES.OVERVIEW, { replace: true });
   };
 
   const handleCloseRepaySuccess = () => {
     closeRepaySuccess();
-    navigate("/", { replace: true });
+    navigate(ROUTES.OVERVIEW, { replace: true });
   };
 
   const renderContent = () => {

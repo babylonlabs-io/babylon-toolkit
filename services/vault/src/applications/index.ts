@@ -5,7 +5,6 @@ export type {
 } from "./types";
 
 export {
-  getAllApplications,
   getAppIdByController,
   getApplication,
   getApplicationMetadataByController,
