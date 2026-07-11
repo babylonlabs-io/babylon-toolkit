@@ -27,6 +27,7 @@ import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { usePrices } from "@/hooks/usePrices";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
+import { getReserveDetailRoute } from "@/routes";
 import {
   formatBtcAmount,
   formatLiquidationDistancePercent,
@@ -243,9 +244,7 @@ export function DashboardPage() {
   const handleRepay = () => {
     if (borrowedAssets.length === 1) {
       const assetSymbol = borrowedAssets[0].symbol;
-      navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}/${LOAN_TAB.REPAY}`,
-      );
+      navigate(getReserveDetailRoute(assetSymbol, LOAN_TAB.REPAY));
       return;
     }
     setAssetModalMode(LOAN_TAB.REPAY);
@@ -253,9 +252,7 @@ export function DashboardPage() {
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
-    navigate(
-      `/app/aave/reserve/${assetSymbol.toLowerCase()}/${assetModalMode}`,
-    );
+    navigate(getReserveDetailRoute(assetSymbol, assetModalMode));
   };
 
   // Dev/QA god-mode admin panel (NEXT_PUBLIC_FF_GOD_MODE_PANEL). Floats over
