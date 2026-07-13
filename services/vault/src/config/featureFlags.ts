@@ -157,6 +157,24 @@ export default {
   },
 
   /**
+   * ENABLE_V3_UI feature flag
+   *
+   * Purpose: Switches the app shell from today's v2 header + top-nav +
+   * single-page dashboard over to the v3 sidebar shell and its per-page routes.
+   * Why needed: v3 is a full UI restructure landing incrementally across many
+   * PRs. The flag keeps `main` shipping v2 while v3 is built, and lets the flag
+   * be turned on per environment (devnet → testnet → mainnet) without a code
+   * change.
+   * Unlike the DISABLE_DEPOSIT / PROTOCOL_PAUSED kill-switches, this is
+   * temporary scaffolding: it is deleted together with the v2 shell once v3
+   * becomes the default.
+   * Default: false (the v2 shell renders unless explicitly set to "true")
+   */
+  get isV3UiEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_V3_UI === "true";
+  },
+
+  /**
    * NOTICE_BANNER_MESSAGE config
    *
    * Purpose: Operator-controlled freeform banner shown at the top of the app
