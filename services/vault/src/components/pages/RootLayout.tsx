@@ -2,6 +2,7 @@ import {
   Footer,
   FullScreenDialog,
   Header,
+  Heading,
   Loader,
   MobileLogo,
   Nav,
@@ -35,6 +36,7 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
 import {
@@ -46,6 +48,7 @@ import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
+import { NetworkBadge } from "../shared/NetworkBadge";
 import { NoticeBanner } from "../shared/NoticeBanner";
 import {
   isDepositBlocked,
@@ -155,6 +158,7 @@ export default function RootLayout() {
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
+  const pageTitle = usePageTitle();
   const showV3Sidebar = FeatureFlags.isV3UiEnabled && !isMobileView;
 
   const isWalletConnected = btcConnected && ethConnected;
@@ -240,11 +244,27 @@ export default function RootLayout() {
           {showV3Sidebar && banners}
           <Header
             size="md"
+            // v3 owns its own vertical rhythm via each page's content
+            // padding (matches Figma: no gap between the header's bottom
+            // border and the content start). v2 keeps the default mb-20.
+            className={FeatureFlags.isV3UiEnabled ? "mb-0" : undefined}
             // `PAGE_CONTENT_CLASS` carries `!max-w-[1080px]`, overriding the
             // `container` width core-ui's Header applies by default so the navbar
             // shares the same 1080px content box as the page body and footer.
             containerClassName={PAGE_CONTENT_CLASS}
-            logo={<BrandLockup />}
+            logo={
+              FeatureFlags.isV3UiEnabled ? (
+                <Heading
+                  variant="h5"
+                  as="h1"
+                  className="font-normal text-accent-primary"
+                >
+                  {pageTitle}
+                </Heading>
+              ) : (
+                <BrandLockup />
+              )
+            }
             mobileLogo={
               <div className="[&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
                 <MobileLogo />
@@ -262,6 +282,7 @@ export default function RootLayout() {
             }
             rightActions={
               <div className="flex items-center gap-4">
+                {FeatureFlags.isV3UiEnabled && <NetworkBadge />}
                 {isWalletConnected &&
                   !isDepositOpen &&
                   !isGeoBlocked &&

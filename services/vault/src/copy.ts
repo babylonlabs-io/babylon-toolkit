@@ -1101,6 +1101,12 @@ export const COPY = {
     termsOfUse: "Terms of Use",
     privacyPolicy: "Privacy Policy",
   },
+  // v3 page-title header (services/vault/src/components/pages/RootLayout.tsx).
+  header: {
+    // Network indicator chip, shown only on non-production networks (see
+    // components/shared/NetworkBadge.tsx).
+    networkBadge: "Testnet",
+  },
   overview: {
     heading: "Overview",
     healthFactorLabel: "Health factor",

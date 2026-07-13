@@ -23,6 +23,9 @@ vi.mock("@/config", async () => {
     getBTCNetwork: () => "signet",
     CONTRACTS: {}, // Mock other exports as needed
     ENV: {},
+    FeatureFlags: {
+      isV3UiEnabled: false,
+    },
     getCommitHash: () => "test-commit",
   };
 });
