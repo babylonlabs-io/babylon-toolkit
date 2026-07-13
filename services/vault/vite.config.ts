@@ -10,9 +10,14 @@ import { sriPlugin } from "./src/build/sriPlugin";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Dev/preview-server response headers only. The Content-Security-Policy is deliberately NOT
+// set here: it lives solely in the index.html <meta> tag (the single source of truth that
+// also ships to the static S3/CDN prod build). Delivering the same CSP as a dev-server header
+// additionally governs the inline React Fast Refresh preamble that @vitejs/plugin-react
+// injects, which has no 'unsafe-inline'/nonce and would white-screen `pnpm dev`. The meta CSP
+// does not govern that preamble because Vite injects it above the meta tag, and a meta policy
+// only applies to content that follows it.
 const SECURITY_HEADERS = {
-  "Content-Security-Policy":
-    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: http: wss: ws:; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; worker-src 'self' blob:;",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",

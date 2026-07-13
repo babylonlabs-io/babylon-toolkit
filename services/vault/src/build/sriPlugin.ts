@@ -26,7 +26,6 @@ function stripCrossorigin(attrs: string): string {
 export function sriPlugin(): Plugin {
   let outDir = "";
   function resolveIntegrity(urlPath: string): string | undefined {
-    if (!outDir) return undefined;
     const fileName = urlPath.replace(/^\//, "");
     try {
       return computeSriHash(readFileSync(resolve(outDir, fileName)));
@@ -41,7 +40,6 @@ export function sriPlugin(): Plugin {
       outDir = resolve(config.root, config.build.outDir);
     },
     closeBundle() {
-      if (!outDir) return;
       const htmlPath = resolve(outDir, "index.html");
       let html: string;
       try {
