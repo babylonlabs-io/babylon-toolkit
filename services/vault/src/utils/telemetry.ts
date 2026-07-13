@@ -80,6 +80,9 @@ function isBinary(value: unknown): boolean {
  */
 function redactSensitiveValue(value: unknown): unknown {
   if (value === null || value === undefined) return value;
+  // Preserve the "this was binary" signal for the fields most likely to hold raw secret
+  // material, rather than collapsing it into the generic [REDACTED].
+  if (isBinary(value)) return BINARY_PLACEHOLDER;
   if (typeof value === "string") return redactIdentifier(value, true);
   return REDACTED_PLACEHOLDER;
 }

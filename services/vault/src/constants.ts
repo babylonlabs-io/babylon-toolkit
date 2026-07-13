@@ -14,11 +14,6 @@ export const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup s
 // Pending collateral storage constants
 export const PENDING_COLLATERAL_KEY_PREFIX = "vault-pending-collateral";
 
-// Sentry replay sampling rate (5% by default)
-export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
-  process.env.NEXT_PUBLIC_REPLAYS_RATE ?? "0.05",
-);
-
 // External links surfaced on the pending-withdraw card.
 // Support points to the Babylon Discord invite (confirmed).
 // TODO(product): swap in the exact withdrawal-latency doc page once confirmed.

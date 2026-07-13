@@ -72,6 +72,12 @@ export default defineConfig({
       url: `http://localhost:${PORT_MISSING_ENV}`,
       timeout: 120_000,
       reuseExistingServer: true,
+      // This "missing configuration" server inherits the parent shell. Force the Sentry DSN
+      // empty so a developer's exported NEXT_PUBLIC_SENTRY_DSN can't enable Sentry here and
+      // transmit to a real project — the enable gate is DSN-only.
+      env: {
+        NEXT_PUBLIC_SENTRY_DSN: "",
+      },
     },
     {
       command: `pnpm exec vite --port ${PORT_FULL_ENV}`,

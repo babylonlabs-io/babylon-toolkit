@@ -164,7 +164,7 @@ describe("redactData", () => {
   it("replaces a Uint8Array secret instead of spreading its bytes", () => {
     const data = { htlcSecretHex: new Uint8Array([222, 173, 190, 239]) };
     const result = redactData(data);
-    expect(result.htlcSecretHex).toBe("[REDACTED]");
+    expect(result.htlcSecretHex).toBe("[BINARY_REDACTED]");
   });
 
   it("replaces a binary buffer held under a non-sensitive key", () => {
@@ -179,10 +179,10 @@ describe("redactData", () => {
     expect(result.chunks).toEqual(["[BINARY_REDACTED]", "plain text"]);
   });
 
-  it("replaces a raw ArrayBuffer", () => {
-    const data = { seed: new ArrayBuffer(8) };
+  it("replaces a raw ArrayBuffer under a non-sensitive key", () => {
+    const data = { payload: new ArrayBuffer(8) };
     const result = redactData(data);
-    expect(result.seed).toBe("[REDACTED]");
+    expect(result.payload).toBe("[BINARY_REDACTED]");
   });
 
   it("redacts a bigint held under a sensitive key", () => {
