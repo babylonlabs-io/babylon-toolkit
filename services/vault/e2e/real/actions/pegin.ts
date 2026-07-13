@@ -52,7 +52,7 @@ import { connectWallets } from "./walletConnect";
 // a comment pointing at their `services/vault/src/copy.ts` source. Finish-line matchers below are
 // tolerant regexes instead — the activated-view copy has been observed to drift between source and the
 // deployed build, so those key on stable/actionable elements rather than exact wording.
-const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // header "Deposit sBTC"
+const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // dashboard Collateral-section "Deposit"
 const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)

@@ -5,7 +5,7 @@
  *   Connect (connect-wallet-button) → Select Bitcoin Wallet (select-bitcoin-wallet-button) →
  *   wallet-option-<id> → approve in the BTC extension popup → Select Ethereum Wallet
  *   (select-ethereum-wallet-button) → MetaMask (Reown AppKit) → approve MetaMask popup →
- *   Connect (chains-connect-button) → the deposit CTA (data-testid="deposit-button") appears.
+ *   Connect (chains-connect-button) → the dashboard deposit CTA (data-testid="deposit-button") appears.
  *
  * It assumes a pop-up approver is ALREADY installed on the context (see `approver.ts`) — the approval
  * pop-ups fire asynchronously during these clicks. Callers own the approver lifecycle so they can keep
@@ -23,7 +23,7 @@ import type { ActionContext } from "./types";
 const ETH_APPKIT_NAME: Record<EthWalletId, RegExp> = { metamask: /metamask/i };
 
 /**
- * Drive the connect flow to the connected state (the header deposit button visible). Requires an
+ * Drive the connect flow to the connected state (the dashboard deposit button visible). Requires an
  * active pop-up approver on `ctx.context`.
  */
 export async function connectWallets(ctx: ActionContext): Promise<void> {
