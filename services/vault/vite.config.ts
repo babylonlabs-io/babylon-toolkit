@@ -6,8 +6,23 @@ import { defineConfig } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { sriPlugin } from "./src/build/sriPlugin";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Dev/preview-server response headers only. The Content-Security-Policy is deliberately NOT
+// set here: it lives solely in the index.html <meta> tag (the single source of truth that
+// also ships to the static S3/CDN prod build). Delivering the same CSP as a dev-server header
+// additionally governs the inline React Fast Refresh preamble that @vitejs/plugin-react
+// injects, which has no 'unsafe-inline'/nonce and would white-screen `pnpm dev`. The meta CSP
+// does not govern that preamble because Vite injects it above the meta tag, and a meta policy
+// only applies to content that follows it.
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+};
 
 const isSentryDisabled =
   process.env.NEXT_BUILD_E2E || process.env.DISABLE_SENTRY === "true";
@@ -22,6 +37,9 @@ const enableSentryPlugin =
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    headers: SECURITY_HEADERS,
+  },
   resolve: {
     dedupe: ["@babylonlabs-io/core-ui", "react", "react-dom"],
     alias: {
@@ -54,6 +72,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    sriPlugin(),
     react(),
     tsconfigPaths({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],
