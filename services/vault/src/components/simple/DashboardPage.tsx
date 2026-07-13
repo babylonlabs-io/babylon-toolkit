@@ -280,7 +280,10 @@ export function DashboardPage() {
 
   if (!isConnected) {
     return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+      // `my-auto` completes the Container's built-in `mx-auto` to a full
+      // `margin: auto`, vertically centering the disconnected landing screen in
+      // the remaining viewport height.
+      <Container className={`${PAGE_CONTENT_CLASS} my-auto pb-6`}>
         <DisconnectedOverview capSnapshot={capSnapshot} />
         {godModePanel}
       </Container>
