@@ -23,8 +23,9 @@ import { COPY } from "@/copy";
 
 // Header's own brand mark (unchanged v2 lockup: SmallLogo + divider + Aave
 // wordmark) — kept separate from `SidebarBrandLockup` (the exact Figma
-// sidebar asset). Header still renders this in both v2 and v3 until the
-// page-title header rebuild (#2016) removes it.
+// sidebar asset). Only rendered in v2; the v3 header shows the page title
+// instead (see RootLayout's `logo` prop), since the sidebar already carries
+// the brand.
 export function BrandLockup() {
   return (
     <div className="flex items-center gap-3">
