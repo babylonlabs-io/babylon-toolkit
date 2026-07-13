@@ -44,13 +44,19 @@ export function PostDepositContinuationContent({
     const demoActivities = demo
       ? demo.pendingActivities.filter((a) => ids.has(a.id))
       : [];
+    const realActivities = activities.filter((a) => ids.has(a.id));
     return {
-      // Demo activity ids can never collide with real ones (distinct id space),
-      // so the concat introduces no duplicates.
-      activities: [
-        ...demoActivities,
-        ...activities.filter((a) => ids.has(a.id)),
-      ],
+      // Real activities only. The provider polls this list and drives the
+      // signing-required notifications from it, so demo activities are kept OUT:
+      // a simulated ready-to-activate state must never fire a real desktop
+      // notification. `getPollingResult` still resolves demo ids by id
+      // (demo.resultsById), so demo polling is unaffected — this restores
+      // PeginPollingContext's invariant that "the demo is never in `activities`".
+      providerActivities: realActivities,
+      // The view additionally needs the demo VaultActivity to find it and mount
+      // the activation branch. Demo activity ids can never collide with real ones
+      // (distinct id space), so the concat introduces no duplicates.
+      viewActivities: [...demoActivities, ...realActivities],
       pendingPegins: pendingPegins.filter((p) => ids.has(p.id)),
       demoVaultIds: new Set(demoActivities.map((a) => a.id)),
     };
@@ -58,14 +64,14 @@ export function PostDepositContinuationContent({
 
   return (
     <PeginPollingProvider
-      activities={scoped.activities}
+      activities={scoped.providerActivities}
       pendingPegins={scoped.pendingPegins}
       btcPublicKey={btcPublicKey}
     >
       <ContinuationWarnings warnings={warnings} />
       <PostDepositContinuationView
         vaultIds={vaultIds}
-        activities={scoped.activities}
+        activities={scoped.viewActivities}
         depositorEthAddress={depositorEthAddress}
         btcPublicKey={btcPublicKey}
         demoVaultIds={scoped.demoVaultIds}

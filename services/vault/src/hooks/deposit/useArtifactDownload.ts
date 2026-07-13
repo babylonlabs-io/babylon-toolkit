@@ -236,7 +236,11 @@ export function useArtifactDownload(options?: {
           });
 
           if (isStale()) return;
-          if (vaultId) {
+          // A mocked download never wrote a real artifact file, so it must not
+          // persist the real risk-ack gate — otherwise a demo "download" on a
+          // real vault permanently satisfies its gate with no file saved. The
+          // demo still shows the downloaded UI via `downloaded: true` below.
+          if (vaultId && !demoDownload) {
             markArtifactsDownloaded(vaultId);
           }
           setState({

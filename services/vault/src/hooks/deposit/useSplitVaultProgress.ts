@@ -74,7 +74,12 @@ export function deriveSplitVaultProgress(
     // The active column tracks the live render step (e.g. mid-signing), which
     // is finer-grained than the polled display step.
     if (index === currentVaultIndex) return activeStep;
-    const state = getPollingResult(id)?.peginState;
+    const result = getPollingResult(id);
+    // God-mode demo: a simulated sibling carries the slider's step directly via
+    // `displayStepOverride`, which the real polling path never sets. Honor it so
+    // batched demo columns track the slider instead of the base polled state.
+    if (result?.displayStepOverride != null) return result.displayStepOverride;
+    const state = result?.peginState;
     // Unpolled non-active sibling: cap at the shared-trunk floor once the active
     // vault diverges, so it never mirrors the active step ahead (false "signed").
     if (!state) {
