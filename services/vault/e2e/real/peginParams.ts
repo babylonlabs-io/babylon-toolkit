@@ -8,54 +8,44 @@
  *    `getPegInConfiguration().minimumPegInAmount`. Reused (not reimplemented) so it can't drift.
  *  - Providers: the indexer GraphQL `GetAppProviders` query, filtered by the app controller.
  *
- * The contract addresses + endpoints are NOT hardcoded — they rotate (via `scripts/sync-env.mjs`) and
- * differ per network. We resolve them exactly as the app does at runtime: Vite's `loadEnv` for the
- * network's mode (devnet ⇒ `development`, testnet ⇒ `dev-testnet`), which layers `.env` (sync-env's
- * output) + `.env.local` + `.env.<mode>` with the same precedence Vite gives the running dapp.
+ * Contract addresses + endpoints are resolved per-network from the app's env via `networkContracts.ts`
+ * (shared with the borrow pre-flight) — never hardcoded, so a `sync-env.mjs` rotation is picked up.
  */
 import {
   resolveProtocolAddresses,
   ViemProtocolParamsReader,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
-  AaveIntegrationAdapterABI,
   BPS_SCALE,
   computeMinDepositForSplit,
   computeSeizedFraction,
   getDynamicReserveConfig,
+  getPositionSizeParams,
   getReserve,
   getTargetHealthFactor,
   wadToNumber,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { gql, GraphQLClient } from "graphql-request";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  createPublicClient,
-  http,
-  type Address,
-  type PublicClient,
-} from "viem";
-import { sepolia } from "viem/chains";
-import { loadEnv } from "vite";
+import { gql } from "graphql-request";
+import { type Address, type PublicClient } from "viem";
 
-import { NETWORKS, type NetworkName } from "./config";
+import { type NetworkName } from "./config";
+import {
+  createEthClient,
+  createGraphQLClient,
+  fetchVbtcReserveId,
+  resolveCoreSpoke,
+  resolveNetworkContracts,
+} from "./networkContracts";
 
 const SATS_PER_BTC = 100_000_000n;
+/** BTC has 8 decimal places (1 BTC = 1e8 sats) — the fractional width for the amount string. */
+const BTC_DECIMALS = 8;
 
 // Two-vault split risk constants — mirror `services/vault/src/applications/aave/constants.ts`
 // (EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION, VAULT_SPLIT_SAFETY_MARGIN). They feed the SDK split math
 // exactly as the app's `useOptimalSplit` does, so the fetched split minimum matches the form.
 const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
 const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
-/** The immutable Core Spoke getter on the AaveIntegrationAdapter (read on-chain, never trusted from GraphQL). */
-const CORE_SPOKE_FN = "BTC_VAULT_CORE_SPOKE";
-
-/** The vault service root (holds .env / .env.local / .env.dev-testnet), relative to this file. */
-const VAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-
-/** Networks whose resolved env we've already surfaced, so we log it once per process (not per call). */
-const loggedNetworks = new Set<NetworkName>();
 
 /** A vault provider as offered in the CLI menu. `available` mirrors the app's metadata gating. */
 export interface ProviderChoice {
@@ -64,68 +54,16 @@ export interface ProviderChoice {
   available: boolean;
 }
 
-interface NetworkContracts {
-  registry: Address;
-  appController: string;
-  graphqlEndpoint: string;
-  ethRpcUrl: string;
-}
-
-/**
- * Resolve the network's contract addresses + endpoints from the app's env, exactly as the running
- * dapp does — so a `sync-env.mjs` rotation is picked up automatically instead of going stale.
- */
-function resolveNetworkContracts(network: NetworkName): NetworkContracts {
-  const env = loadEnv(NETWORKS[network].viteMode, VAULT_ROOT, "NEXT_PUBLIC_");
-  const registry = env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY;
-  const appController = env.NEXT_PUBLIC_TBV_AAVE_ADAPTER;
-  const graphqlEndpoint = env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT;
-  const ethRpcUrl = env.NEXT_PUBLIC_ETH_RPC_URL;
-  if (!registry || !appController || !graphqlEndpoint || !ethRpcUrl)
-    throw new Error(
-      `Missing NEXT_PUBLIC_TBV_* env for ${network} (Vite mode "${NETWORKS[network].viteMode}", dir ${VAULT_ROOT}). Run 'pnpm --filter vault sync-env' or check .env / .env.dev-testnet.`,
-    );
-
-  // Surface which network's values were resolved (once per process), and warn loudly if they look
-  // like they came from another network — `loadEnv` merges shared `.env` under the mode file, so a key
-  // missing from `.env.<mode>` would silently inherit e.g. devnet's value. The endpoint host naming
-  // (…vault-devnet… / …testnet…) is a cheap cross-check for that footgun.
-  if (!loggedNetworks.has(network)) {
-    loggedNetworks.add(network);
-    // eslint-disable-next-line no-console
-    console.log(
-      `[pegin-params] ${network}: registry ${registry}, graphql ${graphqlEndpoint}`,
-    );
-    if (!graphqlEndpoint.includes(network))
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[pegin-params] ⚠️ ${network}: GraphQL endpoint "${graphqlEndpoint}" does not mention "${network}" — env may be resolving another network's values (a key missing from .env.${NETWORKS[network].viteMode}?).`,
-      );
-  }
-
-  return {
-    registry: registry as Address,
-    appController,
-    graphqlEndpoint,
-    ethRpcUrl,
-  };
-}
-
 /** Format satoshis as a trimmed BTC decimal string (e.g. 1_000_000n → "0.01"), for the amount input. */
 function satsToBtc(sats: bigint): string {
   const whole = sats / SATS_PER_BTC;
   const frac = sats % SATS_PER_BTC;
   if (frac === 0n) return whole.toString();
-  const fracStr = frac.toString().padStart(8, "0").replace(/0+$/, "");
+  const fracStr = frac
+    .toString()
+    .padStart(BTC_DECIMALS, "0")
+    .replace(/0+$/, "");
   return `${whole}.${fracStr}`;
-}
-
-/** A Sepolia public client for the network's ETH RPC (the same reads the app performs). */
-function createEthClient(ethRpcUrl: string): PublicClient {
-  return createPublicClient({
-    chain: sepolia,
-    transport: http(ethRpcUrl),
-  }) as PublicClient;
 }
 
 /**
@@ -147,18 +85,6 @@ export async function fetchMinDepositBtc(
   const client = createEthClient(ethRpcUrl);
   const config = await getPegInConfig(client, registry);
   return satsToBtc(config.minimumPegInAmount);
-}
-
-const GET_VBTC_RESERVE_ID = gql`
-  query GetVaultBtcReserveId {
-    aaveConfig(id: 1) {
-      vaultBtcReserveId
-    }
-  }
-`;
-
-interface VbtcReserveIdResponse {
-  aaveConfig: { vaultBtcReserveId: string } | null;
 }
 
 /**
@@ -186,21 +112,8 @@ export async function fetchMinDepositForSplitBtc(
 
   // Resolve the Core Spoke on-chain from the env-pinned adapter (mirrors the app's getCoreSpokeAddress —
   // never trust a GraphQL-supplied spoke), and the vBTC reserve id from the indexer's singleton config.
-  const spokeAddress = (await client.readContract({
-    address: appController as Address,
-    abi: AaveIntegrationAdapterABI,
-    functionName: CORE_SPOKE_FN,
-    args: [],
-  })) as Address;
-
-  const gqlClient = new GraphQLClient(graphqlEndpoint);
-  const { aaveConfig } =
-    await gqlClient.request<VbtcReserveIdResponse>(GET_VBTC_RESERVE_ID);
-  if (!aaveConfig)
-    throw new Error(
-      `No aaveConfig from the indexer at ${graphqlEndpoint} — cannot resolve the vBTC reserve id for the split minimum.`,
-    );
-  const reserveId = BigInt(aaveConfig.vaultBtcReserveId);
+  const spokeAddress = await resolveCoreSpoke(client, appController);
+  const reserveId = await fetchVbtcReserveId(graphqlEndpoint);
 
   // Aave risk params from the spoke, using the reserve's current dynamicConfigKey (no-position baseline).
   const { dynamicConfigKey } = await getReserve(
@@ -258,7 +171,7 @@ export async function fetchProviders(
   network: NetworkName,
 ): Promise<ProviderChoice[]> {
   const { graphqlEndpoint, appController } = resolveNetworkContracts(network);
-  const client = new GraphQLClient(graphqlEndpoint);
+  const client = createGraphQLClient(graphqlEndpoint);
   const response = await client.request<AppProvidersResponse>(
     GET_APP_PROVIDERS,
     { appController },
@@ -269,4 +182,121 @@ export async function fetchProviders(
     // The app treats a null / "ok" metadataStatus as usable and any other value (rejected) as not.
     available: p.metadataStatus == null || p.metadataStatus === "ok",
   }));
+}
+
+/**
+ * Raw indexer vault statuses that occupy a per-position cap slot — the raw-string equivalent of the
+ * app's `countCollateralizableVaults` (ContractStatus ACTIVE|PENDING|VERIFIED): "available" → ACTIVE,
+ * "pending"/"signatures_collected" → PENDING, "verified" → VERIFIED. Terminal states (redeemed,
+ * liquidated, expired, invalid, depositor_withdrawn) free the slot and are NOT counted. Kept as raw
+ * strings so we count off the indexer directly without importing the app's status enums.
+ */
+const CAP_SLOT_STATUSES = new Set([
+  "available",
+  "pending",
+  "signatures_collected",
+  "verified",
+]);
+/** Ponder's max page size + a runaway-cursor backstop, mirroring the app's fetchVaultsByDepositor. */
+const VAULTS_PAGE_SIZE = 1000;
+const MAX_VAULT_PAGES = 50;
+
+const GET_DEPOSITOR_VAULT_STATUSES_FIRST = gql`
+  query GetDepositorVaultStatusesFirst($depositor: String!, $limit: Int!) {
+    vaults(where: { depositor: $depositor }, limit: $limit) {
+      items {
+        status
+        applicationEntryPoint
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const GET_DEPOSITOR_VAULT_STATUSES_NEXT = gql`
+  query GetDepositorVaultStatusesNext(
+    $depositor: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
+      items {
+        status
+        applicationEntryPoint
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+interface VaultStatusPage {
+  vaults: {
+    items: { status: string; applicationEntryPoint: string }[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+}
+
+export interface VaultCountCap {
+  /** On-chain per-position BTC Vault cap. 0 means unlimited (the adapter only enforces a cap > 0). */
+  maxVaults: number;
+  /** This depositor's vaults under the app that currently occupy a cap slot. */
+  currentCount: number;
+}
+
+/**
+ * Read the per-position BTC-Vault cap and the depositor's current occupied-slot count, mirroring the
+ * app's `useVaultCountCap`: the cap from `getPositionSizeParams(AaveAdapterConfig).maxVaultsPerPosition`
+ * (on-chain), and the count from the indexer — this depositor's vaults filtered to the collateralizable
+ * statuses under this app's controller (a conservative superset that includes in-flight PENDING/VERIFIED,
+ * so it over-counts rather than under-counts, matching the app). Paginated like the app so a high-volume
+ * depositor isn't silently truncated.
+ */
+export async function fetchVaultCountCap(
+  network: NetworkName,
+  depositorEthAddress: string,
+): Promise<VaultCountCap> {
+  const { appController, graphqlEndpoint, ethRpcUrl, aaveAdapterConfig } =
+    resolveNetworkContracts(network);
+
+  const client = createEthClient(ethRpcUrl);
+  const { maxVaultsPerPosition } = await getPositionSizeParams(
+    client,
+    aaveAdapterConfig,
+  );
+  const maxVaults = Number(maxVaultsPerPosition);
+
+  const gqlClient = createGraphQLClient(graphqlEndpoint);
+  const depositor = depositorEthAddress.toLowerCase();
+  const adapter = appController.toLowerCase();
+  let currentCount = 0;
+  let after: string | null = null;
+  for (let pageIndex = 0; pageIndex < MAX_VAULT_PAGES; pageIndex++) {
+    const page: VaultStatusPage = after
+      ? await gqlClient.request(GET_DEPOSITOR_VAULT_STATUSES_NEXT, {
+          depositor,
+          limit: VAULTS_PAGE_SIZE,
+          after,
+        })
+      : await gqlClient.request(GET_DEPOSITOR_VAULT_STATUSES_FIRST, {
+          depositor,
+          limit: VAULTS_PAGE_SIZE,
+        });
+    for (const item of page.vaults.items)
+      if (
+        CAP_SLOT_STATUSES.has(item.status) &&
+        item.applicationEntryPoint.toLowerCase() === adapter
+      )
+        currentCount++;
+    if (!page.vaults.pageInfo.hasNextPage) break;
+    after = page.vaults.pageInfo.endCursor;
+    if (!after) break;
+  }
+
+  return { maxVaults, currentCount };
 }

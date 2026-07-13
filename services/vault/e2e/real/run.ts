@@ -6,6 +6,7 @@
  */
 import { ACTIONS_BY_ID } from "./actions";
 import { createArtifacts } from "./artifacts";
+import { fetchBorrowContext } from "./borrowParams";
 import {
   BTC_WALLET_TO_CONNECTOR,
   ETH_WALLET_TO_CONNECTOR,
@@ -15,6 +16,7 @@ import {
 } from "./config";
 import { launchWalletContext } from "./connector";
 import { ensureDevServer, type DevServerHandle } from "./devServer";
+import { fetchVaultCountCap } from "./peginParams";
 import {
   balanceWarnings,
   checkBalances,
@@ -83,6 +85,66 @@ export async function runE2E(config: RunConfig): Promise<void> {
     );
     for (const warning of balanceWarnings(balances))
       artifacts.log(`BALANCE WARNING: ${warning}`);
+
+    // Max-BTC-Vaults pre-flight (pegin only). A position has an on-chain cap on how many BTC Vaults it
+    // can hold; the app blocks the deposit ("Maximum BTC Vaults reached") once full. Read the cap +
+    // this depositor's current occupied-slot count from real data (contract + indexer) BEFORE the
+    // browser deposit and refuse if the deposit (2 vaults for a split, else 1) would exceed it — so a
+    // doomed pegin never launches. A fetch failure is non-fatal: the form's own gate backstops it (see
+    // pegin.ts), so we warn and proceed rather than block on a transient read error.
+    // A `borrow --pegin-first` run performs a pegin too, so it's subject to the same cap.
+    if (
+      config.action === "pegin" ||
+      (config.action === "borrow" && config.peginFirst)
+    ) {
+      const cap = await fetchVaultCountCap(
+        config.network,
+        balances.eth.address,
+      ).catch((error) => {
+        artifacts.log(
+          `⚠️ Could not pre-check the BTC-Vault count cap (${error instanceof Error ? error.message : error}); the form will gate it.`,
+        );
+        return undefined;
+      });
+      if (cap) {
+        const needed = config.split ? 2 : 1;
+        if (cap.maxVaults > 0 && cap.currentCount + needed > cap.maxVaults)
+          throw new Error(
+            `Maximum BTC Vaults reached: this position already holds ${cap.currentCount} of ${cap.maxVaults} BTC Vaults` +
+              `${config.split ? " and a two-vault split needs 2 free slots" : ""}. Redeem/withdraw a vault or use a different ETH account before pegging in.`,
+          );
+        artifacts.log(
+          `Vault-count cap: ${cap.currentCount}/${cap.maxVaults === 0 ? "∞ (unlimited)" : cap.maxVaults} slots used (this deposit needs ${needed}).`,
+        );
+      }
+    }
+
+    // Borrow pre-flight (reuse-collateral only). Read the position from real data (contract + indexer)
+    // and refuse a doomed run BEFORE the browser if there's no borrowable collateral. A `--pegin-first`
+    // run has no collateral yet (it pegs in during the run), so this gate is skipped for it. A fetch
+    // failure is non-fatal: the disabled Borrow button + the form's validation backstop it (see
+    // actions/borrow.ts), so we warn. The borrow amount (a conservative fraction of the max) is resolved
+    // inside the action, which also has the ETH address and logs the real-data max it picked from.
+    if (config.action === "borrow" && !config.peginFirst) {
+      const borrowContext = await fetchBorrowContext(
+        config.network,
+        balances.eth.address,
+      ).catch((error) => {
+        artifacts.log(
+          `⚠️ Could not pre-check borrow collateral (${error instanceof Error ? error.message : error}); the form will gate it.`,
+        );
+        return undefined;
+      });
+      if (borrowContext) {
+        if (!borrowContext.hasCollateral)
+          throw new Error(
+            "No collateral to borrow against: this position holds no active BTC Vaults. Peg in first, or re-run with --pegin-first (or borrow with a different ETH account that has collateral).",
+          );
+        artifacts.log(
+          `Borrow collateral: $${borrowContext.collateralUsd.toFixed(2)} (current debt $${borrowContext.currentDebtUsd.toFixed(2)}).`,
+        );
+      }
+    }
 
     artifacts.writeNetworkState({
       config,

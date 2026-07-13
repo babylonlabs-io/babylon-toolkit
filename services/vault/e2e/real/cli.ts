@@ -10,9 +10,14 @@
  * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
  * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
+ *
+ * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
+ * extras above), `--borrow-token=<symbol>` (from the live borrowable list; default = first), and
+ * `--borrow-amount=<n>|max` (default = a conservative fraction of the computed max, resolved in run.ts).
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
+import { fetchBorrowableReserves } from "./borrowParams";
 import {
   ACTIONS,
   BTC_WALLETS,
@@ -31,8 +36,7 @@ import {
   fetchProviders,
 } from "./peginParams";
 import { runE2E } from "./run";
-
-const MS_PER_SECOND = 1000;
+import { MS_PER_SECOND } from "./timing";
 
 interface Choice<T extends string> {
   value: T;
@@ -241,14 +245,35 @@ async function resolveConfig(
       delayMs = Math.max(0, Math.round((Number(raw) || 0) * MS_PER_SECOND));
     }
 
-    // Pegin extras. A flag always wins; otherwise, for the pegin action, fetch the network's real
-    // values (like the balance pre-flight) and offer them as defaults — amount ⇒ protocol minimum,
-    // provider ⇒ first available — prompting interactively when there's a TTY.
+    // Borrow only: peg in first, or borrow against existing collateral? Resolved early because it
+    // decides whether the pegin extras below are collected (a `--pegin-first` borrow performs a pegin
+    // before borrowing). `--pegin-first` wins; else prompt (default = reuse existing collateral).
+    let peginFirst = false;
+    if (action === "borrow") {
+      if (flags["pegin-first"] !== undefined) {
+        peginFirst = flagBool(flags["pegin-first"]);
+      } else if (interactive) {
+        peginFirst =
+          (await select<"reuse" | "pegin">(rl, "Collateral for the borrow", [
+            {
+              value: "reuse",
+              label: "Borrow against existing BTC Vaults (collateral)",
+            },
+            { value: "pegin", label: "Peg in first, then borrow" },
+          ])) === "pegin";
+      }
+    }
 
-    // Split (pegin only): `--split` wins; else prompt (default = single vault). Resolved first because
-    // the deposit minimum depends on it — a two-vault split needs a larger deposit than a single vault.
+    // Pegin extras. A flag always wins; otherwise fetch the network's real values (like the balance
+    // pre-flight) and offer them as defaults — amount ⇒ minimum, provider ⇒ first available. Collected
+    // for a `pegin` run AND for a `borrow --pegin-first` run (which pegs in before borrowing).
+    const needsPeginParams =
+      action === "pegin" || (action === "borrow" && peginFirst);
+
+    // Split: `--split` wins; else prompt (default = single vault). Resolved first because the deposit
+    // minimum depends on it — a two-vault split needs a larger deposit than a single vault.
     let split = false;
-    if (action === "pegin") {
+    if (needsPeginParams) {
       if (flags.split !== undefined) {
         split = flagBool(flags.split);
       } else if (interactive) {
@@ -271,7 +296,7 @@ async function resolveConfig(
     }
     let peginProvider = typeof flags.vp === "string" ? flags.vp : undefined;
 
-    if (action === "pegin") {
+    if (needsPeginParams) {
       // The deposit minimum depends on the deposit type: the single-vault protocol minimum, or the
       // (larger) two-vault split minimum computed from Aave risk params + the SDK split math.
       const fetchMin = split ? fetchMinDepositForSplitBtc : fetchMinDepositBtc;
@@ -337,6 +362,46 @@ async function resolveConfig(
       }
     }
 
+    // Borrow extras: token (from the live borrowable list) + an explicit amount passthrough. The amount
+    // DEFAULT (a conservative fraction of the max) needs the depositor's ETH address, which isn't known
+    // until wallet import — so it's resolved later in run.ts; here we only carry an explicit
+    // --borrow-amount (a number, or "max" for the form's Max button) through.
+    let borrowToken =
+      typeof flags["borrow-token"] === "string"
+        ? flags["borrow-token"]
+        : undefined;
+    const borrowAmount =
+      typeof flags["borrow-amount"] === "string"
+        ? flags["borrow-amount"]
+        : undefined;
+    if (borrowAmount !== undefined && borrowAmount.toLowerCase() !== "max") {
+      const parsed = Number(borrowAmount);
+      if (!Number.isFinite(parsed) || parsed <= 0)
+        throw new Error(
+          `--borrow-amount must be a positive number of tokens or "max" (got "${borrowAmount}")`,
+        );
+    }
+    if (action === "borrow" && borrowToken === undefined) {
+      const reserves = await fetchBorrowableReserves(network).catch((error) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `\nCould not fetch borrowable tokens (${error instanceof Error ? error.message : error}); the run will pick the first available in the asset picker.`,
+        );
+        return [];
+      });
+      if (reserves.length > 0)
+        borrowToken = interactive
+          ? await select(
+              rl,
+              "Borrow token",
+              reserves.map((r) => ({
+                value: r.symbol,
+                label: `${r.symbol} — ${r.name}`,
+              })),
+            )
+          : reserves[0].symbol;
+    }
+
     // Sign-conformance extra: explicit fixtures file (else the action auto-detects the newest pegin's).
     const fixturesPath =
       typeof flags.fixtures === "string" ? flags.fixtures : undefined;
@@ -353,6 +418,9 @@ async function resolveConfig(
       peginProvider,
       split,
       fixturesPath,
+      peginFirst,
+      borrowToken,
+      borrowAmount,
     };
   } finally {
     rl.close();

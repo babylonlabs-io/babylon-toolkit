@@ -79,6 +79,7 @@ export function LoanSuccessModal({
           size="large"
           fluid
           onClick={onDone}
+          data-testid="loan-success-done-button"
         >
           {copy.doneButton}
         </Button>

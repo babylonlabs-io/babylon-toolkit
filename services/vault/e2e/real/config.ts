@@ -113,7 +113,7 @@ export const ACTIONS: ActionOption[] = [
     label: "Sign conformance (replay captured signing into this wallet)",
     enabled: true,
   },
-  { id: "borrow", label: "Borrow", enabled: false },
+  { id: "borrow", label: "Borrow", enabled: true },
   { id: "repay", label: "Repay", enabled: false },
   { id: "withdraw", label: "Withdraw", enabled: false },
 ];
@@ -136,6 +136,18 @@ export interface RunConfig {
   split?: boolean;
   /** Sign-conformance only: path to a `signing.jsonl` (`--fixtures`); defaults to the newest pegin's. */
   fixturesPath?: string;
+  /**
+   * Borrow only: peg in first (`--pegin-first`), then borrow against the fresh collateral in the same
+   * run. When set, the pegin extras above (`peginAmountBtc`/`peginProvider`/`split`) drive that pegin.
+   */
+  peginFirst?: boolean;
+  /** Borrow only: token symbol to borrow (`--borrow-token`); defaults to the first borrowable reserve. */
+  borrowToken?: string;
+  /**
+   * Borrow only: token amount to borrow (`--borrow-amount`, or `max` for the form's Max). When absent
+   * the CLI defaults to a conservative fraction of the computed max (see borrowParams).
+   */
+  borrowAmount?: string;
 }
 
 /** Resolve the target URL a run should open. */

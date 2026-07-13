@@ -45,6 +45,7 @@ import {
 
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { startRecording } from "./recording";
+import { FLUID_CTA_SELECTOR, firstByTestid } from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -56,6 +57,11 @@ const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // header "Depos
 const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
+// The fluid CTA also renders these at-cap states (COPY.deposit.maxVaultsReached) — detect them so an
+// at-cap position fails fast with a clear message instead of hitting the 90s CTA-enable timeout.
+const MAX_VAULTS_CTA_LABEL = "Maximum BTC Vaults reached"; // COPY.deposit.maxVaultsReached.cta
+const VAULT_COUNT_UNAVAILABLE_CTA_LABEL =
+  "Unable to verify BTC Vault count — please try again"; // COPY.deposit.maxVaultsReached.unavailableCta
 const SIGN_TRANSACTION_LABEL = "Sign Transaction"; // COPY.deposit.progress.buttons.signTransaction
 // The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
 // tolerant-text fallback: the button copy drifts (COPY.deposit.activateConfirmation.activateButton
@@ -66,10 +72,11 @@ const ACTIVATE_VAULT_RX = /activate vault/i; // COPY.deposit.activateConfirmatio
 
 /** The activation modal's confirm button — testid if present (future-proof), else tolerant wording. */
 function activateButton(page: Page): Locator {
-  return page
-    .locator(ACTIVATE_VAULT_TESTID)
-    .or(page.getByRole("button", { name: ACTIVATE_VAULT_RX }))
-    .first();
+  return firstByTestid(
+    page,
+    ACTIVATE_VAULT_TESTID,
+    page.getByRole("button", { name: ACTIVATE_VAULT_RX }),
+  );
 }
 const RISK_ACK_LABEL =
   "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
@@ -239,7 +246,7 @@ async function waitForDepositCta(
   page: Page,
   log: (m: string) => void,
 ): Promise<Locator> {
-  const cta = page.locator("button.bbn-btn-fluid").first();
+  const cta = page.locator(FLUID_CTA_SELECTOR).first();
   const deadline = Date.now() + DEPOSIT_CTA_ENABLE_TIMEOUT_MS;
   let lastLabel = "";
   while (Date.now() < deadline) {
@@ -248,6 +255,17 @@ async function waitForDepositCta(
       log(`Deposit CTA: "${label}"`);
       lastLabel = label;
     }
+    // The position is at its BTC-Vault cap (or the count couldn't be verified) — the form blocks the
+    // deposit here. Fail fast with a clear message instead of waiting out the CTA-enable timeout. This
+    // is the authoritative gate (the run.ts pre-flight is only a best-effort early check).
+    if (label === MAX_VAULTS_CTA_LABEL)
+      throw new Error(
+        "Maximum BTC Vaults reached — the deposit form is blocking new peg-ins for this position (its BTC-Vault cap is full). Redeem/withdraw a vault or use a different ETH account.",
+      );
+    if (label === VAULT_COUNT_UNAVAILABLE_CTA_LABEL)
+      throw new Error(
+        "The deposit form could not verify this position's BTC-Vault count and is blocking the deposit — retry once the cap read recovers.",
+      );
     if (
       label === DEPOSIT_CTA_LABEL &&
       (await cta.isEnabled().catch(() => false))
@@ -377,6 +395,36 @@ async function readActiveStep(page: Page): Promise<string> {
   return `${labels.length ? labels.join(", ") : "Step ?"} (${percent ?? "?"}%)`;
 }
 
+// The per-vault "WOTS key submission skipped" warning the app shows when the vault provider isn't ready
+// for WOTS-key submission before the readiness timeout (COPY.deposit.warnings.wotsReadinessTimeout /
+// wotsReadinessTerminal). A skipped vault is dropped from payout signing + activation and can NEVER
+// reach the activated view — so it's a hard dead-end for that vault, not a transient. Both variants
+// share this "Vault N: WOTS key submission skipped" prefix; the capture group is the vault number.
+const WOTS_SKIP_RX = /Vault\s+(\d+):\s*WOTS key submission skipped/i;
+
+/**
+ * Count DISTINCT per-vault WOTS-key-submission-skip banners on the progress view. Deduped by the vault
+ * number so a banner matched via nested elements (or re-rendered) isn't double-counted; a copy drift
+ * that breaks the "Vault N:" prefix simply yields 0 (we degrade to the normal budget wait, never a
+ * false abort). Used by walkStepMachine to fail fast when every expected vault has been skipped.
+ */
+async function countWotsSkippedVaults(page: Page): Promise<number> {
+  const banners = page.getByText(/WOTS key submission skipped/i);
+  const count = await banners.count().catch(() => 0);
+  const vaults = new Set<string>();
+  for (let i = 0; i < count; i++) {
+    const text = (
+      await banners
+        .nth(i)
+        .innerText()
+        .catch(() => "")
+    ).replace(/\s+/g, " ");
+    const match = text.match(WOTS_SKIP_RX);
+    if (match) vaults.add(match[1]);
+  }
+  return vaults.size;
+}
+
 /**
  * Walk the 15-step signing machine to the activated vault. Two approval mechanisms run in parallel:
  * the event-driven `installPopupApprover` (for NEW wallet windows) and, each tick, an active
@@ -420,6 +468,21 @@ async function walkStepMachine(
     // one activation this fresh deposit always performs.
     if ((await activatedViewReached(page)) && activationCount >= expectedVaults)
       return prePeginTxid;
+
+    // Fast-fail on a vault-provider readiness dead-end. If the VP never became ready for WOTS-key
+    // submission, the app skips that vault and it can never activate. Once EVERY expected vault is
+    // skipped there is no route to the activated view — abort now (with a clear, VP-attributed message)
+    // instead of polling out the multi-hour budget. A split where only one sibling is skipped keeps
+    // going (skipped < expectedVaults), matching the app, which continues the ready sibling.
+    const skippedVaults = await countWotsSkippedVaults(page);
+    if (skippedVaults >= expectedVaults)
+      throw new Error(
+        `Vault-provider readiness timeout: the vault provider did not become ready for WOTS-key ` +
+          `submission, so ${skippedVaults === 1 ? "the vault was" : `all ${skippedVaults} vaults were`} ` +
+          `skipped and cannot activate. This is a vault-provider availability issue (not the CLI) — ` +
+          `retry once the provider is healthy. The Pre-PegIn is already broadcast, so the deposit can ` +
+          `be resumed later rather than re-pegged.`,
+      );
 
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
@@ -596,20 +659,61 @@ async function assertActivatedAndOnDashboard(
     );
 }
 
+/**
+ * The pegin flow proper: deposit form → "Sign Transaction" → the 15-step signing machine → activated
+ * vault on the dashboard. Assumes the caller has ALREADY connected the wallets and installed the
+ * pop-up approver + recorder for the run (so a composite like `borrow --pegin-first` keeps a single
+ * approver/recorder across both phases). `onStep` tags the recorder's HTTP fixtures with the current
+ * phase and is forwarded into the step machine. Shared by the `pegin` action and `borrow --pegin-first`.
+ */
+export async function runPeginFlow(
+  ctx: ActionContext,
+  onStep: (step: string) => void,
+): Promise<void> {
+  const { page, context, log } = ctx;
+  // Amount is resolved by the CLI to the fetched protocol minimum (or --amount). If it's unresolved
+  // — the min-fetch failed non-interactively and no --amount was given — fail loudly rather than
+  // silently depositing a stale hardcoded amount (CLAUDE.md: no silent fallbacks on critical paths).
+  const amountBtc = ctx.config.peginAmountBtc?.trim();
+  if (!amountBtc)
+    throw new Error(
+      "pegin: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>, or against a reachable network.",
+    );
+  const provider = ctx.config.peginProvider?.trim() || undefined;
+  const split = ctx.config.split ?? false;
+
+  onStep("deposit-form");
+  await fillDepositForm(page, log, amountBtc, provider, split);
+
+  onStep("sign-transaction");
+  await startSigning(page, log);
+
+  onStep("step-machine");
+  const prePeginTxid = await walkStepMachine(
+    page,
+    context,
+    log,
+    split ? 2 : 1,
+    onStep,
+  );
+
+  onStep("finish");
+  await assertActivatedAndOnDashboard(
+    page,
+    log,
+    amountBtc,
+    prePeginTxid,
+    split ? 2 : 1,
+  );
+  log(
+    `✅ Pegin complete: ${split ? "two BTC Vaults" : "BTC Vault"} activated and shown on the dashboard.`,
+  );
+}
+
 export const peginAction: Action = {
   id: "pegin",
   async run(ctx: ActionContext): Promise<void> {
     const { page, context, log, artifactsDir } = ctx;
-    // Amount is resolved by the CLI to the fetched protocol minimum (or --amount). If it's unresolved
-    // — the min-fetch failed non-interactively and no --amount was given — fail loudly rather than
-    // silently depositing a stale hardcoded amount (CLAUDE.md: no silent fallbacks on critical paths).
-    const amountBtc = ctx.config.peginAmountBtc?.trim();
-    if (!amountBtc)
-      throw new Error(
-        "pegin: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>, or against a reachable network.",
-      );
-    const provider = ctx.config.peginProvider?.trim() || undefined;
-    const split = ctx.config.split ?? false;
 
     // Approver stays installed for the whole run (auto-approves every wallet pop-up).
     const handler = installPopupApprover(context, log);
@@ -625,35 +729,9 @@ export const peginAction: Action = {
     );
     try {
       await connectWallets(ctx);
-
-      currentStep = "deposit-form";
-      await fillDepositForm(page, log, amountBtc, provider, split);
-
-      currentStep = "sign-transaction";
-      await startSigning(page, log);
-
-      currentStep = "step-machine";
-      const prePeginTxid = await walkStepMachine(
-        page,
-        context,
-        log,
-        split ? 2 : 1,
-        (step) => {
-          currentStep = step;
-        },
-      );
-
-      currentStep = "finish";
-      await assertActivatedAndOnDashboard(
-        page,
-        log,
-        amountBtc,
-        prePeginTxid,
-        split ? 2 : 1,
-      );
-      log(
-        `✅ Pegin complete: ${split ? "two BTC Vaults" : "BTC Vault"} activated and shown on the dashboard.`,
-      );
+      await runPeginFlow(ctx, (step) => {
+        currentStep = step;
+      });
     } finally {
       await recorder.stop();
       context.off("page", handler);

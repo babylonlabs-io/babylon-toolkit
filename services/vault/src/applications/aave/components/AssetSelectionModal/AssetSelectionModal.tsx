@@ -201,6 +201,7 @@ export function AssetSelectionModal({
               key={row.key}
               onClick={() => handleAssetClick(row.symbol)}
               className="flex w-full cursor-pointer items-center rounded-xl bg-secondary-highlight p-4 text-left transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
+              data-testid={`asset-select-row-${row.symbol.toLowerCase()}`}
             >
               <div className={ASSET_COL_CLASS}>
                 <Avatar

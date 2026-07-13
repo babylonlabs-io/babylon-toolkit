@@ -71,6 +71,7 @@ export function LoansSection({
             onClick={onBorrow}
             className="rounded-full"
             disabled={!isConnected || !hasCollateral}
+            data-testid="loans-borrow-button"
           >
             {COPY.loans.borrowButton}
           </Button>
