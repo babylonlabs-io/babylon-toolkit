@@ -18,14 +18,9 @@ import { FaXTwitter } from "react-icons/fa6";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
-import { DepositButton } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
-import {
-  FeatureFlags,
-  getNetworkConfigBTC,
-  shouldDisplayTestingMsg,
-} from "@/config";
+import { FeatureFlags, shouldDisplayTestingMsg } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
@@ -42,10 +37,7 @@ import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NoticeBanner } from "../shared/NoticeBanner";
-import {
-  isDepositBlocked,
-  resolveBannerStatus,
-} from "../shared/protocolStatus";
+import { resolveBannerStatus } from "../shared/protocolStatus";
 import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
@@ -53,8 +45,6 @@ import { Connect } from "../Wallet";
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
 }
-
-const btcConfig = getNetworkConfigBTC();
 
 function MailIcon({ size = 32, title }: { size?: number; title?: string }) {
   return (
@@ -230,20 +220,6 @@ export default function RootLayout() {
           mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
-              {isWalletConnected &&
-                !isDepositOpen &&
-                !isGeoBlocked &&
-                !isAddressBlocked && (
-                  <DepositButton
-                    data-testid="deposit-button"
-                    variant="outlined"
-                    rounded
-                    disabled={isDepositBlocked(gate)}
-                    onClick={() => openDeposit()}
-                  >
-                    Deposit {btcConfig.coinSymbol}
-                  </DepositButton>
-                )}
               <Connect />
               <StandardSettingsMenu theme={theme} setTheme={setTheme} />
             </div>
