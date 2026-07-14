@@ -14,6 +14,11 @@
  * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
  * extras above), `--borrow-token=<symbol>` (from the live borrowable list; default = first), and
  * `--borrow-amount=<n>|max` (default = a conservative fraction of the computed max, resolved in run.ts).
+ *
+ * Repay accepts `--borrow-first` (borrow against existing collateral, then repay the new loan — then
+ * also honors the borrow extras above), `--repay-token=<symbol>` (from the depositor's outstanding
+ * loans; default = the sole loan, or the borrowed token under --borrow-first) and `--repay-amount=<n>|max`
+ * (`max` clicks the form's Max for a full clear; default = a conservative fraction of the debt).
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
@@ -30,12 +35,15 @@ import {
   type RunConfig,
   type Target,
 } from "./config";
+import { deriveEthAddress } from "./connector";
 import {
   fetchMinDepositBtc,
   fetchMinDepositForSplitBtc,
   fetchProviders,
 } from "./peginParams";
+import { fetchRepayableDebts } from "./repayParams";
 import { runE2E } from "./run";
+import { loadWalletSecrets } from "./secrets";
 import { MS_PER_SECOND } from "./timing";
 
 interface Choice<T extends string> {
@@ -245,11 +253,29 @@ async function resolveConfig(
       delayMs = Math.max(0, Math.round((Number(raw) || 0) * MS_PER_SECOND));
     }
 
-    // Borrow only: peg in first, or borrow against existing collateral? Resolved early because it
-    // decides whether the pegin extras below are collected (a `--pegin-first` borrow performs a pegin
-    // before borrowing). `--pegin-first` wins; else prompt (default = reuse existing collateral).
+    // Repay: borrow first (then repay the new loan), or repay an existing loan? Resolved BEFORE the
+    // pegin/collateral choice below because it decides whether a borrow (and thus a possible pegin)
+    // happens at all. `--borrow-first` wins; else prompt (default = repay an existing loan).
+    let borrowFirst = false;
+    if (action === "repay") {
+      if (flags["borrow-first"] !== undefined) {
+        borrowFirst = flagBool(flags["borrow-first"]);
+      } else if (interactive) {
+        borrowFirst =
+          (await select<"existing" | "borrow">(rl, "What to repay", [
+            { value: "existing", label: "Repay an existing loan" },
+            { value: "borrow", label: "Borrow first, then repay it" },
+          ])) === "borrow";
+      }
+    }
+
+    // Peg in first, or borrow against existing collateral? Applies to any run that borrows — a `borrow`
+    // run, or a `repay --borrow-first` run. Resolved early because it decides whether the pegin extras
+    // below are collected. `--pegin-first` wins; else prompt (default = reuse existing collateral).
+    const willBorrow =
+      action === "borrow" || (action === "repay" && borrowFirst);
     let peginFirst = false;
-    if (action === "borrow") {
+    if (willBorrow) {
       if (flags["pegin-first"] !== undefined) {
         peginFirst = flagBool(flags["pegin-first"]);
       } else if (interactive) {
@@ -266,9 +292,9 @@ async function resolveConfig(
 
     // Pegin extras. A flag always wins; otherwise fetch the network's real values (like the balance
     // pre-flight) and offer them as defaults — amount ⇒ minimum, provider ⇒ first available. Collected
-    // for a `pegin` run AND for a `borrow --pegin-first` run (which pegs in before borrowing).
-    const needsPeginParams =
-      action === "pegin" || (action === "borrow" && peginFirst);
+    // for a `pegin` run AND for any pegin-first borrow (`borrow --pegin-first` or
+    // `repay --borrow-first --pegin-first`, which peg in before borrowing).
+    const needsPeginParams = action === "pegin" || (willBorrow && peginFirst);
 
     // Split: `--split` wins; else prompt (default = single vault). Resolved first because the deposit
     // minimum depends on it — a two-vault split needs a larger deposit than a single vault.
@@ -362,10 +388,11 @@ async function resolveConfig(
       }
     }
 
-    // Borrow extras: token (from the live borrowable list) + an explicit amount passthrough. The amount
+    // Borrow extras: token (from the live borrowable list) + an explicit amount passthrough. Collected
+    // for any run that borrows (`willBorrow`: a `borrow` run, or a `repay --borrow-first` run). The amount
     // DEFAULT (a conservative fraction of the max) needs the depositor's ETH address, which isn't known
-    // until wallet import — so it's resolved later in run.ts; here we only carry an explicit
-    // --borrow-amount (a number, or "max" for the form's Max button) through.
+    // until wallet import — so it's resolved later; here we only carry an explicit --borrow-amount
+    // (a number, or "max" for the form's Max button) through.
     let borrowToken =
       typeof flags["borrow-token"] === "string"
         ? flags["borrow-token"]
@@ -381,7 +408,7 @@ async function resolveConfig(
           `--borrow-amount must be a positive number of tokens or "max" (got "${borrowAmount}")`,
         );
     }
-    if (action === "borrow") {
+    if (willBorrow) {
       // Fetch the live borrowable list up front so we can VALIDATE an explicit --borrow-token before a
       // (possibly funded, pegin-first) run — an unselectable token would otherwise only surface after
       // the peg-in, wasting it. When the token isn't given, pick from the list (menu / first).
@@ -416,6 +443,74 @@ async function resolveConfig(
       }
     }
 
+    // Repay extras: token (from the depositor's outstanding loans) + an explicit amount passthrough.
+    // Mirrors borrow: the amount DEFAULT (a conservative fraction of the debt) needs the ETH address, so
+    // it's resolved later in the action; here we only carry an explicit --repay-amount through.
+    let repayToken =
+      typeof flags["repay-token"] === "string"
+        ? flags["repay-token"]
+        : undefined;
+    const repayAmount =
+      typeof flags["repay-amount"] === "string"
+        ? flags["repay-amount"]
+        : undefined;
+    if (repayAmount !== undefined && repayAmount.toLowerCase() !== "max") {
+      const parsed = Number(repayAmount);
+      if (!Number.isFinite(parsed) || parsed <= 0)
+        throw new Error(
+          `--repay-amount must be a positive number of tokens or "max" (got "${repayAmount}")`,
+        );
+    }
+    if (action === "repay" && !borrowFirst) {
+      // Fetch the depositor's outstanding loans up front so an explicit --repay-token is VALIDATED
+      // before the run, and so an unspecified token can be picked from the list (menu / sole loan).
+      // Skipped for --borrow-first: the loan is created during the run, so `repayToken` defaults to the
+      // borrowed token (below) rather than being validated against the current (pre-borrow) loans.
+      // Unlike borrow's address-independent reserve list, the loans are position-specific, so we derive
+      // the ETH address from the wallet mnemonic (the same derivation the balance pre-flight uses) — the
+      // real run in run.ts re-derives it as ground truth. Best-effort: any read/derivation failure warns
+      // and skips validation (the disabled Repay button + form validation still gate the run).
+      const debts = await (async () =>
+        fetchRepayableDebts(
+          network,
+          deriveEthAddress(loadWalletSecrets().mnemonic),
+        ))().catch((error) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `\nCould not fetch outstanding loans (${error instanceof Error ? error.message : error}); skipping token validation — the repay form will gate it.`,
+        );
+        return [];
+      });
+      if (repayToken !== undefined) {
+        const match = debts.find(
+          (d) => d.symbol.toLowerCase() === repayToken!.toLowerCase(),
+        );
+        if (debts.length > 0 && !match)
+          throw new Error(
+            `--repay-token "${repayToken}" is not an outstanding loan on ${network} (you owe on: ${debts.map((d) => d.symbol).join(", ") || "nothing"}).`,
+          );
+        // Canonicalize to the reserve's exact symbol casing when we could validate it.
+        if (match) repayToken = match.symbol;
+      } else if (debts.length > 0) {
+        repayToken =
+          debts.length === 1
+            ? debts[0].symbol
+            : interactive
+              ? await select(
+                  rl,
+                  "Repay token",
+                  debts.map((d) => ({
+                    value: d.symbol,
+                    label: `${d.symbol} — ${d.debtTokens} owed`,
+                  })),
+                )
+              : debts[0].symbol;
+      }
+    }
+    // For `repay --borrow-first`, repay the token we just borrowed unless the user overrode --repay-token.
+    if (action === "repay" && borrowFirst && repayToken === undefined)
+      repayToken = borrowToken;
+
     // Sign-conformance extra: explicit fixtures file (else the action auto-detects the newest pegin's).
     const fixturesPath =
       typeof flags.fixtures === "string" ? flags.fixtures : undefined;
@@ -435,6 +530,9 @@ async function resolveConfig(
       peginFirst,
       borrowToken,
       borrowAmount,
+      borrowFirst,
+      repayToken,
+      repayAmount,
     };
   } finally {
     rl.close();

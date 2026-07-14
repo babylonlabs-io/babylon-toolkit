@@ -44,19 +44,26 @@ import {
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { runPeginFlow } from "./pegin";
 import { startRecording } from "./recording";
-import { FLUID_CTA_SELECTOR, firstByTestid } from "./selectors";
+import {
+  AMOUNT_INPUT,
+  ASSET_SELECT_TITLE,
+  DONE_BUTTON_RX,
+  firstByTestid,
+  FLUID_CTA_SELECTOR,
+  MAX_AMOUNT_KEYWORD,
+  MAX_BUTTON_RX,
+  SUCCESS_DONE_TESTID,
+  TX_FAILED_RX,
+} from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
 // Dashboard "Loans" section → Borrow (testid-first; the fallback matches the button only while it reads
-// exactly "Borrow", which is fine on the dashboard where the CTA isn't relabeled).
+// exactly "Borrow", which is fine on the dashboard where the CTA isn't relabeled). The shared loan-form
+// selectors (amount input, Max button, "Select asset" title, success-modal Done, tx-failed) live in
+// selectors.ts — borrow-specific ones stay here.
 const LOANS_BORROW_TESTID = '[data-testid="loans-borrow-button"]';
 const BORROW_BUTTON_RX = /^borrow$/i; // COPY.loans.borrowButton
-const ASSET_SELECT_TITLE = "Select asset"; // COPY.loans.assetSelection.title
-// Borrow form: the AmountSlider's numeric input (`inputmode="decimal"`, placeholder "0") + its Max
-// button (a <button> whose visible text is "Max"), and the fluid submit button.
-const AMOUNT_INPUT = 'input[inputmode="decimal"]';
-const MAX_BUTTON_RX = /^max$/i;
 const BORROW_SUBMIT_TESTID = '[data-testid="borrow-submit-button"]';
 const BORROW_SUBMIT_ENABLED_LABEL = "Borrow"; // COPY.loans.borrow.action (enabled state)
 // Submit labels that won't resolve by waiting — fail fast with the callout (COPY.loans.borrow.*).
@@ -79,12 +86,8 @@ const BORROW_COLLATERAL_DEPENDENT_LABELS = new Set([
 // surfaced in the fail-fast message so a blocked run says why.
 const CALLOUT_BODY_RX =
   /(minimum borrowable|maximum borrowable|available to borrow|health factor|temporarily unavailable|Price data unavailable)[^.]*\./i;
-// Success screen (testid-first; tolerant fallbacks for a pre-testid deployed build).
-const SUCCESS_DONE_TESTID = '[data-testid="loan-success-done-button"]';
-const DONE_BUTTON_RX = /^done$/i; // COPY.loans.borrowSuccess.doneButton
+// Success screen: the borrow-specific title (the shared Done testid/text + tx-failed live in selectors).
 const BORROW_SUCCESS_RX = /borrow successful/i; // COPY.loans.borrowSuccess.title
-const TX_FAILED_RX = /transaction failed/i; // COPY.common.transactionFailedTitle
-const MAX_AMOUNT_KEYWORD = "max";
 /**
  * Minimum on-chain debt rise (USD) that counts as "the borrow landed", checked after the success
  * screen. Small — a real borrow adds far more — but above float/oracle-tick noise on the existing debt.
@@ -378,7 +381,11 @@ async function assertBorrowDebtIncreased(
   );
 }
 
-/** Drive the borrow flow proper (assumes wallets connected + approver/recorder installed by the caller). */
+/**
+ * Drive the borrow flow proper (assumes wallets connected + approver/recorder installed by the caller,
+ * and collateral already present). Wrapped by `runBorrowWithOptionalPegin`, which adds the optional
+ * pegin-first phase in front.
+ */
 async function runBorrowFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
@@ -452,6 +459,34 @@ async function waitForFreshCollateral(
   );
 }
 
+/**
+ * Borrow, optionally pegging in fresh collateral first (`--pegin-first`). Assumes wallets connected +
+ * approver/recorder installed by the caller. Exported so BOTH the borrow action and the repay action
+ * (`repay --borrow-first [--pegin-first]`) run the identical "maybe peg in, then borrow" sequence — the
+ * pegin (a full `runPeginFlow`) then the baseline-relative collateral-settle wait, then the borrow. Step
+ * labels are emitted via `onStep` (the caller namespaces them for its recorder).
+ */
+export async function runBorrowWithOptionalPegin(
+  ctx: ActionContext,
+  onStep: (step: string) => void,
+): Promise<void> {
+  if (ctx.config.peginFirst) {
+    ctx.log("--pegin-first: pegging in fresh collateral before borrowing");
+    // Snapshot the on-chain collateral BEFORE the pegin so we wait for THIS pegin's vault to register —
+    // a strict increase over the baseline. That is what makes "0.01 existing + new 0.01" correct:
+    // collateral may already be > 0, so we wait for it to rise past the baseline, not merely be non-zero.
+    // A failed read → 0n baseline (worst case we wait for any collateral).
+    const baselineSats = await fetchCollateralSats(
+      ctx.config.network,
+      ctx.eth.address,
+    ).catch(() => 0n);
+    await runPeginFlow(ctx, (step) => onStep(`pegin:${step}`));
+    onStep("await-collateral");
+    await waitForFreshCollateral(ctx, baselineSats);
+  }
+  await runBorrowFlow(ctx, onStep);
+}
+
 export const borrowAction: Action = {
   id: "borrow",
   async run(ctx: ActionContext): Promise<void> {
@@ -471,26 +506,7 @@ export const borrowAction: Action = {
     try {
       await connectWallets(ctx);
 
-      if (ctx.config.peginFirst) {
-        log(
-          "Borrow --pegin-first: pegging in fresh collateral before borrowing",
-        );
-        // Snapshot the on-chain collateral BEFORE the pegin so we can wait for THIS pegin's vault to
-        // register — a strict increase over the baseline. This is what makes "0.01 existing + new 0.01"
-        // correct: collateral is already > 0, so we must wait for it to rise past the baseline, not just
-        // be non-zero. A failed read → 0n baseline (worst case we wait for any collateral).
-        const baselineSats = await fetchCollateralSats(
-          ctx.config.network,
-          ctx.eth.address,
-        ).catch(() => 0n);
-        await runPeginFlow(ctx, (step) => {
-          currentStep = `pegin:${step}`;
-        });
-        currentStep = "borrow-await-collateral";
-        await waitForFreshCollateral(ctx, baselineSats);
-      }
-
-      await runBorrowFlow(ctx, (step) => {
+      await runBorrowWithOptionalPegin(ctx, (step) => {
         currentStep = step;
       });
 

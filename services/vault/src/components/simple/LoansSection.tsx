@@ -83,6 +83,7 @@ export function LoansSection({
               onClick={onRepay}
               className="rounded-full"
               disabled={!isConnected}
+              data-testid="loans-repay-button"
             >
               {COPY.loans.repayButton}
             </Button>

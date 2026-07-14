@@ -38,6 +38,7 @@ import {
   resolveCoreSpoke,
   resolveNetworkContracts,
 } from "./networkContracts";
+import { formatTokenAmount } from "./tokenAmount";
 
 /**
  * Default borrow = this fraction of the computed max, keeping the health factor well above the
@@ -49,18 +50,11 @@ export const CONSERVATIVE_BORROW_FRACTION = 0.25;
 /** The Aave oracle reports USD prices scaled by 1e8. */
 const ORACLE_PRICE_SCALE = 1e8;
 
-/** Cap the borrow-form input at this many decimal places (USDC/USDT are 6) — enough for any test amount. */
-const MAX_INPUT_DECIMALS = 6;
-
 /**
- * Format a token amount for the borrow form's numeric input: floored (never rounded up, so a computed
- * default can't drift above the max) to min(decimals, MAX_INPUT_DECIMALS) places, then trimmed.
+ * Format a token amount for the borrow form's numeric input — the shared floored formatter (see
+ * tokenAmount.ts). Kept as a named re-export so the borrow action's import is unchanged.
  */
-export function formatBorrowAmount(amount: number, decimals: number): string {
-  const places = Math.min(decimals, MAX_INPUT_DECIMALS);
-  const scale = 10 ** places;
-  return (Math.floor(amount * scale) / scale).toString();
-}
+export const formatBorrowAmount = formatTokenAmount;
 
 /** A borrowable token as offered in the CLI menu / used to drive the asset picker. */
 export interface BorrowReserve {
@@ -179,9 +173,10 @@ export async function fetchBorrowableReserves(
 /**
  * Shared prelude for every position-derived read: resolve the network's adapter + a Sepolia client,
  * then read the depositor's on-chain adapter position (`null` when none exists yet). `getPosition` maps
- * the ETH address to the Aave proxy — the app's `useAaveUserPosition` does the same.
+ * the ETH address to the Aave proxy — the app's `useAaveUserPosition` does the same. Exported so the
+ * repay pre-flight (repayParams.ts) reuses the same proxy/client resolution.
  */
-async function openPosition(
+export async function openPosition(
   network: NetworkName,
   ethAddress: string,
 ): Promise<{
