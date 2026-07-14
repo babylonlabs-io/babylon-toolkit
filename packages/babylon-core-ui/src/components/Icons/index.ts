@@ -53,6 +53,6 @@ export { ExploreIcon } from "./common/ExploreIcon";
 export { GithubIcon } from "./common/GithubIcon";
 export { TelegramIcon } from "./common/TelegramIcon";
 export { LinkedinIcon } from "./common/LinkedinIcon";
-export { MailIcon as SidebarMailIcon } from "./common/MailIcon";
+export { MailIcon } from "./common/MailIcon";
 export { DiscordIcon } from "./common/DiscordIcon";
 export { XIcon } from "./common/XIcon";
