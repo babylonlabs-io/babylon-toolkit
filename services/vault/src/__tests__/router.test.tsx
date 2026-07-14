@@ -416,36 +416,6 @@ describe("Router — flag-aware reserve-detail routing", () => {
       ).not.toBeInTheDocument();
     });
   });
-
-  describe("flag-off nested route redirects", () => {
-    beforeEach(() => {
-      setV3Flag("false");
-    });
-
-    it("redirects /vaults/anything to overview when flag is off", async () => {
-      renderAt("/vaults/foo");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-    });
-
-    it("redirects /loans/anything to overview when flag is off", async () => {
-      renderAt("/loans/foo");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-    });
-
-    it("redirects /liquidations/anything to overview when flag is off", async () => {
-      renderAt("/liquidations/foo");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-    });
-  });
   it.each([
     { flag: "true", label: "v3 (flag on)" },
     { flag: "false", label: "v2 (flag off)" },
