@@ -46,6 +46,7 @@ import { runBorrowWithOptionalPegin } from "./borrow";
 import { startRecording } from "./recording";
 import {
   AMOUNT_INPUT,
+  ASSET_ROW_TESTID_PREFIX,
   ASSET_SELECT_TITLE,
   DONE_BUTTON_RX,
   firstByTestid,
@@ -154,9 +155,11 @@ async function resolveRepayAmount(
  * Open the repay flow from the dashboard: click Loans → Repay, then wait for EITHER the "Select asset"
  * picker (multiple loans) OR the repay form itself (a single loan skips the picker — see the app's
  * DashboardPage.handleRepay). Returns whether the picker appeared, so the caller knows to select an
- * asset. The Repay button only renders when the position has a loan and is enabled once connected; a
- * loan created earlier in the same session (borrow-first) takes a moment to propagate, so we poll for it
- * to enable rather than failing on the first check.
+ * asset. The Repay button is only RENDERED when the position has a loan (`{hasLoans && …}`) and is
+ * enabled once connected — so after a borrow-first the button's VISIBILITY, not just its enabled state,
+ * lags while the new loan propagates. We therefore poll for it to appear AND enable within a single
+ * window (not a short visibility wait before a long enable wait, which would abort early on a
+ * slow-to-render button).
  */
 async function openRepay(
   page: Page,
@@ -167,12 +170,12 @@ async function openRepay(
     LOANS_REPAY_TESTID,
     page.getByRole("button", { name: REPAY_BUTTON_RX }),
   );
-  await repay.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
   const deadline = Date.now() + REPAY_BUTTON_ENABLE_TIMEOUT_MS;
-  let enabled = await repay.isEnabled().catch(() => false);
+  let enabled = false;
   while (!enabled && Date.now() < deadline) {
-    await page.waitForTimeout(FORM_SETTLE_MS);
-    enabled = await repay.isEnabled().catch(() => false);
+    if (await repay.isVisible().catch(() => false))
+      enabled = await repay.isEnabled().catch(() => false);
+    if (!enabled) await page.waitForTimeout(FORM_SETTLE_MS);
   }
   if (!enabled)
     throw new Error(
@@ -208,7 +211,9 @@ async function openRepay(
 /**
  * Pick the debt token in the "Select asset" picker (repay mode). Prefer the per-symbol testid; fall back
  * to the row whose text contains the symbol. With no token specified, take the first row. Waits for the
- * row (the picker's rows are the user's loans, available immediately). Returns the symbol used.
+ * row (the picker's rows are the user's loans, available immediately). Returns the token SYMBOL — read
+ * from the chosen row's `data-testid` (`asset-select-row-<symbol>`), NOT its free-text label — so the
+ * caller's debt lookup (`resolveRepayAmount`) can match it against `debt.symbol`.
  */
 async function selectAsset(
   page: Page,
@@ -218,10 +223,10 @@ async function selectAsset(
   const row = token
     ? firstByTestid(
         page,
-        `[data-testid="asset-select-row-${token.toLowerCase()}"]`,
+        `[data-testid="${ASSET_ROW_TESTID_PREFIX}${token.toLowerCase()}"]`,
         page.getByRole("button").filter({ hasText: new RegExp(token, "i") }),
       )
-    : page.locator('[data-testid^="asset-select-row-"]').first();
+    : page.locator(`[data-testid^="${ASSET_ROW_TESTID_PREFIX}"]`).first();
   const appeared = await row
     .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
     .then(() => true)
@@ -232,12 +237,17 @@ async function selectAsset(
         ? `Repay token "${token}" was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`
         : "No repay token specified and no loan rows were found in the picker.",
     );
-  const label = (await row.innerText().catch(() => ""))
-    .replace(/\s+/g, " ")
-    .trim();
+  // An explicit token wins; otherwise read the symbol from the row's testid (the no-token branch selects
+  // rows BY that prefix, so the attribute is always present on the chosen row).
+  let symbol = token;
+  if (!symbol) {
+    const testid = await row.getAttribute("data-testid").catch(() => null);
+    if (testid?.startsWith(ASSET_ROW_TESTID_PREFIX))
+      symbol = testid.slice(ASSET_ROW_TESTID_PREFIX.length);
+  }
   await row.click();
-  log(`Selected repay token: ${token ?? label}`);
-  return token ?? label;
+  log(`Selected repay token: ${symbol ?? "(unknown)"}`);
+  return symbol;
 }
 
 /** Enter the repay amount: click the form's Max button, or fill the numeric input. */

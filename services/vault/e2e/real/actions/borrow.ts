@@ -46,6 +46,7 @@ import { runPeginFlow } from "./pegin";
 import { startRecording } from "./recording";
 import {
   AMOUNT_INPUT,
+  ASSET_ROW_TESTID_PREFIX,
   ASSET_SELECT_TITLE,
   DONE_BUTTON_RX,
   firstByTestid,
@@ -181,7 +182,8 @@ async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
  * needed). With no token specified, take the first asset row (testid-based; requires the testid build).
  * The modal shows "Loading assets…" until the oracle-price query resolves, so we WAIT for the row (not a
  * one-shot check) and only fail on timeout — otherwise a healthy run could race the load and see no rows.
- * Returns the symbol used, for the success log.
+ * Returns the token SYMBOL (read from the chosen row's testid, not its free-text label), used for the
+ * success log.
  */
 async function selectAsset(
   page: Page,
@@ -191,10 +193,10 @@ async function selectAsset(
   const row = token
     ? firstByTestid(
         page,
-        `[data-testid="asset-select-row-${token.toLowerCase()}"]`,
+        `[data-testid="${ASSET_ROW_TESTID_PREFIX}${token.toLowerCase()}"]`,
         page.getByRole("button").filter({ hasText: new RegExp(token, "i") }),
       )
-    : page.locator('[data-testid^="asset-select-row-"]').first();
+    : page.locator(`[data-testid^="${ASSET_ROW_TESTID_PREFIX}"]`).first();
   const appeared = await row
     .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
     .then(() => true)
@@ -205,12 +207,17 @@ async function selectAsset(
         ? `Borrow token "${token}" was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`
         : "No borrow token specified and no asset rows were found — re-run with --borrow-token=<symbol>.",
     );
-  const label = (await row.innerText().catch(() => ""))
-    .replace(/\s+/g, " ")
-    .trim();
+  // An explicit token wins; otherwise read the symbol from the row's testid (the no-token branch selects
+  // rows BY that prefix, so the attribute is always present on the chosen row).
+  let symbol = token;
+  if (!symbol) {
+    const testid = await row.getAttribute("data-testid").catch(() => null);
+    if (testid?.startsWith(ASSET_ROW_TESTID_PREFIX))
+      symbol = testid.slice(ASSET_ROW_TESTID_PREFIX.length);
+  }
   await row.click();
-  log(`Selected borrow token: ${token ?? label}`);
-  return token ?? label;
+  log(`Selected borrow token: ${symbol ?? "(unknown)"}`);
+  return symbol;
 }
 
 /** Enter the borrow amount: click the form's Max button, or fill the numeric input. */
