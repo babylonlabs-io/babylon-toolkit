@@ -306,8 +306,10 @@ function SimpleDepositContent({
       setWalletConnectionError(null);
       // reconnect() re-auths the raw provider without emitting a connector
       // event, so re-read the public key explicitly to clear a stuck
-      // btcPublicKeyError once the wallet is unlocked again.
-      refetchBtcPublicKey();
+      // btcPublicKeyError once the wallet is unlocked again. Awaited so the
+      // reconnecting state holds until the key is fresh — otherwise the CTA
+      // briefly looks actionable while still showing the stale failure.
+      await refetchBtcPublicKey();
     } catch {
       // The underlying provider throws dev-facing strings (e.g. "BTC wallet
       // provider returned an empty address"). Surface a single polished

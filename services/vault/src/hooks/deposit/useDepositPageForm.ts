@@ -134,8 +134,11 @@ export interface UseDepositPageFormResult {
    * consumers must promote it to the wallet-reconnect recovery surface.
    */
   btcPublicKeyError: Error | null;
-  /** Re-read the wallet public key — call after a successful reconnect. */
-  refetchBtcPublicKey: () => void;
+  /**
+   * Re-read the wallet public key — call (and await) after a successful
+   * reconnect so the reconnecting state holds until the key is fresh.
+   */
+  refetchBtcPublicKey: () => Promise<void>;
 
   /**
    * Remaining application supply cap in satoshis. Null = no cap applies, or

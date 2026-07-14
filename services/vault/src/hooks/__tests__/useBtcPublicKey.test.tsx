@@ -59,14 +59,39 @@ describe("useBtcPublicKey", () => {
       expect(result.current.error).not.toBeNull();
     });
 
-    // The user reconnects/unlocks; the CTA handler calls refetch().
-    act(() => {
-      result.current.refetch();
+    // The user reconnects/unlocks; the CTA handler awaits refetch().
+    await act(async () => {
+      await result.current.refetch();
     });
 
-    await waitFor(() => {
-      expect(result.current.publicKey).toBe("ab".repeat(32));
+    expect(result.current.publicKey).toBe("ab".repeat(32));
+    expect(result.current.error).toBeNull();
+  });
+
+  it("does not let a stale mount read clobber a fresher refetch result", async () => {
+    // Mount read: still pending (wallet locked, slow), will ultimately fail.
+    let rejectMountRead!: (e: Error) => void;
+    const mountRead = new Promise<string>((_, reject) => {
+      rejectMountRead = reject;
     });
+    mockGetPublicKeyHex
+      .mockReturnValueOnce(mountRead) // mount read — hangs
+      .mockResolvedValue(`02${"ab".repeat(32)}`); // refetch — fresh key
+
+    const { result } = renderHook(() => useBtcPublicKey(true));
+
+    // Reconnect fires refetch while the mount read is still in flight; it wins.
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(result.current.publicKey).toBe("ab".repeat(32));
+
+    // The stale mount read finally fails — it must NOT overwrite the fresh key.
+    await act(async () => {
+      rejectMountRead(new Error("wallet locked"));
+      await mountRead.catch(() => undefined);
+    });
+    expect(result.current.publicKey).toBe("ab".repeat(32));
     expect(result.current.error).toBeNull();
   });
 
