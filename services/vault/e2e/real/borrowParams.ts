@@ -29,7 +29,7 @@ import {
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql } from "graphql-request";
-import { type Address, type PublicClient, zeroAddress } from "viem";
+import { type Address, type PublicClient } from "viem";
 
 import { type NetworkName } from "./config";
 import {
@@ -79,8 +79,6 @@ export interface BorrowContext {
   hasCollateral: boolean;
   collateralUsd: number;
   currentDebtUsd: number;
-  /** The Aave proxy that keys all spoke reads (zero address string when no position exists yet). */
-  proxy: string;
 }
 
 /** A best-effort max-borrow estimate for one token. */
@@ -89,11 +87,6 @@ export interface MaxBorrow {
   decimals: number;
   /** Max tokens borrowable while keeping HF ≥ MIN_HEALTH_FACTOR_FOR_BORROW (0 when no collateral). */
   maxTokens: number;
-  /** Oracle USD price of the token (0 when unavailable / no position). */
-  tokenPriceUsd: number;
-  collateralUsd: number;
-  currentDebtUsd: number;
-  hasCollateral: boolean;
 }
 
 const GET_AAVE_APP_CONFIG = gql`
@@ -240,24 +233,14 @@ export async function fetchBorrowContext(
     ethAddress,
   );
   if (!position || position.totalCollateralBTC <= 0n)
-    return {
-      hasCollateral: false,
-      collateralUsd: 0,
-      currentDebtUsd: 0,
-      proxy: position?.proxyContract ?? zeroAddress,
-    };
+    return { hasCollateral: false, collateralUsd: 0, currentDebtUsd: 0 };
 
   const { collateralUsd, currentDebtUsd } = await readAccountUsd(
     client,
     appController,
     position.proxyContract,
   );
-  return {
-    hasCollateral: true,
-    collateralUsd,
-    currentDebtUsd,
-    proxy: position.proxyContract,
-  };
+  return { hasCollateral: true, collateralUsd, currentDebtUsd };
 }
 
 /**
@@ -305,8 +288,8 @@ function computeMaxBorrowTokens(
  * Best-effort max-borrow estimate for one token on `network`, mirroring the app's borrow-form chain:
  * collateral/debt from the position, the vBTC reserve's liquidation threshold (the depositor's stored
  * `dynamicConfigKey` when a position exists, else the reserve's current key — matches the app), and the
- * token's oracle price. Returns `maxTokens: 0` / `hasCollateral: false` when there's no collateral yet.
- * Estimate only — the form's Max is authoritative.
+ * token's oracle price. Returns `maxTokens: 0` when there's no collateral yet. Estimate only — the
+ * form's Max is authoritative.
  */
 export async function fetchMaxBorrow(
   network: NetworkName,
@@ -329,15 +312,7 @@ export async function fetchMaxBorrow(
     ethAddress,
   );
   if (!position || position.totalCollateralBTC <= 0n)
-    return {
-      symbol: reserve.symbol,
-      decimals: reserve.decimals,
-      maxTokens: 0,
-      tokenPriceUsd: 0,
-      collateralUsd: 0,
-      currentDebtUsd: 0,
-      hasCollateral: false,
-    };
+    return { symbol: reserve.symbol, decimals: reserve.decimals, maxTokens: 0 };
 
   const { spoke, collateralUsd, currentDebtUsd } = await readAccountUsd(
     client,
@@ -380,9 +355,5 @@ export async function fetchMaxBorrow(
       liquidationThresholdBps,
       tokenPriceUsd,
     ),
-    tokenPriceUsd,
-    collateralUsd,
-    currentDebtUsd,
-    hasCollateral: true,
   };
 }

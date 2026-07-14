@@ -276,6 +276,7 @@ export async function fetchVaultCountCap(
   const adapter = appController.toLowerCase();
   let currentCount = 0;
   let after: string | null = null;
+  let exhausted = false;
   for (let pageIndex = 0; pageIndex < MAX_VAULT_PAGES; pageIndex++) {
     const page: VaultStatusPage = after
       ? await gqlClient.request(GET_DEPOSITOR_VAULT_STATUSES_NEXT, {
@@ -293,10 +294,25 @@ export async function fetchVaultCountCap(
         item.applicationEntryPoint.toLowerCase() === adapter
       )
         currentCount++;
-    if (!page.vaults.pageInfo.hasNextPage) break;
+    if (!page.vaults.pageInfo.hasNextPage) {
+      exhausted = true;
+      break;
+    }
     after = page.vaults.pageInfo.endCursor;
-    if (!after) break;
+    if (!after) {
+      exhausted = true;
+      break;
+    }
   }
+
+  // Fail CLOSED (like the app's fetchVaultsByDepositor) if the depositor's vaults didn't fit in
+  // MAX_VAULT_PAGES: returning a partial count would UNDERCOUNT occupied slots and could let a
+  // cap-exceeding peg-in through. The caller (run.ts) treats a throw as non-fatal → warn + let the form
+  // gate, so this never blocks a legit run — it just refuses to under-report.
+  if (!exhausted)
+    throw new Error(
+      `fetchVaultCountCap: depositor ${depositor} has more than ${MAX_VAULT_PAGES * VAULTS_PAGE_SIZE} vaults — refusing to return a partial (undercounted) slot count.`,
+    );
 
   return { maxVaults, currentCount };
 }

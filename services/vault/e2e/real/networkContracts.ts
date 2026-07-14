@@ -136,9 +136,11 @@ interface VbtcReserveIdResponse {
 }
 
 /**
- * Read the vBTC (collateral) reserve id from the indexer's singleton `aaveConfig`. Shared by the pegin
- * split-minimum and the borrow reserve list so the `aaveConfig(id:1)` key + null contract live in one
- * place. Callers that also need the reserve list add `aaveReserves` to their own query.
+ * Read the vBTC (collateral) reserve id from the indexer's singleton `aaveConfig`. Used by the pegin
+ * split-minimum (`peginParams.fetchMinDepositForSplitBtc`). Note: `borrowParams.fetchAaveReserveConfig`
+ * does NOT call this — it reads the id as part of one combined query (`aaveConfig` + `aaveReserves` in a
+ * single round-trip), the right trade-off there; this just centralizes the `aaveConfig(id:1)` key + null
+ * contract for the pegin path.
  */
 export async function fetchVbtcReserveId(
   graphqlEndpoint: string,

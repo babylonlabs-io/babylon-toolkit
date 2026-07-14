@@ -381,15 +381,28 @@ async function resolveConfig(
           `--borrow-amount must be a positive number of tokens or "max" (got "${borrowAmount}")`,
         );
     }
-    if (action === "borrow" && borrowToken === undefined) {
+    if (action === "borrow") {
+      // Fetch the live borrowable list up front so we can VALIDATE an explicit --borrow-token before a
+      // (possibly funded, pegin-first) run — an unselectable token would otherwise only surface after
+      // the peg-in, wasting it. When the token isn't given, pick from the list (menu / first).
       const reserves = await fetchBorrowableReserves(network).catch((error) => {
         // eslint-disable-next-line no-console
         console.warn(
-          `\nCould not fetch borrowable tokens (${error instanceof Error ? error.message : error}); the run will pick the first available in the asset picker.`,
+          `\nCould not fetch borrowable tokens (${error instanceof Error ? error.message : error}); skipping token validation — the borrow form will gate it.`,
         );
         return [];
       });
-      if (reserves.length > 0)
+      if (borrowToken !== undefined) {
+        const match = reserves.find(
+          (r) => r.symbol.toLowerCase() === borrowToken!.toLowerCase(),
+        );
+        if (reserves.length > 0 && !match)
+          throw new Error(
+            `--borrow-token "${borrowToken}" is not a borrowable reserve on ${network} (available: ${reserves.map((r) => r.symbol).join(", ")}).`,
+          );
+        // Canonicalize to the reserve's exact symbol casing when we could validate it.
+        if (match) borrowToken = match.symbol;
+      } else if (reserves.length > 0) {
         borrowToken = interactive
           ? await select(
               rl,
@@ -400,6 +413,7 @@ async function resolveConfig(
               })),
             )
           : reserves[0].symbol;
+      }
     }
 
     // Sign-conformance extra: explicit fixtures file (else the action auto-detects the newest pegin's).

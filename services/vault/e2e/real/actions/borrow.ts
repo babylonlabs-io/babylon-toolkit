@@ -24,6 +24,7 @@ import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 import {
   CONSERVATIVE_BORROW_FRACTION,
+  fetchBorrowContext,
   fetchCollateralSats,
   fetchMaxBorrow,
   formatBorrowAmount,
@@ -84,6 +85,11 @@ const DONE_BUTTON_RX = /^done$/i; // COPY.loans.borrowSuccess.doneButton
 const BORROW_SUCCESS_RX = /borrow successful/i; // COPY.loans.borrowSuccess.title
 const TX_FAILED_RX = /transaction failed/i; // COPY.common.transactionFailedTitle
 const MAX_AMOUNT_KEYWORD = "max";
+/**
+ * Minimum on-chain debt rise (USD) that counts as "the borrow landed", checked after the success
+ * screen. Small — a real borrow adds far more — but above float/oracle-tick noise on the existing debt.
+ */
+const DEBT_INCREASE_MIN_USD = 0.01;
 
 /** The resolved borrow amount: click the form's Max button, or fill a specific token amount. */
 type BorrowAmount = { mode: "max" } | { mode: "amount"; value: string };
@@ -91,45 +97,48 @@ type BorrowAmount = { mode: "max" } | { mode: "amount"; value: string };
 /**
  * Resolve the amount to borrow. An explicit `--borrow-amount` wins (a number, or `max`). Otherwise it
  * computes a conservative fraction of the real-data max — this runs after any pegin-first pegin has
- * activated, so fresh collateral is already readable — falling back to the form's Max if that read is
- * zero or fails. The live form stays the authoritative gate either way.
+ * activated, so fresh collateral is already readable. If that computation can't produce a positive
+ * amount (read failed, max is 0, or the fraction rounds to 0 at the token's precision) it THROWS rather
+ * than silently borrowing the form's full Max — full-max is only ever used when explicitly requested
+ * via `--borrow-amount=max`, so a failed read can't pin the health factor at the liquidation edge.
  */
 async function resolveBorrowAmount(ctx: ActionContext): Promise<BorrowAmount> {
   const raw = ctx.config.borrowAmount?.trim();
   if (raw && raw.toLowerCase() === MAX_AMOUNT_KEYWORD) return { mode: "max" };
   if (raw) return { mode: "amount", value: raw };
 
-  // No explicit amount → compute a conservative fraction of the real-data max. This runs AFTER any
-  // pegin-first pegin has activated, so the fresh collateral is already on-chain and readable here
-  // (getPosition/getUserAccountData are on-chain, not indexer). Falls back to the form's Max only if
-  // the read is zero (indexer/state lag) or fails — the form stays the authoritative gate either way.
   const token = ctx.config.borrowToken?.trim();
-  if (!token) return { mode: "max" };
+  if (!token)
+    throw new Error(
+      "borrow: no --borrow-token resolved and no --borrow-amount given — cannot compute a safe default. Re-run with --borrow-token and/or --borrow-amount.",
+    );
+
+  let max;
   try {
-    const max = await fetchMaxBorrow(
-      ctx.config.network,
-      ctx.eth.address,
-      token,
-    );
-    if (max.maxTokens > 0) {
-      const value = formatBorrowAmount(
-        max.maxTokens * CONSERVATIVE_BORROW_FRACTION,
-        max.decimals,
-      );
-      ctx.log(
-        `Borrow amount: ${value} ${max.symbol} (~${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of max ${formatBorrowAmount(max.maxTokens, max.decimals)} ${max.symbol}).`,
-      );
-      return { mode: "amount", value };
-    }
-    ctx.log(
-      `⚠️ Computed max borrow for ${token} is 0 — using the form's Max (it will gate the amount).`,
-    );
+    max = await fetchMaxBorrow(ctx.config.network, ctx.eth.address, token);
   } catch (error) {
-    ctx.log(
-      `⚠️ Could not compute a conservative default (${error instanceof Error ? error.message : error}); using the form's Max.`,
+    throw new Error(
+      `borrow: could not compute the max borrow for ${token} (${error instanceof Error ? error.message : error}) — refusing to guess an amount. Re-run with an explicit --borrow-amount (or --borrow-amount=max).`,
     );
   }
-  return { mode: "max" };
+
+  // Guard on the FORMATTED value, not raw maxTokens: 25% of a tiny max can floor to "0" at the token's
+  // precision, which would fill 0 and stall at "Enter an amount". A zero/failed default fails loudly.
+  const value =
+    max.maxTokens > 0
+      ? formatBorrowAmount(
+          max.maxTokens * CONSERVATIVE_BORROW_FRACTION,
+          max.decimals,
+        )
+      : "0";
+  if (Number(value) <= 0)
+    throw new Error(
+      `borrow: the conservative default for ${token} rounds to 0 (computed max ${formatBorrowAmount(max.maxTokens, max.decimals)} ${token} is too small to borrow ${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of). Re-run with an explicit --borrow-amount.`,
+    );
+  ctx.log(
+    `Borrow amount: ${value} ${max.symbol} (~${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of max ${formatBorrowAmount(max.maxTokens, max.decimals)} ${max.symbol}).`,
+  );
+  return { mode: "amount", value };
 }
 
 /** Open the borrow flow from the dashboard: click Loans → Borrow, wait for the "Select asset" modal. */
@@ -167,6 +176,8 @@ async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
  * Pick the borrow token in the "Select asset" modal. Prefer the per-symbol testid; fall back to the row
  * whose text contains the symbol (case-insensitive — symbols are alphanumeric so no regex escaping is
  * needed). With no token specified, take the first asset row (testid-based; requires the testid build).
+ * The modal shows "Loading assets…" until the oracle-price query resolves, so we WAIT for the row (not a
+ * one-shot check) and only fail on timeout — otherwise a healthy run could race the load and see no rows.
  * Returns the symbol used, for the success log.
  */
 async function selectAsset(
@@ -181,10 +192,14 @@ async function selectAsset(
         page.getByRole("button").filter({ hasText: new RegExp(token, "i") }),
       )
     : page.locator('[data-testid^="asset-select-row-"]').first();
-  if (!(await row.isVisible().catch(() => false)))
+  const appeared = await row
+    .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
+    .then(() => true)
+    .catch(() => false);
+  if (!appeared)
     throw new Error(
       token
-        ? `Borrow token "${token}" was not found in the asset picker.`
+        ? `Borrow token "${token}" was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`
         : "No borrow token specified and no asset rows were found — re-run with --borrow-token=<symbol>.",
     );
   const label = (await row.innerText().catch(() => ""))
@@ -285,25 +300,30 @@ async function confirmBorrowSuccess(
   log: (m: string) => void,
   symbol: string | undefined,
 ): Promise<void> {
-  const done = firstByTestid(
+  // Success is gated ONLY on markers specific to the borrow-success screen — the "Borrow successful"
+  // title or the `loan-success-done-button` testid. NOT the generic "Done" role: deposit/withdraw/repay
+  // modals also have Done buttons, so keying on any Done could report a false success. The generic-role
+  // done is only the click TARGET (via firstByTestid), used after success is confirmed.
+  const successTitle = page.getByText(BORROW_SUCCESS_RX).first();
+  const successDone = page.locator(SUCCESS_DONE_TESTID).first();
+  const doneButton = firstByTestid(
     page,
     SUCCESS_DONE_TESTID,
     page.getByRole("button", { name: DONE_BUTTON_RX }),
   );
-  const success = page.getByText(BORROW_SUCCESS_RX).first();
   const txFailed = page.getByText(TX_FAILED_RX).first();
   const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
 
     if (
-      (await success.isVisible().catch(() => false)) ||
-      (await done.isVisible().catch(() => false))
+      (await successTitle.isVisible().catch(() => false)) ||
+      (await successDone.isVisible().catch(() => false))
     ) {
       log(
         `✅ Borrow successful${symbol ? ` (${symbol})` : ""} — clicking Done`,
       );
-      await done.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
+      await doneButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
       return;
     }
     if (await txFailed.isVisible().catch(() => false)) {
@@ -316,6 +336,45 @@ async function confirmBorrowSuccess(
   }
   throw new Error(
     `Borrow did not reach the "Borrow successful" screen within ${BORROW_TX_TIMEOUT_MS}ms — the MetaMask transaction may not have confirmed. See trace.zip + the failure screenshot.`,
+  );
+}
+
+/**
+ * After the success screen, verify on-chain that the position's debt actually rose — the UI "Borrow
+ * successful" alone doesn't prove funds moved. Polls `fetchBorrowContext` (on-chain `getUserAccountData`)
+ * until the debt exceeds the pre-borrow baseline. Same baseline pattern as `waitForFreshCollateral`.
+ * Skipped (with a warning) only if the pre-borrow baseline couldn't be read — never silently passes.
+ */
+async function assertBorrowDebtIncreased(
+  ctx: ActionContext,
+  debtBeforeUsd: number | null,
+): Promise<void> {
+  if (debtBeforeUsd == null) {
+    ctx.log(
+      "⚠️ Skipping the on-chain debt check — couldn't read the pre-borrow debt to compare against.",
+    );
+    return;
+  }
+  const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
+  let lastUsd = debtBeforeUsd;
+  while (Date.now() < deadline) {
+    const context = await fetchBorrowContext(
+      ctx.config.network,
+      ctx.eth.address,
+    ).catch(() => null);
+    if (context) {
+      lastUsd = context.currentDebtUsd;
+      if (lastUsd > debtBeforeUsd + DEBT_INCREASE_MIN_USD) {
+        ctx.log(
+          `✅ On-chain debt rose: $${debtBeforeUsd.toFixed(2)} → $${lastUsd.toFixed(2)}.`,
+        );
+        return;
+      }
+    }
+    await ctx.page.waitForTimeout(FRESH_COLLATERAL_POLL_MS);
+  }
+  throw new Error(
+    `Borrow reached the success screen but on-chain debt did not rise within ${Math.round(BORROW_TX_TIMEOUT_MS / MS_PER_SECOND)}s (before $${debtBeforeUsd.toFixed(2)}, last $${lastUsd.toFixed(2)}) — the position doesn't reflect the new debt.`,
   );
 }
 
@@ -334,6 +393,14 @@ async function runBorrowFlow(
   const symbol = await selectAsset(page, log, token);
 
   onStep("borrow-form");
+  // Snapshot the on-chain debt BEFORE submitting so we can assert it rose afterwards (a real-data
+  // post-condition on top of the UI success screen).
+  const debtBeforeUsd = await fetchBorrowContext(
+    ctx.config.network,
+    ctx.eth.address,
+  )
+    .then((c) => c.currentDebtUsd)
+    .catch(() => null);
   const amount = await resolveBorrowAmount(ctx);
   await fillBorrowAmount(page, log, amount);
   const cta = await waitForBorrowCta(page, log);
@@ -345,6 +412,9 @@ async function runBorrowFlow(
   await cta.click();
 
   await confirmBorrowSuccess(page, context, log, symbol);
+
+  onStep("borrow-verify");
+  await assertBorrowDebtIncreased(ctx, debtBeforeUsd);
 }
 
 /**

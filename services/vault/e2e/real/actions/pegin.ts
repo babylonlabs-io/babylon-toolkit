@@ -470,18 +470,20 @@ async function walkStepMachine(
       return prePeginTxid;
 
     // Fast-fail on a vault-provider readiness dead-end. If the VP never became ready for WOTS-key
-    // submission, the app skips that vault and it can never activate. Once EVERY expected vault is
-    // skipped there is no route to the activated view — abort now (with a clear, VP-attributed message)
-    // instead of polling out the multi-hour budget. A split where only one sibling is skipped keeps
-    // going (skipped < expectedVaults), matching the app, which continues the ready sibling.
+    // submission, the app skips that vault and it can never activate — so the finish gate
+    // (`activationCount >= expectedVaults`) becomes unreachable. Abort once there's no route left to a
+    // full completion: at least one vault was skipped AND every non-skipped vault has already activated
+    // (`activationCount >= expectedVaults - skippedVaults`). This covers both a fully-skipped deposit
+    // (single vault, or all split vaults) and a PARTIAL split (one sibling skipped, the other activated)
+    // — the latter would otherwise burn the entire multi-hour budget, the exact slow failure this guards.
     const skippedVaults = await countWotsSkippedVaults(page);
-    if (skippedVaults >= expectedVaults)
+    if (skippedVaults > 0 && activationCount >= expectedVaults - skippedVaults)
       throw new Error(
-        `Vault-provider readiness timeout: the vault provider did not become ready for WOTS-key ` +
-          `submission, so ${skippedVaults === 1 ? "the vault was" : `all ${skippedVaults} vaults were`} ` +
-          `skipped and cannot activate. This is a vault-provider availability issue (not the CLI) — ` +
-          `retry once the provider is healthy. The Pre-PegIn is already broadcast, so the deposit can ` +
-          `be resumed later rather than re-pegged.`,
+        `Vault-provider readiness timeout: ${skippedVaults} of ${expectedVaults} vault(s) were skipped ` +
+          `for WOTS-key submission and cannot activate` +
+          `${activationCount > 0 ? ` (the other ${activationCount} activated)` : ""}. This is a ` +
+          `vault-provider availability issue (not the CLI) — retry once the provider is healthy. The ` +
+          `Pre-PegIn is already broadcast, so the deposit can be resumed later rather than re-pegged.`,
       );
 
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
