@@ -381,6 +381,7 @@ export function Borrow() {
         }
         onClick={handleBorrow}
         className="mt-2 disabled:!bg-accent-disabled disabled:!opacity-100"
+        data-testid="borrow-submit-button"
       >
         {getBorrowButtonText()}
       </Button>

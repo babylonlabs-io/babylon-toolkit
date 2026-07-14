@@ -4,6 +4,9 @@
  * lengthening a settle is safe, shortening risks flakiness.
  */
 
+/** Milliseconds per second — for converting a `*_MS` budget to seconds in a user-facing message. */
+export const MS_PER_SECOND = 1000;
+
 /** A dapp step: click a control / wait for an element to appear on the vault UI. */
 export const STEP_TIMEOUT_MS = 30_000;
 /** The wallet menu content to render after clicking the avatar-group trigger. */
@@ -57,6 +60,40 @@ export const PEGIN_POLL_INTERVAL_MS = 3_000;
  * optimistically ("Activating collateral…") but can lag the indexer catching up.
  */
 export const DASHBOARD_VAULT_TIMEOUT_MS = 60_000;
+
+// ── borrow ────────────────────────────────────────────────────────────────────
+/**
+ * The dashboard "Borrow" button to become enabled after landing on the dashboard. It's gated on
+ * `hasCollateral` (the position's on-chain collateral > 0); a JUST-activated vault (pegin-first) takes
+ * a little time to propagate into that read, so the button can be briefly disabled right after
+ * "Go to Dashboard". Generous so a fresh activation isn't mistaken for "no collateral" (a hard fail);
+ * a reuse run already had its collateral gated by run.ts, so the button is enabled well within this.
+ */
+export const BORROW_BUTTON_ENABLE_TIMEOUT_MS = 180_000;
+/**
+ * After a pegin-first activation, how long to wait for the freshly-activated vault's collateral to
+ * register on-chain (the adapter position's BTC amount rising above the pre-pegin baseline) before
+ * entering the borrow amount. Activation confirms on Sepolia in seconds and `getPosition` reads that
+ * on-chain state directly, so this is usually quick; generous to absorb a slow read. Non-fatal on
+ * timeout — the borrow form's own CTA wait still gates the amount.
+ */
+export const FRESH_COLLATERAL_TIMEOUT_MS = 180_000;
+/** Poll cadence for the post-activation collateral-settle wait (a light on-chain `getPosition` read). */
+export const FRESH_COLLATERAL_POLL_MS = 3_000;
+/**
+ * The borrow form's submit button to become the enabled "Borrow" after entering an amount — it relabels
+ * through "Enter an amount" / "Refreshing position…" while the oracle price + position settle. Generous
+ * because in a pegin-first run the just-activated vault's collateral has to propagate into the form's
+ * on-chain position read before a larger amount clears the max ("Amount exceeds maximum" is transient
+ * until then). A genuinely-too-large amount fails at this deadline with the form's callout.
+ */
+export const BORROW_CTA_ENABLE_TIMEOUT_MS = 150_000;
+/**
+ * One borrow ETH transaction to confirm on Sepolia (approver confirms the MetaMask pop-up → the app
+ * shows the "Borrow successful" screen). A single draw with no ERC-20 approval, so a minute is ample;
+ * a stuck tx fails the run (trace captured) instead of hanging.
+ */
+export const BORROW_TX_TIMEOUT_MS = 90_000;
 
 // ── sign-conformance (per-wallet signing replay) ─────────────────────────────
 /**
