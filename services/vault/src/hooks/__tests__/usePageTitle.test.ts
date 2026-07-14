@@ -58,7 +58,6 @@ describe("usePageTitle", () => {
     },
   );
 
-
   it("falls back to the overview title for an unknown/404-ish path", () => {
     const { result } = renderAtPath("/some-random-path");
     expect(result.current).toBe(COPY.nav.overview);

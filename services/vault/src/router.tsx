@@ -12,6 +12,7 @@ import {
 
 import featureFlags from "@/config/featureFlags";
 import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
+
 import { AAVE_APP_ID } from "./applications/aave/config";
 import { LOAN_TAB } from "./applications/aave/constants";
 import {
@@ -19,10 +20,10 @@ import {
   PendingVaultsProvider,
   ReorderOverrideProvider,
 } from "./applications/aave/context";
+import NotFound from "./components/pages/not-found";
 import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
-import NotFound from "./components/pages/not-found";
 import {
   getReserveDetailBaseRoute,
   RESERVE_QUERY_KEYS,
