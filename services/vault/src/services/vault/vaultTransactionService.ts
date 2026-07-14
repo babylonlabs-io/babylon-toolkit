@@ -23,16 +23,6 @@ import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 /**
- * UTXO parameters for peg-in transaction
- */
-export interface PeginUTXOParams {
-  fundingTxid: string;
-  fundingVout: number;
-  fundingValue: bigint;
-  fundingScriptPubkey: string;
-}
-
-/**
  * UTXO interface for multi-UTXO support
  * Re-exported from SDK for convenience
  */

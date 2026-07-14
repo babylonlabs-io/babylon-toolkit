@@ -11,58 +11,8 @@ import {
   getPeginState,
 } from "../../../models/peginStateMachine";
 import { parseBtcToSatoshis } from "../../../utils/btcConversion";
-import {
-  transformFormToTransactionData,
-  type DepositFormData,
-} from "../transformers";
 
 describe("Deposit Transformers", () => {
-  describe("transformFormToTransactionData", () => {
-    it("should transform form data to transaction data correctly", () => {
-      const formData: DepositFormData = {
-        amount: "0.001",
-        selectedProviders: ["0xProvider123"],
-      };
-
-      const walletData = {
-        btcPubkey: "0xBtcPubkey123",
-        ethAddress: "0xEthAddress123" as any,
-      };
-
-      const providerData = {
-        address: "0xProvider123" as any,
-        btcPubkey: "0xProviderBtcKey",
-        vaultKeeperPubkeys: ["0xVaultKeeper1", "0xVaultKeeper2"],
-        universalChallengerPubkeys: ["0xUniversalChallenger1"],
-      };
-
-      const utxoData = {
-        selectedUTXOs: [
-          { txid: "0x123", vout: 0, value: 100000, scriptPubKey: "0xabc" },
-        ],
-        fee: 1000n,
-      };
-
-      const result = transformFormToTransactionData(
-        formData,
-        walletData,
-        providerData,
-        utxoData,
-      );
-
-      expect(result.depositorBtcPubkey).toBe("0xBtcPubkey123");
-      expect(result.depositorEthAddress).toBe("0xEthAddress123");
-      expect(result.pegInAmount).toBe(100000n);
-      expect(result.vaultProviderAddress).toBe("0xProvider123");
-      expect(result.vaultProviderBtcPubkey).toBe("0xProviderBtcKey");
-      expect(result.vaultKeeperBtcPubkeys).toHaveLength(2);
-      expect(result.universalChallengerBtcPubkeys).toHaveLength(1);
-      expect(result.selectedUTXOs).toHaveLength(1);
-      expect(result.fee).toBe(1000n);
-      expect(result.unsignedTxHex).toBeUndefined();
-    });
-  });
-
   describe("getPeginState (status to label transformation)", () => {
     it("should map contract status to correct label", () => {
       expect(getPeginState(ContractStatus.PENDING).displayLabel).toBe(

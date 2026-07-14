@@ -2,9 +2,7 @@
  * Persists whether the depositor dismissed the "enable notifications" prompt.
  *
  * A single boolean flag, not network-namespaced (notification preference is a
- * browser/profile concern, not a chain concern). Cleared via
- * {@link setNotificationPromptDismissed}`(false)` so the prompt can be
- * re-offered later (the "revert" path).
+ * browser/profile concern, not a chain concern). Dismissal is one-way.
  */
 
 const STORAGE_KEY = "tbv-signing-notifications-dismissed";
@@ -17,13 +15,9 @@ export function loadNotificationPromptDismissed(): boolean {
   }
 }
 
-export function setNotificationPromptDismissed(dismissed: boolean): void {
+export function dismissNotificationPrompt(): void {
   try {
-    if (dismissed) {
-      localStorage.setItem(STORAGE_KEY, "true");
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    localStorage.setItem(STORAGE_KEY, "true");
   } catch {
     /* quota / disabled — non-fatal */
   }

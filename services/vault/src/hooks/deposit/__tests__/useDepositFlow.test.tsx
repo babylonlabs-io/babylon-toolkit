@@ -317,9 +317,6 @@ async function setupDefaultMocks() {
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],
     })),
-    getUniversalChallengersByVersion: vi.fn(() => [
-      { btcPubKey: "challenger1pubkey" },
-    ]),
   } as any);
 
   vi.mocked(useVaultProviders).mockReturnValue({

@@ -113,7 +113,7 @@ export const COPY = {
       prePegin: "Pre-Pegin:",
     },
     // Row label for the vault creation time (rendered as relative time).
-    createdLabel: "Created",
+    dateLabel: "Date",
     // Shown if activation is attempted while the protocol is paused — surfaced
     // as the activation error so the spinner clears and the user understands
     // it's a governance pause (not a failed secret). Activation resumes on unpause.

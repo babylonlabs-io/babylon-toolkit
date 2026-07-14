@@ -17,7 +17,6 @@ import {
   formatDuration,
   formatDurationShort,
   formatLiquidationDistancePercent,
-  formatLLTV,
   formatOrdinal,
   formatProviderDisplayName,
   formatTimeAgo,
@@ -148,30 +147,6 @@ describe("Formatting Utilities", () => {
 
     it("rounds to two decimal places", () => {
       expect(formatUsd(1.239)).toBe("$1.24");
-    });
-  });
-
-  describe("formatLLTV", () => {
-    it("should format LLTV from wei to percentage (string input)", () => {
-      // 80% = 80 * 1e16 = 800000000000000000
-      expect(formatLLTV("800000000000000000")).toBe("80.0%");
-    });
-
-    it("should format LLTV from wei to percentage (bigint input)", () => {
-      expect(formatLLTV(800000000000000000n)).toBe("80.0%");
-    });
-
-    it("should handle 0% LLTV", () => {
-      expect(formatLLTV(0n)).toBe("0.0%");
-    });
-
-    it("should handle 100% LLTV", () => {
-      expect(formatLLTV(1000000000000000000n)).toBe("100.0%");
-    });
-
-    it("should format to 1 decimal place", () => {
-      // 85.5% = 855000000000000000
-      expect(formatLLTV(855000000000000000n)).toBe("85.5%");
     });
   });
 

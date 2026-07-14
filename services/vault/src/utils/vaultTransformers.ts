@@ -11,8 +11,6 @@ import { getNetworkConfigBTC } from "../config";
 import { getPeginState } from "../models/peginStateMachine";
 import type { Vault, VaultActivity } from "../types";
 
-import { formatUSDCAmount } from "./tokenConversion";
-
 /**
  * Derive the Pre-PegIn txid from its unsigned hex. Returns undefined when the
  * input is empty (cross-device "no local tx" marker) or fails to decode — both
@@ -30,21 +28,6 @@ export function derivePrePeginTxHash(
 }
 
 const btcConfig = getNetworkConfigBTC();
-
-/**
- * Get formatted total repay amount from activity
- * Returns the total amount to repay including principal and accrued interest
- * @param activity - VaultActivity with position and borrowingData
- * @returns Formatted repay amount string (e.g., "1050.00 USDC") or "0 USDC" if no position
- */
-export function getFormattedRepayAmount(activity: VaultActivity): string {
-  if (!activity.position || !activity.borrowingData) {
-    return "0 USDC";
-  }
-
-  const totalAmount = formatUSDCAmount(activity.position.borrowAssets);
-  return `${totalAmount} ${activity.borrowingData.borrowedSymbol}`;
-}
 
 /**
  * Transform Vault data to VaultActivity UI format
@@ -96,13 +79,4 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     marketData: undefined,
     positionDate: undefined,
   };
-}
-
-/**
- * Transform multiple Vaults to VaultActivities
- * @param vaults - Array of vault data
- * @returns Array of VaultActivity objects (without action handlers)
- */
-export function transformVaultsToActivities(vaults: Vault[]): VaultActivity[] {
-  return vaults.map(transformVaultToActivity);
 }

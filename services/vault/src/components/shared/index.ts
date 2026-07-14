@@ -1,4 +1,3 @@
-export { BackButton } from "./BackButton";
 export { DepositButton } from "./DepositButton";
 export { EmptyState } from "./EmptyState";
 export { ExpandablePanel } from "./ExpandablePanel";
@@ -9,4 +8,3 @@ export {
   type HealthFactorGaugeStat,
 } from "./HealthFactorGauge";
 export { HeartIcon } from "./icons";
-export { SubmitModal } from "./SubmitModal";

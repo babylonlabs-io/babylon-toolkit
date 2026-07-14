@@ -3,7 +3,6 @@ import { ErrorCode } from "@/utils/errors/types";
 export interface ErrorDisplayOptions {
   retryAction?: () => void;
   noCancel?: boolean;
-  showModal?: boolean;
   blocking?: boolean;
 }
 
@@ -11,15 +10,11 @@ export interface AppError {
   message: string;
   code?: ErrorCode;
   title?: string;
-  trace?: string;
-  context?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
 }
 
 export interface ErrorHandlerParam {
   error: Error | AppError;
   displayOptions?: ErrorDisplayOptions;
-  metadata?: Record<string, unknown>;
 }
 
 export interface ErrorState {

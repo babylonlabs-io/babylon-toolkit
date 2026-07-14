@@ -355,19 +355,6 @@ export function PeginPollingProvider({
     [],
   );
 
-  const clearOptimisticStatus = useCallback((depositId: string) => {
-    setOptimisticStatuses((prev) => {
-      const next = new Map(prev);
-      next.delete(depositId);
-      return next;
-    });
-    setOptimisticRefundBroadcastAt((prev) => {
-      const next = new Map(prev);
-      next.delete(depositId);
-      return next;
-    });
-  }, []);
-
   // Confirmed settled refund: persist to the cache AND update the in-memory set
   // so `refundConfirmed` flips to "Refunded" this session, not just on reload.
   // Lowercased to match the `depositId.toLowerCase()` lookup in the poll result.
@@ -452,7 +439,6 @@ export function PeginPollingProvider({
       isLoading,
       refetch: () => refetch(),
       setOptimisticStatus,
-      clearOptimisticStatus,
       addConfirmedRefund,
     }),
     [
@@ -460,7 +446,6 @@ export function PeginPollingProvider({
       isLoading,
       refetch,
       setOptimisticStatus,
-      clearOptimisticStatus,
       addConfirmedRefund,
     ],
   );
