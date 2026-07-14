@@ -2,9 +2,14 @@
  * Interactive (and flag-driven) entry for the real-wallet E2E runner.
  *
  * Uses Node's built-in `node:readline/promises` (numbered-choice prompts) — no third-party prompt
- * dependency. Every prompt can be pre-supplied as a flag for non-interactive / programmatic runs:
+ * dependency. Launch it via the package script (from the repo root):
  *
- *   pnpm exec tsx e2e/real/cli.ts --target=website --network=devnet --btc=unisat --eth=metamask \
+ *   pnpm --filter vault run e2e:cli               # interactive menu (prompts for every choice)
+ *
+ * Every prompt can be pre-supplied as a flag for a non-interactive / programmatic run (flags forward
+ * through the script — no `--` separator needed):
+ *
+ *   pnpm --filter vault run e2e:cli --target=website --network=devnet --btc=unisat --eth=metamask \
  *     --action=connect [--data=real] [--delay=0] [--yes]
  *
  * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
