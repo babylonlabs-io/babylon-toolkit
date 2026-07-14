@@ -23,7 +23,11 @@ import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
-import { ROUTES } from "./routes";
+import {
+  getReserveDetailBaseRoute,
+  RESERVE_QUERY_KEYS,
+  ROUTES,
+} from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -53,12 +57,11 @@ const AaveOverlayLayout = () => {
   const outletContext = useOutletContext<RootLayoutContext>();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
-  const reserveId = searchParams.get("reserve");
+  const reserveId = searchParams.get(RESERVE_QUERY_KEYS.RESERVE_ID);
   const tab =
-    searchParams.get("tab") === LOAN_TAB.REPAY
+    searchParams.get(RESERVE_QUERY_KEYS.TAB) === LOAN_TAB.REPAY
       ? LOAN_TAB.REPAY
       : LOAN_TAB.BORROW;
-  const canShowReserveDetail = pathname === ROUTES.OVERVIEW;
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
@@ -80,11 +83,13 @@ const AaveOverlayLayout = () => {
           <Suspense fallback={<RouteFallback />}>
             <Outlet context={outletContext} />
           </Suspense>
-          {reserveId && canShowReserveDetail && (
-            <Suspense fallback={null}>
-              <AaveReserveDetail reserveId={reserveId} tab={tab} />
-            </Suspense>
-          )}
+          {reserveId &&
+            pathname ===
+              getReserveDetailBaseRoute(featureFlags.isV3UiEnabled) && (
+              <Suspense fallback={null}>
+                <AaveReserveDetail reserveId={reserveId} tab={tab} />
+              </Suspense>
+            )}
         </ReorderOverrideProvider>
       </PendingVaultsProvider>
     </AaveConfigProvider>
@@ -109,9 +114,9 @@ export const Router = () => (
     <Route element={<RootLayout />}>
       <Route element={<AaveOverlayLayout />}>
         <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
+        <Route path={ROUTES.LOANS} element={<V3Placeholder />} />
       </Route>
       <Route path={ROUTES.VAULTS} element={<V3Placeholder />} />
-      <Route path={ROUTES.LOANS} element={<V3Placeholder />} />
       <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
       <Route
         path={ROUTES.ACTIVITY}
@@ -121,15 +126,15 @@ export const Router = () => (
           </Suspense>
         }
       />
-      {!featureFlags.isV3UiEnabled &&
-        V3_GUARDED_ROUTE_PATHS.map((path) => (
-          <Route
-            key={path}
-            path={`/${path}/*`}
-            element={<Navigate to={ROUTES.OVERVIEW} replace />}
-          />
-        ))}
     </Route>
+    {!featureFlags.isV3UiEnabled &&
+      V3_GUARDED_ROUTE_PATHS.map((path) => (
+        <Route
+          key={path}
+          path={`/${path}/*`}
+          element={<Navigate to={ROUTES.OVERVIEW} replace />}
+        />
+      ))}
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

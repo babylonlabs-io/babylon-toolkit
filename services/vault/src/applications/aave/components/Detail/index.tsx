@@ -3,9 +3,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { EmptyState } from "@/components/shared";
-import { getNetworkConfigBTC } from "@/config";
+import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import { ROUTES } from "@/routes";
+import { getReserveDetailBaseRoute } from "@/routes";
 
 import type { LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
@@ -78,16 +78,18 @@ export function AaveReserveDetail({
 
   // Use `replace` so dismissing the overlay doesn't leave a history entry that
   // browser Back would use to reopen the just-closed flow.
-  const handleClose = () => navigate(ROUTES.OVERVIEW, { replace: true });
+  const detailBaseRoute = getReserveDetailBaseRoute(FeatureFlags.isV3UiEnabled);
+
+  const handleClose = () => navigate(detailBaseRoute, { replace: true });
 
   const handleCloseBorrowSuccess = () => {
     closeBorrowSuccess();
-    navigate(ROUTES.OVERVIEW, { replace: true });
+    navigate(detailBaseRoute, { replace: true });
   };
 
   const handleCloseRepaySuccess = () => {
     closeRepaySuccess();
-    navigate(ROUTES.OVERVIEW, { replace: true });
+    navigate(detailBaseRoute, { replace: true });
   };
 
   const renderContent = () => {

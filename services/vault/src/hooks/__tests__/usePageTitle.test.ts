@@ -58,10 +58,6 @@ describe("usePageTitle", () => {
     },
   );
 
-  it("falls back to the overview title for the AAVE reserve-detail overlay route", () => {
-    const { result } = renderAtPath("/app/aave/reserve/abc/borrow");
-    expect(result.current).toBe(COPY.nav.overview);
-  });
 
   it("falls back to the overview title for an unknown/404-ish path", () => {
     const { result } = renderAtPath("/some-random-path");

@@ -7,10 +7,9 @@ import { COPY } from "@/copy";
 // `config/v3Navigation.ts`'s `V3_NAV_ITEMS`, also used by
 // `components/shared/AppSidebar.tsx`), so a path the sidebar treats as
 // "Vaults" (etc.) shows that same title in the header. Anything that
-// doesn't match — the root dashboard and its AAVE reserve-detail overlay
-// routes (`/app/aave/reserve/:id/...`) — is the Overview page, so it's the
-// fallback rather than a listed prefix. Harmless because none of the
-// configured prefixes is itself a prefix of another.
+// doesn't match is the Overview page, so it's the fallback rather than a
+// listed prefix. Harmless because none of the configured prefixes is
+// itself a prefix of another.
 const ROUTE_TITLES: readonly (readonly [path: string, title: string])[] =
   V3_NAV_ITEMS.filter((item) => item.path !== "/").map(
     (item) => [item.path, item.label] as const,
