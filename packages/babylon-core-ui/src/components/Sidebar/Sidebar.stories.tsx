@@ -11,8 +11,8 @@ import {
   LinkedinIcon,
   LiquidationsIcon,
   LoansIcon,
+  MailIcon,
   OverviewIcon,
-  SidebarMailIcon,
   TelegramIcon,
   VaultsIcon,
   XIcon,
@@ -36,7 +36,7 @@ const exampleFooter = (
       <GithubIcon size={16} />
       <TelegramIcon size={16} />
       <LinkedinIcon size={16} />
-      <SidebarMailIcon size={16} />
+      <MailIcon size={16} />
       <DiscordIcon size={16} />
       <XIcon size={16} />
     </div>

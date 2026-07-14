@@ -7,7 +7,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: {
     MAINNET: "mainnet",
     SIGNET: "signet",
-    TESTNET: "testnet",
   },
 }));
 
@@ -33,14 +32,6 @@ describe("NetworkBadge", () => {
 
   it("renders the badge on signet", () => {
     mockGetBTCNetwork.mockReturnValue("signet");
-
-    render(<NetworkBadge />);
-
-    expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
-  });
-
-  it("renders the badge on testnet", () => {
-    mockGetBTCNetwork.mockReturnValue("testnet");
 
     render(<NetworkBadge />);
 

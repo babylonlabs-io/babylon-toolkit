@@ -1,4 +1,4 @@
-import { Avatar, Heading } from "@babylonlabs-io/core-ui";
+import { Avatar, Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
@@ -29,6 +29,11 @@ interface ActivityListProps {
 }
 
 export function ActivityList({ activities, isConnected }: ActivityListProps) {
+  const isMobile = useIsMobile();
+  // v3 desktop replaces this in-page heading with the persistent header's
+  // page title; v3 mobile has no header title slot (Header only shows it on
+  // desktop), so the heading must stay to avoid a page with no title at all.
+  const hideHeading = FeatureFlags.isV3UiEnabled && !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
 
   // The filter control is hidden when the wallet disconnects, so leaving the
@@ -44,14 +49,14 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {(!FeatureFlags.isV3UiEnabled || isConnected) && (
+      {(!hideHeading || isConnected) && (
         <div
           className={twJoin(
             "flex items-center gap-4",
-            FeatureFlags.isV3UiEnabled ? "justify-end" : "justify-between",
+            hideHeading ? "justify-end" : "justify-between",
           )}
         >
-          {!FeatureFlags.isV3UiEnabled && (
+          {!hideHeading && (
             <Heading
               variant="h5"
               as="h2"

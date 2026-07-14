@@ -45,6 +45,11 @@ describe("usePageTitle", () => {
     },
   );
 
+  it("matches a path case-insensitively, mirroring react-router's default route matching", () => {
+    const { result } = renderAtPath("/Activity");
+    expect(result.current).toBe(COPY.nav.activity);
+  });
+
   it.each(["/vaultsfoo", "/loansxyz", "/activityhistory"])(
     "does not match a path that merely shares a prefix's characters (%s falls back to overview)",
     (path) => {

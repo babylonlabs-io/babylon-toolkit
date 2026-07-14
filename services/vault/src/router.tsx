@@ -3,6 +3,7 @@ import { Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
 import featureFlags from "@/config/featureFlags";
+import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
 
 import { getAllApplications } from "./applications";
 import { AAVE_APP_ID } from "./applications/aave/config";
@@ -32,7 +33,8 @@ const AaveReserveDetail = lazyWithRetry(() =>
 );
 
 // Guarded as whole subtrees, so a v3 deep link redirects rather than 404s.
-const V3_ROUTE_PATHS = ["vaults", "loans", "liquidations"] as const;
+// See `config/v3Navigation.ts` for the guard list (derived from the
+// sidebar's nav items so it can't silently drift from the six sections).
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -134,7 +136,7 @@ export const Router = () => {
         })}
       </Route>
       {!featureFlags.isV3UiEnabled &&
-        V3_ROUTE_PATHS.map((path) => (
+        V3_GUARDED_ROUTE_PATHS.map((path) => (
           <Route
             key={path}
             path={`${path}/*`}

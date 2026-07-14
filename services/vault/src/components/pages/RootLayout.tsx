@@ -26,6 +26,7 @@ import {
   V3MobileNavigation,
 } from "@/components/shared/AppSidebar";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { SidebarFooter } from "@/components/shared/SidebarFooter";
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import {
   FeatureFlags,
@@ -178,24 +179,14 @@ export default function RootLayout() {
     setInitialDepositAmountBtc(undefined);
   }, []);
 
-  // Extracted so it can render in one of two positions depending on
-  // `showV3Sidebar`: above the row (v2, v3-mobile — unchanged, full-bleed
-  // above everything) or inside the content column (v3 desktop). The
-  // desktop sidebar is `sticky top-0 h-svh` (see core-ui's `Sidebar`) —
-  // if a banner rendered above the row it would push the row's, and thus
-  // the sidebar's, natural top position down by the banner's height,
-  // clipping the sidebar's bottom (its footer) by that same amount until
-  // the user scrolled past it. Moving banners into the content column for
-  // v3 desktop keeps the sidebar's natural position at y=0 so it's fully
-  // in the viewport immediately, with zero clipping, regardless of which
-  // banners are visible.
-  const banners = (
+  // Sidebar-agnostic: rendered unconditionally as the content column's first
+  // child (see below). v2/mobile never show the sidebar, so the content
+  // column is full-width there and this looks identical to the pre-sidebar
+  // layout; on v3 desktop the sidebar is a flex sibling of the content
+  // column, not a descendant, so banner height here never pushes the
+  // sidebar's `sticky top-0 h-svh` position down or clips its footer.
+  const operationalBanners = (
     <>
-      {/* Portal target for the critical near-liquidation banner. Owned by
-          the dashboard (where the Aave data + debug override live) but
-          portaled here so it renders above the header, atop the
-          operational banners. */}
-      <div id={CRITICAL_BANNER_SLOT_ID} />
       <TestingBanner visible={shouldDisplayTestingMsg()} />
       {/* Intentionally not gated on `isGeoBlocked`: an operator notice
           describes a service-wide condition and renders in the top banner
@@ -225,11 +216,20 @@ export default function RootLayout() {
 
   return (
     <div className="relative flex min-h-svh w-full flex-col bg-surface">
-      {!showV3Sidebar && banners}
       <div className="flex min-w-0 flex-1">
         {showV3Sidebar && <AppSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
-          {showV3Sidebar && banners}
+          {/* Portal target for the critical near-liquidation banner. Always
+              the content column's first child, regardless of
+              `showV3Sidebar`, so crossing the 768px breakpoint never
+              unmounts/remounts this node — the consumer
+              (`CriticalLiquidationTopBanner`) resolves it once on mount and
+              would otherwise be left portaling into a detached element
+              after a resize. Owned by the dashboard (where the Aave data +
+              debug override live) but portaled here so it renders above
+              the header, atop the operational banners. */}
+          <div id={CRITICAL_BANNER_SLOT_ID} />
+          {operationalBanners}
           <Header
             size="md"
             // v3 owns its own vertical rhythm via each page's content
@@ -368,6 +368,17 @@ export default function RootLayout() {
                 socialClassName={FOOTER_SOCIAL_MARGIN_CLASS}
               />
             </div>
+          )}
+          {FeatureFlags.isV3UiEnabled && isMobileView && (
+            // v3 has no page-level footer on desktop (the sidebar's own
+            // bottom block covers it) but mobile has no sidebar at all, and
+            // `V3MobileNavigation`'s copy of this block only renders inside
+            // the collapsed hamburger menu — a mobile user who never opens
+            // it would otherwise have no path to the social/legal links
+            // anywhere on the page. Always visible here instead.
+            <footer className="mt-auto p-5">
+              <SidebarFooter />
+            </footer>
           )}
         </div>
       </div>
