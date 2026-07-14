@@ -27,7 +27,7 @@ import { ContractStatus } from "@/models/peginStateMachine";
 export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
-  const btcPublicKey = useBtcPublicKey(btcConnected);
+  const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
 
   const { activities, pendingPegins, refetchActivities } = useVaultDeposits(
     ethAddress as Address | undefined,

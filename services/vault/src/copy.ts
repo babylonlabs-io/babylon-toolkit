@@ -811,6 +811,8 @@ export const COPY = {
       unlockButton: "Unlock wallet",
       unlocking: "Unlocking wallet...",
     },
+    publicKeyUnavailable:
+      "Your BTC wallet did not return a public key. Please reconnect your wallet and try again.",
   },
   collateral: {
     releaseDisabledTooltip:
