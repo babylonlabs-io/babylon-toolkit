@@ -32,7 +32,6 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import {
   DepositFlowStep,
@@ -42,6 +41,7 @@ import { submitWotsPublicKey } from "@/hooks/deposit/depositFlowSteps/wotsSubmis
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
+import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
@@ -138,6 +138,7 @@ export function ResumeSignContent({
   return (
     <DepositProgressView
       currentStep={renderStep}
+      offchainParamsVersion={activity.offchainParamsVersion}
       // usePayoutSigningState already produces structured { title, message }
       // errors with actionable guard titles (missing/mismatched payout address,
       // wallet liveness, etc.). Pass them through directly so the callout keeps
@@ -223,6 +224,7 @@ export function ResumeBroadcastContent({
   return (
     <DepositProgressView
       currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+      offchainParamsVersion={activity.offchainParamsVersion}
       error={error ? mapDepositError(error) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
@@ -488,14 +490,9 @@ export function ResumeWotsContent({
     error != null,
   );
 
-  // requiredDepth is pinned to the version this deposit registered against
-  // (matches PeginPollingContext.getRequiredPrePeginDepth).
-  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
-  const requiredDepth =
-    (activity.offchainParamsVersion !== undefined
-      ? getOffchainParamsByVersion(activity.offchainParamsVersion)
-          ?.minPrepeginDepth
-      : undefined) ?? config.offchainParams.minPrepeginDepth;
+  const requiredDepth = useRequiredPrePeginDepth(
+    activity.offchainParamsVersion,
+  );
   const showBtcDepthPanel =
     renderStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
     Boolean(activity.prePeginTxHash);
@@ -527,6 +524,7 @@ export function ResumeWotsContent({
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
       btcConfirmationDetail={btcConfirmationDetail}
+      offchainParamsVersion={activity.offchainParamsVersion}
     />
   );
 }
@@ -732,6 +730,7 @@ export function ResumeActivationContent({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
+      offchainParamsVersion={activity.offchainParamsVersion}
     />
   );
 }

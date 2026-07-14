@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeConfirmations,
   computeRemainingEstimateMinutes,
+  computeTotalEstimateMinutes,
 } from "../btcConfirmationProgress";
 
 describe("computeConfirmations", () => {
@@ -50,5 +51,16 @@ describe("computeRemainingEstimateMinutes", () => {
 
   it("returns null when confirmations exceed the required depth", () => {
     expect(computeRemainingEstimateMinutes(8, 6)).toBeNull();
+  });
+});
+
+describe("computeTotalEstimateMinutes", () => {
+  it("adds the pipeline overhead to ten minutes per required block", () => {
+    expect(computeTotalEstimateMinutes(6)).toBe(70);
+  });
+
+  it("scales with the on-chain confirmation depth", () => {
+    expect(computeTotalEstimateMinutes(2)).toBe(30);
+    expect(computeTotalEstimateMinutes(12)).toBe(130);
   });
 });

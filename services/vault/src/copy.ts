@@ -312,10 +312,10 @@ export const COPY = {
     progress: {
       heading: "Deposit Progress",
       // Pre-sign summary card shown before the flow starts: an estimated total
-      // duration suffixed to the heading plus a short explanation of the
-      // grouped signature counts.
+      // duration suffixed to the heading (derived from the on-chain
+      // confirmation depth) plus a short explanation of the grouped counts.
       summary: {
-        estimate: "~60 min",
+        estimate: (duration: string) => `~${duration}`,
         description:
           "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the BTC Vault is activated.",
       },

@@ -195,6 +195,7 @@ vi.mock("../DepositProgressView", () => ({
     perVaultSteps,
     successMessage,
     onClose,
+    offchainParamsVersion,
   }: {
     currentStep: string;
     error?: { title: string; body: string } | null;
@@ -202,6 +203,7 @@ vi.mock("../DepositProgressView", () => ({
     perVaultSteps?: string[];
     successMessage?: string;
     onClose: () => void;
+    offchainParamsVersion?: number;
   }) => (
     <div data-testid="progress-view">
       <span data-testid="step">{String(currentStep)}</span>
@@ -211,6 +213,9 @@ vi.mock("../DepositProgressView", () => ({
         {JSON.stringify(perVaultSteps ?? [])}
       </span>
       <span data-testid="success-message">{successMessage ?? ""}</span>
+      <span data-testid="offchain-params-version">
+        {String(offchainParamsVersion)}
+      </span>
       <button type="button" data-testid="progress-close" onClick={onClose}>
         close
       </button>
@@ -780,6 +785,24 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("payout")).toBeNull();
     expect(queryByTestId("activate")).toBeNull();
     expect(getByTestId("progress-view")).not.toBeNull();
+  });
+
+  it("pins the aggregate loading view's estimate to the batch's registered params version", () => {
+    // No polling results yet → the multi-vault AWAIT_BTC_CONFIRMATION
+    // aggregate renders while results load.
+    mockGetPollingResult.mockReturnValue(undefined);
+
+    const { getByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [
+        { ...activityWithId("0xvault0"), offchainParamsVersion: 3 },
+        { ...activityWithId("0xvault1"), offchainParamsVersion: 3 },
+      ],
+    });
+    expect(getByTestId("step").textContent).toBe(
+      String(DepositFlowStep.AWAIT_BTC_CONFIRMATION),
+    );
+    expect(getByTestId("offchain-params-version").textContent).toBe("3");
   });
 
   it("surfaces the warning once no other vault is actionable", () => {

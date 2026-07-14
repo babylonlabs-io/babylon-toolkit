@@ -109,6 +109,12 @@ export interface DepositProgressViewProps {
    * there.
    */
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
+  /**
+   * The deposit's registered offchain-params version. Keeps the header's
+   * total-duration estimate on the same pinned confirmation depth the flow
+   * gates on. Omit pre-sign (no registered version yet) → latest params.
+   */
+  offchainParamsVersion?: number;
 }
 
 /**
@@ -168,6 +174,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     terminalMessage,
     onRetry,
     btcConfirmationDetail,
+    offchainParamsVersion,
     started = true,
     onSign,
   } = props;
@@ -249,6 +256,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
 
   return (
     <DepositCardShell
+      offchainParamsVersion={offchainParamsVersion}
       progressBar={
         showOverallProgress ? (
           <ProgressBar
