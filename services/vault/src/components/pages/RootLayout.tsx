@@ -157,9 +157,13 @@ export default function RootLayout() {
   // On that screen only, drop the footer's top margins (the wrapper's `mt-auto`
   // and the Footer's own `mt-24`) so the footer sits directly below the centered
   // content instead of competing for the free vertical space. Scoped to the
-  // dashboard route so an unlogged /activity keeps its sticky footer.
+  // dashboard route so an unlogged /activity keeps its sticky footer, and to
+  // the non-geo branch: geo-loading/geo-blocked render short content instead of
+  // the centered Container, so the footer must keep `mt-auto` to stay at the
+  // viewport bottom.
   const { pathname } = useLocation();
-  const isDisconnectedLanding = !isWalletConnected && pathname === "/";
+  const isDisconnectedLanding =
+    !isWalletConnected && pathname === "/" && !isGeoBlocked && !isGeoLoading;
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [initialDepositAmountBtc, setInitialDepositAmountBtc] = useState<
     string | undefined
