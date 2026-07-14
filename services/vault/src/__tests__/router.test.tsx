@@ -4,9 +4,10 @@
  * 1. The /activity route renders <Activity />, which transitively calls
  *    useAaveConfig() through useActivities(). If the route element loses its
  *    AaveConfigProvider wrapper, the page throws synchronously on mount.
- * 2. The reserve detail (/?reserve=<id>&tab=<tab>) is an overlay on top of
- *    the dashboard, not a sibling route that replaces it. The dashboard must
- *    stay mounted underneath so opening the overlay never blanks the page.
+ * 2. The reserve detail is an overlay: v2 uses `/?reserve=<id>&tab=<tab>` over the
+ *    dashboard, v3 uses `/loans?reserve=<id>&tab=<tab>` over the loans placeholder.
+ *    Both are gated by pathname to prevent wrong-base rendering. The dashboard
+ *    stays mounted in v2 so opening the overlay never blanks the page.
  * 3. /vaults, /loans, and /liquidations are reachable only when ENABLE_V3_UI
  *    is on. With the flag off a direct load of one of them redirects to the
  *    v2 dashboard.
@@ -290,11 +291,12 @@ describe("Router — RootLayout outlet context reaches the dashboard", () => {
 
 describe("Router — reserve detail stays over the dashboard", () => {
   beforeEach(() => {
+    setV3Flag("false");
     vi.clearAllMocks();
   });
 
   it("renders the reserve detail as an overlay over the dashboard", async () => {
-    renderAt(getReserveDetailRoute("USDC", "borrow"));
+    renderAt(getReserveDetailRoute("USDC", "borrow", false));
 
     await waitFor(() => {
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
@@ -320,14 +322,143 @@ describe("Router — reserve detail stays over the dashboard", () => {
       );
     });
   });
+});
 
-  it("does not open a reserve detail on /loans", async () => {
-    setV3Flag("true");
-    renderAt("/loans?reserve=usdc&tab=repay");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("v3-placeholder")).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
+describe("Router — flag-aware reserve-detail routing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
+
+  describe("v2 (flag off): reserve detail at /", () => {
+    beforeEach(() => {
+      setV3Flag("false");
+    });
+
+    it("generates v2 reserve-detail URL (/ base)", () => {
+      const route = getReserveDetailRoute("USDC", "borrow", false);
+      expect(route).toBe("/?reserve=usdc&tab=borrow");
+    });
+
+    it("renders reserve detail overlay over dashboard at / with query params", async () => {
+      renderAt("/?reserve=usdc&tab=repay");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+      });
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-reserve-id",
+        "usdc",
+      );
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-tab",
+        "repay",
+      );
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
+  });
+
+  describe("v3 (flag on): reserve detail at /loans", () => {
+    beforeEach(() => {
+      setV3Flag("true");
+    });
+
+    it("generates v3 reserve-detail URL (/loans base)", () => {
+      const route = getReserveDetailRoute("USDC", "borrow", true);
+      expect(route).toBe("/loans?reserve=usdc&tab=borrow");
+    });
+
+    it("renders reserve detail overlay when /loans has reserve query params", async () => {
+      renderAt("/loans?reserve=usdc&tab=repay");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+      });
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-reserve-id",
+        "usdc",
+      );
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-tab",
+        "repay",
+      );
+    });
+  });
+  describe("wrong base route: flag-off + /loans query params", () => {
+    beforeEach(() => {
+      setV3Flag("false");
+    });
+
+    it("does NOT open reserve detail overlay on /loans when flag is off", async () => {
+      renderAt("/loans?reserve=usdc&tab=repay");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId(RESERVE_DETAIL_TESTID),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("wrong base route: flag-on + / query params", () => {
+    beforeEach(() => {
+      setV3Flag("true");
+    });
+
+    it("does NOT open reserve detail overlay on / when flag is on", async () => {
+      renderAt("/?reserve=usdc&tab=repay");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId(RESERVE_DETAIL_TESTID),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("flag-off nested route redirects", () => {
+    beforeEach(() => {
+      setV3Flag("false");
+    });
+
+    it("redirects /vaults/anything to overview when flag is off", async () => {
+      renderAt("/vaults/foo");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      });
+    });
+
+    it("redirects /loans/anything to overview when flag is off", async () => {
+      renderAt("/loans/foo");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      });
+    });
+
+    it("redirects /liquidations/anything to overview when flag is off", async () => {
+      renderAt("/liquidations/foo");
+
+      await waitFor(() => {
+        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      });
+    });
+  });
+  it.each([
+    { flag: "true", label: "v3 (flag on)" },
+    { flag: "false", label: "v2 (flag off)" },
+    { flag: undefined, label: "default (flag undefined)" },
+  ])(
+    "rejects old v2 reserve-detail path (/app/aave/reserve/...) when $label",
+    async ({ flag }) => {
+      setV3Flag(flag);
+      renderAt("/app/aave/reserve/usdc/borrow");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("not-found")).toBeInTheDocument();
+      });
+    },
+  );
 });

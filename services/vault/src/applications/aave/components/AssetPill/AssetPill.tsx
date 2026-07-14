@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
 import { useNavigate } from "react-router";
 
+import { FeatureFlags } from "@/config";
 import { getReserveDetailRoute } from "@/routes";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
@@ -50,7 +51,9 @@ export function AssetPill({
 
   const handleSelect = (assetSymbol: string) => {
     setIsOpen(false);
-    navigate(getReserveDetailRoute(assetSymbol, mode));
+    navigate(
+      getReserveDetailRoute(assetSymbol, mode, FeatureFlags.isV3UiEnabled),
+    );
   };
 
   return (

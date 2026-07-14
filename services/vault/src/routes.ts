@@ -8,10 +8,24 @@ export const ROUTES = {
   LIQUIDATIONS: "/liquidations",
 } as const;
 
-export function getReserveDetailRoute(reserveId: string, tab: LoanTab) {
+export const RESERVE_QUERY_KEYS = {
+  RESERVE_ID: "reserve",
+  TAB: "tab",
+} as const;
+
+export function getReserveDetailBaseRoute(isV3Enabled: boolean): string {
+  return isV3Enabled ? ROUTES.LOANS : ROUTES.OVERVIEW;
+}
+
+export function getReserveDetailRoute(
+  reserveId: string,
+  tab: LoanTab,
+  isV3Enabled: boolean,
+) {
+  const baseRoute = getReserveDetailBaseRoute(isV3Enabled);
   const params = new URLSearchParams({
-    reserve: reserveId.toLowerCase(),
-    tab,
+    [RESERVE_QUERY_KEYS.RESERVE_ID]: reserveId.toLowerCase(),
+    [RESERVE_QUERY_KEYS.TAB]: tab,
   });
-  return `${ROUTES.OVERVIEW}?${params.toString()}`;
+  return `${baseRoute}?${params.toString()}`;
 }
