@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
@@ -32,11 +32,24 @@ import {
 } from "./ResumeDepositContent";
 import { VaultActivatedView } from "./VaultActivatedView";
 
+// God-mode only: simulated activation content for demo vault ids. Lazy +
+// import.meta.env.DEV so the module (and the demo store it pulls in) is
+// tree-shaken from production builds, mirroring the DashboardPage pattern.
+const DemoActivationContent = import.meta.env.DEV
+  ? lazy(() => import("@/dev/DemoActivationContent"))
+  : null;
+
 interface PostDepositContinuationViewProps {
   vaultIds: Hex[];
   activities: VaultActivity[];
   depositorEthAddress: Address;
   btcPublicKey: string | undefined;
+  /**
+   * God-mode demo vault ids present in this batch (dev only; empty/undefined in
+   * production). When the driven vault is one of these, the activation branch
+   * runs the SIMULATED activation instead of the real wallet/contract path.
+   */
+  demoVaultIds?: ReadonlySet<string>;
   onClose: () => void;
 }
 
@@ -93,6 +106,7 @@ export function PostDepositContinuationView({
   activities,
   depositorEthAddress,
   btcPublicKey,
+  demoVaultIds,
   onClose,
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
@@ -272,6 +286,56 @@ export function PostDepositContinuationView({
   }
 
   const actions = peginState?.availableActions ?? [];
+
+  // God-mode: a demo vault renders a SAFE view — never the real Resume*Content,
+  // which auto-fires wallet signing / vault-registry reads / on-chain
+  // submission on mount. Activation is the one interactive simulated walk;
+  // every other flow step is a read-only progress preview that tracks the
+  // god-mode step slider live (moving the slider re-renders this at the new
+  // step). Tree-shaken from production: demoVaultIds is empty and
+  // DemoActivationContent is null there, so the whole block drops.
+  if (
+    import.meta.env.DEV &&
+    activity &&
+    currentVaultId &&
+    demoVaultIds?.has(currentVaultId)
+  ) {
+    if (actions.includes(PeginAction.ACTIVATE_VAULT) && DemoActivationContent) {
+      return (
+        <ActivationGate
+          key={`gate-${currentVaultId}`}
+          activity={activity}
+          onClose={onClose}
+        >
+          <Suspense fallback={null}>
+            <DemoActivationContent
+              activity={activity}
+              siblingVaultIds={siblingVaultIds}
+              onClose={onClose}
+            />
+          </Suspense>
+        </ActivationGate>
+      );
+    }
+    const demoStep = pollingResult?.displayStepOverride ?? waitStep;
+    const { perVaultSteps: demoPerVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      siblingVaultIds,
+      currentVaultId,
+      demoStep,
+    );
+    return (
+      <StatusView
+        currentStep={demoStep}
+        vaultCount={vaultCount}
+        currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
+        perVaultSteps={demoPerVaultSteps}
+        isProcessing
+        canContinueInBackground
+        onClose={onClose}
+      />
+    );
+  }
 
   // Action-driven branches. Broadcast comes first because it has to happen
   // before any of the per-vault VP steps; the action availability already

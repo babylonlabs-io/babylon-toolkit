@@ -1,21 +1,51 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getActionStatus } from "@/components/deposit/actionStatus";
 import { COPY } from "@/copy";
-import { ContractStatus } from "@/models/peginStateMachine";
+import { ContractStatus, PeginAction } from "@/models/peginStateMachine";
 
 import {
+  ACTIVATED_SCENARIO_INDEX,
+  ACTIVATION_CONFIRMING_SCENARIO_INDEX,
   buildCollateralsDemo,
   buildDepositsDemo,
   buildWithdrawalsDemo,
   COLLATERAL_SCENARIOS,
   type DemoItem,
   DEPOSIT_SCENARIOS,
+  getDemoStepperBatch,
+  READY_TO_ACTIVATE_SCENARIO_INDEX,
   resetDemoState,
+  setDemoItemState,
+  submitDemoVaultActivation,
+  useDemoItems,
   WITHDRAWAL_SCENARIOS,
 } from "../demoDeposit";
 import { GodModePanel } from "../GodModePanel";
+
+const mockSetTheme = vi.hoisted(() => vi.fn());
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ theme: "light", setTheme: mockSetTheme }),
+}));
+
+/** First DEPOSIT_SCENARIOS index whose built polling result exposes `action`. */
+function scenarioIndexWithAction(action: PeginAction): number {
+  const index = DEPOSIT_SCENARIOS.findIndex((_, i) => {
+    const [result] = [
+      ...buildDepositsDemo([depositItem(1, i)], false).resultsById.values(),
+    ];
+    return result.peginState.availableActions.includes(action);
+  });
+  if (index === -1) throw new Error(`No demo scenario exposes ${action}`);
+  return index;
+}
 
 function depositItem(
   key: number,
@@ -128,6 +158,114 @@ describe("demoDeposit builders", () => {
   });
 });
 
+describe("getDemoStepperBatch", () => {
+  const expiredIndex = DEPOSIT_SCENARIOS.findIndex(
+    (s) => s.contractStatus === ContractStatus.EXPIRED,
+  );
+  const unownedIndex = DEPOSIT_SCENARIOS.findIndex(
+    (s) => s.key === "unowned-disabled",
+  );
+
+  it("opens the multistepper for a ready-to-activate demo deposit", () => {
+    const demo = buildDepositsDemo(
+      [depositItem(1, READY_TO_ACTIVATE_SCENARIO_INDEX)],
+      false,
+    );
+    const id = demo.pendingActivities[0].id;
+    expect(getDemoStepperBatch(demo, id)).toEqual([id]);
+  });
+
+  it("opens for an already-activated demo deposit (shows the success screen)", () => {
+    const demo = buildDepositsDemo(
+      [depositItem(1, ACTIVATED_SCENARIO_INDEX)],
+      false,
+    );
+    const id = demo.pendingActivities[0].id;
+    expect(getDemoStepperBatch(demo, id)).toEqual([id]);
+  });
+
+  it("opens for a mid-flow demo deposit so the whole flow can be walked", () => {
+    // A non-activation flow step (WOTS) now opens read-only, not just activation.
+    const wotsIndex = scenarioIndexWithAction(PeginAction.SUBMIT_WOTS_KEY);
+    const demo = buildDepositsDemo([depositItem(1, wotsIndex)], false);
+    const id = demo.pendingActivities[0].id;
+    expect(getDemoStepperBatch(demo, id)).toEqual([id]);
+  });
+
+  it("opens the whole owned batch for batched flow siblings", () => {
+    const wotsIndex = scenarioIndexWithAction(PeginAction.SUBMIT_WOTS_KEY);
+    const demo = buildDepositsDemo(
+      [
+        depositItem(1, READY_TO_ACTIVATE_SCENARIO_INDEX, true),
+        depositItem(2, wotsIndex, true),
+      ],
+      false,
+    );
+    const ids = demo.pendingActivities.map((a) => a.id);
+    expect(getDemoStepperBatch(demo, ids[0])).toEqual(ids);
+  });
+
+  it("stays inert for a different-wallet (unowned) demo deposit", () => {
+    const demo = buildDepositsDemo([depositItem(1, unownedIndex)], false);
+    const id = demo.pendingActivities[0].id;
+    expect(getDemoStepperBatch(demo, id)).toBeNull();
+  });
+
+  it("stays inert for an expired demo deposit (not in the pending list)", () => {
+    const demo = buildDepositsDemo([depositItem(1, expiredIndex)], false);
+    const id = demo.expiredActivities[0].id;
+    expect(getDemoStepperBatch(demo, id)).toBeNull();
+  });
+
+  it("returns null for a null demo or an unknown id", () => {
+    expect(getDemoStepperBatch(null, "0xdeadbeef")).toBeNull();
+    const demo = buildDepositsDemo(
+      [depositItem(1, READY_TO_ACTIVATE_SCENARIO_INDEX)],
+      false,
+    );
+    expect(getDemoStepperBatch(demo, "0xunknown")).toBeNull();
+  });
+});
+
+describe("submitDemoVaultActivation", () => {
+  beforeEach(() => {
+    resetDemoState();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("walks a ready-to-activate demo vault through confirming then active", () => {
+    const { result } = renderHook(() => useDemoItems());
+    const key = result.current[0].key;
+    act(() => setDemoItemState(key, READY_TO_ACTIVATE_SCENARIO_INDEX));
+    const vaultId = buildDepositsDemo(result.current, false)
+      .pendingActivities[0].id;
+
+    act(() => submitDemoVaultActivation(vaultId));
+    // Immediately reflects the optimistic "activation submitted" state.
+    expect(result.current[0].stateIndex).toBe(
+      ACTIVATION_CONFIRMING_SCENARIO_INDEX,
+    );
+
+    act(() => vi.advanceTimersByTime(5000));
+    // After the simulated confirmation delay it reaches the ACTIVE terminal.
+    expect(result.current[0].stateIndex).toBe(ACTIVATED_SCENARIO_INDEX);
+  });
+
+  it("no-ops for a demo vault that is not at the ready-to-activate state", () => {
+    const { result } = renderHook(() => useDemoItems());
+    const vaultId = buildDepositsDemo(result.current, false)
+      .pendingActivities[0].id;
+    const before = result.current[0].stateIndex;
+
+    act(() => submitDemoVaultActivation(vaultId));
+    act(() => vi.advanceTimersByTime(5000));
+    expect(result.current[0].stateIndex).toBe(before);
+  });
+});
+
 // The panel starts collapsed (small launcher, bottom-right); expand it to reach
 // the controls.
 function renderExpanded() {
@@ -163,8 +301,16 @@ describe("GodModePanel", () => {
     const type = screen.getByRole("combobox", { name: "Mock 1 type" });
     expect(type).toHaveValue("deposit");
     expect(
-      screen.getByRole("combobox", { name: "Mock 1 state" }),
+      screen.getByRole("combobox", { name: "Mock 1 mode" }),
     ).toBeInTheDocument();
+    // The current-state readout shows the first flow step's label.
+    expect(screen.getByText(DEPOSIT_SCENARIOS[0].label)).toBeInTheDocument();
+  });
+
+  it("switches the app theme from the panel", () => {
+    renderExpanded();
+    fireEvent.click(screen.getByRole("button", { name: "dark" }));
+    expect(mockSetTheme).toHaveBeenCalledWith("dark");
   });
 
   it("adds and removes mocks", () => {
@@ -188,10 +334,8 @@ describe("GodModePanel", () => {
       target: { value: "withdrawal" },
     });
 
-    const stateSelect = screen.getByRole("combobox", { name: "Mock 1 state" });
-    expect(
-      within(stateSelect).getByText(WITHDRAWAL_SCENARIOS[0].label),
-    ).toBeInTheDocument();
+    // The readout reflects the first state of the newly selected type.
+    expect(screen.getByText(WITHDRAWAL_SCENARIOS[0].label)).toBeInTheDocument();
   });
 
   it("exposes hide-real and a per-item amount control", () => {
@@ -208,15 +352,56 @@ describe("GodModePanel", () => {
     expect(amount).toHaveValue(2.5);
   });
 
+  it("exposes the artifact-download mock toggle, off by default", () => {
+    renderExpanded();
+
+    const mockDownload = screen.getByRole("checkbox", {
+      name: "Mock artifact download",
+    });
+    expect(mockDownload).not.toBeChecked();
+
+    fireEvent.click(mockDownload);
+    expect(mockDownload).toBeChecked();
+
+    // Reset so the session-level store doesn't leak into other tests.
+    fireEvent.click(mockDownload);
+    expect(mockDownload).not.toBeChecked();
+  });
+
   it("steps a mock's state with the slider", () => {
     renderExpanded();
 
     const slider = screen.getByRole("slider", { name: "Mock 1 step" });
     fireEvent.change(slider, { target: { value: "1" } });
 
-    expect(screen.getByRole("combobox", { name: "Mock 1 state" })).toHaveValue(
-      "1",
-    );
+    // The readout advances to the second flow step.
+    expect(screen.getByText(DEPOSIT_SCENARIOS[1].label)).toBeInTheDocument();
+  });
+
+  it("scrubs the expired variants with the slider in Expired mode", () => {
+    renderExpanded();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 mode" }), {
+      target: { value: "expired" },
+    });
+
+    // Expired mode keeps the slider live — it now scrubs the expired sub-states.
+    const slider = screen.getByRole("slider", { name: "Mock 1 step" });
+    expect(slider).not.toBeDisabled();
+    expect(screen.getByText("Expired — refund available")).toBeInTheDocument();
+
+    fireEvent.change(slider, { target: { value: "1" } });
+    expect(screen.getByText("Expired — refund maturing")).toBeInTheDocument();
+  });
+
+  it("disables the slider in Different wallet mode (a single state)", () => {
+    renderExpanded();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 mode" }), {
+      target: { value: "different-wallet" },
+    });
+
+    expect(screen.getByRole("slider", { name: "Mock 1 step" })).toBeDisabled();
   });
 
   it("disables the controls when the demo toggle is off", () => {

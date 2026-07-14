@@ -254,6 +254,13 @@ vi.mock("../ResumeDepositContent", () => ({
   ResumeActivationContent: resumeMock("activate"),
 }));
 
+// God-mode simulated activation (lazy-loaded in the view for demo vault ids).
+vi.mock("@/dev/DemoActivationContent", () => ({
+  default: ({ activity }: { activity: VaultActivity }) => (
+    <div data-testid="demo-activate" data-vault={activity?.id} />
+  ),
+}));
+
 function activityWithId(id: string): VaultActivity {
   return {
     id,
@@ -369,6 +376,54 @@ describe("PostDepositContinuationView", () => {
       resultWith({ availableActions: [PeginAction.ACTIVATE_VAULT] }),
     );
     expect(renderView().getByTestId("activate")).toBeTruthy();
+  });
+
+  it("runs the simulated activation for a god-mode demo vault", async () => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.ACTIVATE_VAULT],
+        contractStatus: 1,
+      }),
+    );
+    const { findByTestId, queryByTestId } = render(
+      <PostDepositContinuationView
+        vaultIds={["0xvault0" as Hex]}
+        activities={[activityWithId("0xvault0")]}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        demoVaultIds={new Set(["0xvault0"])}
+        onClose={vi.fn()}
+      />,
+      { wrapper: MemoryRouter },
+    );
+    // The demo vault walks the simulated activation, never the real one (whose
+    // mount would auto-fire wallet signing and the on-chain submission).
+    expect(await findByTestId("demo-activate")).toBeTruthy();
+    expect(queryByTestId("activate")).toBeNull();
+  });
+
+  it("renders a read-only progress view for a non-activation god-mode demo step", () => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.SUBMIT_WOTS_KEY],
+        contractStatus: 0,
+      }),
+    );
+    const { getByTestId, queryByTestId } = render(
+      <PostDepositContinuationView
+        vaultIds={["0xvault0" as Hex]}
+        activities={[activityWithId("0xvault0")]}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        demoVaultIds={new Set(["0xvault0"])}
+        onClose={vi.fn()}
+      />,
+      { wrapper: MemoryRouter },
+    );
+    // Read-only progress, NOT the real WOTS resume (which would auto-fire real
+    // registry/wallet logic on mount).
+    expect(getByTestId("progress-view")).toBeTruthy();
+    expect(queryByTestId("wots")).toBeNull();
   });
 
   it("shows the completed view once the last vault finishes activating", () => {

@@ -29,16 +29,31 @@ vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
 
+vi.mock("@/dev/demoArtifactDownload", () => ({
+  // Default OFF so every existing test exercises the real download path; the
+  // one demo test below flips it on.
+  isArtifactDownloadDemoEnabled: vi.fn(() => false),
+  demoFetchAndDownloadArtifacts: vi.fn(),
+}));
+
+import {
+  demoFetchAndDownloadArtifacts,
+  isArtifactDownloadDemoEnabled,
+} from "@/dev/demoArtifactDownload";
 import {
   ArtifactDownloadCancelledError,
   fetchAndDownloadArtifacts,
 } from "@/services/artifacts";
+import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
 import { useArtifactDownload } from "../useArtifactDownload";
 
 const fetchMock = vi.mocked(fetchAndDownloadArtifacts);
 const ensureAuthMock = vi.mocked(ensureAuthenticatedVpClient);
+const demoEnabledMock = vi.mocked(isArtifactDownloadDemoEnabled);
+const demoFetchMock = vi.mocked(demoFetchAndDownloadArtifacts);
+const markDownloadedMock = vi.mocked(markArtifactsDownloaded);
 
 const PROVIDER_ADDRESS = "0x1234";
 const PEGIN_TXID =
@@ -73,6 +88,9 @@ describe("useArtifactDownload — prime then fetch", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     ensureAuthMock.mockReset();
+    demoEnabledMock.mockReturnValue(false);
+    demoFetchMock.mockReset();
+    markDownloadedMock.mockReset();
     (vpTokenRegistry as unknown as { clear?: () => void }).clear?.();
   });
 
@@ -106,6 +124,28 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
+  });
+
+  it("does not persist the risk-ack gate for a mocked (god-mode) download", async () => {
+    // The demo simulates the fetch and never saves a file, so a mocked download
+    // must NOT call markArtifactsDownloaded — otherwise mocking a download on a
+    // real vault permanently satisfies its risk-ack gate with no artifact saved.
+    // It still shows the downloaded UI so the demo flow can be exercised.
+    demoEnabledMock.mockReturnValue(true);
+    demoFetchMock.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(demoFetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(markDownloadedMock).not.toHaveBeenCalled();
   });
 
   it("skips the upfront prime when the registry is already hot", async () => {

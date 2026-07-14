@@ -178,6 +178,43 @@ describe("deriveSplitVaultProgress", () => {
     expect(perVaultSteps?.[1]).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
   });
 
+  it("honors a sibling's displayStepOverride (god-mode demo) over its polled state", () => {
+    // In a batched demo the slider sets displayStepOverride on every simulated
+    // vault. A non-active sibling's base peginState would derive
+    // AWAIT_BTC_CONFIRMATION, but the override must win so the column tracks the
+    // slider instead of falling back to the base state. (Real polling never sets
+    // displayStepOverride, so this branch is inert in production.)
+    const getPollingResult = (id: string): DepositPollingResult | undefined => {
+      if (id === "0xactive") {
+        return {
+          peginState: {
+            displayStep: DepositFlowStep.SUBMIT_WOTS_KEYS,
+            pastActivation: false,
+          },
+        } as unknown as DepositPollingResult;
+      }
+      if (id === "0xdemo") {
+        return {
+          displayStepOverride: DepositFlowStep.RETRIEVE_SECRET,
+          peginState: {
+            displayStep: DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+            pastActivation: false,
+          },
+        } as unknown as DepositPollingResult;
+      }
+      return undefined;
+    };
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xdemo"],
+      "0xactive",
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.RETRIEVE_SECRET);
+  });
+
   it("freezes a liquidated (danger) sibling at its own local step instead of COMPLETED", () => {
     // LIQUIDATED is past activation, so the COMPLETED branch would match —
     // but a seized vault must freeze at its last known local step, not render
