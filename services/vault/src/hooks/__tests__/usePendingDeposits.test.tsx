@@ -22,7 +22,11 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
-  useBtcPublicKey: vi.fn(() => "btcpubkey123"),
+  useBtcPublicKey: vi.fn(() => ({
+    publicKey: "btcpubkey123",
+    error: null,
+    refetch: vi.fn(),
+  })),
 }));
 
 const mockActivities = vi.fn((): any[] => []);

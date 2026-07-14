@@ -475,6 +475,36 @@ describe("Deposit Validations", () => {
       });
     });
 
+    it("surfaces the fee error when the fee value is absent (real failure shape)", () => {
+      // In production a failed estimate always has estimatedFeeSats missing
+      // (useEstimatedBtcFee pairs every error with fee: null), so the error
+      // must win over the null-fee "Calculating fees..." label.
+      const result = getDepositCtaState({
+        ...readyParams,
+        estimatedFeeSats: undefined,
+        isFeeError: true,
+        feeError: "Unable to fetch network fee rates",
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Unable to fetch network fee rates",
+      });
+    });
+
+    it("prefers 'No available balance' over a fee error when the wallet is empty", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        btcBalance: 0n,
+        estimatedFeeSats: undefined,
+        isFeeError: true,
+        feeError: "Unable to fetch network fee rates",
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "No available balance",
+      });
+    });
+
     it("returns 'Calculating fees...' when fee is loading", () => {
       const result = getDepositCtaState({
         ...readyParams,

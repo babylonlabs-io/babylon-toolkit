@@ -128,6 +128,17 @@ export interface UseDepositPageFormResult {
   isLoadingFee: boolean;
   feeError: string | null;
   maxDepositSats: bigint | null;
+  /**
+   * Terminal wallet public-key read failure. Without it the depositor pubkey
+   * silently stays undefined, permanently disabling the claim-value query —
+   * consumers must promote it to the wallet-reconnect recovery surface.
+   */
+  btcPublicKeyError: Error | null;
+  /**
+   * Re-read the wallet public key — call (and await) after a successful
+   * reconnect so the reconnecting state holds until the key is fresh.
+   */
+  refetchBtcPublicKey: () => Promise<void>;
 
   /**
    * Remaining application supply cap in satoshis. Null = no cap applies, or
@@ -195,7 +206,11 @@ export interface UseDepositPageFormResult {
 export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
-  const depositorBtcPubkey = useBtcPublicKey(btcConnected);
+  const {
+    publicKey: depositorBtcPubkey,
+    error: btcPublicKeyError,
+    refetch: refetchBtcPublicKey,
+  } = useBtcPublicKey(btcConnected);
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
   const { config: aaveConfig } = useAaveConfig();
   const btcPriceUSD = usePrice("BTC");
@@ -290,6 +305,18 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const vaultKeeperBtcPubkeys = useMemo(
     () => vaultKeepers.map((vk) => vk.btcPubKey),
     [vaultKeepers],
+  );
+  // A settled registry with selectable providers but zero keepers can never
+  // enable the minPeginFee query — surface the stall as a terminal error
+  // instead of letting the CTA spin on "Calculating fees..." forever.
+  const keeperSetError = useMemo(
+    () =>
+      !isLoadingRegistry &&
+      rawProviders.length > 0 &&
+      vaultKeeperBtcPubkeys.length === 0
+        ? new Error("No vault keepers registered for the application")
+        : null,
+    [isLoadingRegistry, rawProviders.length, vaultKeeperBtcPubkeys.length],
   );
 
   const { address: ethAddress } = useETHWallet();
@@ -661,11 +688,13 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     estimatedFeeRate,
     isLoadingFee,
     feeError,
+    btcPublicKeyError,
+    refetchBtcPublicKey,
     maxDepositSats: adjustedMaxDepositSats,
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
     minPeginFee: minPeginFee ?? null,
-    minPeginFeeError: toError(minPeginFeeError),
+    minPeginFeeError: toError(minPeginFeeError) ?? keeperSetError,
     ordinalsCheckPending,
     isTwoVaultSplit,
     setIsTwoVaultSplit,

@@ -391,6 +391,18 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return { disabled: true, label: "Calculating fees..." };
   }
 
+  // Surface a terminal network-fee failure before `getDepositButtonLabel`:
+  // a failed estimate also has `estimatedFeeSats` absent, so the null-fee
+  // "Calculating fees..." label would otherwise shadow the error forever.
+  // Skip when there's no balance — "No available balance" is more actionable
+  // than a fee error the user can't act on anyway.
+  if (params.btcBalance > 0n && params.isFeeError) {
+    return {
+      disabled: true,
+      label: params.feeError ?? "Fee estimate unavailable",
+    };
+  }
+
   const amountLabel = getDepositButtonLabel(params);
   if (amountLabel !== "Deposit") {
     return { disabled: true, label: amountLabel };
@@ -406,13 +418,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   if (params.ordinalsCheckPending) {
     return { disabled: true, label: "Checking for inscriptions..." };
-  }
-
-  if (params.isFeeError) {
-    return {
-      disabled: true,
-      label: params.feeError ?? "Fee estimate unavailable",
-    };
   }
 
   if (params.feeDisabled) {
