@@ -163,8 +163,7 @@ export function PostDepositContinuationView({
 
   // Hoisted above the early returns to satisfy Rules of Hooks. When no
   // vault is selected, showBtcDepthPanel is false and the hook no-ops.
-  // requiredDepth pinned to the deposit's registered offchain-params version
-  // (matches PeginPollingContext.getRequiredPrePeginDepth).
+  // requiredDepth pinned to the deposit's registered offchain-params version.
   const requiredDepth = useRequiredPrePeginDepth(
     activity?.offchainParamsVersion,
   );
@@ -249,6 +248,11 @@ export function PostDepositContinuationView({
       pollingResults.every((result) => isVaultActivated(result?.peginState));
 
     if (hasMissingOrLoadingVault || !allVaultsActivated) {
+      // Batch siblings share their registration-time params version (one
+      // registration tx for the whole batch), so any sibling is representative.
+      const batchParamsVersion = activities.find(
+        (a) => a.offchainParamsVersion !== undefined,
+      )?.offchainParamsVersion;
       return (
         <StatusView
           currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
@@ -258,6 +262,7 @@ export function PostDepositContinuationView({
           vaultCount={vaultCount}
           currentVaultIndex={null}
           perVaultSteps={perVaultSteps}
+          offchainParamsVersion={batchParamsVersion}
         />
       );
     }

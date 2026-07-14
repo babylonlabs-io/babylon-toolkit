@@ -19,6 +19,7 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
 vi.mock("@/context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: () => ({
     config: { offchainParams: { minPrepeginDepth: 6 } },
+    getOffchainParamsByVersion: () => undefined,
   }),
 }));
 

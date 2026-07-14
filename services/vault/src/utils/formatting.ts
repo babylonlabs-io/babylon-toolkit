@@ -347,6 +347,9 @@ export function formatDurationShort(totalMinutes: number): string {
   if (roundedMinutes < SHORT_DURATION_HOURS_FROM_MINS) {
     return `${roundedMinutes} min`;
   }
+  // Hours deliberately re-round from the raw value — snapping twice compounds
+  // error (103 min is nearest 1.5 h, but 103→105 would round to 2 h) — while
+  // the snapped branch base is what keeps "90 min" from ever rendering.
   const halfHours = Math.round(totalMinutes / SHORT_DURATION_HALF_HOUR_MINS);
   return `${halfHours / 2} h`;
 }

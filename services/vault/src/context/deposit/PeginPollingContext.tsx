@@ -23,6 +23,7 @@ import {
 import { useDemoDeposit } from "@/dev/demoDeposit";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
+import { useRequiredPrePeginDepthResolver } from "../../hooks/deposit/useRequiredPrePeginDepth";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
@@ -148,7 +149,7 @@ export function PeginPollingProvider({
   // VP activation tx, absent during PENDING). PENDING gates on min-depth;
   // EXPIRED gates on `tRefund` for the Refund action. Each has its own
   // cache (depth/maturity never rewinds → drop cached txids from polling).
-  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  const { getOffchainParamsByVersion } = useProtocolParamsContext();
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
   );
@@ -165,17 +166,11 @@ export function PeginPollingProvider({
     loadRefundedHtlcVaultIds,
   );
 
+  const resolveRequiredPrePeginDepth = useRequiredPrePeginDepthResolver();
   const getRequiredPrePeginDepth = useCallback(
-    (activity: VaultActivity): number => {
-      const versioned =
-        activity.offchainParamsVersion !== undefined
-          ? getOffchainParamsByVersion(activity.offchainParamsVersion)
-          : undefined;
-      return (
-        versioned?.minPrepeginDepth ?? config.offchainParams.minPrepeginDepth
-      );
-    },
-    [getOffchainParamsByVersion, config.offchainParams.minPrepeginDepth],
+    (activity: VaultActivity): number =>
+      resolveRequiredPrePeginDepth(activity.offchainParamsVersion),
+    [resolveRequiredPrePeginDepth],
   );
 
   // Optimistic overrides (set immediately on user action) take precedence
