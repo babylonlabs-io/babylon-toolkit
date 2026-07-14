@@ -21,16 +21,6 @@ import { getMempoolApiUrl } from "../../clients/btc/config";
 import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
 
 /**
- * UTXO information needed for PSBT construction
- */
-export interface UTXOInfo {
-  txid: string;
-  vout: number;
-  value: bigint;
-  scriptPubKey: string;
-}
-
-/**
  * Convert a UTXO array into the expectedUtxos Record format
  * used by broadcastPrePeginTransaction for trusted UTXO resolution.
  * Validates each entry and throws on malformed data (e.g. corrupted localStorage).

@@ -30,7 +30,6 @@ import {
   createEnvConfigError,
   createWagmiInitError,
   fetchHealthCheck,
-  runHealthChecks,
 } from "../healthCheckService";
 
 describe("healthCheckService", () => {
@@ -178,55 +177,6 @@ describe("healthCheckService", () => {
 
       expect(result.healthy).toBe(false);
       expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Service Unavailable");
-    });
-  });
-
-  describe("runHealthChecks", () => {
-    it("returns healthy when all checks pass", async () => {
-      vi.mocked(fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-        } as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-        } as Response);
-
-      const result = await runHealthChecks();
-
-      expect(result.healthy).toBe(true);
-      expect(result.isGeoBlocked).toBe(false);
-      expect(result.error).toBeUndefined();
-    });
-
-    it("returns geo-blocked immediately when geofencing check fails with 451", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 451,
-      } as Response);
-
-      const result = await runHealthChecks();
-
-      expect(result.healthy).toBe(false);
-      expect(result.isGeoBlocked).toBe(true);
-      // GraphQL check should not be called (only 1 fetch call)
-      expect(fetch).toHaveBeenCalledTimes(1);
-    });
-
-    it("checks GraphQL endpoint after geofencing passes", async () => {
-      vi.mocked(fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-        } as Response)
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-        } as Response);
-
-      const result = await runHealthChecks();
-
-      expect(result.healthy).toBe(false);
-      expect(result.isGeoBlocked).toBeUndefined();
       expect(result.error?.title).toBe("Service Unavailable");
     });
   });

@@ -31,8 +31,8 @@ import {
 import { FeatureFlags } from "@/config";
 import { useDocumentHidden } from "@/hooks/useDocumentHidden";
 import {
+  dismissNotificationPrompt,
   loadNotificationPromptDismissed,
-  setNotificationPromptDismissed,
 } from "@/storage/notificationPromptStorage";
 import {
   type BrowserNotificationCopy,
@@ -109,7 +109,7 @@ export function SigningNotificationProvider({
   }, [enabled]);
 
   const dismissPrompt = useCallback(() => {
-    setNotificationPromptDismissed(true);
+    dismissNotificationPrompt();
     setPromptDismissed(true);
   }, []);
 

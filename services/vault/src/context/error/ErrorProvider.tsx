@@ -39,20 +39,13 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
   }, []);
 
   const handleError = useCallback(
-    ({ error, displayOptions, metadata }: ErrorHandlerParam) => {
+    ({ error, displayOptions }: ErrorHandlerParam) => {
       if (!error) return;
-
-      const stackTrace = error instanceof Error ? error.stack || "" : "";
-
-      const shouldShowModal = displayOptions?.showModal ?? true;
 
       const errorData = {
         message: error.message,
         code: "code" in error ? error.code : undefined,
         title: "title" in error ? error.title : undefined,
-        trace: stackTrace,
-        context: "context" in error ? error.context : undefined,
-        metadata: metadata ?? {},
       };
 
       if (error instanceof Error) {
@@ -61,22 +54,20 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
         });
       }
 
-      if (shouldShowModal) {
-        setState((prev) => {
-          if (prev.isOpen && prev.error.message === errorData.message) {
-            return prev;
-          }
-          return {
-            isOpen: true,
-            error: errorData,
-            modalOptions: {
-              retryAction: displayOptions?.retryAction,
-              noCancel: displayOptions?.noCancel,
-              blocking: displayOptions?.blocking,
-            },
-          };
-        });
-      }
+      setState((prev) => {
+        if (prev.isOpen && prev.error.message === errorData.message) {
+          return prev;
+        }
+        return {
+          isOpen: true,
+          error: errorData,
+          modalOptions: {
+            retryAction: displayOptions?.retryAction,
+            noCancel: displayOptions?.noCancel,
+            blocking: displayOptions?.blocking,
+          },
+        };
+      });
     },
     [],
   );

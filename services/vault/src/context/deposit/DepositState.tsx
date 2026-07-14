@@ -4,16 +4,7 @@ import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
   FORM = "form",
-  REVIEW = "review",
   SIGN = "sign",
-}
-
-export interface DepositStateData {
-  step?: DepositStep;
-  amount: bigint;
-  selectedApplication: string;
-  selectedProviders: string[];
-  feeRate: number;
 }
 
 interface DepositStateContext {
@@ -31,7 +22,6 @@ interface DepositStateContext {
    */
   quotedCommissionBps: number | undefined;
   feeRate: number;
-  processing: boolean;
   isSplitDeposit: boolean;
   splitVaultAmounts: bigint[] | null;
   goToStep: (step: DepositStep) => void;
@@ -42,7 +32,6 @@ interface DepositStateContext {
     quotedCommissionBps: number | undefined,
   ) => void;
   setFeeRate: (feeRate: number) => void;
-  setProcessing: (processing: boolean) => void;
   setIsSplitDeposit: (v: boolean) => void;
   setSplitVaultAmounts: (amounts: bigint[] | null) => void;
   reset: () => void;
@@ -56,13 +45,11 @@ const { StateProvider, useState: useDepositState } =
     selectedProviders: [],
     quotedCommissionBps: undefined,
     feeRate: 0,
-    processing: false,
     isSplitDeposit: false,
     splitVaultAmounts: null,
     goToStep: () => {},
     setDepositData: () => {},
     setFeeRate: () => {},
-    setProcessing: () => {},
     setIsSplitDeposit: () => {},
     setSplitVaultAmounts: () => {},
     reset: () => {},
@@ -77,7 +64,6 @@ export function DepositState({ children }: PropsWithChildren) {
     number | undefined
   >(undefined);
   const [feeRate, setFeeRate] = useState(0);
-  const [processing, setProcessing] = useState(false);
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitVaultAmounts, setSplitVaultAmounts] = useState<bigint[] | null>(
     null,
@@ -113,7 +99,6 @@ export function DepositState({ children }: PropsWithChildren) {
     setSelectedProviders([]);
     setQuotedCommissionBps(undefined);
     setFeeRate(0);
-    setProcessing(false);
     setIsSplitDeposit(false);
     setSplitVaultAmounts(null);
   }, []);
@@ -126,13 +111,11 @@ export function DepositState({ children }: PropsWithChildren) {
       selectedProviders,
       quotedCommissionBps,
       feeRate,
-      processing,
       isSplitDeposit,
       splitVaultAmounts,
       goToStep,
       setDepositData,
       setFeeRate: updateFeeRate,
-      setProcessing,
       setIsSplitDeposit,
       setSplitVaultAmounts,
       reset,
@@ -144,7 +127,6 @@ export function DepositState({ children }: PropsWithChildren) {
       selectedProviders,
       quotedCommissionBps,
       feeRate,
-      processing,
       isSplitDeposit,
       splitVaultAmounts,
       goToStep,

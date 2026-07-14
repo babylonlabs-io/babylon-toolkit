@@ -50,14 +50,6 @@ const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
  */
 const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
 
-export interface PayoutVaultKeeper {
-  btcPubKey: string;
-}
-
-export interface PayoutUniversalChallenger {
-  btcPubKey: string;
-}
-
 export interface PrepareSigningContextParams {
   /** Derived vault ID (for contract calls) */
   vaultId: string;

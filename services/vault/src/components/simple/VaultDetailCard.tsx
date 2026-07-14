@@ -53,7 +53,7 @@ function useRelativeTime(timestamp: number | undefined): string | null {
 interface VaultDetailCardProps {
   /** BTC amount (already converted from satoshis) */
   amountBtc: number;
-  /** Timestamp in milliseconds. Omit to hide the "Created" row. */
+  /** Timestamp in milliseconds. Omit to hide the "Date" row. */
   timestamp?: number;
   /** Single BTC transaction hash to link in the explorer (hex, may include 0x
    * prefix). Used by the withdraw section to show the vault's peg-in tx hash.
@@ -199,7 +199,7 @@ export function VaultDetailCard({
 
       {/* Date — hidden when no timestamp is supplied (e.g. cross-device rows). */}
       {timestamp !== undefined && (
-        <VaultCardRow label="Date">
+        <VaultCardRow label={COPY.pegin.dateLabel}>
           <Hint
             tooltip={formatDateTime(new Date(timestamp))}
             attachToChildren

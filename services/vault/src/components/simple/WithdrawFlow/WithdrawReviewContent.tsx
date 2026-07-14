@@ -103,7 +103,10 @@ export function WithdrawReviewContent({
       },
       {
         label: "Network fee rate",
-        value: defaultFeeRate > 0 ? `${defaultFeeRate} sats/vB` : "Loading...",
+        value:
+          defaultFeeRate > 0
+            ? `${defaultFeeRate} sats/vB`
+            : COPY.common.loading,
       },
       {
         label: "VP commission",
