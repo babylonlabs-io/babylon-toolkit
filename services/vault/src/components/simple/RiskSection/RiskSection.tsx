@@ -18,6 +18,7 @@ interface RiskSectionProps {
   btcPriceText: string;
   pctToLiquidationText: string;
   collateralFactorText: string;
+  collateralFactorLoading: boolean;
   btcPriceUsd: number | null;
   liquidationPriceUsd: number | null;
 }
@@ -49,14 +50,16 @@ function StatCell({
   label,
   value,
   tooltip,
+  loading,
 }: {
   label: string;
   value: string;
   tooltip?: string;
+  loading?: boolean;
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-1 p-4">
-      <span className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+    <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
+      <span className="flex items-center gap-1 whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {tooltip ? (
           <Hint
             tooltip={tooltip}
@@ -68,9 +71,15 @@ function StatCell({
           label
         )}
       </span>
-      <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-        {value}
-      </span>
+      {loading ? (
+        <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-secondary">
+          {COPY.common.loading}
+        </span>
+      ) : (
+        <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+          {value}
+        </span>
+      )}
     </div>
   );
 }
@@ -83,6 +92,7 @@ export function RiskSection({
   btcPriceText,
   pctToLiquidationText,
   collateralFactorText,
+  collateralFactorLoading,
   btcPriceUsd,
   liquidationPriceUsd,
 }: RiskSectionProps) {
@@ -112,7 +122,7 @@ export function RiskSection({
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex flex-1 flex-col gap-4 xl:max-w-[560px]">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
                   {COPY.risk.healthFactorTitle}
                 </span>
@@ -120,7 +130,7 @@ export function RiskSection({
                   {COPY.risk.healthFactorDescription}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="mt-3 flex shrink-0 items-center gap-2">
                 <span
                   className={`text-xl leading-[1.6] tracking-[0.15px] ${textClass}`}
                 >
@@ -157,6 +167,7 @@ export function RiskSection({
                 label={COPY.risk.collateralFactorLabel}
                 value={collateralFactorText}
                 tooltip={COPY.risk.collateralFactorTooltip}
+                loading={collateralFactorLoading}
               />
             </div>
           </div>

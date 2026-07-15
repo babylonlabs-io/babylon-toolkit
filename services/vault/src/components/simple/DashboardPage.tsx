@@ -380,6 +380,7 @@ export function DashboardPage() {
             btcPriceText={btcPrice}
             pctToLiquidationText={pctToLiquidation}
             collateralFactorText={collateralFactorText}
+            collateralFactorLoading={isBorrowCapacityLoading}
             btcPriceUsd={usableBtcPriceUsd}
             liquidationPriceUsd={liquidationPriceUsd}
           />

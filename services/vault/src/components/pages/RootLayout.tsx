@@ -187,7 +187,9 @@ export default function RootLayout() {
   // sidebar's `sticky top-0 h-svh` position down or clips its footer.
   const operationalBanners = (
     <>
-      <TestingBanner visible={shouldDisplayTestingMsg()} />
+      <TestingBanner
+        visible={!FeatureFlags.isV3UiEnabled && shouldDisplayTestingMsg()}
+      />
       {/* Intentionally not gated on `isGeoBlocked`: an operator notice
           describes a service-wide condition and renders in the top banner
           stack (above the geo-block screen), so geo-blocked sessions must
@@ -271,7 +273,8 @@ export default function RootLayout() {
             rightActions={
               <div className="flex items-center gap-4">
                 {FeatureFlags.isV3UiEnabled && <NetworkBadge />}
-                {isWalletConnected &&
+                {!FeatureFlags.isV3UiEnabled &&
+                  isWalletConnected &&
                   !isDepositOpen &&
                   !isGeoBlocked &&
                   !isAddressBlocked && (

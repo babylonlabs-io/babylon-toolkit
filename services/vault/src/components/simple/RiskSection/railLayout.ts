@@ -18,7 +18,7 @@ export function getRiskDisplayState(
   if (!hasPosition) return "noPosition";
   switch (status) {
     case "no_debt":
-      return "verySafe";
+      return "noPosition";
     case "safe":
       return healthFactor === null ||
         !isFinite(healthFactor) ||

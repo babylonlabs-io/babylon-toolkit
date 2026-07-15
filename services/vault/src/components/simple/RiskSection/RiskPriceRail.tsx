@@ -23,14 +23,16 @@ const RAIL_CENTER_PX = RAIL_TOP_PX + RAIL_HEIGHT_PX / 2;
 const TICK_STROKE_TOP_PX = RAIL_TOP_PX + RAIL_HEIGHT_PX;
 const TICK_STROKE_HEIGHT_PX = 6;
 const TICK_LABEL_TOP_PX = 98;
-const BRACKET_CONNECTOR_TOP_PX = 122;
-const BRACKET_LABEL_TOP_PX = 128;
+const GAP_STEM_TOP_PX = RAIL_CENTER_PX + 6;
+const GAP_SVG_HEIGHT_PX = 58;
+const GAP_ARROW_Y = 52;
+const GAP_LABEL_TOP_PX = 152;
 const MARKER_LABEL_TOP_PX = 24;
 
 const DEFAULT_RAIL_WIDTH_PX = 460;
 const MARKER_LABEL_WIDTH_PX = 112;
-const BRACKET_LABEL_WIDTH_PX = 128;
-const BRACKET_MIN_SEPARATION_PCT = 2;
+const GAP_LABEL_WIDTH_PX = 128;
+const GAP_MIN_SEPARATION_PCT = 2;
 
 function formatTickLabel(value: number): string {
   if (value >= 1000) {
@@ -96,11 +98,11 @@ export function RiskPriceRail({
     !isNeutral && (state === "verySafe" || state === "noPosition");
   const showGradient = !isNeutral && !isSolidGreen && liquidationPct !== null;
   const showLiquidationMarker = showGradient;
-  const showBracket =
+  const showGapArrow =
     showGradient &&
     liquidationPct !== null &&
     currentPct !== null &&
-    Math.abs(currentPct - liquidationPct) >= BRACKET_MIN_SEPARATION_PCT;
+    Math.abs(currentPct - liquidationPct) >= GAP_MIN_SEPARATION_PCT;
 
   const currentRingCss =
     state === "liquidatable"
@@ -213,10 +215,10 @@ export function RiskPriceRail({
         />
       )}
 
-      {showBracket && liquidationPct !== null && currentPct !== null && (
-        <RiskBracket
-          leftPct={Math.min(currentPct, liquidationPct)}
-          rightPct={Math.max(currentPct, liquidationPct)}
+      {showGapArrow && liquidationPct !== null && currentPct !== null && (
+        <RiskGapArrow
+          currentPct={currentPct}
+          liquidationPct={liquidationPct}
           widthPx={width}
           pctToLiquidationText={pctToLiquidationText}
         />
@@ -225,48 +227,75 @@ export function RiskPriceRail({
   );
 }
 
-function RiskBracket({
-  leftPct,
-  rightPct,
+function RiskGapArrow({
+  currentPct,
+  liquidationPct,
   widthPx,
   pctToLiquidationText,
 }: {
-  leftPct: number;
-  rightPct: number;
+  currentPct: number;
+  liquidationPct: number;
   widthPx: number;
   pctToLiquidationText: string;
 }) {
-  const stemHeight = BRACKET_CONNECTOR_TOP_PX - RAIL_CENTER_PX;
-  const bracketHalf = BRACKET_LABEL_WIDTH_PX / 2;
+  const currentX = (currentPct / 100) * widthPx;
+  const liquidationX = (liquidationPct / 100) * widthPx;
+  const labelHalf = GAP_LABEL_WIDTH_PX / 2;
   const centerPx = Math.min(
-    widthPx - bracketHalf,
-    Math.max(bracketHalf, ((leftPct + rightPct) / 2 / 100) * widthPx),
+    widthPx - labelHalf,
+    Math.max(labelHalf, ((currentPct + liquidationPct) / 2 / 100) * widthPx),
   );
   return (
     <>
-      <div
-        className="absolute border-l border-dashed border-secondary-strokeLight"
-        style={{ left: `${leftPct}%`, top: RAIL_CENTER_PX, height: stemHeight }}
-      />
-      <div
-        className="absolute border-l border-dashed border-secondary-strokeLight"
-        style={{
-          left: `${rightPct}%`,
-          top: RAIL_CENTER_PX,
-          height: stemHeight,
-        }}
-      />
-      <div
-        className="absolute border-t border-dashed border-secondary-strokeLight"
-        style={{
-          left: `${leftPct}%`,
-          width: `${rightPct - leftPct}%`,
-          top: BRACKET_CONNECTOR_TOP_PX,
-        }}
-      />
+      <svg
+        className="pointer-events-none absolute left-0"
+        style={{ top: GAP_STEM_TOP_PX }}
+        width={widthPx}
+        height={GAP_SVG_HEIGHT_PX}
+      >
+        <defs>
+          <marker
+            id="risk-gap-arrowhead"
+            markerWidth="6"
+            markerHeight="6"
+            refX="4"
+            refY="3"
+            orient="auto-start-reverse"
+            markerUnits="userSpaceOnUse"
+          >
+            <path d="M0,0 L5,3 L0,6 Z" className="fill-risk-red" />
+          </marker>
+        </defs>
+        <line
+          x1={liquidationX}
+          y1={0}
+          x2={liquidationX}
+          y2={GAP_ARROW_Y}
+          strokeWidth={1}
+          className="stroke-secondary-strokeLight"
+        />
+        <line
+          x1={currentX}
+          y1={0}
+          x2={currentX}
+          y2={GAP_ARROW_Y}
+          strokeWidth={1}
+          className="stroke-secondary-strokeLight"
+        />
+        <line
+          x1={liquidationX}
+          y1={GAP_ARROW_Y}
+          x2={currentX}
+          y2={GAP_ARROW_Y}
+          strokeWidth={1}
+          className="stroke-risk-red"
+          markerStart="url(#risk-gap-arrowhead)"
+          markerEnd="url(#risk-gap-arrowhead)"
+        />
+      </svg>
       <div
         className="absolute flex w-32 -translate-x-1/2 flex-col items-center gap-0.5 text-center"
-        style={{ left: centerPx, top: BRACKET_LABEL_TOP_PX }}
+        style={{ left: centerPx, top: GAP_LABEL_TOP_PX }}
       >
         <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
           {COPY.overview.pctToLiquidationLabel}

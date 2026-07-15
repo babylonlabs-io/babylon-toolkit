@@ -24,6 +24,7 @@ function renderSection(overrides: Record<string, unknown> = {}) {
       btcPriceText="$88,400"
       pctToLiquidationText="12.2%"
       collateralFactorText="78%"
+      collateralFactorLoading={false}
       btcPriceUsd={88400}
       liquidationPriceUsd={77600}
       {...overrides}
@@ -37,8 +38,8 @@ describe("getRiskDisplayState", () => {
     expect(getRiskDisplayState("safe", 2, false)).toBe("noPosition");
   });
 
-  it("maps no_debt to verySafe", () => {
-    expect(getRiskDisplayState("no_debt", null, true)).toBe("verySafe");
+  it("maps no_debt to noPosition", () => {
+    expect(getRiskDisplayState("no_debt", null, true)).toBe("noPosition");
   });
 
   it("treats a safe status above the healthy threshold as verySafe", () => {
@@ -79,8 +80,8 @@ describe("RiskSection rendering", () => {
 
   it("renders the very-safe state with the infinity glyph and the passed liquidation placeholder", () => {
     renderSection({
-      healthFactorStatus: "no_debt",
-      healthFactor: null,
+      healthFactorStatus: "safe",
+      healthFactor: 60,
       liquidationPriceText: COPY.common.emptyValue,
       liquidationPriceUsd: null,
     });
@@ -89,7 +90,6 @@ describe("RiskSection rendering", () => {
     expect(
       screen.getByText(COPY.risk.healthFactorInfinity),
     ).toBeInTheDocument();
-    // Liquidation BTC Price cell renders the passed placeholder.
     const liqCell = screen
       .getByText(COPY.risk.liquidationBtcPriceLabel)
       .closest("div");
@@ -97,6 +97,30 @@ describe("RiskSection rendering", () => {
     expect(
       within(liqCell as HTMLElement).getByText(COPY.common.emptyValue),
     ).toBeInTheDocument();
+  });
+
+  it("renders a 0-borrowed (no_debt) position as the muted No Position state", () => {
+    renderSection({
+      healthFactorStatus: "no_debt",
+      healthFactor: null,
+      liquidationPriceText: COPY.common.emptyValue,
+      liquidationPriceUsd: null,
+    });
+
+    expect(screen.getByText(COPY.risk.status.noPosition)).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.risk.healthFactorInfinity),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.overview.pctToLiquidationLabel),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the loader for collateral factor while borrow data is loading", () => {
+    renderSection({ collateralFactorLoading: true });
+
+    expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
+    expect(screen.queryByText("78%")).not.toBeInTheDocument();
   });
 
   it("renders the moderate state with both price markers and the bracket", () => {
