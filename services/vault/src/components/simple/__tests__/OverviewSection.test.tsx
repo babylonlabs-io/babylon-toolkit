@@ -37,6 +37,7 @@ function renderSection(overrides: Record<string, unknown> = {}) {
       availableToBorrow="$5,000"
       collateralBtc="0.5 BTC"
       availableMeterPercent={0.75}
+      availableLoading={false}
       borrowedMeterPercent={0.25}
       onDeposit={onDeposit}
       onBorrow={onBorrow}
@@ -138,6 +139,22 @@ describe("OverviewSection", () => {
         }),
       ).not.toBeInTheDocument();
       expect(screen.getByText("0.5 BTC")).toBeInTheDocument();
+    });
+
+    it("shows a loading placeholder for available-to-borrow and no meter while borrow capacity loads", () => {
+      renderSection({ availableLoading: true });
+
+      expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("progressbar", {
+          name: COPY.overview.availableToBorrowLabel,
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("progressbar", {
+          name: COPY.overview.totalBorrowedLabel,
+        }),
+      ).toBeInTheDocument();
     });
   });
 

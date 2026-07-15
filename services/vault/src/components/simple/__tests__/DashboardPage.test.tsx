@@ -30,6 +30,7 @@ vi.mock("@/hooks/useDashboardState", () => ({
     debtValueUsd: 0,
     maxTotalDebtUsd: 0,
     availableToBorrowUsd: 0,
+    isBorrowCapacityLoading: false,
     healthFactor: 0,
     healthFactorStatus: "safe",
     borrowedAssets: [],

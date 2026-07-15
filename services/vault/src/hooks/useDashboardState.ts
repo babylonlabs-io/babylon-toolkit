@@ -46,7 +46,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
   });
 
-  const { params: splitParams } = useVaultSplitParams(connectedAddress);
+  const { params: splitParams, isLoading: isBorrowCapacityLoading } =
+    useVaultSplitParams(connectedAddress);
   const liquidationThresholdBps = splitParams
     ? Math.round(splitParams.CF * BPS_SCALE)
     : 0;
@@ -176,6 +177,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     maxTotalDebtUsd,
     availableToBorrowUsd,
+    isBorrowCapacityLoading,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,
