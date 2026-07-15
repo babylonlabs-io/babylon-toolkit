@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 
@@ -9,6 +10,9 @@ import { useBroadcastState } from "../useBroadcastState";
 const mockVaultHandleBroadcast = vi.fn();
 const mockSetOptimisticStatus = vi.fn();
 const mockUpdatePendingPeginStatus = vi.fn();
+// Hoisted: referenced inside the hoisted vi.mock("@/infrastructure") factory,
+// which runs before this module's plain const initializers.
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
 
 vi.mock("../useVaultActions", () => ({
   useVaultActions: () => ({
@@ -30,7 +34,7 @@ vi.mock("@/storage/usePeginStorage", () => ({
 }));
 
 vi.mock("@/infrastructure", () => ({
-  logger: { error: vi.fn() },
+  logger: { error: vi.fn(), event: mockLoggerEvent },
 }));
 
 function activity(id: string): VaultActivity {
@@ -84,6 +88,39 @@ describe("useBroadcastState — batched broadcast", () => {
       );
     }
     expect(onSuccess).toHaveBeenCalledOnce();
+  });
+
+  it("emits a broadcast.succeeded milestone per batch sibling, not just the clicked vault", async () => {
+    // One Pre-PegIn tx confirms every sibling, so the funnel must record a
+    // broadcast milestone for each vaultId — otherwise a resumed multi-vault
+    // batch undercounts and its siblings reach activation with no broadcast.
+    mockVaultHandleBroadcast.mockImplementation(
+      async (params: { onShowSuccessModal: () => void }) => {
+        params.onShowSuccessModal();
+      },
+    );
+
+    const { result } = renderHook(() =>
+      useBroadcastState({
+        activity: activity("0xa"),
+        batchVaultIds: ["0xa", "0xb"],
+        depositorEthAddress: "0xdepositor",
+        onSuccess: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+
+    const broadcastEmits = mockLoggerEvent.mock.calls.filter(
+      ([name]) => name === TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED,
+    );
+    expect(broadcastEmits).toHaveLength(2);
+    expect(broadcastEmits.map(([, ctx]) => ctx.vaultId)).toEqual([
+      "0xa",
+      "0xb",
+    ]);
   });
 
   it("broadcasts the shared transaction once for the whole batch", () => {

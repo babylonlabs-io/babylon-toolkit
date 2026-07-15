@@ -43,6 +43,11 @@ import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
+import {
+  amountBucket,
+  shortId,
+  TELEMETRY_EVENT,
+} from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
@@ -395,6 +400,17 @@ export function useDepositFlow(
         // Generate batch ID for tracking
         const batchId = uuidv4();
 
+        logger.event(TELEMETRY_EVENT.DEPOSIT_STARTED, {
+          level: "info",
+          category: "deposit",
+          batchId,
+          providerId: shortId(primaryProvider),
+          vaultCount: vaultAmounts.length,
+          amountBucket: amountBucket(
+            satoshiToBtcNumber(vaultAmounts.reduce((sum, a) => sum + a, 0n)),
+          ),
+        });
+
         // ========================================================================
         // Step 1: Get shared resources
         // ========================================================================
@@ -578,6 +594,22 @@ export function useDepositFlow(
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
           }));
 
+        // One milestone per vault (scalar vaultId) so the whole post-registration
+        // funnel — registered, broadcast, activated — joins on a single `vaultId`
+        // field. `deposit.started` stays batch-level (it fires before any vaultId
+        // exists); group the funnel by `batchId` and scale by `vaultCount`.
+        for (const peginResult of peginResults) {
+          logger.event(TELEMETRY_EVENT.DEPOSIT_REGISTERED, {
+            level: "info",
+            category: "deposit",
+            batchId,
+            vaultId: shortId(peginResult.vaultId),
+            providerId: shortId(primaryProvider),
+            ethTxHash: shortId(batchRegistration.ethTxHash),
+            vaultCount: peginResults.length,
+          });
+        }
+
         // ========================================================================
         // Step 4a: Persist pending pegins BEFORE broadcast and before any
         // further network calls. Saved immediately after ETH registration so
@@ -727,6 +759,20 @@ export function useDepositFlow(
             peginResult.vaultId,
             LocalStorageStatus.CONFIRMING,
           );
+        }
+
+        // Per vault (scalar vaultId) so each committed vault has a broadcast
+        // milestone that the per-vault stall alert can join against its
+        // activation.activated. All siblings share one Pre-PegIn tx/txid.
+        for (const peginResult of peginResults) {
+          logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
+            level: "info",
+            category: "deposit",
+            batchId,
+            prePeginTxid: shortId(prePeginBroadcastTxid),
+            vaultId: shortId(peginResult.vaultId),
+            vaultCount: peginResults.length,
+          });
         }
 
         // The mempool now knows our Pre-PegIn spent these outpoints, so the

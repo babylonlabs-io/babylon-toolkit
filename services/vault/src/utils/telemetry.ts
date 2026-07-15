@@ -89,6 +89,15 @@ const SENSITIVE_FIELD_NAMES = new Set([
   // Infrastructure.
   "rpcUrl",
   "endpoint",
+  // Amounts — bucket before emitting. Raw values are depositor-identifying and,
+  // being numbers / bigints / number[], are not caught by the hex/address
+  // regexes, so the field-name denylist is their only backstop.
+  "amount",
+  "amountSats",
+  "amountBtc",
+  "collateralAmount",
+  "vaultAmounts",
+  "pegInAmounts",
 ]);
 
 const BINARY_PLACEHOLDER = "[BINARY_REDACTED]";
