@@ -36,6 +36,7 @@ interface OverviewSectionProps {
   availableToBorrow: string;
   collateralBtc: string;
   availableMeterPercent: number;
+  availableLoading: boolean;
   borrowedMeterPercent: number;
   onDeposit: () => void;
   onBorrow: () => void;
@@ -83,6 +84,7 @@ export function OverviewSection({
   availableToBorrow,
   collateralBtc,
   availableMeterPercent,
+  availableLoading,
   borrowedMeterPercent,
   onDeposit,
   onBorrow,
@@ -126,13 +128,15 @@ export function OverviewSection({
       },
       {
         label: COPY.overview.availableToBorrowLabel,
-        value: availableToBorrow,
-        meter: {
-          percent: availableMeterPercent,
-          label: COPY.overview.availableMeterLabel(
-            clampPct(availableMeterPercent),
-          ),
-        },
+        value: availableLoading ? COPY.common.loading : availableToBorrow,
+        meter: availableLoading
+          ? undefined
+          : {
+              percent: availableMeterPercent,
+              label: COPY.overview.availableMeterLabel(
+                clampPct(availableMeterPercent),
+              ),
+            },
         actionLabel: COPY.overview.borrowAction,
         onAction: onBorrow,
         actionDisabled: !canBorrow,
@@ -157,6 +161,7 @@ export function OverviewSection({
     onDeposit,
     availableToBorrow,
     availableMeterPercent,
+    availableLoading,
     onBorrow,
     canBorrow,
     totalBorrowed,
