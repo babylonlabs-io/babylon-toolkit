@@ -80,7 +80,6 @@ const SENSITIVE_FIELD_NAMES = new Set([
   "authAnchorHex",
   "authAnchorBytes",
   "auth_anchor",
-  "root",
   "rootHex",
   "rootDerivation",
   "vaultRoot",
