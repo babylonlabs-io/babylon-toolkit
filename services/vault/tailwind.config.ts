@@ -17,6 +17,12 @@ const config: Config = {
         // the --success-bright RGB-channel var in globals.css so alpha
         // modifiers (e.g. bg-success-bright/10) resolve correctly.
         "success-bright": "rgb(var(--success-bright) / <alpha-value>)",
+        // v3 risk-card semantic colors, backed by the --risk-* RGB-channel vars
+        // in globals.css (see there for the Figma foundation sources).
+        "risk-red": "rgb(var(--risk-red) / <alpha-value>)",
+        "risk-amber": "rgb(var(--risk-amber) / <alpha-value>)",
+        "risk-green": "rgb(var(--risk-green) / <alpha-value>)",
+        "risk-muted": "rgb(var(--risk-muted) / <alpha-value>)",
       },
     },
   },

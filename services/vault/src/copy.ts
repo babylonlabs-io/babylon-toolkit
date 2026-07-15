@@ -1171,6 +1171,30 @@ export const COPY = {
       },
     },
   },
+  risk: {
+    title: "Risk",
+    healthFactorTitle: "Health Factor",
+    healthFactorDescription:
+      "Indicates the health of your position. When the ratio falls below 1.0, liquidation may occur.",
+    healthFactorInfinity: "∞",
+    status: {
+      noPosition: "No Position",
+      verySafe: "Very Safe",
+      safe: "Safe",
+      moderate: "Moderate",
+      liquidatable: "Liquidatable",
+    },
+    liquidationBtcPriceLabel: "Liquidation BTC Price",
+    currentBtcPriceLabel: "Current BTC Price",
+    collateralFactorLabel: "Collateral Factor",
+    collateralFactorTooltip:
+      "The maximum share of your collateral's value that can be borrowed against.",
+    chart: {
+      pairLabel: "BTC/USD",
+      liquidationPriceLabel: "Liquidation Price",
+      currentPriceLabel: "Current Price",
+    },
+  },
   activity: {
     pageTitle: "Activity",
     filterAll: "Show all",

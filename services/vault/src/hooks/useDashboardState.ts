@@ -177,6 +177,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     maxTotalDebtUsd,
     availableToBorrowUsd,
+    collateralFactorBps: splitParams ? liquidationThresholdBps : null,
     isBorrowCapacityLoading,
     healthFactor,
     healthFactorStatus,

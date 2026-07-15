@@ -29,6 +29,7 @@ import { usePrices } from "@/hooks/usePrices";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import { getReserveDetailRoute } from "@/routes";
 import {
+  formatBasisPointsAsPercent,
   formatBtcAmount,
   formatLiquidationDistancePercent,
   formatUsdPrice,
@@ -44,6 +45,7 @@ import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
+import { RiskSection } from "./RiskSection";
 import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
 
@@ -81,6 +83,7 @@ export function DashboardPage() {
     debtValueUsd,
     maxTotalDebtUsd,
     availableToBorrowUsd,
+    collateralFactorBps,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,
@@ -228,13 +231,22 @@ export function DashboardPage() {
   const liquidationPrice = firstLiquidationGroup
     ? formatUsdPrice(firstLiquidationGroup.liquidationPrice)
     : COPY.common.emptyValue;
-  const btcPrice =
+  const usableBtcPriceUsd =
     isBtcPriceUsable && btcPriceUsd !== undefined && btcPriceUsd > 0
-      ? formatUsdPrice(btcPriceUsd)
+      ? btcPriceUsd
+      : null;
+  const btcPrice =
+    usableBtcPriceUsd !== null
+      ? formatUsdPrice(usableBtcPriceUsd)
       : COPY.common.emptyValue;
+  const liquidationPriceUsd = firstLiquidationGroup?.liquidationPrice ?? null;
   const pctToLiquidation = firstLiquidationGroup
     ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
     : COPY.common.emptyValue;
+  const collateralFactorText =
+    collateralFactorBps !== null
+      ? formatBasisPointsAsPercent(collateralFactorBps)
+      : COPY.common.emptyValue;
 
   const handleOpenWithdraw = useCallback(() => {
     setIsWithdrawOpen(true);
@@ -356,6 +368,20 @@ export function DashboardPage() {
             onRepay={handleRepay}
             canBorrow={availableToBorrowUsd > 0}
             canRepay={hasLoans}
+          />
+        )}
+
+        {featureFlags.isV3UiEnabled && (
+          <RiskSection
+            healthFactor={healthFactor}
+            healthFactorStatus={healthFactorStatus}
+            hasPosition={hasOverviewData}
+            liquidationPriceText={liquidationPrice}
+            btcPriceText={btcPrice}
+            pctToLiquidationText={pctToLiquidation}
+            collateralFactorText={collateralFactorText}
+            btcPriceUsd={usableBtcPriceUsd}
+            liquidationPriceUsd={liquidationPriceUsd}
           />
         )}
 

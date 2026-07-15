@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { DashboardPage } from "../DashboardPage";
 
 const featureFlagsMock = vi.hoisted(() => ({
@@ -30,6 +32,7 @@ vi.mock("@/hooks/useDashboardState", () => ({
     debtValueUsd: 0,
     maxTotalDebtUsd: 0,
     availableToBorrowUsd: 0,
+    collateralFactorBps: 7800,
     isBorrowCapacityLoading: false,
     healthFactor: 0,
     healthFactorStatus: "safe",
@@ -110,6 +113,9 @@ vi.mock("../CriticalLiquidationTopBanner", () => ({
 vi.mock("../DisconnectedOverview", () => ({
   DisconnectedOverview: () => null,
 }));
+vi.mock("@/components/shared", () => ({
+  HeartIcon: () => null,
+}));
 vi.mock("../WithdrawFlow", () => ({ default: () => null }));
 
 beforeEach(() => {
@@ -139,6 +145,7 @@ describe("DashboardPage v3 composition", () => {
     expect(screen.getByTestId("max-vaults")).toBeInTheDocument();
     expect(screen.getByTestId("critical-banner")).toBeInTheDocument();
     expect(screen.getByTestId("position-banner")).toBeInTheDocument();
+    expect(screen.getByText(COPY.risk.title)).toBeInTheDocument();
 
     expect(screen.queryByTestId("collateral-section")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loans-section")).not.toBeInTheDocument();
