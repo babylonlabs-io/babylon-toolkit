@@ -4,10 +4,11 @@
  * web app's Repay form uses — so the CLI can offer a token menu, validate `--repay-token`, and size a
  * safe default amount before launching the browser.
  *
- * Reuses the borrow pre-flight's on-chain plumbing (no duplication): `fetchBorrowableReserves` for the
- * reserve list (you can only owe on a borrowable reserve), `openPosition` for the proxy/client, and
- * `resolveCoreSpoke` for the spoke. Per reserve it reads the SDK's `getUserTotalDebt` and a direct viem
- * `balanceOf`. The aggregate USD debt used by the run.ts no-debt gate + the action's "debt fell"
+ * Reuses the borrow pre-flight's on-chain plumbing (no duplication): `fetchAllReserves` for the reserve
+ * list (ALL non-vBTC reserves — matching the app's `allBorrowReserves` — NOT the borrowable subset, so a
+ * loan on a reserve that has since been paused/frozen still surfaces), `openPosition` for the proxy/client,
+ * and `resolveCoreSpoke` for the spoke. Per reserve it reads the SDK's `getUserTotalDebt` and a direct
+ * viem `balanceOf`. The aggregate USD debt used by the run.ts no-debt gate + the action's "debt fell"
  * assertion comes from the existing `fetchBorrowContext` — this file stays token-level.
  *
  * Everything here is a best-effort ESTIMATE for a menu default / affordability heads-up — NEVER a hard
@@ -16,7 +17,7 @@
 import { getUserTotalDebt } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, erc20Abi, formatUnits } from "viem";
 
-import { fetchBorrowableReserves, openPosition } from "./borrowParams";
+import { fetchAllReserves, openPosition } from "./borrowParams";
 import { type NetworkName } from "./config";
 import { resolveCoreSpoke } from "./networkContracts";
 
@@ -49,16 +50,17 @@ function rawToTokens(raw: bigint, decimals: number): number {
 
 /**
  * Read the reserves this position currently owes on (debt > 0), each with its debt + the wallet's token
- * balance. Iterates the borrowable reserves (the only ones a position can owe on) and reads on-chain
- * `getUserTotalDebt(spoke, reserveId, proxy)` + `balanceOf(wallet)` per reserve. Returns an empty list
- * when there's no position (nothing borrowed yet) — the run.ts pre-flight turns that into a clear "no
- * debt to repay" error.
+ * balance. Iterates ALL non-vBTC reserves (`fetchAllReserves` — matching the app's `allBorrowReserves`,
+ * not just the currently-borrowable subset, so a loan on a reserve that has since been paused/frozen is
+ * still discovered) and reads on-chain `getUserTotalDebt(spoke, reserveId, proxy)` + `balanceOf(wallet)`
+ * per reserve. Returns an empty list when there's no position (nothing borrowed yet) — the run.ts
+ * pre-flight turns that into a clear "no debt to repay" error.
  */
 export async function fetchRepayableDebts(
   network: NetworkName,
   ethAddress: string,
 ): Promise<RepayableDebt[]> {
-  const reserves = await fetchBorrowableReserves(network);
+  const reserves = await fetchAllReserves(network);
   const { client, appController, position } = await openPosition(
     network,
     ethAddress,

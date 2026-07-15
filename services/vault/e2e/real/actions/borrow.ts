@@ -27,7 +27,6 @@ import {
   fetchBorrowContext,
   fetchCollateralSats,
   fetchMaxBorrow,
-  formatBorrowAmount,
 } from "../borrowParams";
 import { formatBtc } from "../preflight";
 import {
@@ -40,6 +39,7 @@ import {
   MS_PER_SECOND,
   STEP_TIMEOUT_MS,
 } from "../timing";
+import { formatTokenAmount } from "../tokenAmount";
 
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { runPeginFlow } from "./pegin";
@@ -130,17 +130,17 @@ async function resolveBorrowAmount(ctx: ActionContext): Promise<BorrowAmount> {
   // precision, which would fill 0 and stall at "Enter an amount". A zero/failed default fails loudly.
   const value =
     max.maxTokens > 0
-      ? formatBorrowAmount(
+      ? formatTokenAmount(
           max.maxTokens * CONSERVATIVE_BORROW_FRACTION,
           max.decimals,
         )
       : "0";
   if (Number(value) <= 0)
     throw new Error(
-      `borrow: the conservative default for ${token} rounds to 0 (computed max ${formatBorrowAmount(max.maxTokens, max.decimals)} ${token} is too small to borrow ${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of). Re-run with an explicit --borrow-amount.`,
+      `borrow: the conservative default for ${token} rounds to 0 (computed max ${formatTokenAmount(max.maxTokens, max.decimals)} ${token} is too small to borrow ${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of). Re-run with an explicit --borrow-amount.`,
     );
   ctx.log(
-    `Borrow amount: ${value} ${max.symbol} (~${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of max ${formatBorrowAmount(max.maxTokens, max.decimals)} ${max.symbol}).`,
+    `Borrow amount: ${value} ${max.symbol} (~${Math.round(CONSERVATIVE_BORROW_FRACTION * 100)}% of max ${formatTokenAmount(max.maxTokens, max.decimals)} ${max.symbol}).`,
   );
   return { mode: "amount", value };
 }
