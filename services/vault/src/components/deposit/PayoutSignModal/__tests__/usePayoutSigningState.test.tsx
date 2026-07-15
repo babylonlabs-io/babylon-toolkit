@@ -74,6 +74,11 @@ vi.mock("../../../../utils/errors/formatting", () => ({
   }),
 }));
 
+const mockLoggerError = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: { error: mockLoggerError },
+}));
+
 const ACTIVITY = {
   id: "0xvault" as Hex,
   peginTxHash: "0xpegin" as Hex,
@@ -183,6 +188,42 @@ describe("usePayoutSigningState", () => {
         completed: 9,
         total: 9,
       });
+    });
+  });
+
+  describe("failure telemetry", () => {
+    it("captures a signing failure to Sentry with the activation.payouts stage and a scrubbed vaultId", async () => {
+      mockSignAndSubmitPayouts.mockRejectedValueOnce(
+        new Error("VP rejected the depositor graph"),
+      );
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+      const [err, ctx] = mockLoggerError.mock.calls[0];
+      expect(err).toBeInstanceOf(Error);
+      expect(ctx.tags.funnelStage).toBe("activation.payouts");
+      expect(ctx.data.vaultId).toBe("0xvault");
+      expect(result.current.error?.title).toBe("Sign Error");
+    });
+
+    it("does not capture a user-cancelled (AbortError) signing attempt", async () => {
+      const abort = new Error("aborted");
+      abort.name = "AbortError";
+      mockSignAndSubmitPayouts.mockRejectedValueOnce(abort);
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockLoggerError).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
     });
   });
 

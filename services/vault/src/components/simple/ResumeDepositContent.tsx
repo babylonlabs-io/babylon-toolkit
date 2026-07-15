@@ -45,6 +45,7 @@ import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDep
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
+import { shortId, TELEMETRY_STAGE } from "@/infrastructure/telemetryEvents";
 import {
   ContractStatus,
   getPeginDisplayStep,
@@ -424,6 +425,16 @@ export function ResumeWotsContent({
       if (mountedRef.current) {
         const msg =
           err instanceof Error ? err.message : "Failed to submit WOTS key";
+        // Resume-path WOTS submission failure — previously only surfaced to UI
+        // state, invisible to Sentry. A mismatch is derivation drift (wrong
+        // wallet / stale keys), flagged for faceting.
+        logger.error(err instanceof Error ? err : new Error(String(err)), {
+          tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_WOTS },
+          data: {
+            vaultId: shortId(activity.id),
+            wotsMismatch: isWotsMismatchError(err),
+          },
+        });
         // VP-side mismatch gets the same wording as the local pre-flight
         // so the user can act on either path.
         if (isWotsMismatchError(err)) {
@@ -662,6 +673,13 @@ export function ResumeActivationContent({
       if (mountedRef.current) {
         const msg =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";
+        // Resume-path secret-derivation / pre-pegin-hash-mismatch failure —
+        // previously only surfaced to UI state. The error message carries only
+        // tx hashes (regex-scrubbed) and derivation errors, never secret bytes.
+        logger.error(err instanceof Error ? err : new Error(String(err)), {
+          tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_SECRET },
+          data: { vaultId: shortId(activity.id) },
+        });
         setLocalError(msg);
       }
     } finally {
