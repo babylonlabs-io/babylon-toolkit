@@ -1,5 +1,5 @@
 // Ethereum L1 consensus slot time; missed slots only make real intervals >= 12s, so 12s yields a safe UPPER bound on elapsed blocks.
-export const ETH_SLOT_SECONDS = 12;
+const ETH_SLOT_SECONDS = 12;
 
 const MILLISECONDS_PER_SECOND = 1000;
 

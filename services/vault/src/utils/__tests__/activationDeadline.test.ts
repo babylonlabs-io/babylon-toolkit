@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  ETH_SLOT_SECONDS,
-  estimateActivationDeadlineLikelyPassed,
-} from "../activationDeadline";
+import { estimateActivationDeadlineLikelyPassed } from "../activationDeadline";
 
 describe("estimateActivationDeadlineLikelyPassed", () => {
   it("returns false when well within the window", () => {
@@ -81,7 +78,26 @@ describe("estimateActivationDeadlineLikelyPassed", () => {
     ).toBe(false);
   });
 
-  it("exposes the Ethereum slot time as a 12s constant", () => {
-    expect(ETH_SLOT_SECONDS).toBe(12);
+  it("defaults to the fastest realistic cadence, so it over-counts elapsed blocks and never misses an expiry", () => {
+    // 12s is the slot floor — real slots can only be slower — so the block
+    // estimate is an upper bound. 1200s at 12s = 100 blocks, reaching the timeout.
+    expect(
+      estimateActivationDeadlineLikelyPassed({
+        createdAtMs: 0,
+        nowMs: 1_200_000,
+        pegInActivationTimeout: 100n,
+      }),
+    ).toBe(true);
+
+    // Same wall time at a slower cadence is only 80 blocks, so a `false` means
+    // "definitely inside the window", not "probably".
+    expect(
+      estimateActivationDeadlineLikelyPassed({
+        createdAtMs: 0,
+        nowMs: 1_200_000,
+        pegInActivationTimeout: 100n,
+        slotSeconds: 15,
+      }),
+    ).toBe(false);
   });
 });

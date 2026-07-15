@@ -1,12 +1,15 @@
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ethClient } from "@/clients/eth-contract/client";
-import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import {
+  getProtocolParamsReader,
+  getVaultRegistryReader,
+} from "@/clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
   PEGIN_DISPLAY_LABELS,
@@ -23,10 +26,12 @@ vi.mock("@/clients/eth-contract/client", () => ({
 }));
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
+  getProtocolParamsReader: vi.fn(),
 }));
 
 const mockGetBlockNumber = vi.fn();
 const mockGetVaultBasicInfo = vi.fn();
+const mockGetTBVProtocolParams = vi.fn();
 
 const TIMEOUT = 100n; // blocks
 // 12s slots → 100 blocks ≈ 1200s. Anchor "now" 2000s after creation so the
@@ -81,6 +86,14 @@ beforeEach(() => {
   vi.mocked(getVaultRegistryReader).mockReturnValue({
     getVaultBasicInfo: mockGetVaultBasicInfo,
   } as unknown as ReturnType<typeof getVaultRegistryReader>);
+  // Tier-2 reads the timeout from chain; default it to agree with the cached
+  // copy unless a test deliberately diverges them.
+  mockGetTBVProtocolParams.mockResolvedValue({
+    pegInActivationTimeout: TIMEOUT,
+  });
+  vi.mocked(getProtocolParamsReader).mockResolvedValue({
+    getTBVProtocolParams: mockGetTBVProtocolParams,
+  } as unknown as Awaited<ReturnType<typeof getProtocolParamsReader>>);
 });
 
 afterEach(() => {
@@ -138,6 +151,80 @@ describe("useActivationDeadlineGate (Tier-2 on-chain confirm)", () => {
     await waitFor(() =>
       expect(result.current.has(activity.id.toLowerCase())).toBe(true),
     );
+  });
+
+  it("does not gate when the live on-chain timeout is longer than the cached one", async () => {
+    // Governance raised the timeout (100 → 200) after this tab cached it. At
+    // createdAt+150 the vault is expired under the stale value, live under the
+    // real one — gating here would lock out an activation the chain accepts.
+    mockGetBlockNumber.mockResolvedValue(CREATED_AT_BLOCK + 150n);
+    mockGetVaultBasicInfo.mockResolvedValue(makeBasicInfo());
+    mockGetTBVProtocolParams.mockResolvedValue({
+      pegInActivationTimeout: 200n,
+    });
+    const activity = makeActivity();
+
+    const { result } = renderHook(
+      // Stale cached timeout, as the provider had it at page load.
+      () => useActivationDeadlineGate([activity], TIMEOUT),
+      { wrapper: queryWrapper },
+    );
+
+    await waitFor(() => expect(mockGetVaultBasicInfo).toHaveBeenCalled());
+    expect(result.current.has(activity.id.toLowerCase())).toBe(false);
+  });
+
+  it("gates on the live on-chain timeout even when the cached one is too large", async () => {
+    // Mirror case: governance shortened the window, so the vault IS expired.
+    mockGetBlockNumber.mockResolvedValue(CREATED_AT_BLOCK + 150n);
+    mockGetVaultBasicInfo.mockResolvedValue(makeBasicInfo());
+    mockGetTBVProtocolParams.mockResolvedValue({
+      pegInActivationTimeout: 100n,
+    });
+    const activity = makeActivity();
+
+    const { result } = renderHook(
+      // Cached value is generous enough that Tier-1 still suspects it.
+      () => useActivationDeadlineGate([activity], 200n),
+      { wrapper: queryWrapper },
+    );
+
+    await waitFor(() =>
+      expect(result.current.has(activity.id.toLowerCase())).toBe(true),
+    );
+  });
+
+  it("fails open when the chain reports no activation timeout", async () => {
+    mockGetBlockNumber.mockResolvedValue(BLOCK_PAST_DEADLINE);
+    mockGetVaultBasicInfo.mockResolvedValue(makeBasicInfo());
+    mockGetTBVProtocolParams.mockResolvedValue({ pegInActivationTimeout: 0n });
+    const activity = makeActivity();
+
+    const { result } = renderHook(
+      () => useActivationDeadlineGate([activity], TIMEOUT),
+      { wrapper: queryWrapper },
+    );
+
+    await waitFor(() => expect(mockGetTBVProtocolParams).toHaveBeenCalled());
+    expect(result.current.size).toBe(0);
+  });
+
+  it("fails open when the live timeout read throws (never gates on stale data)", async () => {
+    // A block/params read failure must return an empty set, not reject — a
+    // rejection would let React Query keep a prior gated set on a background
+    // refetch, holding a vault gated through a governance-raise + RPC outage.
+    mockGetBlockNumber.mockResolvedValue(BLOCK_PAST_DEADLINE);
+    mockGetVaultBasicInfo.mockResolvedValue(makeBasicInfo());
+    mockGetTBVProtocolParams.mockRejectedValue(new Error("params rpc down"));
+    const activity = makeActivity();
+
+    const { result } = renderHook(
+      () => useActivationDeadlineGate([activity], TIMEOUT),
+      { wrapper: queryWrapper },
+    );
+
+    await waitFor(() => expect(mockGetTBVProtocolParams).toHaveBeenCalled());
+    expect(result.current.size).toBe(0);
   });
 
   it("does not gate when the chain no longer reports VERIFIED", async () => {
@@ -211,5 +298,46 @@ describe("useActivationDeadlineGate (Tier-2 on-chain confirm)", () => {
 
     expect(result.current.size).toBe(0);
     expect(mockGetVaultBasicInfo).not.toHaveBeenCalled();
+  });
+});
+
+describe("useActivationDeadlineGate (Tier-1 clock)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("re-evaluates as time passes, even when the activities array keeps a stable identity", async () => {
+    // Structural sharing hands back the same `activities` reference for an idle
+    // vault, so a clock read keyed only on it would pin to mount time forever.
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW_WITHIN_MS);
+    mockGetBlockNumber.mockResolvedValue(BLOCK_PAST_DEADLINE);
+    mockGetVaultBasicInfo.mockResolvedValue(makeBasicInfo());
+
+    // One array, one identity — never replaced.
+    const activities = [makeActivity()];
+
+    const { result } = renderHook(
+      () => useActivationDeadlineGate(activities, TIMEOUT),
+      { wrapper: queryWrapper },
+    );
+
+    // Inside the window: no suspects, so Tier-2 never runs.
+    expect(mockGetVaultBasicInfo).not.toHaveBeenCalled();
+    expect(result.current.size).toBe(0);
+
+    // Deadline crosses while the tab sits idle; only the clock can notice.
+    await act(async () => {
+      vi.setSystemTime(NOW_PAST_MS);
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    // Timers are frozen, so `waitFor` can't settle — drive the microtasks.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // The tick re-ran Tier-1, enabling the Tier-2 read. Before the fix: never.
+    expect(mockGetVaultBasicInfo).toHaveBeenCalled();
+    expect(result.current.has(activities[0].id.toLowerCase())).toBe(true);
   });
 });
