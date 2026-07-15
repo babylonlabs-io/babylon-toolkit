@@ -270,6 +270,7 @@ export function CollateralSection({
         </Heading>
         <div className="flex items-center gap-2">
           <DepositButton
+            data-testid="deposit-button"
             variant="outlined"
             size="large"
             onClick={() => onDeposit()}

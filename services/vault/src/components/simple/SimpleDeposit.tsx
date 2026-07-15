@@ -329,6 +329,14 @@ function SimpleDepositContent({
     // dialog.
     if (isDepositBlocked(gate)) return;
 
+    // Address-screening guard on the submit path, mirroring the kill-switch guard
+    // above: the deposit entry points (Activity empty-state CTA, dashboard
+    // Collateral "Deposit" button) don't hide for a screened wallet, so a blocked
+    // address can open this dialog. The form CTA already disables ("Wallet not
+    // eligible"), but block here too so no future entry point can slip a screened
+    // wallet past. Fail closed while screening is still resolving.
+    if (isAddressBlocked || isScreeningLoading) return;
+
     // Per-position BTC Vault cap: never start a deposit that would push the
     // position past the on-chain cap, or when the cap couldn't be read (fail
     // closed) — defense-in-depth behind the disabled CTA.
