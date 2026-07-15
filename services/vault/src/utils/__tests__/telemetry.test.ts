@@ -160,6 +160,43 @@ describe("redactData", () => {
     expect(result.publicKey).toBe("[REDACTED]");
     expect(result.secretHex).toBe("[REDACTED]");
   });
+
+  it("replaces a Uint8Array secret instead of spreading its bytes", () => {
+    const data = { htlcSecretHex: new Uint8Array([222, 173, 190, 239]) };
+    const result = redactData(data);
+    expect(result.htlcSecretHex).toBe("[BINARY_REDACTED]");
+  });
+
+  it("replaces a binary buffer held under a non-sensitive key", () => {
+    const data = { payload: new Uint8Array([1, 2, 3]) };
+    const result = redactData(data);
+    expect(result.payload).toBe("[BINARY_REDACTED]");
+  });
+
+  it("replaces a binary buffer nested inside an array", () => {
+    const data = { chunks: [new Uint8Array([7, 8]), "plain text"] };
+    const result = redactData(data);
+    expect(result.chunks).toEqual(["[BINARY_REDACTED]", "plain text"]);
+  });
+
+  it("replaces a raw ArrayBuffer under a non-sensitive key", () => {
+    const data = { payload: new ArrayBuffer(8) };
+    const result = redactData(data);
+    expect(result.payload).toBe("[BINARY_REDACTED]");
+  });
+
+  it("redacts a bigint held under a sensitive key", () => {
+    const data = { publicKey: 123456789n };
+    const result = redactData(data);
+    expect(result.publicKey).toBe("[REDACTED]");
+  });
+
+  it("passes through an absent sensitive field rather than claiming it was redacted", () => {
+    const data = { rpcUrl: undefined, endpoint: null };
+    const result = redactData(data);
+    expect(result.rpcUrl).toBeUndefined();
+    expect(result.endpoint).toBeNull();
+  });
 });
 
 describe("scrubSentryEvent", () => {

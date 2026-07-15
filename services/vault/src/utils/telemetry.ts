@@ -1,6 +1,7 @@
 import type { Event as SentryEvent } from "@sentry/react";
 
 const REDACTED_IDENTIFIER_VISIBLE_CHARS = 4;
+const REDACTED_PLACEHOLDER = "[REDACTED]";
 
 /**
  * Redact a known-sensitive identifier to "first4...last4" format.
@@ -8,7 +9,7 @@ const REDACTED_IDENTIFIER_VISIBLE_CHARS = 4;
  */
 export function redactIdentifier(value: string, forceRedact = false): string {
   if (value.length <= REDACTED_IDENTIFIER_VISIBLE_CHARS * 2) {
-    return forceRedact ? "[REDACTED]" : value;
+    return forceRedact ? REDACTED_PLACEHOLDER : value;
   }
   const head = value.slice(0, REDACTED_IDENTIFIER_VISIBLE_CHARS);
   const tail = value.slice(-REDACTED_IDENTIFIER_VISIBLE_CHARS);
@@ -61,9 +62,36 @@ const SENSITIVE_FIELD_NAMES = new Set([
   "endpoint",
 ]);
 
+const BINARY_PLACEHOLDER = "[BINARY_REDACTED]";
+
+/**
+ * Binary buffers hold raw secret material (WOTS seeds, HTLC preimages, signatures).
+ * They are not strings, so no regex matches them, and Object.entries would spread a
+ * Uint8Array into { 0: 222, 1: 173, ... } — leaking every byte as a plain number.
+ */
+function isBinary(value: unknown): boolean {
+  return ArrayBuffer.isView(value) || value instanceof ArrayBuffer;
+}
+
+/**
+ * Redact a value held under a known-sensitive key, whatever its type. Absent values are
+ * passed through: reporting "[REDACTED]" for a field that was never set would send a
+ * debugger looking for a value that does not exist.
+ */
+function redactSensitiveValue(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  // Preserve the "this was binary" signal for the fields most likely to hold raw secret
+  // material, rather than collapsing it into the generic [REDACTED].
+  if (isBinary(value)) return BINARY_PLACEHOLDER;
+  if (typeof value === "string") return redactIdentifier(value, true);
+  return REDACTED_PLACEHOLDER;
+}
+
 /**
  * Recursively redact sensitive fields in a data object.
- * - Fields in SENSITIVE_FIELD_NAMES get identifier-level redaction (first4...last4)
+ * - Fields in SENSITIVE_FIELD_NAMES are redacted whatever their type: strings get
+ *   identifier-level redaction (first4...last4), everything else becomes [REDACTED]
+ * - Binary buffers are replaced wholesale, at any depth
  * - All other string values get regex scrubbing for address/hex patterns
  */
 export function redactData<T>(obj: T): T {
@@ -71,6 +99,10 @@ export function redactData<T>(obj: T): T {
 
   if (typeof obj === "string") {
     return scrubString(obj) as T;
+  }
+
+  if (isBinary(obj)) {
+    return BINARY_PLACEHOLDER as T;
   }
 
   if (Array.isArray(obj)) {
@@ -85,8 +117,8 @@ export function redactData<T>(obj: T): T {
   if (typeof obj === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      if (SENSITIVE_FIELD_NAMES.has(key) && typeof value === "string") {
-        result[key] = redactIdentifier(value, true);
+      if (SENSITIVE_FIELD_NAMES.has(key)) {
+        result[key] = redactSensitiveValue(value);
       } else {
         result[key] = redactData(value);
       }

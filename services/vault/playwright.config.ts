@@ -24,7 +24,9 @@ const MOCK_ENV_VARS = {
   NEXT_PUBLIC_MEMPOOL_API: "http://localhost:9996/mempool",
   NEXT_PUBLIC_REOWN_PROJECT_ID: "test-project-id-12345",
   NEXT_PUBLIC_SENTRY_DSN: "https://test@o12345.ingest.sentry.io/12345",
-  NEXT_PUBLIC_SIDECAR_API_URL: "http://localhost:8092",
+  // Route events through a tunnel so SentryInterceptor (which intercepts **/sentry-tunnel)
+  // captures them. The DSN alone enables Sentry; this only changes where events are POSTed.
+  NEXT_PUBLIC_SENTRY_TUNNEL_URL: "http://localhost:8092/sentry-tunnel",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "e2e-test",
   // Gate that the page-side `getInjectedWallets()` helper reads to
   // decide whether to surface `window.__BABYLON_E2E_WALLETS__`.
@@ -70,6 +72,12 @@ export default defineConfig({
       url: `http://localhost:${PORT_MISSING_ENV}`,
       timeout: 120_000,
       reuseExistingServer: true,
+      // This "missing configuration" server inherits the parent shell. Force the Sentry DSN
+      // empty so a developer's exported NEXT_PUBLIC_SENTRY_DSN can't enable Sentry here and
+      // transmit to a real project — the enable gate is DSN-only.
+      env: {
+        NEXT_PUBLIC_SENTRY_DSN: "",
+      },
     },
     {
       command: `pnpm exec vite --port ${PORT_FULL_ENV}`,

@@ -13,51 +13,74 @@ import * as Sentry from "@sentry/react";
 import { v4 as uuidv4 } from "uuid";
 
 import { getCommitHash } from "@/config";
-import { REPLAYS_ON_ERROR_RATE } from "@/constants";
 import { redactData, scrubSentryEvent, scrubString } from "@/utils/telemetry";
 
 const SENTRY_DEVICE_ID_KEY = "sentry_device_id";
 
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+
+// Telemetry is gated on the DSN alone. Events go directly to Sentry unless a tunnel is
+// configured. A tunnel proxies events through our own host to dodge ad-blockers; it is an
+// optimization, not a requirement, and is deliberately independent of the (logo) sidecar so
+// that unrelated infrastructure can never silently disable telemetry again.
+const tunnelUrl = process.env.NEXT_PUBLIC_SENTRY_TUNNEL_URL;
+const sentryEnabled = Boolean(sentryDsn);
+
+// These environment variables are provided by CI; their absence means a local build.
+const LOCAL_ENVIRONMENT = "local";
+const LOCAL_RELEASE = "local-dev";
+const sentryEnvironment =
+  process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? LOCAL_ENVIRONMENT;
+const sentryRelease = process.env.NEXT_PUBLIC_RELEASE_ID ?? LOCAL_RELEASE;
+// A deployed build is detected by its CI-injected release id (github.sha), NOT by the Sentry
+// env vars — those are exactly what a broken env-injection step might drop, and the warning
+// must survive that. RELEASE_ID comes from the github context, so it is still present even if
+// the DSN and environment vars are both dropped.
+const isDeployedBuild = sentryRelease !== LOCAL_RELEASE;
+
+// Warn on any telemetry misconfiguration a deployed build should never ship with. Local builds
+// legitimately run without a DSN, so the "off" case stays quiet there.
+if (isDeployedBuild && !sentryEnabled) {
+  // Deployed build, telemetry off: reports nothing, including its own silence — regardless of
+  // whether the environment var was also dropped (which would resolve environment to "local").
+  console.warn(
+    `[sentry] disabled in a deployed build (env "${sentryEnvironment}") — no events will be transmitted. Missing: NEXT_PUBLIC_SENTRY_DSN`,
+  );
+} else if (sentryEnabled && sentryEnvironment === LOCAL_ENVIRONMENT) {
+  // Enabled but tagged "local": either a deployed build that forgot
+  // NEXT_PUBLIC_SENTRY_ENVIRONMENT (events mislabeled, likely filtered out) or a local build
+  // with a stray DSN (transmitting a developer's session). Neither is intended.
+  console.warn(
+    `[sentry] enabled but environment is "local" — deployed builds must set NEXT_PUBLIC_SENTRY_ENVIRONMENT; a local build should unset NEXT_PUBLIC_SENTRY_DSN.`,
+  );
+}
+
 Sentry.init({
-  enabled: Boolean(
-    process.env.NEXT_PUBLIC_SIDECAR_API_URL &&
-      process.env.NEXT_PUBLIC_SENTRY_DSN,
-  ),
+  enabled: sentryEnabled,
   // This is pointing to the DSN (Data Source Name) for the Sentry project
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn: sentryDsn,
 
-  // Tunnel endpoint for proxying Sentry events through our own server
-  // This helps avoid ad-blockers and CSP issues
-  tunnel: process.env.NEXT_PUBLIC_SIDECAR_API_URL
-    ? `${process.env.NEXT_PUBLIC_SIDECAR_API_URL}/sentry-tunnel`
-    : "http://localhost:8092/sentry-tunnel",
+  // Tunnel endpoint for proxying Sentry events through our own host (ad-blocker/CSP
+  // resistance). Omitted when unset so events go directly to Sentry.
+  ...(tunnelUrl ? { tunnel: tunnelUrl } : {}),
 
-  // This environment variable is provided in the CI
-  environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "local",
+  environment: sentryEnvironment,
 
   // Ensure this release ID matches the one used during 'vite build' for source map uploads
   // It's passed via NEXT_PUBLIC_RELEASE_ID in the build environment (e.g., GitHub Actions)
-  release: process.env.NEXT_PUBLIC_RELEASE_ID ?? "local-dev",
+  release: sentryRelease,
 
   // Ensure this dist ID matches the one used during 'vite build' for source map uploads
   // It's passed via NEXT_PUBLIC_DIST_ID in the build environment (e.g., GitHub Actions)
   dist: process.env.NEXT_PUBLIC_DIST_ID ?? "local",
 
-  // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate: 1,
-  tracesSampler: (samplingContext) => {
-    const hasErrorTag = samplingContext.tags?.error === "true";
-
-    // Only sample at 100% if it's an error transaction with the error tag
-    if (hasErrorTag) {
-      return 1.0;
-    }
-
-    // Default sampling rate for everything else
-    return 0.01;
-  },
-
-  enableTracing: true,
+  // Performance tracing is intentionally OFF. beforeSend (and thus scrubSentryEvent) runs
+  // only on error/message events, never on transaction envelopes — those need a separate
+  // beforeSendTransaction hook. With browserTracingIntegration, auto-instrumented fetch spans
+  // carry full request URLs, and this app fetches `${UTILS_API_URL}/address/screening?address=
+  // <btc-addr>`, so the depositor's address would transmit unredacted. No tracesSampleRate and
+  // no browserTracingIntegration => no transactions are created. Restore tracing together with
+  // a transaction-side URL scrubber (planned for the SDK-upgrade PR).
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
@@ -72,19 +95,13 @@ Sentry.init({
     return breadcrumb;
   },
 
-  replaysOnErrorSampleRate: REPLAYS_ON_ERROR_RATE,
-
-  replaysSessionSampleRate: 0,
-
-  integrations: [
-    Sentry.replayIntegration({
-      maskAllText: true,
-      maskAllInputs: true,
-      blockAllMedia: true,
-    }),
-    // Browser tracing for performance monitoring and React component annotation
-    Sentry.browserTracingIntegration(),
-  ],
+  // Session Replay is intentionally OFF for the same reason: replay envelopes bypass
+  // beforeSend/scrubSentryEvent, and maskAllText/maskAllInputs do not mask request URLs or
+  // href attributes (the app renders the depositor's BTC address in both — the screening
+  // request URL and explorer /address/<addr> links). Leaving out replayIntegration keeps only
+  // Sentry's default integrations (error handlers, breadcrumbs), which carry no address data
+  // that scrubSentryEvent does not already cover. Restore replay only with a replay-side
+  // redaction hook (URL + href masking).
 
   beforeSend(event, hint) {
     event.extra = {
