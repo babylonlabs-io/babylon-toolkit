@@ -213,6 +213,79 @@ describe("redactData", () => {
   });
 });
 
+describe("redactData — vault-secret carrier keys", () => {
+  it("redacts the auth-anchor hex by field name, not just by regex length", () => {
+    const data = { authAnchorHex: "deadbeef".repeat(8) };
+    const result = redactData(data);
+    expect(result.authAnchorHex).toBe("dead...beef");
+  });
+
+  it("redacts the activation secret regardless of length", () => {
+    const data = { secret: "0x1234" };
+    const result = redactData(data);
+    expect(result.secret).toBe("[REDACTED]");
+  });
+
+  it("redacts the plural htlcSecretHexes array carrier that regex length would miss element-by-element", () => {
+    const data = { htlcSecretHexes: ["ab".repeat(32), "cd".repeat(32)] };
+    const result = redactData(data);
+    expect(result.htlcSecretHexes).toBe("[REDACTED]");
+  });
+
+  it("redacts a depositor pubkey alias not previously in the denylist", () => {
+    const data = { depositorBtcPubkeyRaw: "a".repeat(66) };
+    const result = redactData(data);
+    expect(result.depositorBtcPubkeyRaw).toBe("aaaa...aaaa");
+  });
+
+  it("redacts a vault root held as a Uint8Array under a named carrier key", () => {
+    const data = { vaultRoot: new Uint8Array(32).fill(255) };
+    const result = redactData(data);
+    expect(result.vaultRoot).toBe("[BINARY_REDACTED]");
+  });
+});
+
+describe("redactData — byte-valued number[] handling", () => {
+  it("redacts a 32-byte number[] that isBinary misses", () => {
+    const data = { payload: Array.from(new Uint8Array(32).fill(222)) };
+    const result = redactData(data);
+    expect(result.payload).toBe("[BINARY_REDACTED]");
+  });
+
+  it("redacts each inner byte array of a number[][] (Array.from WOTS terminals)", () => {
+    const data = {
+      perVaultWotsKeys: [
+        Array.from(new Uint8Array(20).fill(1)),
+        Array.from(new Uint8Array(20).fill(2)),
+      ],
+    };
+    const result = redactData(data);
+    expect(result.perVaultWotsKeys).toEqual([
+      "[BINARY_REDACTED]",
+      "[BINARY_REDACTED]",
+    ]);
+  });
+
+  it("redacts a byte-valued number[] held under a sensitive key with the binary signal", () => {
+    const data = { secretBytes: Array.from(new Uint8Array(32).fill(7)) };
+    const result = redactData(data);
+    expect(result.secretBytes).toBe("[BINARY_REDACTED]");
+  });
+
+  it("leaves a short numeric array (fee rates) readable", () => {
+    const data = { feeRates: [1, 2, 5, 10] };
+    const result = redactData(data);
+    expect(result.feeRates).toEqual([1, 2, 5, 10]);
+  });
+
+  it("leaves a long array of non-byte numbers (block heights) readable", () => {
+    const heights = Array.from({ length: 20 }, (_, i) => 840000 + i);
+    const data = { blockHeights: heights };
+    const result = redactData(data);
+    expect(result.blockHeights).toEqual(heights);
+  });
+});
+
 describe("scrubSentryEvent", () => {
   it("scrubs exception values", () => {
     const event: SentryEvent = {

@@ -42,22 +42,51 @@ export function scrubString(value: string): string {
 }
 
 const SENSITIVE_FIELD_NAMES = new Set([
+  // Chain addresses.
   "address",
   "btcAddress",
   "ethAddress",
   "babylonAddress",
   "bech32Address",
+  // Depositor public keys — semi-sensitive via linkability; the x-only key is
+  // committed inside vaultContext (the deriveContextHash input).
   "publicKey",
   "pubKey",
   "userPublicKey",
   "depositorBtcPubkey",
+  "depositorBtcPubkeyRaw",
+  "depositorBtcPubkeyXOnly",
+  "depositorPubkey",
+  "verifiedBtcPubkeyRaw",
+  "verifiedDepositorBtcPubkeyRaw",
+  "signerXOnlyPubkeyHex",
+  "publicKeyNoCoord",
+  // Transactions.
   "txHash",
   "txHex",
   "peginTxHash",
   "rawTx",
+  // Vault-secret material derived from deriveContextHash (derive-vault-secrets.md).
+  // Listed under the exact keys these values travel on so scrubbing never depends
+  // on a value happening to be 64+ hex — a rename, truncation, or re-encoding by a
+  // future refactor must not silently defeat redaction.
   "seed",
+  "wotsSeed",
+  "secret",
   "secretHex",
+  "secretBytes",
   "htlcSecretHex",
+  "htlcSecretHexes",
+  "authAnchorHex",
+  "authAnchorBytes",
+  "auth_anchor",
+  "rootHex",
+  "rootDerivation",
+  "vaultRoot",
+  "contextHash",
+  "vaultContext",
+  "contextHex",
+  // Infrastructure.
   "rpcUrl",
   "endpoint",
   // Amounts — bucket before emitting. Raw values are depositor-identifying and,
@@ -74,12 +103,42 @@ const SENSITIVE_FIELD_NAMES = new Set([
 const BINARY_PLACEHOLDER = "[BINARY_REDACTED]";
 
 /**
+ * Minimum length at which a plain number[] is treated as raw binary. 16 bytes
+ * (128 bits) is the smallest cryptographic secret size; shorter numeric arrays
+ * are far more likely to be genuine debugging data (fee rates, vault indices,
+ * counts) than key material, so they are left readable.
+ */
+const MIN_BYTE_ARRAY_LENGTH = 16;
+
+/**
  * Binary buffers hold raw secret material (WOTS seeds, HTLC preimages, signatures).
  * They are not strings, so no regex matches them, and Object.entries would spread a
  * Uint8Array into { 0: 222, 1: 173, ... } — leaking every byte as a plain number.
  */
 function isBinary(value: unknown): boolean {
   return ArrayBuffer.isView(value) || value instanceof ArrayBuffer;
+}
+
+/**
+ * A byte buffer in disguise: a plain number[] whose every element is an integer
+ * in 0..255. isBinary misses it (ArrayBuffer.isView is false for plain arrays),
+ * so without this check redactData would recurse and keep every byte as a plain
+ * number — leaking secret material that was converted via Array.from(uint8Array)
+ * (the WOTS terminals are already stored exactly this way). Applied at the
+ * MIN_BYTE_ARRAY_LENGTH floor so short numeric arrays stay readable.
+ */
+function isByteArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length >= MIN_BYTE_ARRAY_LENGTH &&
+    value.every(
+      (element) =>
+        typeof element === "number" &&
+        Number.isInteger(element) &&
+        element >= 0 &&
+        element <= 255,
+    )
+  );
 }
 
 /**
@@ -91,7 +150,7 @@ function redactSensitiveValue(value: unknown): unknown {
   if (value === null || value === undefined) return value;
   // Preserve the "this was binary" signal for the fields most likely to hold raw secret
   // material, rather than collapsing it into the generic [REDACTED].
-  if (isBinary(value)) return BINARY_PLACEHOLDER;
+  if (isBinary(value) || isByteArray(value)) return BINARY_PLACEHOLDER;
   if (typeof value === "string") return redactIdentifier(value, true);
   return REDACTED_PLACEHOLDER;
 }
@@ -99,8 +158,9 @@ function redactSensitiveValue(value: unknown): unknown {
 /**
  * Recursively redact sensitive fields in a data object.
  * - Fields in SENSITIVE_FIELD_NAMES are redacted whatever their type: strings get
- *   identifier-level redaction (first4...last4), everything else becomes [REDACTED]
- * - Binary buffers are replaced wholesale, at any depth
+ *   identifier-level redaction (first4...last4), binary/byte-array values become
+ *   [BINARY_REDACTED], everything else becomes [REDACTED]
+ * - Binary buffers and byte-valued number[]s are replaced wholesale, at any depth
  * - All other string values get regex scrubbing for address/hex patterns
  */
 export function redactData<T>(obj: T): T {
@@ -110,7 +170,7 @@ export function redactData<T>(obj: T): T {
     return scrubString(obj) as T;
   }
 
-  if (isBinary(obj)) {
+  if (isBinary(obj) || isByteArray(obj)) {
     return BINARY_PLACEHOLDER as T;
   }
 
