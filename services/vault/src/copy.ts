@@ -1107,6 +1107,7 @@ export const COPY = {
   },
   overview: {
     heading: "Overview",
+    positionTitle: "Position",
     healthFactorLabel: "Health factor",
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
@@ -1116,8 +1117,14 @@ export const COPY = {
     liquidationRiskLabel: "Liquidation Risk",
     totalCollateralValueLabel: "Total collateral value",
     totalCollateralValueTooltip:
-      "The current USD value of all Bitcoin collateral backing your loans.",
+      "The total value of assets used as collateral.",
     totalBorrowedLabel: "Total borrowed",
+    availableToBorrowLabel: "Available to borrow",
+    depositAction: "Deposit",
+    borrowAction: "Borrow",
+    repayAction: "Repay",
+    availableMeterLabel: (percent: number) => `${percent}% remaining`,
+    borrowedMeterLabel: (percent: number) => `${percent}% borrowed`,
     liquidationPriceLabel: "Liquidation price",
     btcPriceLabel: "BTC price",
     pctToLiquidationLabel: "% to liquidation",

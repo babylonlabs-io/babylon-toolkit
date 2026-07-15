@@ -54,3 +54,10 @@ export type {
   AssertCfUnchangedDeps,
   AssertCfUnchangedResult,
 } from "./assertCfUnchanged";
+
+export { calculateBorrowCapacityUsd } from "./borrowCapacity";
+
+export type {
+  BorrowCapacityUsd,
+  BorrowCapacityUsdParams,
+} from "./borrowCapacity";
