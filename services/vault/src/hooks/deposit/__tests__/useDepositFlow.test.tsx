@@ -141,6 +141,7 @@ vi.mock("@/infrastructure", () => ({
     error: mockLoggerError,
     warn: vi.fn(),
     info: vi.fn(),
+    event: vi.fn(),
   },
 }));
 

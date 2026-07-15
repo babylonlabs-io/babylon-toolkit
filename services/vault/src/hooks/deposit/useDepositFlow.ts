@@ -43,6 +43,11 @@ import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
+import {
+  amountBucket,
+  shortId,
+  TELEMETRY_EVENT,
+} from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
@@ -395,6 +400,17 @@ export function useDepositFlow(
         // Generate batch ID for tracking
         const batchId = uuidv4();
 
+        logger.event(TELEMETRY_EVENT.DEPOSIT_STARTED, {
+          level: "info",
+          category: "deposit",
+          batchId,
+          providerId: shortId(primaryProvider),
+          vaultCount: vaultAmounts.length,
+          amountBucket: amountBucket(
+            satoshiToBtcNumber(vaultAmounts.reduce((sum, a) => sum + a, 0n)),
+          ),
+        });
+
         // ========================================================================
         // Step 1: Get shared resources
         // ========================================================================
@@ -578,6 +594,16 @@ export function useDepositFlow(
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
           }));
 
+        logger.event(TELEMETRY_EVENT.DEPOSIT_REGISTERED, {
+          level: "info",
+          category: "deposit",
+          batchId,
+          vaultIds: peginResults.map((r) => shortId(r.vaultId)),
+          providerId: shortId(primaryProvider),
+          ethTxHash: shortId(batchRegistration.ethTxHash),
+          vaultCount: peginResults.length,
+        });
+
         // ========================================================================
         // Step 4a: Persist pending pegins BEFORE broadcast and before any
         // further network calls. Saved immediately after ETH registration so
@@ -728,6 +754,15 @@ export function useDepositFlow(
             LocalStorageStatus.CONFIRMING,
           );
         }
+
+        logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
+          level: "info",
+          category: "deposit",
+          batchId,
+          prePeginTxid: shortId(prePeginBroadcastTxid),
+          vaultIds: peginResults.map((r) => shortId(r.vaultId)),
+          vaultCount: peginResults.length,
+        });
 
         // The mempool now knows our Pre-PegIn spent these outpoints, so the
         // next `/address/<addr>/utxo` fetch will exclude them. Invalidate

@@ -197,6 +197,20 @@ describe("redactData", () => {
     expect(result.rpcUrl).toBeUndefined();
     expect(result.endpoint).toBeNull();
   });
+
+  it("redacts raw amounts, which the hex/address regexes cannot catch", () => {
+    const data = {
+      amountSats: 12345678n,
+      amountBtc: 1.5,
+      collateralAmount: "1,234.5",
+      vaultAmounts: [100000n, 200000n],
+    };
+    const result = redactData(data);
+    expect(result.amountSats).toBe("[REDACTED]");
+    expect(result.amountBtc).toBe("[REDACTED]");
+    expect(result.collateralAmount).toBe("[REDACTED]");
+    expect(result.vaultAmounts).toBe("[REDACTED]");
+  });
 });
 
 describe("scrubSentryEvent", () => {

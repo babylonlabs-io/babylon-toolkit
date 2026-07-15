@@ -32,6 +32,8 @@ import {
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { logger } from "@/infrastructure";
+import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
@@ -322,6 +324,12 @@ export function useVaultActions(): UseVaultActionsReturn {
         updatePendingPeginStatus(vaultId, nextStatus);
       }
 
+      logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
+        level: "info",
+        category: "deposit",
+        vaultId: shortId(vaultId),
+      });
+
       // Show success modal and refetch
       onShowSuccessModal();
       onRefetchActivities();
@@ -467,6 +475,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
         updatePendingPeginStatus(vaultId, nextStatus);
       }
+
+      logger.event(TELEMETRY_EVENT.ACTIVATION_ACTIVATED, {
+        level: "info",
+        category: "activation",
+        vaultId: shortId(vaultId),
+      });
 
       // Show success and refetch
       onShowSuccessModal();
