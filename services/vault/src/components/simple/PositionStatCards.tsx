@@ -36,7 +36,7 @@ function StatMeter({
         className="h-1 w-[68px] overflow-hidden rounded-full bg-secondary-strokeLight"
       >
         <div
-          className="h-full rounded-full bg-secondary-main transition-[width] duration-300"
+          className="h-full rounded-full bg-secondary-main"
           style={{ width: `${clamped * 100}%` }}
         />
       </div>
