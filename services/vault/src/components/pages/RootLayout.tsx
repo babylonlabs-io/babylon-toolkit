@@ -15,7 +15,7 @@ import { useTheme } from "next-themes";
 import { useCallback, useState } from "react";
 import { BsDiscord, BsGithub, BsLinkedin } from "react-icons/bs";
 import { FaXTwitter } from "react-icons/fa6";
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { DepositButton } from "@/components/shared";
@@ -152,6 +152,18 @@ export default function RootLayout() {
 
   const isWalletConnected = btcConnected && ethConnected;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  // The disconnected dashboard landing (DisconnectedOverview / "Native Bitcoin
+  // backed borrowing") is vertically centered via `my-auto` on its Container.
+  // On that screen only, drop the footer's top margins (the wrapper's `mt-auto`
+  // and the Footer's own `mt-24`) so the footer sits directly below the centered
+  // content instead of competing for the free vertical space. Scoped to the
+  // dashboard route so an unlogged /activity keeps its sticky footer, and to
+  // the non-geo branch: geo-loading/geo-blocked render short content instead of
+  // the centered Container, so the footer must keep `mt-auto` to stay at the
+  // viewport bottom.
+  const { pathname } = useLocation();
+  const isDisconnectedLanding =
+    !isWalletConnected && pathname === "/" && !isGeoBlocked && !isGeoLoading;
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [initialDepositAmountBtc, setInitialDepositAmountBtc] = useState<
     string | undefined
@@ -300,7 +312,7 @@ export default function RootLayout() {
             </AaveConfigProvider>
           </ActivatingVaultsProvider>
         )}
-        <div className="mt-auto">
+        <div className={isDisconnectedLanding ? "mt-0" : "mt-auto"}>
           {/* The footer bar background is full-bleed, and per Figma its content is too:
               the social/copyright block's left edge lines up with the navbar/body's
               1080px `PAGE_CONTENT_CLASS` box, but the logo sits close to the true
@@ -319,7 +331,11 @@ export default function RootLayout() {
           <Footer
             socialLinks={FOOTER_SOCIAL_LINKS}
             copyrightYear={new Date().getFullYear()}
-            className="!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-none [&>div]:!px-5 [&>div]:md:!pr-[90px]"
+            className={twJoin(
+              "!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-none [&>div]:!px-5 [&>div]:md:!pr-[90px]",
+              // Override the Footer's baked-in `mt-24` on the disconnected landing.
+              isDisconnectedLanding && "!mt-0",
+            )}
             socialClassName={FOOTER_SOCIAL_MARGIN_CLASS}
           />
         </div>
