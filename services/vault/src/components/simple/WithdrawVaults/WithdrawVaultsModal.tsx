@@ -88,6 +88,7 @@ export function WithdrawVaultsModal({
             ))}
           </div>
 
+          {/* This control's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
           <Button
             variant="contained"
             color="secondary"
@@ -95,6 +96,7 @@ export function WithdrawVaultsModal({
             fluid
             onClick={onConfirm}
             disabled={!canWithdraw || !hasSelection}
+            data-testid="withdraw-modal-confirm-button"
           >
             {withdrawLabel}
           </Button>

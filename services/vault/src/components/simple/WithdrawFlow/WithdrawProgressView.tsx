@@ -55,11 +55,13 @@ export function WithdrawProgressView({
           </Text>
         </div>
 
+        {/* This control's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
         <Button
           variant="contained"
           color="secondary"
           className="w-full"
           onClick={onClose}
+          data-testid="withdraw-done-button"
         >
           {copy.doneButton}
         </Button>

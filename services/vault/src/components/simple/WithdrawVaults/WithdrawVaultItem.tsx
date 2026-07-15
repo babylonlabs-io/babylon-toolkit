@@ -35,7 +35,11 @@ export function WithdrawVaultItem({
   };
 
   return (
-    <div className="flex items-center justify-between rounded-lg bg-primary-contrast px-6 py-4">
+    // This row's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element.
+    <div
+      className="flex items-center justify-between rounded-lg bg-primary-contrast px-6 py-4"
+      data-testid={`withdraw-vault-row-${vaultId}`}
+    >
       <div className="flex items-center gap-2">
         <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="medium" />
         <span className="text-xl text-accent-primary">

@@ -115,7 +115,7 @@ export const ACTIONS: ActionOption[] = [
   },
   { id: "borrow", label: "Borrow", enabled: true },
   { id: "repay", label: "Repay", enabled: true },
-  { id: "withdraw", label: "Withdraw", enabled: false },
+  { id: "withdraw", label: "Withdraw", enabled: true },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -160,6 +160,17 @@ export interface RunConfig {
    * When absent the CLI defaults to a conservative fraction of the outstanding debt (see repayParams).
    */
   repayAmount?: string;
+  /**
+   * Withdraw only: repay the outstanding debt in full (`--repay-first`) before withdrawing, so collateral
+   * is no longer health-factor-gated. When set, the repay leg reuses the repay flow with `repayAmount`
+   * forced to `max`; `repayToken` defaults to the sole/first outstanding loan.
+   */
+  repayFirst?: boolean;
+  /**
+   * Withdraw only: release every selectable vault (`--withdraw-all`) instead of just the first
+   * withdrawable one. Default (absent) withdraws a single vault, keeping the position alive for reuse.
+   */
+  withdrawAll?: boolean;
 }
 
 /** Resolve the target URL a run should open. */

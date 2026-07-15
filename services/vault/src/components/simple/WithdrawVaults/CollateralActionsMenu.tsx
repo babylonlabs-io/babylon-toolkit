@@ -49,6 +49,7 @@ export function CollateralActionsMenu({
 
   return (
     <>
+      {/* This control's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
       <button
         ref={anchorRef}
         type="button"
@@ -56,6 +57,7 @@ export function CollateralActionsMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={COPY.collateral.menu.triggerLabel}
+        data-testid="collateral-actions-button"
         className={TRIGGER_CLASS}
       >
         <MdMoreHoriz size={MENU_ICON_SIZE} />
@@ -70,11 +72,13 @@ export function CollateralActionsMenu({
       >
         <ul role="menu" className="flex flex-col">
           <li role="none">
+            {/* This control's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
             <button
               type="button"
               role="menuitem"
               disabled={withdrawBlocked}
               onClick={() => runAction(onWithdraw)}
+              data-testid="collateral-withdraw-button"
               className={MENU_ITEM_CLASS}
             >
               {COPY.collateral.menu.withdraw}

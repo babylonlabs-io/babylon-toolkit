@@ -24,6 +24,14 @@
  * also honors the borrow extras above), `--repay-token=<symbol>` (from the depositor's outstanding
  * loans; default = the sole loan, or the borrowed token under --borrow-first) and `--repay-amount=<n>|max`
  * (`max` clicks the form's Max for a full clear; default = a conservative fraction of the debt).
+ *
+ * Withdraw releases active BTC-Vault collateral (a single on-chain tx; the vault provider drives the
+ * Bitcoin payout afterward). It chains prerequisite legs via the cascade `--pegin-first ⟹ --borrow-first
+ * ⟹ --repay-first` (a deeper flag implies the shallower legs): `--repay-first` repays outstanding debt in
+ * full first; `--borrow-first` borrows (honoring the borrow extras) then repays that loan; `--pegin-first`
+ * pegs in fresh collateral (honoring the pegin extras, incl. `--split`) then borrows + repays — the full
+ * pegin → borrow → repay → withdraw cycle. `--withdraw-all` releases every selectable vault (default = a
+ * single vault, keeping the position alive).
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
@@ -258,11 +266,19 @@ async function resolveConfig(
       delayMs = Math.max(0, Math.round((Number(raw) || 0) * MS_PER_SECOND));
     }
 
-    // Repay: borrow first (then repay the new loan), or repay an existing loan? Resolved BEFORE the
-    // pegin/collateral choice below because it decides whether a borrow (and thus a possible pegin)
-    // happens at all. `--borrow-first` wins; else prompt (default = repay an existing loan).
+    // ── Prerequisite legs (which actions run before the primary one) ──────────────
+    // `borrowFirst`/`peginFirst`/`repayFirst` gate the pegin + borrow extras below and the run.ts
+    // pre-flights. Resolved BEFORE those because they decide whether a borrow (and thus a possible pegin,
+    // and the loan-token lookup) happens at all.
+    //   repay:    --borrow-first (borrow a new loan, then repay it), optionally with --pegin-first.
+    //   withdraw: cascade --pegin-first ⟹ --borrow-first ⟹ --repay-first — a deeper flag implies every
+    //             shallower leg (pegin → borrow → repay → withdraw).
     let borrowFirst = false;
+    let peginFirst = false;
+    let repayFirst = false;
+
     if (action === "repay") {
+      // borrow-first: flag wins, else prompt (default = repay an existing loan).
       if (flags["borrow-first"] !== undefined) {
         borrowFirst = flagBool(flags["borrow-first"]);
       } else if (interactive) {
@@ -274,13 +290,30 @@ async function resolveConfig(
       }
     }
 
-    // Peg in first, or borrow against existing collateral? Applies to any run that borrows — a `borrow`
-    // run, or a `repay --borrow-first` run. Resolved early because it decides whether the pegin extras
-    // below are collected. `--pegin-first` wins; else prompt (default = reuse existing collateral).
+    if (action === "withdraw") {
+      // Cascade: a flag at any depth implies every shallower leg.
+      peginFirst = flagBool(flags["pegin-first"]);
+      borrowFirst = flagBool(flags["borrow-first"]) || peginFirst;
+      repayFirst = flagBool(flags["repay-first"]) || borrowFirst;
+      // No chain flag → offer the common repay-first choice interactively (deeper chains are flag-only).
+      if (!repayFirst && interactive)
+        repayFirst =
+          (await select<"asis" | "repay">(rl, "Withdraw collateral", [
+            { value: "asis", label: "Withdraw against the current position" },
+            {
+              value: "repay",
+              label: "Repay outstanding debt first, then withdraw",
+            },
+          ])) === "repay";
+    }
+
+    // Peg in first, or borrow against existing collateral? Applies to any run that draws a loan — a
+    // `borrow` run, or a `repay`/`withdraw` with --borrow-first. Withdraw already resolved `peginFirst`
+    // above via the cascade; borrow/repay resolve it here (flag wins, else prompt, default = reuse).
     const willBorrow =
-      action === "borrow" || (action === "repay" && borrowFirst);
-    let peginFirst = false;
-    if (willBorrow) {
+      action === "borrow" ||
+      ((action === "repay" || action === "withdraw") && borrowFirst);
+    if (willBorrow && action !== "withdraw") {
       if (flags["pegin-first"] !== undefined) {
         peginFirst = flagBool(flags["pegin-first"]);
       } else if (interactive) {
@@ -394,7 +427,7 @@ async function resolveConfig(
     }
 
     // Borrow extras: token (from the live borrowable list) + an explicit amount passthrough. Collected
-    // for any run that borrows (`willBorrow`: a `borrow` run, or a `repay --borrow-first` run). The amount
+    // for any run that borrows (`willBorrow`: a `borrow` run, or a `repay`/`withdraw` --borrow-first). The amount
     // DEFAULT (a conservative fraction of the max) needs the depositor's ETH address, which isn't known
     // until wallet import — so it's resolved later; here we only carry an explicit --borrow-amount
     // (a number, or "max" for the form's Max button) through.
@@ -455,7 +488,7 @@ async function resolveConfig(
       typeof flags["repay-token"] === "string"
         ? flags["repay-token"]
         : undefined;
-    const repayAmount =
+    let repayAmount =
       typeof flags["repay-amount"] === "string"
         ? flags["repay-amount"]
         : undefined;
@@ -466,11 +499,19 @@ async function resolveConfig(
           `--repay-amount must be a positive number of tokens or "max" (got "${repayAmount}")`,
         );
     }
-    if (action === "repay" && !borrowFirst) {
+    // Withdraw with any repay leg clears the debt in full by default so collateral is no longer health-
+    // factor-gated (an explicit --repay-amount still wins if a partial repay + withdraw is intended).
+    if (action === "withdraw" && repayFirst && repayAmount === undefined)
+      repayAmount = "max";
+    // Resolve/validate the loan token for any run that repays an EXISTING loan: `repay` or `withdraw
+    // --repay-first`. Excludes --borrow-first (repay OR withdraw), whose loan is created during the run —
+    // that case defaults `repayToken` to the borrowed token below instead.
+    const resolveExistingLoanToken =
+      (action === "repay" && !borrowFirst) ||
+      (action === "withdraw" && repayFirst && !borrowFirst);
+    if (resolveExistingLoanToken) {
       // Fetch the depositor's outstanding loans up front so an explicit --repay-token is VALIDATED
       // before the run, and so an unspecified token can be picked from the list (menu / sole loan).
-      // Skipped for --borrow-first: the loan is created during the run, so `repayToken` defaults to the
-      // borrowed token (below) rather than being validated against the current (pre-borrow) loans.
       // Unlike borrow's address-independent reserve list, the loans are position-specific, so we derive
       // the ETH address from the wallet mnemonic (the same derivation the balance pre-flight uses) — the
       // real run in run.ts re-derives it as ground truth. Best-effort: any read/derivation failure warns
@@ -512,13 +553,22 @@ async function resolveConfig(
               : debts[0].symbol;
       }
     }
-    // For `repay --borrow-first`, repay the token we just borrowed unless the user overrode --repay-token.
-    if (action === "repay" && borrowFirst && repayToken === undefined)
+    // For a --borrow-first run (`repay` or `withdraw`), repay the token we just borrowed unless the user
+    // overrode --repay-token.
+    if (
+      (action === "repay" || action === "withdraw") &&
+      borrowFirst &&
+      repayToken === undefined
+    )
       repayToken = borrowToken;
 
     // Sign-conformance extra: explicit fixtures file (else the action auto-detects the newest pegin's).
     const fixturesPath =
       typeof flags.fixtures === "string" ? flags.fixtures : undefined;
+
+    // Withdraw extra: release every selectable vault (default = a single vault, keeping the position alive).
+    const withdrawAll =
+      action === "withdraw" && flagBool(flags["withdraw-all"]);
 
     return {
       target,
@@ -538,6 +588,8 @@ async function resolveConfig(
       borrowFirst,
       repayToken,
       repayAmount,
+      repayFirst,
+      withdrawAll,
     };
   } finally {
     rl.close();
