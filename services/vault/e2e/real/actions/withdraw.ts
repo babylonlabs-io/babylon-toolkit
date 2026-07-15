@@ -79,9 +79,16 @@ const DISABLED_REASON_TESTID = '[data-testid="withdraw-disabled-reason"]';
 const WITHDRAW_DONE_TESTID = '[data-testid="withdraw-done-button"]';
 const WITHDRAW_INITIATED_RX = /withdrawal initiated/i;
 
+/** vaultId log form: keep the first N chars (0x + 8 hex), then elide the rest with "…". */
+const VAULT_ID_LOG_PREFIX_LEN = 10;
+/** Only shorten a vaultId longer than this — a short/blank id logs whole. */
+const VAULT_ID_LOG_MIN_LEN = 12;
+
 /** Short form of a bytes32 vaultId for logs (e.g. `0x1234abcd…`). */
 function shortenVaultId(id: string): string {
-  return id.length > 12 ? `${id.slice(0, 10)}…` : id;
+  return id.length > VAULT_ID_LOG_MIN_LEN
+    ? `${id.slice(0, VAULT_ID_LOG_PREFIX_LEN)}…`
+    : id;
 }
 
 /**
