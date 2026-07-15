@@ -17,6 +17,17 @@ export const HEADER_SETTLE_MS = 1_500;
 /** Let an extension approval popup be handled + the address register in the app. */
 export const APPROVAL_WAIT_MS = 6_000;
 
+/**
+ * The connected state (the header "deposit" CTA) to appear after finalizing the connect. Generous
+ * because MetaMask can insert an EXTRA approval after the initial connect — a "Review permissions / Use
+ * your enabled networks" prompt — which must be confirmed before the app flips to connected. We poll +
+ * sweep approvals across this window so that late/reused-window prompt is clicked (a single one-shot
+ * waitFor would just time out with the prompt left hanging).
+ */
+export const CONNECT_STATE_TIMEOUT_MS = 60_000;
+/** Poll cadence for the connected-state wait (each tick re-sweeps any open approval popup). */
+export const CONNECT_STATE_POLL_MS = 1_500;
+
 /** Auto-approve loop over an extension popup (MetaMask needs multiple rounds). */
 export const APPROVE_ROUNDS = 6;
 export const APPROVE_ROUND_MS = 1_500;
@@ -94,6 +105,31 @@ export const BORROW_CTA_ENABLE_TIMEOUT_MS = 150_000;
  * a stuck tx fails the run (trace captured) instead of hanging.
  */
 export const BORROW_TX_TIMEOUT_MS = 90_000;
+
+// ── repay ─────────────────────────────────────────────────────────────────────
+/**
+ * The dashboard "Repay" button to become visible + enabled. It only renders when `hasLoans` and is
+ * enabled once connected; a loan created earlier in the SAME session (borrow-first) takes a moment to
+ * propagate into that read, so we poll rather than fail on the first check. A reuse run's loan is
+ * already on-chain, so the button is ready almost immediately.
+ */
+export const REPAY_BUTTON_ENABLE_TIMEOUT_MS = 180_000;
+/**
+ * The repay form's submit button to become the enabled "Repay" after entering an amount — it settles
+ * through "Enter an amount" while the wallet balance + debt load (and, for a Max intent, a submit-time
+ * refetch). No collateral-propagation transient (unlike borrow), so shorter; a genuinely-blocked amount
+ * surfaces its instant-fail label (e.g. "Amount exceeds debt") well within this.
+ */
+export const REPAY_CTA_ENABLE_TIMEOUT_MS = 90_000;
+/**
+ * The repay transaction(s) to confirm on Sepolia. Unlike borrow this can be TWO sequential txs — an
+ * ERC-20 approve of the debt token to the adapter (only when the current allowance is insufficient),
+ * then the repay — with the CTA reading "Processing…" across both. Longer than the borrow budget to
+ * absorb two confirmations; a stuck tx fails the run (trace captured) instead of hanging.
+ */
+export const REPAY_TX_TIMEOUT_MS = 120_000;
+/** Poll cadence for the on-chain "debt fell" post-condition check after the success screen. */
+export const REPAY_VERIFY_POLL_MS = 3_000;
 
 // ── sign-conformance (per-wallet signing replay) ─────────────────────────────
 /**

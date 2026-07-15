@@ -114,7 +114,7 @@ export const ACTIONS: ActionOption[] = [
     enabled: true,
   },
   { id: "borrow", label: "Borrow", enabled: true },
-  { id: "repay", label: "Repay", enabled: false },
+  { id: "repay", label: "Repay", enabled: true },
   { id: "withdraw", label: "Withdraw", enabled: false },
 ];
 
@@ -148,6 +148,18 @@ export interface RunConfig {
    * the CLI defaults to a conservative fraction of the computed max (see borrowParams).
    */
   borrowAmount?: string;
+  /**
+   * Repay only: borrow first (`--borrow-first`), then repay in the same run. When set, the borrow extras
+   * (`borrowToken`/`borrowAmount`) drive that borrow, and `repayToken` defaults to the borrowed token.
+   */
+  borrowFirst?: boolean;
+  /** Repay only: token symbol to repay (`--repay-token`); defaults to the sole/first outstanding loan. */
+  repayToken?: string;
+  /**
+   * Repay only: token amount to repay (`--repay-amount`, or `max` for the form's Max — a full clear).
+   * When absent the CLI defaults to a conservative fraction of the outstanding debt (see repayParams).
+   */
+  repayAmount?: string;
 }
 
 /** Resolve the target URL a run should open. */

@@ -49,20 +49,7 @@ export const CONSERVATIVE_BORROW_FRACTION = 0.25;
 /** The Aave oracle reports USD prices scaled by 1e8. */
 const ORACLE_PRICE_SCALE = 1e8;
 
-/** Cap the borrow-form input at this many decimal places (USDC/USDT are 6) — enough for any test amount. */
-const MAX_INPUT_DECIMALS = 6;
-
-/**
- * Format a token amount for the borrow form's numeric input: floored (never rounded up, so a computed
- * default can't drift above the max) to min(decimals, MAX_INPUT_DECIMALS) places, then trimmed.
- */
-export function formatBorrowAmount(amount: number, decimals: number): string {
-  const places = Math.min(decimals, MAX_INPUT_DECIMALS);
-  const scale = 10 ** places;
-  return (Math.floor(amount * scale) / scale).toString();
-}
-
-/** A borrowable token as offered in the CLI menu / used to drive the asset picker. */
+/** A reserve token as offered in the CLI menu / used to drive the asset picker. */
 export interface BorrowReserve {
   symbol: string;
   name: string;
@@ -130,12 +117,18 @@ interface AaveAppConfigResponse {
 }
 
 /**
- * Read the vBTC reserve id + the borrowable-token list from the indexer — a raw-string mirror of the
- * app's `fetchAaveAppConfig`: keep only reserves that are `borrowable && !paused && !frozen`, are not
- * the vBTC collateral reserve, and carry token metadata (mirrors the app's `mapReserveConfig` null-skip).
+ * Read the vBTC reserve id + two reserve lists from the indexer — a raw-string mirror of the app's
+ * `fetchAaveAppConfig` (services/vault/src/applications/aave/services/fetchConfig.ts):
+ *   - `all`        — every non-vBTC reserve that carries token metadata, with NO borrowable/paused/frozen
+ *                    filter (the app's `allBorrowReserves`). The REPAY path uses this so debt on a
+ *                    reserve that was borrowable at borrow-time but has since been paused/frozen still
+ *                    surfaces.
+ *   - `borrowable` — the `borrowable && !paused && !frozen` subset (the app's `borrowableReserves`), what
+ *                    the BORROW path offers.
  */
 async function fetchAaveReserveConfig(graphqlEndpoint: string): Promise<{
   vaultBtcReserveId: bigint;
+  all: BorrowReserve[];
   borrowable: BorrowReserve[];
 }> {
   const client = createGraphQLClient(graphqlEndpoint);
@@ -143,28 +136,31 @@ async function fetchAaveReserveConfig(graphqlEndpoint: string): Promise<{
     await client.request<AaveAppConfigResponse>(GET_AAVE_APP_CONFIG);
   if (!response.aaveConfig)
     throw new Error(
-      `No aaveConfig from the indexer at ${graphqlEndpoint} — cannot resolve borrowable reserves.`,
+      `No aaveConfig from the indexer at ${graphqlEndpoint} — cannot resolve reserves.`,
     );
   const vaultBtcReserveId = BigInt(response.aaveConfig.vaultBtcReserveId);
 
-  const borrowable = response.aaveReserves.items
-    .filter(
-      (r) =>
-        r.borrowable &&
-        !r.paused &&
-        !r.frozen &&
-        BigInt(r.id) !== vaultBtcReserveId &&
-        r.underlyingToken != null,
-    )
-    .map((r) => ({
-      symbol: r.underlyingToken!.symbol,
-      name: r.underlyingToken!.name,
-      reserveId: BigInt(r.id),
-      tokenAddress: r.underlyingToken!.address,
-      decimals: r.underlyingToken!.decimals,
-    }));
+  const toReserve = (
+    r: AaveAppConfigResponse["aaveReserves"]["items"][number],
+  ): BorrowReserve => ({
+    symbol: r.underlyingToken!.symbol,
+    name: r.underlyingToken!.name,
+    reserveId: BigInt(r.id),
+    tokenAddress: r.underlyingToken!.address,
+    decimals: r.underlyingToken!.decimals,
+  });
 
-  return { vaultBtcReserveId, borrowable };
+  // All non-vBTC reserves carrying token metadata (the app's `allBorrowReserves`); the borrowable subset
+  // filters this further, mirroring the app's `borrowableReserves = allBorrowReserves.filter(...)`.
+  const nonVbtc = response.aaveReserves.items.filter(
+    (r) => BigInt(r.id) !== vaultBtcReserveId && r.underlyingToken != null,
+  );
+  const all = nonVbtc.map(toReserve);
+  const borrowable = nonVbtc
+    .filter((r) => r.borrowable && !r.paused && !r.frozen)
+    .map(toReserve);
+
+  return { vaultBtcReserveId, all, borrowable };
 }
 
 /** Fetch the borrowable-token list for `network` (for the CLI's asset menu + the browser asset picker). */
@@ -177,11 +173,25 @@ export async function fetchBorrowableReserves(
 }
 
 /**
+ * Fetch ALL non-vBTC reserves for `network` (the app's `allBorrowReserves`, no borrowable/paused/frozen
+ * filter). The repay pre-flight iterates these to find the user's debts — a loan can sit on a reserve
+ * that has since been paused/frozen, which `fetchBorrowableReserves` would drop.
+ */
+export async function fetchAllReserves(
+  network: NetworkName,
+): Promise<BorrowReserve[]> {
+  const { graphqlEndpoint } = resolveNetworkContracts(network);
+  const { all } = await fetchAaveReserveConfig(graphqlEndpoint);
+  return all;
+}
+
+/**
  * Shared prelude for every position-derived read: resolve the network's adapter + a Sepolia client,
  * then read the depositor's on-chain adapter position (`null` when none exists yet). `getPosition` maps
- * the ETH address to the Aave proxy — the app's `useAaveUserPosition` does the same.
+ * the ETH address to the Aave proxy — the app's `useAaveUserPosition` does the same. Exported so the
+ * repay pre-flight (repayParams.ts) reuses the same proxy/client resolution.
  */
-async function openPosition(
+export async function openPosition(
   network: NetworkName,
   ethAddress: string,
 ): Promise<{
