@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo } from "react";
 
+import { BPS_SCALE } from "@/applications/aave/constants";
 import {
   useActivatingVaults,
   useReorderOverride,
@@ -13,8 +14,10 @@ import {
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
+  useVaultSplitParams,
 } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
+import { calculateBorrowCapacityUsd } from "@/applications/aave/utils";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { truncateHash } from "@/utils/addressUtils";
@@ -41,6 +44,16 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
     position,
     debtValueUsd,
+  });
+
+  const { params: splitParams } = useVaultSplitParams(connectedAddress);
+  const liquidationThresholdBps = splitParams
+    ? Math.round(splitParams.CF * BPS_SCALE)
+    : 0;
+  const { maxTotalDebtUsd, availableToBorrowUsd } = calculateBorrowCapacityUsd({
+    collateralValueUsd,
+    currentDebtUsd: debtValueUsd,
+    liquidationThresholdBps,
   });
 
   const { findProvider } = useVaultProviders();
@@ -161,6 +174,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     displayCollateralBtc,
     collateralValueUsd,
     debtValueUsd,
+    maxTotalDebtUsd,
+    availableToBorrowUsd,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,

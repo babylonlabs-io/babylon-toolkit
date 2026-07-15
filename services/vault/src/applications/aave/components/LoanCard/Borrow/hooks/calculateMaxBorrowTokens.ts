@@ -1,8 +1,5 @@
-import {
-  BPS_SCALE,
-  MIN_HEALTH_FACTOR_FOR_BORROW,
-  SAFE_TOFIXED_PRECISION,
-} from "../../../../constants";
+import { SAFE_TOFIXED_PRECISION } from "../../../../constants";
+import { calculateBorrowCapacityUsd } from "../../../../utils/borrowCapacity";
 
 export interface CalculateMaxBorrowTokensParams {
   /** Collateral value in USD (from Aave oracle) */
@@ -49,12 +46,12 @@ export function calculateMaxBorrowTokens({
     return 0;
   }
 
-  const maxTotalDebtUsd =
-    (collateralValueUsd * liquidationThresholdBps) /
-    BPS_SCALE /
-    MIN_HEALTH_FACTOR_FOR_BORROW;
-  const maxAdditionalBorrowUsd = maxTotalDebtUsd - currentDebtUsd;
-  const maxBorrowTokens = maxAdditionalBorrowUsd / tokenPriceUsd;
+  const { availableToBorrowUsd } = calculateBorrowCapacityUsd({
+    collateralValueUsd,
+    currentDebtUsd,
+    liquidationThresholdBps,
+  });
+  const maxBorrowTokens = availableToBorrowUsd / tokenPriceUsd;
   const floorDecimals = Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION);
   const scale = 10 ** floorDecimals;
   return Math.floor(Math.max(0, maxBorrowTokens) * scale) / scale;
