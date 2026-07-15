@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { COPY } from "@/copy";
 
@@ -238,6 +238,7 @@ function RiskGapArrow({
   widthPx: number;
   pctToLiquidationText: string;
 }) {
+  const arrowheadId = useId();
   const currentX = (currentPct / 100) * widthPx;
   const liquidationX = (liquidationPct / 100) * widthPx;
   const labelHalf = GAP_LABEL_WIDTH_PX / 2;
@@ -255,7 +256,7 @@ function RiskGapArrow({
       >
         <defs>
           <marker
-            id="risk-gap-arrowhead"
+            id={arrowheadId}
             markerWidth="6"
             markerHeight="6"
             refX="4"
@@ -289,8 +290,8 @@ function RiskGapArrow({
           y2={GAP_ARROW_Y}
           strokeWidth={1}
           className="stroke-risk-red"
-          markerStart="url(#risk-gap-arrowhead)"
-          markerEnd="url(#risk-gap-arrowhead)"
+          markerStart={`url(#${arrowheadId})`}
+          markerEnd={`url(#${arrowheadId})`}
         />
       </svg>
       <div
