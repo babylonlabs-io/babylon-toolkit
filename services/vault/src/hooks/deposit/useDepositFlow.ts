@@ -594,15 +594,21 @@ export function useDepositFlow(
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
           }));
 
-        logger.event(TELEMETRY_EVENT.DEPOSIT_REGISTERED, {
-          level: "info",
-          category: "deposit",
-          batchId,
-          vaultIds: peginResults.map((r) => shortId(r.vaultId)),
-          providerId: shortId(primaryProvider),
-          ethTxHash: shortId(batchRegistration.ethTxHash),
-          vaultCount: peginResults.length,
-        });
+        // One milestone per vault (scalar vaultId) so the whole post-registration
+        // funnel — registered, broadcast, activated — joins on a single `vaultId`
+        // field. `deposit.started` stays batch-level (it fires before any vaultId
+        // exists); group the funnel by `batchId` and scale by `vaultCount`.
+        for (const peginResult of peginResults) {
+          logger.event(TELEMETRY_EVENT.DEPOSIT_REGISTERED, {
+            level: "info",
+            category: "deposit",
+            batchId,
+            vaultId: shortId(peginResult.vaultId),
+            providerId: shortId(primaryProvider),
+            ethTxHash: shortId(batchRegistration.ethTxHash),
+            vaultCount: peginResults.length,
+          });
+        }
 
         // ========================================================================
         // Step 4a: Persist pending pegins BEFORE broadcast and before any
@@ -755,14 +761,19 @@ export function useDepositFlow(
           );
         }
 
-        logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
-          level: "info",
-          category: "deposit",
-          batchId,
-          prePeginTxid: shortId(prePeginBroadcastTxid),
-          vaultIds: peginResults.map((r) => shortId(r.vaultId)),
-          vaultCount: peginResults.length,
-        });
+        // Per vault (scalar vaultId) so each committed vault has a broadcast
+        // milestone that the per-vault stall alert can join against its
+        // activation.activated. All siblings share one Pre-PegIn tx/txid.
+        for (const peginResult of peginResults) {
+          logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
+            level: "info",
+            category: "deposit",
+            batchId,
+            prePeginTxid: shortId(prePeginBroadcastTxid),
+            vaultId: shortId(peginResult.vaultId),
+            vaultCount: peginResults.length,
+          });
+        }
 
         // The mempool now knows our Pre-PegIn spent these outpoints, so the
         // next `/address/<addr>/utxo` fetch will exclude them. Invalidate

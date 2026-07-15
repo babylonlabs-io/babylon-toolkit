@@ -324,11 +324,10 @@ export function useVaultActions(): UseVaultActionsReturn {
         updatePendingPeginStatus(vaultId, nextStatus);
       }
 
-      logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
-        level: "info",
-        category: "deposit",
-        vaultId: shortId(vaultId),
-      });
+      // The broadcast.succeeded milestone is emitted by the caller
+      // (useBroadcastState), which owns the full batchVaultIds set — one
+      // Pre-PegIn tx confirms every sibling, and this single-vault primitive
+      // cannot see them.
 
       // Show success modal and refetch
       onShowSuccessModal();

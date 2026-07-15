@@ -13,6 +13,7 @@ import { useCallback, useState } from "react";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { logger } from "@/infrastructure";
+import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
@@ -86,6 +87,15 @@ export function useBroadcastState({
           for (const id of batchVaultIds) {
             updatePendingPeginStatus(id, LocalStorageStatus.CONFIRMING);
             setOptimisticStatus(id, LocalStorageStatus.CONFIRMING);
+            // One broadcast confirms every sibling, so emit the milestone per
+            // vault (scalar vaultId) — matching the inline path — rather than
+            // only for the vault whose Broadcast button was clicked.
+            logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
+              level: "info",
+              category: "deposit",
+              vaultId: shortId(id),
+              vaultCount: batchVaultIds.length,
+            });
           }
           setLocalBroadcasting(false);
           onSuccess();
