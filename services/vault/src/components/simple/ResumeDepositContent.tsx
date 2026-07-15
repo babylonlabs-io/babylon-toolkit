@@ -422,19 +422,20 @@ export function ResumeWotsContent({
         onSuccess();
       }
     } catch (err) {
+      // Capture regardless of mount — these resume flows have no abort signal,
+      // so a real WOTS-submission / derivation-drift failure is worth knowing
+      // even if the user has already closed the modal. Only the UI update below
+      // is mount-gated. A mismatch is flagged for faceting.
+      logger.error(err instanceof Error ? err : new Error(String(err)), {
+        tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_WOTS },
+        data: {
+          vaultId: shortId(activity.id),
+          wotsMismatch: isWotsMismatchError(err),
+        },
+      });
       if (mountedRef.current) {
         const msg =
           err instanceof Error ? err.message : "Failed to submit WOTS key";
-        // Resume-path WOTS submission failure — previously only surfaced to UI
-        // state, invisible to Sentry. A mismatch is derivation drift (wrong
-        // wallet / stale keys), flagged for faceting.
-        logger.error(err instanceof Error ? err : new Error(String(err)), {
-          tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_WOTS },
-          data: {
-            vaultId: shortId(activity.id),
-            wotsMismatch: isWotsMismatchError(err),
-          },
-        });
         // VP-side mismatch gets the same wording as the local pre-flight
         // so the user can act on either path.
         if (isWotsMismatchError(err)) {
@@ -670,16 +671,16 @@ export function ResumeActivationContent({
       // error there, not a silent submission.
       await handleActivation(secretHex);
     } catch (err) {
+      // Capture regardless of mount (no abort signal on this flow). The error
+      // message carries only tx hashes (regex-scrubbed) and derivation errors,
+      // never secret bytes. Only the UI update below is mount-gated.
+      logger.error(err instanceof Error ? err : new Error(String(err)), {
+        tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_SECRET },
+        data: { vaultId: shortId(activity.id) },
+      });
       if (mountedRef.current) {
         const msg =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";
-        // Resume-path secret-derivation / pre-pegin-hash-mismatch failure —
-        // previously only surfaced to UI state. The error message carries only
-        // tx hashes (regex-scrubbed) and derivation errors, never secret bytes.
-        logger.error(err instanceof Error ? err : new Error(String(err)), {
-          tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_SECRET },
-          data: { vaultId: shortId(activity.id) },
-        });
         setLocalError(msg);
       }
     } finally {

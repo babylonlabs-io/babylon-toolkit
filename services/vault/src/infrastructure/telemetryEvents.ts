@@ -38,6 +38,9 @@ export const TELEMETRY_STAGE = {
   ACTIVATION_REVEAL: "activation.reveal",
 } as const;
 
+export type TelemetryStage =
+  (typeof TELEMETRY_STAGE)[keyof typeof TELEMETRY_STAGE];
+
 /**
  * Shorten a long identifier (vaultId, provider address, txid) to `first4...last4`
  * before it enters event context. The embedded `...` breaks the address/hex

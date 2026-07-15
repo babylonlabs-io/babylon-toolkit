@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
+import { shortId } from "@/infrastructure/telemetryEvents";
 import type { VaultActivity } from "@/types/activity";
 
 import {
@@ -31,6 +32,7 @@ const mockUseDepositPollingResult = vi.hoisted(() => vi.fn(() => undefined));
 const mockGetPeginDisplayStep = vi.hoisted(() =>
   vi.fn<(state: unknown) => number | null>(() => null),
 );
+const mockLoggerError = vi.hoisted(() => vi.fn());
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   computeWotsBlockPublicKeysHash: vi.fn(() => "0xwotshash"),
@@ -153,7 +155,7 @@ vi.mock("@/hooks/deposit/useReleaseVpTokenOnUnmount", () => ({
 }));
 
 vi.mock("@/infrastructure", () => ({
-  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+  logger: { warn: vi.fn(), error: mockLoggerError, info: vi.fn() },
 }));
 
 vi.mock("@/utils/rpc", () => ({
@@ -279,6 +281,27 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
     expect(mockDeriveVaultRoot).not.toHaveBeenCalled();
     expect(mockParseFundingOutpointsFromTx).not.toHaveBeenCalled();
     expect(mockSubmitWotsPublicKey).not.toHaveBeenCalled();
+  });
+
+  it("captures a WOTS submission failure to Sentry with the activation.wots stage and scrubbed vaultId", async () => {
+    mockCalculateBtcTxHash.mockReturnValue(ATTACKER_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+
+    render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    });
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(ctx.tags.funnelStage).toBe("activation.wots");
+    expect(ctx.data.vaultId).toBe(shortId(baseActivity.id));
   });
 
   it("proceeds to deriveVaultRoot when the indexer tx hash matches on-chain", async () => {
@@ -416,6 +439,28 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     expect(mockDeriveVaultRoot).not.toHaveBeenCalled();
     expect(mockParseFundingOutpointsFromTx).not.toHaveBeenCalled();
     expect(mockHandleActivation).not.toHaveBeenCalled();
+  });
+
+  it("captures a secret-derivation failure to Sentry with the activation.secret stage and scrubbed vaultId", async () => {
+    mockCalculateBtcTxHash.mockReturnValue(ATTACKER_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+
+    render(
+      <ResumeActivationContent
+        activity={baseActivity}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onGoToDashboard={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    });
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(ctx.tags.funnelStage).toBe("activation.secret");
+    expect(ctx.data.vaultId).toBe(shortId(baseActivity.id));
   });
 
   it("proceeds to deriveVaultRoot when the indexer tx hash matches on-chain", async () => {
