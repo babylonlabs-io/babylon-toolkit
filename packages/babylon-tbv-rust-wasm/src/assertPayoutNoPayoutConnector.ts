@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { WasmAssertPayoutNoPayoutConnector } from "./generated/btc_vault.js";
+import { WasmAssertPayoutNoPayoutConnector } from "./generated/vault_wasm.js";
 import { initWasm } from "./index.js";
 import type {
   AssertPayoutNoPayoutConnectorParams,
@@ -25,7 +25,18 @@ function getConnector(
     return connector;
   }
 
+  // Invalidate the cache BEFORE freeing: if the replacement constructor
+  // throws (fail-closed version, malformed params), a freed instance must
+  // not remain cached under a still-matching key — later valid calls would
+  // hit it and fail with an opaque wasm null-pointer error.
+  const superseded = connector;
+  connector = null;
+  connectorKey = null;
+  superseded?.free();
+  // `params.txGraphVersion` is part of the JSON cache key above, so a cached
+  // connector can never serve a different version's scripts.
   connector = new WasmAssertPayoutNoPayoutConnector(
+    params.txGraphVersion,
     params.claimer,
     params.localChallengers,
     params.universalChallengers,

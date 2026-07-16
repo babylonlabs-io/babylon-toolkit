@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed } from "./generated/btc_vault.js";
+import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed, supportedTxGraphVersions as wasmSupportedTxGraphVersions } from "./generated/vault_wasm.js";
 import type {
   PrePeginParams,
   PrePeginResult,
@@ -49,27 +49,10 @@ export async function createPrePeginTransaction(
 ): Promise<PrePeginResult> {
   await initWasm();
 
-  // The 14th positional arg `auth_anchor_hash` is an Option<String> in
-  // Rust — pass `undefined` for Pre-PegIns that do not commit an auth
-  // anchor. Requires a WASM build from a btc-vault commit ≥ 1ced81e5
-  // (btc-vault #1516). The 9th arg `min_pegin_fee_rate` requires the
-  // two-rate `WasmPrePeginTx` constructor from btc-vault #1930.
-  const tx = new (WasmPrePeginTx as unknown as new (
-    depositor: string,
-    vault_provider: string,
-    vault_keepers: string[],
-    universal_challengers: string[],
-    hashlocks: string[],
-    pegin_amounts: BigUint64Array,
-    timelock_refund: number,
-    fee_rate: bigint,
-    min_pegin_fee_rate: bigint,
-    num_local_challengers: number,
-    council_quorum: number,
-    council_size: number,
-    network: string,
-    auth_anchor_hash?: string,
-  ) => typeof WasmPrePeginTx.prototype)(
+  // Leading arg selects the tx-graph version inside the vault-wasm facade;
+  // an unsupported version throws before any construction (fail closed).
+  const tx = new WasmPrePeginTx(
+    params.txGraphVersion,
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -141,22 +124,8 @@ export async function buildPeginTxFromPrePegin(
 ): Promise<PeginTxResult> {
   await initWasm();
 
-  const unfundedTx = new (WasmPrePeginTx as unknown as new (
-    depositor: string,
-    vault_provider: string,
-    vault_keepers: string[],
-    universal_challengers: string[],
-    hashlocks: string[],
-    pegin_amounts: BigUint64Array,
-    timelock_refund: number,
-    fee_rate: bigint,
-    min_pegin_fee_rate: bigint,
-    num_local_challengers: number,
-    council_quorum: number,
-    council_size: number,
-    network: string,
-    auth_anchor_hash?: string,
-  ) => typeof WasmPrePeginTx.prototype)(
+  const unfundedTx = new WasmPrePeginTx(
+    params.txGraphVersion,
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -210,6 +179,7 @@ export async function getPrePeginHtlcConnectorInfo(
   await initWasm();
 
   const connector = new WasmPrePeginHtlcConnector(
+    params.txGraphVersion,
     params.depositorPubkey,
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
@@ -239,6 +209,7 @@ export async function getPrePeginHtlcConnectorInfo(
  * based on the protocol parameters.
  */
 export async function computeMinClaimValue(
+  txGraphVersion: number,
   numLocalChallengers: number,
   numUniversalChallengers: number,
   councilQuorum: number,
@@ -249,6 +220,7 @@ export async function computeMinClaimValue(
   try {
     return assertWasmBigint(
       wasmComputeMinClaimValue(
+        txGraphVersion,
         numLocalChallengers,
         numUniversalChallengers,
         councilQuorum,
@@ -273,6 +245,7 @@ export async function computeMinClaimValue(
  * prediction whose witness shape depends on the VK + UC signer count.
  */
 export async function computeMinPeginFee(
+  txGraphVersion: number,
   numVks: number,
   numUcs: number,
   minPeginFeeRate: bigint,
@@ -280,12 +253,27 @@ export async function computeMinPeginFee(
   await initWasm();
   try {
     return assertWasmBigint(
-      wasmComputeMinPeginFee(numVks, numUcs, minPeginFeeRate),
+      wasmComputeMinPeginFee(txGraphVersion, numVks, numUcs, minPeginFeeRate),
       "minPeginFee",
     );
   } catch (err) {
     throw toError(err, "computeMinPeginFee");
   }
+}
+
+/**
+ * Tx graph versions the shipped vault-wasm binary can build. Callers must
+ * preflight the required version (fresh: active; resume: stamped) against
+ * this list and fail closed instead of hitting per-call errors mid-flow.
+ *
+ * Note: the facade constructors themselves fail closed on unsupported
+ * versions, and derived objects carry the version they were built with —
+ * value-level cross-checks live in `assertWasmPeginSizing` and the golden
+ * byte-parity tests, not in a per-call version echo.
+ */
+export async function supportedTxGraphVersions(): Promise<number[]> {
+  await initWasm();
+  return Array.from(wasmSupportedTxGraphVersions());
 }
 
 // wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
@@ -299,7 +287,7 @@ function toError(err: unknown, fnName: string): Error {
 
 /**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
- * @stability frozen — owned by btc-vault Rust (`BTC_VAULT_COMMIT`); rotation breaks VP auth for existing deposits.
+ * @stability frozen — owned by btc-vault Rust via the vault-wasm pin (`VAULT_WASM_COMMIT`); rotation breaks VP auth for existing deposits.
  */
 export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
   await initWasm();
@@ -420,4 +408,4 @@ export { getChallengeAssertScriptInfo } from "./challengeAssertConnector.js";
 
 // Re-export raw WASM types for callers that need direct access
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-export { WasmPeginTx, WasmPeginPayoutConnector, WasmPrePeginTx, WasmPrePeginHtlcConnector } from "./generated/btc_vault.js";
+export { WasmPeginTx, WasmPeginPayoutConnector, WasmPrePeginTx, WasmPrePeginHtlcConnector } from "./generated/vault_wasm.js";

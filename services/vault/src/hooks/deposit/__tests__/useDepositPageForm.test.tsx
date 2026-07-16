@@ -86,6 +86,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   // Mirrors the real peginOutputCount: vaultCount + CPFP + (auth-anchor ? 1 : 0).
   peginOutputCount: (vaultCount: number, hasAuthAnchor: boolean) =>
     vaultCount + 1 + (hasAuthAnchor ? 1 : 0),
+  TX_GRAPH_VERSION_V1: 1,
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({

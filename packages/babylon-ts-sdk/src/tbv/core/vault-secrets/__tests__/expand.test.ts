@@ -1,8 +1,11 @@
 /**
  * Wrapper-contract tests for the WASM-backed expanders re-exported by
  * `tbv/core/vault-secrets`. Pins the public-API contract that ts-sdk callers
- * depend on; the byte-for-byte HKDF golden vectors live Rust-side in
- * btc-vault.
+ * depend on, plus JS-side golden vectors guarding the vendored binary: any
+ * vault-wasm re-pin that drifts these bytes rotates every existing deposit's
+ * on-chain-binding secrets (hard fork) and must not ship. The same vectors
+ * are pinned Rust-side in vault-wasm `lib.rs` and btc-vault
+ * `golden_vectors_pinned`.
  */
 
 import { describe, expect, it } from "vitest";
@@ -15,11 +18,34 @@ import {
 
 const ROOT_A = new Uint8Array(32).fill(0x11);
 const ROOT_B = new Uint8Array(32).fill(0x22);
+// Golden-vector root: the fixed [0x42; 32] input vault-wasm pins in lib.rs.
+const GOLDEN_ROOT = new Uint8Array(32).fill(0x42);
 
 const toHex = (bytes: Uint8Array): string =>
   Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+
+describe("frozen golden vectors (vendored-binary acceptance gate)", () => {
+  it("expandAuthAnchor([0x42;32]) is byte-identical to the pinned vector", async () => {
+    expect(toHex(await expandAuthAnchor(GOLDEN_ROOT))).toBe(
+      "f7bcaadeba9ae8e0cfc4d31d2ea97b1d62cdc69cdf1da14dfa9b6309866b1277",
+    );
+  });
+
+  it("expandHashlockSecret([0x42;32], 7) is byte-identical to the pinned vector", async () => {
+    expect(toHex(await expandHashlockSecret(GOLDEN_ROOT, 7))).toBe(
+      "220aeef3939a9dac87d7f01a13e57e46889788c8c26432d1bd39d3d49b14ec91",
+    );
+  });
+
+  it("expandWotsSeed([0x42;32], 7) is byte-identical to the pinned vector", async () => {
+    expect(toHex(await expandWotsSeed(GOLDEN_ROOT, 7))).toBe(
+      "a9596ea280666ab1b19eba91f364f5c3dc66c70169e67f4ba5ddd84c77c90745" +
+        "e3cc361f7a6ac926b18847087a63a5558a43d8f89884a8d6386a86f5a2d8d847",
+    );
+  });
+});
 
 describe("vault-secrets wrappers (WASM-backed)", () => {
   describe("expandAuthAnchor", () => {
@@ -41,17 +67,13 @@ describe("vault-secrets wrappers (WASM-backed)", () => {
     });
 
     it("rejects with an Error instance when root is the wrong length", async () => {
-      // Round-3 regression: wasm-bindgen rethrows Rust string errors as
-      // bare strings. The wrapper layer normalizes to `Error`. Pin both
-      // the type, the function-name prefix, and the Rust-side message
-      // body so future regressions (wrapper that swallows the message,
-      // one-sided fix, accidental import swap to a different Rust fn)
-      // all surface as a test failure.
+      // The vault-wasm facade normalizes upstream string errors to real JS
+      // `Error` objects at the WASM boundary (its upstream_err_to_error).
+      // Pin the type and the Rust-side message body so a wrapper that
+      // swallows the message or an accidental import swap to a different
+      // Rust fn surfaces as a test failure.
       await expect(expandAuthAnchor(new Uint8Array(31))).rejects.toBeInstanceOf(
         Error,
-      );
-      await expect(expandAuthAnchor(new Uint8Array(31))).rejects.toThrow(
-        /expandAuthAnchor/,
       );
       await expect(expandAuthAnchor(new Uint8Array(31))).rejects.toThrow(
         /root must be exactly 32 bytes, got 31/,
@@ -83,9 +105,6 @@ describe("vault-secrets wrappers (WASM-backed)", () => {
       ).rejects.toBeInstanceOf(Error);
       await expect(
         expandHashlockSecret(new Uint8Array(31), 0),
-      ).rejects.toThrow(/expandHashlockSecret/);
-      await expect(
-        expandHashlockSecret(new Uint8Array(31), 0),
       ).rejects.toThrow(/root must be exactly 32 bytes, got 31/);
     });
   });
@@ -112,9 +131,6 @@ describe("vault-secrets wrappers (WASM-backed)", () => {
       await expect(
         expandWotsSeed(new Uint8Array(31), 0),
       ).rejects.toBeInstanceOf(Error);
-      await expect(expandWotsSeed(new Uint8Array(31), 0)).rejects.toThrow(
-        /expandWotsSeed/,
-      );
       await expect(expandWotsSeed(new Uint8Array(31), 0)).rejects.toThrow(
         /root must be exactly 32 bytes, got 31/,
       );

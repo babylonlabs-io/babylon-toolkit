@@ -1,7 +1,8 @@
 // scripts/build-wasm.js
 //
-// Builds WASM module from btc-vault repository.
-// Exports: WasmPeginTx, WasmPeginPayoutConnector, WasmPayoutTx, WasmPayoutOptimisticTx
+// Builds the WASM module from the vault-wasm facade repository — a single
+// binary bundling every supported btc-vault tx-graph version (v1, v2) behind
+// version-taking constructors that fail closed on unsupported versions.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -12,26 +13,28 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Configuration - Update these when btc-vault updates
-const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
-const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = '63ab9e8d';
-const REQUIRED_RUSTC_VERSION = '1.90';
+// Configuration - Update these when vault-wasm updates. Any rev bump swaps
+// the binary that produces the frozen on-chain-binding secrets — re-run the
+// golden-vector gate (src/__tests__ frozen vectors) before shipping.
+const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
+const VAULT_WASM_BRANCH = 'main';
+// main incl. PR #2 (P2A anchor exports); bundles btc-vault v1 @ a0ad5503, v2 @ d7e33b26.
+const VAULT_WASM_COMMIT = '4d7ee90e803bfdcab9cf4f19e32bb0f37755bf27';
+const REQUIRED_RUSTC_VERSION = '1.94';
 
-const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
+const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');
 const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');
-const OUTPUT_DIR_NODE = path.join(__dirname, '..', 'dist', 'generated-node');
 
 const buildWasm = async () => {
   try {
-    console.log('Building BTC Vault WASM...\n');
+    console.log('Building vault-wasm (multi-version tx graph facade)...\n');
 
     // Ensure rustup toolchain is used
     const HOME = process.env.HOME;
     const RUSTUP_HOME = process.env.RUSTUP_HOME || `${HOME}/.rustup`;
 
     // We must build through rustup's proxy shims (not a standalone cargo/rustc)
-    // so btc-vault's rust-toolchain.toml selects the toolchain. `rustup-init`
+    // so vault-wasm's rust-toolchain.toml selects the toolchain. `rustup-init`
     // normally installs those shims into ~/.cargo/bin, but some setups don't
     // have them there (e.g. Homebrew's `rustup` formula installs only the
     // rustup binary, and a separate Homebrew `rust` provides a cargo/rustc that
@@ -47,7 +50,7 @@ const buildWasm = async () => {
       );
       process.exit(1);
     }
-    const cargoBinPath = path.join(os.tmpdir(), 'btc-vault-rustup-proxies');
+    const cargoBinPath = path.join(os.tmpdir(), 'vault-wasm-rustup-proxies');
     shell.rm('-rf', cargoBinPath);
     shell.mkdir('-p', cargoBinPath);
     for (const proxy of [
@@ -105,7 +108,7 @@ const buildWasm = async () => {
     // Report the resolved rustc and its version. Use execFileSync (not
     // shelljs `exec`): a rustup proxy re-spawns the real rustc, and shelljs's
     // synchronous exec deadlocks on that double-spawn. This probe is purely
-    // informational — the btc-vault rust-toolchain.toml governs the actual
+    // informational — the vault-wasm rust-toolchain.toml governs the actual
     // build — so a failure here only warns.
     const proxyEnv = {
       ...process.env,
@@ -122,14 +125,14 @@ const buildWasm = async () => {
     } catch {
       console.warn(
         'Warning: could not determine the default rustc version. ' +
-          'Continuing — the btc-vault rust-toolchain.toml selects the build toolchain.',
+          'Continuing — the vault-wasm rust-toolchain.toml selects the build toolchain.',
       );
     }
 
     if (!rustcVersion.includes(REQUIRED_RUSTC_VERSION)) {
       console.warn(
         `\nWarning: Default rustc is ${rustcVersion}, expected ${REQUIRED_RUSTC_VERSION}.`,
-        `\nThe btc-vault rust-toolchain.toml will override the toolchain during build.\n`,
+        `\nThe vault-wasm rust-toolchain.toml will override the toolchain during build.\n`,
       );
     }
 
@@ -142,12 +145,12 @@ const buildWasm = async () => {
     // Clone the repository
     // Use execFileSync with argument array to avoid shell command injection
     console.log(
-      `Cloning btc-vault repository (branch: ${BTC_VAULT_BRANCH})...`,
+      `Cloning vault-wasm repository (branch: ${VAULT_WASM_BRANCH})...`,
     );
     try {
       execFileSync(
         'git',
-        ['clone', '--branch', BTC_VAULT_BRANCH, BTC_VAULT_REPO_URL, REPO_DIR],
+        ['clone', '--branch', VAULT_WASM_BRANCH, VAULT_WASM_REPO_URL, REPO_DIR],
         { stdio: 'inherit' },
       );
     } catch {
@@ -156,9 +159,9 @@ const buildWasm = async () => {
     }
 
     // Checkout specific commit
-    console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
+    console.log(`Checking out commit: ${VAULT_WASM_COMMIT}...`);
     try {
-      execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
+      execFileSync('git', ['checkout', VAULT_WASM_COMMIT], {
         cwd: REPO_DIR,
         stdio: 'inherit',
       });
@@ -186,8 +189,11 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Build with wasm-pack from vault crate
-    console.log('Building WASM with wasm-pack from crates/vault...');
+    // Build with wasm-pack at the crate root. vault-wasm has no cargo
+    // features to select — the per-version btc-vault deps enable `wasm-api`
+    // themselves — so no `--features` tail (the old btc-vault `wasm` feature
+    // does not exist here and would fail the build).
+    console.log('Building WASM with wasm-pack from the vault-wasm crate root...');
     const wasmOutputDir = path.join(REPO_DIR, 'wasm-build-output');
 
     try {
@@ -201,11 +207,6 @@ const buildWasm = async () => {
           'babylonlabs-io',
           '--out-dir',
           wasmOutputDir,
-          'crates/vault',
-          '--',
-          '--no-default-features',
-          '--features',
-          'wasm',
         ],
         {
           cwd: REPO_DIR,
@@ -225,48 +226,11 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Build Node.js target
-    console.log('Building WASM with wasm-pack for Node.js target...');
-    const wasmOutputDirNode = path.join(REPO_DIR, 'wasm-build-output-node');
-
-    try {
-      execFileSync(
-        'wasm-pack',
-        [
-          'build',
-          '--target',
-          'nodejs',
-          '--scope',
-          'babylonlabs-io',
-          '--out-dir',
-          wasmOutputDirNode,
-          'crates/vault',
-          '--',
-          '--no-default-features',
-          '--features',
-          'wasm',
-        ],
-        {
-          cwd: REPO_DIR,
-          stdio: 'inherit',
-          env: {
-            ...process.env,
-            PATH: shell.env.PATH,
-            RUSTUP_HOME: shell.env.RUSTUP_HOME,
-            CC_wasm32_unknown_unknown: shell.env.CC_wasm32_unknown_unknown,
-            AR_wasm32_unknown_unknown: shell.env.AR_wasm32_unknown_unknown,
-          },
-        },
-      );
-    } catch {
-      console.error('Error: wasm-pack build (nodejs target) failed');
-      shell.rm('-rf', REPO_DIR);
-      process.exit(1);
-    }
-
-    // Copy generated files to dist/generated (web) and dist/generated-node (nodejs)
+    // Copy generated files to dist/generated. The node entrypoint
+    // (src/index-node.ts) loads this same web artifact via readFileSync +
+    // initSync, so no separate nodejs-target build is needed.
     console.log('Copying generated files...');
-    const name = 'btc_vault';
+    const name = 'vault_wasm';
 
     shell.rm('-rf', OUTPUT_DIR);
     shell.mkdir('-p', OUTPUT_DIR);
@@ -275,21 +239,12 @@ const buildWasm = async () => {
     shell.cp(`${wasmOutputDir}/${name}_bg.wasm`, `${OUTPUT_DIR}/${name}_bg.wasm`);
     shell.cp(`${wasmOutputDir}/${name}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${name}_bg.wasm.d.ts`);
 
-    shell.rm('-rf', OUTPUT_DIR_NODE);
-    shell.mkdir('-p', OUTPUT_DIR_NODE);
-    // Rename .js to .cjs since the package uses "type": "module"
-    shell.cp(`${wasmOutputDirNode}/${name}.js`, `${OUTPUT_DIR_NODE}/${name}.cjs`);
-    shell.cp(`${wasmOutputDirNode}/${name}.d.ts`, `${OUTPUT_DIR_NODE}/${name}.d.ts`);
-    shell.cp(`${wasmOutputDirNode}/${name}_bg.wasm`, `${OUTPUT_DIR_NODE}/${name}_bg.wasm`);
-    shell.cp(`${wasmOutputDirNode}/${name}_bg.wasm.d.ts`, `${OUTPUT_DIR_NODE}/${name}_bg.wasm.d.ts`);
-
     // Clean up
     console.log('Cleaning up...');
     shell.rm('-rf', REPO_DIR);
 
     console.log('\n✅ WASM build completed successfully!');
-    console.log(`Generated files (web):    ${OUTPUT_DIR}`);
-    console.log(`Generated files (nodejs): ${OUTPUT_DIR_NODE}`);
+    console.log(`Generated files: ${OUTPUT_DIR}`);
   } catch (error) {
     console.error('Error during WASM build:', error);
     // Clean up on error

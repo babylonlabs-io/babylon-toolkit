@@ -11,6 +11,7 @@ import {
   TEST_KEYS,
   initializeWasmForTests,
 } from "../../psbt/__tests__/helpers";
+import { TX_GRAPH_VERSION_V1 } from "../../txGraphVersion";
 import { createPayoutScript, type PayoutScriptParams } from "../payout";
 
 describe("createPayoutScript", () => {
@@ -139,9 +140,10 @@ describe("createPayoutScript", () => {
       // Call our SDK function
       const sdkResult = await createPayoutScript(params);
 
-      // Call WASM directly
+      // Call WASM directly (same v1 pin createPayoutScript uses internally)
       const wasmResult = await createPayoutConnector(
         {
+          txGraphVersion: TX_GRAPH_VERSION_V1,
           depositor: params.depositor,
           vaultProvider: params.vaultProvider,
           vaultKeepers: params.vaultKeepers,

@@ -21,6 +21,8 @@
 import { type Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
+import { TX_GRAPH_VERSION_V1 } from "../../primitives/txGraphVersion";
+
 import type {
   BitcoinWallet,
   SignPsbtOptions,
@@ -403,6 +405,7 @@ async function buildLocalNoPayoutPsbt(
     challengerPubkey,
     prevouts,
     connectorParams: {
+      txGraphVersion: TX_GRAPH_VERSION_V1,
       claimer: claimerPubkey,
       localChallengers,
       universalChallengers: ctx.universalChallengerBtcPubkeys,

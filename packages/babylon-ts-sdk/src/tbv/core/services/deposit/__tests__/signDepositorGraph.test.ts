@@ -355,6 +355,7 @@ describe("signDepositorGraph", () => {
           { script_pubkey: "dd", value: 300 },
         ],
         connectorParams: {
+          txGraphVersion: 1,
           claimer: DEPOSITOR_PUBKEY,
           localChallengers: expectedLocalChallengers,
           universalChallengers: ctx.universalChallengerBtcPubkeys,

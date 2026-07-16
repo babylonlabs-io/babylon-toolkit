@@ -19,6 +19,7 @@ import {
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { TAPSCRIPT_LEAF_VERSION, hexToUint8Array, stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
+import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 /**
  * Parameters for building the PegIn input PSBT
@@ -84,6 +85,7 @@ export async function buildPeginInputPsbt(
   const fundedPrePeginTxHex = stripHexPrefix(params.fundedPrePeginTxHex);
 
   const htlcConnector = await getPrePeginHtlcConnectorInfo({
+    txGraphVersion: TX_GRAPH_VERSION_V1,
     depositorPubkey: params.depositorPubkey,
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
