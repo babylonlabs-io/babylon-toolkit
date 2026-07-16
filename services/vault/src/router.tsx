@@ -115,9 +115,16 @@ export const Router = () => (
     <Route element={<RootLayout />}>
       <Route element={<AaveOverlayLayout />}>
         <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
+        {/* Registered only when the v3 flag is on: with no exact /vaults
+            route, the flag-off subtree guard below catches the bare path
+            (a splat matches zero segments) and redirects before any
+            provider mounts. Nesting a flag-off redirect here instead would
+            make it wait on AaveConfigProvider's blocking config fetch. */}
+        {featureFlags.isV3UiEnabled && (
+          <Route path={ROUTES.VAULTS} element={<V3Placeholder />} />
+        )}
         <Route path={ROUTES.LOANS} element={<V3Placeholder />} />
       </Route>
-      <Route path={ROUTES.VAULTS} element={<V3Placeholder />} />
       <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
       <Route
         path={ROUTES.ACTIVITY}

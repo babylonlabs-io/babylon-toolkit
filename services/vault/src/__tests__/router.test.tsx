@@ -416,6 +416,23 @@ describe("Router — flag-aware reserve-detail routing", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe("wrong base route: flag-on + /vaults query params", () => {
+    beforeEach(() => {
+      setV3Flag("true");
+    });
+
+    it("does NOT open reserve detail overlay on /vaults when flag is on", async () => {
+      renderAt("/vaults?reserve=usdc&tab=repay");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("v3-placeholder")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId(RESERVE_DETAIL_TESTID),
+      ).not.toBeInTheDocument();
+    });
+  });
   it.each([
     { flag: "true", label: "v3 (flag on)" },
     { flag: "false", label: "v2 (flag off)" },
