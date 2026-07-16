@@ -39,7 +39,13 @@ export interface BabylonConfigOptions {
   /** Bitcoin network. Must be "mainnet" or "signet". */
   btcNetwork: BtcNetworkName;
 
-  /** Optional mempool API base URL. Defaults to `https://mempool.space`. */
+  /**
+   * Optional mempool API base URL, WITHOUT a trailing `/api` (the reader
+   * appends `/api`). For `mempool.space` the network path is derived from
+   * `btcNetwork`; a custom / self-hosted host is used verbatim. When omitted,
+   * defaults to the network-correct mempool.space URL.
+   * See {@link resolveMempoolApiUrl}.
+   */
   mempoolApiUrl?: string;
 }
 
@@ -50,7 +56,39 @@ export interface BabylonConfigState {
   mempoolApiUrl: string;
 }
 
-const DEFAULT_MEMPOOL_API_URL = "https://mempool.space";
+// Public mempool.space origin used as the default and as the one host whose
+// network path we derive from `btcNetwork` (see resolveMempoolApiUrl).
+const MEMPOOL_SPACE_ORIGIN = "https://mempool.space";
+
+/**
+ * Resolve the mempool API base URL (WITHOUT a trailing `/api`) for the declared
+ * BTC network.
+ *
+ * mempool.space encodes the network in the URL path (mainnet at the root, signet
+ * under `/signet`), so for that known public host we derive the path from
+ * `btcNetwork` — a signet app can never accidentally read mainnet data through
+ * it. Any other (custom / self-hosted) mempool base is network-specific by
+ * deployment (e.g. a dedicated signet host serving `/api` at its root) and is
+ * used verbatim.
+ */
+export function resolveMempoolApiUrl(
+  base: string | undefined,
+  network: BtcNetworkName,
+): string {
+  const trimmed = (base ?? MEMPOOL_SPACE_ORIGIN).replace(/\/+$/, "");
+  let host: string;
+  try {
+    host = new URL(trimmed).host;
+  } catch {
+    throw new Error(`Invalid NEXT_PUBLIC_MEMPOOL_API URL: "${base}"`);
+  }
+  if (host === "mempool.space") {
+    return network === BTC_SIGNET
+      ? `${MEMPOOL_SPACE_ORIGIN}/signet`
+      : MEMPOOL_SPACE_ORIGIN;
+  }
+  return trimmed;
+}
 
 let state: BabylonConfigState | null = null;
 
@@ -111,7 +149,7 @@ export function configureBabylonConfig(opts: BabylonConfigOptions): void {
     ethChainId: opts.ethChainId,
     ethRpcUrl: opts.ethRpcUrl,
     btcNetwork: opts.btcNetwork,
-    mempoolApiUrl: opts.mempoolApiUrl ?? DEFAULT_MEMPOOL_API_URL,
+    mempoolApiUrl: resolveMempoolApiUrl(opts.mempoolApiUrl, opts.btcNetwork),
   };
 }
 
