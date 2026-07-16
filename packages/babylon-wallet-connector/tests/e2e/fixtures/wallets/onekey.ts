@@ -10,9 +10,10 @@
  *    is on — `connectWallet` throws "requires single address mode" — so we disable it after import.
  *  - Onboarding runs in the full-page tab `ui-expand-tab.html`; OneKey renders it in English already,
  *    so there's no in-app language switch (unlike OKX). We still drive by `data-testid` where possible.
- *  - The 12 seed inputs (`phrase-input-index0..11`) each show an autocomplete popup and do NOT
- *    auto-advance, so typing word-by-word is fragile. OneKey fans a single paste across all 12 fields,
- *    so we write the phrase to the clipboard and paste into box 0, then clear the clipboard.
+ *  - The seed inputs (`phrase-input-index0..`) each show an autocomplete popup and do NOT auto-advance,
+ *    so typing word-by-word is fragile. OneKey fans a single paste across all fields and auto-expands the
+ *    grid to the phrase length (12 or 24 words), so we write the phrase to the clipboard and paste into
+ *    box 0, then clear the clipboard — no word-count selector needed.
  *  - After the passcode screen OneKey shows "Your wallet is ready" (→ Enter wallet) and then a
  *    referral-code modal (→ Skip) before landing on the wallet home.
  *  - The network selector trigger (the chain-icon cluster, "+16", next to "Account #1") carries no
@@ -197,7 +198,9 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   await clickByTestId(tab, "onboarding-create-or-import-wallet-option-phraseOrPrivateKey-btn");
   await sleep(SETTLE.MEDIUM);
 
-  // Fill the 12 seed words by pasting into box 0 (OneKey fans it across all inputs); clear the clipboard.
+  // Fill the seed words by pasting into box 0 — OneKey fans the paste across all inputs and auto-expands
+  // the grid to match the phrase length (12 or 24 words), so no word-count switch is needed; then clear
+  // the clipboard.
   const seedBox = tab.locator('[data-testid="phrase-input-index0"]').first();
   await seedBox.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
   await tab.evaluate((m) => navigator.clipboard.writeText(m).catch(() => {}), mnemonic.trim()).catch(() => {});

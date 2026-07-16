@@ -23,6 +23,7 @@ import {
   formatBtc,
   formatEth,
 } from "./preflight";
+import { provisionRuntime } from "./provision";
 import { loadWalletSecrets } from "./secrets";
 import { importWallets } from "./wallets";
 import { maximizeWindow } from "./windowUtils";
@@ -45,6 +46,10 @@ export async function runE2E(config: RunConfig): Promise<void> {
 
   const btcKey = BTC_WALLET_TO_CONNECTOR[config.btcWallet];
   const ethKey = ETH_WALLET_TO_CONNECTOR[config.ethWallet];
+
+  // Self-provision the runtime prerequisites (Playwright Chromium + the two wallet extensions) so a
+  // clean checkout runs with one command — must happen before launchWalletContext, which needs both.
+  await provisionRuntime([btcKey, ethKey], artifacts.log);
 
   let devServer: DevServerHandle | undefined;
   const context = await launchWalletContext([btcKey, ethKey], {
@@ -100,7 +105,9 @@ export async function runE2E(config: RunConfig): Promise<void> {
       ((config.action === "repay" || config.action === "withdraw") &&
         config.borrowFirst);
     const willPegin =
-      config.action === "pegin" || (willBorrow && config.peginFirst);
+      config.action === "pegin" ||
+      (willBorrow && config.peginFirst) ||
+      (config.action === "resume" && config.interruptFresh);
     if (willPegin) {
       const cap = await fetchVaultCountCap(
         config.network,

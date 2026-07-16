@@ -6,6 +6,10 @@
  *
  *   pnpm --filter vault run e2e:cli               # interactive menu (prompts for every choice)
  *
+ * On a clean checkout this is the only command needed: the run self-provisions before launching the
+ * browser — it installs Playwright's Chromium if missing and downloads/updates the wallet extensions
+ * (see `provision.ts`), so no separate `playwright install` / `extensions:download` step is required.
+ *
  * Every prompt can be pre-supplied as a flag for a non-interactive / programmatic run (flags forward
  * through the script — no `--` separator needed):
  *
@@ -32,6 +36,11 @@
  * pegs in fresh collateral (honoring the pegin extras, incl. `--split`) then borrows + repays — the full
  * pegin → borrow → repay → withdraw cycle. `--withdraw-all` releases every selectable vault (default = a
  * single vault, keeping the position alive).
+ *
+ * Resume recovers an interrupted peg-in from the dashboard's Pending Deposits UI (Submit WOTS Key → Sign
+ * Payouts → Activate). By default it resumes an already-pending deposit (`--txid=<prePeginTxid>` targets a
+ * specific one, else the first actionable); `--interrupt-fresh` pegs in a fresh deposit, reloads after
+ * Pre-PegIn broadcast, and resumes it — a self-contained run (then also honors the pegin extras above).
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
@@ -328,11 +337,24 @@ async function resolveConfig(
       }
     }
 
+    // Resume extras (resume-only). `--interrupt-fresh` makes the run self-contained: peg in a fresh
+    // deposit, interrupt it after Pre-PegIn broadcast, then resume from the dashboard — so it needs the
+    // pegin params below. `--txid` targets a specific pending deposit when several are in flight.
+    const interruptFresh =
+      action === "resume" && flagBool(flags["interrupt-fresh"]);
+    const resumeTxid =
+      action === "resume" && typeof flags.txid === "string"
+        ? flags.txid
+        : undefined;
+
     // Pegin extras. A flag always wins; otherwise fetch the network's real values (like the balance
     // pre-flight) and offer them as defaults — amount ⇒ minimum, provider ⇒ first available. Collected
-    // for a `pegin` run AND for any pegin-first borrow (`borrow --pegin-first` or
-    // `repay --borrow-first --pegin-first`, which peg in before borrowing).
-    const needsPeginParams = action === "pegin" || (willBorrow && peginFirst);
+    // for a `pegin` run, any pegin-first borrow (`borrow --pegin-first` or
+    // `repay --borrow-first --pegin-first`), AND `resume --interrupt-fresh` (which pegs in then resumes).
+    const needsPeginParams =
+      action === "pegin" ||
+      (willBorrow && peginFirst) ||
+      (action === "resume" && interruptFresh);
 
     // Split: `--split` wins; else prompt (default = single vault). Resolved first because the deposit
     // minimum depends on it — a two-vault split needs a larger deposit than a single vault.
@@ -590,6 +612,8 @@ async function resolveConfig(
       repayAmount,
       repayFirst,
       withdrawAll,
+      resumeTxid,
+      interruptFresh,
     };
   } finally {
     rl.close();

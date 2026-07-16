@@ -161,6 +161,9 @@ export function PendingDepositCard({
   // excluded from the body click by isInteractiveEventTarget.
   const actionCta =
     status.type === "available" && handleCardClick ? (
+      // data-testid consumed by the real-wallet E2E CLI resume action
+      // (services/vault/e2e/real/actions/resume.ts): it appears only once the deposit is actionable, so
+      // it doubles as the "resumable now" signal the CLI waits for before opening the resume flow.
       <Button
         variant={
           status.action.action === PeginAction.REFUND_HTLC
@@ -174,6 +177,7 @@ export function PendingDepositCard({
         }
         className="w-full"
         onClick={handleCardClick}
+        data-testid="pending-deposit-resume-cta"
       >
         {status.action.label}
       </Button>
@@ -181,6 +185,10 @@ export function PendingDepositCard({
 
   return (
     <VaultDetailCard
+      // data-testid consumed by the real-wallet E2E CLI resume action
+      // (services/vault/e2e/real/actions/resume.ts) to scope a specific pending deposit by its Pre-PegIn
+      // txid (the card's tx-hash row links it) when several are in flight.
+      testId="pending-deposit-card"
       amountBtc={parseFloat(amount || "0")}
       timestamp={timestamp}
       onClick={handleCardClick}
