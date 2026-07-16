@@ -2,7 +2,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -24,6 +24,33 @@ const SECURITY_HEADERS = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
+// Dev-server-only proxy for the sidecar API. The sidecar sends no
+// Access-Control-Allow-Origin for http://localhost, so the browser's preflight of
+// POST /logo (Content-Type: application/json) fails and provider logos never load.
+// Routing the call through the dev server keeps it same-origin, so no preflight happens.
+// Set SIDECAR_PROXY_TARGET to the sidecar host and point
+// NEXT_PUBLIC_TBV_SIDECAR_API_URL at this prefix to use it; unset, the proxy is skipped
+// and the app calls the sidecar directly, as it does in deployed builds.
+const SIDECAR_PROXY_PATH = "/sidecar";
+// .env is not loaded into process.env for this config module, so read it directly. The
+// mode only selects extra .env.[mode] files; plain .env is always read.
+const { SIDECAR_PROXY_TARGET: sidecarProxyTarget } = loadEnv(
+  process.env.NODE_ENV ?? "development",
+  __dirname,
+  "SIDECAR_",
+);
+
+const sidecarProxy = sidecarProxyTarget
+  ? {
+      [SIDECAR_PROXY_PATH]: {
+        target: sidecarProxyTarget,
+        changeOrigin: true,
+        rewrite: (path: string) =>
+          path.replace(new RegExp(`^${SIDECAR_PROXY_PATH}`), ""),
+      },
+    }
+  : undefined;
+
 const isSentryDisabled =
   process.env.NEXT_BUILD_E2E || process.env.DISABLE_SENTRY === "true";
 
@@ -39,6 +66,7 @@ const enableSentryPlugin =
 export default defineConfig({
   server: {
     headers: SECURITY_HEADERS,
+    proxy: sidecarProxy,
   },
   resolve: {
     dedupe: ["@babylonlabs-io/core-ui", "react", "react-dom"],
