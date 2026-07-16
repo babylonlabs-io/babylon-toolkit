@@ -32,24 +32,21 @@ const SECURITY_HEADERS = {
 // NEXT_PUBLIC_TBV_SIDECAR_API_URL at this prefix to use it; unset, the proxy is skipped
 // and the app calls the sidecar directly, as it does in deployed builds.
 const SIDECAR_PROXY_PATH = "/sidecar";
-// .env is not loaded into process.env for this config module, so read it directly. The
-// mode only selects extra .env.[mode] files; plain .env is always read.
-const { SIDECAR_PROXY_TARGET: sidecarProxyTarget } = loadEnv(
-  process.env.NODE_ENV ?? "development",
-  __dirname,
-  "SIDECAR_",
-);
 
-const sidecarProxy = sidecarProxyTarget
-  ? {
-      [SIDECAR_PROXY_PATH]: {
-        target: sidecarProxyTarget,
-        changeOrigin: true,
-        rewrite: (path: string) =>
-          path.replace(new RegExp(`^${SIDECAR_PROXY_PATH}`), ""),
-      },
-    }
-  : undefined;
+// .env files are not loaded into process.env for this config module, so read them
+// directly. The mode must come from Vite rather than NODE_ENV, or `vite --mode
+// dev-testnet` would miss the .env.dev-testnet override.
+function resolveSidecarProxy(mode: string) {
+  const { SIDECAR_PROXY_TARGET: target } = loadEnv(mode, __dirname, "SIDECAR_");
+  if (!target) return undefined;
+  return {
+    [SIDECAR_PROXY_PATH]: {
+      target,
+      changeOrigin: true,
+      rewrite: (path: string) => path.slice(SIDECAR_PROXY_PATH.length),
+    },
+  };
+}
 
 const isSentryDisabled =
   process.env.NEXT_BUILD_E2E || process.env.DISABLE_SENTRY === "true";
@@ -63,10 +60,10 @@ const enableSentryPlugin =
   );
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   server: {
     headers: SECURITY_HEADERS,
-    proxy: sidecarProxy,
+    proxy: resolveSidecarProxy(mode),
   },
   resolve: {
     dedupe: ["@babylonlabs-io/core-ui", "react", "react-dom"],
@@ -143,4 +140,4 @@ export default defineConfig({
     ),
     "process.env.NEXT_TELEMETRY_DISABLED": JSON.stringify("1"),
   },
-});
+}));
