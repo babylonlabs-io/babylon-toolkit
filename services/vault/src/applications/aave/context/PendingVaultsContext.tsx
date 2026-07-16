@@ -21,7 +21,6 @@ import { useETHWallet } from "@/context/wallet";
 import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import {
   addPendingCollateralVaultIds,
-  clearPendingCollateralVaultIds,
   getPendingCollateralVaults,
   removePendingCollateralVaultIds,
   type PendingOperation,
@@ -33,12 +32,6 @@ import type { VaultData } from "../types";
 interface PendingVaultsContextValue {
   /** Map of vault IDs to their pending operation type */
   pendingVaults: Map<string, PendingOperation>;
-  /** Whether there are any pending operations awaiting confirmation */
-  hasPendingOperation: boolean;
-  /** Whether there are pending add operations */
-  hasPendingAdd: boolean;
-  /** Whether there are pending withdraw operations */
-  hasPendingWithdraw: boolean;
   /** Mark vault IDs as pending after successful transaction */
   markVaultsAsPending: (
     vaultIds: string[],
@@ -46,8 +39,6 @@ interface PendingVaultsContextValue {
   ) => void;
   /** Clear pending status for vault IDs (called when indexer confirms) */
   clearPendingVaults: (vaultIds: string[]) => void;
-  /** Clear all pending vaults */
-  clearAllPendingVaults: () => void;
 }
 
 const PendingVaultsContext = createContext<PendingVaultsContextValue | null>(
@@ -117,30 +108,14 @@ export function PendingVaultsProvider({
     [appId, address],
   );
 
-  // Clear all pending vaults
-  const clearAllPendingVaults = useCallback(() => {
-    if (!address) return;
-    clearPendingCollateralVaultIds(appId, address);
-    setPendingVaults(new Map());
-  }, [appId, address]);
-
-  const value = useMemo(() => {
-    const operations = Array.from(pendingVaults.values());
-    return {
+  const value = useMemo(
+    () => ({
       pendingVaults,
-      hasPendingOperation: pendingVaults.size > 0,
-      hasPendingAdd: operations.includes("add"),
-      hasPendingWithdraw: operations.includes("withdraw"),
       markVaultsAsPending,
       clearPendingVaults,
-      clearAllPendingVaults,
-    };
-  }, [
-    pendingVaults,
-    markVaultsAsPending,
-    clearPendingVaults,
-    clearAllPendingVaults,
-  ]);
+    }),
+    [pendingVaults, markVaultsAsPending, clearPendingVaults],
+  );
 
   return (
     <PendingVaultsContext.Provider value={value}>

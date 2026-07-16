@@ -1,7 +1,7 @@
 /**
  * Page object for the vault dApp's persistent shell: top nav, connect
  * button, theme toggle, and the route-level entry points (Applications
- * tab, Activity tab, Deposit CTA).
+ * tab, Activity tab).
  *
  * Selectors prefer role+name with COPY constants so that copy edits
  * keep tests passing. Where a stable data-testid exists in source, it
@@ -32,21 +32,11 @@ export class AppShell {
     return this.page.getByRole("link", { name: /Activity/i });
   }
 
-  get depositCta(): Locator {
-    // The persistent "Deposit BTC" CTA rendered in RootLayout once a
-    // wallet is connected. Distinct from the in-modal "Deposit" submit.
-    return this.page.getByRole("button", { name: /^Deposit BTC$/i });
-  }
-
   async openActivity(): Promise<void> {
     await this.activityTab.click();
   }
 
   async openApplications(): Promise<void> {
     await this.applicationsTab.click();
-  }
-
-  async openDeposit(): Promise<void> {
-    await this.depositCta.click();
   }
 }

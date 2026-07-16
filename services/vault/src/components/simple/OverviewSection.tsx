@@ -36,8 +36,9 @@ interface OverviewSectionProps {
   availableToBorrow: string;
   collateralBtc: string;
   availableMeterPercent: number;
-  availableLoading: boolean;
   borrowedMeterPercent: number;
+  borrowCapacityLoading: boolean;
+  borrowCapacityError: Error | null;
   onDeposit: () => void;
   onBorrow: () => void;
   onRepay: () => void;
@@ -84,8 +85,9 @@ export function OverviewSection({
   availableToBorrow,
   collateralBtc,
   availableMeterPercent,
-  availableLoading,
   borrowedMeterPercent,
+  borrowCapacityLoading,
+  borrowCapacityError,
   onDeposit,
   onBorrow,
   onRepay,
@@ -116,6 +118,8 @@ export function OverviewSection({
   const statCards: PositionStatCard[] = useMemo(() => {
     const clampPct = (ratio: number) =>
       Math.round(Math.min(1, Math.max(0, ratio)) * 100);
+    const capacityUnavailable =
+      borrowCapacityLoading || borrowCapacityError != null;
     return [
       {
         label: COPY.overview.totalCollateralValueLabel,
@@ -128,8 +132,12 @@ export function OverviewSection({
       },
       {
         label: COPY.overview.availableToBorrowLabel,
-        value: availableLoading ? COPY.common.loading : availableToBorrow,
-        meter: availableLoading
+        value: borrowCapacityLoading
+          ? COPY.common.loading
+          : borrowCapacityError
+            ? COPY.common.emptyValue
+            : availableToBorrow,
+        meter: capacityUnavailable
           ? undefined
           : {
               percent: availableMeterPercent,
@@ -144,12 +152,14 @@ export function OverviewSection({
       {
         label: COPY.overview.totalBorrowedLabel,
         value: totalBorrowed,
-        meter: {
-          percent: borrowedMeterPercent,
-          label: COPY.overview.borrowedMeterLabel(
-            clampPct(borrowedMeterPercent),
-          ),
-        },
+        meter: capacityUnavailable
+          ? undefined
+          : {
+              percent: borrowedMeterPercent,
+              label: COPY.overview.borrowedMeterLabel(
+                clampPct(borrowedMeterPercent),
+              ),
+            },
         actionLabel: COPY.overview.repayAction,
         onAction: onRepay,
         actionDisabled: !canRepay,
@@ -161,7 +171,8 @@ export function OverviewSection({
     onDeposit,
     availableToBorrow,
     availableMeterPercent,
-    availableLoading,
+    borrowCapacityLoading,
+    borrowCapacityError,
     onBorrow,
     canBorrow,
     totalBorrowed,

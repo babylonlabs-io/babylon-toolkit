@@ -90,20 +90,6 @@ export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
   }
 }
 
-export async function runHealthChecks(): Promise<HealthCheckResult> {
-  const geoResult = await checkGeofencing();
-  if (geoResult.isGeoBlocked) {
-    return geoResult;
-  }
-
-  const graphqlResult = await checkGraphQLEndpoint();
-  if (!graphqlResult.healthy) {
-    return graphqlResult;
-  }
-
-  return { healthy: true, isGeoBlocked: false };
-}
-
 export function createWagmiInitError(): AppError {
   return {
     title: "Wallet Configuration Error",

@@ -95,7 +95,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
 
 export function PositionStatCards({ cards }: { cards: PositionStatCard[] }) {
   return (
-    <div className="rounded-lg bg-secondary-highlight p-6 dark:bg-[#202020]">
+    <div className="rounded-lg bg-secondary-highlight p-6">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
         {cards.map((card, index) => (
           <Fragment key={card.label}>

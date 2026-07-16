@@ -92,11 +92,14 @@ export async function runE2E(config: RunConfig): Promise<void> {
     // browser deposit and refuse if the deposit (2 vaults for a split, else 1) would exceed it — so a
     // doomed pegin never launches. A fetch failure is non-fatal: the form's own gate backstops it (see
     // pegin.ts), so we warn and proceed rather than block on a transient read error.
-    // A `borrow --pegin-first` run performs a pegin too, so it's subject to the same cap.
-    if (
-      config.action === "pegin" ||
-      (config.action === "borrow" && config.peginFirst)
-    ) {
+    // Any pegin-first run performs a pegin too (`borrow --pegin-first` or
+    // `repay --borrow-first --pegin-first`), so it's subject to the same cap.
+    const willBorrow =
+      config.action === "borrow" ||
+      (config.action === "repay" && config.borrowFirst);
+    const willPegin =
+      config.action === "pegin" || (willBorrow && config.peginFirst);
+    if (willPegin) {
       const cap = await fetchVaultCountCap(
         config.network,
         balances.eth.address,
@@ -119,13 +122,14 @@ export async function runE2E(config: RunConfig): Promise<void> {
       }
     }
 
-    // Borrow pre-flight (reuse-collateral only). Read the position from real data (contract + indexer)
-    // and refuse a doomed run BEFORE the browser if there's no borrowable collateral. A `--pegin-first`
-    // run has no collateral yet (it pegs in during the run), so this gate is skipped for it. A fetch
-    // failure is non-fatal: the disabled Borrow button + the form's validation backstop it (see
-    // actions/borrow.ts), so we warn. The borrow amount (a conservative fraction of the max) is resolved
-    // inside the action, which also has the ETH address and logs the real-data max it picked from.
-    if (config.action === "borrow" && !config.peginFirst) {
+    // Collateral pre-flight (any run that BORROWS against existing collateral: a `borrow` run, or a
+    // `repay --borrow-first` run — both draw a loan before doing anything else). Read the position from
+    // real data and refuse a doomed run BEFORE the browser if there's no borrowable collateral. A
+    // `--pegin-first` run has no collateral yet (it pegs in during the run), so this gate is skipped for
+    // it. A fetch failure is non-fatal: the disabled Borrow button + the form's validation backstop it,
+    // so we warn. The borrow amount (a conservative fraction of the max) is resolved inside the action.
+    const borrowsAgainstExistingCollateral = willBorrow && !config.peginFirst;
+    if (borrowsAgainstExistingCollateral) {
       const borrowContext = await fetchBorrowContext(
         config.network,
         balances.eth.address,
@@ -142,6 +146,32 @@ export async function runE2E(config: RunConfig): Promise<void> {
           );
         artifacts.log(
           `Borrow collateral: $${borrowContext.collateralUsd.toFixed(2)} (current debt $${borrowContext.currentDebtUsd.toFixed(2)}).`,
+        );
+      }
+    }
+
+    // Repay pre-flight (repay an EXISTING loan — not `--borrow-first`, which creates the loan during the
+    // run). Read the position from real data and refuse a doomed run BEFORE the browser if there's no
+    // debt to repay. A fetch failure is non-fatal: the disabled Repay button + the form's validation
+    // backstop it, so we warn. The repay amount (a conservative fraction of the debt) is resolved inside
+    // the action, which has the ETH address and logs it.
+    if (config.action === "repay" && !config.borrowFirst) {
+      const repayContext = await fetchBorrowContext(
+        config.network,
+        balances.eth.address,
+      ).catch((error) => {
+        artifacts.log(
+          `⚠️ Could not pre-check repay debt (${error instanceof Error ? error.message : error}); the form will gate it.`,
+        );
+        return undefined;
+      });
+      if (repayContext) {
+        if (repayContext.currentDebtUsd <= 0)
+          throw new Error(
+            "No debt to repay: this position holds no outstanding loan. Borrow first (--borrow-first), or repay with a different ETH account that has a loan.",
+          );
+        artifacts.log(
+          `Repay debt: current debt $${repayContext.currentDebtUsd.toFixed(2)} (collateral $${repayContext.collateralUsd.toFixed(2)}).`,
         );
       }
     }

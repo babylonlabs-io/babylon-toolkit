@@ -1,7 +1,7 @@
 /**
- * Registry of implemented actions: connect, observe, wallet-config, pegin, sign-conformance, and
- * borrow. The remaining actions (repay/withdraw) are declared disabled in `config.ts` for the CLI's
- * roadmap display and register here as they land.
+ * Registry of implemented actions: connect, observe, wallet-config, pegin, sign-conformance, borrow,
+ * and repay. The remaining action (withdraw) is declared disabled in `config.ts` for the CLI's roadmap
+ * display and registers here as it lands.
  */
 import type { ActionId } from "../config";
 
@@ -9,6 +9,7 @@ import { borrowAction } from "./borrow";
 import { connectAction } from "./connect";
 import { observeAction } from "./observe";
 import { peginAction } from "./pegin";
+import { repayAction } from "./repay";
 import { signConformanceAction } from "./signConformance";
 import type { Action } from "./types";
 import { walletConfigAction } from "./walletConfig";
@@ -20,4 +21,5 @@ export const ACTIONS_BY_ID: Partial<Record<ActionId, Action>> = {
   pegin: peginAction,
   "sign-conformance": signConformanceAction,
   borrow: borrowAction,
+  repay: repayAction,
 };

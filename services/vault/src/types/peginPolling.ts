@@ -67,8 +67,6 @@ export interface PeginPollingContextValue {
     newStatus: LocalStorageStatus,
     refundBroadcastAt?: number,
   ) => void;
-  /** Clear optimistic status (after actual data refresh) */
-  clearOptimisticStatus: (depositId: string) => void;
   /**
    * Mark a vault's HTLC refund as confirmed-settled: persist it to the
    * refunded-HTLC cache AND update the in-memory set, so the dashboard shows

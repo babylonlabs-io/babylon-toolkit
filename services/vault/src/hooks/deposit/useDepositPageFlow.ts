@@ -43,17 +43,9 @@ export interface UseDepositPageFlowResult {
   universalChallengerBtcPubkeys: string[];
 
   // Vault data
-  hasExistingVaults: boolean;
   hasActiveVaults: boolean;
 
   // Actions
-  startDeposit: (
-    amountSats: bigint,
-    application: string,
-    providers: string[],
-    quotedCommissionBps: number | undefined,
-  ) => void;
-  confirmReview: (feeRate: number) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
 
@@ -110,7 +102,6 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   const { refetchActivities } = useVaultDeposits(ethAddress);
 
   const { data: existingVaults } = useVaults(ethAddress);
-  const hasExistingVaults = (existingVaults?.length ?? 0) > 0;
   const hasActiveVaults = useMemo(
     () => existingVaults?.some((v) => v.status === VaultStatus.ACTIVE) ?? false,
     [existingVaults],
@@ -149,21 +140,6 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   ]);
 
   // Actions
-  const startDeposit = (
-    amountSats: bigint,
-    application: string,
-    providers: string[],
-    commissionBps: number | undefined,
-  ) => {
-    setDepositData(amountSats, application, providers, commissionBps);
-    goToStep(DepositStep.REVIEW);
-  };
-
-  const confirmReview = (confirmedFeeRate: number) => {
-    setFeeRate(confirmedFeeRate);
-    goToStep(DepositStep.SIGN);
-  };
-
   const resetDeposit = useCallback(() => {
     resetDepositState();
   }, [resetDepositState]);
@@ -180,14 +156,11 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    hasExistingVaults,
     hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
     splitVaultAmounts,
     setSplitVaultAmounts,
-    startDeposit,
-    confirmReview,
     resetDeposit,
     refetchActivities,
     goToStep,

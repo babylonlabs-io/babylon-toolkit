@@ -29,7 +29,7 @@ export function PostDepositContinuationContent({
   onClose,
 }: PostDepositContinuationContentProps) {
   const { connected: btcConnected } = useBTCWallet();
-  const btcPublicKey = useBtcPublicKey(btcConnected);
+  const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
   const { activities, pendingPegins } = useVaultDeposits(depositorEthAddress);
 
   // God-mode demo aggregate (null in production). Its activities are never in

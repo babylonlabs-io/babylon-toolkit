@@ -69,6 +69,12 @@ export interface DepositPollingInputs {
   requiredDepth: number;
   /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
   refundTimelock: number | undefined;
+  /**
+   * VERIFIED only: confirmed (Tier-2 chain read) past the on-chain activation
+   * deadline. Gates the Activate CTA. Defaults false (fail-safe) when not a
+   * suspect, the RPC failed, or the vault isn't on chain yet.
+   */
+  activationDeadlinePassed: boolean;
   isLoading: boolean;
   optimisticStatuses: Map<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: Map<string, number>;
@@ -92,6 +98,7 @@ export function computeDepositPollingResult(
     refundedHtlcVaultIds,
     requiredDepth,
     refundTimelock,
+    activationDeadlinePassed,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
@@ -203,6 +210,7 @@ export function computeDepositPollingResult(
     prePeginBroadcastSeen,
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
+    activationDeadlinePassed,
     canRefund,
     refundMaturityState,
     refundMaturesInBlocks,

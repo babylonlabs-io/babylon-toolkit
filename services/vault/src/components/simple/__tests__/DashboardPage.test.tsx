@@ -34,6 +34,7 @@ vi.mock("@/hooks/useDashboardState", () => ({
     availableToBorrowUsd: 0,
     collateralFactorBps: 7800,
     isBorrowCapacityLoading: false,
+    borrowCapacityError: null,
     healthFactor: 0,
     healthFactorStatus: "safe",
     borrowedAssets: [],

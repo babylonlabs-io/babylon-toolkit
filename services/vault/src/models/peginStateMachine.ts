@@ -137,6 +137,14 @@ export interface GetPeginStateOptions {
   expirationReason?: ExpirationReason;
   expiredAt?: number;
   /**
+   * VERIFIED only: the on-chain activation window has closed
+   * (`block.number > createdAt + pegInActivationTimeout`), so
+   * `activateVaultWithSecret` would revert ActivationDeadlineExpired.
+   * Confirmed by an authoritative chain read; a UX-only gate that strips
+   * ACTIVATE_VAULT and flips the badge to Expired. Fail-safe default: false.
+   */
+  activationDeadlinePassed?: boolean;
+  /**
    * True only when the deposit can be refunded *now*: the Pre-PegIn tx
    * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
    * frontend computes this composite — the SDK-level protocol state
@@ -368,7 +376,16 @@ export function getPeginState(
           (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
         )
       : sdkActions;
-  const actions = mapActions(chainAdjustedActions);
+  // VERIFIED past its on-chain activation deadline: the contract would revert
+  // ActivationDeadlineExpired, so strip the now-futile Activate action. UX only
+  // — confirmed by an authoritative chain read; missing/error data leaves the
+  // action in place (fail-safe). Mirrors the broadcast filter above.
+  const deadlineAdjustedActions =
+    contractStatus === ContractStatus.VERIFIED &&
+    options.activationDeadlinePassed === true
+      ? chainAdjustedActions.filter((a) => a !== SdkPeginAction.ACTIVATE_VAULT)
+      : chainAdjustedActions;
+  const actions = mapActions(deadlineAdjustedActions);
   const display = getDisplay(contractStatus, actions, options);
 
   return {
@@ -575,6 +592,16 @@ function getDisplay(
         displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
         displayVariant: "pending",
         message: COPY.pegin.messages.activationSubmitted,
+      };
+    }
+    // Activation window closed on-chain — present as terminal-expired in place
+    // (the indexer flips to EXPIRED later). `warning` variant also suppresses
+    // the progress step via getPeginDisplayStep.
+    if (options.activationDeadlinePassed) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+        displayVariant: "warning",
+        message: buildExpiredMessage("activation_timeout", expiredAt),
       };
     }
     return {

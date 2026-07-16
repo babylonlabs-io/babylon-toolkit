@@ -201,24 +201,3 @@ export function removePendingCollateralVaultIds(
 
   savePendingCollateralVaultIds(appId, ethAddress, updatedEntries);
 }
-
-/**
- * Clear all pending collateral vault IDs for an app and address
- */
-export function clearPendingCollateralVaultIds(
-  appId: string,
-  ethAddress: string,
-): void {
-  if (!appId || !ethAddress) return;
-
-  try {
-    const key = getStorageKey(appId, ethAddress);
-    localStorage.removeItem(key);
-  } catch (error) {
-    logger.error(error instanceof Error ? error : new Error(String(error)), {
-      data: {
-        context: "[pendingCollateralStorage] Failed to clear pending vaults",
-      },
-    });
-  }
-}

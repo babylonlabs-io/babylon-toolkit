@@ -25,6 +25,7 @@ import { useDemoDeposit } from "@/dev/demoDeposit";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useRequiredPrePeginDepthResolver } from "../../hooks/deposit/useRequiredPrePeginDepth";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
+import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import {
@@ -149,7 +150,13 @@ export function PeginPollingProvider({
   // VP activation tx, absent during PENDING). PENDING gates on min-depth;
   // EXPIRED gates on `tRefund` for the Refund action. Each has its own
   // cache (depth/maturity never rewinds → drop cached txids from polling).
-  const { getOffchainParamsByVersion } = useProtocolParamsContext();
+  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  // Tiered (Tier-1 estimate → Tier-2 chain confirm) activation-deadline gate.
+  // Lowercased ids of VERIFIED vaults confirmed past their activation window.
+  const activationDeadlinePassedIds = useActivationDeadlineGate(
+    activities,
+    config.pegInActivationTimeout,
+  );
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
   );
@@ -355,19 +362,6 @@ export function PeginPollingProvider({
     [],
   );
 
-  const clearOptimisticStatus = useCallback((depositId: string) => {
-    setOptimisticStatuses((prev) => {
-      const next = new Map(prev);
-      next.delete(depositId);
-      return next;
-    });
-    setOptimisticRefundBroadcastAt((prev) => {
-      const next = new Map(prev);
-      next.delete(depositId);
-      return next;
-    });
-  }, []);
-
   // Confirmed settled refund: persist to the cache AND update the in-memory set
   // so `refundConfirmed` flips to "Refunded" this session, not just on reload.
   // Lowercased to match the `depositId.toLowerCase()` lookup in the poll result.
@@ -414,6 +408,9 @@ export function PeginPollingProvider({
         refundedHtlcVaultIds,
         requiredDepth: getRequiredPrePeginDepth(activity),
         refundTimelock,
+        activationDeadlinePassed: activationDeadlinePassedIds.has(
+          activity.id.toLowerCase(),
+        ),
         isLoading,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
@@ -435,6 +432,7 @@ export function PeginPollingProvider({
       refundedHtlcVaultIds,
       getRequiredPrePeginDepth,
       getOffchainParamsByVersion,
+      activationDeadlinePassedIds,
       isLoading,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
@@ -452,7 +450,6 @@ export function PeginPollingProvider({
       isLoading,
       refetch: () => refetch(),
       setOptimisticStatus,
-      clearOptimisticStatus,
       addConfirmedRefund,
     }),
     [
@@ -460,7 +457,6 @@ export function PeginPollingProvider({
       isLoading,
       refetch,
       setOptimisticStatus,
-      clearOptimisticStatus,
       addConfirmedRefund,
     ],
   );

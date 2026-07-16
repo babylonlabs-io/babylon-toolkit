@@ -141,6 +141,7 @@ vi.mock("@/infrastructure", () => ({
     error: mockLoggerError,
     warn: vi.fn(),
     info: vi.fn(),
+    event: vi.fn(),
   },
 }));
 
@@ -317,9 +318,6 @@ async function setupDefaultMocks() {
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],
     })),
-    getUniversalChallengersByVersion: vi.fn(() => [
-      { btcPubKey: "challenger1pubkey" },
-    ]),
   } as any);
 
   vi.mocked(useVaultProviders).mockReturnValue({

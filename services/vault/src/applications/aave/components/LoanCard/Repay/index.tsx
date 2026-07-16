@@ -394,6 +394,7 @@ export function Repay() {
         }
         onClick={handleRepay}
         className="mt-6"
+        data-testid="repay-submit-button"
       >
         {repayBlocked
           ? COPY.loans.repay.unavailable

@@ -5,7 +5,7 @@
  *   Connect (connect-wallet-button) → Select Bitcoin Wallet (select-bitcoin-wallet-button) →
  *   wallet-option-<id> → approve in the BTC extension popup → Select Ethereum Wallet
  *   (select-ethereum-wallet-button) → MetaMask (Reown AppKit) → approve MetaMask popup →
- *   Connect (chains-connect-button) → the deposit CTA (data-testid="deposit-button") appears.
+ *   Connect (chains-connect-button) → the dashboard deposit CTA (data-testid="deposit-button") appears.
  *
  * It assumes a pop-up approver is ALREADY installed on the context (see `approver.ts`) — the approval
  * pop-ups fire asynchronously during these clicks. Callers own the approver lifecycle so they can keep
@@ -15,19 +15,26 @@
 import type { Page } from "@playwright/test";
 
 import type { BtcWalletId, EthWalletId } from "../config";
-import { APPROVAL_WAIT_MS, STEP_TIMEOUT_MS } from "../timing";
+import {
+  APPROVAL_WAIT_MS,
+  CONNECT_STATE_POLL_MS,
+  CONNECT_STATE_TIMEOUT_MS,
+  MS_PER_SECOND,
+  STEP_TIMEOUT_MS,
+} from "../timing";
 
+import { sweepApprovals } from "./approver";
 import type { ActionContext } from "./types";
 
 /** The Reown AppKit list entry to click per ETH wallet. */
 const ETH_APPKIT_NAME: Record<EthWalletId, RegExp> = { metamask: /metamask/i };
 
 /**
- * Drive the connect flow to the connected state (the header deposit button visible). Requires an
+ * Drive the connect flow to the connected state (the dashboard deposit button visible). Requires an
  * active pop-up approver on `ctx.context`.
  */
 export async function connectWallets(ctx: ActionContext): Promise<void> {
-  const { page, log } = ctx;
+  const { page, context, log } = ctx;
 
   log("Clicking Connect");
   await page
@@ -62,10 +69,22 @@ export async function connectWallets(ctx: ActionContext): Promise<void> {
     .catch(() => {});
 
   log("Waiting for connected state (deposit button)");
-  await page
-    .locator('[data-testid="deposit-button"]')
-    .first()
-    .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+  // Poll for the connected state while actively sweeping approval popups. MetaMask can insert an EXTRA
+  // approval AFTER the initial connect — a "Review permissions / Use your enabled networks" prompt whose
+  // Confirm (page-container-footer-next) must be clicked before the app flips to connected. That prompt
+  // can land after the popup approver's per-window rounds have ended (or in a reused window that fires no
+  // 'page' event), so a one-shot waitFor would just time out with it hanging. Sweeping each tick clicks
+  // it (clickApprove already matches that Confirm), the same way the borrow/repay confirm loops do.
+  const deposit = page.locator('[data-testid="deposit-button"]').first();
+  const deadline = Date.now() + CONNECT_STATE_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (await deposit.isVisible().catch(() => false)) return;
+    await sweepApprovals(context, page, log);
+    await page.waitForTimeout(CONNECT_STATE_POLL_MS);
+  }
+  throw new Error(
+    `connect: the connected state (deposit button) did not appear within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s — a wallet approval popup (e.g. MetaMask "Review permissions") may be unconfirmed.`,
+  );
 }
 
 /**

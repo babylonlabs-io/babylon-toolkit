@@ -577,6 +577,7 @@ export function ResumeActivationContent({
     activating,
     activated,
     error: activationError,
+    errorTerminal,
     handleActivation,
   } = useActivationState({
     activity,
@@ -685,6 +686,9 @@ export function ResumeActivationContent({
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const error = localError ?? activationError;
+  // Terminal only applies to the activation failure (deadline passed), never a
+  // local pre-flight error — which localError would override via `??` above.
+  const isTerminal = localError == null && errorTerminal;
 
   // Track the live contract status so an activation completed elsewhere
   // (another tab, a previous session) still lands on the success terminal
@@ -718,7 +722,13 @@ export function ResumeActivationContent({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error ? mapDepositError(error) : null}
+      error={
+        error
+          ? isTerminal
+            ? COPY.deposit.errors.activationDeadlinePassed
+            : mapDepositError(error)
+          : null
+      }
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -729,7 +739,7 @@ export function ResumeActivationContent({
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
-      onRetry={error ? handleSubmit : undefined}
+      onRetry={error && !isTerminal ? handleSubmit : undefined}
       offchainParamsVersion={activity.offchainParamsVersion}
     />
   );

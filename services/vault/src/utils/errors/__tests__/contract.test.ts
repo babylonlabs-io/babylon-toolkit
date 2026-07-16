@@ -6,8 +6,13 @@ import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integratio
 import { type Abi, encodeErrorResult } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { mapViemErrorToContractError } from "../contract";
-import { ErrorCode } from "../types";
+import {
+  ACTIVATION_DEADLINE_EXPIRED_REASON,
+  isActivationDeadlineExpiredError,
+  isTerminalActivationError,
+  mapViemErrorToContractError,
+} from "../contract";
+import { ActivationNotPossibleError, ContractError, ErrorCode } from "../types";
 
 // Test ABI with custom errors
 const TEST_ABI: Abi = [
@@ -448,6 +453,89 @@ describe("Contract Error Mapping", () => {
       );
 
       expect(result.cause).toBe(originalError);
+    });
+  });
+
+  describe("isActivationDeadlineExpiredError", () => {
+    it("returns true for the decoded ActivationDeadlineExpired revert", () => {
+      const data = encodeErrorResult({
+        abi: TEST_ABI,
+        errorName: "ActivationDeadlineExpired",
+      });
+      const mapped = mapViemErrorToContractError(
+        { message: "execution reverted", data },
+        "activate",
+        [TEST_ABI],
+      );
+
+      expect(mapped.reason).toBe(ACTIVATION_DEADLINE_EXPIRED_REASON);
+      expect(isActivationDeadlineExpiredError(mapped)).toBe(true);
+    });
+
+    it("returns false for a different contract revert", () => {
+      const data = encodeErrorResult({
+        abi: TEST_ABI,
+        errorName: "PositionNotFound",
+      });
+      const mapped = mapViemErrorToContractError(
+        { message: "execution reverted", data },
+        "activate",
+        [TEST_ABI],
+      );
+
+      expect(isActivationDeadlineExpiredError(mapped)).toBe(false);
+    });
+
+    it("returns false for a ContractError without the deadline reason", () => {
+      const err = new ContractError(
+        "nope",
+        ErrorCode.CONTRACT_REVERT,
+        undefined,
+        "SomethingElse",
+      );
+
+      expect(isActivationDeadlineExpiredError(err)).toBe(false);
+    });
+
+    it("returns false for a plain Error, the message string, or null", () => {
+      expect(isActivationDeadlineExpiredError(new Error("boom"))).toBe(false);
+      expect(
+        isActivationDeadlineExpiredError(
+          "The activation deadline has passed. The BTC Vault can no longer be activated.",
+        ),
+      ).toBe(false);
+      expect(isActivationDeadlineExpiredError(null)).toBe(false);
+    });
+  });
+
+  describe("isTerminalActivationError", () => {
+    it("returns true for the deadline-expired contract revert", () => {
+      const data = encodeErrorResult({
+        abi: TEST_ABI,
+        errorName: "ActivationDeadlineExpired",
+      });
+      const mapped = mapViemErrorToContractError(
+        { message: "execution reverted", data },
+        "activate",
+        [TEST_ABI],
+      );
+
+      expect(isTerminalActivationError(mapped)).toBe(true);
+    });
+
+    it("returns true for an ActivationNotPossibleError (e.g. already EXPIRED)", () => {
+      const err = new ActivationNotPossibleError(
+        "Cannot activate: BTC Vault is in EXPIRED state.",
+      );
+
+      expect(isTerminalActivationError(err)).toBe(true);
+    });
+
+    it("returns false for a retryable plain Error and null", () => {
+      expect(
+        isTerminalActivationError(new Error("Cannot activate: ... PENDING")),
+      ).toBe(false);
+      expect(isTerminalActivationError(null)).toBe(false);
     });
   });
 });

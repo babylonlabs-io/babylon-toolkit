@@ -9,6 +9,7 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
@@ -130,6 +131,8 @@ function SimpleDepositContent({
     isSplitAmountTooLow,
     depositorClaimValue,
     depositorClaimValueError,
+    btcPublicKeyError,
+    refetchBtcPublicKey,
     ordinalsCheckPending,
     validateForm,
     resetForm,
@@ -301,6 +304,12 @@ function SimpleDepositContent({
     try {
       await reconnectBtcWallet();
       setWalletConnectionError(null);
+      // reconnect() re-auths the raw provider without emitting a connector
+      // event, so re-read the public key explicitly to clear a stuck
+      // btcPublicKeyError once the wallet is unlocked again. Awaited so the
+      // reconnecting state holds until the key is fresh — otherwise the CTA
+      // briefly looks actionable while still showing the stale failure.
+      await refetchBtcPublicKey();
     } catch {
       // The underlying provider throws dev-facing strings (e.g. "BTC wallet
       // provider returned an empty address"). Surface a single polished
@@ -320,6 +329,14 @@ function SimpleDepositContent({
     // dialog.
     if (isDepositBlocked(gate)) return;
 
+    // Address-screening guard on the submit path, mirroring the kill-switch guard
+    // above: the deposit entry points (Activity empty-state CTA, dashboard
+    // Collateral "Deposit" button) don't hide for a screened wallet, so a blocked
+    // address can open this dialog. The form CTA already disables ("Wallet not
+    // eligible"), but block here too so no future entry point can slip a screened
+    // wallet past. Fail closed while screening is still resolving.
+    if (isAddressBlocked || isScreeningLoading) return;
+
     // Per-position BTC Vault cap: never start a deposit that would push the
     // position past the on-chain cap, or when the cap couldn't be read (fail
     // closed) — defense-in-depth behind the disabled CTA.
@@ -331,7 +348,7 @@ function SimpleDepositContent({
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
     // attempting another deposit. The deposit attempt itself is only retried
     // once the user successfully reconnects and the error/lock state clears.
-    if (walletConnectionError || isBtcWalletLocked) {
+    if (walletConnectionError || isBtcWalletLocked || btcPublicKeyError) {
       await handleReconnectWallet();
       return;
     }
@@ -461,8 +478,14 @@ function SimpleDepositContent({
                   // of showing a red inline string; a liveness failure keeps its
                   // detail message.
                   hasWalletConnectionError:
-                    Boolean(walletConnectionError) || isBtcWalletLocked,
-                  walletConnectionErrorMessage: walletConnectionError,
+                    Boolean(walletConnectionError) ||
+                    isBtcWalletLocked ||
+                    btcPublicKeyError !== null,
+                  walletConnectionErrorMessage:
+                    walletConnectionError ??
+                    (btcPublicKeyError
+                      ? COPY.wallet.publicKeyUnavailable
+                      : null),
                   isWalletLocked: isBtcWalletLocked,
                   isVerifyingWallet,
                   isReconnectingWallet,

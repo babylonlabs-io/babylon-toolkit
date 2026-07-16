@@ -43,7 +43,7 @@ export function SidebarBrandLockup({
     </g>
     <defs>
     <clipPath id="sidebarBrandClip">
-    <rect width="81" height="14" fill="white" transform="translate(113 5.25)"/>
+    <rect width="81" height="14" transform="translate(113 5.25)"/>
     </clipPath>
     </defs>
     </svg>

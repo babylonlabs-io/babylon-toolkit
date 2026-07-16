@@ -2,7 +2,7 @@
  * Protocol Params Context
  *
  * Provides protocol parameters from the ProtocolParams contract to all child components.
- * Also provides system-wide data like universal challengers (all versions).
+ * Also provides system-wide data like the latest universal challengers.
  * Fetches params once when the app loads and caches for 5 minutes.
  *
  * This is a BLOCKING provider - children are not rendered until params are loaded.
@@ -47,8 +47,6 @@ interface ProtocolParamsContextValue {
   minVpCommissionBps: number;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
-  /** Get universal challengers by version - use for payout signing existing vaults */
-  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
   /** Get offchain params by version - use for depositor graph signing */
   getOffchainParamsByVersion: (
     version: number,
@@ -112,14 +110,6 @@ export function ProtocolParamsProvider({
     return ucData.byVersion.get(ucData.latestVersion) ?? [];
   }, [ucData]);
 
-  const getUniversalChallengersByVersion = useCallback(
-    (version: number): UniversalChallenger[] => {
-      if (!ucData) return [];
-      return ucData.byVersion.get(version) ?? [];
-    },
-    [ucData],
-  );
-
   const getOffchainParamsByVersion = useCallback(
     (version: number): VersionedOffchainParams | undefined => {
       if (!offchainParamsData) return undefined;
@@ -160,7 +150,6 @@ export function ProtocolParamsProvider({
     timelockRefund: configData.timelockRefund,
     minVpCommissionBps: configData.minVpCommissionBps,
     latestUniversalChallengers,
-    getUniversalChallengersByVersion,
     getOffchainParamsByVersion,
   };
 

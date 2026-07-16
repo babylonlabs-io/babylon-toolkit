@@ -143,14 +143,3 @@ export interface VaultActivity {
    */
   offchainParamsVersion?: number;
 }
-
-/**
- * Legacy activity interface for simple activity displays
- */
-export interface Activity {
-  id: string;
-  date: string;
-  type: "Deposit" | "Withdraw" | "Borrow" | "Repay";
-  amount: string;
-  transactionHash: string;
-}
