@@ -25,6 +25,23 @@ export type TelemetryEvent =
   (typeof TELEMETRY_EVENT)[keyof typeof TELEMETRY_EVENT];
 
 /**
+ * Funnel-stage tags for failure captures. A failure is a `captureException`
+ * (logger.error), not a named message, so tag it with the stage it failed in —
+ * this groups failures by stage in Sentry and lets an alert facet on them. Pair
+ * with a scrubbed `vaultId` in the error's data for the per-vault join back to
+ * the success milestones.
+ */
+export const TELEMETRY_STAGE = {
+  ACTIVATION_WOTS: "activation.wots",
+  ACTIVATION_PAYOUTS: "activation.payouts",
+  ACTIVATION_SECRET: "activation.secret",
+  ACTIVATION_REVEAL: "activation.reveal",
+} as const;
+
+export type TelemetryStage =
+  (typeof TELEMETRY_STAGE)[keyof typeof TELEMETRY_STAGE];
+
+/**
  * Shorten a long identifier (vaultId, provider address, txid) to `first4...last4`
  * before it enters event context. The embedded `...` breaks the address/hex
  * patterns in `scrubString`, so a raw `0x`+40/64-hex id — which would otherwise

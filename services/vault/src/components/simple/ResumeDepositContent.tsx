@@ -45,6 +45,7 @@ import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDep
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
+import { shortId, TELEMETRY_STAGE } from "@/infrastructure/telemetryEvents";
 import {
   ContractStatus,
   getPeginDisplayStep,
@@ -421,6 +422,17 @@ export function ResumeWotsContent({
         onSuccess();
       }
     } catch (err) {
+      // Capture regardless of mount — these resume flows have no abort signal,
+      // so a real WOTS-submission / derivation-drift failure is worth knowing
+      // even if the user has already closed the modal. Only the UI update below
+      // is mount-gated. A mismatch is flagged for faceting.
+      logger.error(err instanceof Error ? err : new Error(String(err)), {
+        tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_WOTS },
+        data: {
+          vaultId: shortId(activity.id),
+          wotsMismatch: isWotsMismatchError(err),
+        },
+      });
       if (mountedRef.current) {
         const msg =
           err instanceof Error ? err.message : "Failed to submit WOTS key";
@@ -660,6 +672,13 @@ export function ResumeActivationContent({
       // error there, not a silent submission.
       await handleActivation(secretHex);
     } catch (err) {
+      // Capture regardless of mount (no abort signal on this flow). The error
+      // message carries only tx hashes (regex-scrubbed) and derivation errors,
+      // never secret bytes. Only the UI update below is mount-gated.
+      logger.error(err instanceof Error ? err : new Error(String(err)), {
+        tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_SECRET },
+        data: { vaultId: shortId(activity.id) },
+      });
       if (mountedRef.current) {
         const msg =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";
