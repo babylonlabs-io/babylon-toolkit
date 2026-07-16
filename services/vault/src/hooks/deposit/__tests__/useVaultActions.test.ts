@@ -186,6 +186,7 @@ const basePendingPegin = {
   buildOffchainParamsVersion: 7,
   buildAppVaultKeepersVersion: 3,
   buildUniversalChallengersVersion: 5,
+  buildVaultCoreVersion: 1,
 };
 
 // Default on-chain reader response that matches `basePendingPegin`'s build
@@ -197,6 +198,7 @@ function makeMatchingProtocolInfoBatch() {
       appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
       universalChallengersVersion:
         basePendingPegin.buildUniversalChallengersVersion,
+      vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
     },
   ]);
 }

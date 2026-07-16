@@ -62,6 +62,13 @@ const MAX_PAYOUT_FEE_FRACTION_DENOMINATOR = 100;
  */
 export interface PayoutParams {
   /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion`. Selects which graph's
+   * payout connector scripts are derived.
+   */
+  vaultCoreVersion: number;
+
+  /**
    * Payout transaction hex (unsigned)
    * This is the transaction that needs to be signed by the depositor
    */
@@ -178,6 +185,7 @@ export async function buildPayoutPsbt(
 
   // Get payout script from WASM
   const payoutConnector = await createPayoutScript({
+    vaultCoreVersion: params.vaultCoreVersion,
     depositor: params.depositorBtcPubkey,
     vaultProvider: params.vaultProviderBtcPubkey,
     vaultKeepers: params.vaultKeeperBtcPubkeys,

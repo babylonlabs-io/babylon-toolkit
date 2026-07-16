@@ -182,6 +182,14 @@ export interface PeginManagerConfig {
  */
 export interface PreparePeginParams {
   /**
+   * Vault core (tx-graph) version to build — the contract's
+   * `ProtocolParams.activeVaultCoreVersion()` at build time. Stamped onto
+   * the vault at registration; every Pre-PegIn/PegIn artifact this manager
+   * constructs derives from this graph version.
+   */
+  vaultCoreVersion: number;
+
+  /**
    * Amounts to peg in per HTLC (in satoshis).
    * Must have the same length as `hashlocks`.
    * For single deposits, pass a single-element array.
@@ -772,6 +780,7 @@ export class PeginManager {
     const numLocalChallengers = params.vaultKeeperBtcPubkeys.length;
 
     const prePegin = await buildPrePeginPsbt({
+      vaultCoreVersion: params.vaultCoreVersion,
       depositorPubkey: depositorBtcPubkey,
       vaultProviderPubkey: stripHexPrefix(params.vaultProviderBtcPubkey),
       vaultKeeperPubkeys: params.vaultKeeperBtcPubkeys.map(stripHexPrefix),
@@ -857,6 +866,7 @@ export class PeginManager {
     const numLocalChallengers = vaultKeeperBtcPubkeys.length;
 
     const prePeginParams: PrePeginParams = {
+      vaultCoreVersion: params.vaultCoreVersion,
       depositorPubkey: depositorBtcPubkey,
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
@@ -905,6 +915,7 @@ export class PeginManager {
       });
 
       const peginInputPsbtResult = await buildPeginInputPsbt({
+        vaultCoreVersion: params.vaultCoreVersion,
         peginTxHex: peginTxResult.txHex,
         fundedPrePeginTxHex,
         depositorPubkey: depositorBtcPubkey,

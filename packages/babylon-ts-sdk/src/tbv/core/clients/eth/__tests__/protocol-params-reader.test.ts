@@ -38,6 +38,7 @@ function createMockPublicClient(overrides?: {
   tbvParams?: unknown;
   offchainParams?: unknown;
   version?: unknown;
+  activeVaultCoreVersion?: unknown;
   perVersionOffchainParams?: Map<number, unknown>;
 }) {
   return {
@@ -87,6 +88,9 @@ function createMockPublicClient(overrides?: {
           }
           if (c.functionName === "latestOffchainParamsVersion") {
             return overrides?.version ?? 3;
+          }
+          if (c.functionName === "activeVaultCoreVersion") {
+            return overrides?.activeVaultCoreVersion ?? 1;
           }
           if (c.functionName === "getOffchainParamsByVersion") {
             const v = (c.args?.[0] as number) ?? 0;
@@ -209,6 +213,8 @@ describe("ViemProtocolParamsReader", () => {
     expect(config.offchainParams.minPrepeginDepth).toBe(6);
     // offchainParamsVersion is paired atomically with offchainParams.
     expect(config.offchainParamsVersion).toBe(3);
+    // activeVaultCoreVersion rides the same multicall (atomic with params).
+    expect(config.activeVaultCoreVersion).toBe(1);
   });
 
   it("getLatestOffchainParamsVersion throws on a malformed (non-uint32) payload", async () => {
@@ -242,6 +248,21 @@ describe("ViemProtocolParamsReader", () => {
     );
   });
 
+  it("getPegInConfiguration throws when activeVaultCoreVersion is 0", async () => {
+    // The contract setter rejects 0, so a 0 read means a mis-decoded
+    // payload or a pre-vaultCoreVersion contract. Building a graph with a
+    // guessed version would strand the deposit — fail closed instead.
+    const publicClient = createMockPublicClient({ activeVaultCoreVersion: 0 });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPegInConfiguration()).rejects.toThrow(
+      /Invalid vaultCoreVersion 0 from ProtocolParams.activeVaultCoreVersion/,
+    );
+  });
+
   it("getPegInConfiguration multicalls TBV params + offchain params + version atomically", async () => {
     const publicClient = createMockPublicClient();
     const reader = new ViemProtocolParamsReader(
@@ -258,6 +279,7 @@ describe("ViemProtocolParamsReader", () => {
       "getTBVProtocolParams",
       "getLatestOffchainParams",
       "latestOffchainParamsVersion",
+      "activeVaultCoreVersion",
     ]);
   });
 

@@ -64,6 +64,7 @@ export interface PendingPeginRequest {
   buildOffchainParamsVersion?: number;
   buildAppVaultKeepersVersion?: number;
   buildUniversalChallengersVersion?: number;
+  buildVaultCoreVersion?: number;
 }
 
 // Hex with optional 0x prefix and at least one byte (even-length).
@@ -204,6 +205,7 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     "buildOffchainParamsVersion",
     "buildAppVaultKeepersVersion",
     "buildUniversalChallengersVersion",
+    "buildVaultCoreVersion",
   ] as const;
   const versionsRequired = pegin.status !== "refund_broadcast";
   for (const field of versionFields) {

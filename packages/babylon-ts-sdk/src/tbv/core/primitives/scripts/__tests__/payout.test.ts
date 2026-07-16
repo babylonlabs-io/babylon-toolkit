@@ -11,7 +11,6 @@ import {
   TEST_KEYS,
   initializeWasmForTests,
 } from "../../psbt/__tests__/helpers";
-import { TX_GRAPH_VERSION_V1 } from "../../txGraphVersion";
 import { createPayoutScript, type PayoutScriptParams } from "../payout";
 
 describe("createPayoutScript", () => {
@@ -23,6 +22,7 @@ describe("createPayoutScript", () => {
   describe("Basic functionality", () => {
     it("should create a valid payout script for signet", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -60,6 +60,7 @@ describe("createPayoutScript", () => {
 
       for (const network of networks) {
         const params: PayoutScriptParams = {
+          vaultCoreVersion: 1,
           depositor: TEST_KEYS.DEPOSITOR,
           vaultProvider: TEST_KEYS.VAULT_PROVIDER,
           vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -88,6 +89,7 @@ describe("createPayoutScript", () => {
 
     it("should handle multiple vault keepers", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
@@ -106,6 +108,7 @@ describe("createPayoutScript", () => {
 
     it("should handle multiple universal challengers", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -129,6 +132,7 @@ describe("createPayoutScript", () => {
   describe("Integration with WASM", () => {
     it("should produce same output as calling WASM directly", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -140,10 +144,10 @@ describe("createPayoutScript", () => {
       // Call our SDK function
       const sdkResult = await createPayoutScript(params);
 
-      // Call WASM directly (same v1 pin createPayoutScript uses internally)
+      // Call WASM directly with the same version createPayoutScript forwards
       const wasmResult = await createPayoutConnector(
         {
-          txGraphVersion: TX_GRAPH_VERSION_V1,
+          txGraphVersion: params.vaultCoreVersion,
           depositor: params.depositor,
           vaultProvider: params.vaultProvider,
           vaultKeepers: params.vaultKeepers,
@@ -164,6 +168,7 @@ describe("createPayoutScript", () => {
   describe("Deterministic output", () => {
     it("should produce the same result for the same inputs", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -183,6 +188,7 @@ describe("createPayoutScript", () => {
 
     it("should produce different results for different depositors", async () => {
       const params1: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -207,6 +213,7 @@ describe("createPayoutScript", () => {
 
     it("should produce different results for different vault providers", async () => {
       const params1: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -231,6 +238,7 @@ describe("createPayoutScript", () => {
 
     it("should produce different results for different vault keepers", async () => {
       const params1: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -258,6 +266,7 @@ describe("createPayoutScript", () => {
     it("should create a payout script for a realistic vault scenario", async () => {
       // Realistic scenario: Vault with 2 vault keepers and 2 universal challengers
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
@@ -292,6 +301,7 @@ describe("createPayoutScript", () => {
   describe("Type safety", () => {
     it("should enforce Network type", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -308,6 +318,7 @@ describe("createPayoutScript", () => {
   describe("Error handling", () => {
     it("should reject invalid depositor pubkey format", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: "invalid-pubkey",
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -321,6 +332,7 @@ describe("createPayoutScript", () => {
 
     it("should reject invalid vault provider pubkey format", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: "not-a-valid-hex-key-123",
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -334,6 +346,7 @@ describe("createPayoutScript", () => {
 
     it("should reject invalid vault keeper pubkey in array", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: ["zzzzinvalidhexzzzz"],
@@ -347,6 +360,7 @@ describe("createPayoutScript", () => {
 
     it("should reject invalid network string", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -360,6 +374,7 @@ describe("createPayoutScript", () => {
 
     it("should reject pubkey with incorrect length", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: "abcd1234", // Too short
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -373,6 +388,7 @@ describe("createPayoutScript", () => {
 
     it("should reject pubkey with non-hex characters", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: "g".repeat(64), // 'g' is not a valid hex character
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -388,6 +404,7 @@ describe("createPayoutScript", () => {
   describe("Script structure validation", () => {
     it("should produce valid hex-encoded payout script", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -404,6 +421,7 @@ describe("createPayoutScript", () => {
 
     it("should produce valid taproot script hash", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -423,6 +441,7 @@ describe("createPayoutScript", () => {
 
     it("should produce valid script pubkey", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -439,6 +458,7 @@ describe("createPayoutScript", () => {
 
     it("should produce deterministic taproot script hash for same inputs", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -458,6 +478,7 @@ describe("createPayoutScript", () => {
   describe("Network-specific behavior", () => {
     it("should produce bitcoin mainnet addresses with bc1p prefix", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -473,6 +494,7 @@ describe("createPayoutScript", () => {
 
     it("should produce testnet addresses with tb1p prefix", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -488,6 +510,7 @@ describe("createPayoutScript", () => {
 
     it("should produce regtest addresses with bcrt1p prefix", async () => {
       const params: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
@@ -503,6 +526,7 @@ describe("createPayoutScript", () => {
 
     it("should produce same script for different networks", async () => {
       const params1: PayoutScriptParams = {
+        vaultCoreVersion: 1,
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],

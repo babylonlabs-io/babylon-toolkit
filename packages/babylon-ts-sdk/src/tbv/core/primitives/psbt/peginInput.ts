@@ -19,12 +19,17 @@ import {
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { TAPSCRIPT_LEAF_VERSION, hexToUint8Array, stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
-import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 /**
  * Parameters for building the PegIn input PSBT
  */
 export interface BuildPeginInputPsbtParams {
+  /**
+   * Vault core (tx-graph) version the Pre-PegIn was built with. Must match
+   * the version passed to buildPrePeginPsbt() so the HTLC connector scripts
+   * are derived for the same graph.
+   */
+  vaultCoreVersion: number;
   /**
    * PegIn transaction hex (1 input spending Pre-PegIn HTLC output 0).
    * Returned by buildPeginTxFromFundedPrePegin().
@@ -85,7 +90,7 @@ export async function buildPeginInputPsbt(
   const fundedPrePeginTxHex = stripHexPrefix(params.fundedPrePeginTxHex);
 
   const htlcConnector = await getPrePeginHtlcConnectorInfo({
-    txGraphVersion: TX_GRAPH_VERSION_V1,
+    txGraphVersion: params.vaultCoreVersion,
     depositorPubkey: params.depositorPubkey,
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,

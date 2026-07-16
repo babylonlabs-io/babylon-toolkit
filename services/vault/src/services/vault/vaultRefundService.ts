@@ -298,8 +298,19 @@ async function discoverBatch(
     (id) => id.toLowerCase() !== targetIdLower,
   );
 
-  const candidateOnChain = await Promise.all(
-    candidateIds.map((id) => getVaultFromChain(id)),
+  // Lean sibling filter first: one multicall for the candidates'
+  // prePeginTxHash only. The fully-validated getVaultFromChain read (which
+  // fail-closes on a bad stamped vaultCoreVersion) runs only for actual
+  // siblings — an unrelated broken vault in the depositor's list must not
+  // block this refund.
+  const candidateInfos =
+    await getVaultRegistryReader().getProtocolInfoBatch(candidateIds);
+  const siblingIds = candidateIds.filter(
+    (_, i) =>
+      candidateInfos[i].prePeginTxHash.toLowerCase() === targetPrePeginTxHash,
+  );
+  const siblingOnChain = await Promise.all(
+    siblingIds.map((id) => getVaultFromChain(id)),
   );
 
   const siblings: VaultBatchEntry[] = [
@@ -309,8 +320,8 @@ async function discoverBatch(
       htlcVout: target.onChainVault.htlcVout,
     },
   ];
-  for (let i = 0; i < candidateIds.length; i++) {
-    const sib = candidateOnChain[i];
+  for (const sib of siblingOnChain) {
+    // Re-check on the validated read — the two reads are separate RPCs.
     if (sib.prePeginTxHash.toLowerCase() !== targetPrePeginTxHash) continue;
     siblings.push({
       hashlock: sib.hashlock,
@@ -346,6 +357,7 @@ async function readVaultForRefund(
   const batch = await discoverBatch(target, vaultId, depositorAddress);
 
   return {
+    vaultCoreVersion: target.onChainVault.vaultCoreVersion,
     hashlock: target.onChainVault.hashlock,
     htlcVout: target.onChainVault.htlcVout,
     offchainParamsVersion: target.onChainVault.offchainParamsVersion,

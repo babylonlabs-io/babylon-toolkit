@@ -189,6 +189,7 @@ describe("buildPayoutPsbt", () => {
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       const params: PayoutParams = {
+        vaultCoreVersion: 1,
         payoutTxHex,
         peginTxHex,
         assertTxHex,
@@ -241,6 +242,7 @@ describe("buildPayoutPsbt", () => {
 
       for (const network of networks) {
         const params: PayoutParams = {
+          vaultCoreVersion: 1,
           payoutTxHex,
           peginTxHex,
           assertTxHex,
@@ -272,6 +274,7 @@ describe("buildPayoutPsbt", () => {
       const payoutTx = Transaction.fromHex(payoutTxHex);
 
       const params: PayoutParams = {
+        vaultCoreVersion: 1,
         payoutTxHex,
         peginTxHex,
         assertTxHex,
@@ -312,6 +315,7 @@ describe("buildPayoutPsbt", () => {
       const payoutTxHex = wrongTx.toHex();
 
       const params: PayoutParams = {
+        vaultCoreVersion: 1,
         payoutTxHex,
         peginTxHex,
         assertTxHex,
@@ -358,6 +362,7 @@ describe("buildPayoutPsbt", () => {
       const payoutTxHex = wrongTx.toHex();
 
       const params: PayoutParams = {
+        vaultCoreVersion: 1,
         payoutTxHex,
         peginTxHex,
         assertTxHex,
@@ -403,6 +408,7 @@ describe("buildPayoutPsbt", () => {
       const payoutTxHex = wrongTx.toHex();
 
       const params: PayoutParams = {
+        vaultCoreVersion: 1,
         payoutTxHex,
         peginTxHex,
         assertTxHex,
@@ -430,6 +436,7 @@ describe("buildPayoutPsbt", () => {
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       const params: PayoutParams = {
+        vaultCoreVersion: 1,
         payoutTxHex,
         peginTxHex,
         assertTxHex,
@@ -807,6 +814,7 @@ describe("buildPayoutPsbt — per-role output validation", () => {
 
   function baseParams(overrides: Partial<PayoutParams>): PayoutParams {
     return {
+      vaultCoreVersion: 1,
       payoutTxHex: "",
       peginTxHex: "",
       assertTxHex: "",
@@ -1080,6 +1088,7 @@ describe("buildPayoutPsbt — implicit-fee bound (value-burn variant)", () => {
 
     await expect(
       buildPayoutPsbt({
+        vaultCoreVersion: 1,
         payoutTxHex,
         assertTxHex,
         peginTxHex,
@@ -1109,6 +1118,7 @@ describe("buildPayoutPsbt — implicit-fee bound (value-burn variant)", () => {
 
     await expect(
       buildPayoutPsbt({
+        vaultCoreVersion: 1,
         payoutTxHex,
         assertTxHex,
         peginTxHex,

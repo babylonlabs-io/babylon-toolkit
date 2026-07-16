@@ -20,6 +20,7 @@ import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUns
 import { extractPayoutSignature } from "../../primitives/psbt/payout";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
+import { assertValidVaultCoreVersion } from "../../primitives/vaultCoreVersion";
 import {
   processPublicKeyToXOnly,
   stripHexPrefix,
@@ -138,6 +139,12 @@ export interface VaultBatchEntry {
  * so the WASM template matches the funded tx's shape.
  */
 export interface VaultRefundData {
+  /**
+   * Vault core (tx-graph) version stamped on-chain at registration
+   * (`BTCVaultProtocolInfo.vaultCoreVersion`). The refund template must be
+   * reconstructed under the same graph version the Pre-PegIn was built with.
+   */
+  vaultCoreVersion: number;
   hashlock: Hex;
   htlcVout: number;
   offchainParamsVersion: number;
@@ -296,6 +303,10 @@ function validateVaultRefundData(v: VaultRefundData): void {
   assertNonNegativeInteger(
     v.universalChallengersVersion,
     "universalChallengersVersion",
+  );
+  assertValidVaultCoreVersion(
+    v.vaultCoreVersion,
+    "VaultRefundData.vaultCoreVersion",
   );
   if (
     typeof v.unsignedPrePeginTxHex !== "string" ||
@@ -498,6 +509,7 @@ export async function buildAndBroadcastRefund<
 
   const { psbtHex } = await buildRefundPsbt({
     prePeginParams: {
+      vaultCoreVersion: vault.vaultCoreVersion,
       depositorPubkey: xOnlyDepositorPubkey,
       vaultProviderPubkey: stripHexPrefix(ctx.vaultProviderPubkey),
       vaultKeeperPubkeys: ctx.vaultKeeperPubkeys.map(stripHexPrefix),

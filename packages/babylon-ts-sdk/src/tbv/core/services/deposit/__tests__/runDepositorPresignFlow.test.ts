@@ -145,6 +145,7 @@ function createMockWallet(): BitcoinWallet {
 
 function createSigningContext(): PayoutSigningContext {
   return {
+    vaultCoreVersion: 1,
     peginTxHex: "01000000" + "00".repeat(60),
     vaultProviderBtcPubkey: VP_PUBKEY,
     vaultKeeperBtcPubkeys: [VK_PUBKEY],
