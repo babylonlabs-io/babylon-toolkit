@@ -13,6 +13,7 @@ import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
 import { SplitTooLowHint } from "./SplitTooLowHint";
+import { SuggestedDepositContainer } from "./SuggestedDepositContainer";
 import {
   UtxoSplitSelector,
   type TwoVaultSplitProps,
@@ -57,6 +58,7 @@ export interface DepositAmountState {
   effectiveRemaining: bigint | null;
   /** True when the supply-cap read errored — CTA must reflect this. */
   capUnavailable: boolean;
+  suggestedAmountSats?: bigint | null;
 }
 
 export interface DepositFeeState {
@@ -206,6 +208,7 @@ export function DepositForm({
     maxDepositSats,
     effectiveRemaining,
     capUnavailable,
+    suggestedAmountSats,
   } = amountState;
   const {
     minPeginFee,
@@ -431,6 +434,17 @@ export function DepositForm({
           btcPrice={btcPrice}
           hasPriceFetchError={hasPriceFetchError}
         />
+        {suggestedAmountSats != null && (
+          <SuggestedDepositContainer
+            suggestedAmountLabel={`${Number(depositService.formatSatoshisToBtc(suggestedAmountSats))} ${btcConfig.coinSymbol}`}
+            isSelected={amountSats === suggestedAmountSats}
+            onSelect={() =>
+              onAmountChange(
+                depositService.formatSatoshisToBtc(suggestedAmountSats),
+              )
+            }
+          />
+        )}
         {/* When the amount is too low to split, an inline hint sits inside the
             amount card (below "Max to Borrow") telling the user the minimum
             they need. The split selector below stays visible with its

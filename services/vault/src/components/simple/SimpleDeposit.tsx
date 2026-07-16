@@ -17,6 +17,7 @@ import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOver
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
+import { depositService } from "@/services/deposit";
 import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -220,6 +221,10 @@ function SimpleDepositContent({
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
+  const suggestedAmountSats =
+    initialAmountBtc && FeatureFlags.isV3UiEnabled
+      ? depositService.parseBtcToSatoshis(initialAmountBtc)
+      : null;
   const allowSplit =
     !isSupplementalDeposit &&
     !isSplitCapReached &&
@@ -282,9 +287,10 @@ function SimpleDepositContent({
     setOverlappingPendingVaultCount(null);
     resetDeposit();
     resetForm();
-    // Re-apply the suggested amount for supplemental deposits opened from a
-    // notification; plain opens start blank.
-    if (initialAmountBtc) {
+    // v2 pre-fills the suggested amount for supplemental deposits opened from a
+    // notification. v3 offers it via SuggestedDepositContainer instead so the
+    // user selects it; plain opens start blank.
+    if (initialAmountBtc && !FeatureFlags.isV3UiEnabled) {
       setFormData({ amountBtc: initialAmountBtc });
     }
   }, [
@@ -443,6 +449,7 @@ function SimpleDepositContent({
                   maxDepositSats,
                   effectiveRemaining,
                   capUnavailable,
+                  suggestedAmountSats,
                 }}
                 feeState={{
                   minPeginFee,
