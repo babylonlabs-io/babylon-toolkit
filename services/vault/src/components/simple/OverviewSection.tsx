@@ -6,7 +6,7 @@
  * connected; the disconnected entry screen is handled by DashboardPage.
  */
 
-import { Heading, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import { Heading, Hint, InfoIcon, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import {
@@ -20,6 +20,7 @@ import {
   type HealthFactorGaugeStat,
   HeartIcon,
 } from "@/components/shared";
+import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 
 interface OverviewSectionProps {
@@ -69,6 +70,11 @@ export function OverviewSection({
   btcPrice,
   pctToLiquidation,
 }: OverviewSectionProps) {
+  const isMobile = useIsMobile();
+  // v3 desktop replaces this in-page heading with the persistent header's
+  // page title; v3 mobile has no header title slot (Header only shows it on
+  // desktop), so the heading must stay to avoid a page with no title at all.
+  const hideHeading = FeatureFlags.isV3UiEnabled && !isMobile;
   const healthFactorFormatted =
     healthFactor !== null && healthFactor > HEALTH_FACTOR_HEALTHY_THRESHOLD
       ? COPY.overview.healthFactorHealthy
@@ -87,15 +93,17 @@ export function OverviewSection({
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex items-center justify-between">
-        <Heading
-          variant="h5"
-          as="h2"
-          className="font-normal text-accent-primary"
-        >
-          {COPY.overview.heading}
-        </Heading>
-      </div>
+      {!hideHeading && (
+        <div className="flex items-center justify-between">
+          <Heading
+            variant="h5"
+            as="h2"
+            className="font-normal text-accent-primary"
+          >
+            {COPY.overview.heading}
+          </Heading>
+        </div>
+      )}
 
       <div className="w-full rounded-2xl bg-secondary-highlight p-6">
         <div className="space-y-4">

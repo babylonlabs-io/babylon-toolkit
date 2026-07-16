@@ -20,19 +20,13 @@ import type { ReactNode } from "react";
 import { MemoryRouter, Outlet } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
+
 const featureFlagsState = vi.hoisted(() => ({ isV3UiEnabled: false }));
 
-vi.mock("@/config/featureFlags", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/config/featureFlags")>();
-  return {
-    default: Object.create(actual.default, {
-      isV3UiEnabled: {
-        get: () => featureFlagsState.isV3UiEnabled,
-        enumerable: true,
-      },
-    }),
-  };
-});
+vi.mock("@/config/featureFlags", () => ({
+  default: featureFlagsState,
+}));
 
 vi.mock("../components/pages/RootLayout", () => ({
   default: () => <Outlet context={{ openDeposit: () => {} }} />,
@@ -201,7 +195,7 @@ describe("Router — reserve detail is an overlay over the persistent dashboard"
 });
 
 describe("Router — v3-only routes are gated on the ENABLE_V3_UI flag", () => {
-  const V3_ROUTE_PATHS = ["vaults", "loans", "liquidations"];
+  const V3_ROUTE_PATHS = V3_GUARDED_ROUTE_PATHS;
 
   beforeEach(() => {
     vi.clearAllMocks();

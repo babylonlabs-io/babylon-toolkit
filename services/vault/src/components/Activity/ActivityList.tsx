@@ -1,6 +1,8 @@
-import { Avatar, Heading } from "@babylonlabs-io/core-ui";
+import { Avatar, Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
+import { twJoin } from "tailwind-merge";
 
+import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
 
@@ -27,6 +29,11 @@ interface ActivityListProps {
 }
 
 export function ActivityList({ activities, isConnected }: ActivityListProps) {
+  const isMobile = useIsMobile();
+  // v3 desktop replaces this in-page heading with the persistent header's
+  // page title; v3 mobile has no header title slot (Header only shows it on
+  // desktop), so the heading must stay to avoid a page with no title at all.
+  const hideHeading = FeatureFlags.isV3UiEnabled && !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
 
   // The filter control is hidden when the wallet disconnects, so leaving the
@@ -42,26 +49,35 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <Heading
-          variant="h5"
-          as="h2"
-          className="font-normal text-accent-primary"
+      {(!hideHeading || isConnected) && (
+        <div
+          className={twJoin(
+            "flex items-center gap-4",
+            hideHeading ? "justify-end" : "justify-between",
+          )}
         >
-          {COPY.activity.pageTitle}
-        </Heading>
-        {isConnected && (
-          <div className="flex items-center gap-4">
-            <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
-            <FilterDropdown
-              value={filter}
-              placeholder={COPY.activity.filterAll}
-              options={FILTER_OPTIONS}
-              onChange={setFilter}
-            />
-          </div>
-        )}
-      </div>
+          {!hideHeading && (
+            <Heading
+              variant="h5"
+              as="h2"
+              className="font-normal text-accent-primary"
+            >
+              {COPY.activity.pageTitle}
+            </Heading>
+          )}
+          {isConnected && (
+            <div className="flex items-center gap-4">
+              <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
+              <FilterDropdown
+                value={filter}
+                placeholder={COPY.activity.filterAll}
+                options={FILTER_OPTIONS}
+                onChange={setFilter}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <ActivityEmptyState
