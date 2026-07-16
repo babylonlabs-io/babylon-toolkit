@@ -209,11 +209,15 @@ async function openPendingDeposit(
  * `--interrupt-fresh`: peg in a fresh deposit only as far as the Pre-PegIn broadcast, then reload the
  * page to a cold state so the deposit must be resumed from the dashboard (the realistic "closed the tab,
  * came back later" scenario). Reuses the pegin form + signing helpers and the shared broadcast walk.
+ *
+ * Returns the fresh Pre-PegIn txid so the caller can target exactly THIS deposit when resuming — without
+ * it the resume would fall back to the first actionable pending card and could pick up an unrelated
+ * deposit (the dashboard commonly lists several in flight).
  */
 async function peginUntilInterrupt(
   ctx: ActionContext,
   onStep: (step: string) => void,
-): Promise<void> {
+): Promise<string> {
   const { page, context, log } = ctx;
   const amountBtc = ctx.config.peginAmountBtc?.trim();
   if (!amountBtc)
@@ -241,20 +245,28 @@ async function peginUntilInterrupt(
   onStep("reload");
   await page.reload({ waitUntil: "domcontentloaded" });
   await ensureConnected(ctx);
+  return txid;
 }
 
 /**
  * Resume the pending deposit through to activation: open its resume flow, then hand off to the shared
  * step machine (WOTS → Sign → Activate → Go to Dashboard) and the dashboard collateral cross-check.
+ *
+ * `targetTxid` (the just-created deposit's Pre-PegIn txid under `--interrupt-fresh`) takes precedence
+ * over `--txid`; when neither is set, `openPendingDeposit` falls back to the first actionable card.
  */
 async function runResumeFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
+  targetTxid?: string,
 ): Promise<void> {
   const { page, context, log } = ctx;
 
   onStep("open-pending-deposit");
-  await openPendingDeposit(ctx, normalizeTxid(ctx.config.resumeTxid));
+  await openPendingDeposit(
+    ctx,
+    normalizeTxid(targetTxid ?? ctx.config.resumeTxid),
+  );
 
   onStep("resume-step-machine");
   const expectedVaults = ctx.config.split ? 2 : 1;
@@ -299,13 +311,20 @@ export const resumeAction: Action = {
     );
     try {
       await connectWallets(ctx);
-      if (ctx.config.interruptFresh)
-        await peginUntilInterrupt(ctx, (step) => {
+      // --interrupt-fresh pegs in a new deposit and returns its Pre-PegIn txid so the resume targets
+      // exactly that card (not the first actionable one, which could be an unrelated pending deposit).
+      const freshTxid = ctx.config.interruptFresh
+        ? await peginUntilInterrupt(ctx, (step) => {
+            currentStep = step;
+          })
+        : undefined;
+      await runResumeFlow(
+        ctx,
+        (step) => {
           currentStep = step;
-        });
-      await runResumeFlow(ctx, (step) => {
-        currentStep = step;
-      });
+        },
+        freshTxid,
+      );
     } finally {
       await recorder.stop();
       context.off("page", handler);

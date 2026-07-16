@@ -125,9 +125,7 @@ async function handleArtifactSkip(
  * dashboard lists several. Scans hrefs Node-side (no page-context function) and skips ETH links: an
  * ETH `/tx/0x…` hash never matches the 64-hex-no-0x BTC pattern.
  */
-export async function readPrePeginTxid(
-  page: Page,
-): Promise<string | undefined> {
+async function readPrePeginTxid(page: Page): Promise<string | undefined> {
   const links = page.locator('a[href*="/tx/"]');
   const count = await links.count().catch(() => 0);
   for (let i = 0; i < count; i++) {
@@ -148,7 +146,7 @@ export async function readPrePeginTxid(
  * labels — the two lanes advance independently and may sit on different steps. The single progressbar
  * reflects the aggregate (slowest lane).
  */
-export async function readActiveStep(page: Page): Promise<string> {
+async function readActiveStep(page: Page): Promise<string> {
   const actives = page.locator('[aria-label$="active"]');
   const count = await actives.count().catch(() => 0);
   const labels: string[] = [];
@@ -338,6 +336,10 @@ export async function walkStepMachine(
   );
 }
 
+/** Ticks (× PEGIN_POLL_INTERVAL_MS) to keep sweeping pop-ups after the Pre-PegIn txid appears, so the
+ *  broadcast call lands before an interrupt reload. */
+const BROADCAST_SETTLE_TICKS = 3;
+
 /**
  * Drive the signing sequence only up to the Pre-PegIn broadcast and return its txid. Used by the
  * `resume` action's `--interrupt-fresh` path to reach an on-chain, resumable deposit, which it then
@@ -383,10 +385,6 @@ export async function walkUntilPrePeginBroadcast(
     "Pre-PegIn was not broadcast (no BTC txid linked in the progress view) within the step-machine budget — see trace.zip",
   );
 }
-
-/** Ticks (× PEGIN_POLL_INTERVAL_MS) to keep sweeping pop-ups after the Pre-PegIn txid appears, so the
- *  broadcast call lands before an interrupt reload. */
-const BROADCAST_SETTLE_TICKS = 3;
 
 /**
  * Finish line: click "Go to Dashboard", then best-effort confirm the vault landed as collateral. The
