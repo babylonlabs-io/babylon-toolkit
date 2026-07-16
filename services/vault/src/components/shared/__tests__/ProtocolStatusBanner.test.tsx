@@ -33,7 +33,7 @@ describe("ProtocolStatusBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the frozen card with a Learn more link when a scope is frozen", () => {
+  it("shows the frozen card with no external link when a scope is frozen", () => {
     gateMock.value = { protocol: "frozen", aave: null };
 
     render(<ProtocolStatusBanner />);
@@ -42,8 +42,7 @@ describe("ProtocolStatusBanner", () => {
     expect(
       screen.getByText(/temporarily restricted while the protocol is frozen/),
     ).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Learn more" });
-    expect(link.getAttribute("href")).toMatch(/^https?:\/\//);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("shows the paused card when a scope is paused", () => {
@@ -81,9 +80,7 @@ describe("ProtocolStatusBanner", () => {
     expect(
       screen.queryByText(/New deposits and borrows are disabled/),
     ).not.toBeInTheDocument();
-    // The Learn more link still renders alongside the custom message.
-    expect(
-      screen.getByRole("link", { name: "Learn more" }),
-    ).toBeInTheDocument();
+    // The freeform override renders on its own, with no appended docs link.
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

@@ -60,8 +60,6 @@ const ACTIVATION_REQUIRED_LABEL = "Activation required";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
-// Trailing "Learn more" link label, shared by the frozen and paused status banners.
-const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
 // In-place cancel action for an in-flight artifact download, shared by the
 // artifact-download and activate-confirmation dialog footers so the two
 // can't drift.
@@ -1275,7 +1273,7 @@ export const COPY = {
   },
   // Operator-controlled protocol governance-status banners (Freeze / Pause). The
   // body may be overridden per incident via NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE;
-  // these are the defaults. Each renders a trailing "Learn more" link.
+  // these are the defaults.
   //
   // INTERIM copy: states only what the dApp currently *enforces* (new deposits
   // and borrows are disabled — see `isDepositBlocked` / `isBorrowBlocked`). The
@@ -1291,14 +1289,12 @@ export const COPY = {
       // that reassurance is safe to state. The per-action buttons are the
       // precise source of truth.
       body: "Some new actions are temporarily restricted while the protocol is frozen. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
-      learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
     paused: {
       title: "Protocol is paused",
       // Non-specific for the same reason — under a per-scope pause the exact set
       // of blocked actions varies. Each affected button explains itself.
       body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
-      learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
   },
   // Full-width critical banner rendered above the header when the position is at

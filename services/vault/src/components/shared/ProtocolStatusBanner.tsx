@@ -13,11 +13,6 @@ import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
-// TODO: swap for the confirmed protocol-status docs URL once product provides
-// it. Until then, enabling the freeze/pause flags in an environment should be
-// gated on the real URL being set.
-const PROTOCOL_STATUS_LEARN_MORE_URL = "https://docs.babylonlabs.io";
-
 // frozen = teal/info-light (you can still act); paused = red/error-light (full
 // stop). The core-ui variant names ("paused"/"halted") are visual styles, kept
 // as-is — only the protocol-status naming changed.
@@ -51,15 +46,7 @@ export function ProtocolStatusBanner() {
         title={copy.title}
         data-testid="protocol-status-banner"
       >
-        {body}{" "}
-        <a
-          href={PROTOCOL_STATUS_LEARN_MORE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-accent-primary underline"
-        >
-          {copy.learnMore}
-        </a>
+        {body}
       </Notification>
     </Container>
   );
