@@ -67,6 +67,14 @@ export const PEGIN_STEP_MACHINE_BUDGET_MS = 2.5 * 60 * 60 * 1_000;
 /** How often to poll the progress UI (advance the step log, handle the Activate/Skip dapp gates). */
 export const PEGIN_POLL_INTERVAL_MS = 3_000;
 /**
+ * How many times to click a step-machine "Transaction failed → Retry" before giving up. A recoverable
+ * failure here is almost always the intermittent public-Sepolia RPC gas-estimation flake (a null
+ * `gasLimit` on an activation/step tx), which clears on a retry — the app offers a Retry button for
+ * exactly this. A genuinely-failing tx exhausts these retries and the run aborts with the callout
+ * instead of spinning to the multi-hour step-machine budget.
+ */
+export const PEGIN_TX_FAILURE_RETRY_LIMIT = 3;
+/**
  * The activated vault to surface as collateral on the dashboard after "Go to Dashboard" — it appears
  * optimistically ("Activating collateral…") but can lag the indexer catching up.
  */
@@ -130,6 +138,31 @@ export const REPAY_CTA_ENABLE_TIMEOUT_MS = 90_000;
 export const REPAY_TX_TIMEOUT_MS = 120_000;
 /** Poll cadence for the on-chain "debt fell" post-condition check after the success screen. */
 export const REPAY_VERIFY_POLL_MS = 3_000;
+
+// ── withdraw ───────────────────────────────────────────────────────────────────
+/**
+ * The Collateral "⋯" actions menu to appear + enable on the dashboard. It's only RENDERED when the
+ * position holds collateral, so after a chained repay/borrow it can lag while the position settles;
+ * generous so a slow-to-render menu isn't mistaken for "no collateral" (a hard fail).
+ */
+export const WITHDRAW_MENU_TIMEOUT_MS = 30_000;
+/** The withdraw selection modal to render after clicking the "Withdraw" menu item. */
+export const WITHDRAW_MODAL_TIMEOUT_MS = 15_000;
+/**
+ * A withdraw CTA (the modal's "Withdraw {amount}" confirm, then the Review "Confirm") to enable after a
+ * selection is made — the Review screen recomputes the projected health factor + fees first. Generous so
+ * a slow risk-param read isn't mistaken for a blocked withdrawal; a genuine HF breach fails fast via the
+ * block warning.
+ */
+export const WITHDRAW_CTA_ENABLE_TIMEOUT_MS = 90_000;
+/**
+ * The single withdraw ETH transaction to confirm on Sepolia (the approver confirms the MetaMask pop-up →
+ * the app shows "Withdrawal initiated"). One tx, so a minute-plus is ample; a stuck tx fails the run
+ * (trace captured) instead of hanging. Reused as the on-chain collateral-fell verification budget.
+ */
+export const WITHDRAW_TX_TIMEOUT_MS = 90_000;
+/** Poll cadence for the post-withdraw on-chain collateral-fell check (a light `getPosition` read). */
+export const WITHDRAW_VERIFY_POLL_MS = 3_000;
 
 // ── sign-conformance (per-wallet signing replay) ─────────────────────────────
 /**

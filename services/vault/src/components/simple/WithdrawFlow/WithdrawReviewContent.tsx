@@ -208,12 +208,14 @@ export function WithdrawReviewContent({
             </Text>
           )}
 
+          {/* This control's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
           <Button
             variant="contained"
             color="secondary"
             className="w-full"
             disabled={isProcessing || wouldBreachHF}
             onClick={onConfirm}
+            data-testid="withdraw-confirm-button"
           >
             {isProcessing ? (
               <span className="flex items-center justify-center gap-2">

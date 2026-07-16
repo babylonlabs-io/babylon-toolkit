@@ -38,6 +38,7 @@ import {
   FORM_SETTLE_MS,
   PEGIN_POLL_INTERVAL_MS,
   PEGIN_STEP_MACHINE_BUDGET_MS,
+  PEGIN_TX_FAILURE_RETRY_LIMIT,
   PROVIDER_LIST_TIMEOUT_MS,
   SPLIT_ALLOCATION_TIMEOUT_MS,
   STEP_TIMEOUT_MS,
@@ -81,6 +82,14 @@ function activateButton(page: Page): Locator {
 const RISK_ACK_LABEL =
   "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
 const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
+// The DepositProgressView's recoverable-error CTA: the fluid submit relabels to "Retry" (and calls
+// `onRetry`) whenever a step tx fails with a retryable error (COPY.deposit.progress.buttons.retry). It's
+// only rendered in that error state — during signing the CTA is "Sign Transaction"/processing/"Done" —
+// so its visible text is a safe, state-specific target (mirrors how the Activate/Skip gates are matched).
+const RETRY_BUTTON_RX = /^retry$/i; // COPY.deposit.progress.buttons.retry
+function retryButton(page: Page): Locator {
+  return page.getByRole("button", { name: RETRY_BUTTON_RX }).first();
+}
 // Finish-line matchers are tolerant regexes, NOT exact strings: the deployed build's copy can drift
 // from local source (e.g. the heading renders "Vault activated" on devnet vs "BTC Vault activated" in
 // copy.ts), and we key on the stable actionable control (the "Go to Dashboard" button) rather than the
@@ -457,6 +466,11 @@ async function walkStepMachine(
   // fire a duplicate ETH tx).
   let activateClickedThisModal = false;
   let skipClickedThisCallout = false;
+  // A recoverable "Transaction failed → Retry" state (e.g. the intermittent public-Sepolia RPC
+  // gas-estimation flake that nulls a tx's `gasLimit`). Re-armed per appearance like the gates above,
+  // and capped at PEGIN_TX_FAILURE_RETRY_LIMIT total so a genuinely-failing tx aborts instead of looping.
+  let retryClickedThisCallout = false;
+  let txRetryCount = 0;
   // Count the activations we've driven; the finish gate needs `expectedVaults` of them (see below).
   let activationCount = 0;
   let prePeginTxid: string | undefined;
@@ -512,6 +526,35 @@ async function walkStepMachine(
         skipClickedThisCallout = await handleArtifactSkip(page, log);
     } else {
       skipClickedThisCallout = false;
+    }
+
+    // Recover from a transient, app-retryable step-tx failure (e.g. the public-Sepolia RPC returning a
+    // null gasLimit on an activation tx): the progress view shows a "Transaction failed" callout with a
+    // Retry button that a human would just click. Click it — re-armed per appearance, capped at
+    // PEGIN_TX_FAILURE_RETRY_LIMIT so a persistently-failing tx aborts with the callout instead of
+    // spinning to the budget deadline. sweepApprovals (above) + the event approver confirm the wallet
+    // pop-up the retried tx re-opens. This does NOT touch `activationCount`: Retry re-runs the pending tx
+    // on the progress view, not the Activate modal, so a recovered activation stays counted exactly once.
+    const retryVisible = await retryButton(page)
+      .isVisible()
+      .catch(() => false);
+    if (retryVisible) {
+      if (!retryClickedThisCallout) {
+        if (txRetryCount >= PEGIN_TX_FAILURE_RETRY_LIMIT)
+          throw new Error(
+            `A step-machine transaction kept failing after ${PEGIN_TX_FAILURE_RETRY_LIMIT} retries — see the "Transaction failed" callout (a persistent RPC/gas-estimation or contract error, not a transient flake). trace.zip + the failure screenshot are captured.`,
+          );
+        txRetryCount += 1;
+        log(
+          `⚠️ Step-machine transaction failed — clicking Retry (${txRetryCount}/${PEGIN_TX_FAILURE_RETRY_LIMIT}) to recover from a transient tx/RPC failure`,
+        );
+        await retryButton(page)
+          .click({ timeout: STEP_TIMEOUT_MS })
+          .catch(() => {});
+        retryClickedThisCallout = true;
+      }
+    } else {
+      retryClickedThisCallout = false;
     }
 
     // Capture the Pre-PegIn txid once, the first tick the progress view links it.

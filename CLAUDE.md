@@ -234,6 +234,12 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - **Components**: One component per file. File name matches component name.
 - **After changes**: Check for comments/docs that reference old behavior and update them.
 
+## E2E TEST HOOKS (`data-testid`)
+
+- Some `data-testid` attributes in `services/vault/src` are consumed by the real-wallet E2E CLI (`services/vault/e2e/real/`) to drive the depositor lifecycle (pegin / borrow / repay / withdraw). They are load-bearing test infrastructure, not decoration.
+- **If you move, rename, or re-implement an element that carries such a `data-testid`, carry the testid over to the equivalent control** — never silently drop it. Removing one breaks the E2E run with no compile error.
+- These sites are flagged with an inline comment pointing at the consuming action file; keep that comment attached to the testid.
+
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 

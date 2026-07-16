@@ -26,6 +26,7 @@ import {
 import { loadWalletSecrets } from "./secrets";
 import { importWallets } from "./wallets";
 import { maximizeWindow } from "./windowUtils";
+import { fetchWithdrawContext } from "./withdrawParams";
 
 export async function runE2E(config: RunConfig): Promise<void> {
   const action = ACTIONS_BY_ID[config.action];
@@ -96,7 +97,8 @@ export async function runE2E(config: RunConfig): Promise<void> {
     // `repay --borrow-first --pegin-first`), so it's subject to the same cap.
     const willBorrow =
       config.action === "borrow" ||
-      (config.action === "repay" && config.borrowFirst);
+      ((config.action === "repay" || config.action === "withdraw") &&
+        config.borrowFirst);
     const willPegin =
       config.action === "pegin" || (willBorrow && config.peginFirst);
     if (willPegin) {
@@ -172,6 +174,56 @@ export async function runE2E(config: RunConfig): Promise<void> {
           );
         artifacts.log(
           `Repay debt: current debt $${repayContext.currentDebtUsd.toFixed(2)} (collateral $${repayContext.collateralUsd.toFixed(2)}).`,
+        );
+      }
+    }
+
+    // Withdraw pre-flight (withdraw run, EXCEPT --pegin-first — which pegs in the collateral DURING the
+    // run, so there's nothing to read yet; the max-vault cap gate above covers that pegin). Read the
+    // position from real data and refuse a doomed run BEFORE the browser if there's no active collateral
+    // to release. A fetch failure is non-fatal: the absent "⋯" menu + the modal's per-vault eligibility
+    // backstop it, so we warn. The debt handling depends on the chain: --borrow-first creates the debt
+    // during the run (nothing to require here); --repay-first needs an EXISTING debt to clear; a plain
+    // withdraw with lingering debt is only HF-gated (a heads-up, not a hard block). Which vault(s) to
+    // release is resolved inside the action.
+    if (config.action === "withdraw" && !config.peginFirst) {
+      const withdrawContext = await fetchWithdrawContext(
+        config.network,
+        balances.eth.address,
+      ).catch((error) => {
+        artifacts.log(
+          `⚠️ Could not pre-check withdraw collateral (${error instanceof Error ? error.message : error}); the form will gate it.`,
+        );
+        return undefined;
+      });
+      if (withdrawContext) {
+        if (!withdrawContext.hasCollateral)
+          throw new Error(
+            "No collateral to withdraw: this position holds no active BTC Vaults. Peg in (and activate) first, re-run with --pegin-first, or withdraw with a different ETH account that has collateral.",
+          );
+        if (config.borrowFirst) {
+          // The borrow leg creates the debt during the run (collateral already gated above + by the borrow
+          // collateral pre-flight); the repay leg then clears it before withdrawing.
+          artifacts.log(
+            "Withdraw --borrow-first: will borrow, repay in full, then release collateral.",
+          );
+        } else if (config.repayFirst) {
+          // --repay-first clears an EXISTING debt during the run. Refuse if there's nothing to repay — the
+          // repay leg would fail on an absent Repay button; run plain withdraw instead.
+          if (!withdrawContext.hasDebt)
+            throw new Error(
+              "Withdraw --repay-first: this position has no outstanding debt to repay. Re-run without --repay-first (plain --action=withdraw).",
+            );
+          artifacts.log(
+            `Withdraw --repay-first: will clear $${withdrawContext.currentDebtUsd.toFixed(2)} debt, then release collateral.`,
+          );
+        } else if (withdrawContext.hasDebt) {
+          artifacts.log(
+            `⚠️ Position carries $${withdrawContext.currentDebtUsd.toFixed(2)} debt — withdraw is health-factor-gated, so some/all vaults may not be selectable. Re-run with --repay-first for a clean release.`,
+          );
+        }
+        artifacts.log(
+          `Withdraw collateral: ${withdrawContext.vaultCount} vault(s), ${withdrawContext.collateralSats} sats.`,
         );
       }
     }
