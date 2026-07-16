@@ -264,6 +264,28 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
     });
+
+    it("gates Activate as expired when the activation deadline passed on-chain", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        activationDeadlinePassed: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.availableActions).not.toContain(PeginAction.ACTIVATE_VAULT);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
+      expect(state.displayVariant).toBe("warning");
+      expect(state.message).toContain("not activated in time");
+      expect(getPrimaryActionButton(state)).toBeNull();
+      // warning variant → no progress step
+      expect(getPeginDisplayStep(state)).toBeNull();
+    });
+
+    it("keeps Activate available when the deadline has not passed", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        activationDeadlinePassed: false,
+      });
+      expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
+    });
   });
 
   // ==========================================================================

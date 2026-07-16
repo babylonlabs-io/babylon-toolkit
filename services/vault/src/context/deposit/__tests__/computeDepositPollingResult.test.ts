@@ -51,6 +51,7 @@ function makeInputs(
     refundedHtlcVaultIds: new Set(),
     requiredDepth: 6,
     refundTimelock: 10,
+    activationDeadlinePassed: false,
     isLoading: false,
     optimisticStatuses: new Map(),
     optimisticRefundBroadcastAt: new Map(),
@@ -101,5 +102,41 @@ describe("computeDepositPollingResult — refund settlement", () => {
     );
     expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
     expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+});
+
+describe("computeDepositPollingResult — activation deadline gate", () => {
+  function makeVerifiedActivity(): VaultActivity {
+    return {
+      ...makeExpiredActivity(),
+      displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+      contractStatus: ContractStatus.VERIFIED,
+    };
+  }
+
+  it("gates Activate to expired when the deadline is confirmed passed", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        activationDeadlinePassed: true,
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
+  });
+
+  it("leaves Activate available when the deadline has not passed", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        activationDeadlinePassed: false,
+      }),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.ACTIVATE_VAULT,
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+    );
   });
 });
