@@ -5,6 +5,7 @@ import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 import { http, type Chain } from "viem";
 import { cookieStorage, createStorage } from "wagmi";
+import { baseAccount } from "wagmi/connectors";
 
 import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
@@ -104,11 +105,15 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     // wagmi falls back to viem's bundled public RPC (e.g. sepolia.drpc.org)
     // which doesn't see contracts on private/devnet deployments.
     const ethRpcUrl = config.eth.chain.rpcUrls.default.http[0];
+    // Supply the Base Account connector ourselves so AppKit skips constructing
+    // its own default one. Its default enables the Base Account SDK's telemetry,
+    // which injects an inline analytics script into the page.
     wagmiAdapter = new WagmiAdapter({
       networks: ethNetworks,
       projectId,
       ssr: false,
       storage,
+      connectors: [baseAccount({ preference: { telemetry: false } })],
       transports: {
         [config.eth.chain.id]: http(ethRpcUrl),
       },
