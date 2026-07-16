@@ -1,12 +1,70 @@
-/* @ts-self-types="./btc_vault.d.ts" */
+/* @ts-self-types="./vault_wasm.d.ts" */
 
 /**
- * WASM wrapper for AssertChallengeAssertConnector.
- *
- * This connector defines the spending conditions for Assert outputs (blocks 0–1),
- * used by ChallengeAssert-A transactions to prove invalid assertions.
+ * The P2A (pay-to-anchor) output a canonical PegIn reserves under one tx
+ * graph version: value in satoshis, output index, and scriptPubKey hex.
  */
-class WasmAssertChallengeAssertConnector {
+export class PeginP2aAnchorOutput {
+    static __wrap(ptr) {
+        const obj = Object.create(PeginP2aAnchorOutput.prototype);
+        obj.__wbg_ptr = ptr;
+        PeginP2aAnchorOutputFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        PeginP2aAnchorOutputFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_peginp2aanchoroutput_free(ptr, 0);
+    }
+    /**
+     * Hex-encoded anchor scriptPubKey (`51024e73`, the BIP-431
+     * pay-to-anchor script).
+     * @returns {string}
+     */
+    get scriptPubKey() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.peginp2aanchoroutput_scriptPubKey(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Anchor value in satoshis (240, [`btc_vault_v2::P2A_ANCHOR_VALUE`] on
+     * graph v2). The front-end needs this to reproduce the HTLC value
+     * decomposition (amount + depositor claim + anchor + pegin fee).
+     * @returns {bigint}
+     */
+    get value() {
+        const ret = wasm.peginp2aanchoroutput_value(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
+    }
+    /**
+     * Output index of the anchor (2, [`btc_vault_v2::P2A_ANCHOR_VOUT`] on
+     * graph v2) — read it from here instead of assuming the position.
+     * @returns {number}
+     */
+    get vout() {
+        const ret = wasm.peginp2aanchoroutput_vout(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) PeginP2aAnchorOutput.prototype[Symbol.dispose] = PeginP2aAnchorOutput.prototype.free;
+
+/**
+ * WASM wrapper for the Assert challenge/assert connector, built for the
+ * requested tx graph version.
+ */
+export class WasmAssertChallengeAssertConnector {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -18,11 +76,7 @@ class WasmAssertChallengeAssertConnector {
         wasm.__wbg_wasmassertchallengeassertconnector_free(ptr, 0);
     }
     /**
-     * Returns the Taproot address for the connector.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the taproot address for this connector.
      * @param {string} network
      * @returns {string}
      */
@@ -47,7 +101,7 @@ class WasmAssertChallengeAssertConnector {
         }
     }
     /**
-     * Returns the control block as hex.
+     * Returns the control block for the script path as hex.
      * @returns {string}
      */
     getControlBlock() {
@@ -69,7 +123,7 @@ class WasmAssertChallengeAssertConnector {
         }
     }
     /**
-     * Returns the ChallengeAssert-A script as hex.
+     * Returns the challenge/assert script as hex.
      * @returns {string}
      */
     getScript() {
@@ -91,20 +145,30 @@ class WasmAssertChallengeAssertConnector {
         }
     }
     /**
-     * Creates a new AssertChallengeAssertConnector.
+     * The tx graph version this connector was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmassertchallengeassertconnector_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Creates a new AssertChallengeAssertConnector for `tx_graph_version`.
      *
      * # Arguments
      *
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
      * * `claimer` - Hex-encoded claimer public key (64 chars)
      * * `challenger` - Hex-encoded challenger public key (64 chars)
-     * * `claimer_wots_keys_json` - JSON string of the claimer's WOTS public keys (blocks 0–1)
-     * * `gc_wots_keys_json` - JSON string of the GC WOTS public keys (array of arrays, one per GC)
+     * * `claimer_wots_keys_json` - Serialized claimer WOTS public keys JSON
+     * * `gc_wots_keys_json` - Serialized garbled-circuit WOTS public keys JSON
+     * @param {number} tx_graph_version
      * @param {string} claimer
      * @param {string} challenger
      * @param {string} claimer_wots_keys_json
      * @param {string} gc_wots_keys_json
      */
-    constructor(claimer, challenger, claimer_wots_keys_json, gc_wots_keys_json) {
+    constructor(tx_graph_version, claimer, challenger, claimer_wots_keys_json, gc_wots_keys_json) {
         const ptr0 = passStringToWasm0(claimer, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(challenger, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -113,25 +177,22 @@ class WasmAssertChallengeAssertConnector {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passStringToWasm0(gc_wots_keys_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len3 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmassertchallengeassertconnector_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        const ret = wasm.wasmassertchallengeassertconnector_new(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        this.__wbg_ptr = ret[0] >>> 0;
+        this.__wbg_ptr = ret[0];
         WasmAssertChallengeAssertConnectorFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
 }
 if (Symbol.dispose) WasmAssertChallengeAssertConnector.prototype[Symbol.dispose] = WasmAssertChallengeAssertConnector.prototype.free;
-exports.WasmAssertChallengeAssertConnector = WasmAssertChallengeAssertConnector;
 
 /**
- * WASM wrapper for AssertPayoutNoPayoutCouncilNoPayoutConnector.
- *
- * This connector defines the spending conditions for Assert output 0,
- * supporting Payout, NoPayout (per challenger), and CouncilNoPayout paths.
+ * WASM wrapper for the Assert payout/no-payout connector, built for the
+ * requested tx graph version.
  */
-class WasmAssertPayoutNoPayoutConnector {
+export class WasmAssertPayoutNoPayoutConnector {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -143,11 +204,7 @@ class WasmAssertPayoutNoPayoutConnector {
         wasm.__wbg_wasmassertpayoutnopayoutconnector_free(ptr, 0);
     }
     /**
-     * Returns the Taproot address for the connector.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the taproot address for this connector.
      * @param {string} network
      * @returns {string}
      */
@@ -172,11 +229,8 @@ class WasmAssertPayoutNoPayoutConnector {
         }
     }
     /**
-     * Returns the NoPayout control block as hex for a specific challenger.
-     *
-     * # Arguments
-     *
-     * * `challenger` - Hex-encoded challenger public key (64 chars)
+     * Returns the control block for the no-payout script path of
+     * `challenger` as hex.
      * @param {string} challenger
      * @returns {string}
      */
@@ -201,11 +255,7 @@ class WasmAssertPayoutNoPayoutConnector {
         }
     }
     /**
-     * Returns the NoPayout script as hex for a specific challenger.
-     *
-     * # Arguments
-     *
-     * * `challenger` - Hex-encoded challenger public key (64 chars)
+     * Returns the no-payout script for `challenger` as hex.
      * @param {string} challenger
      * @returns {string}
      */
@@ -230,7 +280,7 @@ class WasmAssertPayoutNoPayoutConnector {
         }
     }
     /**
-     * Returns the payout control block as hex.
+     * Returns the control block for the payout script path as hex.
      * @returns {string}
      */
     getPayoutControlBlock() {
@@ -252,7 +302,7 @@ class WasmAssertPayoutNoPayoutConnector {
         }
     }
     /**
-     * Returns the payout script as hex (Leaf 0: Claimer + Challengers + Timelock).
+     * Returns the payout script as hex.
      * @returns {string}
      */
     getPayoutScript() {
@@ -268,11 +318,7 @@ class WasmAssertPayoutNoPayoutConnector {
         }
     }
     /**
-     * Returns the Taproot scriptPubKey as hex.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the scriptPubKey as hex.
      * @param {string} network
      * @returns {string}
      */
@@ -297,16 +343,26 @@ class WasmAssertPayoutNoPayoutConnector {
         }
     }
     /**
-     * Creates a new AssertPayoutNoPayoutConnector.
+     * The tx graph version this connector was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmassertpayoutnopayoutconnector_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Creates a new AssertPayoutNoPayoutConnector for `tx_graph_version`.
      *
      * # Arguments
      *
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
      * * `claimer` - Hex-encoded claimer public key (64 chars)
      * * `local_challengers` - Array of hex-encoded local challenger public keys
      * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-     * * `timelock_assert` - Timelock for assert period in blocks (must be non-zero)
+     * * `timelock_assert` - CSV timelock in blocks for the payout path
      * * `council_members` - Array of hex-encoded council member public keys
-     * * `council_quorum` - Number of council members required for quorum
+     * * `council_quorum` - M in M-of-N council multisig
+     * @param {number} tx_graph_version
      * @param {string} claimer
      * @param {string[]} local_challengers
      * @param {string[]} universal_challengers
@@ -314,7 +370,7 @@ class WasmAssertPayoutNoPayoutConnector {
      * @param {string[]} council_members
      * @param {number} council_quorum
      */
-    constructor(claimer, local_challengers, universal_challengers, timelock_assert, council_members, council_quorum) {
+    constructor(tx_graph_version, claimer, local_challengers, universal_challengers, timelock_assert, council_members, council_quorum) {
         const ptr0 = passStringToWasm0(claimer, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passArrayJsValueToWasm0(local_challengers, wasm.__wbindgen_malloc);
@@ -323,27 +379,22 @@ class WasmAssertPayoutNoPayoutConnector {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passArrayJsValueToWasm0(council_members, wasm.__wbindgen_malloc);
         const len3 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmassertpayoutnopayoutconnector_new(ptr0, len0, ptr1, len1, ptr2, len2, timelock_assert, ptr3, len3, council_quorum);
+        const ret = wasm.wasmassertpayoutnopayoutconnector_new(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, timelock_assert, ptr3, len3, council_quorum);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        this.__wbg_ptr = ret[0] >>> 0;
+        this.__wbg_ptr = ret[0];
         WasmAssertPayoutNoPayoutConnectorFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
 }
 if (Symbol.dispose) WasmAssertPayoutNoPayoutConnector.prototype[Symbol.dispose] = WasmAssertPayoutNoPayoutConnector.prototype.free;
-exports.WasmAssertPayoutNoPayoutConnector = WasmAssertPayoutNoPayoutConnector;
 
 /**
- * WASM wrapper for PayoutTx.
- *
- * Represents a Payout transaction that releases funds after a successful
- * challenge resolution (Assert path).
+ * A Payout transaction, built for the requested tx graph version.
  */
-class WasmPayoutTx {
+export class WasmPayoutTx {
     static __wrap(ptr) {
-        ptr = ptr >>> 0;
         const obj = Object.create(WasmPayoutTx.prototype);
         obj.__wbg_ptr = ptr;
         WasmPayoutTxFinalization.register(obj, obj.__wbg_ptr, obj);
@@ -360,15 +411,8 @@ class WasmPayoutTx {
         wasm.__wbg_wasmpayouttx_free(ptr, 0);
     }
     /**
-     * Estimates the virtual size of a Payout transaction.
-     *
-     * # Arguments
-     *
-     * * `num_vault_keepers` - Number of vault keepers
-     * * `num_universal_challengers` - Number of universal challengers
-     * * `num_local_challengers` - Number of local challengers
-     * * `council_size` - Number of council members
-     * * `commission_json` - Optional JSON string of the Commission (null/undefined for no commission)
+     * Estimates the Payout vsize under `tx_graph_version` for fee planning.
+     * @param {number} tx_graph_version
      * @param {number} num_vault_keepers
      * @param {number} num_universal_challengers
      * @param {number} num_local_challengers
@@ -376,28 +420,43 @@ class WasmPayoutTx {
      * @param {string | null} [commission_json]
      * @returns {bigint}
      */
-    static estimateVsize(num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, commission_json) {
+    static estimateVsize(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, commission_json) {
         var ptr0 = isLikeNone(commission_json) ? 0 : passStringToWasm0(commission_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpayouttx_estimateVsize(num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, ptr0, len0);
+        const ret = wasm.wasmpayouttx_estimateVsize(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return BigInt.asUintN(64, ret[0]);
     }
     /**
-     * Creates a WasmPayoutTx from a JSON string.
+     * Creates a WasmPayoutTx from a JSON string serialized under
+     * `tx_graph_version`.
+     *
+     * Payout transactions have the same wire shape under both supported
+     * tx graph versions, so unlike `WasmPeginTx.fromJson` there is no
+     * structural cross-check — the caller-supplied version selects the
+     * deserializer and is stamped on the result.
+     * @param {number} tx_graph_version
      * @param {string} json
      * @returns {WasmPayoutTx}
      */
-    static fromJson(json) {
+    static fromJson(tx_graph_version, json) {
         const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpayouttx_fromJson(ptr0, len0);
+        const ret = wasm.wasmpayouttx_fromJson(tx_graph_version, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return WasmPayoutTx.__wrap(ret[0]);
+    }
+    /**
+     * The tx graph version this Payout was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmpayouttx_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
     }
     /**
      * Returns the transaction ID.
@@ -416,16 +475,22 @@ class WasmPayoutTx {
         }
     }
     /**
-     * Creates a new Payout transaction.
+     * Constructs a Payout transaction for `tx_graph_version`.
+     *
+     * `pegin_tx_json` must have been serialized under the same tx graph
+     * version — its embedded transaction shape is checked and a mismatch
+     * fails closed.
      *
      * # Arguments
      *
-     * * `pegin_tx_json` - JSON string of the PegInTx
-     * * `assert_tx_json` - JSON string of the AssertTx
-     * * `payout_btc_address_hex` - Hex-encoded scriptPubKey of the payout receiver
-     * * `fee` - Transaction fee in satoshis
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
+     * * `pegin_tx_json` - Serialized PegInTx JSON
+     * * `assert_tx_json` - Serialized AssertTx JSON
+     * * `payout_btc_address_hex` - Hex-encoded payout scriptPubKey
+     * * `fee` - Payout fee in satoshis
      * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
-     * * `commission_json` - Optional JSON string of the Commission (null/undefined for no commission)
+     * * `commission_json` - Optional serialized Commission JSON
+     * @param {number} tx_graph_version
      * @param {string} pegin_tx_json
      * @param {string} assert_tx_json
      * @param {string} payout_btc_address_hex
@@ -433,7 +498,7 @@ class WasmPayoutTx {
      * @param {string} network
      * @param {string | null} [commission_json]
      */
-    constructor(pegin_tx_json, assert_tx_json, payout_btc_address_hex, fee, network, commission_json) {
+    constructor(tx_graph_version, pegin_tx_json, assert_tx_json, payout_btc_address_hex, fee, network, commission_json) {
         const ptr0 = passStringToWasm0(pegin_tx_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(assert_tx_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -444,11 +509,11 @@ class WasmPayoutTx {
         const len3 = WASM_VECTOR_LEN;
         var ptr4 = isLikeNone(commission_json) ? 0 : passStringToWasm0(commission_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len4 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpayouttx_new(ptr0, len0, ptr1, len1, ptr2, len2, fee, ptr3, len3, ptr4, len4);
+        const ret = wasm.wasmpayouttx_new(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, fee, ptr3, len3, ptr4, len4);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        this.__wbg_ptr = ret[0] >>> 0;
+        this.__wbg_ptr = ret[0];
         WasmPayoutTxFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
@@ -492,14 +557,12 @@ class WasmPayoutTx {
     }
 }
 if (Symbol.dispose) WasmPayoutTx.prototype[Symbol.dispose] = WasmPayoutTx.prototype.free;
-exports.WasmPayoutTx = WasmPayoutTx;
 
 /**
- * WASM wrapper for PeginPayoutConnector.
- *
- * This connector defines the spending conditions for the PegIn output.
+ * WASM wrapper for PeginPayoutConnector — the spending conditions of the
+ * PegIn output, built for the requested tx graph version.
  */
-class WasmPeginPayoutConnector {
+export class WasmPeginPayoutConnector {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -511,11 +574,7 @@ class WasmPeginPayoutConnector {
         wasm.__wbg_wasmpeginpayoutconnector_free(ptr, 0);
     }
     /**
-     * Returns the Taproot address for the connector.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the taproot address for this connector.
      * @param {string} network
      * @returns {string}
      */
@@ -540,9 +599,7 @@ class WasmPeginPayoutConnector {
         }
     }
     /**
-     * Returns the payout control block as hex.
-     *
-     * The control block is needed for taproot script-path spending of the payout leaf.
+     * Returns the control block for the payout script path as hex.
      * @returns {string}
      */
     getPayoutControlBlock() {
@@ -580,11 +637,7 @@ class WasmPeginPayoutConnector {
         }
     }
     /**
-     * Returns the Taproot scriptPubKey as hex.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the scriptPubKey as hex.
      * @param {string} network
      * @returns {string}
      */
@@ -609,7 +662,7 @@ class WasmPeginPayoutConnector {
         }
     }
     /**
-     * Returns the taproot script hash.
+     * Returns the taproot script hash as hex.
      * @returns {string}
      */
     getTaprootScriptHash() {
@@ -625,22 +678,32 @@ class WasmPeginPayoutConnector {
         }
     }
     /**
-     * Creates a new PeginPayoutConnector.
+     * The tx graph version this connector was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmpeginpayoutconnector_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Creates a new PeginPayoutConnector for `tx_graph_version`.
      *
      * # Arguments
      *
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
      * * `depositor` - Hex-encoded depositor public key (64 chars)
      * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
      * * `vault_keepers` - Array of hex-encoded vault keeper public keys
      * * `universal_challengers` - Array of hex-encoded universal challenger public keys
      * * `timelock_pegin` - CSV timelock (P = t3) in blocks for the PegIn output
+     * @param {number} tx_graph_version
      * @param {string} depositor
      * @param {string} vault_provider
      * @param {string[]} vault_keepers
      * @param {string[]} universal_challengers
      * @param {number} timelock_pegin
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, timelock_pegin) {
+    constructor(tx_graph_version, depositor, vault_provider, vault_keepers, universal_challengers, timelock_pegin) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -649,26 +712,25 @@ class WasmPeginPayoutConnector {
         const len2 = WASM_VECTOR_LEN;
         const ptr3 = passArrayJsValueToWasm0(universal_challengers, wasm.__wbindgen_malloc);
         const len3 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpeginpayoutconnector_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, timelock_pegin);
+        const ret = wasm.wasmpeginpayoutconnector_new(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, timelock_pegin);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        this.__wbg_ptr = ret[0] >>> 0;
+        this.__wbg_ptr = ret[0];
         WasmPeginPayoutConnectorFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
 }
 if (Symbol.dispose) WasmPeginPayoutConnector.prototype[Symbol.dispose] = WasmPeginPayoutConnector.prototype.free;
-exports.WasmPeginPayoutConnector = WasmPeginPayoutConnector;
 
 /**
- * WASM wrapper for PegInTx.
+ * An unfunded PegIn transaction that locks funds into the vault.
  *
- * Represents an unfunded PegIn transaction that locks funds into the vault.
+ * Built via `WasmPrePeginTx.buildPeginTx` or deserialized with `fromJson`;
+ * there is no public constructor.
  */
-class WasmPeginTx {
+export class WasmPeginTx {
     static __wrap(ptr) {
-        ptr = ptr >>> 0;
         const obj = Object.create(WasmPeginTx.prototype);
         obj.__wbg_ptr = ptr;
         WasmPeginTxFinalization.register(obj, obj.__wbg_ptr, obj);
@@ -685,18 +747,32 @@ class WasmPeginTx {
         wasm.__wbg_wasmpegintx_free(ptr, 0);
     }
     /**
-     * Creates a WasmPeginTx from a JSON string.
+     * Creates a WasmPeginTx from a JSON string serialized under
+     * `tx_graph_version`.
+     *
+     * Fails closed if the embedded transaction shape does not match the
+     * requested tx graph version (the JSON of one version would otherwise
+     * silently deserialize under another).
+     * @param {number} tx_graph_version
      * @param {string} json
      * @returns {WasmPeginTx}
      */
-    static fromJson(json) {
+    static fromJson(tx_graph_version, json) {
         const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpegintx_fromJson(ptr0, len0);
+        const ret = wasm.wasmpegintx_fromJson(tx_graph_version, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
         return WasmPeginTx.__wrap(ret[0]);
+    }
+    /**
+     * The tx graph version this PegIn was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmpegintx_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
     }
     /**
      * Returns the transaction ID.
@@ -778,16 +854,12 @@ class WasmPeginTx {
     }
 }
 if (Symbol.dispose) WasmPeginTx.prototype[Symbol.dispose] = WasmPeginTx.prototype.free;
-exports.WasmPeginTx = WasmPeginTx;
 
 /**
- * WASM wrapper for PrePeginHtlcConnector.
- *
- * This connector defines the spending conditions for the Pre-PegIn HTLC output.
- * The frontend uses `getHashlockScript()` and `getHashlockControlBlock()` to
- * build a PSBT for the depositor's signature over the PegIn input.
+ * WASM wrapper for PrePeginHtlcConnector — the spending conditions of the
+ * Pre-PegIn HTLC output, built for the requested tx graph version.
  */
-class WasmPrePeginHtlcConnector {
+export class WasmPrePeginHtlcConnector {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -799,11 +871,7 @@ class WasmPrePeginHtlcConnector {
         wasm.__wbg_wasmprepeginhtlcconnector_free(ptr, 0);
     }
     /**
-     * Returns the Taproot address for the HTLC output.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the taproot address for this connector.
      * @param {string} network
      * @returns {string}
      */
@@ -828,10 +896,7 @@ class WasmPrePeginHtlcConnector {
         }
     }
     /**
-     * Returns the hashlock control block as hex.
-     *
-     * The control block is needed for taproot script-path spending of the
-     * hashlock leaf (leaf 0).
+     * Returns the control block for the hashlock script path as hex.
      * @returns {string}
      */
     getHashlockControlBlock() {
@@ -853,7 +918,7 @@ class WasmPrePeginHtlcConnector {
         }
     }
     /**
-     * Returns the hashlock + all-party spend script (leaf 0) as hex.
+     * Returns the hashlock script as hex.
      * @returns {string}
      */
     getHashlockScript() {
@@ -869,10 +934,7 @@ class WasmPrePeginHtlcConnector {
         }
     }
     /**
-     * Returns the refund control block as hex.
-     *
-     * The control block is needed for taproot script-path spending of the
-     * refund leaf (leaf 1).
+     * Returns the control block for the refund script path as hex.
      * @returns {string}
      */
     getRefundControlBlock() {
@@ -894,7 +956,7 @@ class WasmPrePeginHtlcConnector {
         }
     }
     /**
-     * Returns the refund script (leaf 1) as hex.
+     * Returns the refund script as hex.
      * @returns {string}
      */
     getRefundScript() {
@@ -910,11 +972,7 @@ class WasmPrePeginHtlcConnector {
         }
     }
     /**
-     * Returns the Taproot scriptPubKey as hex.
-     *
-     * # Arguments
-     *
-     * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * Returns the scriptPubKey as hex.
      * @param {string} network
      * @returns {string}
      */
@@ -939,16 +997,26 @@ class WasmPrePeginHtlcConnector {
         }
     }
     /**
-     * Creates a new PrePeginHtlcConnector.
+     * The tx graph version this connector was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmprepeginhtlcconnector_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Creates a new PrePeginHtlcConnector for `tx_graph_version`.
      *
      * # Arguments
      *
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
      * * `depositor` - Hex-encoded depositor public key (64 chars)
      * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
      * * `vault_keepers` - Array of hex-encoded vault keeper public keys
      * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-     * * `hashlock` - Hex-encoded SHA256 hash commitment (64 hex chars = 32 bytes)
+     * * `hashlock` - Hex-encoded SHA256 hash commitment (64 chars)
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
+     * @param {number} tx_graph_version
      * @param {string} depositor
      * @param {string} vault_provider
      * @param {string[]} vault_keepers
@@ -956,7 +1024,7 @@ class WasmPrePeginHtlcConnector {
      * @param {string} hashlock
      * @param {number} timelock_refund
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlock, timelock_refund) {
+    constructor(tx_graph_version, depositor, vault_provider, vault_keepers, universal_challengers, hashlock, timelock_refund) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -967,27 +1035,23 @@ class WasmPrePeginHtlcConnector {
         const len3 = WASM_VECTOR_LEN;
         const ptr4 = passStringToWasm0(hashlock, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len4 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepeginhtlcconnector_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, timelock_refund);
+        const ret = wasm.wasmprepeginhtlcconnector_new(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, timelock_refund);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        this.__wbg_ptr = ret[0] >>> 0;
+        this.__wbg_ptr = ret[0];
         WasmPrePeginHtlcConnectorFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
 }
 if (Symbol.dispose) WasmPrePeginHtlcConnector.prototype[Symbol.dispose] = WasmPrePeginHtlcConnector.prototype.free;
-exports.WasmPrePeginHtlcConnector = WasmPrePeginHtlcConnector;
 
 /**
- * WASM wrapper for PrePegInTx.
- *
- * Represents an unfunded Pre-PegIn transaction that locks BTC in an HTLC output.
- * Also serves as the entry point for deriving the PegIn and refund transactions.
+ * A Pre-PegIn transaction with one or more HTLC outputs, built for the
+ * requested tx graph version.
  */
-class WasmPrePeginTx {
+export class WasmPrePeginTx {
     static __wrap(ptr) {
-        ptr = ptr >>> 0;
         const obj = Object.create(WasmPrePeginTx.prototype);
         obj.__wbg_ptr = ptr;
         WasmPrePeginTxFinalization.register(obj, obj.__wbg_ptr, obj);
@@ -1004,20 +1068,8 @@ class WasmPrePeginTx {
         wasm.__wbg_wasmprepegintx_free(ptr, 0);
     }
     /**
-     * Builds the PegIn transaction that spends a Pre-PegIn HTLC output.
-     *
-     * The resulting transaction has a single input spending the HTLC at
-     * `htlc_vout` via the hashlock + all-party script (leaf 0). The fee is
-     * baked into the HTLC input/output difference.
-     *
-     * **Important:** This must be called on a funded `WasmPrePeginTx` (created
-     * via `fromFundedTransaction`) so the PegIn input references the correct
-     * Pre-PegIn txid.
-     *
-     * # Arguments
-     *
-     * * `timelock_pegin` - CSV timelock (P = t3) in blocks for the PegIn output
-     * * `htlc_vout` - Index of the HTLC output within the Pre-PegIn transaction
+     * Builds the PegIn transaction spending the HTLC at `htlc_vout`,
+     * preserving the tx graph version.
      * @param {number} timelock_pegin
      * @param {number} htlc_vout
      * @returns {WasmPeginTx}
@@ -1030,19 +1082,7 @@ class WasmPrePeginTx {
         return WasmPeginTx.__wrap(ret[0]);
     }
     /**
-     * Builds an unsigned refund transaction that spends a Pre-PegIn HTLC
-     * output via the refund script (leaf 1) after the timelock expires.
-     *
-     * The depositor signs this externally via their wallet.
-     *
-     * **Important:** This must be called on a funded `WasmPrePeginTx` (created
-     * via `fromFundedTransaction`) so the refund input references the correct
-     * Pre-PegIn txid.
-     *
-     * # Arguments
-     *
-     * * `refund_fee` - Transaction fee in satoshis
-     * * `htlc_vout` - Index of the HTLC output within the Pre-PegIn transaction
+     * Builds the refund transaction for the HTLC at `htlc_vout`.
      * @param {bigint} refund_fee
      * @param {number} htlc_vout
      * @returns {string}
@@ -1066,18 +1106,8 @@ class WasmPrePeginTx {
         }
     }
     /**
-     * Reconstructs a `WasmPrePeginTx` from a funded Pre-PegIn transaction.
-     *
-     * Call this after the depositor's wallet has funded the unfunded Pre-PegIn
-     * (adding inputs). The resulting object has the correct txid and can be
-     * used directly with `buildPeginTx` / `buildRefundTx`.
-     *
-     * The per-HTLC pegin amounts and depositor claim value are preserved from
-     * the original unfunded object (`self`).
-     *
-     * # Arguments
-     *
-     * * `funded_tx_hex` - Hex-encoded funded Pre-PegIn transaction bytes
+     * Returns a copy of this Pre-PegIn with inputs/change applied from a
+     * funded raw transaction, preserving the tx graph version.
      * @param {string} funded_tx_hex
      * @returns {WasmPrePeginTx}
      */
@@ -1099,7 +1129,7 @@ class WasmPrePeginTx {
         return BigInt.asUintN(64, ret);
     }
     /**
-     * Returns the HTLC Taproot address.
+     * Returns the HTLC address at `htlc_vout`.
      * @param {number} htlc_vout
      * @returns {string}
      */
@@ -1122,7 +1152,7 @@ class WasmPrePeginTx {
         }
     }
     /**
-     * Returns the HTLC output scriptPubKey as hex.
+     * Returns the HTLC scriptPubKey at `htlc_vout` as hex.
      * @param {number} htlc_vout
      * @returns {string}
      */
@@ -1145,7 +1175,7 @@ class WasmPrePeginTx {
         }
     }
     /**
-     * Returns the HTLC output value in satoshis.
+     * Returns the HTLC output value at `htlc_vout` in satoshis.
      * @param {number} htlc_vout
      * @returns {bigint}
      */
@@ -1157,7 +1187,7 @@ class WasmPrePeginTx {
         return BigInt.asUintN(64, ret[0]);
     }
     /**
-     * Returns the number of HTLC outputs in this Pre-PegIn transaction.
+     * Returns the number of HTLC outputs.
      * @returns {number}
      */
     getNumHtlcs() {
@@ -1165,7 +1195,7 @@ class WasmPrePeginTx {
         return ret >>> 0;
     }
     /**
-     * Returns the pegin amount in satoshis for a specific HTLC output.
+     * Returns the pegin amount at `htlc_vout` in satoshis.
      * @param {number} htlc_vout
      * @returns {bigint}
      */
@@ -1175,6 +1205,14 @@ class WasmPrePeginTx {
             throw takeFromExternrefTable0(ret[1]);
         }
         return BigInt.asUintN(64, ret[0]);
+    }
+    /**
+     * The tx graph version this Pre-PegIn was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmprepegintx_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
     }
     /**
      * Returns the transaction ID.
@@ -1193,23 +1231,17 @@ class WasmPrePeginTx {
         }
     }
     /**
-     * Creates a new unfunded Pre-PegIn transaction.
-     *
-     * Internally computes `depositor_claim_value` (via `compute_min_claim_value`)
-     * and `htlc_value` (= `pegin_amount + depositor_claim_value + min_pegin_fee`)
-     * from the provided contract parameters.
+     * Creates a new unfunded Pre-PegIn transaction for `tx_graph_version`.
      *
      * # Arguments
      *
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
      * * `depositor` - Hex-encoded depositor public key (64 chars)
      * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
      * * `vault_keepers` - Array of hex-encoded vault keeper public keys
      * * `universal_challengers` - Array of hex-encoded universal challenger public keys
-     * * `hashlocks` - Array of hex-encoded SHA256 hash commitments (64 hex chars each).
-     *   One per HTLC output. For a single deposit pass one hashlock; for batched
-     *   deposits pass multiple.
-     * * `pegin_amounts` - Array of pegin amounts in satoshis (one per hashlock).
-     *   Must have the same length as `hashlocks`.
+     * * `hashlocks` - Array of hex-encoded SHA256 hash commitments (64 hex chars each)
+     * * `pegin_amounts` - Array of pegin amounts in satoshis (one per hashlock)
      * * `timelock_refund` - CSV timelock for the refund path (must be non-zero)
      * * `fee_rate` - TX-graph fee rate in sat/vB; sizes `depositor_claim_value`
      * * `min_pegin_fee_rate` - Minimum PegIn fee rate in sat/vB; sizes the PegIn tx fee
@@ -1217,6 +1249,8 @@ class WasmPrePeginTx {
      * * `council_quorum` - M in M-of-N council multisig (from contract params)
      * * `council_size` - N in M-of-N council multisig (from contract params)
      * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+     * * `auth_anchor_hash` - Optional hex-encoded auth anchor hash
+     * @param {number} tx_graph_version
      * @param {string} depositor
      * @param {string} vault_provider
      * @param {string[]} vault_keepers
@@ -1232,7 +1266,7 @@ class WasmPrePeginTx {
      * @param {string} network
      * @param {string | null} [auth_anchor_hash]
      */
-    constructor(depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, pegin_amounts, timelock_refund, fee_rate, min_pegin_fee_rate, num_local_challengers, council_quorum, council_size, network, auth_anchor_hash) {
+    constructor(tx_graph_version, depositor, vault_provider, vault_keepers, universal_challengers, hashlocks, pegin_amounts, timelock_refund, fee_rate, min_pegin_fee_rate, num_local_challengers, council_quorum, council_size, network, auth_anchor_hash) {
         const ptr0 = passStringToWasm0(depositor, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(vault_provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1249,11 +1283,11 @@ class WasmPrePeginTx {
         const len6 = WASM_VECTOR_LEN;
         var ptr7 = isLikeNone(auth_anchor_hash) ? 0 : passStringToWasm0(auth_anchor_hash, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len7 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmprepegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, timelock_refund, fee_rate, min_pegin_fee_rate, num_local_challengers, council_quorum, council_size, ptr6, len6, ptr7, len7);
+        const ret = wasm.wasmprepegintx_new(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, timelock_refund, fee_rate, min_pegin_fee_rate, num_local_challengers, council_quorum, council_size, ptr6, len6, ptr7, len7);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
-        this.__wbg_ptr = ret[0] >>> 0;
+        this.__wbg_ptr = ret[0];
         WasmPrePeginTxFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
@@ -1275,26 +1309,21 @@ class WasmPrePeginTx {
     }
 }
 if (Symbol.dispose) WasmPrePeginTx.prototype[Symbol.dispose] = WasmPrePeginTx.prototype.free;
-exports.WasmPrePeginTx = WasmPrePeginTx;
 
 /**
- * Computes sighashes for the claimer's Assert transaction inputs.
- *
- * Returns a JSON array of hex-encoded sighashes (one per input).
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
+ * Computes the Assert claimer sighashes over a serialized TxGraph under
+ * `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} graph_json
  * @returns {string}
  */
-function computeAssertClaimerSighashes(graph_json) {
+export function computeAssertClaimerSighashes(tx_graph_version, graph_json) {
     let deferred3_0;
     let deferred3_1;
     try {
         const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.computeAssertClaimerSighashes(ptr0, len0);
+        const ret = wasm.computeAssertClaimerSighashes(tx_graph_version, ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -1308,31 +1337,10 @@ function computeAssertClaimerSighashes(graph_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.computeAssertClaimerSighashes = computeAssertClaimerSighashes;
 
 /**
- * Computes the minimum depositor claim value (in satoshis) needed to fund the
- * entire claim transaction path.
- *
- * This is the single value the frontend needs to validate a PegIn's second output.
- * It accounts for both fee-rate-dependent costs (transaction vbytes × fee_rate)
- * and fixed structural costs (dust/minimum-value outputs along the path).
- *
- * The WOTS label count (`PI_1_BITS = 508`) is a protocol constant and does not
- * need to be specified.
- *
- * Usage in JS:
- * ```js
- * const minClaimValue = computeMinClaimValue(numLocal, numUniversal, quorum, councilSize, feeRate);
- * ```
- *
- * # Arguments
- *
- * * `num_local_challengers` - Number of local challengers
- * * `num_universal_challengers` - Number of universal challengers
- * * `council_quorum` - M in M-of-N council multisig
- * * `council_size` - N in M-of-N council multisig
- * * `fee_rate` - Fee rate in sat/vB from the contract
+ * Computes the minimum depositor claim value under `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {number} num_local_challengers
  * @param {number} num_universal_challengers
  * @param {number} council_quorum
@@ -1340,77 +1348,39 @@ exports.computeAssertClaimerSighashes = computeAssertClaimerSighashes;
  * @param {bigint} fee_rate
  * @returns {bigint}
  */
-function computeMinClaimValue(num_local_challengers, num_universal_challengers, council_quorum, council_size, fee_rate) {
-    const ret = wasm.computeMinClaimValue(num_local_challengers, num_universal_challengers, council_quorum, council_size, fee_rate);
+export function computeMinClaimValue(tx_graph_version, num_local_challengers, num_universal_challengers, council_quorum, council_size, fee_rate) {
+    const ret = wasm.computeMinClaimValue(tx_graph_version, num_local_challengers, num_universal_challengers, council_quorum, council_size, fee_rate);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return BigInt.asUintN(64, ret[0]);
 }
-exports.computeMinClaimValue = computeMinClaimValue;
 
 /**
- * Computes the minimum PegIn (activation) transaction fee (in satoshis)
- * that the protocol requires the future PegIn tx to pay.
- *
- * `peginFee = peginTxVsize(num_vks, num_ucs) × min_pegin_fee_rate`, where
- * the vsize comes from a Taproot script-path-spend weight prediction whose
- * witness shape depends on the VK + UC signer count. Each HTLC output the
- * depositor funds in the Pre-PegIn tx must reserve at least this fee
- * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * minPeginFee`), or the VP cannot afford to broadcast the PegIn at
- * activation time.
- *
- * Usage in JS:
- * ```js
- * const minPeginFee = computeMinPeginFee(numVks, numUcs, minPeginFeeRate);
- * ```
- *
- * # Arguments
- *
- * * `num_vks` - Number of vault keepers (must satisfy `1 <= num_vks <= 99`;
- *   `VaultKeepers` is required to be non-empty in this protocol)
- * * `num_ucs` - Number of universal challengers (must satisfy `num_ucs <= 99`;
- *   may be 0, in which case the returned fee reflects a strictly smaller
- *   hashlock script with the UC multisig block omitted)
- * * `min_pegin_fee_rate` - Minimum PegIn fee rate in sat/vB (protocol param)
- *
- * # Errors
- *
- * Returns an error string when:
- * * `num_vks == 0` or either count exceeds the estimator's seeding range
- *   (`> 99`), where the underlying dummy connector cannot be constructed.
- * * The `vsize × fee_rate` multiplication overflows `u64` (only possible at
- *   degenerate fee rates).
+ * Computes the minimum PegIn fee under `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {number} num_vks
  * @param {number} num_ucs
  * @param {bigint} min_pegin_fee_rate
  * @returns {bigint}
  */
-function computeMinPeginFee(num_vks, num_ucs, min_pegin_fee_rate) {
-    const ret = wasm.computeMinPeginFee(num_vks, num_ucs, min_pegin_fee_rate);
+export function computeMinPeginFee(tx_graph_version, num_vks, num_ucs, min_pegin_fee_rate) {
+    const ret = wasm.computeMinPeginFee(tx_graph_version, num_vks, num_ucs, min_pegin_fee_rate);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return BigInt.asUintN(64, ret[0]);
 }
-exports.computeMinPeginFee = computeMinPeginFee;
 
 /**
- * Computes the sighash for the claimer's NoPayout transaction for a specific
- * challenger.
- *
- * Returns a hex-encoded sighash.
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
- * * `challenger_pk_hex` - Hex-encoded challenger x-only public key (64 chars)
+ * Computes the NoPayout claimer sighash over a serialized TxGraph under
+ * `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} graph_json
  * @param {string} challenger_pk_hex
  * @returns {string}
  */
-function computeNoPayoutClaimerSighash(graph_json, challenger_pk_hex) {
+export function computeNoPayoutClaimerSighash(tx_graph_version, graph_json, challenger_pk_hex) {
     let deferred4_0;
     let deferred4_1;
     try {
@@ -1418,7 +1388,7 @@ function computeNoPayoutClaimerSighash(graph_json, challenger_pk_hex) {
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.computeNoPayoutClaimerSighash(ptr0, len0, ptr1, len1);
+        const ret = wasm.computeNoPayoutClaimerSighash(tx_graph_version, ptr0, len0, ptr1, len1);
         var ptr3 = ret[0];
         var len3 = ret[1];
         if (ret[3]) {
@@ -1432,27 +1402,21 @@ function computeNoPayoutClaimerSighash(graph_json, challenger_pk_hex) {
         wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
-exports.computeNoPayoutClaimerSighash = computeNoPayoutClaimerSighash;
 
 /**
- * Computes the sighash for the claimer's Payout transaction (input 1, Assert
- * connector).
- *
- * Returns a hex-encoded sighash.
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
+ * Computes the Payout claimer sighash over a serialized TxGraph under
+ * `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} graph_json
  * @returns {string}
  */
-function computePayoutClaimerSighash(graph_json) {
+export function computePayoutClaimerSighash(tx_graph_version, graph_json) {
     let deferred3_0;
     let deferred3_1;
     try {
         const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.computePayoutClaimerSighash(ptr0, len0);
+        const ret = wasm.computePayoutClaimerSighash(tx_graph_version, ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -1466,27 +1430,21 @@ function computePayoutClaimerSighash(graph_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.computePayoutClaimerSighash = computePayoutClaimerSighash;
 
 /**
- * Computes the sighash for the depositor's Payout transaction (input 0, vault
- * UTXO).
- *
- * Returns a hex-encoded sighash.
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
+ * Computes the Payout depositor sighash over a serialized TxGraph under
+ * `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} graph_json
  * @returns {string}
  */
-function computePayoutDepositorSighash(graph_json) {
+export function computePayoutDepositorSighash(tx_graph_version, graph_json) {
     let deferred3_0;
     let deferred3_1;
     try {
         const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.computePayoutDepositorSighash(ptr0, len0);
+        const ret = wasm.computePayoutDepositorSighash(tx_graph_version, ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -1500,24 +1458,19 @@ function computePayoutDepositorSighash(graph_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.computePayoutDepositorSighash = computePayoutDepositorSighash;
 
 /**
- * Computes the sighash for a PegIn transaction input (HTLC leaf 0 spend).
+ * Computes the PegIn input sighash under `tx_graph_version`.
  *
- * Returns a hex-encoded sighash.
- *
- * # Arguments
- *
- * * `pegin_json` - JSON-serialized `PegInTx`
- * * `htlc_connector_json` - JSON-serialized `PrePeginHtlcConnector`
- * * `prepegin_htlc_output_json` - JSON-serialized `TxOut` (the Pre-PegIn HTLC output)
+ * `pegin_json` must have been serialized under the same tx graph version —
+ * its embedded transaction shape is checked and a mismatch fails closed.
+ * @param {number} tx_graph_version
  * @param {string} pegin_json
  * @param {string} htlc_connector_json
  * @param {string} prepegin_htlc_output_json
  * @returns {string}
  */
-function computePeginInputSighash(pegin_json, htlc_connector_json, prepegin_htlc_output_json) {
+export function computePeginInputSighash(tx_graph_version, pegin_json, htlc_connector_json, prepegin_htlc_output_json) {
     let deferred5_0;
     let deferred5_1;
     try {
@@ -1527,7 +1480,7 @@ function computePeginInputSighash(pegin_json, htlc_connector_json, prepegin_htlc
         const len1 = WASM_VECTOR_LEN;
         const ptr2 = passStringToWasm0(prepegin_htlc_output_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len2 = WASM_VECTOR_LEN;
-        const ret = wasm.computePeginInputSighash(ptr0, len0, ptr1, len1, ptr2, len2);
+        const ret = wasm.computePeginInputSighash(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2);
         var ptr4 = ret[0];
         var len4 = ret[1];
         if (ret[3]) {
@@ -1541,7 +1494,6 @@ function computePeginInputSighash(pegin_json, htlc_connector_json, prepegin_htlc
         wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
     }
 }
-exports.computePeginInputSighash = computePeginInputSighash;
 
 /**
  * Derive the on-chain vault identifier matching the Solidity logic:
@@ -1549,11 +1501,6 @@ exports.computePeginInputSighash = computePeginInputSighash;
  * ```solidity
  * keccak256(abi.encode(peginTxHash, depositor))
  * ```
- *
- * This duplicates the ABI encoding from [`eth_client::vault_id::VaultId::derive`]
- * because the `vault` crate cannot depend on `eth-client` (which pulls in `alloy`)
- * in WASM builds. Both implementations must produce identical output — see the
- * cross-crate golden-vector test in `eth-client` tests.
  *
  * # Arguments
  * * `pegin_tx_hash` - 32-byte peginTxHash in display (big-endian) byte order
@@ -1565,7 +1512,7 @@ exports.computePeginInputSighash = computePeginInputSighash;
  * @param {Uint8Array} depositor
  * @returns {string}
  */
-function deriveVaultId(pegin_tx_hash, depositor) {
+export function deriveVaultId(pegin_tx_hash, depositor) {
     let deferred4_0;
     let deferred4_1;
     try {
@@ -1587,14 +1534,13 @@ function deriveVaultId(pegin_tx_hash, depositor) {
         wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
-exports.deriveVaultId = deriveVaultId;
 
 /**
  * Derive the 32-byte `authAnchor` shared across a Pre-PegIn (frozen, on-chain-binding).
  * @param {Uint8Array} root
  * @returns {Uint8Array}
  */
-function expandAuthAnchor(root) {
+export function expandAuthAnchor(root) {
     const ptr0 = passArray8ToWasm0(root, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.expandAuthAnchor(ptr0, len0);
@@ -1605,7 +1551,6 @@ function expandAuthAnchor(root) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
 }
-exports.expandAuthAnchor = expandAuthAnchor;
 
 /**
  * Derive the 32-byte `hashlockSecret` for HTLC `htlcVout` (frozen, on-chain-binding).
@@ -1613,7 +1558,7 @@ exports.expandAuthAnchor = expandAuthAnchor;
  * @param {number} htlc_vout
  * @returns {Uint8Array}
  */
-function expandHashlockSecret(root, htlc_vout) {
+export function expandHashlockSecret(root, htlc_vout) {
     const ptr0 = passArray8ToWasm0(root, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.expandHashlockSecret(ptr0, len0, htlc_vout);
@@ -1624,7 +1569,6 @@ function expandHashlockSecret(root, htlc_vout) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
 }
-exports.expandHashlockSecret = expandHashlockSecret;
 
 /**
  * Derive the 64-byte `wotsSeed` for HTLC `htlcVout` (frozen, on-chain-binding).
@@ -1632,7 +1576,7 @@ exports.expandHashlockSecret = expandHashlockSecret;
  * @param {number} htlc_vout
  * @returns {Uint8Array}
  */
-function expandWotsSeed(root, htlc_vout) {
+export function expandWotsSeed(root, htlc_vout) {
     const ptr0 = passArray8ToWasm0(root, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.expandWotsSeed(ptr0, len0, htlc_vout);
@@ -1643,108 +1587,124 @@ function expandWotsSeed(root, htlc_vout) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
 }
-exports.expandWotsSeed = expandWotsSeed;
 
 /**
  * Initialize panic hook for better error messages in the browser console.
  */
-function init_panic_hook() {
+export function init_panic_hook() {
     wasm.init_panic_hook();
 }
-exports.init_panic_hook = init_panic_hook;
 
 /**
- * Validates TxGraph parameters before construction.
- *
- * Checks that the claimer is VP, one of VKs, or the depositor; that no key
- * overlaps exist between roles; and that GC data is present for every
- * challenger.
- *
- * # Arguments
- *
- * * `params_json` - JSON-serialized `TxGraphParams`
- *
- * # Returns
- *
- * `Ok(())` if all parameters are valid, otherwise a descriptive error string.
- * @param {string} params_json
+ * Returns the P2A anchor output a canonical PegIn reserves under
+ * `tx_graph_version`, or `undefined` for versions whose PegIns carry no
+ * anchor (graph v1) — one record instead of per-field defaults, so an
+ * absent anchor cannot be mistaken for a zero-valued one.
+ * @param {number} tx_graph_version
+ * @returns {PeginP2aAnchorOutput | undefined}
  */
-function validateTxGraphParams(params_json) {
-    const ptr0 = passStringToWasm0(params_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+export function peginP2aAnchorOutput(tx_graph_version) {
+    const ret = wasm.peginP2aAnchorOutput(tx_graph_version);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] === 0 ? undefined : PeginP2aAnchorOutput.__wrap(ret[0]);
+}
+
+/**
+ * Tx graph versions this binary can build, ascending. Front-end
+ * pre-flight: show "unsupported app version" UX instead of catching
+ * per-call errors.
+ * @returns {Uint16Array}
+ */
+export function supportedTxGraphVersions() {
+    const ret = wasm.supportedTxGraphVersions();
+    var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+    return v1;
+}
+
+/**
+ * Validates the P2A anchor shape of a hex-encoded PegIn transaction under
+ * `tx_graph_version`, per that version's anchor rule (see
+ * `check_pegin_p2a_anchor` in each version's module).
+ *
+ * Graph v2: the output at [`btc_vault_v2::P2A_ANCHOR_VOUT`] must exist,
+ * carry the P2A scriptPubKey, and hold exactly
+ * [`btc_vault_v2::P2A_ANCHOR_VALUE`] sats. Graph v1: the transaction must
+ * carry no P2A output at all — so a graph-v2 PegIn checked under v1 fails
+ * closed instead of validating vacuously.
+ * @param {number} tx_graph_version
+ * @param {string} tx_hex
+ */
+export function validatePeginP2aAnchor(tx_graph_version, tx_hex) {
+    const ptr0 = passStringToWasm0(tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.validateTxGraphParams(ptr0, len0);
+    const ret = wasm.validatePeginP2aAnchor(tx_graph_version, ptr0, len0);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
-exports.validateTxGraphParams = validateTxGraphParams;
 
 /**
- * Verifies claimer presignatures for the depositor-as-claimer flow.
- *
- * Validates the claimer's signatures on ChallengeAssert and NoPayout
- * transactions for every challenger in the graph.
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
- * * `claimer_pk_hex` - Hex-encoded claimer x-only public key (64 chars)
- * * `presigs_json` - JSON-serialized `ChallengePathPresignatures`
+ * Validates serialized TxGraph parameters under `tx_graph_version`.
+ * @param {number} tx_graph_version
+ * @param {string} params_json
+ */
+export function validateTxGraphParams(tx_graph_version, params_json) {
+    const ptr0 = passStringToWasm0(params_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.validateTxGraphParams(tx_graph_version, ptr0, len0);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Verifies claimer presignatures over a serialized TxGraph under
+ * `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} graph_json
  * @param {string} claimer_pk_hex
  * @param {string} presigs_json
  */
-function verifyClaimerPresignatures(graph_json, claimer_pk_hex, presigs_json) {
+export function verifyClaimerPresignatures(tx_graph_version, graph_json, claimer_pk_hex, presigs_json) {
     const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(claimer_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ptr2 = passStringToWasm0(presigs_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len2 = WASM_VECTOR_LEN;
-    const ret = wasm.verifyClaimerPresignatures(ptr0, len0, ptr1, len1, ptr2, len2);
+    const ret = wasm.verifyClaimerPresignatures(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
-exports.verifyClaimerPresignatures = verifyClaimerPresignatures;
 
 /**
- * Verifies the depositor's signature on the Payout transaction.
- *
- * # Arguments
- *
- * * `graph_json` - JSON-serialized `TxGraph`
- * * `depositor_pk_hex` - Hex-encoded depositor x-only public key (64 chars)
- * * `payout_sig_hex` - Hex-encoded Schnorr signature (128 chars)
+ * Verifies the depositor payout signature over a serialized TxGraph under
+ * `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} graph_json
  * @param {string} depositor_pk_hex
  * @param {string} payout_sig_hex
  */
-function verifyDepositorSignature(graph_json, depositor_pk_hex, payout_sig_hex) {
+export function verifyDepositorSignature(tx_graph_version, graph_json, depositor_pk_hex, payout_sig_hex) {
     const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(depositor_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ptr2 = passStringToWasm0(payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len2 = WASM_VECTOR_LEN;
-    const ret = wasm.verifyDepositorSignature(ptr0, len0, ptr1, len1, ptr2, len2);
+    const ret = wasm.verifyDepositorSignature(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
-exports.verifyDepositorSignature = verifyDepositorSignature;
 
 /**
- * Verifies a Taproot script-path signature.
- *
- * # Arguments
- *
- * * `tx_hex` - Hex-encoded consensus-serialized Bitcoin transaction
- * * `input_index` - Index of the input being verified
- * * `prevouts_json` - JSON-serialized array of `TxOut`
- * * `script_hex` - Hex-encoded script being used for the spend
- * * `pubkey_hex` - Hex-encoded x-only public key (64 chars)
- * * `signature_hex` - Hex-encoded Taproot signature (64 or 65 bytes)
+ * Verifies a P2TR script-spend signature under `tx_graph_version`.
+ * @param {number} tx_graph_version
  * @param {string} tx_hex
  * @param {number} input_index
  * @param {string} prevouts_json
@@ -1752,7 +1712,7 @@ exports.verifyDepositorSignature = verifyDepositorSignature;
  * @param {string} pubkey_hex
  * @param {string} signature_hex
  */
-function verifyP2trScriptSpendSignature(tx_hex, input_index, prevouts_json, script_hex, pubkey_hex, signature_hex) {
+export function verifyP2trScriptSpendSignature(tx_graph_version, tx_hex, input_index, prevouts_json, script_hex, pubkey_hex, signature_hex) {
     const ptr0 = passStringToWasm0(tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(prevouts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1763,41 +1723,43 @@ function verifyP2trScriptSpendSignature(tx_hex, input_index, prevouts_json, scri
     const len3 = WASM_VECTOR_LEN;
     const ptr4 = passStringToWasm0(signature_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len4 = WASM_VECTOR_LEN;
-    const ret = wasm.verifyP2trScriptSpendSignature(ptr0, len0, input_index, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+    const ret = wasm.verifyP2trScriptSpendSignature(tx_graph_version, ptr0, len0, input_index, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
-exports.verifyP2trScriptSpendSignature = verifyP2trScriptSpendSignature;
-
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg___wbindgen_debug_string_5398f5bb970e0daa: function(arg0, arg1) {
+        __wbg_Error_92b29b0548f8b746: function(arg0, arg1) {
+            const ret = Error(getStringFromWasm0(arg0, arg1));
+            return ret;
+        },
+        __wbg___wbindgen_debug_string_c25d447a39f5578f: function(arg0, arg1) {
             const ret = debugString(arg1);
             const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             const len1 = WASM_VECTOR_LEN;
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
-        __wbg___wbindgen_is_function_3c846841762788c1: function(arg0) {
+        __wbg___wbindgen_is_function_1ff95bcc5517c252: function(arg0) {
             const ret = typeof(arg0) === 'function';
             return ret;
         },
-        __wbg___wbindgen_is_object_781bc9f159099513: function(arg0) {
+        __wbg___wbindgen_is_object_a27215656b807791: function(arg0) {
             const val = arg0;
             const ret = typeof(val) === 'object' && val !== null;
             return ret;
         },
-        __wbg___wbindgen_is_string_7ef6b97b02428fae: function(arg0) {
+        __wbg___wbindgen_is_string_ea5e6cc2e4141dfe: function(arg0) {
             const ret = typeof(arg0) === 'string';
             return ret;
         },
-        __wbg___wbindgen_is_undefined_52709e72fb9f179c: function(arg0) {
+        __wbg___wbindgen_is_undefined_c05833b95a3cf397: function(arg0) {
             const ret = arg0 === undefined;
             return ret;
         },
-        __wbg___wbindgen_string_get_395e606bd0ee4427: function(arg0, arg1) {
+        __wbg___wbindgen_string_get_b0ca35b86a603356: function(arg0, arg1) {
             const obj = arg1;
             const ret = typeof(obj) === 'string' ? obj : undefined;
             var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -1805,10 +1767,10 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
-        __wbg___wbindgen_throw_6ddd609b62940d55: function(arg0, arg1) {
+        __wbg___wbindgen_throw_344f42d3211c4765: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_call_2d781c1f4d5c0ef8: function() { return handleError(function (arg0, arg1, arg2) {
+        __wbg_call_a6e5c5dce5018821: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.call(arg1, arg2);
             return ret;
         }, arguments); },
@@ -1830,7 +1792,7 @@ function __wbg_get_imports() {
         __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
             arg0.getRandomValues(arg1);
         }, arguments); },
-        __wbg_length_ea16607d7b61445b: function(arg0) {
+        __wbg_length_1f0964f4a5e2c6d8: function(arg0) {
             const ret = arg0.length;
             return ret;
         },
@@ -1842,7 +1804,7 @@ function __wbg_get_imports() {
             const ret = new Error();
             return ret;
         },
-        __wbg_new_with_length_825018a1616e9e55: function(arg0) {
+        __wbg_new_with_length_e6785c33c8e4cce8: function(arg0) {
             const ret = new Uint8Array(arg0 >>> 0);
             return ret;
         },
@@ -1854,7 +1816,7 @@ function __wbg_get_imports() {
             const ret = arg0.process;
             return ret;
         },
-        __wbg_prototypesetcall_d62e5099504357e6: function(arg0, arg1, arg2) {
+        __wbg_prototypesetcall_4770620bbe4688a0: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), arg2);
         },
         __wbg_randomFillSync_6c25eac9869eb53c: function() { return handleError(function (arg0, arg1) {
@@ -1871,23 +1833,23 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
-        __wbg_static_accessor_GLOBAL_8adb955bd33fac2f: function() {
+        __wbg_static_accessor_GLOBAL_4ef717fb391d88b7: function() {
             const ret = typeof global === 'undefined' ? null : global;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_static_accessor_GLOBAL_THIS_ad356e0db91c7913: function() {
+        __wbg_static_accessor_GLOBAL_THIS_8d1badc68b5a74f4: function() {
             const ret = typeof globalThis === 'undefined' ? null : globalThis;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_static_accessor_SELF_f207c857566db248: function() {
+        __wbg_static_accessor_SELF_146583524fe1469b: function() {
             const ret = typeof self === 'undefined' ? null : self;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_static_accessor_WINDOW_bb9f1ba69d61b386: function() {
+        __wbg_static_accessor_WINDOW_f2829a2234d7819e: function() {
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_subarray_a068d24e39478a8a: function(arg0, arg1, arg2) {
+        __wbg_subarray_3ed232c8a6baee09: function(arg0, arg1, arg2) {
             const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
             return ret;
         },
@@ -1917,31 +1879,34 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./btc_vault_bg.js": import0,
+        "./vault_wasm_bg.js": import0,
     };
 }
 
+const PeginP2aAnchorOutputFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_peginp2aanchoroutput_free(ptr, 1));
 const WasmAssertChallengeAssertConnectorFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmassertchallengeassertconnector_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmassertchallengeassertconnector_free(ptr, 1));
 const WasmAssertPayoutNoPayoutConnectorFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmassertpayoutnopayoutconnector_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmassertpayoutnopayoutconnector_free(ptr, 1));
 const WasmPayoutTxFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpayouttx_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpayouttx_free(ptr, 1));
 const WasmPeginPayoutConnectorFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpeginpayoutconnector_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpeginpayoutconnector_free(ptr, 1));
 const WasmPeginTxFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpegintx_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpegintx_free(ptr, 1));
 const WasmPrePeginHtlcConnectorFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmprepeginhtlcconnector_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmprepeginhtlcconnector_free(ptr, 1));
 const WasmPrePeginTxFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_wasmprepegintx_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmprepegintx_free(ptr, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
@@ -2014,6 +1979,11 @@ function debugString(val) {
     return className;
 }
 
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
@@ -2036,8 +2006,15 @@ function getDataViewMemory0() {
 }
 
 function getStringFromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return decodeText(ptr, len);
+    return decodeText(ptr >>> 0, len);
+}
+
+let cachedUint16ArrayMemory0 = null;
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
 }
 
 let cachedUint8ArrayMemory0 = null;
@@ -2130,7 +2107,15 @@ function takeFromExternrefTable0(idx) {
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 cachedTextDecoder.decode();
+const MAX_SAFARI_DECODE_BYTES = 2146435072;
+let numBytesDecoded = 0;
 function decodeText(ptr, len) {
+    numBytesDecoded += len;
+    if (numBytesDecoded >= MAX_SAFARI_DECODE_BYTES) {
+        cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+        cachedTextDecoder.decode();
+        numBytesDecoded = len;
+    }
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
@@ -2149,8 +2134,98 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-const wasmPath = `${__dirname}/btc_vault_bg.wasm`;
-const wasmBytes = require('fs').readFileSync(wasmPath);
-const wasmModule = new WebAssembly.Module(wasmBytes);
-let wasm = new WebAssembly.Instance(wasmModule, __wbg_get_imports()).exports;
-wasm.__wbindgen_start();
+let wasmModule, wasmInstance, wasm;
+function __wbg_finalize_init(instance, module) {
+    wasmInstance = instance;
+    wasm = instance.exports;
+    wasmModule = module;
+    cachedBigUint64ArrayMemory0 = null;
+    cachedDataViewMemory0 = null;
+    cachedUint16ArrayMemory0 = null;
+    cachedUint8ArrayMemory0 = null;
+    wasm.__wbindgen_start();
+    return wasm;
+}
+
+async function __wbg_load(module, imports) {
+    if (typeof Response === 'function' && module instanceof Response) {
+        if (typeof WebAssembly.instantiateStreaming === 'function') {
+            try {
+                return await WebAssembly.instantiateStreaming(module, imports);
+            } catch (e) {
+                const validResponse = module.ok && expectedResponseType(module.type);
+
+                if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
+                    console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+
+                } else { throw e; }
+            }
+        }
+
+        const bytes = await module.arrayBuffer();
+        return await WebAssembly.instantiate(bytes, imports);
+    } else {
+        const instance = await WebAssembly.instantiate(module, imports);
+
+        if (instance instanceof WebAssembly.Instance) {
+            return { instance, module };
+        } else {
+            return instance;
+        }
+    }
+
+    function expectedResponseType(type) {
+        switch (type) {
+            case 'basic': case 'cors': case 'default': return true;
+        }
+        return false;
+    }
+}
+
+function initSync(module) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module !== undefined) {
+        if (Object.getPrototypeOf(module) === Object.prototype) {
+            ({module} = module)
+        } else {
+            console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
+        }
+    }
+
+    const imports = __wbg_get_imports();
+    if (!(module instanceof WebAssembly.Module)) {
+        module = new WebAssembly.Module(module);
+    }
+    const instance = new WebAssembly.Instance(module, imports);
+    return __wbg_finalize_init(instance, module);
+}
+
+async function __wbg_init(module_or_path) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module_or_path !== undefined) {
+        if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
+            ({module_or_path} = module_or_path)
+        } else {
+            console.warn('using deprecated parameters for the initialization function; pass a single object instead')
+        }
+    }
+
+    if (module_or_path === undefined) {
+        module_or_path = new URL('vault_wasm_bg.wasm', import.meta.url);
+    }
+    const imports = __wbg_get_imports();
+
+    if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
+        module_or_path = fetch(module_or_path);
+    }
+
+    const { instance, module } = await __wbg_load(await module_or_path, imports);
+
+    return __wbg_finalize_init(instance, module);
+}
+
+export { initSync, __wbg_init as default };

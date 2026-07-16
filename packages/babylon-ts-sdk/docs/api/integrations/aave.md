@@ -47,6 +47,112 @@ await walletClient.sendTransaction({ to: borrowTx.to, data: borrowTx.data });
 
 ## Interfaces
 
+### AssetDrawnRateRequest
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:12](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L12)
+
+Identifies one Hub asset to read the drawn rate for.
+
+#### Properties
+
+##### hub
+
+```ts
+hub: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:14](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L14)
+
+Hub contract address (from the reserve's `hub` field).
+
+##### assetId
+
+```ts
+assetId: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:16](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L16)
+
+Asset identifier on that Hub (from the reserve's `assetId` field).
+
+***
+
+### AssetDrawnRateResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:19](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L19)
+
+#### Properties
+
+##### hub
+
+```ts
+hub: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:20](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L20)
+
+##### assetId
+
+```ts
+assetId: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:21](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L21)
+
+##### rateRay
+
+```ts
+rateRay: bigint | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:23](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L23)
+
+Annual borrow (drawn) rate in RAY (1e27 = 100%), or null on revert.
+
+##### error
+
+```ts
+error: Error | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:24](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L24)
+
+***
+
+### ReservePriceResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:39](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L39)
+
+#### Properties
+
+##### reserveId
+
+```ts
+reserveId: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:40](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L40)
+
+##### priceRaw
+
+```ts
+priceRaw: bigint | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:42](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L42)
+
+Raw 1e8 base units, or null on revert.
+
+##### error
+
+```ts
+error: Error | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:43](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L43)
+
+***
+
 ### DepositorStruct
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:12](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L12)
@@ -879,6 +985,129 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFacto
 
 ## Functions
 
+### getAssetDrawnRatesSafe()
+
+```ts
+function getAssetDrawnRatesSafe(publicClient, requests): Promise<AssetDrawnRateResult[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts:38](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/hub.ts#L38)
+
+Per-asset isolated read of `getAssetDrawnRate` for display lists (one bad
+asset ≠ whole list blank). One multicall round-trip instead of one
+`eth_call` per asset, with `allowFailure: true` so a single reverting asset
+isolates to its own error entry. A network-level multicall failure marks
+every asset failed rather than throwing — callers (display hooks) rely on
+always getting a per-asset result array.
+
+The returned rate is the linear annual rate in RAY (the Hub accrues
+interest as `rate * dt / SECONDS_PER_YEAR`), i.e. an APR, not an APY.
+
+#### Parameters
+
+##### publicClient
+
+##### requests
+
+[`AssetDrawnRateRequest`](#assetdrawnraterequest)[]
+
+#### Returns
+
+`Promise`\<[`AssetDrawnRateResult`](#assetdrawnrateresult)[]\>
+
+***
+
+### getOracleAddress()
+
+```ts
+function getOracleAddress(publicClient, spokeAddress): Promise<`0x${string}`>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:12](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L12)
+
+`Spoke.ORACLE` is `immutable`; the result is safe to cache forever.
+
+#### Parameters
+
+##### publicClient
+
+##### spokeAddress
+
+`` `0x${string}` ``
+
+#### Returns
+
+`Promise`\<`` `0x${string}` ``\>
+
+***
+
+### getReservesPrices()
+
+```ts
+function getReservesPrices(
+   publicClient, 
+   oracleAddress, 
+reserveIds): Promise<bigint[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:25](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L25)
+
+Batch read; reverts the WHOLE batch on the first bad reserve.
+
+#### Parameters
+
+##### publicClient
+
+##### oracleAddress
+
+`` `0x${string}` ``
+
+##### reserveIds
+
+`bigint`[]
+
+#### Returns
+
+`Promise`\<`bigint`[]\>
+
+***
+
+### getReservesPricesSafe()
+
+```ts
+function getReservesPricesSafe(
+   publicClient, 
+   oracleAddress, 
+reserveIds): Promise<ReservePriceResult[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts:54](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts#L54)
+
+Per-reserve isolated read for display lists (one bad source ≠ whole list
+blank). One multicall round-trip instead of one `eth_call` per reserve:
+each entry is `getReservesPrices([reserveId])` with `allowFailure: true`, so
+a single reverting reserve isolates to its own error entry. A network-level
+multicall failure marks every reserve failed rather than throwing — callers
+(display hooks) rely on always getting a per-reserve result array.
+
+#### Parameters
+
+##### publicClient
+
+##### oracleAddress
+
+`` `0x${string}` ``
+
+##### reserveIds
+
+`bigint`[]
+
+#### Returns
+
+`Promise`\<[`ReservePriceResult`](#reservepriceresult)[]\>
+
+***
+
 ### getPosition()
 
 ```ts
@@ -966,7 +1195,7 @@ function getUserAccountData(
 userAddress): Promise<AaveSpokeUserAccountData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:101](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L101)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:116](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L116)
 
 Get aggregated user account health data from AAVE spoke.
 
@@ -1038,6 +1267,51 @@ console.log("Debt (USD):", accountData.totalDebtValueRay);
 
 ***
 
+### getUserPositionAndAccountData()
+
+```ts
+function getUserPositionAndAccountData(
+   publicClient, 
+   spokeAddress, 
+   reserveId, 
+   userAddress): Promise<{
+  position: AaveSpokeUserPosition;
+  accountData: AaveSpokeUserAccountData;
+}>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:137](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L137)
+
+Read a user's position for one reserve and their aggregate account data in a
+single hard-fail multicall. Both reads are required for the live position
+view, so a revert on either rejects the whole call (matching the prior
+`Promise.all`); the gain is one round-trip instead of two `eth_call`s.
+
+#### Parameters
+
+##### publicClient
+
+##### spokeAddress
+
+`` `0x${string}` ``
+
+##### reserveId
+
+`bigint`
+
+##### userAddress
+
+`` `0x${string}` ``
+
+#### Returns
+
+`Promise`\<\{
+  `position`: [`AaveSpokeUserPosition`](#aavespokeuserposition);
+  `accountData`: [`AaveSpokeUserAccountData`](#aavespokeuseraccountdata);
+\}\>
+
+***
+
 ### getUserPosition()
 
 ```ts
@@ -1048,7 +1322,7 @@ function getUserPosition(
 userAddress): Promise<AaveSpokeUserPosition>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:137](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L137)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:184](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L184)
 
 Get user position from the Spoke
 
@@ -1097,7 +1371,7 @@ function hasDebt(
 userAddress): Promise<boolean>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:162](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L162)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:209](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L209)
 
 Check if a user has any debt in a reserve
 
@@ -1143,7 +1417,7 @@ function hasCollateral(
 userAddress): Promise<boolean>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:186](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L186)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:233](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L233)
 
 Check if a user has supplied collateral in a reserve
 
@@ -1189,7 +1463,7 @@ function getUserTotalDebt(
 userAddress): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:237](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L237)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:284](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L284)
 
 Get user's exact total debt in a reserve (token units, not shares).
 
@@ -1254,6 +1528,87 @@ console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
 
 ***
 
+### getUserPositions()
+
+```ts
+function getUserPositions(
+   publicClient, 
+   spokeAddress, 
+   reserveIds, 
+userAddress): Promise<(AaveSpokeUserPosition | null)[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:308](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L308)
+
+Probe `getUserPosition` for many reserves in a single multicall.
+
+Returns one entry per `reserveId` in input order. Per-reserve reverts are
+isolated (`allowFailure: true`): that entry is `null` while the rest of the
+batch still resolves. Use for debt-reserve discovery, where a failed read
+means "treat as no debt", not a fatal error.
+
+#### Parameters
+
+##### publicClient
+
+##### spokeAddress
+
+`` `0x${string}` ``
+
+##### reserveIds
+
+`bigint`[]
+
+##### userAddress
+
+`` `0x${string}` ``
+
+#### Returns
+
+`Promise`\<([`AaveSpokeUserPosition`](#aavespokeuserposition) \| `null`)[]\>
+
+***
+
+### getUserTotalDebts()
+
+```ts
+function getUserTotalDebts(
+   publicClient, 
+   spokeAddress, 
+   reserveIds, 
+userAddress): Promise<bigint[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:338](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L338)
+
+Read `getUserTotalDebt` for many reserves in a single multicall.
+
+Hard-fails (`allowFailure: false`): any reserve's revert rejects the whole
+call. Use only for reserves already known to carry debt — there a failed
+read is a genuine error, not a "no debt" signal.
+
+#### Parameters
+
+##### publicClient
+
+##### spokeAddress
+
+`` `0x${string}` ``
+
+##### reserveIds
+
+`bigint`[]
+
+##### userAddress
+
+`` `0x${string}` ``
+
+#### Returns
+
+`Promise`\<`bigint`[]\>
+
+***
+
 ### getReserve()
 
 ```ts
@@ -1263,7 +1618,7 @@ function getReserve(
 reserveId): Promise<ReserveResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:294](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L294)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:398](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L398)
 
 Get reserve data from the Core Spoke contract via the `getReserve` selector.
 
@@ -1306,7 +1661,7 @@ Reserve data including `dynamicConfigKey`
 function getTargetHealthFactor(publicClient, spokeAddress): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:332](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L332)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:436](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L436)
 
 Get the target health factor (THF) from the Core Spoke contract.
 
@@ -1343,7 +1698,7 @@ function getDynamicReserveConfig(
 dynamicConfigKey): Promise<DynamicReserveConfigResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:357](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L357)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:461](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L461)
 
 Get the dynamic reserve config from the Core Spoke contract.
 
@@ -1754,7 +2109,7 @@ function getGroup1FromOrder<T>(
    seizureTol): T[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:45](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:35](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L35)
 
 Prefix walk: consume vaults front-to-back until target seizure is covered.
 Returns the vaults in the first liquidation group.
@@ -1799,7 +2154,7 @@ function simulateCascade<T>(
    expectedHF): object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:103](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L103)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:93](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L93)
 
 Simulate full liquidation cascade with debt model.
 
@@ -2069,11 +2424,11 @@ function computeOptimalOrder<T>(
    expectedHF): object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts:87](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts#L87)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts:42](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts#L42)
 
 Main optimizer: bitmask DP over seized subsets.
 
-State: T = bitmask of pre-joint groups that have already been seized.
+State: T = bitmask of vaults that have already been seized.
 Transition: for each valid "last group" G ⊆ T, dp[T] = dp[T\G] + btcAfter
   where btcAfter = totalBtc − btcOf(T)   (BTC remaining after T is seized).
 Validation: btcOf(G) must cover target seizure at the moment G fires, i.e.
@@ -2737,13 +3092,13 @@ Positions below this are considered at risk of liquidation
 ### MIN\_HEALTH\_FACTOR\_FOR\_BORROW
 
 ```ts
-const MIN_HEALTH_FACTOR_FOR_BORROW: 1.2 = 1.2;
+const MIN_HEALTH_FACTOR_FOR_BORROW: 1.05 = 1.05;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:91](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L91)
 
-Minimum health factor allowed for borrowing
-Prevents users from borrowing if resulting health factor would be below this.
+Minimum health factor allowed for borrowing. Collateral factor doubles as the
+liquidation threshold here, so this floor is the only borrow→liquidation cushion.
 
 ***
 
@@ -2788,7 +3143,7 @@ for UI-side comparisons that operate in `number` rather than `bigint`.
 const SEIZURE_TOL: 0.01 = 0.01;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:33](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:23](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L23)
 
 1% tolerance for prefix walk coverage — avoids cliff flip at boundary
 
@@ -2800,7 +3155,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimu
 const MAX_GROUPS: 20 = 20;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:36](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:26](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L26)
 
 Circuit breaker for group cascade loop
 
@@ -2812,6 +3167,21 @@ Circuit breaker for group cascade loop
 const MIN_DEBT_THRESHOLD: 0.01 = 0.01;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:39](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L39)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimulation.ts#L29)
 
 Minimum debt threshold to continue cascade (avoids infinite loop on dust)
+
+***
+
+### MAX\_DP\_N
+
+```ts
+const MAX_DP_N: 17 = 17;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts:24](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/optimalOrder.ts#L24)
+
+Hard cap on vault count for the bitmask DP optimizer. 2^n memory + 3^n work
+blow up past this. For n > MAX_DP_N the optimizer falls back to a
+largest-first heuristic. Benchmark: n=18 ≈ 720ms, n=20 ≈ 5.8s — anything past
+n=17 is too slow for interactive UI, so we cap here.

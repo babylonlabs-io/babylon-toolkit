@@ -4,7 +4,7 @@ WASM bindings for Babylon Trustless Bitcoin Vaults (TBV), providing TypeScript/J
 
 ## Overview
 
-This package provides WebAssembly bindings to the [btc-vault](https://github.com/babylonlabs-io/btc-vault) Rust library, enabling browser and Node.js applications to construct Bitcoin transactions for TBV.
+This package provides WebAssembly bindings built from the [vault-wasm](https://github.com/babylonlabs-io/vault-wasm) facade — a single binary bundling every supported [btc-vault](https://github.com/babylonlabs-io/btc-vault) tx-graph version behind version-taking constructors, enabling browser and Node.js applications to construct Bitcoin transactions for TBV.
 
 ## Installation
 
@@ -52,6 +52,7 @@ import {
 } from '@babylonlabs-io/babylon-tbv-rust-wasm';
 
 const params: PayoutConnectorParams = {
+  txGraphVersion: 1, // fresh: activeVaultCoreVersion(); resume: the vault's stamped version
   depositor: 'abc123...', // X-only pubkey (hex)
   vaultProvider: 'def456...', // X-only pubkey (hex)
   vaultKeepers: ['ghi789...'], // Array of vault keeper x-only pubkeys (hex)
@@ -85,6 +86,7 @@ import {
 } from '@babylonlabs-io/babylon-tbv-rust-wasm';
 
 const params: AssertPayoutNoPayoutConnectorParams = {
+  txGraphVersion: 1, // fresh: activeVaultCoreVersion(); resume: the vault's stamped version
   claimer: 'abc123...',            // Depositor acting as claimer, x-only pubkey (hex)
   localChallengers: ['def456...'], // Local challenger x-only pubkeys (hex)
   universalChallengers: ['ghi789...'], // Universal challenger x-only pubkeys (hex)
@@ -115,6 +117,7 @@ import {
 } from '@babylonlabs-io/babylon-tbv-rust-wasm';
 
 const params: ChallengeAssertConnectorParams = {
+  txGraphVersion: 1, // fresh: activeVaultCoreVersion(); resume: the vault's stamped version
   claimer: 'abc123...',              // Depositor acting as claimer, x-only pubkey (hex)
   challenger: 'def456...',           // Challenger x-only pubkey (hex)
   claimerWotsKeysJson: '[[...]]',     // JSON string of WOTS public keys (blocks 0-1) from VP
@@ -153,7 +156,7 @@ console.log(tapInternalPubkey);
 
 **For updating WASM bindings (rare):**
 
-- **Rust 1.92.0** (via `rustup`) - **Required for reproducible builds**
+- **Rust 1.94.1** (via `rustup`) - **Required for reproducible builds**
 - `wasm-pack` >= 0.13.1
 - `LLVM` (for `secp256k1` compilation)
 
@@ -173,27 +176,27 @@ cargo install wasm-pack
 brew install llvm
 
 # The rust-toolchain.toml file in this directory will automatically
-# install and use Rust 1.92.0 when you enter this directory.
+# install and use Rust 1.94.1 when you enter this directory.
 # Just cd into the directory and rustup will handle it:
 cd packages/babylon-tbv-rust-wasm/
-rustc --version  # Will automatically be 1.92.0
+rustc --version  # Will automatically be 1.94.1
 ```
 
 **How version pinning works:**
 
-This package includes a `rust-toolchain.toml` file that pins Rust to version 1.92.0:
+This package includes a `rust-toolchain.toml` file that pins Rust to version 1.94.1:
 
 ```toml
 [toolchain]
-channel = "1.92.0"
+channel = "1.94.1"
 ```
 
 When you `cd` into this directory, rustup automatically:
-1. Downloads Rust 1.92.0 if not already installed
-2. Switches to use 1.92.0 for all commands in this directory
+1. Downloads Rust 1.94.1 if not already installed
+2. Switches to use 1.94.1 for all commands in this directory
 3. Ensures everyone on the team uses the exact same version
 
-The build script also enforces this version with a runtime check, failing early if wrong version is detected.
+The build script also reports the resolved rustc version and warns on a mismatch; the vault-wasm `rust-toolchain.toml` is what actually selects the build toolchain.
 
 ### Building
 
@@ -215,7 +218,7 @@ The WASM files are already pre-built and checked into git at `dist/generated/`.
 - CI/CD pipelines
 - Publishing the package
 
-#### Rebuilding WASM (only when updating btc-vault) - Slow 🐌
+#### Rebuilding WASM (only when updating vault-wasm) - Slow 🐌
 
 ```bash
 pnpm run build-wasm
@@ -225,7 +228,7 @@ pnpm run build-wasm
 
 This script:
 
-1. Clones the [btc-vault repository](https://github.com/babylonlabs-io/btc-vault)
+1. Clones the [vault-wasm repository](https://github.com/babylonlabs-io/vault-wasm)
 2. Checks out a specific commit on a branch
 3. Builds the `Rust` code to `WebAssembly` using `wasm-pack`
 4. Outputs generated files to `dist/generated/`
@@ -248,15 +251,15 @@ packages/babylon-tbv-rust-wasm/
 │   └── challengeAssertConnector.ts       # ChallengeAssert connector
 ├── dist/
 │   ├── generated/            # WASM files (pre-built)
-│   │   ├── btc_vault.js
-│   │   ├── btc_vault.d.ts
-│   │   ├── btc_vault_bg.wasm
-│   │   └── btc_vault_bg.wasm.d.ts
+│   │   ├── vault_wasm.js
+│   │   ├── vault_wasm.d.ts
+│   │   ├── vault_wasm_bg.wasm
+│   │   └── vault_wasm_bg.wasm.d.ts
 │   ├── *.js                  # Compiled TypeScript
 │   ├── *.d.ts                # Type declarations
 │   └── *.map                 # Source maps
 ├── scripts/
-│   └── build-wasm.js         # Rebuild WASM from btc-vault
+│   └── build-wasm.js         # Rebuild WASM from vault-wasm
 └── package.json
 ```
 
@@ -265,50 +268,50 @@ packages/babylon-tbv-rust-wasm/
 - `src/` contains TypeScript source code
 - `dist/generated/` contains pre-built WASM bindings
 
-### Updating btc-vault Version
+### Updating the vault-wasm Version
 
-When `btc-vault` releases a new version or you want to update the WASM bindings:
+The binary is built from the `vault-wasm` facade repo — a single artifact
+bundling every supported btc-vault tx-graph version behind version-taking
+constructors. To bump the pin:
 
-1. **Ensure you have Rust 1.92.0**:
-
-   ```bash
-   rustc --version
-   # Should output: rustc 1.92.0 (ded5c06cf 2025-12-08)
-
-   # If not, update:
-   rustup update stable
-   ```
-
-2. **Edit configuration** in `scripts/build-wasm.js`:
+1. **Edit configuration** in `scripts/build-wasm.js`:
 
    ```javascript
-   const BTC_VAULT_BRANCH = 'main'; // or "feat/branch-name"
-   const BTC_VAULT_COMMIT = '<new-commit-sha>';
-   const REQUIRED_RUSTC_VERSION = '1.92.0'; // Update if needed
+   const VAULT_WASM_BRANCH = 'main';
+   const VAULT_WASM_COMMIT = '<new-commit-sha>';
+   const REQUIRED_RUSTC_VERSION = '1.94'; // vault-wasm rust-toolchain.toml governs the build
    ```
 
-3. **Rebuild WASM**:
+2. **Rebuild WASM** (rustup auto-installs the toolchain from vault-wasm's
+   `rust-toolchain.toml`):
 
    ```bash
    pnpm run build-wasm
    ```
 
    The build script will:
-   - Verify your Rust version matches `REQUIRED_RUSTC_VERSION`
-   - Clone btc-vault at the specified commit
-   - Build WASM bindings
+   - Clone vault-wasm at the specified commit
+   - Build the crate root with wasm-pack (web target)
    - Copy generated files to `dist/generated/`
 
-4. **Test the build**:
+3. **Test the build**:
 
    ```bash
    pnpm run build
    ```
 
-5. **Commit the updated WASM files** to git:
+4. **Run the frozen golden-vector gate** — a pin bump swaps the binary that
+   produces the on-chain-binding secrets. The JS golden vectors
+   (`babylon-ts-sdk` `vault-secrets/__tests__/expand.test.ts`) and the v1
+   tx-parity test (`primitives/psbt/__tests__/pegin.test.ts`) must stay
+   byte-identical; any drift is a hard fork and must not ship.
+
+5. **Commit the updated WASM files** to git (force-add — the root
+   `.gitignore` excludes `dist`):
    ```bash
-   git add scripts/build-wasm.js dist/generated/
-   git commit -m "chore: update btc-vault WASM to <commit-sha>"
+   git add scripts/build-wasm.js
+   git add -f dist/generated/
+   git commit -m "chore: update vault-wasm to <commit-sha>"
    ```
 
 ### Reproducible Builds
@@ -324,12 +327,12 @@ This causes ~64-100 byte size differences due to different path lengths. This is
 
 **Why we can't remove paths (yet):**
 - Rust's `trim-paths` feature (RFC 3127) would solve this
-- ❌ Still nightly-only, not available in stable Rust 1.92.0
+- ❌ Still nightly-only, not available in stable Rust 1.94.1
 - ✅ Will be monitored and adopted when stabilized
 - Alternative (Docker) adds complexity without sufficient benefit
 
 **To minimize differences:**
-- ✅ All developers use **Rust 1.92.0** (enforced by `rust-toolchain.toml` + build script)
+- ✅ All developers use **Rust 1.94.1** (selected by the vault-wasm `rust-toolchain.toml`; the build script warns on mismatch)
 - ✅ Same `wasm-pack` version
 - ✅ Same build flags and optimization levels
 - ⏰ When `trim-paths` stabilizes: Add to Cargo.toml profile
@@ -368,6 +371,7 @@ Creates a Bitcoin peg-in transaction for the vault system.
 Creates a payout connector for signing payout transactions.
 
 **Parameters:**
+- `params.txGraphVersion` - Tx graph version selecting the builder (fails closed if unsupported)
 - `params.depositor` - Depositor's x-only pubkey (hex)
 - `params.vaultProvider` - Vault provider's x-only pubkey (hex)
 - `params.vaultKeepers` - Array of vault keeper x-only pubkeys (hex)
@@ -387,6 +391,7 @@ Creates a payout connector for signing payout transactions.
 Returns the payout script and control block from the PeginPayoutConnector without requiring a network parameter. Useful for building payout PSBTs where you need the script and control block for Taproot script path spending.
 
 **Parameters:**
+- `params.txGraphVersion` - Tx graph version selecting the builder (fails closed if unsupported)
 - `params.depositor` - Depositor's x-only pubkey (hex)
 - `params.vaultProvider` - Vault provider's x-only pubkey (hex)
 - `params.vaultKeepers` - Array of vault keeper x-only pubkeys (hex)
@@ -402,6 +407,7 @@ Returns the payout script and control block from the PeginPayoutConnector withou
 Generates the Payout script and control block from Assert output 0 for the depositor-as-claimer path.
 
 **Parameters:**
+- `params.txGraphVersion` - Tx graph version selecting the builder (fails closed if unsupported)
 - `params.claimer` - Claimer (depositor) x-only pubkey (hex)
 - `params.localChallengers` - Array of local challenger x-only pubkeys (hex)
 - `params.universalChallengers` - Array of universal challenger x-only pubkeys (hex)
@@ -430,6 +436,7 @@ Generates the NoPayout script and control block for a specific challenger. Each 
 Generates the ChallengeAssert script and control block for a specific challenger. Uses WOTS public keys and GC WOTS public keys from the vault provider.
 
 **Parameters:**
+- `params.txGraphVersion` - Tx graph version selecting the builder (fails closed if unsupported)
 - `params.claimer` - Claimer (depositor) x-only pubkey (hex)
 - `params.challenger` - Challenger x-only pubkey (hex)
 - `params.claimerWotsKeysJson` - JSON string of WOTS public keys (blocks 0-1) from VP

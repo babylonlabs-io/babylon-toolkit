@@ -11,6 +11,13 @@ export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
  * reconstructFromFundedTx() then buildPeginTx() to derive the PegIn transaction.
  */
 export interface PrePeginParams {
+  /**
+   * Tx graph (vault-core) version selecting the builder inside the vault-wasm
+   * facade. Fresh deposits use the contract's `activeVaultCoreVersion()`;
+   * resumed vaults use their stamped `vaultCoreVersion`. The facade fails
+   * closed on versions the shipped binary does not support.
+   */
+  txGraphVersion: number;
   /** X-only public key of the depositor (hex encoded, 64 chars) */
   depositorPubkey: string;
   /** X-only public key of the vault provider (hex encoded, 64 chars) */
@@ -93,6 +100,13 @@ export interface PeginTxResult {
  * Subset of PrePeginParams — only the structural parameters, not the fee/amount ones.
  */
 export interface HtlcConnectorParams {
+  /**
+   * Tx graph (vault-core) version selecting the builder inside the vault-wasm
+   * facade. Fresh deposits use the contract's `activeVaultCoreVersion()`;
+   * resumed vaults use their stamped `vaultCoreVersion`. The facade fails
+   * closed on versions the shipped binary does not support.
+   */
+  txGraphVersion: number;
   /** X-only public key of the depositor (hex encoded, 64 chars) */
   depositorPubkey: string;
   /** X-only public key of the vault provider (hex encoded, 64 chars) */
@@ -131,6 +145,13 @@ export interface HtlcConnectorInfo {
  * Parameters for creating a payout connector
  */
 export interface PayoutConnectorParams {
+  /**
+   * Tx graph (vault-core) version selecting the builder inside the vault-wasm
+   * facade. Fresh deposits use the contract's `activeVaultCoreVersion()`;
+   * resumed vaults use their stamped `vaultCoreVersion`. The facade fails
+   * closed on versions the shipped binary does not support.
+   */
+  txGraphVersion: number;
   /** X-only public key of the depositor (hex encoded) */
   depositor: string;
   /** X-only public key of the vault provider (hex encoded) */
@@ -164,6 +185,13 @@ export interface PayoutConnectorInfo {
  * This connector generates scripts for the depositor's own graph (depositor-as-claimer).
  */
 export interface AssertPayoutNoPayoutConnectorParams {
+  /**
+   * Tx graph (vault-core) version selecting the builder inside the vault-wasm
+   * facade. Fresh deposits use the contract's `activeVaultCoreVersion()`;
+   * resumed vaults use their stamped `vaultCoreVersion`. The facade fails
+   * closed on versions the shipped binary does not support.
+   */
+  txGraphVersion: number;
   /** X-only public key of the claimer (depositor acting as claimer, hex encoded) */
   claimer: string;
   /** Array of x-only public keys of local challengers (hex encoded) */
@@ -203,6 +231,13 @@ export interface AssertNoPayoutScriptInfo {
  * This connector generates scripts for the ChallengeAssert transaction.
  */
 export interface ChallengeAssertConnectorParams {
+  /**
+   * Tx graph (vault-core) version selecting the builder inside the vault-wasm
+   * facade. Fresh deposits use the contract's `activeVaultCoreVersion()`;
+   * resumed vaults use their stamped `vaultCoreVersion`. The facade fails
+   * closed on versions the shipped binary does not support.
+   */
+  txGraphVersion: number;
   /** X-only public key of the claimer (depositor acting as claimer, hex encoded) */
   claimer: string;
   /** X-only public key of the challenger (hex encoded) */

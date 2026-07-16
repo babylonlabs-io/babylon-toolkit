@@ -23,6 +23,8 @@ import {
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
+import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
+
 /**
  * Parameters for creating a payout script.
  *
@@ -146,6 +148,7 @@ export async function createPayoutScript(
   // Call the WASM wrapper with the correct parameter structure
   const connector = await createPayoutConnector(
     {
+      txGraphVersion: TX_GRAPH_VERSION_V1,
       depositor: params.depositor,
       vaultProvider: params.vaultProvider,
       vaultKeepers: params.vaultKeepers,

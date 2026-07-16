@@ -453,6 +453,32 @@ Bitcoin network
 
 ***
 
+### ParsedOutput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L37)
+
+A single parsed output from the unfunded WASM transaction
+
+#### Properties
+
+##### value
+
+```ts
+value: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L38)
+
+##### script
+
+```ts
+script: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L39)
+
+***
+
 ### UtxoRef
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L23)
@@ -551,6 +577,98 @@ totalInputs: number;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L47)
 
 Total number of inputs checked
+
+***
+
+### PendingPeginLike
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L22)
+
+Locally-known pending pegin. `id` is the bytes32 vault id.
+
+#### Properties
+
+##### id?
+
+```ts
+optional id: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L23)
+
+##### unsignedTxHex?
+
+```ts
+optional unsignedTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L24)
+
+***
+
+### VaultLike
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L28)
+
+On-chain vault row from the indexer.
+
+#### Properties
+
+##### id?
+
+```ts
+optional id: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L29)
+
+##### status
+
+```ts
+status: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L30)
+
+##### unsignedPrePeginTx
+
+```ts
+unsignedPrePeginTx: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L31)
+
+***
+
+### FindOverlappingPendingVaultsParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L34)
+
+#### Properties
+
+##### selectedOutpoints
+
+```ts
+selectedOutpoints: readonly UtxoRef[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L35)
+
+##### vaults?
+
+```ts
+optional vaults: readonly VaultLike[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L36)
+
+##### pendingPegins?
+
+```ts
+optional pendingPegins: readonly PendingPeginLike[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L37)
 
 ***
 
@@ -1196,6 +1314,30 @@ Error if validation fails
 
 ***
 
+### findOverlappingPendingVaults()
+
+```ts
+function findOverlappingPendingVaults(params): string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L61)
+
+Return the ids of pending vaults whose committed Pre-PegIn inputs
+overlap any of the just-selected outpoints. On-chain `PENDING` vaults
+take precedence over a same-id local pegin entry.
+
+#### Parameters
+
+##### params
+
+[`FindOverlappingPendingVaultsParams`](#findoverlappingpendingvaultsparams)
+
+#### Returns
+
+`string`[]
+
+***
+
 ### selectUtxosForPegin()
 
 ```ts
@@ -1486,6 +1628,30 @@ Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple
 of the planned values. 5x accounts for witness estimation variance while
 catching catastrophic wallet-side overpayment.
+
+***
+
+### MAX\_REASONABLE\_PEGIN\_VBYTES
+
+```ts
+const MAX_REASONABLE_PEGIN_VBYTES: 100000n = 100_000n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:119](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L119)
+
+Upper bound (vbytes) used to plausibility-check the implied per-HTLC
+PegIn fee returned by WASM: `htlcValue - peginAmount - depositorClaimValue`.
+
+The WASM sizes the PegIn fee internally as `minPeginFeeRate × peginTxVsize`.
+We do not reproduce the exact Rust vsize model here — JS↔Rust vbyte parity
+is explicitly NOT a cross-stack guarantee (see `peginFeeMath.ts`), so an
+exact recompute would false-positive on valid deposits. Instead we bound
+the implied fee by the largest vsize any *standard, relayable* Bitcoin
+transaction can have: 100,000 vbytes (400,000 weight units, the consensus
+tx-weight limit). A PegIn is a single transaction, so its real vsize is far
+below this; an implied fee above `minPeginFeeRate × MAX_REASONABLE_PEGIN_VBYTES`
+therefore signals a grossly inflated `htlcValue` (excess sats that would be
+locked irrecoverably in the HTLC), not legitimate sizing.
 
 ***
 

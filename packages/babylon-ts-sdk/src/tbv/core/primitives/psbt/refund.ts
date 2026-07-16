@@ -28,6 +28,7 @@ import {
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
+import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 import { normalizeAuthAnchorHash, type PrePeginParams } from "./pegin";
 
 /**
@@ -92,22 +93,10 @@ export async function buildRefundPsbt(
   const normalizedAuthAnchorHash = normalizeAuthAnchorHash(
     prePeginParams.authAnchorHash,
   );
-  const unfundedTx = new (WasmPrePeginTx as unknown as new (
-    depositor: string,
-    vault_provider: string,
-    vault_keepers: string[],
-    universal_challengers: string[],
-    hashlocks: string[],
-    pegin_amounts: BigUint64Array,
-    timelock_refund: number,
-    fee_rate: bigint,
-    min_pegin_fee_rate: bigint,
-    num_local_challengers: number,
-    council_quorum: number,
-    council_size: number,
-    network: string,
-    auth_anchor_hash?: string,
-  ) => typeof WasmPrePeginTx.prototype)(
+  // Phase-1 pin: refunds reconstruct the v1 template (matches the graph
+  // every existing Pre-PegIn was built with).
+  const unfundedTx = new WasmPrePeginTx(
+    TX_GRAPH_VERSION_V1,
     prePeginParams.depositorPubkey,
     prePeginParams.vaultProviderPubkey,
     prePeginParams.vaultKeeperPubkeys,
@@ -151,6 +140,7 @@ export async function buildRefundPsbt(
     const refundTxHex = fundedTx.buildRefundTx(refundFee, htlcVout);
 
     const htlcConnector = await getPrePeginHtlcConnectorInfo({
+      txGraphVersion: TX_GRAPH_VERSION_V1,
       depositorPubkey: prePeginParams.depositorPubkey,
       vaultProviderPubkey: prePeginParams.vaultProviderPubkey,
       vaultKeeperPubkeys: prePeginParams.vaultKeeperPubkeys,

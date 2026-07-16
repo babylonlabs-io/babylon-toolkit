@@ -21,6 +21,7 @@ import {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
+import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 import {
   assertEncodedHtlcOutputsMatch,
@@ -154,6 +155,10 @@ export async function buildPrePeginPsbt(
   const authAnchorHash = normalizeAuthAnchorHash(params.authAnchorHash);
 
   const result = await createPrePeginTransaction({
+    // Phase-1 pin: every deposit builds the v1 graph until fresh/resume
+    // version resolution lands (fresh: activeVaultCoreVersion; resume: the
+    // vault's stamped vaultCoreVersion).
+    txGraphVersion: TX_GRAPH_VERSION_V1,
     depositorPubkey: params.depositorPubkey,
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
@@ -254,6 +259,7 @@ export async function buildPeginTxFromFundedPrePegin(
   // hashlocks.length.
   const result = await buildPeginTxFromPrePegin(
     {
+      txGraphVersion: TX_GRAPH_VERSION_V1,
       depositorPubkey: params.prePeginParams.depositorPubkey,
       vaultProviderPubkey: params.prePeginParams.vaultProviderPubkey,
       vaultKeeperPubkeys: params.prePeginParams.vaultKeeperPubkeys,

@@ -20,6 +20,7 @@ import {
 
 import { MAX_REASONABLE_PEGIN_VBYTES } from "../../utils/fee/constants";
 import type { ParsedOutput } from "../../utils/transaction/fundPeginTransaction";
+import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 import type { PrePeginParams } from "./pegin";
 
@@ -81,6 +82,9 @@ export async function assertWasmPeginSizing(
     );
   }
   const expectedClaimValue = await computeMinClaimValue(
+    // Phase-1 pin: the builder constructs the v1 graph, so the cross-check
+    // must price the same version's claim value.
+    TX_GRAPH_VERSION_V1,
     params.numLocalChallengers,
     params.universalChallengerPubkeys.length,
     params.councilQuorum,

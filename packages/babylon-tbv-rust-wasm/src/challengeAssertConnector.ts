@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { WasmAssertChallengeAssertConnector } from "./generated/btc_vault.js";
+import { WasmAssertChallengeAssertConnector } from "./generated/vault_wasm.js";
 import { initWasm } from "./index.js";
 import type {
   ChallengeAssertConnectorParams,
@@ -24,6 +24,7 @@ export async function getChallengeAssertScriptInfo(
   await initWasm();
 
   const conn = new WasmAssertChallengeAssertConnector(
+    params.txGraphVersion,
     params.claimer,
     params.challenger,
     params.claimerWotsKeysJson,

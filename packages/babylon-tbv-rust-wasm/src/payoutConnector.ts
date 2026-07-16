@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { WasmPeginPayoutConnector } from "./generated/btc_vault.js";
+import { WasmPeginPayoutConnector } from "./generated/vault_wasm.js";
 import { initWasm } from "./index.js";
 import type { PayoutConnectorParams, PayoutConnectorInfo, Network } from "./types.js";
 
@@ -33,6 +33,7 @@ export async function createPayoutConnector(
   await initWasm();
 
   const connector = new WasmPeginPayoutConnector(
+    params.txGraphVersion,
     params.depositor,
     params.vaultProvider,
     params.vaultKeepers,
@@ -68,6 +69,7 @@ export async function getPeginPayoutScriptInfo(
   await initWasm();
 
   const connector = new WasmPeginPayoutConnector(
+    params.txGraphVersion,
     params.depositor,
     params.vaultProvider,
     params.vaultKeepers,
