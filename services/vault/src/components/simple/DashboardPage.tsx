@@ -79,6 +79,8 @@ export function DashboardPage() {
     displayCollateralBtc,
     collateralValueUsd,
     debtValueUsd,
+    maxTotalDebtUsd,
+    availableToBorrowUsd,
     healthFactor,
     healthFactorStatus,
     borrowedAssets,
@@ -87,6 +89,8 @@ export function DashboardPage() {
     hasDisplayCollateral,
     collateralVaults,
     selectableBorrowedAssets,
+    isBorrowCapacityLoading,
+    borrowCapacityError,
   } = useDashboardState(isConnected ? address : undefined);
 
   const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
@@ -191,12 +195,20 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const totalBorrowed = formatUsdValue(debtValueUsd);
+  const availableToBorrow = formatUsdValue(availableToBorrowUsd);
+  const collateralBtcText = formatBtcAmount(collateralBtc);
   // The Overview is purely a financial summary: an empty position renders every
   // row as a placeholder ("Health factor –", "$0 USD", "$0 USD"), so suppress
   // the whole panel until there is real collateral or debt to summarize. Gate on
   // the financial flags (not the display ones) so an optimistic "activating"
   // vault, whose values are still $0, doesn't surface an empty panel.
   const hasOverviewData = hasCollateral || hasLoans;
+  const showOverview = featureFlags.isV3UiEnabled || hasOverviewData;
+
+  const availableMeterPercent =
+    maxTotalDebtUsd > 0 ? availableToBorrowUsd / maxTotalDebtUsd : 0;
+  const borrowedMeterPercent =
+    maxTotalDebtUsd > 0 ? debtValueUsd / maxTotalDebtUsd : 0;
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -302,7 +314,9 @@ export function DashboardPage() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
-        <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
+        {!featureFlags.isV3UiEnabled && (
+          <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
+        )}
 
         {/* Notifications sit between the supply cap and Overview per Figma
             (frame 6508-114810). The critical top banner, the max-vaults notice,
@@ -327,7 +341,7 @@ export function DashboardPage() {
           />
         )}
 
-        {hasOverviewData && (
+        {showOverview && (
           <OverviewSection
             healthFactor={healthFactor}
             healthFactorStatus={healthFactorStatus}
@@ -336,43 +350,58 @@ export function DashboardPage() {
             liquidationPrice={liquidationPrice}
             btcPrice={btcPrice}
             pctToLiquidation={pctToLiquidation}
+            availableToBorrow={availableToBorrow}
+            collateralBtc={collateralBtcText}
+            availableMeterPercent={availableMeterPercent}
+            borrowCapacityLoading={isBorrowCapacityLoading}
+            borrowCapacityError={borrowCapacityError}
+            borrowedMeterPercent={borrowedMeterPercent}
+            onDeposit={openDeposit}
+            onBorrow={handleBorrow}
+            onRepay={handleRepay}
+            canBorrow={availableToBorrowUsd > 0}
+            canRepay={hasLoans}
           />
         )}
 
-        <PendingDepositSection />
+        {!featureFlags.isV3UiEnabled && (
+          <>
+            <PendingDepositSection />
 
-        <PendingWithdrawSection
-          pendingWithdrawVaults={inProgressWithdrawVaults}
-          pegoutStatuses={withdrawPegoutStatuses}
-        />
+            <PendingWithdrawSection
+              pendingWithdrawVaults={inProgressWithdrawVaults}
+              pegoutStatuses={withdrawPegoutStatuses}
+            />
 
-        <PendingWithdrawSection
-          title={COPY.pegout.section.completedTitle}
-          pendingWithdrawVaults={completedWithdrawVaults}
-          pegoutStatuses={withdrawPegoutStatuses}
-        />
+            <PendingWithdrawSection
+              title={COPY.pegout.section.completedTitle}
+              pendingWithdrawVaults={completedWithdrawVaults}
+              pegoutStatuses={withdrawPegoutStatuses}
+            />
 
-        <CollateralSection
-          totalAmountBtc={totalAmountBtcShown}
-          collateralVaults={collateralVaultsWithDemo}
-          hasCollateral={showCollateral}
-          isConnected={isConnected}
-          collateralBtc={collateralBtc}
-          currentHealthFactor={healthFactor}
-          selectedVaultIds={selectedVaultIds}
-          onSelectedVaultIdsChange={setSelectedVaultIds}
-          onWithdraw={handleOpenWithdraw}
-          onDeposit={openDeposit}
-        />
+            <CollateralSection
+              totalAmountBtc={totalAmountBtcShown}
+              collateralVaults={collateralVaultsWithDemo}
+              hasCollateral={showCollateral}
+              isConnected={isConnected}
+              collateralBtc={collateralBtc}
+              currentHealthFactor={healthFactor}
+              selectedVaultIds={selectedVaultIds}
+              onSelectedVaultIdsChange={setSelectedVaultIds}
+              onWithdraw={handleOpenWithdraw}
+              onDeposit={openDeposit}
+            />
 
-        <LoansSection
-          hasLoans={hasLoans}
-          hasCollateral={hasCollateral}
-          isConnected={isConnected}
-          borrowedAssets={borrowedAssets}
-          onBorrow={handleBorrow}
-          onRepay={handleRepay}
-        />
+            <LoansSection
+              hasLoans={hasLoans}
+              hasCollateral={hasCollateral}
+              isConnected={isConnected}
+              borrowedAssets={borrowedAssets}
+              onBorrow={handleBorrow}
+              onRepay={handleRepay}
+            />
+          </>
+        )}
       </div>
 
       {/* Withdraw Flow.

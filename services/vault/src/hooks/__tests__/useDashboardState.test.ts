@@ -1,6 +1,11 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  BPS_SCALE,
+  MIN_HEALTH_FACTOR_FOR_BORROW,
+} from "@/applications/aave/constants";
+
 import { useDashboardState } from "../useDashboardState";
 
 const stableFindProvider = vi.fn(() => undefined);
@@ -19,6 +24,11 @@ type ActivatingEntry = {
 // Mutable state read by the hoisted mocks below.
 let mockCollaterals: unknown[] | null = null;
 let mockCollateralBtc = 0;
+let mockCollateralValueUsd = 0;
+let mockDebtValueUsd = 0;
+let mockSplitParams: { THF: number; CF: number; LB: number } | null = null;
+let mockSplitLoading = false;
+let mockSplitError: Error | null = null;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
 let mockActivatingVaults = new Map<string, ActivatingEntry>();
 const mockClearReorderedOrder = vi.fn();
@@ -41,8 +51,8 @@ vi.mock("@/applications/aave/hooks", () => ({
   useAaveUserPosition: () => ({
     position: mockCollaterals ? { collaterals: mockCollaterals } : null,
     collateralBtc: mockCollateralBtc,
-    collateralValueUsd: 0,
-    debtValueUsd: 0,
+    collateralValueUsd: mockCollateralValueUsd,
+    debtValueUsd: mockDebtValueUsd,
     healthFactor: null,
     healthFactorStatus: null,
     isLoading: false,
@@ -50,6 +60,12 @@ vi.mock("@/applications/aave/hooks", () => ({
   useAaveBorrowedAssets: () => ({
     borrowedAssets: [],
     hasLoans: false,
+  }),
+  useVaultSplitParams: () => ({
+    params: mockSplitParams,
+    isLoading: mockSplitLoading,
+    error: mockSplitError,
+    refetch: async () => mockSplitParams,
   }),
 }));
 
@@ -86,6 +102,11 @@ describe("useDashboardState", () => {
     vi.clearAllMocks();
     mockCollaterals = null;
     mockCollateralBtc = 0;
+    mockCollateralValueUsd = 0;
+    mockDebtValueUsd = 0;
+    mockSplitParams = null;
+    mockSplitLoading = false;
+    mockSplitError = null;
     mockReorderedOrder = null;
     mockActivatingVaults = new Map();
   });
@@ -226,5 +247,51 @@ describe("useDashboardState", () => {
     expect(result.current.collateralVaults).toHaveLength(0);
     expect(result.current.displayCollateralBtc).toBe(0);
     expect(result.current.hasDisplayCollateral).toBe(false);
+  });
+
+  it("derives borrow capacity from collateral, debt, and split params", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockDebtValueUsd = 2000;
+    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    const expectedMaxTotalDebtUsd =
+      (10000 * Math.round(0.8 * BPS_SCALE)) /
+      BPS_SCALE /
+      MIN_HEALTH_FACTOR_FOR_BORROW;
+    expect(result.current.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
+    expect(result.current.availableToBorrowUsd).toBe(
+      expectedMaxTotalDebtUsd - 2000,
+    );
+  });
+
+  it("reports zero borrow capacity while split params are unavailable", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockDebtValueUsd = 0;
+    mockSplitParams = null;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.maxTotalDebtUsd).toBe(0);
+    expect(result.current.availableToBorrowUsd).toBe(0);
+  });
+
+  it("forwards the split-params loading state as isBorrowCapacityLoading", () => {
+    mockSplitLoading = true;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.isBorrowCapacityLoading).toBe(true);
+  });
+
+  it("forwards the split-params error as borrowCapacityError", () => {
+    mockSplitError = new Error("split params failed");
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.borrowCapacityError).toBe(mockSplitError);
   });
 });
