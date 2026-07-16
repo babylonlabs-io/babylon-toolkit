@@ -96,25 +96,22 @@ async function ensureConnected(ctx: ActionContext): Promise<void> {
   );
 }
 
-/** Expand the Pending Deposits section if its cards aren't visible yet (the CTA lives behind it). */
+/**
+ * Expand the Pending Deposits section if it's collapsed (the deposit cards + their CTAs live behind it).
+ * Idempotent: the ExpandMenuButton reflects state via `aria-expanded`, so we match it ONLY while
+ * collapsed (`expanded: false`) and click once. Clicking unconditionally on every poll would toggle the
+ * section open→closed and race the CTA click against a collapsing panel (landing on the wrong deposit).
+ */
 async function ensurePendingExpanded(
   page: Page,
   log: (m: string) => void,
 ): Promise<void> {
-  if (
-    await page
-      .locator(PENDING_CARD_TESTID)
-      .first()
-      .isVisible()
-      .catch(() => false)
-  )
-    return;
-  const expander = page
-    .getByRole("button", { name: PENDING_EXPAND_RX })
+  const collapsedToggle = page
+    .getByRole("button", { name: PENDING_EXPAND_RX, expanded: false })
     .first();
-  if (await expander.isVisible().catch(() => false)) {
+  if (await collapsedToggle.isVisible().catch(() => false)) {
     log("Expanding the Pending Deposits section");
-    await expander.click().catch(() => {});
+    await collapsedToggle.click().catch(() => {});
   }
 }
 
@@ -165,16 +162,28 @@ async function openPendingDeposit(
 
   await ensurePendingExpanded(page, log);
 
-  // 2. The resume CTA — scoped to the --txid card when given, else the first actionable card.
-  const cta = txid
+  // 2. The resume CTA. A single deposit exposes the CTA inside its own pending-deposit-card; a
+  //    batched/split deposit renders ONE group-level CTA (Broadcast / Continue / Activate) as a sibling
+  //    of its cards, inside the group's role=button wrapper. Both carry the same resume-cta testid, so we
+  //    scope one locator to the card and one to the wrapper (each filtered to the --txid deposit, else the
+  //    first actionable), and click whichever is present.
+  const txidHref = txid ? `a[href*="${txid}"]` : undefined;
+  const singleCta = txidHref
     ? page
         .locator(PENDING_CARD_TESTID)
-        .filter({ has: page.locator(`a[href*="${txid}"]`) })
+        .filter({ has: page.locator(txidHref) })
+        .locator(PENDING_RESUME_CTA_TESTID)
+        .first()
+    : page.locator(PENDING_RESUME_CTA_TESTID).first();
+  const batchedCta = txidHref
+    ? page
+        .locator('[role="button"]')
+        .filter({ has: page.locator(txidHref) })
         .locator(PENDING_RESUME_CTA_TESTID)
         .first()
     : page.locator(PENDING_RESUME_CTA_TESTID).first();
 
-  // 3. Wait for it to become actionable — can be long (VP must ingest the confirmed Pre-PegIn).
+  // 3. Wait for either to become actionable — can be long (VP must ingest the confirmed Pre-PegIn).
   log(
     txid
       ? `Waiting for pending deposit ${txid.slice(0, 8)}… to become resumable (vault-provider readiness)…`
@@ -184,7 +193,8 @@ async function openPendingDeposit(
   let lastState = "";
   while (Date.now() < actionableDeadline) {
     await ensurePendingExpanded(page, log);
-    if (await cta.isVisible().catch(() => false)) break;
+    if (await singleCta.isVisible().catch(() => false)) break;
+    if (await batchedCta.isVisible().catch(() => false)) break;
     const state = await readPendingCardState(page, txid);
     if (state && state !== lastState) {
       lastState = state;
@@ -193,6 +203,9 @@ async function openPendingDeposit(
     await sweepApprovals(context, page, log);
     await page.waitForTimeout(RESUME_POLL_INTERVAL_MS);
   }
+  const cta = (await singleCta.isVisible().catch(() => false))
+    ? singleCta
+    : batchedCta;
   if (!(await cta.isVisible().catch(() => false)))
     throw new Error(
       "resume: the pending deposit never became resumable within the budget — the vault provider may not have ingested the confirmed Pre-PegIn (signet confirmation delay / VP availability), or the deposit hit a terminal state. Retry once the card shows a resume action.",
@@ -200,9 +213,13 @@ async function openPendingDeposit(
 
   const label = (await cta.innerText().catch(() => ""))
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .slice(0, 40);
   log(`Resuming pending deposit — clicking "${label || "resume"}"`);
-  await cta.click({ timeout: STEP_TIMEOUT_MS });
+  // `force`: a batched deposit's group is a role=button wrapper whose card children overlap the CTA's
+  // click point (the app's known "card-as-button" nesting), so the strict pointer-intercept check fails
+  // even though the CTA is the right, visible element; clicking it still fires the same group action.
+  await cta.click({ timeout: STEP_TIMEOUT_MS, force: true });
 }
 
 /**
@@ -228,7 +245,7 @@ async function peginUntilInterrupt(
   const split = ctx.config.split ?? false;
 
   log(
-    "--interrupt-fresh: pegging in a fresh deposit, to interrupt after Pre-PegIn broadcast and resume it",
+    "Pegging in a fresh deposit, to interrupt right after the Pre-PegIn broadcast",
   );
   onStep("deposit-form");
   await fillDepositForm(page, log, amountBtc, provider, split);
@@ -262,11 +279,14 @@ async function runResumeFlow(
 ): Promise<void> {
   const { page, context, log } = ctx;
 
+  // The deposit we're resuming (a fresh interrupt txid wins over --txid). Used BOTH to target the card
+  // AND as the ground-truth Pre-PegIn for the dashboard cross-check: walkStepMachine re-reads the first
+  // on-page /tx link, which in a resume is the dashboard *behind* the continuation view — a DIFFERENT
+  // deposit — so we prefer this known txid and only fall back to the read one (first-actionable resume).
+  const knownTxid = normalizeTxid(targetTxid ?? ctx.config.resumeTxid);
+
   onStep("open-pending-deposit");
-  await openPendingDeposit(
-    ctx,
-    normalizeTxid(targetTxid ?? ctx.config.resumeTxid),
-  );
+  await openPendingDeposit(ctx, knownTxid);
 
   onStep("resume-step-machine");
   const expectedVaults = ctx.config.split ? 2 : 1;
@@ -285,7 +305,7 @@ async function runResumeFlow(
     page,
     log,
     ctx.config.peginAmountBtc,
-    prePeginTxid,
+    knownTxid ?? prePeginTxid,
     expectedVaults,
   );
   log(
@@ -311,13 +331,21 @@ export const resumeAction: Action = {
     );
     try {
       await connectWallets(ctx);
-      // --interrupt-fresh pegs in a new deposit and returns its Pre-PegIn txid so the resume targets
-      // exactly that card (not the first actionable one, which could be an unrelated pending deposit).
-      const freshTxid = ctx.config.interruptFresh
-        ? await peginUntilInterrupt(ctx, (step) => {
-            currentStep = step;
-          })
-        : undefined;
+      // --interrupt-fresh / --interrupt-only peg in a new deposit and return its Pre-PegIn txid; fresh
+      // then resumes it (targeting exactly that card, not the first actionable one), while only stops
+      // here so the deposit can be resumed later in stages (manual on-chain checkpoints between).
+      const freshTxid =
+        ctx.config.interruptFresh || ctx.config.interruptOnly
+          ? await peginUntilInterrupt(ctx, (step) => {
+              currentStep = step;
+            })
+          : undefined;
+      if (ctx.config.interruptOnly) {
+        log(
+          `--interrupt-only: fresh deposit broadcast + interrupted (Pre-PegIn ${freshTxid}). Stopping before resume. Verify on-chain until it shows "Submit WOTS Key", then run: --action=resume --txid=${freshTxid}${ctx.config.split ? " --split" : ""}`,
+        );
+        return;
+      }
       await runResumeFlow(
         ctx,
         (step) => {

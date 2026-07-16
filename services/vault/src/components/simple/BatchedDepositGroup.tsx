@@ -177,6 +177,8 @@ export function BatchedDepositGroup({
             variant="contained"
             color="secondary"
             className="w-full"
+            // E2E: the batched deposit's group-level resume action (consumed by e2e/real/actions/resume.ts).
+            data-testid="pending-deposit-resume-cta"
             onClick={() => onBroadcastClick(broadcastTarget.id)}
           >
             {COPY.pegin.primaryAction.SIGN_AND_BROADCAST_TO_BITCOIN}
@@ -192,6 +194,8 @@ export function BatchedDepositGroup({
             variant="contained"
             color="secondary"
             className="w-full"
+            // E2E: the batched deposit's group-level resume action (consumed by e2e/real/actions/resume.ts).
+            data-testid="pending-deposit-resume-cta"
             onClick={() => onGroupClick(activities[0].id)}
           >
             {continueAction.label}

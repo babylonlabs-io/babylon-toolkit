@@ -41,6 +41,9 @@
  * Payouts → Activate). By default it resumes an already-pending deposit (`--txid=<prePeginTxid>` targets a
  * specific one, else the first actionable); `--interrupt-fresh` pegs in a fresh deposit, reloads after
  * Pre-PegIn broadcast, and resumes it — a self-contained run (then also honors the pegin extras above).
+ * `--interrupt-only` pegs in + broadcasts a fresh deposit then STOPS (no resume), printing its Pre-PegIn
+ * txid — for staged manual verification: let it reach "Submit WOTS Key" on-chain, then re-run with
+ * `--txid=<that txid>` to resume it in steps.
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
@@ -342,6 +345,10 @@ async function resolveConfig(
     // pegin params below. `--txid` targets a specific pending deposit when several are in flight.
     const interruptFresh =
       action === "resume" && flagBool(flags["interrupt-fresh"]);
+    // `--interrupt-only`: peg in a fresh deposit + broadcast, then STOP (no resume) — for staged manual
+    // verification. Also pegs in, so it needs the pegin params below.
+    const interruptOnly =
+      action === "resume" && flagBool(flags["interrupt-only"]);
     const resumeTxid =
       action === "resume" && typeof flags.txid === "string"
         ? flags.txid
@@ -354,7 +361,7 @@ async function resolveConfig(
     const needsPeginParams =
       action === "pegin" ||
       (willBorrow && peginFirst) ||
-      (action === "resume" && interruptFresh);
+      (action === "resume" && (interruptFresh || interruptOnly));
 
     // Split: `--split` wins; else prompt (default = single vault). Resolved first because the deposit
     // minimum depends on it — a two-vault split needs a larger deposit than a single vault.
@@ -370,6 +377,16 @@ async function resolveConfig(
           ])) === "split";
       }
     }
+    // A plain resume (no --interrupt-fresh) of a batched/split deposit still needs --split so the step
+    // machine and the dashboard cross-check expect the right vault count — the block above only resolves
+    // it for pegin-bearing runs (a plain resume fetches no pegin params), yet real dashboards are batched.
+    if (
+      action === "resume" &&
+      !interruptFresh &&
+      !interruptOnly &&
+      flags.split !== undefined
+    )
+      split = flagBool(flags.split);
 
     let peginAmountBtc =
       typeof flags.amount === "string" ? flags.amount : undefined;
@@ -614,6 +631,7 @@ async function resolveConfig(
       withdrawAll,
       resumeTxid,
       interruptFresh,
+      interruptOnly,
     };
   } finally {
     rl.close();

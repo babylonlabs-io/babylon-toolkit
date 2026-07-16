@@ -185,6 +185,12 @@ export interface RunConfig {
    * When absent, resume expects an already-pending deposit to be present.
    */
   interruptFresh?: boolean;
+  /**
+   * Resume only: peg in a fresh deposit and interrupt it after Pre-PegIn broadcast (`--interrupt-only`),
+   * then STOP without resuming — leaving the deposit pending on the dashboard so it can be resumed later
+   * in stages (verify on-chain it reaches "Submit WOTS Key", then re-run with `--txid=<its Pre-PegIn>`).
+   */
+  interruptOnly?: boolean;
 }
 
 /** Resolve the target URL a run should open. */

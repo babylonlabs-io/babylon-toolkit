@@ -107,7 +107,8 @@ export async function runE2E(config: RunConfig): Promise<void> {
     const willPegin =
       config.action === "pegin" ||
       (willBorrow && config.peginFirst) ||
-      (config.action === "resume" && config.interruptFresh);
+      (config.action === "resume" &&
+        (config.interruptFresh || config.interruptOnly));
     if (willPegin) {
       const cap = await fetchVaultCountCap(
         config.network,
