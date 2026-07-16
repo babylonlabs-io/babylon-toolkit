@@ -199,7 +199,9 @@ export default function RootLayout() {
   // sidebar's `sticky top-0 h-svh` position down or clips its footer.
   const operationalBanners = (
     <>
-      <TestingBanner visible={shouldDisplayTestingMsg()} />
+      <TestingBanner
+        visible={!FeatureFlags.isV3UiEnabled && shouldDisplayTestingMsg()}
+      />
       {/* Intentionally not gated on `isGeoBlocked`: an operator notice
           describes a service-wide condition and renders in the top banner
           stack (above the geo-block screen), so geo-blocked sessions must
@@ -244,10 +246,13 @@ export default function RootLayout() {
           {operationalBanners}
           <Header
             size="md"
-            // v3 owns its own vertical rhythm via each page's content
-            // padding (matches Figma: no gap between the header's bottom
-            // border and the content start). v2 keeps the default mb-20.
-            className={FeatureFlags.isV3UiEnabled ? "mb-0" : undefined}
+            // v3 adds the Figma top-bar divider (border-b) and sits the page
+            // content 24px below it (mb-6). v2 keeps the default mb-20.
+            className={
+              FeatureFlags.isV3UiEnabled
+                ? "mb-6 border-b border-secondary-strokeLight"
+                : undefined
+            }
             // `PAGE_CONTENT_CLASS` carries `!max-w-[1080px]`, overriding the
             // `container` width core-ui's Header applies by default so the navbar
             // shares the same 1080px content box as the page body and footer.
@@ -283,7 +288,8 @@ export default function RootLayout() {
             rightActions={
               <div className="flex items-center gap-4">
                 {FeatureFlags.isV3UiEnabled && <NetworkBadge />}
-                {isWalletConnected &&
+                {!FeatureFlags.isV3UiEnabled &&
+                  isWalletConnected &&
                   !isDepositOpen &&
                   !isGeoBlocked &&
                   !isAddressBlocked && (

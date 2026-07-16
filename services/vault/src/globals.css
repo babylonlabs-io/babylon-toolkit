@@ -21,6 +21,13 @@ html {
    * Used by the deposit progress bar, the steps-completed pill, and completed
    * step checks. */
   --success-bright: 21 183 104;
+  /* v3 risk-card semantic colors as RGB channels (Figma foundation red/a400,
+   * amber/600, green/a400, text/tertiary) so Tailwind alpha modifiers and
+   * `rgb(var(--risk-*))` inline styles both resolve. Dark overrides below. */
+  --risk-red: 255 23 68;
+  --risk-amber: 247 147 26;
+  --risk-green: 21 183 104;
+  --risk-muted: 176 176 176;
   /* Motion spec — Modals (Figma 7831:25100 §1) */
   --motion-duration-modal: 220ms;
   --motion-duration-modal-out: 180ms;
@@ -48,6 +55,15 @@ html {
 
   /* Motion spec — Loading / Skeleton (Figma §5) */
   --motion-duration-skeleton: 1.5s;
+}
+
+/* v3 risk-card dark overrides (Figma dark variants). Covers both the
+ * `dark` class (tailwind darkMode:"class") and the [data-theme="dark"] hook. */
+.dark,
+[data-theme="dark"] {
+  --risk-amber: 255 179 0;
+  --risk-green: 0 230 118;
+  --risk-muted: 124 124 124;
 }
 
 /* Reduced motion is handled globally in core-ui's index.css via a single `*`
