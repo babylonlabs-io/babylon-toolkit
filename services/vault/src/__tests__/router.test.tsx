@@ -10,7 +10,8 @@
  *    stays mounted in v2 so opening the overlay never blanks the page.
  * 3. /vaults, /loans, and /liquidations are reachable only when ENABLE_V3_UI
  *    is on. With the flag off a direct load of one of them redirects to the
- *    v2 dashboard.
+ *    v2 dashboard. /vaults renders the VaultsPage; /loans and /liquidations
+ *    are still placeholders.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -83,6 +84,11 @@ vi.mock("@/context/wallet", () => ({
 
 const DASHBOARD_TESTID = "dashboard";
 const RESERVE_DETAIL_TESTID = "reserve-detail";
+const VAULTS_PAGE_TESTID = "vaults-page";
+
+vi.mock("../components/pages/VaultsPage", () => ({
+  default: () => <div data-testid={VAULTS_PAGE_TESTID} />,
+}));
 
 vi.mock("../components/simple/DashboardPage", () => ({
   DashboardPage: () => {
@@ -242,7 +248,7 @@ describe("Router — new v3 placeholder routes", () => {
     },
   );
 
-  it.each(["/vaults", "/loans", "/liquidations"])(
+  it.each(["/loans", "/liquidations"])(
     "renders a placeholder at %s when the flag is on, not the dashboard",
     async (path) => {
       setV3Flag("true");
@@ -257,6 +263,17 @@ describe("Router — new v3 placeholder routes", () => {
       ).not.toBeInTheDocument();
     },
   );
+
+  it("renders the vaults page at /vaults when the flag is on, not the dashboard", async () => {
+    setV3Flag("true");
+    renderAt("/vaults");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
+  });
 
   it.each(["/app/aave/reserve/usdc/borrow", "/vaults/details"])(
     "rejects the nested path %s",
@@ -426,7 +443,7 @@ describe("Router — flag-aware reserve-detail routing", () => {
       renderAt("/vaults?reserve=usdc&tab=repay");
 
       await waitFor(() => {
-        expect(screen.getByTestId("v3-placeholder")).toBeInTheDocument();
+        expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
       });
       expect(
         screen.queryByTestId(RESERVE_DETAIL_TESTID),

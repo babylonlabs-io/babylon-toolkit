@@ -4,25 +4,26 @@
  * or empty data states with customizable content
  */
 
-import { Avatar, Button, Card, SubSection } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, SubSection } from "@babylonlabs-io/core-ui";
+import type { ReactNode } from "react";
 
 import { Connect } from "@/components/Wallet";
 
 interface EmptyStateProps {
-  /** Avatar image URL */
-  avatarUrl: string;
+  /** Avatar image URL (ignored when an illustration is provided) */
+  avatarUrl?: string;
   /** Avatar alt text */
-  avatarAlt: string;
+  avatarAlt?: string;
+  /** Custom illustration rendered in place of the avatar */
+  illustration?: ReactNode;
   /** Primary text/title */
   title: string;
   /** Secondary text/description (optional) */
   description?: string;
   /** Whether the user is connected */
   isConnected?: boolean;
-  /** Button label when connected (if not provided, no button is shown when connected) */
-  actionLabel?: string;
-  /** Callback when action button is clicked */
-  onAction?: () => void;
+  /** Action rendered when connected (a Connect button is shown when disconnected) */
+  action?: ReactNode;
   /** Whether to wrap content in a Card component */
   withCard?: boolean;
 }
@@ -30,51 +31,40 @@ interface EmptyStateProps {
 export function EmptyState({
   avatarUrl,
   avatarAlt,
+  illustration,
   title,
   description,
   isConnected = false,
-  actionLabel,
-  onAction,
+  action,
   withCard = false,
 }: EmptyStateProps) {
   const content = (
     <SubSection className="w-full py-28">
       <div className="flex flex-col items-center justify-center gap-2">
-        {/* Avatar/Logo */}
-        <Avatar
-          url={avatarUrl}
-          alt={avatarAlt}
-          size="xlarge"
-          className="mb-2 h-[100px] w-[100px]"
-        />
+        {illustration ??
+          (avatarUrl && (
+            <Avatar
+              url={avatarUrl}
+              alt={avatarAlt ?? ""}
+              size="xlarge"
+              className="mb-2 h-[100px] w-[100px]"
+            />
+          ))}
 
         {/* Primary Text */}
         <p className="text-xl text-accent-primary">{title}</p>
 
         {/* Secondary Text */}
         {description && (
-          <p className="text-sm text-accent-secondary">{description}</p>
+          <p className="max-w-[600px] text-center text-base text-accent-secondary">
+            {description}
+          </p>
         )}
 
-        {/* Action Button */}
-        <div className="mt-8">
-          {isConnected ? (
-            actionLabel &&
-            onAction && (
-              <Button
-                variant="contained"
-                color="primary"
-                size="medium"
-                onClick={onAction}
-                className="!bg-white !text-black hover:!bg-gray-100"
-              >
-                {actionLabel}
-              </Button>
-            )
-          ) : (
-            <Connect />
-          )}
-        </div>
+        {/* Action */}
+        {(!isConnected || action) && (
+          <div className="mt-8">{isConnected ? action : <Connect />}</div>
+        )}
       </div>
     </SubSection>
   );

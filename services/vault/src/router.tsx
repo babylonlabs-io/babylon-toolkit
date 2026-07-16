@@ -32,6 +32,7 @@ import {
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
+const VaultsPage = lazyWithRetry(() => import("./components/pages/VaultsPage"));
 const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -121,7 +122,7 @@ export const Router = () => (
             provider mounts. Nesting a flag-off redirect here instead would
             make it wait on AaveConfigProvider's blocking config fetch. */}
         {featureFlags.isV3UiEnabled && (
-          <Route path={ROUTES.VAULTS} element={<V3Placeholder />} />
+          <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
         )}
         <Route path={ROUTES.LOANS} element={<V3Placeholder />} />
       </Route>

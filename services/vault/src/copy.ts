@@ -1185,6 +1185,16 @@ export const COPY = {
       },
     },
   },
+  vaults: {
+    empty: {
+      title: "Your BTC Vaults will appear here",
+      description:
+        "Deposit BTC to create your first BTC Vault and unlock borrowing power without selling your Bitcoin.",
+      depositAction: "Deposit",
+    },
+    loadError:
+      "We couldn't load your BTC Vaults. Check your connection and try again.",
+  },
   risk: {
     title: "Risk",
     healthFactorTitle: "Health Factor",
