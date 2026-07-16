@@ -37,4 +37,15 @@ describe("NetworkBadge", () => {
 
     expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
   });
+
+  it("renders nothing on an unrecognized network value", () => {
+    mockGetBTCNetwork.mockReturnValue("unknown");
+
+    const { container } = render(<NetworkBadge />);
+
+    expect(
+      screen.queryByText(COPY.header.networkBadge),
+    ).not.toBeInTheDocument();
+    expect(container.firstChild).toBeNull();
+  });
 });
