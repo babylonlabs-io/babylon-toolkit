@@ -1,11 +1,18 @@
 import { Loader } from "@babylonlabs-io/core-ui";
-import { Suspense, useEffect, type ComponentType } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router";
+import { Suspense, useEffect } from "react";
+import {
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useOutletContext,
+  useSearchParams,
+} from "react-router";
 
 import featureFlags from "@/config/featureFlags";
 import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
 
-import { getAllApplications } from "./applications";
 import { AAVE_APP_ID } from "./applications/aave/config";
 import { LOAN_TAB } from "./applications/aave/constants";
 import {
@@ -13,8 +20,15 @@ import {
   PendingVaultsProvider,
   ReorderOverrideProvider,
 } from "./applications/aave/context";
-import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
+import RootLayout, {
+  type RootLayoutContext,
+} from "./components/pages/RootLayout";
+import {
+  getReserveDetailBaseRoute,
+  RESERVE_QUERY_KEYS,
+  ROUTES,
+} from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -24,8 +38,6 @@ const DashboardPage = lazyWithRetry(() =>
   })),
 );
 
-// Rendered as a full-screen overlay over the persistent dashboard (see
-// AaveOverlayLayout), so opening it never unmounts the page underneath.
 const importAaveReserveDetail = () =>
   import("./applications/aave/components/Detail");
 const AaveReserveDetail = lazyWithRetry(() =>
@@ -42,17 +54,16 @@ const RouteFallback = () => (
   </div>
 );
 
-/**
- * Hosts the Aave providers and the dashboard once and keeps both mounted across
- * "/" and "/app/aave/reserve/:reserveId". The reserve detail renders into the
- * <Outlet/> as a full-screen overlay on top of the still-mounted dashboard, so
- * navigating to it never blanks the page — no route swap, no provider refetch.
- * The outlet's fallback is null on purpose: while the (lazy) detail chunk loads
- * the dashboard stays fully visible underneath instead of flashing a loader.
- */
 const AaveOverlayLayout = () => {
-  // Warm the reserve-detail chunk once the dashboard is idle so the first open
-  // is instant rather than waiting on the lazy import.
+  const outletContext = useOutletContext<RootLayoutContext>();
+  const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  const reserveId = searchParams.get(RESERVE_QUERY_KEYS.RESERVE_ID);
+  const tab =
+    searchParams.get(RESERVE_QUERY_KEYS.TAB) === LOAN_TAB.REPAY
+      ? LOAN_TAB.REPAY
+      : LOAN_TAB.BORROW;
+
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
       const handle = window.requestIdleCallback(() => {
@@ -71,11 +82,15 @@ const AaveOverlayLayout = () => {
       <PendingVaultsProvider appId={AAVE_APP_ID}>
         <ReorderOverrideProvider>
           <Suspense fallback={<RouteFallback />}>
-            <DashboardPage />
+            <Outlet context={outletContext} />
           </Suspense>
-          <Suspense fallback={null}>
-            <Outlet />
-          </Suspense>
+          {reserveId &&
+            pathname ===
+              getReserveDetailBaseRoute(featureFlags.isV3UiEnabled) && (
+              <Suspense fallback={null}>
+                <AaveReserveDetail reserveId={reserveId} tab={tab} />
+              </Suspense>
+            )}
         </ReorderOverrideProvider>
       </PendingVaultsProvider>
     </AaveConfigProvider>
@@ -88,62 +103,39 @@ const ActivityWithProviders = () => (
   </AaveConfigProvider>
 );
 
-export const Router = () => {
-  // Narrow to apps that actually expose Routes so the element below can render
-  // <AppRoutes /> unconditionally — no dead fallback branch.
-  const apps = getAllApplications().filter(
-    (app): app is typeof app & { Routes: ComponentType } => Boolean(app.Routes),
+const V3Placeholder = () =>
+  featureFlags.isV3UiEnabled ? (
+    <div data-testid="v3-placeholder" />
+  ) : (
+    <Navigate to={ROUTES.OVERVIEW} replace />
   );
 
-  return (
-    <Routes>
-      <Route path="/" element={<RootLayout />}>
-        <Route element={<AaveOverlayLayout />}>
-          <Route index element={null} />
-          <Route path={`app/${AAVE_APP_ID}/reserve/:reserveId`}>
-            <Route index element={<Navigate to={LOAN_TAB.BORROW} replace />} />
-            <Route
-              path={LOAN_TAB.BORROW}
-              element={<AaveReserveDetail tab={LOAN_TAB.BORROW} />}
-            />
-            <Route
-              path={LOAN_TAB.REPAY}
-              element={<AaveReserveDetail tab={LOAN_TAB.REPAY} />}
-            />
-          </Route>
-        </Route>
-        <Route
-          path="activity"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <ActivityWithProviders />
-            </Suspense>
-          }
-        />
-        {apps.map((app) => {
-          const AppRoutes = app.Routes;
-          return (
-            <Route
-              key={app.metadata.id}
-              path={`app/${app.metadata.id}/*`}
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <AppRoutes />
-                </Suspense>
-              }
-            />
-          );
-        })}
+export const Router = () => (
+  <Routes>
+    <Route element={<RootLayout />}>
+      <Route element={<AaveOverlayLayout />}>
+        <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
+        <Route path={ROUTES.LOANS} element={<V3Placeholder />} />
       </Route>
-      {!featureFlags.isV3UiEnabled &&
-        V3_GUARDED_ROUTE_PATHS.map((path) => (
-          <Route
-            key={path}
-            path={`${path}/*`}
-            element={<Navigate to="/" replace />}
-          />
-        ))}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-};
+      <Route path={ROUTES.VAULTS} element={<V3Placeholder />} />
+      <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
+      <Route
+        path={ROUTES.ACTIVITY}
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <ActivityWithProviders />
+          </Suspense>
+        }
+      />
+    </Route>
+    {!featureFlags.isV3UiEnabled &&
+      V3_GUARDED_ROUTE_PATHS.map((path) => (
+        <Route
+          key={path}
+          path={`/${path}/*`}
+          element={<Navigate to={ROUTES.OVERVIEW} replace />}
+        />
+      ))}
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);

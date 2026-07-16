@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
 import { useNavigate } from "react-router";
 
+import { FeatureFlags } from "@/config";
+import { getReserveDetailRoute } from "@/routes";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
 import type { LoanTab } from "../../constants";
@@ -49,9 +51,9 @@ export function AssetPill({
 
   const handleSelect = (assetSymbol: string) => {
     setIsOpen(false);
-    // Keep the current mode segment so switching the asset from the repay
-    // screen stays on repay rather than defaulting back to borrow.
-    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}/${mode}`);
+    navigate(
+      getReserveDetailRoute(assetSymbol, mode, FeatureFlags.isV3UiEnabled),
+    );
   };
 
   return (

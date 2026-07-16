@@ -27,6 +27,7 @@ import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { usePrices } from "@/hooks/usePrices";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
+import { getReserveDetailRoute } from "@/routes";
 import {
   formatBtcAmount,
   formatLiquidationDistancePercent,
@@ -244,7 +245,11 @@ export function DashboardPage() {
     if (borrowedAssets.length === 1) {
       const assetSymbol = borrowedAssets[0].symbol;
       navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}/${LOAN_TAB.REPAY}`,
+        getReserveDetailRoute(
+          assetSymbol,
+          LOAN_TAB.REPAY,
+          featureFlags.isV3UiEnabled,
+        ),
       );
       return;
     }
@@ -254,7 +259,11 @@ export function DashboardPage() {
 
   const handleSelectAsset = (assetSymbol: string) => {
     navigate(
-      `/app/aave/reserve/${assetSymbol.toLowerCase()}/${assetModalMode}`,
+      getReserveDetailRoute(
+        assetSymbol,
+        assetModalMode,
+        featureFlags.isV3UiEnabled,
+      ),
     );
   };
 
