@@ -90,6 +90,7 @@ export function DashboardPage() {
     collateralVaults,
     selectableBorrowedAssets,
     isBorrowCapacityLoading,
+    borrowCapacityError,
   } = useDashboardState(isConnected ? address : undefined);
 
   const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
@@ -352,7 +353,8 @@ export function DashboardPage() {
             availableToBorrow={availableToBorrow}
             collateralBtc={collateralBtcText}
             availableMeterPercent={availableMeterPercent}
-            availableLoading={isBorrowCapacityLoading}
+            borrowCapacityLoading={isBorrowCapacityLoading}
+            borrowCapacityError={borrowCapacityError}
             borrowedMeterPercent={borrowedMeterPercent}
             onDeposit={openDeposit}
             onBorrow={handleBorrow}

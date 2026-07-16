@@ -28,6 +28,7 @@ let mockCollateralValueUsd = 0;
 let mockDebtValueUsd = 0;
 let mockSplitParams: { THF: number; CF: number; LB: number } | null = null;
 let mockSplitLoading = false;
+let mockSplitError: Error | null = null;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
 let mockActivatingVaults = new Map<string, ActivatingEntry>();
 const mockClearReorderedOrder = vi.fn();
@@ -63,7 +64,7 @@ vi.mock("@/applications/aave/hooks", () => ({
   useVaultSplitParams: () => ({
     params: mockSplitParams,
     isLoading: mockSplitLoading,
-    error: null,
+    error: mockSplitError,
     refetch: async () => mockSplitParams,
   }),
 }));
@@ -105,6 +106,7 @@ describe("useDashboardState", () => {
     mockDebtValueUsd = 0;
     mockSplitParams = null;
     mockSplitLoading = false;
+    mockSplitError = null;
     mockReorderedOrder = null;
     mockActivatingVaults = new Map();
   });
@@ -283,5 +285,13 @@ describe("useDashboardState", () => {
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
     expect(result.current.isBorrowCapacityLoading).toBe(true);
+  });
+
+  it("forwards the split-params error as borrowCapacityError", () => {
+    mockSplitError = new Error("split params failed");
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.borrowCapacityError).toBe(mockSplitError);
   });
 });

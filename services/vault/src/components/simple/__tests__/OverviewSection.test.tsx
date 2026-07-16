@@ -37,7 +37,8 @@ function renderSection(overrides: Record<string, unknown> = {}) {
       availableToBorrow="$5,000"
       collateralBtc="0.5 BTC"
       availableMeterPercent={0.75}
-      availableLoading={false}
+      borrowCapacityLoading={false}
+      borrowCapacityError={null}
       borrowedMeterPercent={0.25}
       onDeposit={onDeposit}
       onBorrow={onBorrow}
@@ -141,8 +142,8 @@ describe("OverviewSection", () => {
       expect(screen.getByText("0.5 BTC")).toBeInTheDocument();
     });
 
-    it("shows a loading placeholder for available-to-borrow and no meter while borrow capacity loads", () => {
-      renderSection({ availableLoading: true });
+    it("shows a loading placeholder and hides both meters while borrow capacity loads", () => {
+      renderSection({ borrowCapacityLoading: true });
 
       expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
       expect(
@@ -151,10 +152,28 @@ describe("OverviewSection", () => {
         }),
       ).not.toBeInTheDocument();
       expect(
-        screen.getByRole("progressbar", {
+        screen.queryByRole("progressbar", {
           name: COPY.overview.totalBorrowedLabel,
         }),
-      ).toBeInTheDocument();
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("$2,000")).toBeInTheDocument();
+    });
+
+    it("shows an empty placeholder for available and hides both meters when borrow capacity errors", () => {
+      renderSection({ borrowCapacityError: new Error("split params failed") });
+
+      expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("progressbar", {
+          name: COPY.overview.availableToBorrowLabel,
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("progressbar", {
+          name: COPY.overview.totalBorrowedLabel,
+        }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("$2,000")).toBeInTheDocument();
     });
   });
 
