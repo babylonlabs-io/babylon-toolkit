@@ -103,6 +103,22 @@ describe("logoClient", () => {
       expect(result).toEqual({ identity1: "https://s3-bucket/logo1.png" });
     });
 
+    it("parses a verbatim captured response from the deployed sidecar", async () => {
+      mockEnv.SIDECAR_API_URL = "https://sidecar-api.example.com";
+      // Captured 2026-07-17 from POST https://sidecar-api.canon-devnet.babylonlabs.io/logo
+      // (empty bucket, so no images). Byte-for-byte what the real service sends;
+      // if the sidecar envelope ever changes shape, recapture and update.
+      const capturedBody = '{"data":{"images":{}}}';
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(JSON.parse(capturedBody)),
+      });
+
+      const result = await fetchLogos(["identity1"]);
+
+      expect(result).toEqual({});
+    });
+
     it("returns empty object when the response is not the sidecar envelope", async () => {
       mockEnv.SIDECAR_API_URL = "https://sidecar-api.example.com";
       // A flat { identity: url } body is not the sidecar contract; treat it as
