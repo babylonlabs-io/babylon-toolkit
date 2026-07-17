@@ -99,6 +99,8 @@ interface VaultDetailCardProps {
   /** Optional click handler invoked when the card body (not an inner button
    *  or link) is clicked. Used to open the deposit multistepper. */
   onClick?: () => void;
+  /** Optional stable `data-testid` for the card root (forwarded to VaultCardShell). */
+  testId?: string;
 }
 
 export function VaultDetailCard({
@@ -120,6 +122,7 @@ export function VaultDetailCard({
   disabledTooltip,
   payoutBtcAddress,
   onClick,
+  testId,
 }: VaultDetailCardProps) {
   const relativeTime = useRelativeTime(timestamp);
 
@@ -128,6 +131,7 @@ export function VaultDetailCard({
       disabled={disabled}
       disabledTooltip={disabledTooltip}
       onClick={onClick}
+      testId={testId}
     >
       {/* BTC icon + amount (+ optional subtext), optional header-end content */}
       <div className="flex items-start justify-between gap-2">

@@ -164,6 +164,23 @@ export const WITHDRAW_TX_TIMEOUT_MS = 90_000;
 /** Poll cadence for the post-withdraw on-chain collateral-fell check (a light `getPosition` read). */
 export const WITHDRAW_VERIFY_POLL_MS = 3_000;
 
+// ── resume (recover an interrupted peg-in from the dashboard) ────────────────────
+/**
+ * After landing on the dashboard, how long to wait for a resumable pending-deposit card to appear. A
+ * same-tab storage event + the indexer poll surface it quickly, so this is short — its absence means
+ * there is nothing to resume (a clear fail), not a slow read.
+ */
+export const RESUME_CARD_APPEAR_TIMEOUT_MS = 60_000;
+/**
+ * How long to wait for a pending deposit to become ACTIONABLE (its resume CTA rendered). This can be
+ * LONG: the vault provider must ingest the confirmed Pre-PegIn before "Submit WOTS Key" appears, and the
+ * Pre-PegIn's Bitcoin confirmation is subject to signet block time (observed up to ~1 h). Budgeted like
+ * the step machine so a slow-but-healthy signet confirmation isn't mistaken for a dead deposit.
+ */
+export const RESUME_ACTIONABLE_TIMEOUT_MS = PEGIN_STEP_MACHINE_BUDGET_MS;
+/** Poll cadence while waiting for the pending card to appear / become actionable (sweeps pop-ups too). */
+export const RESUME_POLL_INTERVAL_MS = 5_000;
+
 // ── sign-conformance (per-wallet signing replay) ─────────────────────────────
 /**
  * Budget for one signing call to resolve (popup open → approver confirms → signature returned). A

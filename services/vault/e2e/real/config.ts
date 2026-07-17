@@ -20,7 +20,8 @@ export type ActionId =
   | "sign-conformance"
   | "borrow"
   | "repay"
-  | "withdraw";
+  | "withdraw"
+  | "resume";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -116,6 +117,7 @@ export const ACTIONS: ActionOption[] = [
   { id: "borrow", label: "Borrow", enabled: true },
   { id: "repay", label: "Repay", enabled: true },
   { id: "withdraw", label: "Withdraw", enabled: true },
+  { id: "resume", label: "Resume (an interrupted peg-in)", enabled: true },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -171,6 +173,24 @@ export interface RunConfig {
    * withdrawable one. Default (absent) withdraws a single vault, keeping the position alive for reuse.
    */
   withdrawAll?: boolean;
+  /**
+   * Resume only: target a specific in-flight deposit by its Pre-PegIn txid (`--txid`) when several are
+   * pending (e.g. a split's two vaults share one Pre-PegIn). When absent, the first actionable pending
+   * deposit on the dashboard is resumed.
+   */
+  resumeTxid?: string;
+  /**
+   * Resume only: peg in a fresh deposit and interrupt it after Pre-PegIn broadcast (`--interrupt-fresh`),
+   * reloading the page to a cold state, then resume it from the dashboard — a fully self-contained run.
+   * When absent, resume expects an already-pending deposit to be present.
+   */
+  interruptFresh?: boolean;
+  /**
+   * Resume only: peg in a fresh deposit and interrupt it after Pre-PegIn broadcast (`--interrupt-only`),
+   * then STOP without resuming — leaving the deposit pending on the dashboard so it can be resumed later
+   * in stages (verify on-chain it reaches "Submit WOTS Key", then re-run with `--txid=<its Pre-PegIn>`).
+   */
+  interruptOnly?: boolean;
 }
 
 /** Resolve the target URL a run should open. */

@@ -14,7 +14,12 @@ export { setupMetaMaskWallet } from "../../../../packages/babylon-wallet-connect
 export { setupOKXWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/okx";
 export { setupOneKeyWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/onekey";
 export { setupUnisatWallet } from "../../../../packages/babylon-wallet-connector/tests/e2e/fixtures/wallets/unisat";
-export { EXTENSION_CHROME_STORE_IDS } from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/downloadExtensions";
+export {
+  EXTENSIONS,
+  EXTENSION_CHROME_STORE_IDS,
+  downloadExtension,
+  getExtensionPath,
+} from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/downloadExtensions";
 export { deriveEthAddress } from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/eth";
 export { deriveSignetTaproot } from "../../../../packages/babylon-wallet-connector/tests/e2e/setup/taproot";
 export { runtimeExtensionId } from "../../../../packages/babylon-wallet-connector/tests/e2e/utils/extensionId";
