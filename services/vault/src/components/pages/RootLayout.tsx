@@ -13,7 +13,13 @@ import {
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
-import { useCallback, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { BsDiscord, BsGithub, BsLinkedin } from "react-icons/bs";
 import { FaXTwitter } from "react-icons/fa6";
 import { NavLink, Outlet, useLocation } from "react-router";
@@ -164,11 +170,22 @@ export default function RootLayout() {
 
   const isWalletConnected = btcConnected && ethConnected;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  // Deposit kill-switch banner. Suppressed when a frozen/paused status banner is
+  // active, since that banner already explains the disabled state.
   const showDepositDisabledBanner =
     !isGeoBlocked &&
     isWalletConnected &&
     FeatureFlags.isDepositDisabled &&
     resolveBannerStatus(gate) === null;
+  // The deposit-disabled banner renders full-width above the sidebar (per Figma
+  // node 10084:28515). Measure its height and expose it as a CSS variable so the
+  // sticky v3 sidebar can offset its top/height and avoid clipping its footer.
+  // Zero when the banner is hidden, so the common case is unaffected.
+  const topBannerRef = useRef<HTMLDivElement>(null);
+  const [topBannerHeight, setTopBannerHeight] = useState(0);
+  useLayoutEffect(() => {
+    setTopBannerHeight(topBannerRef.current?.offsetHeight ?? 0);
+  }, [showDepositDisabledBanner]);
   // The disconnected dashboard landing (DisconnectedOverview / "Native Bitcoin
   // backed borrowing") is vertically centered via `my-auto` on its Container.
   // On that screen only, drop the footer's top margins (the wrapper's `mt-auto`
@@ -223,8 +240,15 @@ export default function RootLayout() {
   );
 
   return (
-    <div className="relative flex min-h-svh w-full flex-col bg-surface">
-      <DepositDisabledBanner visible={showDepositDisabledBanner} />
+    <div
+      className="relative flex min-h-svh w-full flex-col bg-surface"
+      style={
+        { "--tbv-top-banner-height": `${topBannerHeight}px` } as CSSProperties
+      }
+    >
+      <div ref={topBannerRef} className="sticky top-0 z-30">
+        <DepositDisabledBanner visible={showDepositDisabledBanner} />
+      </div>
       <div className="flex min-w-0 flex-1">
         {showV3Sidebar && <AppSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
