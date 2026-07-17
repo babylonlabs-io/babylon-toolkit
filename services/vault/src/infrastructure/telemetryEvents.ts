@@ -19,6 +19,10 @@ export const TELEMETRY_EVENT = {
   DEPOSIT_BROADCAST_SUCCEEDED: "deposit.broadcast.succeeded",
   /** HTLC secret revealed on Ethereum; activation tx submitted (optimistic). */
   ACTIVATION_ACTIVATED: "activation.activated",
+  /** VP verified the depositor's presigned payouts on-chain (contractStatus VERIFIED). */
+  ACTIVATION_VERIFIED: "activation.verified",
+  /** Vault confirmed ACTIVE on-chain — funnel terminal / primary conversion. */
+  DEPOSIT_COMPLETED: "deposit.completed",
 } as const;
 
 export type TelemetryEvent =
