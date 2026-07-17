@@ -575,6 +575,7 @@ export const COPY = {
       depositFeeLabel: "Deposit Fee",
       depositFeeTooltip:
         "A one-time fee charged by the protocol to process your deposit.",
+      suggestedDepositLabel: "Suggested deposit",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
@@ -1251,6 +1252,7 @@ export const COPY = {
     confirmButton: "Confirm",
   },
   protocolFees: {
+    sectionTitle: "Protocol Parameters",
     minDeposit: {
       label: "Min deposit",
       tooltip:
