@@ -33,7 +33,12 @@ import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
-import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
+import {
+  captureFunnelFailure,
+  shortId,
+  TELEMETRY_EVENT,
+  TELEMETRY_STAGE,
+} from "@/infrastructure/telemetryEvents";
 import {
   ActivationNotPossibleError,
   isTerminalActivationError,
@@ -503,6 +508,11 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (mountedRef.current) setActivating(false);
     } catch (err) {
+      // Capture regardless of mount — activation has no abort signal, so a real
+      // reveal failure is worth knowing even if the modal closed mid-flight.
+      // This is the only place the error is caught: handleActivation never
+      // rethrows, so a capture in any caller's catch would be unreachable.
+      captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
       if (mountedRef.current) {
         const rawMessage =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";

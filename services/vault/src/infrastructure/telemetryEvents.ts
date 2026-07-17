@@ -8,6 +8,8 @@
  * followed by the stage and, where it adds signal, the outcome.
  */
 
+import { logger } from "@/infrastructure";
+import { classifyError } from "@/utils/errors/formatting";
 import { redactIdentifier } from "@/utils/telemetry";
 
 export const TELEMETRY_EVENT = {
@@ -40,6 +42,31 @@ export const TELEMETRY_STAGE = {
 
 export type TelemetryStage =
   (typeof TELEMETRY_STAGE)[keyof typeof TELEMETRY_STAGE];
+
+/**
+ * Capture a funnel-stage failure, with the tag schema the stage alerts facet on.
+ *
+ * A wallet decline is routine depositor drop-off, not a failure, so it is never
+ * captured — every one of these stages fronts a wallet popup, and counting
+ * cancellations would inflate the very rate these tags alert on. The caller
+ * still renders its own rejection copy; only the Sentry capture is suppressed.
+ *
+ * `vaultId` is shortened here so the per-vault join key back to the success
+ * milestones cannot be forgotten at a call site. Pass any further identifiers in
+ * `extra` already shortened via `shortId`.
+ */
+export function captureFunnelFailure(
+  stage: TelemetryStage,
+  err: unknown,
+  vaultId: string,
+  extra: Record<string, string | number | boolean> = {},
+): void {
+  if (classifyError(err) === "user-rejection") return;
+  logger.error(err instanceof Error ? err : new Error(String(err)), {
+    tags: { funnelStage: stage },
+    data: { vaultId: shortId(vaultId), ...extra },
+  });
+}
 
 /**
  * Shorten a long identifier (vaultId, provider address, txid) to `first4...last4`
