@@ -118,6 +118,8 @@ export function OverviewSection({
   const statCards: PositionStatCard[] = useMemo(() => {
     const clampPct = (ratio: number) =>
       Math.round(Math.min(1, Math.max(0, ratio)) * 100);
+    const availablePercent = clampPct(availableMeterPercent);
+    const borrowedPercent = clampPct(borrowedMeterPercent);
     const capacityUnavailable =
       borrowCapacityLoading || borrowCapacityError != null;
     return [
@@ -141,9 +143,16 @@ export function OverviewSection({
           ? undefined
           : {
               percent: availableMeterPercent,
-              label: COPY.overview.availableMeterLabel(
-                clampPct(availableMeterPercent),
-              ),
+              label:
+                availableMeterPercent > 0 &&
+                availableMeterPercent < 1 &&
+                availablePercent === 100
+                  ? COPY.overview.availableMeterNearFullLabel
+                  : availableMeterPercent > 0 &&
+                      availableMeterPercent < 1 &&
+                      availablePercent === 0
+                    ? COPY.overview.availableMeterBelowOneLabel
+                    : COPY.overview.availableMeterLabel(availablePercent),
             },
         actionLabel: COPY.overview.borrowAction,
         onAction: onBorrow,
@@ -156,9 +165,16 @@ export function OverviewSection({
           ? undefined
           : {
               percent: borrowedMeterPercent,
-              label: COPY.overview.borrowedMeterLabel(
-                clampPct(borrowedMeterPercent),
-              ),
+              label:
+                borrowedMeterPercent > 0 &&
+                borrowedMeterPercent < 1 &&
+                borrowedPercent === 0
+                  ? COPY.overview.borrowedMeterBelowOneLabel
+                  : borrowedMeterPercent > 0 &&
+                      borrowedMeterPercent < 1 &&
+                      borrowedPercent === 100
+                    ? COPY.overview.borrowedMeterNearFullLabel
+                    : COPY.overview.borrowedMeterLabel(borrowedPercent),
             },
         actionLabel: COPY.overview.repayAction,
         onAction: onRepay,

@@ -142,6 +142,26 @@ describe("OverviewSection", () => {
       expect(screen.getByText("0.5 BTC")).toBeInTheDocument();
     });
 
+    it("labels sub-percent debt without rounding it to zero", () => {
+      renderSection({
+        availableMeterPercent: 0.9991,
+        borrowedMeterPercent: 0.0009,
+      });
+
+      expect(screen.getByText(">99% remaining")).toBeInTheDocument();
+      expect(screen.getByText("<1% borrowed")).toBeInTheDocument();
+    });
+
+    it("labels remaining sub-percent capacity without rounding it to zero", () => {
+      renderSection({
+        availableMeterPercent: 0.0009,
+        borrowedMeterPercent: 0.9991,
+      });
+
+      expect(screen.getByText("<1% remaining")).toBeInTheDocument();
+      expect(screen.getByText(">99% borrowed")).toBeInTheDocument();
+    });
+
     it("shows a loading placeholder and hides both meters while borrow capacity loads", () => {
       renderSection({ borrowCapacityLoading: true });
 
