@@ -86,7 +86,10 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return this.config.address;
   }
 
-  async signPsbt(psbtHex: string): Promise<string> {
+  async signPsbt(
+    psbtHex: string,
+    _options?: SignPsbtOptions,
+  ): Promise<string> {
     if (this.config.shouldFailSigning) {
       throw new Error("Mock signing failed");
     }

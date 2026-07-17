@@ -626,8 +626,9 @@ export class PeginManager {
   /**
    * Prepare a peg-in: sizing pass → vault-root derivation (one wallet
    * popup) → per-vault WOTS / hashlock derivation → commit pass with
-   * batch PSBT signing (one popup). Returns broadcast-ready txs, the
-   * pubkey snapshot, and the sensitive derived material.
+   * PSBT signing (signPsbt for a single vault, one batch popup for a
+   * split). Returns broadcast-ready txs, the pubkey snapshot, and the
+   * sensitive derived material.
    *
    * @throws If the wallet rejects, insufficient funds, or an internal
    *         invariant violation.
