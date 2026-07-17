@@ -193,7 +193,6 @@ jobs:
           # Misc
           NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES: ${{ vars.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES }}
           NEXT_PUBLIC_NOTICE_BANNER_MESSAGE: ${{ vars.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE }}
-          NEXT_PUBLIC_REPLAYS_RATE: ${{ vars.NEXT_PUBLIC_REPLAYS_RATE }}
 
       - name: Copy all index.html to fix path for activity, app/aave
         run: |
