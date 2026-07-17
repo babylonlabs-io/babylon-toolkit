@@ -1,4 +1,4 @@
-import { Text } from "@babylonlabs-io/core-ui";
+import { Banner, Text } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 
@@ -12,8 +12,8 @@ export function DepositDisabledBanner({ visible }: DepositDisabledBannerProps) {
   }
 
   return (
-    <div className="flex flex-row items-center justify-center gap-2 bg-secondary-main px-4 py-3 text-center text-accent-contrast">
+    <Banner variant="notice">
       <Text variant="body2">{COPY.deposit.disabled.bannerMessage}</Text>
-    </div>
+    </Banner>
   );
 }

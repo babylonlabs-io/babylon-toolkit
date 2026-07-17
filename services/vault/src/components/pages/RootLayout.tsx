@@ -164,6 +164,11 @@ export default function RootLayout() {
 
   const isWalletConnected = btcConnected && ethConnected;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  const showDepositDisabledBanner =
+    !isGeoBlocked &&
+    isWalletConnected &&
+    FeatureFlags.isDepositDisabled &&
+    resolveBannerStatus(gate) === null;
   // The disconnected dashboard landing (DisconnectedOverview / "Native Bitcoin
   // backed borrowing") is vertically centered via `my-auto` on its Container.
   // On that screen only, drop the footer's top margins (the wrapper's `mt-auto`
@@ -214,22 +219,12 @@ export default function RootLayout() {
         visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
       />
       <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
-      {/* Deposit kill-switch banner. Suppressed when a frozen/paused status
-          banner is active, since that banner already explains the disabled
-          state. */}
-      <DepositDisabledBanner
-        visible={
-          !isGeoBlocked &&
-          isWalletConnected &&
-          FeatureFlags.isDepositDisabled &&
-          resolveBannerStatus(gate) === null
-        }
-      />
     </>
   );
 
   return (
     <div className="relative flex min-h-svh w-full flex-col bg-surface">
+      <DepositDisabledBanner visible={showDepositDisabledBanner} />
       <div className="flex min-w-0 flex-1">
         {showV3Sidebar && <AppSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
