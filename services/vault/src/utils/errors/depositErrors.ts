@@ -118,10 +118,15 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.wrongWalletAccount;
   }
 
-  // 4c'. Version preflight slipped through (defense in depth): the facade's
-  // stable "unsupported tx graph version" prefix means this build's WASM
-  // cannot construct the required graph — same remedy as the preflight CTA.
-  if (msg.includes("unsupported tx graph version")) {
+  // 4c'. App build can't construct the required graph version: either the
+  // WASM facade threw its stable "unsupported tx graph version ..." error
+  // directly, or assertVaultCoreVersionSupported fired with the user-facing
+  // body (which survives paths that stringify the error, e.g. the resume
+  // broadcast surface). Both get the actionable "App update required" title.
+  if (
+    msg.includes("unsupported tx graph version") ||
+    msg.includes(ERRORS.appVersionUnsupported.body.toLowerCase())
+  ) {
     return ERRORS.appVersionUnsupported;
   }
 

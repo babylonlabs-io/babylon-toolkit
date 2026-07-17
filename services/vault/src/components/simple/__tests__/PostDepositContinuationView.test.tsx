@@ -150,6 +150,10 @@ vi.mock("@/copy", () => ({
       errors: {
         defaultTitle: "Transaction failed",
         genericBody: "Something went wrong during your deposit.",
+        appVersionUnsupported: {
+          title: "App update required",
+          body: "This deposit requires a newer version of the app.",
+        },
         signingRejected: { title: "Signing rejected", body: "You rejected." },
         walletNotConnected: {
           title: "Wallet not connected",

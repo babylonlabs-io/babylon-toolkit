@@ -66,6 +66,14 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.appVersionUnsupported);
   });
 
+  it("maps the preflight guard's user-facing body to the app-update callout", () => {
+    // assertVaultCoreVersionSupported throws the copy body; some surfaces
+    // (resume broadcast) stringify it before mapping, so match the body.
+    expect(mapDepositError(ERRORS.appVersionUnsupported.body)).toEqual(
+      ERRORS.appVersionUnsupported,
+    );
+  });
+
   it("maps the SDK commission-drift error to the commission-changed callout", () => {
     const err = new Error(
       "Vault provider commission changed since quote: quoted 250 bps, " +
