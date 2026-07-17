@@ -14,6 +14,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
+import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 import { DepositFlowStep } from "./types";
@@ -72,6 +73,10 @@ export async function signAndSubmitPayouts(
     vaultProviderBtcPubKey: providerBtcPubKey,
     registeredPayoutScriptPubKey,
   });
+
+  // Fail closed before the first wallet popup when this build's WASM can't
+  // rebuild the vault's stamped graph version.
+  await assertVaultCoreVersionSupported(context.vaultCoreVersion);
 
   const peginTxid = stripHexPrefix(peginTxHash);
 

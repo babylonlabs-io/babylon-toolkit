@@ -629,6 +629,15 @@ export const COPY = {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
       },
+      // Fail-closed preflight: the protocol (or a resumed deposit's stamped
+      // version) requires a transaction format this app build cannot
+      // construct. Shown as the disabled deposit CTA label (title) and as
+      // the error body on resume actions (broadcast / sign / refund) and in
+      // the defense-in-depth error mapping. No funds move.
+      appVersionUnsupported: {
+        title: "App update required",
+        body: "This deposit requires a newer version of the app. Please refresh the page and try again — if the issue persists, an updated release is on its way.",
+      },
       activationDeadlinePassed: {
         title: "Activation deadline passed",
         // Reuse the canonical ABI-keyed message so this terminal callout can't

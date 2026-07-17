@@ -887,7 +887,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 function rateBasedTxBufferFee(feeRate): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L37)
 
 Adds a buffer to the transaction fee calculation if the fee rate is low.
 
@@ -917,7 +917,7 @@ Buffer amount in satoshis to add to the transaction fee
 function peginOutputCount(vaultCount, hasAuthAnchor): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L77)
 
 Compute the total number of outputs (before change) in a Pre-PegIn
 transaction.
@@ -1577,23 +1577,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:25](../
 
 ***
 
-### FEE\_SAFETY\_MARGIN
-
-```ts
-const FEE_SAFETY_MARGIN: 1.1 = 1.1;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L28)
-
-***
-
 ### PEGIN\_FIXED\_OUTPUTS
 
 ```ts
 const PEGIN_FIXED_OUTPUTS: 1 = 1;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L47)
 
 Number of always-present fixed (non-HTLC) outputs in a Pre-PegIn
 transaction. Currently this is 1 CPFP anchor output.
@@ -1606,7 +1596,7 @@ transaction. Currently this is 1 CPFP anchor output.
 const PEGIN_AUTH_ANCHOR_OUTPUTS: 1 = 1;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L56)
 
 Size of the auth-anchor `OP_RETURN` output when committed into a
 Pre-PegIn. The output carries `OP_RETURN <PUSH32 hash>` = 34 script
@@ -1622,36 +1612,12 @@ toward the fee-estimation output budget.
 const SPLIT_TX_FEE_SAFETY_MULTIPLIER: 5 = 5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L99)
 
 Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple
 of the planned values. 5x accounts for witness estimation variance while
 catching catastrophic wallet-side overpayment.
-
-***
-
-### MAX\_REASONABLE\_PEGIN\_VBYTES
-
-```ts
-const MAX_REASONABLE_PEGIN_VBYTES: 100000n = 100_000n;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:119](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L119)
-
-Upper bound (vbytes) used to plausibility-check the implied per-HTLC
-PegIn fee returned by WASM: `htlcValue - peginAmount - depositorClaimValue`.
-
-The WASM sizes the PegIn fee internally as `minPeginFeeRate × peginTxVsize`.
-We do not reproduce the exact Rust vsize model here — JS↔Rust vbyte parity
-is explicitly NOT a cross-stack guarantee (see `peginFeeMath.ts`), so an
-exact recompute would false-positive on valid deposits. Instead we bound
-the implied fee by the largest vsize any *standard, relayable* Bitcoin
-transaction can have: 100,000 vbytes (400,000 weight units, the consensus
-tx-weight limit). A PegIn is a single transaction, so its real vsize is far
-below this; an implied fee above `minPeginFeeRate × MAX_REASONABLE_PEGIN_VBYTES`
-therefore signals a grossly inflated `htlcValue` (excess sats that would be
-locked irrecoverably in the HTLC), not legitimate sizing.
 
 ***
 

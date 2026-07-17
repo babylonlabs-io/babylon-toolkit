@@ -118,6 +118,13 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.wrongWalletAccount;
   }
 
+  // 4c'. Version preflight slipped through (defense in depth): the facade's
+  // stable "unsupported tx graph version" prefix means this build's WASM
+  // cannot construct the required graph — same remedy as the preflight CTA.
+  if (msg.includes("unsupported tx graph version")) {
+    return ERRORS.appVersionUnsupported;
+  }
+
   // 4c. VP commission drift / unavailability. The SDK throws "...commission
   // changed since quote..." when the on-chain commission rose above the quoted
   // value plus headroom; the flow throws COMMISSION_UNAVAILABLE_ERROR when the

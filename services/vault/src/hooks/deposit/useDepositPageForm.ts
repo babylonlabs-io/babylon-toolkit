@@ -3,6 +3,7 @@ import {
   computeMinPeginFee,
   computeNumLocalChallengers,
   peginOutputCount,
+  peginP2aAnchorOutput,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
+import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
 
 import { useAaveConfig } from "../../applications/aave/context";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
@@ -165,6 +167,18 @@ export interface UseDepositPageFormResult {
    * instead of getting stuck on "Calculating fees...".
    */
   minPeginFeeError: Error | null;
+  /**
+   * Per-vault P2A anchor value (sats) the HTLC additionally reserves — 0n
+   * for graph versions without an anchor (v1), 240n for v2. Null while the
+   * WASM query loads.
+   */
+  p2aAnchorValueSats: bigint | null;
+  /**
+   * True when the contract's activeVaultCoreVersion is not buildable by this
+   * build's WASM. Terminal: the CTA must fail closed with the
+   * "update the app" state and the fee queries stay disabled.
+   */
+  appVersionUnsupported: boolean;
 
   /**
    * True when the ordinals check is still in flight AND the user has
@@ -452,6 +466,26 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const numLocalChallengers = numLocalChallengersResult.value;
   const challengerCountError = numLocalChallengersResult.error;
 
+  // Fail-closed preflight: is the contract's active vault core version
+  // buildable by this build's WASM? Terminal for the whole deposit page when
+  // false — the WASM fee queries below are disabled (they would throw the
+  // raw facade error) and the CTA shows the "update the app" state instead.
+  const { data: supportedVaultCoreVersions, error: supportedVersionsError } =
+    useQuery({
+      queryKey: ["supportedVaultCoreVersions"],
+      queryFn: getSupportedVaultCoreVersions,
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+    });
+  const appVersionUnsupported =
+    supportedVaultCoreVersions !== undefined &&
+    !supportedVaultCoreVersions.includes(config.activeVaultCoreVersion);
+  // Positive gate for the WASM fee queries: while the preflight is still
+  // loading, the version is UNKNOWN — treat it like the queries' own loading
+  // state ("Calculating fees..." CTA) rather than letting them race ahead.
+  const appVersionSupported =
+    supportedVaultCoreVersions !== undefined && !appVersionUnsupported;
+
   const { data: depositorClaimValue, error: depositorClaimValueError } =
     useQuery({
       queryKey: [
@@ -474,7 +508,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
           config.offchainParams.feeRate,
         ).then(assertMinClaimValue),
       enabled:
-        latestUniversalChallengers.length > 0 && numLocalChallengers != null,
+        latestUniversalChallengers.length > 0 &&
+        numLocalChallengers != null &&
+        appVersionSupported,
       staleTime: STALE_TIME_MS,
       refetchOnWindowFocus: false,
     });
@@ -507,8 +543,22 @@ export function useDepositPageForm(): UseDepositPageFormResult {
         latestUniversalChallengers.length,
         config.offchainParams.minPeginFeeRate,
       ).then(assertMinPeginFee),
-    enabled: vaultKeeperBtcPubkeys.length > 0,
+    enabled: vaultKeeperBtcPubkeys.length > 0 && appVersionSupported,
     staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  });
+
+  // Per-vault P2A anchor value each HTLC must additionally reserve for graph
+  // versions whose PegIn carries a pay-to-anchor output (v2: 240 sats; v1
+  // has none → 0n). Version-static, so cache for the session.
+  const { data: p2aAnchorValueSats, error: p2aAnchorError } = useQuery({
+    queryKey: ["peginP2aAnchorValue", config.activeVaultCoreVersion],
+    queryFn: async () => {
+      const anchor = await peginP2aAnchorOutput(config.activeVaultCoreVersion);
+      return anchor?.value ?? 0n;
+    },
+    enabled: appVersionSupported,
+    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
@@ -520,27 +570,31 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   //   - Per-vault minPeginFee (the VP's activation tx budget, reserved
   //     INSIDE each HTLC's value) — computed exactly via the WASM
   //     `computeMinPeginFee(num_vks, num_ucs, minPeginFeeRate)`
+  //   - Per-vault P2A anchor value (v2 graphs only), also reserved inside
+  //     each HTLC's value
   //   - Per-batch CPFP anchor output value + safety margin
   //
-  // Without the per-vault PegIn-fee reserve, Max could resolve to an amount
-  // the iterative UTXO selector then rejects: the Pre-PegIn outputs sum to
-  // vaultCount × (peginAmount + claimValue + minPeginFee) + CPFP, which
-  // exceeds totalBalance once minPeginFee is non-zero.
+  // Without the per-vault reserves, Max could resolve to an amount the
+  // iterative UTXO selector then rejects: the Pre-PegIn outputs sum to
+  // vaultCount × (peginAmount + claimValue + p2aAnchor + minPeginFee) + CPFP,
+  // which exceeds totalBalance once those reserves are non-zero.
   const adjustedMaxDepositSats = useMemo(() => {
     if (maxDepositSats == null) return null;
     const vaultCountBig = BigInt(vaultCount);
-    // While the WASM queries are still loading, depositorClaimValue and
-    // minPeginFee can be undefined. Defaulting them to 0n keeps the cap
-    // clamp + flat batch buffer active so the Max button never shows a
-    // value above the supply cap. When the queries resolve, adjusted may
-    // shrink by the real claim + pegin-fee reserves; the isMaxPinned sync
+    // While the WASM queries are still loading, depositorClaimValue,
+    // minPeginFee, and p2aAnchorValueSats can be undefined. Defaulting them
+    // to 0n keeps the cap clamp + flat batch buffer active so the Max button
+    // never shows a value above the supply cap. When the queries resolve,
+    // adjusted may shrink by the real reserves; the isMaxPinned sync
     // effect auto-updates the form value.
     const claimReserve = (depositorClaimValue ?? 0n) * vaultCountBig;
     const peginFeeReserve = (minPeginFee ?? 0n) * vaultCountBig;
+    const anchorReserve = (p2aAnchorValueSats ?? 0n) * vaultCountBig;
     const balanceBased =
       maxDepositSats -
       claimReserve -
       peginFeeReserve -
+      anchorReserve -
       PRE_PEGIN_SAFETY_BUFFER_SATS;
     // Clamp to the application's remaining supply cap when the cap is the
     // binding ceiling — otherwise the Max button can land the user above the
@@ -555,6 +609,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     maxDepositSats,
     depositorClaimValue,
     minPeginFee,
+    p2aAnchorValueSats,
     vaultCount,
     capSnapshot,
   ]);
@@ -699,7 +754,17 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
     capUnavailable: capError !== null,
     minPeginFee: minPeginFee ?? null,
-    minPeginFeeError: toError(minPeginFeeError) ?? keeperSetError,
+    // The anchor value and the supported-version preflight are part of the
+    // same per-HTLC reserve estimate, so their failures surface through the
+    // same terminal fee-error CTA state. (An UNSUPPORTED version is not an
+    // error here — it has its own CTA state via appVersionUnsupported.)
+    minPeginFeeError:
+      toError(minPeginFeeError) ??
+      toError(p2aAnchorError) ??
+      toError(supportedVersionsError) ??
+      keeperSetError,
+    appVersionUnsupported,
+    p2aAnchorValueSats: p2aAnchorValueSats ?? null,
     ordinalsCheckPending,
     isTwoVaultSplit,
     setIsTwoVaultSplit,

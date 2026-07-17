@@ -37,6 +37,12 @@ vi.mock("../ensureAuthenticatedVpClient", () => ({
     mockEnsureAuthenticatedVpClient(...args),
 }));
 
+const mockAssertVaultCoreVersionSupported = vi.hoisted(() => vi.fn());
+mockAssertVaultCoreVersionSupported.mockResolvedValue(undefined);
+vi.mock("@/utils/vaultCoreVersionSupport", () => ({
+  assertVaultCoreVersionSupported: mockAssertVaultCoreVersionSupported,
+}));
+
 vi.mock("@/storage/peginStorage", () => ({
   updatePendingPeginStatus: (...args: unknown[]) =>
     mockUpdatePendingPeginStatus(...args),
@@ -95,6 +101,24 @@ describe("signAndSubmitPayouts", () => {
     });
     mockEnsureAuthenticatedVpClient.mockResolvedValue(rpcClient);
     mockRunDepositorPresignFlow.mockResolvedValue(undefined);
+  });
+
+  it("aborts before any wallet popup when the stamped vaultCoreVersion is unsupported", async () => {
+    mockPrepareSigningContext.mockResolvedValue({
+      context: { ...preparedContext, vaultCoreVersion: 3 },
+      vaultProviderAddress,
+    });
+    mockAssertVaultCoreVersionSupported.mockRejectedValueOnce(
+      new Error("This deposit requires a newer version of the app."),
+    );
+
+    await expect(callSignAndSubmit()).rejects.toThrow(
+      /requires a newer version of the app/,
+    );
+    expect(mockAssertVaultCoreVersionSupported).toHaveBeenCalledWith(3);
+    // Fail-closed BEFORE the VP auth popup and the presign flow.
+    expect(mockEnsureAuthenticatedVpClient).not.toHaveBeenCalled();
+    expect(mockRunDepositorPresignFlow).not.toHaveBeenCalled();
   });
 
   it("forwards the prepared SigningContext and stripped ids into the presign flow unchanged", async () => {

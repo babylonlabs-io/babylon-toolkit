@@ -31,10 +31,10 @@ interface DepositFeesBreakdownProps {
   /** VP commission (bps) for the selected provider; undefined while loading. */
   commissionBps?: number;
   /**
-   * Full HTLC output values the protocol charges commission on, one per vault.
-   * `undefined` while the reserve / PegIn-fee inputs are still loading.
+   * Per-vault deposit amounts (satoshis) the protocol charges commission on.
+   * `undefined` while a two-vault split's per-vault amounts are loading.
    */
-  commissionHtlcValues?: readonly bigint[];
+  commissionBaseValues?: readonly bigint[];
 }
 
 interface FeeLineProps {
@@ -86,7 +86,7 @@ export function DepositFeesBreakdown({
   protocolFeeIsError,
   amountSats,
   commissionBps,
-  commissionHtlcValues,
+  commissionBaseValues,
 }: DepositFeesBreakdownProps) {
   // Format a satoshi value as a BTC amount plus an optional "($X USD)" suffix,
   // matching the existing fee-line presentation. `null` sats render as the
@@ -112,28 +112,27 @@ export function DepositFeesBreakdown({
     depositorClaimValue === undefined ? null : depositorClaimValue,
   );
 
-  // The protocol charges commission on the full HTLC output value
-  // (`htlcValue = deposit + depositorClaimValue + minPeginFee`), not on the
-  // entered deposit alone — see `payout.ts` (commission cap on
-  // `peginPrevOut.value`). For split deposits, each HTLC is floored
-  // independently by the payout cap, so mirror that rather than flooring the
-  // summed value once. Net payout is the deposit minus that commission.
-  // All inputs must be known to size the HTLC values, so the lines show the
-  // placeholder until the commission, reserve, and PegIn fee have all loaded.
+  // The protocol charges commission on the vault deposit amount only —
+  // `floor(peginAmount × bps / 10000)` per vault, where the basis is the
+  // PegIn output value = the deposit (btc-vault
+  // `transactions/mod.rs::build_payout_outputs`; claim value, PegIn fee,
+  // and the P2A anchor are NOT part of the basis). Split deposits floor
+  // each vault independently, mirroring the per-payout computation.
+  // Net payout is the deposit minus that commission.
   const { commissionSats, netPayoutSats } = useMemo(() => {
-    if (commissionBps === undefined || commissionHtlcValues === undefined) {
+    if (commissionBps === undefined || commissionBaseValues === undefined) {
       return { commissionSats: null, netPayoutSats: null };
     }
     const bps = BigInt(commissionBps);
-    const commission = commissionHtlcValues.reduce(
-      (total, htlcValue) => total + (htlcValue * bps) / BPS_DENOMINATOR,
+    const commission = commissionBaseValues.reduce(
+      (total, baseValue) => total + (baseValue * bps) / BPS_DENOMINATOR,
       0n,
     );
     return {
       commissionSats: commission,
       netPayoutSats: amountSats - commission,
     };
-  }, [amountSats, commissionHtlcValues, commissionBps]);
+  }, [amountSats, commissionBaseValues, commissionBps]);
 
   const commission = formatSatsLine(commissionSats);
   const netPayout = formatSatsLine(netPayoutSats);
