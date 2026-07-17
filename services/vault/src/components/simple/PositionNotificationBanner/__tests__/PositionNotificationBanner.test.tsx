@@ -40,6 +40,10 @@ vi.mock("@/clients/eth-contract/client", () => ({
 // and surface variant/severity as data-attributes.
 vi.mock("@babylonlabs-io/core-ui", () => ({
   InfoIcon: () => <span data-testid="suggestion-info-icon" />,
+  Text: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  WarningIcon: () => <span data-testid="warning-icon" />,
+  PauseIcon: () => <span data-testid="pause-icon" />,
+  CloseIcon: () => <span data-testid="close-icon" />,
   Notification: (props: Record<string, unknown>) => {
     const actions = (props.actions ?? []) as Array<{
       label: ReactNode;
@@ -127,6 +131,17 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xTestAddress" }),
 }));
+
+const gateMock = vi.hoisted(() => ({
+  value: { protocol: null as string | null, aave: null as string | null },
+}));
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => gateMock.value,
+  useProtocolPauseStatus: () => ({ data: undefined }),
+}));
+
+const featureFlagsMock = vi.hoisted(() => ({ isV3UiEnabled: false }));
+vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -218,6 +233,8 @@ describe("PositionNotificationBanner", () => {
       isLoading: false,
       reorderVerificationContext: mockReorderVerificationContext,
     });
+    gateMock.value = { protocol: null, aave: null };
+    featureFlagsMock.isV3UiEnabled = false;
   });
 
   it("renders nothing when result is null", () => {
@@ -683,5 +700,174 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.variant).toBe("warning");
     expect(screen.queryByText(/Add a .* BTC Vault/)).toBeNull();
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
+  });
+});
+
+describe("PositionNotificationBanner v3", () => {
+  const onDeposit = vi.fn();
+  const onRepay = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    featureFlagsMock.isV3UiEnabled = true;
+    gateMock.value = { protocol: null, aave: null };
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      status: "ready",
+      isLoading: false,
+      reorderVerificationContext: mockReorderVerificationContext,
+    });
+  });
+
+  it("renders the urgent v3 card with red severity and both safety actions", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "urgent",
+          title: "Liquidation is 2.3% away",
+          detail: "A drop to $86,360 triggers your first liquidation event.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("red");
+    expect(banner.dataset.tone).toBe("urgent");
+    expect(screen.getByText("Add Collateral")).toBeTruthy();
+    expect(screen.getByText("Repay Debt")).toBeTruthy();
+  });
+
+  it("selects CLIFF A (affordable add) when suggestedNewVaultBtc is set", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+          suggestion: "Adding a 0.14 BTC sacrificial vault creates a buffer.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.12,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.tone).toBe("cliff");
+    expect(
+      screen.getByText(/Adding a 0.14 BTC sacrificial vault/),
+    ).toBeTruthy();
+    expect(screen.getByText("Add sacrificial BTC Vault")).toBeTruthy();
+    expect(screen.queryByText("Suggestion")).toBeNull();
+  });
+
+  it("selects CLIFF B (no affordable add) when suggestedNewVaultBtc is null", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+          suggestion:
+            "To enable partial liquidation, withdraw your 1 BTC and re-deposit as two smaller vaults.",
+        },
+      ],
+      suggestedNewVaultBtc: null,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.tone).toBe("cliff");
+    expect(screen.getByText("Suggestion")).toBeTruthy();
+    expect(screen.getByText(/withdraw your 1 BTC/)).toBeTruthy();
+    expect(screen.queryByText("Add sacrificial BTC Vault")).toBeNull();
+  });
+
+  it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "dust",
+          title: "Position too small for BTC Vault analysis",
+          detail: "Below $1,000 the cascade simplifies.",
+          tone: "soft",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.tone).toBe("dust");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("renders the too-many-vaults v3 card at yellow severity", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "too-many-vaults",
+          title: "Too many BTC Vaults to optimize",
+          detail: "You have 12 BTC Vaults.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.tone).toBe("too-many");
+    expect(banner.dataset.severity).toBe("yellow");
+  });
+
+  it("renders the standalone reorder v3 card with chips and an enabled Apply CTA", () => {
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.tone).toBe("reorder");
+    expect(screen.getByText("Suggested order")).toBeTruthy();
+    expect(screen.getByText(/Vault 2 ·/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Apply Optimal Order" }),
+    ).not.toBeDisabled();
+  });
+
+  it("disables the reorder Apply CTA when the aave scope is paused", () => {
+    gateMock.value = { protocol: null, aave: "paused" };
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.getByRole("button", { name: "Apply Optimal Order" }),
+    ).toBeDisabled();
+  });
+
+  it("falls back to the v2 Notification for weird-params under the flag", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "weird-params",
+          title: "Protocol parameters don't compute",
+          detail: "THF must be greater than expected HF.",
+          tone: "soft",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.variant).toBe("info");
+    expect(banner.dataset.tone).toBeUndefined();
+  });
+
+  it("falls back to the v2 Notification for the green state under the flag", () => {
+    renderBanner(makeBaseResult(), onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.variant).toBe("success");
+    expect(banner.dataset.tone).toBeUndefined();
   });
 });

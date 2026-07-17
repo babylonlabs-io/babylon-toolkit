@@ -5,6 +5,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { NotificationCardV3 } from "@/components/shared/NotificationCardV3";
 import {
   type ProtocolStatus,
   resolveBannerStatus,
@@ -35,6 +36,22 @@ export function ProtocolStatusBanner() {
   }
 
   const copy = COPY.protocolStatus[status];
+
+  if (featureFlags.isV3UiEnabled) {
+    const v3 = COPY.protocolStatus.v3[status];
+    const v3Body = featureFlags.protocolStatusMessage ?? v3.body;
+    return (
+      <Container className={`${PAGE_CONTENT_CLASS} py-6`}>
+        <NotificationCardV3
+          tone={status === "frozen" ? "soft-paused" : "fully-paused"}
+          title={v3.title}
+          data-testid="protocol-status-banner"
+        >
+          {v3Body}
+        </NotificationCardV3>
+      </Container>
+    );
+  }
   const body = featureFlags.protocolStatusMessage ?? copy.body;
 
   // Same Container the page sections use, so the card aligns to the content

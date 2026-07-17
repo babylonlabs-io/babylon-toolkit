@@ -22,10 +22,15 @@ import {
   type WarningType,
 } from "@/applications/aave/positionNotifications";
 import {
+  NotificationCardV3,
+  type NotificationCardV3Tone,
+} from "@/components/shared/NotificationCardV3";
+import {
   isDepositBlocked,
   isReorderBlocked,
   isRepayBlocked,
 } from "@/components/shared/protocolStatus";
+import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
@@ -309,6 +314,50 @@ export function PositionNotificationBanner({
         </div>
       );
     }
+  }
+
+  let v3Tone: NotificationCardV3Tone | null = null;
+  if (isStandaloneReorder) {
+    v3Tone = "reorder";
+  } else if (primaryWarning?.type === "urgent") {
+    v3Tone = "urgent";
+  } else if (isCliffPrimary) {
+    v3Tone = "cliff";
+  } else if (primaryWarning?.type === "too-many-vaults") {
+    v3Tone = "too-many";
+  } else if (primaryWarning?.type === "dust") {
+    v3Tone = "dust";
+  }
+
+  if (featureFlags.isV3UiEnabled && v3Tone) {
+    return (
+      <>
+        <NotificationCardV3
+          tone={v3Tone}
+          title={title}
+          icon={isStandaloneReorder || isCliffPrimary ? null : undefined}
+          actions={actions.length > 0 ? actions : undefined}
+          actionsPlacement={
+            isStandaloneReorder || isCliffPrimary ? "below" : "inline"
+          }
+          suggestion={suggestion}
+          onClose={
+            dismissibleAdvisoryType
+              ? () => handleDismissAdvisory(dismissibleAdvisoryType)
+              : undefined
+          }
+          data-testid={TEST_ID}
+          data-severity={bannerState.severity}
+        >
+          {detail}
+        </NotificationCardV3>
+
+        <ReorderSuccessModal
+          isOpen={isReorderSuccess}
+          onClose={handleReorderSuccessClose}
+        />
+      </>
+    );
   }
 
   return (

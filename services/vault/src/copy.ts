@@ -1385,6 +1385,16 @@ export const COPY = {
       // of blocked actions varies. Each affected button explains itself.
       body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
     },
+    v3: {
+      frozen: {
+        title: "Protocol is soft-paused",
+        body: "Some new actions are temporarily restricted while the protocol is soft-paused. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
+      },
+      paused: {
+        title: "Protocol is fully paused",
+        body: "Some actions are temporarily unavailable while the protocol is fully paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
+      },
+    },
   },
   // Full-width critical banner rendered above the header when the position is at
   // imminent liquidation risk (red severity). The warning glyph is supplied via

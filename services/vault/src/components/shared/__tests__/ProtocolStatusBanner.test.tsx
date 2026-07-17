@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const featureFlagsMock = vi.hoisted(() => ({
   protocolStatusMessage: undefined as string | undefined,
+  isV3UiEnabled: false,
 }));
 vi.mock("@/config/featureFlags", () => ({
   default: featureFlagsMock,
@@ -24,6 +25,7 @@ import { ProtocolStatusBanner } from "../ProtocolStatusBanner";
 
 beforeEach(() => {
   featureFlagsMock.protocolStatusMessage = undefined;
+  featureFlagsMock.isV3UiEnabled = false;
   gateMock.value = { protocol: null, aave: null };
 });
 
@@ -82,5 +84,66 @@ describe("ProtocolStatusBanner", () => {
     ).not.toBeInTheDocument();
     // The freeform override renders on its own, with no appended docs link.
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+});
+
+describe("ProtocolStatusBanner v3", () => {
+  beforeEach(() => {
+    featureFlagsMock.isV3UiEnabled = true;
+  });
+
+  it("renders nothing when no scope has a status", () => {
+    const { container } = render(<ProtocolStatusBanner />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders the soft-paused card (non-assertive) for a frozen scope", () => {
+    gateMock.value = { protocol: "frozen", aave: null };
+
+    render(<ProtocolStatusBanner />);
+
+    expect(screen.getByText("Protocol is soft-paused")).toBeInTheDocument();
+    expect(
+      screen.getByText(/repay, withdraw, and activation/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("Protocol is frozen")).not.toBeInTheDocument();
+  });
+
+  it("renders the fully-paused card (assertive) for a paused scope", () => {
+    gateMock.value = { protocol: "paused", aave: null };
+
+    render(<ProtocolStatusBanner />);
+
+    expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Debt continues accruing interest/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("summarizes the most severe scope (pause wins over a concurrent freeze)", () => {
+    gateMock.value = { protocol: "frozen", aave: "paused" };
+
+    render(<ProtocolStatusBanner />);
+
+    expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Protocol is soft-paused"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE override the v3 body", () => {
+    gateMock.value = { protocol: "frozen", aave: null };
+    featureFlagsMock.protocolStatusMessage = "Maintenance until 14:00 UTC.";
+
+    render(<ProtocolStatusBanner />);
+
+    expect(
+      screen.getByText(/Maintenance until 14:00 UTC\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/temporarily restricted/),
+    ).not.toBeInTheDocument();
   });
 });
