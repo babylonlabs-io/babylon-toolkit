@@ -423,11 +423,11 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
-        // Sign the peg-in PSBTs in a single native batch popup when the wallet
-        // supports signPsbts; the (x of n) sub-counter jumps 0 -> N around the
-        // one call. Wallets without native batch signing fall back to
-        // sequential signPsbt (via the SDK's signPsbtsWithFallback), where the
-        // per-tx wrapper ticks the counter once per signature.
+        // A single peg-in PSBT signs via signPsbt (the SDK's
+        // signPsbtsWithFallback routes lone PSBTs there), ticking the counter
+        // once. Multi-vault: one native batch popup when the wallet supports
+        // signPsbts — the (x of n) sub-counter jumps 0 -> N around the one
+        // call — else sequential signPsbt ticks it per signature.
         const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
           psbtHex,
           opts,

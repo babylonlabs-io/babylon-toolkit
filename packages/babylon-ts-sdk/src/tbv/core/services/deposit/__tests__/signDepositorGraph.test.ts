@@ -638,7 +638,7 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("expected 3");
+    ).rejects.toThrow(/expected 3/i);
   });
 
   it("strips 0x prefix from depositor pubkey", async () => {
