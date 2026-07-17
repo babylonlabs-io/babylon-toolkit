@@ -169,6 +169,9 @@ jobs:
           SENTRY_DIST: ${{ github.run_id }}
           SENTRY_ENVIRONMENT: ${{ matrix.environment }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          # Proxies Sentry events through our own host. Unset, events go directly to
+          # Sentry's ingest host, which the CDN's connect-src does not allow.
+          NEXT_PUBLIC_SENTRY_TUNNEL_URL: ${{ vars.NEXT_PUBLIC_SENTRY_TUNNEL_URL }}
           NEXT_PUBLIC_RELEASE_ID: ${{ github.sha }}
           NEXT_PUBLIC_DIST_ID: ${{ github.run_id }}
           NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
@@ -190,7 +193,6 @@ jobs:
           # Misc
           NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES: ${{ vars.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES }}
           NEXT_PUBLIC_NOTICE_BANNER_MESSAGE: ${{ vars.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE }}
-          NEXT_PUBLIC_REPLAYS_RATE: ${{ vars.NEXT_PUBLIC_REPLAYS_RATE }}
 
       - name: Copy all index.html to fix path for activity, app/aave
         run: |
