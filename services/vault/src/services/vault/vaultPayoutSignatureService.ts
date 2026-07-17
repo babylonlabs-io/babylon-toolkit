@@ -62,6 +62,8 @@ export interface PrepareSigningContextParams {
 
 /** Context required for signing payout transactions */
 export interface SigningContext {
+  /** Vault core (tx-graph) version stamped on-chain at registration */
+  vaultCoreVersion: number;
   peginTxHex: string;
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
@@ -212,6 +214,9 @@ export async function prepareSigningContext(
 
   return {
     context: {
+      // Stamped at registration — the graph version this vault's scripts
+      // were built with, independent of the current activeVaultCoreVersion.
+      vaultCoreVersion: vault.vaultCoreVersion,
       peginTxHex: vault.depositorSignedPeginTx,
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,

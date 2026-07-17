@@ -10,6 +10,19 @@
 export const ProtocolParamsABI = [
   {
     type: "function",
+    name: "activeVaultCoreVersion",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint16",
+        internalType: "uint16",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "getTBVProtocolParams",
     inputs: [],
     outputs: [

@@ -10,6 +10,8 @@
  * interface should call them too.
  */
 
+import { assertValidVaultCoreVersion } from "../../primitives/vaultCoreVersion";
+
 import type {
   PegInConfiguration,
   TBVProtocolParams,
@@ -231,4 +233,11 @@ export function validatePegInConfiguration(config: PegInConfiguration): void {
       `Invalid peg-in configuration: offchainParamsVersion must be a uint32, got ${config.offchainParamsVersion}`,
     );
   }
+
+  // The contract enforces ≥ 1 (setter rejects 0); a 0 here means a
+  // mis-decoded read or a pre-vaultCoreVersion contract — fail closed.
+  assertValidVaultCoreVersion(
+    config.activeVaultCoreVersion,
+    "ProtocolParams.activeVaultCoreVersion()",
+  );
 }

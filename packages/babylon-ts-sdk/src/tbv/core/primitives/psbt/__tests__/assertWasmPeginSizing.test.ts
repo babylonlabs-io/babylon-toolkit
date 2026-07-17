@@ -33,6 +33,7 @@ const FEE_PLAUSIBILITY_CAP = 1_000_000n;
 
 function makeParams(overrides?: Partial<PrePeginParams>): PrePeginParams {
   return {
+    vaultCoreVersion: 1,
     depositorPubkey: "aa".repeat(32),
     vaultProviderPubkey: "bb".repeat(32),
     vaultKeeperPubkeys: ["cc".repeat(32)],

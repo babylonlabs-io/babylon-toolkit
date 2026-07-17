@@ -23,8 +23,6 @@ import {
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
-import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
-
 /**
  * Parameters for creating a payout script.
  *
@@ -32,6 +30,13 @@ import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
  * the taproot script that controls how funds can be spent from the vault.
  */
 export interface PayoutScriptParams {
+  /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion`. Selects which graph's
+   * payout connector the WASM derives.
+   */
+  vaultCoreVersion: number;
+
   /**
    * Depositor's BTC public key (x-only, 64-char hex without 0x prefix).
    *
@@ -148,7 +153,7 @@ export async function createPayoutScript(
   // Call the WASM wrapper with the correct parameter structure
   const connector = await createPayoutConnector(
     {
-      txGraphVersion: TX_GRAPH_VERSION_V1,
+      txGraphVersion: params.vaultCoreVersion,
       depositor: params.depositor,
       vaultProvider: params.vaultProvider,
       vaultKeepers: params.vaultKeepers,

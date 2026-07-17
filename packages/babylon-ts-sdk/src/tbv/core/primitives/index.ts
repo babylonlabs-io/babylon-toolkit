@@ -77,8 +77,8 @@
 // Challenger counting
 export { computeNumLocalChallengers } from "./challengers";
 
-// Tx graph (vault-core) version constants
-export { TX_GRAPH_VERSION_V1 } from "./txGraphVersion";
+// Vault core (tx-graph) version validation
+export { assertValidVaultCoreVersion } from "./vaultCoreVersion";
 
 // Core types and functions from WASM package
 export {

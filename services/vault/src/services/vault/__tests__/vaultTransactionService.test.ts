@@ -84,6 +84,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
   ];
 
   const baseParams: PreparePeginParams = {
+    vaultCoreVersion: 1,
     pegInAmounts: [100000n],
     protocolFeeRate: 10n,
     minPeginFeeRate: 20n,

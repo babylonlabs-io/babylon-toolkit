@@ -35,6 +35,7 @@ function makePrePeginParams(
   overrides?: Partial<PrePeginParams>,
 ): PrePeginParams {
   return {
+    vaultCoreVersion: 1,
     depositorPubkey: TEST_KEYS.DEPOSITOR,
     vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
     vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],

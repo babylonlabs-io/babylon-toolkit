@@ -131,6 +131,7 @@ describe("vaultPayoutSignatureService", () => {
     const ON_CHAIN_VAULT = {
       depositorSignedPeginTx: "0xpegin",
       offchainParamsVersion: 1,
+      vaultCoreVersion: 2,
       appVaultKeepersVersion: 2,
       universalChallengersVersion: 3,
       applicationEntryPoint: "0xapp",
@@ -169,6 +170,9 @@ describe("vaultPayoutSignatureService", () => {
 
       expect(vaultProviderAddress).toBe(ON_CHAIN_VAULT.vaultProvider);
       expect(context.peginTxHex).toBe(ON_CHAIN_VAULT.depositorSignedPeginTx);
+      // The stamped on-chain version must flow through verbatim — a
+      // re-pinned constant here would sign resumed vaults with the wrong graph.
+      expect(context.vaultCoreVersion).toBe(2);
       expect(context.timelockPegin).toBe(100);
       expect(context.timelockAssert).toBe(144);
       expect(context.councilMembers).toEqual(["council1", "council2"]);

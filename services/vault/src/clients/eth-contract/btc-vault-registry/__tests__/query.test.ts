@@ -106,6 +106,19 @@ describe("getVaultFromChain", () => {
     vi.clearAllMocks();
   });
 
+  function protocolInfo() {
+    return {
+      depositorSignedPeginTx: "0xdeadbeef" as Hex,
+      universalChallengersVersion: 1n,
+      appVaultKeepersVersion: 2n,
+      offchainParamsVersion: 3n,
+      vaultCoreVersion: 1,
+      hashlock: ("0x" + "1".repeat(64)) as Hex,
+      htlcVout: 0n,
+      prePeginTxHash: ("0x" + "2".repeat(64)) as Hex,
+    };
+  }
+
   // Status is the load-bearing field for the broadcast precondition; if a
   // future refactor of the basic-info merge drops it, the broadcast gate
   // would fall back to `undefined` and pass every comparison.
@@ -115,15 +128,7 @@ describe("getVaultFromChain", () => {
         ...basicInfo(60_000_000n),
         status: 4, // on-chain BTCVaultStatus.Expired
       },
-      protocol: {
-        depositorSignedPeginTx: "0xdeadbeef" as Hex,
-        universalChallengersVersion: 1n,
-        appVaultKeepersVersion: 2n,
-        offchainParamsVersion: 3n,
-        hashlock: ("0x" + "1".repeat(64)) as Hex,
-        htlcVout: 0n,
-        prePeginTxHash: ("0x" + "2".repeat(64)) as Hex,
-      },
+      protocol: protocolInfo(),
     });
 
     const result = await getVaultFromChain(VAULT_A);
@@ -131,5 +136,30 @@ describe("getVaultFromChain", () => {
     expect(result.status).toBe(4);
     expect(result.amount).toBe(60_000_000n);
     expect(result.prePeginTxHash).toBe(("0x" + "2".repeat(64)) as Hex);
+  });
+
+  it("surfaces the stamped vaultCoreVersion for resume flows", async () => {
+    mockGetVaultData.mockResolvedValue({
+      basic: basicInfo(60_000_000n),
+      protocol: { ...protocolInfo(), vaultCoreVersion: 2 },
+    });
+
+    const result = await getVaultFromChain(VAULT_A);
+
+    expect(result.vaultCoreVersion).toBe(2);
+  });
+
+  // A 0 means the vault predates the contract's vaultCoreVersion field (or
+  // the read was mis-decoded) — signing with a guessed graph version must
+  // never happen, so the mapper fails closed.
+  it("throws when the on-chain vaultCoreVersion is 0", async () => {
+    mockGetVaultData.mockResolvedValue({
+      basic: basicInfo(60_000_000n),
+      protocol: { ...protocolInfo(), vaultCoreVersion: 0 },
+    });
+
+    await expect(getVaultFromChain(VAULT_A)).rejects.toThrow(
+      /Invalid vaultCoreVersion 0 from BTCVaultRegistry.getBtcVaultProtocolInfo/,
+    );
   });
 });

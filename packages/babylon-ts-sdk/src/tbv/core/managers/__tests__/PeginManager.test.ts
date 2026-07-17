@@ -183,6 +183,7 @@ const FOREIGN_BTC_ADDRESS = deriveTaprootAddress(
 // Base params for preparePegin — shared across tests. Hashlocks are
 // derived internally from the wallet root, so they are NOT passed in.
 const BASE_PREPARE_PEGIN_PARAMS = {
+  vaultCoreVersion: 1,
   vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
   vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
   universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],

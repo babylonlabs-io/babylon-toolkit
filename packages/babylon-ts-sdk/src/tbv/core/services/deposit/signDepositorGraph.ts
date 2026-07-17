@@ -21,8 +21,6 @@
 import { type Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
-import { TX_GRAPH_VERSION_V1 } from "../../primitives/txGraphVersion";
-
 import type {
   BitcoinWallet,
   SignPsbtOptions,
@@ -250,6 +248,7 @@ async function collectDepositorGraphPsbts(
   //    derived from trusted on-chain connector params, not from the VP.
   //    buildPayoutPsbt also runs the per-role output validation.
   const builtPayout = await buildPayoutPsbt({
+    vaultCoreVersion: ctx.vaultCoreVersion,
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,
     assertTxHex: depositorGraph.assert_tx.tx_hex,
@@ -405,7 +404,7 @@ async function buildLocalNoPayoutPsbt(
     challengerPubkey,
     prevouts,
     connectorParams: {
-      txGraphVersion: TX_GRAPH_VERSION_V1,
+      txGraphVersion: ctx.vaultCoreVersion,
       claimer: claimerPubkey,
       localChallengers,
       universalChallengers: ctx.universalChallengerBtcPubkeys,
@@ -513,6 +512,12 @@ async function signPsbtsWithFallback(
  * directly into the Taproot sighash.
  */
 export interface DepositorGraphSigningContext {
+  /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
+   * Selects which graph's connector scripts every PSBT is rebuilt with.
+   */
+  vaultCoreVersion: number;
   /** Raw pegin BTC transaction hex (provides the depositor's signed prevout) */
   peginTxHex: string;
   /** Depositor's BTC public key (x-only, 64-char hex, no 0x prefix) */

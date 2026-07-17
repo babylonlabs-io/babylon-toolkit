@@ -21,7 +21,6 @@ import {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
-import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 import {
   assertEncodedHtlcOutputsMatch,
@@ -32,6 +31,13 @@ import {
  * Parameters for building an unfunded Pre-PegIn PSBT
  */
 export interface PrePeginParams {
+  /**
+   * Vault core (tx-graph) version to build. Fresh deposits use the contract's
+   * `ProtocolParams.activeVaultCoreVersion()`; resumed vaults use their
+   * stamped on-chain `vaultCoreVersion`. The WASM facade fails closed on
+   * versions it wasn't compiled with.
+   */
+  vaultCoreVersion: number;
   /** Depositor's BTC public key (x-only, 64-char hex without 0x prefix) */
   depositorPubkey: string;
   /** Vault provider's BTC public key (x-only, 64-char hex) */
@@ -155,10 +161,7 @@ export async function buildPrePeginPsbt(
   const authAnchorHash = normalizeAuthAnchorHash(params.authAnchorHash);
 
   const result = await createPrePeginTransaction({
-    // Phase-1 pin: every deposit builds the v1 graph until fresh/resume
-    // version resolution lands (fresh: activeVaultCoreVersion; resume: the
-    // vault's stamped vaultCoreVersion).
-    txGraphVersion: TX_GRAPH_VERSION_V1,
+    txGraphVersion: params.vaultCoreVersion,
     depositorPubkey: params.depositorPubkey,
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
@@ -259,7 +262,7 @@ export async function buildPeginTxFromFundedPrePegin(
   // hashlocks.length.
   const result = await buildPeginTxFromPrePegin(
     {
-      txGraphVersion: TX_GRAPH_VERSION_V1,
+      txGraphVersion: params.prePeginParams.vaultCoreVersion,
       depositorPubkey: params.prePeginParams.depositorPubkey,
       vaultProviderPubkey: params.prePeginParams.vaultProviderPubkey,
       vaultKeeperPubkeys: params.prePeginParams.vaultKeeperPubkeys,

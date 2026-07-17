@@ -36,6 +36,8 @@ export type UTXO = SDKUtxo;
  * wallet root via `expandHashlockSecret`.
  */
 export interface PreparePeginParams {
+  /** Active vault core (tx-graph) version from `ProtocolParams.activeVaultCoreVersion()` */
+  vaultCoreVersion: number;
   /** Amounts to peg in per vault (satoshis), one per HTLC output */
   pegInAmounts: readonly bigint[];
   /** TX-graph fee rate in sat/vB from contract offchain params; sizes the depositor claim value */
@@ -196,6 +198,7 @@ export async function preparePeginTransaction(
 
   const { transaction, depositorBtcPubkey, derivedSecrets } =
     await peginManager.preparePegin({
+      vaultCoreVersion: params.vaultCoreVersion,
       amounts: params.pegInAmounts,
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,

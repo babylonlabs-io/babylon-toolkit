@@ -209,6 +209,11 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
           abi: ProtocolParamsABI,
           functionName: "latestOffchainParamsVersion",
         },
+        {
+          address: this.contractAddress,
+          abi: ProtocolParamsABI,
+          functionName: "activeVaultCoreVersion",
+        },
       ],
       allowFailure: false,
     });
@@ -216,6 +221,7 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
     const tbvParams = mapTBVParams(results[0] as RawTBVParams);
     const offchainParams = mapOffchainParams(results[1] as RawOffchainParams);
     const offchainParamsVersion = Number(results[2]);
+    const activeVaultCoreVersion = Number(results[3]);
 
     const config: PegInConfiguration = {
       minimumPegInAmount: tbvParams.minimumPegInAmount,
@@ -229,6 +235,7 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       minVpCommissionBps: offchainParams.minVpCommissionBps,
       offchainParams,
       offchainParamsVersion,
+      activeVaultCoreVersion,
     };
 
     validatePegInConfiguration(config);

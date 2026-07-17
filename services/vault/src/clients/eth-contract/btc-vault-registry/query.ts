@@ -6,6 +6,7 @@
  * The actual contract reads, validations, and multicalls live in the SDK.
  */
 
+import { assertValidVaultCoreVersion } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { type Address, type Hex, zeroAddress } from "viem";
 
 import { getVaultRegistryReader } from "../sdk-readers";
@@ -24,6 +25,12 @@ export interface OnChainVaultData {
   appVaultKeepersVersion: number;
   /** Offchain params version locked at vault creation — use for timelockPegin lookup */
   offchainParamsVersion: number;
+  /**
+   * Vault core (tx-graph) version stamped at registration (uint16 ≥ 1).
+   * Resume flows (payout signing, refund) must rebuild scripts under this
+   * version, not the contract's current `activeVaultCoreVersion`.
+   */
+  vaultCoreVersion: number;
   /** SHA-256 hash commitment for the HTLC (bytes32, 0x-prefixed) */
   hashlock: Hex;
   /** Index of the HTLC output in the Pre-PegIn transaction */
@@ -58,6 +65,15 @@ export async function getVaultFromChain(
   const { basic, protocol } =
     await getVaultRegistryReader().getVaultData(vaultId);
 
+  // Fail closed on 0: it means the vault predates the contract's
+  // vaultCoreVersion field (or the read was mis-decoded) — vaultd rejects
+  // core version 0 too, so guessing a graph version here would only defer
+  // the failure to after wallet popups.
+  assertValidVaultCoreVersion(
+    Number(protocol.vaultCoreVersion),
+    `BTCVaultRegistry.getBtcVaultProtocolInfo(${vaultId})`,
+  );
+
   return {
     depositor: basic.depositor,
     depositorSignedPeginTx: protocol.depositorSignedPeginTx,
@@ -66,6 +82,7 @@ export async function getVaultFromChain(
     universalChallengersVersion: Number(protocol.universalChallengersVersion),
     appVaultKeepersVersion: Number(protocol.appVaultKeepersVersion),
     offchainParamsVersion: Number(protocol.offchainParamsVersion),
+    vaultCoreVersion: Number(protocol.vaultCoreVersion),
     hashlock: protocol.hashlock,
     htlcVout: Number(protocol.htlcVout),
     amount: basic.amount,

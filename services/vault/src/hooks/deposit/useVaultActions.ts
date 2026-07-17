@@ -288,11 +288,13 @@ export function useVaultActions(): UseVaultActionsReturn {
         pendingPegin?.buildAppVaultKeepersVersion;
       const buildUniversalChallengersVersion =
         pendingPegin?.buildUniversalChallengersVersion;
+      const buildVaultCoreVersion = pendingPegin?.buildVaultCoreVersion;
       if (
         localUnsignedTxHex &&
         buildOffchainParamsVersion !== undefined &&
         buildAppVaultKeepersVersion !== undefined &&
-        buildUniversalChallengersVersion !== undefined
+        buildUniversalChallengersVersion !== undefined &&
+        buildVaultCoreVersion !== undefined
       ) {
         try {
           await verifyRegisteredVaultVersions({
@@ -302,6 +304,7 @@ export function useVaultActions(): UseVaultActionsReturn {
             expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
             expectedUniversalChallengersVersion:
               buildUniversalChallengersVersion,
+            expectedVaultCoreVersion: buildVaultCoreVersion,
           });
         } catch (err) {
           // Only a confirmed mismatch drops the entry — transient RPC

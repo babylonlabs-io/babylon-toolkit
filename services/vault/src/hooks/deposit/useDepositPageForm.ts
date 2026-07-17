@@ -3,7 +3,6 @@ import {
   computeMinPeginFee,
   computeNumLocalChallengers,
   peginOutputCount,
-  TX_GRAPH_VERSION_V1,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -457,7 +456,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     useQuery({
       queryKey: [
         "depositorClaimValue",
-        TX_GRAPH_VERSION_V1,
+        config.activeVaultCoreVersion,
         numLocalChallengers,
         latestUniversalChallengers.length,
         config.offchainParams.councilQuorum,
@@ -466,7 +465,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       ],
       queryFn: () =>
         computeMinClaimValue(
-          TX_GRAPH_VERSION_V1,
+          // Fee previews must price the graph version fresh deposits build.
+          config.activeVaultCoreVersion,
           numLocalChallengers!,
           latestUniversalChallengers.length,
           config.offchainParams.councilQuorum,
@@ -495,14 +495,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { data: minPeginFee, error: minPeginFeeError } = useQuery({
     queryKey: [
       "minPeginFee",
-      TX_GRAPH_VERSION_V1,
+      config.activeVaultCoreVersion,
       vaultKeeperBtcPubkeys.length,
       latestUniversalChallengers.length,
       String(config.offchainParams.minPeginFeeRate),
     ],
     queryFn: () =>
       computeMinPeginFee(
-        TX_GRAPH_VERSION_V1,
+        config.activeVaultCoreVersion,
         vaultKeeperBtcPubkeys.length,
         latestUniversalChallengers.length,
         config.offchainParams.minPeginFeeRate,

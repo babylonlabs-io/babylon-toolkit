@@ -20,7 +20,6 @@ import {
 
 import { MAX_REASONABLE_PEGIN_VBYTES } from "../../utils/fee/constants";
 import type { ParsedOutput } from "../../utils/transaction/fundPeginTransaction";
-import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 import type { PrePeginParams } from "./pegin";
 
@@ -82,9 +81,8 @@ export async function assertWasmPeginSizing(
     );
   }
   const expectedClaimValue = await computeMinClaimValue(
-    // Phase-1 pin: the builder constructs the v1 graph, so the cross-check
-    // must price the same version's claim value.
-    TX_GRAPH_VERSION_V1,
+    // Must price the same graph version the builder constructed.
+    params.vaultCoreVersion,
     params.numLocalChallengers,
     params.universalChallengerPubkeys.length,
     params.councilQuorum,
@@ -95,7 +93,8 @@ export async function assertWasmPeginSizing(
     throw new Error(
       `WASM Pre-PegIn depositorClaimValue ${result.depositorClaimValue} does ` +
         `not match the independently computed minimum claim value ` +
-        `${expectedClaimValue} (numLocalChallengers=${params.numLocalChallengers}, ` +
+        `${expectedClaimValue} (vaultCoreVersion=${params.vaultCoreVersion}, ` +
+        `numLocalChallengers=${params.numLocalChallengers}, ` +
         `numUniversalChallengers=${params.universalChallengerPubkeys.length}, ` +
         `councilQuorum=${params.councilQuorum}, councilSize=${params.councilSize}, ` +
         `feeRate=${params.feeRate}).`,

@@ -175,6 +175,14 @@ export interface PegInConfiguration {
    * the version label stay consistent.
    */
   offchainParamsVersion: number;
+  /**
+   * Currently-active vault core (tx-graph) version
+   * (`ProtocolParams.activeVaultCoreVersion()`, uint16 ≥ 1). Stamped onto
+   * every new vault at peg-in submission; fresh deposits must build this
+   * graph version. Read in the same multicall so a governance version bump
+   * can't land between reading the params and reading the version.
+   */
+  activeVaultCoreVersion: number;
 }
 
 /**
