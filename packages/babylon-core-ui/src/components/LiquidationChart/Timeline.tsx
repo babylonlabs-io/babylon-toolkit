@@ -14,6 +14,8 @@ const CANDLE_BODY_RATIO = 0.6;
 const MIN_ZOOM_CANDLES = 10;
 const ZOOM_IN_FACTOR = 0.8;
 const ZOOM_OUT_FACTOR = 1.25;
+/** Minimum candle body height as a plot fraction; keeps doji candles visible. */
+const CANDLE_BODY_MIN_HEIGHT = 0.004;
 
 const defaultFormatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const defaultFormatTime = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -39,7 +41,10 @@ function layoutCandles(candles: Candle[], priceMax: number, priceMin: number): C
     const wickTop = linearFraction(priceMax, priceMin, c.high);
     const wickHeight = linearFraction(priceMax, priceMin, c.low) - wickTop;
     const bodyTop = linearFraction(priceMax, priceMin, Math.max(c.open, c.close));
-    const bodyHeight = Math.max(linearFraction(priceMax, priceMin, Math.min(c.open, c.close)) - bodyTop, 0.004);
+    const bodyHeight = Math.max(
+      linearFraction(priceMax, priceMin, Math.min(c.open, c.close)) - bodyTop,
+      CANDLE_BODY_MIN_HEIGHT,
+    );
     return {
       key: c.time,
       candle: c,
@@ -104,6 +109,9 @@ export function Timeline({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const regionRef = useRef<HTMLDivElement | null>(null);
   const drag = useRef<{ x: number; start: number } | null>(null);
+  // Mirrors `drag.current` as state so the `grabbing` cursor toggles on the same
+  // render as the drag starts/ends (a ref alone schedules no re-render).
+  const [dragging, setDragging] = useState(false);
 
   const windowed = useMemo(
     () => candles.slice(clampedStart, clampedStart + windowSize),
@@ -204,6 +212,7 @@ export function Timeline({
   const onPointerDown = (e: React.PointerEvent) => {
     if (!panEnabled) return;
     drag.current = { x: e.clientX, start: clampedStart };
+    setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const endDrag = (e: React.PointerEvent) => {
@@ -211,6 +220,7 @@ export function Timeline({
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
     drag.current = null;
+    setDragging(false);
   };
 
   const hovered = hoverIndex != null ? candleGeom[hoverIndex] : null;
@@ -253,7 +263,7 @@ export function Timeline({
         onPointerDown={panEnabled ? onPointerDown : undefined}
         onPointerUp={panEnabled ? endDrag : undefined}
         onDoubleClick={zoomEnabled ? resetView : undefined}
-        data-dragging={panEnabled ? Boolean(drag.current) : undefined}
+        data-dragging={panEnabled ? dragging : undefined}
       >
         {/* Vertical gridlines at the time ticks. */}
         {xAxisLabels && xAxisLabels.length > 1

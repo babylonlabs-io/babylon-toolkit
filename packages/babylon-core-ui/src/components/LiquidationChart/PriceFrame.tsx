@@ -1,11 +1,15 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 import type { ChartGridConfig, LiquidationBandTone, PriceAxisTick } from "./types";
+import { declutterCenters } from "./axisDeclutter";
 import { pct } from "./scale";
 
 /** Below this fraction from the top, the price label sits under the line so it
  * clears the top legend / price zone instead of overflowing above the plot. */
 const PRICE_LABEL_BELOW_THRESHOLD = 0.08;
+
+/** Declutter key for the current-price pill (level markers use their band key). */
+const CURRENT_PILL_KEY = "__current__";
 
 /** A tone-coloured horizontal level (dashed line + axis pill). */
 export interface LevelMarker {
@@ -78,6 +82,65 @@ export function PriceFrame({
     ...(priceLineLabelColor ? { "--liq-price-line-label": priceLineLabelColor } : {}),
   };
 
+  // Every right-axis price pill (liquidation levels + current price) as one
+  // ordered set, so a measured pass can push overlapping labels apart instead
+  // of letting them stack unreadably. The dashed level/price lines stay put at
+  // the true price; only the label moves.
+  const pills = useMemo(() => {
+    const list = (levelMarkers ?? []).map((m) => ({ key: m.key, fraction: m.fraction }));
+    if (currentPricePill) list.push({ key: CURRENT_PILL_KEY, fraction: currentPriceTop });
+    return list;
+  }, [levelMarkers, currentPricePill, currentPriceTop]);
+
+  const plotRef = useRef<HTMLDivElement>(null);
+  const pillRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const [layout, setLayout] = useState<{ tops: Map<string, number>; hiddenTicks: Set<number> } | null>(null);
+
+  useLayoutEffect(() => {
+    const plot = plotRef.current;
+    if (!plot || pills.length === 0) {
+      setLayout(null);
+      return;
+    }
+    const measure = () => {
+      const h = plot.clientHeight;
+      if (!h) return;
+      const items = pills.map((p) => ({
+        key: p.key,
+        center: p.fraction * h,
+        height: pillRefs.current.get(p.key)?.offsetHeight ?? 0,
+      }));
+      const tops = declutterCenters(items, h);
+      // Hide the round-number axis tick a pill now sits on: the pill labels that
+      // height precisely, so the tick behind it is redundant and just clutters.
+      const hiddenTicks = new Set<number>();
+      for (const tick of priceAxis) {
+        const tc = priceToFraction(tick.value) * h;
+        for (const it of items) {
+          const top = tops.get(it.key);
+          if (top != null && Math.abs(top - tc) < it.height) {
+            hiddenTicks.add(tick.value);
+            break;
+          }
+        }
+      }
+      setLayout({ tops, hiddenTicks });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(plot);
+    return () => observer.disconnect();
+  }, [pills, priceAxis, priceToFraction]);
+
+  const pillTop = (key: string, fraction: number): string => {
+    const top = layout?.tops.get(key);
+    return top != null ? `${top}px` : pct(fraction);
+  };
+  const setPillRef = (key: string) => (el: HTMLElement | null) => {
+    if (el) pillRefs.current.set(key, el);
+    else pillRefs.current.delete(key);
+  };
+
   return (
     <div
       className={twJoin(
@@ -96,7 +159,10 @@ export function PriceFrame({
           {priceAxis.map((tick) => (
             <span
               key={tick.value}
-              className="bbn-liq-chart__yaxis-label"
+              className={twJoin(
+                "bbn-liq-chart__yaxis-label",
+                layout?.hiddenTicks.has(tick.value) && "bbn-liq-chart__yaxis-label--hidden",
+              )}
               style={{ top: pct(priceToFraction(tick.value)) }}
             >
               {tick.label}
@@ -104,7 +170,7 @@ export function PriceFrame({
           ))}
         </div>
 
-        <div className="bbn-liq-chart__plot">
+        <div className="bbn-liq-chart__plot" ref={plotRef}>
           {priceAxis.map((tick) => (
             <span
               key={tick.value}
@@ -121,8 +187,9 @@ export function PriceFrame({
                 style={{ top: pct(m.fraction), ...lineInset }}
               />
               <span
+                ref={setPillRef(m.key)}
                 className={twJoin("bbn-liq-chart__pill", m.tone && `bbn-liq-chart__pill--tone-${m.tone}`)}
-                style={{ top: pct(m.fraction), ...pillEdge }}
+                style={{ top: pillTop(m.key, m.fraction), ...pillEdge }}
               >
                 {m.label}
               </span>
@@ -145,8 +212,9 @@ export function PriceFrame({
           </span>
           {currentPricePill ? (
             <span
+              ref={setPillRef(CURRENT_PILL_KEY)}
               className="bbn-liq-chart__pill bbn-liq-chart__pill--current"
-              style={{ top: pct(currentPriceTop), ...pillEdge }}
+              style={{ top: pillTop(CURRENT_PILL_KEY, currentPriceTop), ...pillEdge }}
             >
               {currentPriceLabel}
             </span>

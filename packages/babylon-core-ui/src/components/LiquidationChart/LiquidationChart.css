@@ -73,6 +73,10 @@
   right: auto;
   left: 0.5rem;
 }
+/* Suppressed when a decluttered price pill sits on this tick (pill labels it). */
+.bbn-liq-chart__yaxis-label--hidden {
+  visibility: hidden;
+}
 .bbn-liq-chart__plot {
   position: relative;
   flex: 1 1 auto;

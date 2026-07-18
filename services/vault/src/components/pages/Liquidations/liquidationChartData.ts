@@ -1,6 +1,13 @@
-import type { LiquidationBand, LiquidationBandTone, PriceAxisTick } from "@babylonlabs-io/core-ui";
+import type {
+  LiquidationBand,
+  LiquidationBandTone,
+  PriceAxisTick,
+} from "@babylonlabs-io/core-ui";
 
-import type { CalculatorResult, LiquidationGroup } from "@/applications/aave/positionNotifications/types";
+import type {
+  CalculatorResult,
+  LiquidationGroup,
+} from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
 import { formatBtcAmount, formatPriceUsd, formatUsd } from "@/utils/formatting";
 
@@ -56,25 +63,40 @@ export interface LiquidationChartOptions {
   collateralFactor: number;
 }
 
-const toneFor = (index: number): LiquidationBandTone => TONES[index % TONES.length];
+const toneFor = (index: number): LiquidationBandTone =>
+  TONES[index % TONES.length];
 
 function formatSignedPct(pct: number): string {
   return `${pct.toFixed(1)}%`;
 }
 
-function hfAfter(group: LiquidationGroup, btcPrice: number, cf: number): string {
+function hfAfter(
+  group: LiquidationGroup,
+  btcPrice: number,
+  cf: number,
+): string {
   if (group.debtRemainingAfter <= 0) return "∞";
-  return ((group.btcRemainingAfter * btcPrice * cf) / group.debtRemainingAfter).toFixed(3);
+  return (
+    (group.btcRemainingAfter * btcPrice * cf) /
+    group.debtRemainingAfter
+  ).toFixed(3);
 }
 
-function toCard(group: LiquidationGroup, btcPrice: number, cf: number): LiquidationEventCard {
+function toCard(
+  group: LiquidationGroup,
+  btcPrice: number,
+  cf: number,
+): LiquidationEventCard {
   const sacrificial = group.index === 0;
   const fairness = group.isFullLiquidation
     ? {
         label: COPY.liquidations.events.fairnessPaymentWbtc,
         value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / btcPrice)})`,
       }
-    : { label: COPY.liquidations.events.fairnessDebtRepaid, value: formatUsd(group.fairnessDebtRepay) };
+    : {
+        label: COPY.liquidations.events.fairnessDebtRepaid,
+        value: formatUsd(group.fairnessDebtRepay),
+      };
 
   return {
     key: String(group.index),
@@ -84,7 +106,10 @@ function toCard(group: LiquidationGroup, btcPrice: number, cf: number): Liquidat
     liqPriceLabel: formatPriceUsd(group.liquidationPrice),
     distanceLabel: formatSignedPct(group.distancePct),
     distanceNegative: group.distancePct < 0,
-    seizedVaults: group.vaults.map((v) => ({ name: v.name, amountLabel: formatBtcAmount(v.btc) })),
+    seizedVaults: group.vaults.map((v) => ({
+      name: v.name,
+      amountLabel: formatBtcAmount(v.btc),
+    })),
     targetSeizureLabel: formatBtcAmount(group.targetSeizureBtc),
     overSeizureLabel: `+${formatBtcAmount(group.overSeizureBtc)}`,
     collateralLiquidatedLabel: formatBtcAmount(group.combinedBtc),
@@ -111,7 +136,8 @@ export function buildLiquidationChartData(
     const shareEnd = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
     // Band spans from where this event triggers down to the next event's
     // trigger; the last band bottoms out at the axis floor (0 = fully wiped).
-    const priceBottom = i < groups.length - 1 ? groups[i + 1].liquidationPrice : 0;
+    const priceBottom =
+      i < groups.length - 1 ? groups[i + 1].liquidationPrice : 0;
     const tone = toneFor(i);
 
     return {
@@ -133,20 +159,37 @@ export function buildLiquidationChartData(
           value: formatPriceUsd(group.liquidationPrice),
           emphasis: true,
         },
-        { label: COPY.liquidations.popover.distance, value: formatSignedPct(group.distancePct) },
-        { label: COPY.liquidations.popover.vaults, value: group.vaults.map((v) => v.name).join(", ") },
-        { label: COPY.liquidations.popover.seizes, value: formatBtcAmount(group.targetSeizureBtc) },
+        {
+          label: COPY.liquidations.popover.distance,
+          value: formatSignedPct(group.distancePct),
+        },
+        {
+          label: COPY.liquidations.popover.vaults,
+          value: group.vaults.map((v) => v.name).join(", "),
+        },
+        {
+          label: COPY.liquidations.popover.seizes,
+          value: formatBtcAmount(group.targetSeizureBtc),
+        },
       ],
-      cumulativeLabel: COPY.liquidations.cumulativeSeized(Math.round(shareEnd * 100)),
+      cumulativeLabel: COPY.liquidations.cumulativeSeized(
+        Math.round(shareEnd * 100),
+      ),
     };
   });
 
-  // Segmented axis: current price, each trigger price, then the floor.
-  const priceAxis: PriceAxisTick[] = [
-    { value: btcPrice, label: formatPriceUsd(btcPrice) },
-    ...groups.map((g) => ({ value: g.liquidationPrice, label: formatPriceUsd(g.liquidationPrice) })),
-    { value: 0, label: formatPriceUsd(0) },
-  ];
+  // Segmented axis: current price, each trigger price, and the floor, sorted
+  // descending and deduped. Sorting (not prepending btcPrice) keeps the axis
+  // ordered when the simulator drops btcPrice below a trigger — otherwise
+  // segmentedFraction collapses the current-price rule and first event to the
+  // top. Dedup avoids duplicate tick values (React keys) when prices coincide.
+  const axisValues = Array.from(
+    new Set([btcPrice, ...groups.map((g) => g.liquidationPrice), 0]),
+  ).sort((a, b) => b - a);
+  const priceAxis: PriceAxisTick[] = axisValues.map((value) => ({
+    value,
+    label: formatPriceUsd(value),
+  }));
 
   const shareAxisLabels = [
     "0%",
