@@ -18,6 +18,7 @@ export * from "./components/Card";
 export * from "./components/KeyValueList";
 export * from "./components/Toggle";
 export * from "./components/Slider";
+export * from "./components/LiquidationChart";
 export * from "./components/List";
 export * from "./components/Badge";
 export * from "./components/SubSection";
