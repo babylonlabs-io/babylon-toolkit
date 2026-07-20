@@ -266,28 +266,29 @@ export function DepositForm({
     ? `-- ${btcConfig.coinSymbol}`
     : `${Number(depositService.formatSatoshisToBtc(maxDepositSats))} ${btcConfig.coinSymbol}`;
 
-  // The slider (not the amount input or Max button) only has a meaningful drag
-  // range when the resolved max is strictly above the minimum. At or below it —
-  // still loading, cap-reached at 0, balance below the minimum, or exactly at
-  // the minimum (a zero-width range) — there's nothing to drag, so disable the
-  // slider. Manual entry and the Max button stay available; any amount above
-  // the max is clamped down once it resolves.
-  const hasDraggableRange =
-    maxDepositSats != null && maxDepositSats > minDeposit;
+  // The slider (not the amount input or Max button) is draggable whenever a
+  // positive max has resolved. A max at or below the protocol minimum keeps
+  // the slider interactive — every reachable amount is sub-minimum, but the
+  // CTA already blocks those deposits, so the slider just mirrors manual
+  // entry. Only the states with nothing to drag disable it: max still
+  // loading (null) or cap-reached at 0.
+  const hasDraggableRange = maxDepositSats != null && maxDepositSats > 0n;
   const sliderDisabled = !hasDraggableRange;
 
   // The slider operates in satoshis (integer values, 1-sat step) so the thumb
-  // can land exactly on the max. With a draggable range, start the slider at
-  // the protocol minimum so dragging can never produce a sub-minimum amount;
-  // otherwise fall back to 0 so the range stays well-defined while the slider
-  // is disabled. Manual text entry below the minimum stays available and is
-  // still caught by validation.
-  const sliderMinSats = hasDraggableRange ? Number(minDeposit) : 0;
-  // Because the range is only enabled when maxDepositSats > minDeposit (and
-  // sats are integers), the rendered max equals the real max — no synthetic
-  // over-shoot. The `+ 1` floor is purely a `(value - min) / (max - min)`
-  // divide-by-zero guard for the disabled (min = 0) states, where the slider
-  // isn't interactive anyway.
+  // can land exactly on the max. When the max clears the protocol minimum,
+  // start the slider at the minimum so dragging can never produce a
+  // sub-minimum amount; when it doesn't, open the full 0..max range (the CTA
+  // enforces the minimum). Fall back to 0 while disabled so the range stays
+  // well-defined.
+  const sliderMinSats =
+    maxDepositSats != null && maxDepositSats > minDeposit
+      ? Number(minDeposit)
+      : 0;
+  // Whenever the slider is enabled the rendered max equals the real max — no
+  // synthetic over-shoot. The `+ 1` floor is purely a `(value - min) /
+  // (max - min)` divide-by-zero guard for the disabled (min = 0, max ≤ 0)
+  // states, where the slider isn't interactive anyway.
   const sliderMaxSats = Math.max(
     sliderMinSats + 1,
     Number(maxDepositSats ?? 0n),
