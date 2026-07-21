@@ -128,7 +128,7 @@ function PendingRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <div className="flex w-full items-center gap-4 rounded-lg border border-secondary-strokeLight p-4">
+    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4">
       {/* Amount + step position */}
       <div className="flex w-[180px] shrink-0 items-center gap-2">
         <ApplicationLogo
@@ -196,7 +196,7 @@ function PendingRow({
       </div>
 
       {/* Transaction hash */}
-      <div className="flex min-w-0 flex-1 items-center [&_a]:underline">
+      <div className="flex min-w-[180px] flex-1 items-center [&_a]:underline">
         {hash && (
           <CopyableHash
             hash={hash}
@@ -266,7 +266,7 @@ function InactiveRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <div className="flex w-full items-center gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4 dark:bg-[#202020]">
+    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4 dark:bg-[#202020]">
       {/* Amount + refund maturity */}
       <div className="flex w-[180px] shrink-0 items-center gap-2">
         <ApplicationLogo
@@ -319,7 +319,7 @@ function InactiveRow({
       </div>
 
       {/* Transaction hash */}
-      <div className="flex min-w-0 flex-1 items-center [&_a]:underline">
+      <div className="flex min-w-[180px] flex-1 items-center [&_a]:underline">
         {hash && (
           <CopyableHash
             hash={hash}

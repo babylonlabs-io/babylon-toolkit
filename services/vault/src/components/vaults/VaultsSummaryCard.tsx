@@ -93,7 +93,7 @@ export function VaultsSummaryCard({
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
 
   return (
-    <section className="flex w-full items-stretch gap-6 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-6 dark:bg-[#202020]">
+    <section className="flex w-full flex-col gap-6 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-6 dark:bg-[#202020] xl:flex-row xl:items-stretch">
       <StatPane
         label={COPY.vaults.summary.totalCollateralLabel}
         tooltip={COPY.overview.totalCollateralValueTooltip}
@@ -116,7 +116,7 @@ export function VaultsSummaryCard({
         }
       />
 
-      <div className="w-px self-stretch bg-secondary-strokeLight" />
+      <div className="h-px w-full bg-secondary-strokeLight xl:h-auto xl:w-px xl:self-stretch" />
 
       <StatPane
         label={COPY.vaults.summary.activeVaultsLabel}
@@ -134,9 +134,9 @@ export function VaultsSummaryCard({
         }
       />
 
-      <div className="w-px self-stretch bg-secondary-strokeLight" />
+      <div className="h-px w-full bg-secondary-strokeLight xl:h-auto xl:w-px xl:self-stretch" />
 
-      <div className="flex h-[88px] w-[324px] shrink-0 flex-col justify-between">
+      <div className="flex h-[88px] w-full shrink-0 flex-col justify-between xl:w-[324px]">
         <StatLabel
           label={COPY.vaults.summary.healthFactorLabel}
           tooltip={COPY.overview.healthFactorTooltip}
