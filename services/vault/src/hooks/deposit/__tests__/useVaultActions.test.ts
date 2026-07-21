@@ -35,6 +35,19 @@ vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
 }));
 
+// `captureFunnelFailure` reaches the logger through this barrel, so mocking it
+// here intercepts the capture. `event` must be present: handleActivation's
+// success path calls logger.event, and omitting it would fail the happy paths.
+const mockLoggerError = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    error: mockLoggerError,
+    event: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   ensureHexPrefix: vi.fn((v: string) => (v.startsWith("0x") ? v : `0x${v}`)),
@@ -968,5 +981,153 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(mockActivateVaultWithSecret).toHaveBeenCalledWith(
       expect.objectContaining({ hashlock: ON_CHAIN_HASHLOCK }),
     );
+  });
+
+  // handleActivation catches its own failures and never rethrows, so this catch
+  // is the only place a reveal failure is observable. A capture in a caller's
+  // catch (useActivationState) would never run.
+  it("captures an on-chain reveal failure with the activation.reveal stage and a scrubbed vaultId", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      new Error("execution reverted: InvalidSecret"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(ctx.tags.funnelStage).toBe("activation.reveal");
+    expect(ctx.data.vaultId).toBe("0xva...ltId");
+    expect(result.current.activationError).toContain("execution reverted");
+  });
+
+  it("does not capture a wallet decline of the activation tx, but still surfaces it", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    // EIP-1193 4001 — the depositor hit Reject in their wallet. Routine
+    // drop-off, not a reveal failure; it must not reach Sentry.
+    mockActivateVaultWithSecret.mockRejectedValue(
+      Object.assign(new Error("User rejected the request"), { code: 4001 }),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(result.current.activationError).not.toBeNull();
+  });
+
+  // A pause is operator action hitting every depositor at once — capturing it
+  // would spike the exact rate the activation.reveal tag alerts on. It also
+  // keeps the two paused paths consistent: the cached-gate early return never
+  // captured, so the fresh-gate re-check must not either.
+  it("does not capture the fresh-gate pause as a reveal failure, but still surfaces it", async () => {
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: "paused" };
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(result.current.activationError).not.toBeNull();
+  });
+
+  // The retryable non-VERIFIED branch exists to absorb the indexer-lag race
+  // (indexer says VERIFIED, contract still PENDING) — a normal, self-resolving
+  // transient, not a reveal failure. The user still sees the retryable error.
+  it("does not capture the retryable non-VERIFIED status as a reveal failure", async () => {
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      },
+      { status: OnChainBtcVaultStatus.PENDING },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(result.current.activationError).toContain("PENDING");
+    expect(result.current.activationErrorTerminal).toBe(false);
+  });
+
+  // Mutation check on the suppression scope: EXPIRED is a genuine dead-end
+  // (retrying can't revert the status), so it must STILL be captured. Fails if
+  // the expected-interruption marker is ever set before the EXPIRED branch.
+  it("still captures the terminal EXPIRED status as a reveal failure", async () => {
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      },
+      { status: OnChainBtcVaultStatus.EXPIRED },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [, ctx] = mockLoggerError.mock.calls[0];
+    expect(ctx.tags.funnelStage).toBe("activation.reveal");
+    expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  // Once `activateVaultWithSecret` resolves, the reveal has landed on-chain.
+  // A throw in the post-success bookkeeping (success modal, refetch, txid
+  // fallback parse) must not be captured as activation.reveal — that would
+  // report a failure for an activation that succeeded, inverting the metric.
+  it("does not capture a post-reveal bookkeeping throw once the reveal has landed on-chain", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        onShowSuccessModal: vi.fn(() => {
+          throw new Error("success modal blew up");
+        }),
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError).not.toHaveBeenCalled();
   });
 });

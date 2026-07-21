@@ -33,7 +33,12 @@ import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
-import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
+import {
+  captureFunnelFailure,
+  shortId,
+  TELEMETRY_EVENT,
+  TELEMETRY_STAGE,
+} from "@/infrastructure/telemetryEvents";
 import {
   ActivationNotPossibleError,
   isTerminalActivationError,
@@ -397,6 +402,16 @@ export function useVaultActions(): UseVaultActionsReturn {
     setActivationError(null);
     setActivationErrorTerminal(false);
 
+    // Telemetry discriminators for the catch below. `expectedInterruption`
+    // marks the self-resolving pre-reveal states (protocol pause, the
+    // indexer-lag non-VERIFIED race) that surface to the user but are routine,
+    // not reveal failures. `revealed` flips once the secret reveal has landed
+    // on-chain — anything thrown after that is post-success bookkeeping, and
+    // capturing it as activation.reveal would report a failure for an
+    // activation that succeeded.
+    let expectedInterruption = false;
+    let revealed = false;
+
     try {
       // Read basic + protocol info in one parallel call. Indexer is
       // untrusted for signing-critical reads, so both come from on-chain.
@@ -421,6 +436,10 @@ export function useVaultActions(): UseVaultActionsReturn {
         ? composeGateState(freshPauseState)
         : gate;
       if (isActivationBlocked(effectiveGate)) {
+        // Same user-visible outcome as the cached-gate early return above —
+        // operator action, not a depositor failure, so telemetry stays quiet
+        // on both paths.
+        expectedInterruption = true;
         throw new Error(COPY.pegin.activationPaused);
       }
 
@@ -450,6 +469,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         if (basicInfo.status === OnChainBtcVaultStatus.EXPIRED) {
           throw new ActivationNotPossibleError(message);
         }
+        // The retryable branch exists to absorb the indexer-lag race above;
+        // it is likely the most common landing in the catch and would inflate
+        // the activation.reveal rate. EXPIRED stays captured — a genuine
+        // dead-end, not a transient.
+        expectedInterruption = true;
         throw new Error(message);
       }
 
@@ -480,6 +504,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
         walletClient,
       });
+      revealed = true;
 
       // Cross-device resume has no `pendingPegin`; fall back to the
       // contract-authoritative signed pegin tx so the entry doesn't leak.
@@ -508,6 +533,16 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (mountedRef.current) setActivating(false);
     } catch (err) {
+      // Capture regardless of mount — activation has no abort signal, so a real
+      // reveal failure is worth knowing even if the modal closed mid-flight.
+      // This is the only place the error is caught: handleActivation never
+      // rethrows, so a capture in any caller's catch would be unreachable.
+      // Skipped for expected pre-reveal interruptions and for anything thrown
+      // after the reveal landed on-chain — either would count a non-failure
+      // against the activation.reveal rate.
+      if (!expectedInterruption && !revealed) {
+        captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
+      }
       if (mountedRef.current) {
         const rawMessage =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";

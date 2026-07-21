@@ -67,7 +67,13 @@ vi.mock("../../../../utils/btc", () => ({
   },
 }));
 
-vi.mock("../../../../utils/errors/formatting", () => ({
+// Stub only the message formatter. `classifyError` stays real so the
+// user-rejection filter is exercised against genuine EIP-1193 classification
+// rather than a stub that could agree with a wrong implementation.
+vi.mock("../../../../utils/errors/formatting", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../../../utils/errors/formatting")
+  >()),
   formatPayoutSignatureError: (err: unknown) => ({
     title: "Sign Error",
     message: err instanceof Error ? err.message : String(err),
@@ -224,6 +230,26 @@ describe("usePayoutSigningState", () => {
 
       expect(mockLoggerError).not.toHaveBeenCalled();
       expect(result.current.error).toBeNull();
+    });
+
+    it("does not capture a wallet decline, but still surfaces it to the user", async () => {
+      // EIP-1193 4001 — what a wallet throws when the depositor hits Reject.
+      // Routine drop-off, not a presign failure: it must not reach Sentry and
+      // inflate the rate the activation.payouts tag alerts on.
+      const declined = Object.assign(new Error("User rejected the request"), {
+        code: 4001,
+      });
+      mockSignAndSubmitPayouts.mockRejectedValueOnce(declined);
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockLoggerError).not.toHaveBeenCalled();
+      // Unlike AbortError (modal closed), the user is still here — show them why.
+      expect(result.current.error?.title).toBe("Sign Error");
     });
   });
 

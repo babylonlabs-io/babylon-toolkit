@@ -13,8 +13,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
-import { logger } from "@/infrastructure";
-import { shortId, TELEMETRY_STAGE } from "@/infrastructure/telemetryEvents";
+import {
+  captureFunnelFailure,
+  shortId,
+  TELEMETRY_STAGE,
+} from "@/infrastructure/telemetryEvents";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
@@ -308,13 +311,14 @@ export function usePayoutSigningState({
         }
         // Critical-path #3 presign failure on the resume path — previously
         // only surfaced to UI state, invisible to Sentry.
-        logger.error(err instanceof Error ? err : new Error(String(err)), {
-          tags: { funnelStage: TELEMETRY_STAGE.ACTIVATION_PAYOUTS },
-          data: {
-            vaultId: shortId(activity.id),
+        captureFunnelFailure(
+          TELEMETRY_STAGE.ACTIVATION_PAYOUTS,
+          err,
+          activity.id,
+          {
             providerId: shortId(vaultProviderAddress),
           },
-        });
+        );
         setError(formatPayoutSignatureError(err));
         setSigning(false);
       }
