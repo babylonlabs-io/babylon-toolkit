@@ -28,7 +28,7 @@ import {
 } from "@/components/simple/ReorderVaults";
 import WithdrawFlow from "@/components/simple/WithdrawFlow";
 import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
-import { VaultsPendingSection } from "@/components/vaults/VaultsPendingSection";
+import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { VaultsSummaryCard } from "@/components/vaults/VaultsSummaryCard";
 import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
@@ -120,12 +120,15 @@ export default function VaultsPage() {
         onReorder={() => setIsReorderOpen(true)}
         isReorderDisabled={!canReorder || isReorderBlocked(gate)}
       />
-      <VaultsPendingSection />
-      <VaultsActiveSection
-        vaults={displayVaults}
-        onWithdraw={handleWithdrawRow}
-        isWithdrawDisabled={isWithdrawBlocked(gate)}
-      />
+      {/* Section order is Pending → Active → Inactive: the lifecycle
+          component renders its children between its two lists. */}
+      <VaultsLifecycleSections>
+        <VaultsActiveSection
+          vaults={displayVaults}
+          onWithdraw={handleWithdrawRow}
+          isWithdrawDisabled={isWithdrawBlocked(gate)}
+        />
+      </VaultsLifecycleSections>
     </div>
   );
 

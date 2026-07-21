@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -70,8 +71,10 @@ vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
   VaultsSummaryCard: () => <div data-testid="vaults-summary-card" />,
 }));
 
-vi.mock("@/components/vaults/VaultsPendingSection", () => ({
-  VaultsPendingSection: () => <div data-testid="vaults-pending-section" />,
+vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
+  VaultsLifecycleSections: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="vaults-lifecycle-sections">{children}</div>
+  ),
 }));
 
 vi.mock("@/components/vaults/VaultsActiveSection", () => ({
@@ -183,7 +186,7 @@ describe("VaultsPage", () => {
 
     expect(screen.queryByText(COPY.vaults.empty.title)).not.toBeInTheDocument();
     expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
-    expect(screen.getByTestId("vaults-pending-section")).toBeInTheDocument();
+    expect(screen.getByTestId("vaults-lifecycle-sections")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-active-section")).toBeInTheDocument();
   });
 

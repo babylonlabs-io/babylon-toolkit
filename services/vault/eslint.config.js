@@ -155,7 +155,7 @@ export default tseslint.config(
       // stepper clicks — the same seams DashboardPage and
       // PendingDepositSection hold for v2.
       "src/components/pages/VaultsPage.tsx",
-      "src/components/vaults/VaultsPendingSection.tsx",
+      "src/components/vaults/VaultsLifecycleSections.tsx",
       "src/hooks/useVaultsPageData.ts",
       "src/hooks/usePendingDeposits.ts",
       "src/context/deposit/PeginPollingContext.tsx",

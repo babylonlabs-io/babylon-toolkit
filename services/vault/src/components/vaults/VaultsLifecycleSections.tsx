@@ -1,13 +1,16 @@
 /**
- * VaultsPendingSection — the v3 /vaults deposit-lifecycle lists (issue #2041).
+ * VaultsLifecycleSections — the v3 /vaults deposit-lifecycle lists (#2041).
  *
  * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
  * and "Inactive Vaults" (one row per refundable-expired deposit — inactive is
  * the v3 name for expired — whose Withdraw action performs the HTLC refund).
- * Mounts its own ProtocolParamsProvider + PeginPollingProvider exactly like
- * the v2 PendingDepositSection — row state and CTAs derive from the polling
- * result, so god-mode demo rows work unchanged.
+ * `children` (the Active Vaults section) renders between them, giving the
+ * page's Pending → Active → Inactive order while both polling-backed lists
+ * stay under the single ProtocolParamsProvider + PeginPollingProvider this
+ * component mounts (exactly like the v2 PendingDepositSection) — row state
+ * and CTAs derive from the polling result, so god-mode demo rows work
+ * unchanged.
  */
 
 import {
@@ -17,7 +20,7 @@ import {
   InfoIcon,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -346,7 +349,11 @@ function InactiveRow({
   );
 }
 
-export function VaultsPendingSection() {
+export function VaultsLifecycleSections({
+  children,
+}: {
+  children?: ReactNode;
+}) {
   // Vault IDs whose multistepper view modal is open — the full batch for a
   // split pegin, null when closed (same contract as PendingDepositSection).
   const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
@@ -420,7 +427,9 @@ export function VaultsPendingSection() {
       viewingBatch,
   );
 
-  if (rows.length === 0 && !hasOpenModal) return null;
+  // No lifecycle rows and nothing modal-held: skip the providers entirely but
+  // keep the Active Vaults section (children) rendering.
+  if (rows.length === 0 && !hasOpenModal) return <>{children}</>;
 
   return (
     <ProtocolParamsProvider>
@@ -458,6 +467,8 @@ export function VaultsPendingSection() {
             </div>
           </section>
         )}
+
+        {children}
 
         {expiredActivities.length > 0 && (
           <section className="w-full space-y-3">
