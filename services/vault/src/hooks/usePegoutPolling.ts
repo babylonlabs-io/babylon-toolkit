@@ -24,6 +24,7 @@ import {
   POLLING_RETRY_DELAY_MS,
 } from "@/config/polling";
 import { logger } from "@/infrastructure";
+import { shortId } from "@/infrastructure/telemetryEvents";
 import {
   getPegoutDisplayState,
   isPegoutEffectivelyTerminal,
@@ -35,9 +36,19 @@ import {
 } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
 
+import {
+  collectPegoutTerminalEvents,
+  getSharedPegoutTerminalTracking,
+} from "./pegoutTerminalEvents";
+
 export interface PegoutPollingResult {
   displayState: PegoutDisplayState;
   response?: GetPegoutStatusResponse;
+  /** Set when polling gave up on this vault — which give-up path fired. */
+  timeoutReason?:
+    | "consecutive_failures"
+    | "unknown_status"
+    | "provider_not_found";
 }
 
 interface VaultToPoll {
@@ -147,7 +158,10 @@ function applyPegoutFailure(
     logger.warn(
       `Pegout polling for ${vaultId} timed out after ${newFailures} consecutive failures`,
     );
-    results.set(vaultId, { displayState: TIMED_OUT_STATE });
+    results.set(vaultId, {
+      displayState: TIMED_OUT_STATE,
+      timeoutReason: "consecutive_failures",
+    });
   } else {
     results.set(vaultId, {
       displayState: getPegoutDisplayState(undefined, false),
@@ -175,7 +189,11 @@ function applyPegoutResult(
       logger.warn(
         `Pegout polling for ${vaultId} timed out after ${newUnknown} consecutive unknown status polls (last status: "${claimerStatus ?? ""}")`,
       );
-      results.set(vaultId, { displayState: TIMED_OUT_STATE, response });
+      results.set(vaultId, {
+        displayState: TIMED_OUT_STATE,
+        response,
+        timeoutReason: "unknown_status",
+      });
       return;
     }
   } else {
@@ -253,7 +271,10 @@ export function usePegoutPolling({
             logger.warn(
               `Pegout polling for ${vault.id} timed out: provider not found after ${newFailures} consecutive polls`,
             );
-            results.set(vault.id, { displayState: TIMED_OUT_STATE });
+            results.set(vault.id, {
+              displayState: TIMED_OUT_STATE,
+              timeoutReason: "provider_not_found",
+            });
           } else {
             results.set(vault.id, {
               displayState: getPegoutDisplayState(undefined, false),
@@ -287,6 +308,28 @@ export function usePegoutPolling({
     retryDelay: POLLING_RETRY_DELAY_MS,
     placeholderData: keepPreviousData,
   });
+
+  // Emit the redemption terminals — payout_broadcast / payout_blocked /
+  // pegout_timeout — once per (vault, kind) as results transition. The detector
+  // seeds already-terminal vaults on first observation, so a dashboard load
+  // never emits a burst for prior-session terminals.
+  useEffect(() => {
+    if (!data) return;
+    const events = collectPegoutTerminalEvents(
+      data,
+      getSharedPegoutTerminalTracking(),
+    );
+    for (const event of events) {
+      logger.event(event.event, {
+        level: event.level,
+        category: "exit",
+        vaultId: shortId(event.vaultId),
+        ...(event.timeoutReason !== undefined
+          ? { timeoutReason: event.timeoutReason }
+          : {}),
+      });
+    }
+  }, [data]);
 
   const pegoutStatuses = useMemo(() => {
     if (!data) return new Map<string, PegoutPollingResult>();

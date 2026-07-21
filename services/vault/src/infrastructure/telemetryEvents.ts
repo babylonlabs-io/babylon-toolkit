@@ -23,6 +23,14 @@ export const TELEMETRY_EVENT = {
   ACTIVATION_VERIFIED: "activation.verified",
   /** Vault confirmed ACTIVE on-chain — funnel terminal / primary conversion. */
   DEPOSIT_COMPLETED: "deposit.completed",
+  /** VP daemon reported a terminal drop (Expired / AmlRejected / ...) — the deposit leaves the funnel. */
+  ACTIVATION_DAEMON_TERMINAL: "activation.daemon.terminal",
+  /** Redemption terminal success — the BTC payout tx is broadcast to the depositor. */
+  EXIT_REDEEM_PAYOUT_BROADCAST: "exit.redeem.payout_broadcast",
+  /** Redemption blocked terminal — claim/assert on-chain but the BTC payout is blocked. */
+  EXIT_REDEEM_PAYOUT_BLOCKED: "exit.redeem.payout_blocked",
+  /** Pegout polling gave up (consecutive failures / unknown status / provider not found). */
+  EXIT_REDEEM_PEGOUT_TIMEOUT: "exit.redeem.pegout_timeout",
 } as const;
 
 export type TelemetryEvent =
