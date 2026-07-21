@@ -160,6 +160,12 @@ export default tseslint.config(
       // Artifact-download demo (god-mode-toggled fetch simulation) seams.
       "src/hooks/deposit/useArtifactDownload.ts",
       "src/components/simple/CollateralSection.tsx",
+      // God-mode overrides for the notifications that are driven by live chain
+      // reads rather than the cascade calculation, so they can be exercised
+      // without the on-chain conditions. Both read a store getter that is
+      // compile-time `null` in production (gated on isGodModePanelEnabled).
+      "src/components/simple/MaxVaultsNotification.tsx",
+      "src/components/shared/ProtocolStatusBanner.tsx",
     ],
     rules: {
       "no-restricted-imports": [

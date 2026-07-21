@@ -28,6 +28,7 @@ function makeResult(
 
 interface GateOpts {
   reorderBlocked?: boolean;
+  orderVerifiable?: boolean;
   depositBlocked?: boolean;
   repayBlocked?: boolean;
 }
@@ -45,6 +46,7 @@ function build(
     onApplyOrder: vi.fn(),
     isReordering: false,
     reorderBlocked: gate.reorderBlocked ?? false,
+    orderVerifiable: gate.orderVerifiable ?? true,
     depositBlocked: gate.depositBlocked ?? false,
     repayBlocked: gate.repayBlocked ?? false,
   });
@@ -83,6 +85,16 @@ describe("buildBannerActions — reorder gating", () => {
   it("disables the Apply Optimal Order CTA when Freeze/Pause blocks reorder", () => {
     const actions = build(REORDER_BANNER_STATE, makeResult(), {
       reorderBlocked: true,
+    });
+    const apply = actions.find(
+      (a) => a.label === COPY.banner.applyOptimalOrder,
+    );
+    expect(apply?.disabled).toBe(true);
+  });
+
+  it("disables the Apply Optimal Order CTA when the order cannot be verified", () => {
+    const actions = build(REORDER_BANNER_STATE, makeResult(), {
+      orderVerifiable: false,
     });
     const apply = actions.find(
       (a) => a.label === COPY.banner.applyOptimalOrder,

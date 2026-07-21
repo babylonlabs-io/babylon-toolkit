@@ -259,6 +259,20 @@ export function DashboardPage() {
     setSelectedVaultIds([]);
   }, []);
 
+  // The cascade banner's slot differs by UI version: v3 places it between the
+  // Position and Risk sections (Figma 10204-45310), v2 keeps it above Overview
+  // alongside the other notifications. Same element either way — declared once
+  // so the two slots can't drift apart.
+  const cascadeBanner = liquidationNotificationsEnabled ? (
+    <PositionNotificationBanner
+      connectedAddress={address}
+      onDeposit={openDeposit}
+      onRepay={openRepay}
+      result={debugResultOverride ?? undefined}
+      statusOverride={debugStatusOverride ?? undefined}
+    />
+  ) : null;
+
   // Dev/QA god-mode admin panel (NEXT_PUBLIC_FF_GOD_MODE_PANEL). Floats over
   // the page and drives the demo items rendered in the real sections below.
   // Stripped from production builds and never active there (see GodModePanel).
@@ -311,15 +325,7 @@ export function DashboardPage() {
             all-pending position still surfaces it. */}
         <MaxVaultsNotification connectedAddress={address} />
 
-        {liquidationNotificationsEnabled && (
-          <PositionNotificationBanner
-            connectedAddress={address}
-            onDeposit={openDeposit}
-            onRepay={openRepay}
-            result={debugResultOverride ?? undefined}
-            statusOverride={debugStatusOverride ?? undefined}
-          />
-        )}
+        {!featureFlags.isV3UiEnabled && cascadeBanner}
 
         {showOverview && (
           <OverviewSection
@@ -343,6 +349,8 @@ export function DashboardPage() {
             canRepay={hasLoans}
           />
         )}
+
+        {featureFlags.isV3UiEnabled && cascadeBanner}
 
         {featureFlags.isV3UiEnabled && (
           <RiskSection

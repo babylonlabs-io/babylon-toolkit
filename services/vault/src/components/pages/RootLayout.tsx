@@ -109,6 +109,17 @@ const FOOTER_SOCIAL_LINKS: SocialLink[] = [
 // starts at the same x-position as the navbar/body instead of the raw edge.
 const FOOTER_SOCIAL_MARGIN_CLASS = "md:ml-[max(0px,calc((100vw-1080px)/2))]";
 
+// Stacking order of the full-bleed top-banner wrapper.
+// core-ui's Dialog / FullScreenDialog render at `z-50` (backdrop `z-40`) from a
+// portal whose container (`providers.tsx` app root) establishes no stacking
+// context, so they resolve against the root one — the same one this wrapper
+// competes in. Figma §2 (node 10092-19911) requires the critical banner to stay
+// visible above an open modal (e.g. the repay modal), so v3 outranks them.
+// It has to live on the wrapper: `sticky` + a z-index makes the wrapper its own
+// stacking context, so a raised z-index on a banner inside it could not escape.
+// v2 keeps `z-30` so its banner stack still passes under modals exactly as before.
+const TOP_BANNER_Z_CLASS = FeatureFlags.isV3UiEnabled ? "z-[60]" : "z-30";
+
 function AppNavLink({
   to,
   children,
@@ -177,15 +188,32 @@ export default function RootLayout() {
     isWalletConnected &&
     FeatureFlags.isDepositDisabled &&
     resolveBannerStatus(gate) === null;
-  // The deposit-disabled banner renders full-width above the sidebar (per Figma
-  // node 10084:28515). Measure its height and expose it as a CSS variable so the
-  // sticky v3 sidebar can offset its top/height and avoid clipping its footer.
-  // Zero when the banner is hidden, so the common case is unaffected.
+  // The deposit-disabled banner (Figma node 10084:28515) and the critical
+  // near-liquidation banner (node 10204-45613) both render full-width above the
+  // sidebar. Measure the wrapper's combined height and expose it as a CSS
+  // variable so the sticky v3 sidebar can offset its top/height and avoid
+  // clipping its footer. Zero when both are hidden, so the common case is
+  // unaffected.
+  //
+  // Observe the node rather than keying the effect on banner state: the critical
+  // banner is portaled in from the dashboard, a React tree this component never
+  // re-renders with, so a dependency list could not see it appear or disappear
+  // and the variable would go stale exactly when the wrapper grew. One
+  // measurement mechanism, driven by the element itself, covers both sources.
   const topBannerRef = useRef<HTMLDivElement>(null);
   const [topBannerHeight, setTopBannerHeight] = useState(0);
   useLayoutEffect(() => {
-    setTopBannerHeight(topBannerRef.current?.offsetHeight ?? 0);
-  }, [showDepositDisabledBanner]);
+    const node = topBannerRef.current;
+    if (!node) return;
+
+    const measure = () => setTopBannerHeight(node.offsetHeight);
+    measure();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   // The disconnected dashboard landing (DisconnectedOverview / "Native Bitcoin
   // backed borrowing") is vertically centered via `my-auto` on its Container.
   // On that screen only, drop the footer's top margins (the wrapper's `mt-auto`
@@ -246,22 +274,30 @@ export default function RootLayout() {
         { "--tbv-top-banner-height": `${topBannerHeight}px` } as CSSProperties
       }
     >
-      <div ref={topBannerRef} className="sticky top-0 z-30">
+      <div
+        ref={topBannerRef}
+        className={twJoin("sticky top-0", TOP_BANNER_Z_CLASS)}
+      >
+        {/* Portal target for the critical near-liquidation banner. It lives in
+            this wrapper — a sibling ABOVE the sidebar/content row — so the red
+            bar spans the entire window width including the side nav, per Figma
+            §D / node 10204-45613, and so the wrapper's height measurement above
+            covers it too (no second mechanism needed).
+
+            Rendered unconditionally, and outside every conditional branch: the
+            consumer (`CriticalLiquidationTopBanner`) resolves this node once on
+            mount via `getElementById` and holds the reference, so if the node
+            were ever unmounted and re-created — e.g. by crossing the 768px
+            `showV3Sidebar` breakpoint — the portal would silently keep writing
+            into a detached element. Owned by the dashboard (where the Aave data
+            + debug override live) but portaled here so it renders above the
+            header and above the deposit-disabled banner. */}
+        <div id={CRITICAL_BANNER_SLOT_ID} />
         <DepositDisabledBanner visible={showDepositDisabledBanner} />
       </div>
       <div className="flex min-w-0 flex-1">
         {showV3Sidebar && <AppSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Portal target for the critical near-liquidation banner. Always
-              the content column's first child, regardless of
-              `showV3Sidebar`, so crossing the 768px breakpoint never
-              unmounts/remounts this node — the consumer
-              (`CriticalLiquidationTopBanner`) resolves it once on mount and
-              would otherwise be left portaling into a detached element
-              after a resize. Owned by the dashboard (where the Aave data +
-              debug override live) but portaled here so it renders above
-              the header, atop the operational banners. */}
-          <div id={CRITICAL_BANNER_SLOT_ID} />
           {operationalBanners}
           <Header
             size="md"

@@ -15,6 +15,12 @@ interface BuildBannerActionsArgs {
   isReordering: boolean;
   /** Freeze/Pause blocks `reorderVaults`; disables the "Apply Optimal Order" CTA. */
   reorderBlocked: boolean;
+  /**
+   * The optimal order can be submitted only together with the calculator inputs
+   * it was derived from. Without them the order cannot be verified, so the
+   * "Apply Optimal Order" CTA is disabled rather than a silent dead click.
+   */
+  orderVerifiable: boolean;
   /** Protocol Freeze/Pause blocks new deposits; disables the add-collateral / add-vault CTAs. */
   depositBlocked: boolean;
   /** An aave Pause blocks repay; disables the "Repay Debt" CTA. */
@@ -43,6 +49,7 @@ export function buildBannerActions({
   onApplyOrder,
   isReordering,
   reorderBlocked,
+  orderVerifiable,
   depositBlocked,
   repayBlocked,
 }: BuildBannerActionsArgs): NotificationAction[] {
@@ -99,9 +106,10 @@ export function buildBannerActions({
       // alongside the urgent callout it stays secondary so "Add Collateral" leads.
       onClick: onApplyOrder,
       emphasis: isUrgent ? "secondary" : "primary",
-      // Disabled while a reorder is in flight, or when Freeze/Pause blocks
-      // `reorderVaults` entirely (the protocol status banner explains why).
-      disabled: isReordering || reorderBlocked,
+      // Disabled while a reorder is in flight, when Freeze/Pause blocks
+      // `reorderVaults` entirely (the protocol status banner explains why), or
+      // when the order can't be verified — clicking then would do nothing.
+      disabled: isReordering || reorderBlocked || !orderVerifiable,
     });
   }
 

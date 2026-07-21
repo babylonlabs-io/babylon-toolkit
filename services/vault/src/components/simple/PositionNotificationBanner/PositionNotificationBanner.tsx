@@ -22,9 +22,9 @@ import {
   type WarningType,
 } from "@/applications/aave/positionNotifications";
 import {
-  NotificationCardV3,
-  type NotificationCardV3Tone,
-} from "@/components/shared/NotificationCardV3";
+  NotificationCard,
+  type NotificationCardTone,
+} from "@/components/shared/NotificationCard";
 import {
   isDepositBlocked,
   isReorderBlocked,
@@ -64,6 +64,39 @@ const SEVERITY_VARIANT: Record<
   soft: "info",
   green: "success",
 };
+
+// Primary-warning → v3 card tone. Exhaustive over WarningType (like
+// SEVERITY_VARIANT above): `null` documents the intentional v2 fallback
+// (weird-params has no v3 frame), and a new WarningType fails the typecheck
+// until it is classified here. Standalone reorder is resolved ahead of this
+// lookup, since it is a composite condition rather than a plain type match.
+const WARNING_TONE: Record<WarningType, NotificationCardTone | null> = {
+  urgent: "urgent",
+  cliff: "cliff",
+  reorder: "reorder",
+  dust: "dust",
+  "too-many-vaults": "too-many",
+  "weird-params": null,
+};
+
+// Advisories the user may close in both UI versions: informational notices with
+// no action to take. Unchanged from the v2 behaviour these two have always had.
+const DISMISSIBLE_WARNINGS: ReadonlySet<WarningType> = new Set<WarningType>([
+  "dust",
+  "weird-params",
+]);
+
+// Additionally dismissible under the v3 Premium Design, whose Figma frames draw
+// a close (X) on cliff (§4) and reorder (§5, including the standalone suggestion
+// card). The spec covers the v3 cards only, so v2 keeps its existing X-less
+// cliff/reorder. `urgent` (§1) and `too-many-vaults` (§9) are dismissible in
+// neither: an imminent-liquidation warning must not be hideable. Keyed by
+// warning type rather than severity because cliff/too-many-vaults share the same
+// `yellow` severity but differ here.
+const V3_DISMISSIBLE_WARNINGS: ReadonlySet<WarningType> = new Set<WarningType>([
+  "cliff",
+  "reorder",
+]);
 
 interface PositionNotificationBannerProps {
   connectedAddress?: string;
@@ -175,23 +208,6 @@ export function PositionNotificationBanner({
 
   if (bannerState.severity === "hidden") return null;
 
-  // The weird-params and dust advisories are dismissible (informational, no
-  // required action). Dismissal is tracked per warning type so closing one never
-  // hides the other if the position later transitions between them. The
-  // standalone reorder suggestion is also `soft` but has a null primaryWarning,
-  // so it is intentionally excluded.
-  const primaryWarningType = bannerState.primaryWarning?.type;
-  const dismissibleAdvisoryType =
-    bannerState.severity === "soft" &&
-    (primaryWarningType === "weird-params" || primaryWarningType === "dust")
-      ? primaryWarningType
-      : null;
-  if (
-    dismissibleAdvisoryType &&
-    dismissedAdvisories.has(dismissibleAdvisoryType)
-  )
-    return null;
-
   const { primaryWarning, secondaryWarnings } = bannerState;
 
   // The standalone reorder suggestion renders as the gold `suggestion` variant
@@ -203,6 +219,29 @@ export function PositionNotificationBanner({
     bannerState.severity === "soft" &&
     bannerState.suggestReorder &&
     (primaryWarning === null || primaryWarning.type === "reorder");
+
+  // Dismissal is tracked per warning type so closing one advisory never hides a
+  // different one the position later transitions into. The standalone reorder
+  // card has a null primaryWarning, so it borrows the `reorder` key — it is the
+  // same advisory to the user, and sharing the key means the warning-driven and
+  // standalone forms of "reorder your vaults" dismiss as one thing. Dismissal
+  // persists for the life of the mounted banner: transitioning away and back
+  // does not resurrect it, matching the existing dust/weird-params behaviour.
+  const advisoryType: WarningType | null = isStandaloneReorder
+    ? "reorder"
+    : (primaryWarning?.type ?? null);
+  const isDismissible =
+    advisoryType !== null &&
+    (DISMISSIBLE_WARNINGS.has(advisoryType) ||
+      (featureFlags.isV3UiEnabled &&
+        V3_DISMISSIBLE_WARNINGS.has(advisoryType)));
+  const dismissibleAdvisoryType = isDismissible ? advisoryType : null;
+  if (
+    dismissibleAdvisoryType &&
+    dismissedAdvisories.has(dismissibleAdvisoryType)
+  )
+    return null;
+
   const variant = isStandaloneReorder
     ? "suggestion"
     : SEVERITY_VARIANT[bannerState.severity];
@@ -238,6 +277,11 @@ export function PositionNotificationBanner({
     onApplyOrder: handleApplyOrder,
     isReordering,
     reorderBlocked: isReorderBlocked(gate),
+    // `executeReorder` submits the optimal order alongside the calculator inputs
+    // it was derived from; both come from the same `usePositionNotifications`
+    // "ready" branch, so in production this holds whenever an order exists. It
+    // does not when a debug override supplies `result` without the live context.
+    orderVerifiable: reorderVerificationContext !== null,
     depositBlocked: isDepositBlocked(gate),
     repayBlocked: isRepayBlocked(gate),
   });
@@ -316,71 +360,46 @@ export function PositionNotificationBanner({
     }
   }
 
-  let v3Tone: NotificationCardV3Tone | null = null;
+  let v3Tone: NotificationCardTone | null = null;
   if (isStandaloneReorder) {
     v3Tone = "reorder";
-  } else if (primaryWarning?.type === "urgent") {
-    v3Tone = "urgent";
-  } else if (isCliffPrimary) {
-    v3Tone = "cliff";
-  } else if (primaryWarning?.type === "too-many-vaults") {
-    v3Tone = "too-many";
-  } else if (primaryWarning?.type === "dust") {
-    v3Tone = "dust";
+  } else if (primaryWarning) {
+    v3Tone = WARNING_TONE[primaryWarning.type];
   }
 
-  if (featureFlags.isV3UiEnabled && v3Tone) {
-    return (
-      <>
-        <NotificationCardV3
-          tone={v3Tone}
-          title={title}
-          icon={isStandaloneReorder || isCliffPrimary ? null : undefined}
-          actions={actions.length > 0 ? actions : undefined}
-          actionsPlacement={
-            isStandaloneReorder || isCliffPrimary ? "below" : "inline"
-          }
-          suggestion={suggestion}
-          onClose={
-            dismissibleAdvisoryType
-              ? () => handleDismissAdvisory(dismissibleAdvisoryType)
-              : undefined
-          }
-          data-testid={TEST_ID}
-          data-severity={bannerState.severity}
-        >
-          {detail}
-        </NotificationCardV3>
-
-        <ReorderSuccessModal
-          isOpen={isReorderSuccess}
-          onClose={handleReorderSuccessClose}
-        />
-      </>
-    );
-  }
+  // v2 and v3 share an identical prop set; branch only the component and its
+  // accent prop (variant vs tone) so a prop added to one path can't be silently
+  // missed on the other.
+  const notificationProps = {
+    title,
+    icon: isStandaloneReorder || isCliffPrimary ? null : undefined,
+    actions: actions.length > 0 ? actions : undefined,
+    actionsPlacement:
+      isStandaloneReorder || isCliffPrimary ? "below" : "inline",
+    suggestion,
+    onClose: dismissibleAdvisoryType
+      ? () => handleDismissAdvisory(dismissibleAdvisoryType)
+      : undefined,
+    "data-testid": TEST_ID,
+    "data-severity": bannerState.severity,
+  } as const;
 
   return (
     <>
-      <Notification
-        variant={variant}
-        title={title}
-        icon={isStandaloneReorder || isCliffPrimary ? null : undefined}
-        actions={actions.length > 0 ? actions : undefined}
-        actionsPlacement={
-          isStandaloneReorder || isCliffPrimary ? "below" : "inline"
-        }
-        suggestion={suggestion}
-        onClose={
-          dismissibleAdvisoryType
-            ? () => handleDismissAdvisory(dismissibleAdvisoryType)
-            : undefined
-        }
-        data-testid={TEST_ID}
-        data-severity={bannerState.severity}
-      >
-        {detail}
-      </Notification>
+      {featureFlags.isV3UiEnabled && v3Tone ? (
+        <NotificationCard
+          tone={v3Tone}
+          // Figma insets the cliff card's suggestion box tighter than the rest.
+          suggestionPadding={isCliffPrimary ? "compact" : "comfortable"}
+          {...notificationProps}
+        >
+          {detail}
+        </NotificationCard>
+      ) : (
+        <Notification variant={variant} {...notificationProps}>
+          {detail}
+        </Notification>
+      )}
 
       <ReorderSuccessModal
         isOpen={isReorderSuccess}

@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const featureFlagsMock = vi.hoisted(() => ({
   protocolStatusMessage: undefined as string | undefined,
   isV3UiEnabled: false,
+  // The god-mode override the banner reads is itself gated on this flag.
+  isGodModePanelEnabled: true,
 }));
 vi.mock("@/config/featureFlags", () => ({
   default: featureFlagsMock,
@@ -21,12 +23,16 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
+import { setDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
+
 import { ProtocolStatusBanner } from "../ProtocolStatusBanner";
 
 beforeEach(() => {
   featureFlagsMock.protocolStatusMessage = undefined;
   featureFlagsMock.isV3UiEnabled = false;
+  featureFlagsMock.isGodModePanelEnabled = true;
   gateMock.value = { protocol: null, aave: null };
+  setDebugProtocolStatusOverride(null);
 });
 
 describe("ProtocolStatusBanner", () => {
@@ -145,5 +151,25 @@ describe("ProtocolStatusBanner v3", () => {
     expect(
       screen.queryByText(/temporarily restricted/),
     ).not.toBeInTheDocument();
+  });
+
+  it("forces each paused card from the god-mode override while the gate is healthy", () => {
+    setDebugProtocolStatusOverride("frozen");
+    const soft = render(<ProtocolStatusBanner />);
+    expect(screen.getByText("Protocol is soft-paused")).toBeInTheDocument();
+    soft.unmount();
+
+    setDebugProtocolStatusOverride("paused");
+    render(<ProtocolStatusBanner />);
+    expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
+  });
+
+  it("falls back to the live gate once the override is released", () => {
+    setDebugProtocolStatusOverride("paused");
+    setDebugProtocolStatusOverride(null);
+
+    const { container } = render(<ProtocolStatusBanner />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

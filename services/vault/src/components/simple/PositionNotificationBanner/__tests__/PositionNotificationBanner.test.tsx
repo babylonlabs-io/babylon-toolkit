@@ -44,6 +44,16 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   WarningIcon: () => <span data-testid="warning-icon" />,
   PauseIcon: () => <span data-testid="pause-icon" />,
   CloseIcon: () => <span data-testid="close-icon" />,
+  // The v3 card renders its actions through core-ui's shared button.
+  NotificationActionButton: ({
+    action,
+  }: {
+    action: { label: ReactNode; onClick: () => void; disabled?: boolean };
+  }) => (
+    <button onClick={action.onClick} disabled={action.disabled}>
+      {action.label}
+    </button>
+  ),
   Notification: (props: Record<string, unknown>) => {
     const actions = (props.actions ?? []) as Array<{
       label: ReactNode;
@@ -327,8 +337,62 @@ describe("PositionNotificationBanner", () => {
     ).toBeNull();
   });
 
-  it("does not render a dismiss control on the reorder suggestion", () => {
+  // The close (X) on cliff / reorder is a v3 Premium Design affordance; v2 keeps
+  // its existing dismissible set (dust + weird-params) untouched.
+  it("does not render a dismiss control on the reorder suggestion under v2", () => {
     const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
+  it("does not render a dismiss control on a reorder warning under v2", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "reorder",
+          title: "Reorder BTC Vaults to lose less",
+          detail: "A different liquidation order seizes less BTC.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
+  it("does not render a dismiss control on the cliff warning under v2", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
+  it("does not render a dismiss control on the too-many-vaults warning", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "too-many-vaults",
+          title: "Too many BTC Vaults to optimize",
+          detail: "You have 18 vaults.",
+        },
+      ],
+    });
     renderBanner(result, onDeposit, onRepay);
 
     expect(
@@ -399,8 +463,17 @@ describe("PositionNotificationBanner", () => {
     });
   });
 
-  it("does not call executeReorder when the verification context is unavailable", () => {
-    mockUsePositionNotifications.mockReturnValueOnce({
+  it("enables Apply Optimal Order when the verification context is present", () => {
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.getByRole("button", { name: "Apply Optimal Order" }),
+    ).not.toBeDisabled();
+  });
+
+  it("disables Apply Optimal Order when the verification context is unavailable", () => {
+    mockUsePositionNotifications.mockReturnValue({
       result: null,
       status: "ready" as const,
       isLoading: false,
@@ -409,7 +482,10 @@ describe("PositionNotificationBanner", () => {
     const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Apply Optimal Order"));
+    const apply = screen.getByRole("button", { name: "Apply Optimal Order" });
+    expect(apply).toBeDisabled();
+
+    fireEvent.click(apply);
     expect(mockExecuteReorder).not.toHaveBeenCalled();
   });
 
@@ -803,6 +879,51 @@ describe("PositionNotificationBanner v3", () => {
       screen.getByRole("button", { name: "Dismiss notification" }),
     );
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("renders the cliff v3 card as dismissible and hides it once dismissed", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("renders the standalone reorder v3 card as dismissible", () => {
+    const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
+    renderBanner(result, onDeposit, onRepay);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
+  it("renders no dismiss control on the urgent v3 card", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "urgent",
+          title: "Liquidation is 2.3% away",
+          detail: "A drop to $86,360 triggers your first liquidation event.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
   });
 
   it("renders the too-many-vaults v3 card at yellow severity", () => {
