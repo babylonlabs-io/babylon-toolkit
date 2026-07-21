@@ -23,7 +23,11 @@ import {
 import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 
-import { PositionStatCards, type PositionStatCard } from "./PositionStatCards";
+import {
+  buildBorrowCapacityCards,
+  PositionStatCards,
+  type PositionStatCard,
+} from "./PositionStatCards";
 
 interface OverviewSectionProps {
   healthFactor: number | null;
@@ -115,14 +119,8 @@ export function OverviewSection({
     [liquidationPrice, btcPrice, pctToLiquidation],
   );
 
-  const statCards: PositionStatCard[] = useMemo(() => {
-    const clampPct = (ratio: number) =>
-      Math.round(Math.min(1, Math.max(0, ratio)) * 100);
-    const availablePercent = clampPct(availableMeterPercent);
-    const borrowedPercent = clampPct(borrowedMeterPercent);
-    const capacityUnavailable =
-      borrowCapacityLoading || borrowCapacityError != null;
-    return [
+  const statCards: PositionStatCard[] = useMemo(
+    () => [
       {
         label: COPY.overview.totalCollateralValueLabel,
         tooltip: COPY.overview.totalCollateralValueTooltip,
@@ -132,70 +130,35 @@ export function OverviewSection({
         onAction: onDeposit,
         actionDisabled: false,
       },
-      {
-        label: COPY.overview.availableToBorrowLabel,
-        value: borrowCapacityLoading
-          ? COPY.common.loading
-          : borrowCapacityError
-            ? COPY.common.emptyValue
-            : availableToBorrow,
-        meter: capacityUnavailable
-          ? undefined
-          : {
-              percent: availableMeterPercent,
-              label:
-                availableMeterPercent > 0 &&
-                availableMeterPercent < 1 &&
-                availablePercent === 100
-                  ? COPY.overview.availableMeterNearFullLabel
-                  : availableMeterPercent > 0 &&
-                      availableMeterPercent < 1 &&
-                      availablePercent === 0
-                    ? COPY.overview.availableMeterBelowOneLabel
-                    : COPY.overview.availableMeterLabel(availablePercent),
-            },
-        actionLabel: COPY.overview.borrowAction,
-        onAction: onBorrow,
-        actionDisabled: !canBorrow,
-      },
-      {
-        label: COPY.overview.totalBorrowedLabel,
-        value: totalBorrowed,
-        meter: capacityUnavailable
-          ? undefined
-          : {
-              percent: borrowedMeterPercent,
-              label:
-                borrowedMeterPercent > 0 &&
-                borrowedMeterPercent < 1 &&
-                borrowedPercent === 0
-                  ? COPY.overview.borrowedMeterBelowOneLabel
-                  : borrowedMeterPercent > 0 &&
-                      borrowedMeterPercent < 1 &&
-                      borrowedPercent === 100
-                    ? COPY.overview.borrowedMeterNearFullLabel
-                    : COPY.overview.borrowedMeterLabel(borrowedPercent),
-            },
-        actionLabel: COPY.overview.repayAction,
-        onAction: onRepay,
-        actionDisabled: !canRepay,
-      },
-    ];
-  }, [
-    totalCollateralValue,
-    collateralBtc,
-    onDeposit,
-    availableToBorrow,
-    availableMeterPercent,
-    borrowCapacityLoading,
-    borrowCapacityError,
-    onBorrow,
-    canBorrow,
-    totalBorrowed,
-    borrowedMeterPercent,
-    onRepay,
-    canRepay,
-  ]);
+      ...buildBorrowCapacityCards({
+        availableToBorrow,
+        availableMeterPercent,
+        totalBorrowed,
+        borrowedMeterPercent,
+        borrowCapacityLoading,
+        borrowCapacityError,
+        onBorrow,
+        onRepay,
+        canBorrow,
+        canRepay,
+      }),
+    ],
+    [
+      totalCollateralValue,
+      collateralBtc,
+      onDeposit,
+      availableToBorrow,
+      availableMeterPercent,
+      borrowCapacityLoading,
+      borrowCapacityError,
+      onBorrow,
+      canBorrow,
+      totalBorrowed,
+      borrowedMeterPercent,
+      onRepay,
+      canRepay,
+    ],
+  );
 
   return (
     <div className="w-full space-y-6">

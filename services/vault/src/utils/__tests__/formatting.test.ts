@@ -17,6 +17,7 @@ import {
   formatDuration,
   formatDurationShort,
   formatLiquidationDistancePercent,
+  formatMeterLabel,
   formatOrdinal,
   formatProviderDisplayName,
   formatTimeAgo,
@@ -488,5 +489,38 @@ describe("Formatting Utilities", () => {
       expect(formatDurationShort(130)).toBe("2 h");
       expect(formatDurationShort(170)).toBe("3 h");
     });
+  });
+});
+
+describe("formatMeterLabel", () => {
+  const labels = {
+    belowOne: "<1% remaining",
+    nearFull: ">99% remaining",
+    exact: (percent: number) => `${percent}% remaining`,
+  };
+
+  it("returns the exact rounded percentage for a mid-range ratio", () => {
+    expect(formatMeterLabel(0.5, labels)).toBe("50% remaining");
+  });
+
+  it("shows the below-one label when a non-zero ratio rounds down to 0%", () => {
+    expect(formatMeterLabel(0.003, labels)).toBe("<1% remaining");
+  });
+
+  it("shows the near-full label when a below-full ratio rounds up to 100%", () => {
+    expect(formatMeterLabel(0.997, labels)).toBe(">99% remaining");
+  });
+
+  it("uses the exact label (not below-one) at exactly 0", () => {
+    expect(formatMeterLabel(0, labels)).toBe("0% remaining");
+  });
+
+  it("uses the exact label (not near-full) at exactly 1", () => {
+    expect(formatMeterLabel(1, labels)).toBe("100% remaining");
+  });
+
+  it("clamps out-of-range ratios before formatting", () => {
+    expect(formatMeterLabel(-0.5, labels)).toBe("0% remaining");
+    expect(formatMeterLabel(1.5, labels)).toBe("100% remaining");
   });
 });

@@ -994,6 +994,16 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
+    // v3 Loans page: "Active Loans (N)" section heading.
+    activeLoansHeading: (count: number) => `Active Loans (${count})`,
+    // v3 Loans page empty state (connected, no debt).
+    noActiveLoans: {
+      title: "No active loans",
+      body: "You haven't borrowed any assets yet",
+    },
+    // v3 Loans summary — caption under the health-factor value.
+    healthFactorCaption:
+      "When the ratio falls below 1.0, liquidation may occur.",
     // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
     // an APR, the same figure the asset picker labels "Borrow APR". One number,
     // one label.
