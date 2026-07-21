@@ -85,13 +85,16 @@ export {
   computeMinClaimValue,
   computeMinPeginFee,
   deriveVaultId,
+  peginP2aAnchorOutput,
   supportedTxGraphVersions,
+  validatePeginP2aAnchor,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
   Network,
   PayoutConnectorParams,
+  PeginP2aAnchorInfo,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**

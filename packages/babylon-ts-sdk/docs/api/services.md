@@ -9,7 +9,7 @@ Callers own the wallet; services own the orchestration.
 
 ### RegisteredVaultVersionMismatchError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L15)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L23)
 
 #### Extends
 
@@ -23,7 +23,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 new RegisteredVaultVersionMismatchError(message): RegisteredVaultVersionMismatchError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L24)
 
 ###### Parameters
 
@@ -1409,6 +1409,20 @@ expectedUniversalChallengersVersion: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L10)
 
+##### expectedVaultCoreVersion
+
+```ts
+expectedVaultCoreVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L18)
+
+Vault core (tx-graph) version the BTC artifacts were BUILT with. The
+contract stamps `activeVaultCoreVersion` at registration-tx execution
+time, so a governance flip between build and registration stamps a
+different graph than the one the depositor signed — broadcasting would
+lock BTC into a graph no resume path can rebuild.
+
 ***
 
 ### WaitForPeginStatusParams
@@ -1481,7 +1495,7 @@ AbortSignal for cancellation
 
 ### VaultBatchEntry
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:113](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L113)
 
 One vault's per-HTLC binding in a Pre-PegIn batch. Carries the fields
 needed to reconstruct the WASM `WasmPrePeginTx` template byte-for-byte
@@ -1495,7 +1509,7 @@ against the funded transaction.
 hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L114)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L115)
 
 SHA-256 hashlock commitment for this vault (bytes32, 0x-prefixed).
 
@@ -1505,7 +1519,7 @@ SHA-256 hashlock commitment for this vault (bytes32, 0x-prefixed).
 amount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:122](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L122)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:123](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L123)
 
 Vault deposit (peg-in) amount in satoshis — the on-chain contract's
 `amount` field. This is the peg-in amount WASM expects in `pegInAmounts`,
@@ -1519,7 +1533,7 @@ output, so this value is passed straight through.
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L124)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L125)
 
 Index of this vault's HTLC output in the funded Pre-PegIn tx.
 
@@ -1527,7 +1541,7 @@ Index of this vault's HTLC output in the funded Pre-PegIn tx.
 
 ### VaultRefundData
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:140](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L140)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:141](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L141)
 
 Authoritative vault fields needed to build a refund. Versioning fields,
 the hashlock, and htlcVout must come from the on-chain contract (never the
@@ -1549,7 +1563,7 @@ so the WASM template matches the funded tx's shape.
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:146](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L146)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:147](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L147)
 
 Vault core (tx-graph) version stamped on-chain at registration
 (`BTCVaultProtocolInfo.vaultCoreVersion`). The refund template must be
@@ -1561,7 +1575,7 @@ reconstructed under the same graph version the Pre-PegIn was built with.
 hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:147](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L147)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:148](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L148)
 
 ##### htlcVout
 
@@ -1569,7 +1583,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:148](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L148)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L149)
 
 ##### offchainParamsVersion
 
@@ -1577,7 +1591,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 offchainParamsVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L150)
 
 ##### appVaultKeepersVersion
 
@@ -1585,7 +1599,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 appVaultKeepersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L150)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:151](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L151)
 
 ##### universalChallengersVersion
 
@@ -1593,7 +1607,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 universalChallengersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:151](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L151)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:152](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L152)
 
 ##### vaultProvider
 
@@ -1601,7 +1615,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:152](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L152)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:153](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L153)
 
 ##### applicationEntryPoint
 
@@ -1609,7 +1623,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 applicationEntryPoint: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:153](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L153)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L154)
 
 ##### amount
 
@@ -1617,7 +1631,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 amount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:155](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L155)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L156)
 
 Vault deposit (peg-in) amount in satoshis — the on-chain `amount` field.
 
@@ -1627,7 +1641,7 @@ Vault deposit (peg-in) amount in satoshis — the on-chain `amount` field.
 unsignedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:161](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L161)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:162](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L162)
 
 Funded, pre-witness Pre-PegIn transaction hex. 0x prefix optional.
 The name mirrors the contract/indexer schema; the bytes are the
@@ -1639,7 +1653,7 @@ funded form (refund construction needs real outpoints).
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:163](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L163)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:164](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L164)
 
 Depositor's BTC public key (x-only or compressed hex; 0x prefix optional).
 
@@ -1649,7 +1663,7 @@ Depositor's BTC public key (x-only or compressed hex; 0x prefix optional).
 batch: readonly VaultBatchEntry[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:170](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L170)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:171](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L171)
 
 Full vout-ordered HTLC vector for the funded Pre-PegIn (one entry
 per sibling vault, including the target vault). Must satisfy
@@ -1660,7 +1674,7 @@ per sibling vault, including the target vault). Must satisfy
 
 ### RefundPrePeginContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:185](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L185)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:186](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L186)
 
 Version-resolved protocol context that parameterises the HTLC's taproot
 scripts. The *signer-set* fields (`vaultKeeperPubkeys`,
@@ -1681,7 +1695,7 @@ script derivation).
 vaultProviderPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:186](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L186)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:187](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L187)
 
 ##### vaultKeeperPubkeys
 
@@ -1689,7 +1703,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 vaultKeeperPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:187](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L187)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:188](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L188)
 
 ##### universalChallengerPubkeys
 
@@ -1697,7 +1711,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 universalChallengerPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:188](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L188)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L189)
 
 ##### timelockRefund
 
@@ -1705,7 +1719,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 timelockRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L189)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:190](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L190)
 
 ##### feeRate
 
@@ -1713,7 +1727,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 feeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:190](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L190)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:191](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L191)
 
 ##### minPeginFeeRate
 
@@ -1721,7 +1735,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 minPeginFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:191](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L191)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:192](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L192)
 
 ##### numLocalChallengers
 
@@ -1729,7 +1743,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 numLocalChallengers: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:192](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L192)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:193](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L193)
 
 ##### councilQuorum
 
@@ -1737,7 +1751,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:193](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L193)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:194](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L194)
 
 ##### councilSize
 
@@ -1745,7 +1759,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 councilSize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:194](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L194)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:195](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L195)
 
 ##### network
 
@@ -1753,13 +1767,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:195](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L195)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:196](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L196)
 
 ***
 
 ### BtcBroadcastResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:199](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L199)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:200](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L200)
 
 Minimum shape required from a broadcast result.
 
@@ -1771,13 +1785,13 @@ Minimum shape required from a broadcast result.
 txId: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:200](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L200)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:201](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L201)
 
 ***
 
 ### RefundInput
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:211](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L211)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:212](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L212)
 
 #### Type Parameters
 
@@ -1793,7 +1807,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 vaultId: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:214](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L214)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:215](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L215)
 
 ##### readVault()
 
@@ -1801,7 +1815,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 readVault: () => Promise<VaultRefundData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:220](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L220)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:221](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L221)
 
 Fetch authoritative on-chain + indexer vault data. The SDK passes no
 arguments — the caller closes over `vaultId` (or any other context it
@@ -1817,7 +1831,7 @@ needs).
 readPrePeginContext: (vault) => Promise<RefundPrePeginContext>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:225](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L225)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:226](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L226)
 
 Fetch the version-pinned refund context (sorted pubkeys, timelock, etc.)
 derived from the vault's locked versions.
@@ -1838,7 +1852,7 @@ derived from the vault's locked versions.
 feeRate: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:234](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L234)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:235](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L235)
 
 Mempool-derived sat/vB fee rate to use for the refund tx (positive
 number). Caller fetches this before invoking — it does not depend on
@@ -1851,7 +1865,7 @@ orchestration honest.
 signPsbt: RefundPsbtSigner;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:236](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L236)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:237](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L237)
 
 BTC wallet signer; receives a PSBT hex + taproot script-path options.
 
@@ -1861,7 +1875,7 @@ BTC wallet signer; receives a PSBT hex + taproot script-path options.
 broadcastTx: BtcBroadcaster<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:238](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L238)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:239](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L239)
 
 Broadcast callback — returns whatever shape the caller needs.
 
@@ -1871,7 +1885,7 @@ Broadcast callback — returns whatever shape the caller needs.
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:240](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L240)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:241](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L241)
 
 Checked at every async boundary.
 
@@ -1925,7 +1939,7 @@ Reason why a vault expired
 type BtcBroadcaster<R> = (signedTxHex) => Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:203](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L203)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:204](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L204)
 
 #### Type Parameters
 
@@ -1951,7 +1965,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 type RefundPsbtSigner = (psbtHex, opts) => Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:206](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L206)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:207](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L207)
 
 #### Parameters
 
@@ -2429,7 +2443,7 @@ performed by the caller before invoking this function.
 function isRegisteredVaultVersionMismatchError(err): err is RegisteredVaultVersionMismatchError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L32)
 
 #### Parameters
 
@@ -2449,7 +2463,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 function verifyRegisteredVaultVersions(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L41)
 
 #### Parameters
 
@@ -2617,7 +2631,7 @@ thresholds) are a consumer-side concern.
 function estimateRefundFeeSats(feeRateSatsVb): bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L79)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L80)
 
 Network fee (sats) the SDK will charge for a refund tx at the given
 sat/vB rate. Mirrors the internal computation in
@@ -2642,7 +2656,7 @@ have to duplicate the constant.
 function buildAndBroadcastRefund<R>(input): Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:403](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L403)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:408](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L408)
 
 Build, sign, and broadcast a refund transaction for an expired vault.
 
@@ -2904,7 +2918,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:18](.
 const REFUND_VSIZE: 160 = 160;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L47)
 
 ***
 
@@ -2914,7 +2928,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 const REFUND_MAX_FEE_RATE_SATS_VB: 2000 = 2000;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L63)
 
 ***
 
@@ -2924,7 +2938,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 const REFUND_MAX_FEE_FRACTION_NUMERATOR: 10n = 10n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L71)
 
 ***
 
@@ -2934,4 +2948,4 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 const REFUND_MAX_FEE_FRACTION_DENOMINATOR: 100n = 100n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L72)

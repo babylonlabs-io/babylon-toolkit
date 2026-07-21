@@ -74,6 +74,10 @@ export interface DepositFeeState {
    * state. Null while the query is healthy.
    */
   minPeginFeeError: Error | null;
+  /** Terminal: the active protocol version isn't buildable by this app build. */
+  appVersionUnsupported: boolean;
+  /** Per-vault P2A anchor value; null while loading (CTA waits on it). */
+  p2aAnchorValueSats: bigint | null;
   btcPrice: number;
   hasPriceFetchError: boolean;
   estimatedFeeSats: bigint | null;
@@ -82,11 +86,11 @@ export interface DepositFeeState {
   feeError: string | null;
   depositorClaimValue?: bigint;
   /**
-   * Full HTLC output values the protocol charges commission on, one per vault.
-   * Used by the fee breakdown so split deposits floor commission per HTLC.
-   * `undefined` while the per-vault reserve / PegIn fee is still loading.
+   * Per-vault deposit amounts the protocol charges commission on. Used by
+   * the fee breakdown so split deposits floor commission per vault.
+   * `undefined` while a feasible split's per-vault amounts are loading.
    */
-  commissionHtlcValues?: readonly bigint[];
+  commissionBaseValues?: readonly bigint[];
   /**
    * Terminal failure from the `computeMinClaimValue` WASM query. CTA surfaces
    * this as "Fee estimate unavailable" instead of an indefinite loading
@@ -213,6 +217,8 @@ export function DepositForm({
   const {
     minPeginFee,
     minPeginFeeError,
+    appVersionUnsupported,
+    p2aAnchorValueSats,
     btcPrice,
     hasPriceFetchError,
     estimatedFeeSats,
@@ -220,7 +226,7 @@ export function DepositForm({
     isLoadingFee,
     feeError,
     depositorClaimValue,
-    commissionHtlcValues,
+    commissionBaseValues,
     depositorClaimValueError,
     protocolFeeAmount = "--",
     protocolFeePrice = "",
@@ -353,6 +359,8 @@ export function DepositForm({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
+    appVersionUnsupported,
+    p2aAnchorValueSats,
     depositorClaimValueError,
     btcBalance,
     estimatedFeeSats: estimatedFeeSats ?? undefined,
@@ -550,7 +558,7 @@ export function DepositForm({
         protocolFeeIsError={protocolFeeIsError}
         amountSats={amountSats}
         commissionBps={selectedProviderCommissionBps}
-        commissionHtlcValues={commissionHtlcValues}
+        commissionBaseValues={commissionBaseValues}
       />
 
       {/* Protocol & risk parameters */}

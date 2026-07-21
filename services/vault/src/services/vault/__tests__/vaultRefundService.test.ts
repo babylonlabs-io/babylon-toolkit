@@ -246,6 +246,24 @@ describe("vaultRefundService - adapter wiring", () => {
     expect(txId).toBe("broadcast_txid");
   });
 
+  it("aborts the refund before signing when the stamped vaultCoreVersion is unsupported", async () => {
+    (getVaultFromChain as Mock).mockResolvedValue({
+      ...ON_CHAIN_VAULT,
+      vaultCoreVersion: 3, // real WASM supports [1, 2] — fail closed
+    });
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toThrow(/requires a newer version of the app/);
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
   it("refunds the target even when an unrelated vault fails full validation during sibling discovery", async () => {
     // The depositor also owns an unrelated vault whose validated read
     // fail-closes (e.g. stamped vaultCoreVersion 0). The lean

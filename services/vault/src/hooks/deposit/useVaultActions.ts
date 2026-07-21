@@ -38,6 +38,7 @@ import {
   ActivationNotPossibleError,
   isTerminalActivationError,
 } from "@/utils/errors";
+import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
@@ -188,6 +189,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       // prePeginTxHash on-chain commits to all inputs/outputs — any tx
       // substitution between build and broadcast produces a different hash.
       const onChainVault = await getVaultFromChain(vaultId);
+      // Fail closed before any signing when this build's WASM can't
+      // construct the vault's stamped graph version (e.g. an old deployed
+      // build resuming a vault registered after a protocol version bump).
+      await assertVaultCoreVersionSupported(onChainVault.vaultCoreVersion);
       const computedHash = calculateBtcTxHash(unsignedTxHex);
       if (
         computedHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()

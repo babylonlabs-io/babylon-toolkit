@@ -1,11 +1,12 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed, supportedTxGraphVersions as wasmSupportedTxGraphVersions } from "./generated/vault_wasm.js";
+import init, { WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed, peginP2aAnchorOutput as wasmPeginP2aAnchorOutput, supportedTxGraphVersions as wasmSupportedTxGraphVersions, validatePeginP2aAnchor as wasmValidatePeginP2aAnchor } from "./generated/vault_wasm.js";
 import type {
   PrePeginParams,
   PrePeginResult,
   PeginTxResult,
   HtlcConnectorParams,
   HtlcConnectorInfo,
+  PeginP2aAnchorInfo,
 } from "./types.js";
 import { assertPositiveBigintArray, assertWasmBigint } from "./value-guards.js";
 
@@ -262,6 +263,53 @@ export async function computeMinPeginFee(
 }
 
 /**
+ * The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
+ * `null` when that version's PegIn carries no anchor (v1). The facade returns
+ * one record per version — never a zero-valued placeholder — so an absent
+ * anchor can't be mistaken for a real output. For v2: 240 sats at vout 2,
+ * script `51024e73`.
+ */
+export async function peginP2aAnchorOutput(
+  txGraphVersion: number,
+): Promise<PeginP2aAnchorInfo | null> {
+  await initWasm();
+  let anchor;
+  try {
+    anchor = wasmPeginP2aAnchorOutput(txGraphVersion);
+  } catch (err) {
+    throw toError(err, "peginP2aAnchorOutput");
+  }
+  if (anchor === undefined) return null;
+  try {
+    return {
+      value: assertWasmBigint(anchor.value, "p2aAnchorValue"),
+      vout: anchor.vout,
+      scriptPubKey: anchor.scriptPubKey,
+    };
+  } finally {
+    anchor.free();
+  }
+}
+
+/**
+ * Validate a PegIn transaction's P2A anchor against a graph version's rules:
+ * v2 requires the exact anchor (240 sats, vout 2, P2A script) and v1 requires
+ * that NO output carries the P2A script. Throws on any mismatch — a v2 PegIn
+ * checked as v1 fails closed, and vice versa.
+ */
+export async function validatePeginP2aAnchor(
+  txGraphVersion: number,
+  txHex: string,
+): Promise<void> {
+  await initWasm();
+  try {
+    wasmValidatePeginP2aAnchor(txGraphVersion, txHex);
+  } catch (err) {
+    throw toError(err, "validatePeginP2aAnchor");
+  }
+}
+
+/**
  * Tx graph versions the shipped vault-wasm binary can build. Callers must
  * preflight the required version (fresh: active; resume: stamped) against
  * this list and fail closed instead of hitting per-call errors mid-flow.
@@ -377,6 +425,7 @@ export type {
   PrePeginParams,
   PrePeginResult,
   PeginTxResult,
+  PeginP2aAnchorInfo,
   HtlcConnectorParams,
   HtlcConnectorInfo,
   PayoutConnectorParams,

@@ -285,6 +285,8 @@ describe("Deposit Validations", () => {
       estimatedFeeSats: 1000n,
       depositorClaimValue: 5000n,
       isDepositDisabled: false,
+      appVersionUnsupported: false,
+      p2aAnchorValueSats: 0n,
       isGeoBlocked: false,
       isAddressBlocked: false,
       isWalletConnected: true,
@@ -317,6 +319,29 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: "Deposits unavailable",
+      });
+    });
+
+    it("stays on 'Calculating fees...' while the anchor value is still loading", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        minPeginFee: 500n,
+        p2aAnchorValueSats: null,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Calculating fees...",
+      });
+    });
+
+    it("fails closed with the app-update CTA when the active version is unsupported", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        appVersionUnsupported: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "App update required",
       });
     });
 

@@ -69,6 +69,12 @@ const onChainPauseMock = vi.hoisted(() => ({
     aave: string | null;
   } | null,
 }));
+const mockAssertVaultCoreVersionSupported = vi.hoisted(() => vi.fn());
+mockAssertVaultCoreVersionSupported.mockResolvedValue(undefined);
+vi.mock("@/utils/vaultCoreVersionSupport", () => ({
+  assertVaultCoreVersionSupported: mockAssertVaultCoreVersionSupported,
+}));
+
 vi.mock("@/clients/eth-contract/pause-state/query", () => ({
   getOnChainPauseState: () => Promise.resolve(onChainPauseMock.value),
 }));
@@ -403,6 +409,24 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       hashlock: "0xonchain_hashlock",
       status: OnChainBtcVaultStatus.PENDING,
     } as never);
+  });
+
+  it("aborts before signing when the stamped vaultCoreVersion is unsupported by this build", async () => {
+    mockAssertVaultCoreVersionSupported.mockRejectedValueOnce(
+      new Error(
+        "This deposit requires a newer version of the app. Please refresh the page and try again — if the issue persists, an updated release is on its way.",
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast(baseBroadcastParams);
+    });
+
+    expect(result.current.broadcastError).toMatch(
+      /requires a newer version of the app/,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
   it("aborts resume broadcast when on-chain offchainParamsVersion drifted", async () => {
