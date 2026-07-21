@@ -477,7 +477,7 @@ export function itemSectionHint(item: DemoItem): string {
   if (item.type === "collateral") return "BTC Vaults (collateral)";
   const scenario = DEPOSIT_SCENARIOS[item.stateIndex];
   if (scenario?.contractStatus === ContractStatus.EXPIRED) {
-    return "Expired Deposits";
+    return "Expired Deposits (v2) / Inactive Vaults (v3)";
   }
   return item.batched ? "Pending Deposits (batched group)" : "Pending Deposits";
 }

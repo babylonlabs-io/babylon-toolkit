@@ -1,36 +1,138 @@
 /**
  * VaultsPage — the v3 /vaults route (issue #2041).
  *
- * Owns the page container, the empty state, and the load-error state. The
- * vault summary card and the lifecycle sections (pending deposits,
- * active/inactive vaults, withdrawals) land in follow-up steps of the same
- * issue, so a non-empty position renders no sections yet.
+ * Owns the page container, the empty state, the load-error state, and the
+ * populated layout: the summary card, the pending-deposits list, and the
+ * active-vaults list, with the withdraw and reorder flows mounted at page
+ * level. Withdrawal sections join the page with the relocation step of the
+ * same issue.
  */
 
 import { Container, Loader } from "@babylonlabs-io/core-ui";
+import { useQueryClient } from "@tanstack/react-query";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
+import type { Address } from "viem";
 
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { DepositButton, EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { isDepositBlocked } from "@/components/shared/protocolStatus";
+import {
+  isDepositBlocked,
+  isReorderBlocked,
+  isWithdrawBlocked,
+} from "@/components/shared/protocolStatus";
+import {
+  ReorderSuccessModal,
+  ReorderVaultsModal,
+} from "@/components/simple/ReorderVaults";
+import WithdrawFlow from "@/components/simple/WithdrawFlow";
+import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
+import { VaultsPendingSection } from "@/components/vaults/VaultsPendingSection";
+import { VaultsSummaryCard } from "@/components/vaults/VaultsSummaryCard";
 import { FeatureFlags } from "@/config";
-import { useConnection } from "@/context/wallet";
+import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import { useDemoDeposit } from "@/dev/demoDeposit";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 const EMPTY_ILLUSTRATION_SRC = "/images/vaults-empty.svg";
+
+// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
+// code is dropped from production builds entirely (same pattern as
+// DashboardPage).
+const GodModePanel = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
+    )
+  : null;
 
 export default function VaultsPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { isConnected } = useConnection();
+  const { address } = useETHWallet();
   const gate = useProtocolGateState();
+  const queryClient = useQueryClient();
   const { isLoading, isEmpty, hasError } = useVaultsPageEmptiness();
+  const {
+    summary,
+    displayVaults,
+    rawCollateralVaults,
+    collateralBtc,
+    collateralValueUsd,
+  } = useVaultsPageData(isConnected ? address : undefined);
+
+  // God-mode demo aggregate (dev only; null unless the panel's "Inject demo"
+  // toggle is on). Routes the page to the populated layout even while
+  // disconnected, so the sections can be exercised without a wallet.
+  const demo = useDemoDeposit();
+
+  // Withdraw flow, opened per-row with that vault preselected. Only raw
+  // indexer-backed entries ever reach it (never demo-merged rows).
+  const [withdrawVaultIds, setWithdrawVaultIds] = useState<string[] | null>(
+    null,
+  );
+  const [isReorderOpen, setIsReorderOpen] = useState(false);
+  const [isReorderSuccess, setIsReorderSuccess] = useState(false);
 
   const isDepositsPaused = FeatureFlags.isDepositDisabled;
 
+  const reorderableVaults = useMemo(
+    () => rawCollateralVaults.filter((vault) => !vault.isActivating),
+    [rawCollateralVaults],
+  );
+  const canReorder = reorderableVaults.length >= 2;
+
+  const handleWithdrawRow = useCallback((vaultId: string) => {
+    setWithdrawVaultIds([vaultId]);
+  }, []);
+  const handleWithdrawClose = useCallback(() => setWithdrawVaultIds(null), []);
+
+  // Mirrors CollateralSection: dismissing the success modal hands display
+  // back to the indexer by refetching the order-dependent queries.
+  const handleReorderSuccessClose = useCallback(() => {
+    setIsReorderSuccess(false);
+    if (address) {
+      queryClient.invalidateQueries({
+        queryKey: ["vaultOrder", address.toLowerCase()],
+      });
+      invalidateVaultQueries(queryClient, address as Address);
+    }
+  }, [address, queryClient]);
+
+  const isDevToolingEnabled =
+    import.meta.env.DEV && FeatureFlags.isGodModePanelEnabled;
+
+  const populatedBody = (
+    <div className="flex flex-col gap-8">
+      <VaultsSummaryCard
+        totalCollateralBtc={summary.totalCollateralBtc}
+        totalCollateralUsd={summary.totalCollateralUsd}
+        activeVaultsCount={summary.activeVaultsCount}
+        liquidationOrder={summary.liquidationOrder}
+        healthFactor={summary.healthFactor}
+        healthFactorStatus={summary.healthFactorStatus}
+        onDeposit={() => openDeposit()}
+        isDepositDisabled={isDepositBlocked(gate)}
+        onReorder={() => setIsReorderOpen(true)}
+        isReorderDisabled={!canReorder || isReorderBlocked(gate)}
+      />
+      <VaultsPendingSection />
+      <VaultsActiveSection
+        vaults={displayVaults}
+        onWithdraw={handleWithdrawRow}
+        isWithdrawDisabled={isWithdrawBlocked(gate)}
+      />
+    </div>
+  );
+
   const renderBody = () => {
+    // Dev-only: with demo injection on, always show the populated layout —
+    // even while disconnected — so the page can be exercised without a wallet.
+    if (isDevToolingEnabled && demo) return populatedBody;
     if (isLoading) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -47,7 +149,7 @@ export default function VaultsPage() {
         </div>
       );
     }
-    if (!isEmpty) return null;
+    if (!isEmpty) return populatedBody;
     return (
       <EmptyState
         illustration={
@@ -87,9 +189,41 @@ export default function VaultsPage() {
     );
   };
 
+  // Dev/QA god-mode panel (same gate and pattern as DashboardPage) so demo
+  // items can be injected from this page without navigating to Overview.
+  const godModePanel =
+    isDevToolingEnabled && GodModePanel ? (
+      <Suspense fallback={null}>
+        <GodModePanel />
+      </Suspense>
+    ) : null;
+
   return (
     <Container as="main" className={`${PAGE_CONTENT_CLASS} pb-6`}>
       {renderBody()}
+      {godModePanel}
+
+      <WithdrawFlow
+        open={withdrawVaultIds !== null}
+        onClose={handleWithdrawClose}
+        collateralVaults={rawCollateralVaults}
+        collateralBtc={collateralBtc}
+        collateralValueUsd={collateralValueUsd}
+        currentHealthFactor={summary.healthFactor}
+        preSelectedVaultIds={withdrawVaultIds ?? []}
+      />
+
+      <ReorderVaultsModal
+        isOpen={isReorderOpen}
+        onClose={() => setIsReorderOpen(false)}
+        vaults={reorderableVaults}
+        onSuccess={() => setIsReorderSuccess(true)}
+      />
+
+      <ReorderSuccessModal
+        isOpen={isReorderSuccess}
+        onClose={handleReorderSuccessClose}
+      />
     </Container>
   );
 }

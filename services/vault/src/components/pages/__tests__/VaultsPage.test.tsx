@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,6 +37,54 @@ const walletState = vi.hoisted(() => ({ isConnected: true }));
 
 vi.mock("@/context/wallet", () => ({
   useConnection: () => ({ isConnected: walletState.isConnected }),
+  useETHWallet: () => ({
+    address: "0x1111111111111111111111111111111111111111",
+  }),
+}));
+
+// Page-level data is exercised in the hook's own tests; the page test only
+// checks which body branch renders, so the sections are stubbed.
+vi.mock("@/hooks/useVaultsPageData", () => ({
+  useVaultsPageData: () => ({
+    summary: {
+      totalCollateralBtc: "0 sBTC",
+      totalCollateralUsd: "$0 USD",
+      activeVaultsCount: 0,
+      liquidationOrder: null,
+      healthFactor: null,
+      healthFactorStatus: "no_debt",
+    },
+    displayVaults: [],
+    rawCollateralVaults: [],
+    collateralBtc: 0,
+    collateralValueUsd: 0,
+    isLoading: false,
+  }),
+}));
+
+vi.mock("@/dev/demoDeposit", () => ({
+  useDemoDeposit: () => null,
+}));
+
+vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
+  VaultsSummaryCard: () => <div data-testid="vaults-summary-card" />,
+}));
+
+vi.mock("@/components/vaults/VaultsPendingSection", () => ({
+  VaultsPendingSection: () => <div data-testid="vaults-pending-section" />,
+}));
+
+vi.mock("@/components/vaults/VaultsActiveSection", () => ({
+  VaultsActiveSection: () => <div data-testid="vaults-active-section" />,
+}));
+
+vi.mock("@/components/simple/WithdrawFlow", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/components/simple/ReorderVaults", () => ({
+  ReorderVaultsModal: () => null,
+  ReorderSuccessModal: () => null,
 }));
 
 const gateState = vi.hoisted(() => ({
@@ -59,13 +108,15 @@ vi.mock("@/components/Wallet", () => ({
 
 function renderVaultsPage(openDeposit = vi.fn()) {
   const view = render(
-    <MemoryRouter>
-      <Routes>
-        <Route element={<Outlet context={{ openDeposit }} />}>
-          <Route path="/" element={<VaultsPage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <Routes>
+          <Route element={<Outlet context={{ openDeposit }} />}>
+            <Route path="/" element={<VaultsPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
   return { openDeposit, view };
 }
@@ -125,12 +176,15 @@ describe("VaultsPage", () => {
     expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
   });
 
-  it("renders no empty state when the account has vaults to show", () => {
+  it("renders the summary card and lifecycle sections when the account has vaults", () => {
     emptinessState.isEmpty = false;
 
     renderVaultsPage();
 
     expect(screen.queryByText(COPY.vaults.empty.title)).not.toBeInTheDocument();
+    expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
+    expect(screen.getByTestId("vaults-pending-section")).toBeInTheDocument();
+    expect(screen.getByTestId("vaults-active-section")).toBeInTheDocument();
   });
 
   it("swaps to deposits-paused copy and disables the CTA when the flag is set", () => {
