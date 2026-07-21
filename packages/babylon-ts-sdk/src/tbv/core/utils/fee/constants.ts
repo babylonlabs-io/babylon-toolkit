@@ -97,3 +97,13 @@ export function peginOutputCount(
  * catching catastrophic wallet-side overpayment.
  */
 export const SPLIT_TX_FEE_SAFETY_MULTIPLIER = 5;
+
+/**
+ * Binary-independent cap on the implied per-HTLC reserve
+ * (`htlcValue - peginAmount - depositorClaimValue`): the exact identity in
+ * `assertWasmPeginSizing` is WASM-vs-WASM, so this pure-JS bound is what
+ * limits a doctored binary. 100,000 vbytes = Bitcoin Core's relay ceiling
+ * (MAX_STANDARD_TX_WEIGHT / 4) — ~19× the protocol-max PegIn (~5,150 vbytes
+ * at 99 VKs + 99 UCs), so it can never false-positive.
+ */
+export const MAX_REASONABLE_PEGIN_VBYTES = 100_000n;

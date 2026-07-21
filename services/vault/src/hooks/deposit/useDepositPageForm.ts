@@ -427,6 +427,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // splittable threshold the deposit falls back to a single vault, so the
   // Max/fee reserves must follow — otherwise Max is understated and can
   // falsely read "below the minimum deposit".
+  // Deliberately looser than submit's effective-split condition (which also
+  // requires `allowSplit`): when split intent is on but disallowed, reserving
+  // for 2 vaults only understates Max — conservative, never underfunding.
   const vaultCount = isTwoVaultSplit && canSplit ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 

@@ -8,9 +8,6 @@ import {
   formatBtcAmount,
 } from "@/utils/formatting";
 
-const TRANSACTION_RESERVE_TOOLTIP =
-  "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.";
-
 const FORM_COPY = COPY.deposit.form;
 
 /** Basis-points denominator: 10_000 bps = 100%. */
@@ -144,8 +141,8 @@ export function DepositFeesBreakdown({
   return (
     <div className="flex flex-col gap-2">
       <FeeLine
-        label="Transaction Reserve"
-        tooltip={TRANSACTION_RESERVE_TOOLTIP}
+        label={FORM_COPY.transactionReserveLabel}
+        tooltip={FORM_COPY.transactionReserveTooltip}
         amount={transactionReserve.amount}
         price={transactionReserve.price}
       />

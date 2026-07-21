@@ -233,12 +233,14 @@ function SimpleDepositContent({
   // (btc-vault computes `floor(peginAmount × bps / 10000)` per payout —
   // claim value, PegIn fee, and the P2A anchor are NOT part of the basis).
   // Split deposits keep per-vault values distinct to preserve each floor.
-  // The undefined placeholder applies only while a feasible split's
-  // amounts still load.
+  // isSplitPending = split intended and feasible but per-vault amounts not
+  // yet resolved — the only state that shows the fee-line placeholder.
+  const isSplitPending =
+    isTwoVaultSplit && allowSplit && canSplit && !vaultAmounts;
   const commissionBaseValues =
     isEffectiveSplit && vaultAmounts
       ? vaultAmounts
-      : isTwoVaultSplit && allowSplit && canSplit
+      : isSplitPending
         ? undefined
         : [amountSats];
 

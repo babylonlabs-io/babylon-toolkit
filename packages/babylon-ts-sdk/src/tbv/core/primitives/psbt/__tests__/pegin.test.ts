@@ -251,7 +251,11 @@ describe("buildPrePeginPsbt", () => {
       );
       expect(result.htlcValues.map(String)).toEqual(["121397"]);
       expect(String(result.depositorClaimValue)).toBe("20846");
-      // Exact decomposition: htlc = pegin + claim + anchor + fee.
+      // Exact decomposition: htlc = pegin + claim + anchor + fee. This
+      // pin is load-bearing: assertWasmPeginSizing requires the builder's
+      // internal fee to EQUAL the standalone computeMinPeginFee — if a pin
+      // bump ever makes those diverge, this test (and every buildPrePeginPsbt
+      // call in CI) fails here rather than v2 deposits failing in production.
       expect(result.htlcValues[0]).toBe(
         100_000n + result.depositorClaimValue + 240n + 311n,
       );

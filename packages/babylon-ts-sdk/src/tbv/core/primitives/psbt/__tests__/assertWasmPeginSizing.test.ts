@@ -37,6 +37,10 @@ const PEGIN_AMOUNT = 100_000n;
 const PEGIN_FEE = 1_000n;
 // v2 P2A anchor value the mocked peginP2aAnchorOutput reports.
 const ANCHOR_VALUE = 240n;
+// makeParams uses minPeginFeeRate = 10n, so the binary-independent
+// plausibility cap is 10 × MAX_REASONABLE_PEGIN_VBYTES (100_000) =
+// 1_000_000 sat.
+const RESERVE_PLAUSIBILITY_CAP = 1_000_000n;
 
 function makeParams(overrides?: Partial<PrePeginParams>): PrePeginParams {
   return {
@@ -137,14 +141,33 @@ describe("assertWasmPeginSizing", () => {
     ).rejects.toThrow(/does not match the requested amount/);
   });
 
-  it("throws when the reserve falls short of the exact minPeginFee", async () => {
+  it("throws the independent strict-cover bound when the reserve is zero", async () => {
     await expect(
       assertWasmPeginSizing(
-        // implied reserve == 0: fee/anchor budget missing entirely
+        // implied reserve == 0: fee/anchor budget missing entirely. This
+        // must trip the binary-independent floor, not just the
+        // WASM-vs-WASM identity.
         makeResult({ htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE] }),
         makeParams(),
       ),
-    ).rejects.toThrow(/expected exactly/);
+    ).rejects.toThrow(/does not strictly cover/);
+  });
+
+  it("throws the independent plausibility cap even when the WASM reference agrees", async () => {
+    // A consistently doctored binary: the builder AND computeMinPeginFee
+    // both report the same grossly inflated reserve, so the exact identity
+    // holds — only the pure-JS cap can reject it.
+    computeMinPeginFeeMock.mockResolvedValue(RESERVE_PLAUSIBILITY_CAP + 1n);
+    await expect(
+      assertWasmPeginSizing(
+        makeResult({
+          htlcValues: [
+            PEGIN_AMOUNT + CLAIM_VALUE + RESERVE_PLAUSIBILITY_CAP + 1n,
+          ],
+        }),
+        makeParams(),
+      ),
+    ).rejects.toThrow(/exceeds the plausibility cap/);
   });
 
   it("throws when the reserve exceeds the exact minPeginFee (inflated htlcValue)", async () => {

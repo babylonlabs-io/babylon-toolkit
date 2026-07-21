@@ -499,6 +499,9 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      transactionReserveLabel: "Transaction Reserve",
+      transactionReserveTooltip:
+        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.",
       // Amount-input left-field label; the slider renders its Max button when
       // this reads "max" (case-insensitive), so keep the value as "Max".
       maxLabel: "Max",
