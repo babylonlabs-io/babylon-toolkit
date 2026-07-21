@@ -1194,6 +1194,10 @@ export const COPY = {
     },
     loadError:
       "We couldn't load your BTC Vaults. Check your connection and try again.",
+    partialLoadError: {
+      title: "Some of your BTC Vault data couldn't be loaded",
+      body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
+    },
     summary: {
       totalCollateralLabel: "Total Collateral Value",
       activeVaultsLabel: "Active Vaults",

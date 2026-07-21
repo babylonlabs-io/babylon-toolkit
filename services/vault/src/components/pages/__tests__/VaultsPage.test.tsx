@@ -28,6 +28,7 @@ const emptinessState = vi.hoisted(() => ({
   isLoading: false,
   isEmpty: true,
   hasError: false,
+  hasPartialError: false,
 }));
 
 vi.mock("@/hooks/useVaultsPageEmptiness", () => ({
@@ -129,6 +130,7 @@ describe("VaultsPage", () => {
     emptinessState.isLoading = false;
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
+    emptinessState.hasPartialError = false;
     walletState.isConnected = true;
     gateState.protocol = null;
     gateState.aave = null;
@@ -188,6 +190,30 @@ describe("VaultsPage", () => {
     expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-lifecycle-sections")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-active-section")).toBeInTheDocument();
+  });
+
+  it("shows a partial-load warning over the populated layout when one source failed", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+
+    renderVaultsPage();
+
+    expect(screen.getByTestId("vaults-partial-load-error")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.vaults.partialLoadError.title),
+    ).toBeInTheDocument();
+    // The data the page does have still renders beneath the warning.
+    expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
+  });
+
+  it("does not show the partial-load warning when both sources loaded", () => {
+    emptinessState.isEmpty = false;
+
+    renderVaultsPage();
+
+    expect(
+      screen.queryByTestId("vaults-partial-load-error"),
+    ).not.toBeInTheDocument();
   });
 
   it("swaps to deposits-paused copy and disables the CTA when the flag is set", () => {

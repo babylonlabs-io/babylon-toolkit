@@ -17,6 +17,13 @@
  * a depositor with real collateral). Data from the other source wins over
  * an error: if anything is showable, the page is simply not empty.
  *
+ * `hasPartialError` covers the complement of that preference: something IS
+ * showable but one of the sources still failed. The page renders the data it
+ * has, and this flag drives a warning so the failure is never silent — a
+ * failed position read would otherwise present fallback (zero) collateral
+ * totals as real, and a failed deposits read would silently drop pending or
+ * refundable rows.
+ *
  * Withdrawal-only positions (every vault redeemed, pegout still in flight)
  * are not yet consulted; the withdrawal sections join the page with the
  * relocation step of issue #2041.
@@ -30,6 +37,7 @@ export function useVaultsPageEmptiness(): {
   isLoading: boolean;
   isEmpty: boolean;
   hasError: boolean;
+  hasPartialError: boolean;
 } {
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
@@ -50,13 +58,13 @@ export function useVaultsPageEmptiness(): {
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
     expiredActivities.length > 0;
+  const anySourceFailed = positionError !== null || depositsError !== null;
   const hasError =
-    isConnected &&
-    !isLoading &&
-    !hasAnythingToShow &&
-    (positionError !== null || depositsError !== null);
+    isConnected && !isLoading && !hasAnythingToShow && anySourceFailed;
+  const hasPartialError =
+    isConnected && !isLoading && hasAnythingToShow && anySourceFailed;
   const isEmpty =
     !isLoading && !hasError && (!isConnected || !hasAnythingToShow);
 
-  return { isLoading, isEmpty, hasError };
+  return { isLoading, isEmpty, hasError, hasPartialError };
 }

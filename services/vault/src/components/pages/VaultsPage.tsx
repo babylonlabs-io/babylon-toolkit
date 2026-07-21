@@ -8,7 +8,7 @@
  * same issue.
  */
 
-import { Container, Loader } from "@babylonlabs-io/core-ui";
+import { Container, Loader, Notification } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
@@ -56,7 +56,8 @@ export default function VaultsPage() {
   const { address } = useETHWallet();
   const gate = useProtocolGateState();
   const queryClient = useQueryClient();
-  const { isLoading, isEmpty, hasError } = useVaultsPageEmptiness();
+  const { isLoading, isEmpty, hasError, hasPartialError } =
+    useVaultsPageEmptiness();
   const {
     summary,
     displayVaults,
@@ -108,6 +109,19 @@ export default function VaultsPage() {
 
   const populatedBody = (
     <div className="flex flex-col gap-8">
+      {/* One of the two data sources failed while the other still has rows —
+          the page prefers showing what it has, but the gap must never be
+          silent: a failed position read would otherwise present zero totals
+          as real, and a failed deposits read would drop pending rows. */}
+      {hasPartialError && (
+        <Notification
+          variant="warning"
+          title={COPY.vaults.partialLoadError.title}
+          data-testid="vaults-partial-load-error"
+        >
+          {COPY.vaults.partialLoadError.body}
+        </Notification>
+      )}
       <VaultsSummaryCard
         totalCollateralBtc={summary.totalCollateralBtc}
         totalCollateralUsd={summary.totalCollateralUsd}

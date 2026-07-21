@@ -59,6 +59,7 @@ describe("useVaultsPageEmptiness", () => {
       isLoading: false,
       isEmpty: true,
       hasError: false,
+      hasPartialError: false,
     });
   });
 
@@ -94,6 +95,7 @@ describe("useVaultsPageEmptiness", () => {
       isLoading: true,
       isEmpty: false,
       hasError: false,
+      hasPartialError: false,
     });
   });
 
@@ -137,6 +139,7 @@ describe("useVaultsPageEmptiness", () => {
       isLoading: false,
       isEmpty: true,
       hasError: false,
+      hasPartialError: false,
     });
   });
 
@@ -149,6 +152,7 @@ describe("useVaultsPageEmptiness", () => {
       isLoading: false,
       isEmpty: false,
       hasError: true,
+      hasPartialError: false,
     });
   });
 
@@ -171,7 +175,38 @@ describe("useVaultsPageEmptiness", () => {
       isLoading: false,
       isEmpty: false,
       hasError: false,
+      hasPartialError: true,
     });
+  });
+
+  it("flags a partial error when the deposits read failed but collateral is showable", () => {
+    dashboardState.hasDisplayCollateral = true;
+    depositsState.error = new Error("indexer down");
+
+    const { result } = renderHook(() => useVaultsPageEmptiness());
+
+    expect(result.current.hasPartialError).toBe(true);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("does not flag a partial error when both sources loaded cleanly", () => {
+    dashboardState.hasDisplayCollateral = true;
+
+    const { result } = renderHook(() => useVaultsPageEmptiness());
+
+    expect(result.current.hasPartialError).toBe(false);
+  });
+
+  it("does not flag a partial error alongside the full-page error state", () => {
+    // Nothing showable + a failed read is the full-page hasError case; the
+    // partial flag must not also fire or the page would try to render both.
+    dashboardState.positionError = new Error("rpc down");
+
+    const { result } = renderHook(() => useVaultsPageEmptiness());
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.hasPartialError).toBe(false);
   });
 
   it("ignores query errors while disconnected", () => {
@@ -184,6 +219,7 @@ describe("useVaultsPageEmptiness", () => {
       isLoading: false,
       isEmpty: true,
       hasError: false,
+      hasPartialError: false,
     });
   });
 });
