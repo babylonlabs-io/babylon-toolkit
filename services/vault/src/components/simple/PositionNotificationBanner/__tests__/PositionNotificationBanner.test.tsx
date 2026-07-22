@@ -934,6 +934,63 @@ describe("PositionNotificationBanner v3", () => {
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
+  it("re-surfaces a dismissed reorder card when a different optimal order is suggested", () => {
+    const { rerender } = renderBanner(
+      makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER }),
+      onDeposit,
+      onRepay,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+
+    rerender(
+      <Wrapper>
+        <PositionNotificationBanner
+          result={makeBaseResult({
+            optimalVaultOrder: [
+              { id: "0x999", name: "Vault 3", btc: 0.4 },
+              ...OPTIMAL_ORDER,
+            ],
+          })}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
+  });
+
+  it("keeps a dismissed reorder card hidden when the same optimal order is re-suggested", () => {
+    const { rerender } = renderBanner(
+      makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER }),
+      onDeposit,
+      onRepay,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+
+    // Same order, fresh calculator result — a live price tick must not resurrect
+    // the card the user just closed.
+    rerender(
+      <Wrapper>
+        <PositionNotificationBanner
+          result={makeBaseResult({
+            optimalVaultOrder: OPTIMAL_ORDER,
+            currentHF: 1.9,
+          })}
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
+  });
+
   it("renders no dismiss control on the urgent v3 card", () => {
     const result = makeBaseResult({
       warnings: [

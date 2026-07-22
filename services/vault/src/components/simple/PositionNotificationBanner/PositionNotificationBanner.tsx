@@ -133,9 +133,9 @@ export function PositionNotificationBanner({
   } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
-  const [dismissedAdvisories, setDismissedAdvisories] = useState<
-    Set<WarningType>
-  >(() => new Set());
+  const [dismissedAdvisories, setDismissedAdvisories] = useState<Set<string>>(
+    () => new Set(),
+  );
   const queryClient = useQueryClient();
   const { address } = useAccount();
 
@@ -149,8 +149,8 @@ export function PositionNotificationBanner({
     }
   }, [address, queryClient]);
 
-  const handleDismissAdvisory = useCallback((type: WarningType) => {
-    setDismissedAdvisories((prev) => new Set(prev).add(type));
+  const handleDismissAdvisory = useCallback((key: string) => {
+    setDismissedAdvisories((prev) => new Set(prev).add(key));
   }, []);
 
   const handleApplyOrder = useCallback(async () => {
@@ -227,16 +227,22 @@ export function PositionNotificationBanner({
   // standalone forms of "reorder your vaults" dismiss as one thing. Dismissal
   // persists for the life of the mounted banner: transitioning away and back
   // does not resurrect it, matching the existing dust/weird-params behaviour.
-  // Deliberately keyed by type alone and not by the warning's content: cliff and
-  // reorder details carry live numbers (liquidation distance, optimal order), so
-  // a content-keyed key would resurrect a card the user just closed on the next
-  // price tick. The cost is that a recalculated boundary or order stays hidden
-  // until remount — accepted, because a flapping card is the worse failure and
-  // the urgent (red) warning, which is the one that must never be missed, is not
-  // dismissible at all.
+  // Reorder is the one advisory whose key carries content as well as type: the
+  // suggested vault-id sequence. Re-suggesting the SAME order stays dismissed,
+  // but a genuinely different optimal order is a new recommendation and
+  // re-surfaces the card. The sequence only moves when the position's vaults or
+  // their sizes change, which is coarse enough not to flap — unlike the live
+  // numbers in the warning detail (liquidation distance, HF), which is why every
+  // other advisory stays keyed by type alone and a recalculated cliff boundary
+  // stays hidden until remount. The urgent (red) warning, the one that must
+  // never be missed, is not dismissible in either UI version.
   const advisoryType: WarningType | null = isStandaloneReorder
     ? "reorder"
     : (primaryWarning?.type ?? null);
+  const dismissKey =
+    advisoryType === "reorder"
+      ? `reorder:${result.optimalVaultOrder?.map((vault) => vault.id).join(",") ?? ""}`
+      : advisoryType;
   const canDismissType = (type: WarningType) =>
     DISMISSIBLE_WARNINGS.has(type) ||
     (featureFlags.isV3UiEnabled && V3_DISMISSIBLE_WARNINGS.has(type));
@@ -249,11 +255,8 @@ export function PositionNotificationBanner({
     advisoryType !== null &&
     canDismissType(advisoryType) &&
     secondaryWarnings.every((warning) => canDismissType(warning.type));
-  const dismissibleAdvisoryType = isDismissible ? advisoryType : null;
-  if (
-    dismissibleAdvisoryType &&
-    dismissedAdvisories.has(dismissibleAdvisoryType)
-  )
+  const dismissibleAdvisoryKey = isDismissible ? dismissKey : null;
+  if (dismissibleAdvisoryKey && dismissedAdvisories.has(dismissibleAdvisoryKey))
     return null;
 
   const variant = isStandaloneReorder
@@ -391,8 +394,8 @@ export function PositionNotificationBanner({
     actionsPlacement:
       isStandaloneReorder || isCliffPrimary ? "below" : "inline",
     suggestion,
-    onClose: dismissibleAdvisoryType
-      ? () => handleDismissAdvisory(dismissibleAdvisoryType)
+    onClose: dismissibleAdvisoryKey
+      ? () => handleDismissAdvisory(dismissibleAdvisoryKey)
       : undefined,
     "data-testid": TEST_ID,
     "data-severity": bannerState.severity,
