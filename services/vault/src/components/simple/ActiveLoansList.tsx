@@ -117,7 +117,7 @@ export function ActiveLoansList({
                 <RowActionButton
                   label={COPY.loans.borrowButton}
                   onClick={() => onBorrow(row.symbol)}
-                  disabled={!canBorrow}
+                  disabled={!canBorrow || !row.isBorrowable}
                 />
                 <RowActionButton
                   label={COPY.loans.repayButton}

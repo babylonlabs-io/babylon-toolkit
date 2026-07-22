@@ -8,9 +8,10 @@
  * `AaveOverlayLayout`.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { type ComponentProps, useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import type { Asset } from "@/applications/aave/types";
 import featureFlags from "@/config/featureFlags";
@@ -23,13 +24,9 @@ interface UseLoanActionsProps {
   selectableBorrowedAssets: Asset[];
 }
 
-export interface AssetSelectionModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelectAsset: (assetSymbol: string) => void;
-  mode: LoanTab;
-  assets: Asset[] | undefined;
-}
+// Typed against the modal's real props so the two can't drift; spread onto
+// `<AssetSelectionModal {...assetModalProps} />` by the consuming pages.
+type AssetSelectionModalProps = ComponentProps<typeof AssetSelectionModal>;
 
 export function useLoanActions({
   borrowedAssets,

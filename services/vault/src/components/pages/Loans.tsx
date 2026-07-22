@@ -5,7 +5,7 @@
  * reserve-detail borrow/repay overlay (route-driven via `?reserve=&tab=`).
  */
 
-import { Container } from "@babylonlabs-io/core-ui";
+import { Container, Loader } from "@babylonlabs-io/core-ui";
 import { useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -41,6 +41,7 @@ export default function Loans() {
     selectableBorrowedAssets,
     isBorrowCapacityLoading,
     borrowCapacityError,
+    isLoading,
   } = useDashboardState(isConnected ? address : undefined);
 
   const { openBorrowPicker, openRepay, goToReserve, assetModalProps } =
@@ -53,6 +54,19 @@ export default function Loans() {
   // the depositor can borrow via its Borrow action — mirroring the v2 Loans
   // section, whose Borrow button was enabled whenever collateral was present.
   const hasPosition = hasCollateral || hasLoans;
+
+  // Position is still loading for a connected wallet: hold on a spinner rather
+  // than flashing the full-page "deposit" empty state before the summary lands
+  // (hasCollateral/hasLoans are false until the position resolves).
+  if (isConnected && isLoading) {
+    return (
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+        <div className="flex items-center justify-center py-12">
+          <Loader />
+        </div>
+      </Container>
+    );
+  }
 
   // Nothing to borrow against yet: prompt to deposit collateral first (or to
   // connect a wallet when disconnected).
