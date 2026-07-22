@@ -1157,6 +1157,19 @@ export const COPY = {
     seizureMapTab: "Seizure Map",
     timelineTab: "Timeline",
     simulateLabel: "Simulate BTC price",
+    simulateDescription:
+      "Simulate BTC price movements and see how your vault responds to liquidation risk.",
+    exploreAction: "Explore",
+    bitcoinPriceCaption: "Bitcoin Price",
+    empty: {
+      noDepositTitle: "No deposit yet",
+      noDepositDescription:
+        "Add collateral to unlock borrowing and see how your position responds to liquidation risk.",
+      noLoanTitle: "Deposit added, no loan yet",
+      noLoanDescription:
+        "Borrow against your BTC to see your liquidation levels and simulate how price changes affect your position.",
+      borrow: "Borrow",
+    },
     reset: "Reset",
     bandClickHint: "click to open card",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,

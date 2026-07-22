@@ -236,8 +236,12 @@ export default function RootLayout() {
     string | undefined
   >();
 
+  // Reject a click event reaching `initialAmountBtc`: TypeScript allows this
+  // where an `onClick` handler is expected, and it crashes the deposit dialog.
   const openDeposit = useCallback((initialAmountBtc?: string) => {
-    setInitialDepositAmountBtc(initialAmountBtc);
+    setInitialDepositAmountBtc(
+      typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
+    );
     setIsDepositOpen(true);
   }, []);
 
@@ -326,9 +330,9 @@ export default function RootLayout() {
                 ? "mb-6 border-b border-secondary-strokeLight"
                 : undefined
             }
-            // `PAGE_CONTENT_CLASS` carries `!max-w-[1080px]`, overriding the
-            // `container` width core-ui's Header applies by default so the navbar
-            // shares the same 1080px content box as the page body and footer.
+            // `PAGE_CONTENT_CLASS` overrides the `container` width core-ui's
+            // Header applies by default, so the navbar shares the same content
+            // box as the page body and footer.
             containerClassName={PAGE_CONTENT_CLASS}
             logo={
               FeatureFlags.isV3UiEnabled ? (

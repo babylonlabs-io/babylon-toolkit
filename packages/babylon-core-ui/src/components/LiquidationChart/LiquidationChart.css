@@ -5,34 +5,40 @@
  * plot keeps a fixed aspect-ratio and all type scales in `cqi`, so everything
  * scales with the chart's own width rather than the viewport.
  *
- * Colour tokens live at :root (dark default + light override) because the hover
+ * Colour tokens live at :root (light default + dark override) because the hover
  * popover renders in a portal outside the chart subtree and must still inherit
- * them. Motion uses --motion-* tokens per docs/motion-system.md (fallbacks
- * reproduce legacy behaviour; reduced-motion handled by the global reset).
- * Values from Figma nodes 10251:34931 / 10251:32415. */
+ * them. The dark selector lists every signal a consumer might set: the vault
+ * runs next-themes with `attribute="class"` (`.dark`), core-ui's Storybook sets
+ * both `.dark` and `data-mode`, and `data-theme` is the app's other documented
+ * hook. Matching only one of them leaves a dark app on light gridlines — bright
+ * white rules over a near-black plot. Motion uses --motion-* tokens per
+ * docs/motion-system.md (fallbacks reproduce legacy behaviour; reduced-motion
+ * handled by the global reset). */
 :root {
   --liq-band-1: #bf5833;
   --liq-band-2: #355e78;
   --liq-band-3: #518665;
-  --liq-gridline: #2f2f2f;
   --liq-price-line: #f7931a;
-  --liq-axis-text: #b0b0b0;
   --liq-band-text: #ffffff;
   --liq-candle-up: #34d1a6;
   --liq-candle-down: #ff5c5c;
-  --liq-surface: #202020;
-  --liq-surface-text: #ffffff;
-  --liq-surface-muted: #b0b0b0;
-  --liq-surface-stroke: #2f2f2f;
-}
-
-:root:not([data-mode="dark"]) {
   --liq-gridline: #e5e5e5;
   --liq-axis-text: #666666;
   --liq-surface: #ffffff;
   --liq-surface-text: #111111;
   --liq-surface-muted: #666666;
   --liq-surface-stroke: #e5e5e5;
+}
+
+:root.dark,
+:root[data-mode="dark"],
+:root[data-theme="dark"] {
+  --liq-gridline: #2f2f2f;
+  --liq-axis-text: #b0b0b0;
+  --liq-surface: #202020;
+  --liq-surface-text: #ffffff;
+  --liq-surface-muted: #b0b0b0;
+  --liq-surface-stroke: #2f2f2f;
 }
 
 .bbn-liq-chart {
@@ -162,19 +168,25 @@
   border-top: 2px solid var(--liq-price-line);
   pointer-events: none;
 }
-.bbn-liq-chart__price-line-label {
+/* Plain body text above the rule; `--liq-price-line-label` overrides the colour. */
+.bbn-liq-chart__price-line-label,
+.bbn-liq-chart__price-line-caption {
   position: absolute;
-  right: 0;
   bottom: 0.15rem;
   font-size: var(--liq-font-axis);
   letter-spacing: 0.4px;
-  color: var(--liq-price-line-label, var(--liq-price-line));
-  background: var(--liq-surface);
-  padding: 0 0.25rem;
-  border-radius: 2px;
+  color: var(--liq-price-line-label, var(--liq-surface-text));
+  white-space: nowrap;
+}
+.bbn-liq-chart__price-line-label {
+  right: 0;
+}
+.bbn-liq-chart__price-line-caption {
+  left: 0;
 }
 /* Near the top of the plot, sit under the line so the label clears the top price zone. */
-.bbn-liq-chart__price-line-label--below {
+.bbn-liq-chart__price-line-label--below,
+.bbn-liq-chart__price-line-caption--below {
   bottom: auto;
   top: 0.15rem;
 }
@@ -185,6 +197,24 @@
   box-sizing: border-box;
   margin-left: var(--liq-gutter);
   margin-top: 0.375rem;
+}
+/* Ticks carrying their own position: each label is centred on its fraction,
+ * with the first and last pulled inside so they don't overhang the plot. */
+.bbn-liq-chart__xaxis--positioned {
+  display: block;
+  position: relative;
+  height: 1.2em;
+}
+.bbn-liq-chart__xaxis--positioned .bbn-liq-chart__xaxis-label {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.bbn-liq-chart__xaxis--positioned .bbn-liq-chart__xaxis-label--first {
+  transform: none;
+}
+.bbn-liq-chart__xaxis--positioned .bbn-liq-chart__xaxis-label--last {
+  transform: translateX(-100%);
 }
 .bbn-liq-chart--axis-right .bbn-liq-chart__xaxis {
   margin-left: 0;

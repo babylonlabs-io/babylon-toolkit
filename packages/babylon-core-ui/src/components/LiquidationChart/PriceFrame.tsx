@@ -11,6 +11,12 @@ const PRICE_LABEL_BELOW_THRESHOLD = 0.08;
 /** Declutter key for the current-price pill (level markers use their band key). */
 const CURRENT_PILL_KEY = "__current__";
 
+/** An axis tick placed at an explicit fraction [0,1] of the plot. */
+export interface AxisTick {
+  fraction: number;
+  label: string;
+}
+
 /** A tone-coloured horizontal level (dashed line + axis pill). */
 export interface LevelMarker {
   key: string;
@@ -32,6 +38,8 @@ export interface PriceFrameProps {
   currentPricePill?: boolean;
   /** Show the inline price-line label (Seizure Map). Default true. */
   showPriceLineLabel?: boolean;
+  /** Caption at the left of the price line, e.g. "Bitcoin Price". */
+  priceLineCaption?: string;
   /** Override the price-line colour (line + default label). */
   priceLineColor?: string;
   /** Override the price-line label colour. Defaults to the price-line colour. */
@@ -43,6 +51,8 @@ export interface PriceFrameProps {
   plotInsetLeft?: number;
   /** X-axis tick labels, evenly distributed under the plot. */
   xAxisLabels?: string[];
+  /** X-axis ticks at explicit fractions; takes precedence over `xAxisLabels`. */
+  xAxisTicks?: AxisTick[];
   grid?: ChartGridConfig;
   variant: "full" | "compact";
   className?: string;
@@ -61,10 +71,12 @@ export function PriceFrame({
   levelMarkers,
   currentPricePill = false,
   showPriceLineLabel = true,
+  priceLineCaption,
   priceLineColor,
   priceLineLabelColor,
   plotInsetLeft = 0,
   xAxisLabels,
+  xAxisTicks,
   grid,
   variant,
   className,
@@ -200,14 +212,26 @@ export function PriceFrame({
 
           <span className="bbn-liq-chart__price-line" style={priceLineStyle} data-testid="liq-current-price-line">
             {!currentPricePill && showPriceLineLabel ? (
-              <span
-                className={twJoin(
-                  "bbn-liq-chart__price-line-label",
-                  labelBelow && "bbn-liq-chart__price-line-label--below",
-                )}
-              >
-                {currentPriceLabel}
-              </span>
+              <>
+                {priceLineCaption ? (
+                  <span
+                    className={twJoin(
+                      "bbn-liq-chart__price-line-caption",
+                      labelBelow && "bbn-liq-chart__price-line-caption--below",
+                    )}
+                  >
+                    {priceLineCaption}
+                  </span>
+                ) : null}
+                <span
+                  className={twJoin(
+                    "bbn-liq-chart__price-line-label",
+                    labelBelow && "bbn-liq-chart__price-line-label--below",
+                  )}
+                >
+                  {currentPriceLabel}
+                </span>
+              </>
             ) : null}
           </span>
           {currentPricePill ? (
@@ -222,7 +246,27 @@ export function PriceFrame({
         </div>
       </div>
 
-      {xAxisLabels?.length ? (
+      {xAxisTicks?.length ? (
+        <div
+          className="bbn-liq-chart__xaxis bbn-liq-chart__xaxis--positioned"
+          style={plotInsetLeft > 0 ? { paddingLeft: pct(plotInsetLeft) } : undefined}
+          aria-hidden
+        >
+          {xAxisTicks.map((tick, index) => (
+            <span
+              key={`${tick.label}-${tick.fraction}`}
+              className={twJoin(
+                "bbn-liq-chart__xaxis-label",
+                index === 0 && "bbn-liq-chart__xaxis-label--first",
+                index === xAxisTicks.length - 1 && "bbn-liq-chart__xaxis-label--last",
+              )}
+              style={{ left: pct(tick.fraction) }}
+            >
+              {tick.label}
+            </span>
+          ))}
+        </div>
+      ) : xAxisLabels?.length ? (
         <div
           className="bbn-liq-chart__xaxis"
           style={plotInsetLeft > 0 ? { paddingLeft: pct(plotInsetLeft) } : undefined}

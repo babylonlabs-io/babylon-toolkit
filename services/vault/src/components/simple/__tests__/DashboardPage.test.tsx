@@ -59,8 +59,10 @@ vi.mock("@/hooks/usePrices", () => ({
   usePrices: () => ({ prices: {}, metadata: {} }),
 }));
 
-vi.mock("@/dev/debugPositionStore", () => ({
+vi.mock("@/dev/debugPositionStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/dev/debugPositionStore")>()),
   useDebugPositionOverride: () => ({ result: null, status: null }),
+  useDebugManualMode: () => false,
 }));
 
 vi.mock("@/dev/demoDeposit", () => ({
