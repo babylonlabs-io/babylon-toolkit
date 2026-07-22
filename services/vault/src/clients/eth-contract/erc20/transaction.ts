@@ -4,8 +4,16 @@
 
 import { type Address, type Chain, type WalletClient } from "viem";
 
-import { classifyError, ContractError, ErrorCode } from "../../../utils/errors";
+import { logger } from "@/infrastructure";
+
+import {
+  classifyError,
+  ErrorCode,
+  isSimulationPhaseError,
+} from "../../../utils/errors";
 import { executeWrite, type TransactionResult } from "../transactionFactory";
+
+import { getERC20Allowance } from "./query";
 
 /**
  * Standard ERC20 ABI for approve function
@@ -26,12 +34,14 @@ const ERC20_APPROVE_ABI = [
 /**
  * Approve ERC20 token spending.
  *
- * Attempts the target approval directly. USDT-like tokens revert when approve
- * is called with a non-zero amount while the current allowance is also
- * non-zero; `executeWrite` pre-simulates, so that revert surfaces before any
- * wallet prompt, and only then do we fall back to reset-to-zero + approve.
- * Standard tokens get a single prompt and never see the reset (which wallets
- * label "revoke approval").
+ * Attempts the target approval directly, falling back to reset-to-zero +
+ * approve only when the failure is consistent with the USDT zero-first quirk
+ * (a non-zero approve over a non-zero allowance reverts): the revert must be
+ * raised at pre-flight simulation (nothing signed, no gas burned) and the
+ * current allowance must be non-zero. Standard tokens get a single prompt and
+ * never see the reset (which wallets label "revoke approval"); every other
+ * failure — user rejection, network error, mined revert, zero-allowance
+ * revert — surfaces unchanged.
  */
 export async function approveERC20(
   walletClient: WalletClient,
@@ -59,15 +69,29 @@ export async function approveERC20(
     if (classifyError(error) === "user-rejection") {
       throw error;
     }
-    // Only a revert suggests the zero-first requirement. Anything else
-    // (network failure, timeout, chain guard) is not a token quirk — rethrow
-    // rather than firing a surprise reset approval.
+    // Only a pre-broadcast simulation revert can indicate the zero-first
+    // quirk; a mined revert already cost gas and must surface as-is, and
+    // non-revert failures (network, timeout) are not token quirks.
     if (
-      !(error instanceof ContractError) ||
+      !isSimulationPhaseError(error) ||
       error.code !== ErrorCode.CONTRACT_REVERT
     ) {
       throw error;
     }
+    // The quirk only exists for non-zero → non-zero approvals: with a zero
+    // allowance the revert has some other cause — surface the original error
+    // instead of firing a pointless reset prompt. Failure-path-only read.
+    const ownerAddress = walletClient.account?.address;
+    if (!ownerAddress) throw error;
+    const currentAllowance = await getERC20Allowance(
+      tokenAddress,
+      ownerAddress,
+      spenderAddress,
+    );
+    if (currentAllowance === 0n) throw error;
+    logger.warn("Direct ERC20 approve reverted; using zero-first fallback", {
+      data: { tokenAddress },
+    });
   }
 
   await executeWrite({

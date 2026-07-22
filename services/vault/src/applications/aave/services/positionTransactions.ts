@@ -16,6 +16,7 @@ import type {
 import { formatUnits, isAddressEqual, maxUint256, parseEventLogs } from "viem";
 
 import { COPY } from "@/copy";
+import { logger } from "@/infrastructure";
 
 import { ERC20 } from "../../../clients/eth-contract";
 import { ErrorCode, isSimulationPhaseError } from "../../../utils/errors";
@@ -253,11 +254,13 @@ function isStaleAllowanceSimulationError(err: unknown): boolean {
 }
 
 /**
- * Run the repay, absorbing stale-backend allowance reverts at simulation: one
- * plain delayed retry first; if the approve was short-circuited (a stale HIGH
- * allowance read can skip a genuinely needed approve), force the approve
- * before the final attempt. Mined reverts and all other errors propagate
- * untouched — auto-retrying a broadcast tx would re-prompt the wallet.
+ * Run the repay, absorbing stale-backend allowance reverts at simulation:
+ * three attempts with catch-up delays on every path. When the approve was
+ * short-circuited (a stale HIGH allowance read can skip a genuinely needed
+ * approve), the second failure forces the approve before the last attempt; a
+ * receipt-verified approve can't be improved on, so that path just
+ * re-simulates. Mined reverts and all other errors propagate untouched —
+ * auto-retrying a broadcast tx would re-prompt the wallet.
  * Note: repayMaxCapped can revert here legitimately (accrued interest pushed
  * debt past the approved balance cap); the retries just delay that error.
  */
@@ -272,18 +275,21 @@ async function repayWithStaleSimulationRetry(params: {
     return await execute();
   } catch (firstError) {
     if (!isStaleAllowanceSimulationError(firstError)) throw firstError;
+    logger.warn("Repay simulation saw a stale allowance; retrying", {
+      data: { attempt: 1, approveSent },
+    });
     await wait(REPAY_STALE_SIM_RETRY_DELAY_MS);
   }
 
   try {
     return await execute();
   } catch (secondError) {
-    if (!isStaleAllowanceSimulationError(secondError) || approveSent) {
-      throw secondError;
-    }
-    // Approve was skipped on a possibly stale-high read; force it once, then
-    // give the backends the same catch-up window before the final attempt.
-    await forceApprove();
+    if (!isStaleAllowanceSimulationError(secondError)) throw secondError;
+    logger.warn("Repay simulation saw a stale allowance; retrying", {
+      data: { attempt: 2, approveSent },
+    });
+    // Approve was skipped on a possibly stale-high read; force it once.
+    if (!approveSent) await forceApprove();
     await wait(REPAY_STALE_SIM_RETRY_DELAY_MS);
   }
 

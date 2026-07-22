@@ -53,6 +53,10 @@ vi.mock("../../config", () => ({
   getAaveAdapterAddress: vi.fn(() => "0xadapter"),
 }));
 
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
+}));
+
 import {
   ContractError,
   ErrorCode,
@@ -122,6 +126,9 @@ describe("positionTransactions", () => {
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
     mockGetCoreSpokeAddress.mockResolvedValue("0xspoke");
+    // vi.clearAllMocks does not clear mockReturnValue overrides; pin the
+    // default so per-describe overrides can't leak into later suites.
+    (getAaveAdapterAddress as Mock).mockReturnValue("0xadapter");
   });
 
   // ============================================================================
@@ -709,6 +716,102 @@ describe("positionTransactions", () => {
       expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
       expect(mockRepayToCorePosition).not.toHaveBeenCalled();
     });
+
+    it("ignores foreign and mismatched logs and verifies from the LAST matching Approval", async () => {
+      const amount = 1000000n;
+      const FOREIGN_TOKEN = "0x9000000000000000000000000000000000000009";
+      const OTHER_SPENDER = "0x4000000000000000000000000000000000000004";
+      // A Safe-style batched receipt: a foreign token's Approval, an
+      // ERC-721-shaped Approval (3 indexed topics, empty data), a
+      // wrong-spender Approval, then two matching logs where only the LAST
+      // reflects the final state.
+      const erc721StyleLog = {
+        address: TOKEN,
+        topics: [
+          ...encodeEventTopics({
+            abi: APPROVAL_EVENT_ABI,
+            eventName: "Approval",
+            args: { owner: OWNER, spender: ADAPTER },
+          }),
+          numberToHex(7n, { size: 32 }),
+        ],
+        data: "0x",
+      };
+      mockApproveERC20.mockResolvedValue({
+        transactionHash: "0xhash",
+        receipt: {
+          status: "success",
+          logs: [
+            { ...approvalLog(amount * 10n), address: FOREIGN_TOKEN },
+            erc721StyleLog,
+            {
+              address: TOKEN,
+              topics: encodeEventTopics({
+                abi: APPROVAL_EVENT_ABI,
+                eventName: "Approval",
+                args: { owner: OWNER, spender: OTHER_SPENDER },
+              }),
+              data: numberToHex(amount * 10n, { size: 32 }),
+            },
+            approvalLog(amount),
+            approvalLog(amount - 1n),
+          ],
+        },
+      });
+
+      await expect(
+        repayPartial(
+          ownerWallet,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+        ),
+      ).rejects.toThrow(/approved a lower amount than required/i);
+
+      // Verified from the last MATCHING log (amount - 1n), not the foreign,
+      // ERC-721-shaped, wrong-spender, or earlier sufficient logs.
+      expect(mockRepayToCorePosition).not.toHaveBeenCalled();
+      expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
+    });
+
+    it("recovers when the fallback allowance re-read succeeds on a later attempt", async () => {
+      vi.useFakeTimers();
+      try {
+        const amount = 1000000n;
+        // No Approval event in the receipt (e.g. wallet-replaced tx) and the
+        // first verification read is still stale; the second sees the value.
+        mockApproveERC20.mockResolvedValue({
+          transactionHash: "0xhash",
+          receipt: { status: "success", logs: [] },
+        });
+        mockGetERC20Allowance.mockReset();
+        mockGetERC20Allowance
+          .mockResolvedValueOnce(0n) // pre-approve short-circuit check
+          .mockResolvedValueOnce(0n) // verification attempt 1 (stale)
+          .mockResolvedValue(amount); // verification attempt 2
+
+        const result = repayPartial(
+          ownerWallet,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+        );
+        const assertion = expect(result).resolves.toMatchObject({
+          transactionHash: "0xhash",
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockGetERC20Allowance).toHaveBeenCalledTimes(3);
+        expect(mockRepayToCorePosition).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   // ============================================================================
@@ -817,12 +920,12 @@ describe("positionTransactions", () => {
       expect(mockRepayToCorePosition).toHaveBeenCalledTimes(1);
     });
 
-    it("gives up after the retry budget when the approve was already sent", async () => {
+    it("gives up after three attempts when the approve was already sent", async () => {
       vi.useFakeTimers();
       try {
         // Allowance starts short, so ensureAllowance sends the approve; a
-        // forced re-approve could not change anything, so after the plain
-        // retry the error propagates.
+        // forced re-approve could not change anything, so the third attempt
+        // is a plain re-simulation and then the error propagates.
         mockRepayToCorePosition.mockRejectedValue(staleSimulationError());
 
         const result = repayPartial(
@@ -837,8 +940,56 @@ describe("positionTransactions", () => {
         await vi.runAllTimersAsync();
         await assertion;
 
-        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(2);
+        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(3);
         expect(mockApproveERC20).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("forces the balance-cap approve amount for repayMaxCapped on the short-circuit path", async () => {
+      vi.useFakeTimers();
+      try {
+        const balanceAmount = 1500000n;
+        setSimulatedAllowance(balanceAmount);
+        mockRepayToCorePosition
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockResolvedValue(mockTxResult);
+
+        const result = repayMaxCapped(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          balanceAmount,
+          mockToken,
+        );
+        const assertion = expect(result).resolves.toMatchObject({
+          transactionHash: "0xhash",
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        // The forced approve re-approves the balance cap, not maxUint256.
+        expect(mockApproveERC20).toHaveBeenCalledTimes(1);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          balanceAmount,
+        );
+        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(3);
+        // Every attempt sends the repay-all sentinel.
+        expect(mockRepayToCorePosition).toHaveBeenLastCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xadapter",
+          "0xuser",
+          1n,
+          maxUint256,
+        );
       } finally {
         vi.useRealTimers();
       }

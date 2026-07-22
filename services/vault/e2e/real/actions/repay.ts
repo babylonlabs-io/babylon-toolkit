@@ -10,9 +10,10 @@
  * The repay flow is short but has two shapes the CLI must handle that borrow doesn't:
  *   - A depositor with exactly ONE loan is routed straight to the repay form; only MULTIPLE loans open
  *     the "Select asset" picker. So after clicking Repay we wait for EITHER the picker OR the form.
- *   - Repaying can take ONE or TWO MetaMask transactions: an ERC-20 approve of the debt token to the
- *     adapter (only when the current allowance is insufficient), then the repay. The CTA reads
- *     "Processing…" across both; the pop-up approver confirms whatever appears.
+ *   - Repaying can take ONE to THREE MetaMask transactions (rarely FOUR): an ERC-20 approve of the
+ *     debt token to the adapter (only when the current allowance is insufficient; USDT-style tokens
+ *     add a reset-to-zero first), then the repay — and the stale-RPC retry can force one extra
+ *     approve. The CTA reads "Processing…" throughout; the pop-up approver confirms whatever appears.
  *
  * Selectors are testid-first (added to the src repay controls, mirroring borrow) with tolerant
  * text/role/class fallbacks. No SDK / product logic is reimplemented — the amount is a best-effort
