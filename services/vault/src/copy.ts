@@ -36,6 +36,7 @@
 
 // Direct file import (not the barrel) so we don't pull errorMessages' siblings
 // that import this file back. errorMessages.ts is import-free, so this is safe.
+import type { ActivityType } from "@/types/activityLog";
 import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
 
 // Shared strings that legitimately appear in multiple places. Hoisting them
@@ -1310,6 +1311,18 @@ export const COPY = {
       "Partially Liquidated": "Partially Liquidated",
       "Fully Liquidated": "Fully Liquidated",
     },
+    // Row type labels (the transaction-type column). Pending Deposit reads as a
+    // normal "Deposit"; keep this exhaustive with the ActivityType union.
+    typeLabels: {
+      Deposit: "Deposit",
+      Withdraw: "Withdraw",
+      Borrow: "Borrow",
+      Repay: "Repay",
+      Redeem: "Redeem",
+      "Partially Liquidated": "Partially Liquidated",
+      "Fully Liquidated": "Fully Liquidated",
+      "Pending Deposit": "Deposit",
+    } satisfies Record<ActivityType, string>,
     hashPending: "Pending…",
     expiredTooltip: "Deposit expired",
     // Labels for the two child rows nested inside a LiquidationGroupRow.

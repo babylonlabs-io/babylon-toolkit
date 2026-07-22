@@ -64,9 +64,9 @@ export function ActivityRowV3({ row }: ActivityRowV3Props) {
   const showHash = row.transactionHash !== "";
   const status = getActivityStatus(row);
 
-  // PENDING_DEPOSIT_TYPE is an internal type used to keep pending peg-ins out
-  // of the filter menu; the row itself reads as a normal "Deposit".
-  const displayLabel = row.type === PENDING_DEPOSIT_TYPE ? "Deposit" : row.type;
+  // The type column label comes from the copy catalog; "Pending Deposit" (an
+  // internal type kept out of the filter menu) maps to a normal "Deposit".
+  const displayLabel = COPY.activity.typeLabels[row.type];
 
   return (
     // A shared grid template (not content-sized flex) so every row's columns

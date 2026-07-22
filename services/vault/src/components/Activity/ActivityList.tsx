@@ -4,6 +4,7 @@ import { twJoin } from "tailwind-merge";
 
 import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
+import { useMidnightTick } from "@/hooks/useMidnightTick";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
 import { formatActivityDateGroup } from "@/utils/formatting";
 
@@ -76,6 +77,10 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
   // desktop), so the heading must stay to avoid a page with no title at all.
   const hideHeading = isV3 && !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
+
+  // Re-render at local midnight so the v3 "Today" / "Yesterday" date-group
+  // headers stay correct on a page left open overnight (the feed doesn't poll).
+  useMidnightTick();
 
   // The filter control is hidden when the wallet disconnects, so leaving the
   // selection in place would trap the user on an empty-but-filtered list with
