@@ -14,14 +14,32 @@ import {
   isArtifactDownloadDemoEnabled,
 } from "@/dev/demoArtifactDownload";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
+import { logger } from "@/infrastructure";
+import {
+  captureFunnelFailure,
+  shortId,
+  TELEMETRY_EVENT,
+  TELEMETRY_STAGE,
+} from "@/infrastructure/telemetryEvents";
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import {
   ArtifactDownloadCancelledError,
   fetchAndDownloadArtifacts,
 } from "@/services/artifacts";
-import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  markArtifactsDownloaded,
+} from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
+
+/**
+ * "VP still processing" retries before the stall event fires — ~5 minutes at
+ * the 10s interval. The loop keeps retrying past this (the VP may genuinely
+ * still finish); the threshold only bounds how long the stall stays invisible
+ * to monitoring. Emitted once per download attempt.
+ */
+const ARTIFACT_STALL_EVENT_ATTEMPTS = 30;
 
 interface ArtifactDownloadState {
   loading: boolean;
@@ -115,6 +133,11 @@ export function useArtifactDownload(options?: {
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
 
+      // Per-vault join key for telemetry. The collateral re-download path
+      // mounts the hook without a vaultId; the pegin txid identifies the same
+      // deposit and is public on-chain data (shortened before emission anyway).
+      const telemetryVaultId = vaultId ?? normalizedPeginTxid;
+
       // Dev/QA-only simulation of the artifact fetch (never reaches a VP),
       // so the dialogs' progress states can be exercised. Opted into via the
       // god-mode panel's "Mock artifact download" toggle; off in production
@@ -145,6 +168,17 @@ export function useArtifactDownload(options?: {
         if (demoDownload) return true;
         if (vpTokenRegistry.peek(normalizedPeginTxid)) return true;
         if (!primeContext) {
+          // A surface mounted the card without the prime inputs and the token
+          // cache is cold: every attempt is dead on arrival. A flow-wiring
+          // bug, not a user action — capture it.
+          captureFunnelFailure(
+            TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+            new Error(
+              "Artifact download attempted with a cold token registry and no prime context",
+            ),
+            telemetryVaultId,
+            { site: "cold_registry" },
+          );
           setError(COPY.deposit.recoveryArtifacts.cannotAuthenticate);
           return false;
         }
@@ -165,6 +199,15 @@ export function useArtifactDownload(options?: {
           });
         } catch (primeErr) {
           if (isStale()) return false;
+          // Includes the on-chain prePeginTxHash mismatch guard — a potential
+          // compromised-indexer signal that must not stay UI-only. Wallet
+          // declines are filtered inside captureFunnelFailure.
+          captureFunnelFailure(
+            TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+            primeErr,
+            telemetryVaultId,
+            { site: "prime" },
+          );
           setError(
             primeErr instanceof Error
               ? primeErr.message
@@ -218,6 +261,9 @@ export function useArtifactDownload(options?: {
         return true;
       };
 
+      let stillProcessingAttempts = 0;
+      let stallEventEmitted = false;
+
       while (true) {
         if (isStale()) return;
 
@@ -241,7 +287,17 @@ export function useArtifactDownload(options?: {
           // real vault permanently satisfies its gate with no file saved. The
           // demo still shows the downloaded UI via `downloaded: true` below.
           if (vaultId && !demoDownload) {
+            // Milestone only on the first real download — re-downloads are a
+            // routine user action, not funnel progress.
+            const firstDownload = !hasArtifactsDownloaded(vaultId);
             markArtifactsDownloaded(vaultId);
+            if (firstDownload) {
+              logger.event(TELEMETRY_EVENT.ACTIVATION_ARTIFACTS_DOWNLOADED, {
+                level: "info",
+                category: "activation",
+                vaultId: shortId(vaultId),
+              });
+            }
           }
           setState({
             ...INITIAL_STATE,
@@ -253,6 +309,19 @@ export function useArtifactDownload(options?: {
           if (isStale()) return;
 
           if (isPreDepositorSignaturesError(err)) {
+            stillProcessingAttempts += 1;
+            if (
+              !stallEventEmitted &&
+              stillProcessingAttempts >= ARTIFACT_STALL_EVENT_ATTEMPTS
+            ) {
+              stallEventEmitted = true;
+              logger.event(TELEMETRY_EVENT.ACTIVATION_ARTIFACTS_STALLED, {
+                level: "warning",
+                category: "activation",
+                vaultId: shortId(telemetryVaultId),
+                attempts: stillProcessingAttempts,
+              });
+            }
             setState((prev) => ({
               ...prev,
               progress: COPY.deposit.recoveryArtifacts.waitingForSignatures,
@@ -278,6 +347,12 @@ export function useArtifactDownload(options?: {
               }
             } catch (primeErr) {
               if (isStale()) return;
+              captureFunnelFailure(
+                TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+                primeErr,
+                telemetryVaultId,
+                { site: "reprime" },
+              );
               setError(
                 primeErr instanceof Error
                   ? primeErr.message
@@ -288,6 +363,15 @@ export function useArtifactDownload(options?: {
           }
 
           if (isStale()) return;
+          // Terminal download failure: wire/HTTP auth rejections past the one
+          // re-prime retry, envelope-validation rejections, exhausted network
+          // retries, mid-stream failures. Cancellation returned above.
+          captureFunnelFailure(
+            TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+            err,
+            telemetryVaultId,
+            { site: "download" },
+          );
           setError(
             err instanceof Error
               ? err.message

@@ -18,7 +18,10 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+
+import { logger } from "@/infrastructure";
+import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
 import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
 import { fetchAppProviders } from "../../services/providers";
@@ -35,6 +38,14 @@ import { useWithLogos } from "../useWithLogos";
 const EMPTY_VAULT_PROVIDERS: VaultProvider[] = [];
 const EMPTY_VAULT_KEEPERS: VaultKeeper[] = [];
 const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
+
+/**
+ * Applications for which the all-providers-disabled event has already been
+ * emitted this session. Module-scoped (not per hook instance): the hook mounts
+ * in several components at once, and the systemic "picker is empty" condition
+ * must be reported once, keyed to the application — not once per mount.
+ */
+const emittedAllDisabledFor = new Set<string>();
 
 export interface UseVaultProvidersResult {
   /**
@@ -117,6 +128,26 @@ export function useVaultProviders(
       allProvidersWithLogos.filter((p) => !disabledVps.has(p.id.toLowerCase())),
     [allProvidersWithLogos, disabledVps],
   );
+
+  // Providers exist but the proxy disabled every one of them: the deposit
+  // picker renders empty and no deposit can start — a systemic outage signal,
+  // distinct from an application with no providers. Once per application per
+  // session; the picker's own empty-state copy remains the user-facing surface.
+  useEffect(() => {
+    if (!entryPoint) return;
+    if (allProvidersWithLogos.length === 0 || listableProviders.length > 0) {
+      return;
+    }
+    if (emittedAllDisabledFor.has(entryPoint)) return;
+    emittedAllDisabledFor.add(entryPoint);
+    logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
+      level: "warning",
+      category: "onboarding",
+      reason: "all_disabled",
+      total: allProvidersWithLogos.length,
+      applicationId: shortId(entryPoint),
+    });
+  }, [entryPoint, allProvidersWithLogos, listableProviders]);
 
   // Find provider by address — searches ALL providers (including disabled,
   // unhealthy, and metadata-rejected) so that vault management flows (payout

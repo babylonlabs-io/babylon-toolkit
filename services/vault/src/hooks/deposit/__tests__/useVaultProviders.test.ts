@@ -32,6 +32,11 @@ vi.mock("../../useDisabledVps", () => ({
   useDisabledVps: () => disabledRef.current,
 }));
 
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: { event: mockLoggerEvent, warn: vi.fn(), info: vi.fn() },
+}));
+
 vi.mock("../../useLogos", () => {
   const stableLogos = {};
   return {
@@ -126,5 +131,68 @@ describe("useVaultProviders disabled filtering", () => {
 
     const ids = result.current.allVaultProviders.map((p) => p.id);
     expect(ids).toEqual([ENABLED_ID, DISABLED_ID]);
+  });
+});
+
+describe("useVaultProviders — all-providers-disabled telemetry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    disabledRef.current = new Set<string>();
+  });
+
+  const provider = {
+    id: "0xabcabcabcabcabcabcabcabcabcabcabcabcabca",
+    btcPubKey: "0xdeadbeef",
+  } as unknown as VaultProvider;
+
+  function mockProvidersQuery() {
+    mockedUseQuery.mockReturnValue({
+      data: { vaultProviders: [provider], vaultKeepers: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+  }
+
+  it("emits onboarding.providers.empty once when the proxy disabled every provider", () => {
+    mockProvidersQuery();
+    disabledRef.current = new Set([provider.id.toLowerCase()]);
+
+    // Distinct entry point per test: the once-per-application dedupe store is
+    // module-scoped and survives across tests in this file.
+    const { rerender } = renderHook(() =>
+      useVaultProviders("0xapp-all-disabled"),
+    );
+
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    const [name, ctx] = mockLoggerEvent.mock.calls[0];
+    expect(name).toBe("onboarding.providers.empty");
+    expect(ctx.reason).toBe("all_disabled");
+    expect(ctx.total).toBe(1);
+
+    // Re-renders (poll refreshes) do not re-emit.
+    rerender();
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not emit while at least one provider remains listable", () => {
+    mockProvidersQuery();
+
+    renderHook(() => useVaultProviders("0xapp-healthy"));
+
+    expect(mockLoggerEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not emit when the application genuinely has no providers", () => {
+    mockedUseQuery.mockReturnValue({
+      data: { vaultProviders: [], vaultKeepers: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    renderHook(() => useVaultProviders("0xapp-empty"));
+
+    expect(mockLoggerEvent).not.toHaveBeenCalled();
   });
 });

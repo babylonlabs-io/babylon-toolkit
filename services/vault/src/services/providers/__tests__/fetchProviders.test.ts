@@ -9,8 +9,9 @@ vi.mock("../../../clients/graphql", () => ({
   },
 }));
 
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
 vi.mock("@/infrastructure", () => ({
-  logger: { warn: vi.fn() },
+  logger: { warn: vi.fn(), event: mockLoggerEvent },
 }));
 
 const mockRequest = vi.mocked(graphqlClient.request);
@@ -25,6 +26,76 @@ const VALID_BTC_PUBKEY_3 = "0x" + "f".repeat(66);
 
 describe("fetchProviders", () => {
   describe("fetchAppProviders", () => {
+    it("emits onboarding.providers.empty when the indexer knows providers but every row is dropped", async () => {
+      mockLoggerEvent.mockClear();
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            // Dropped by the null-rpcUrl filter.
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+            // Dropped by validation (malformed id).
+            {
+              id: "not-an-address",
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "b",
+              rpcUrl: "https://vp.example",
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders(VALID_ETH_ADDR_3);
+
+      expect(result.vaultProviders).toEqual([]);
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+      const [name, ctx] = mockLoggerEvent.mock.calls[0];
+      expect(name).toBe("onboarding.providers.empty");
+      expect(ctx.reason).toBe("all_rows_invalid");
+      expect(ctx.total).toBe(2);
+    });
+
+    it("does not emit onboarding.providers.empty when a provider survives filtering", async () => {
+      mockLoggerEvent.mockClear();
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: "https://vp.example",
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "b",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders(VALID_ETH_ADDR_3);
+
+      expect(result.vaultProviders).toHaveLength(1);
+      expect(mockLoggerEvent).not.toHaveBeenCalled();
+    });
+
     it("should return raw keeper items and pre-computed latest keepers", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },

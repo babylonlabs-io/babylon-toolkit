@@ -1,6 +1,7 @@
 import { gql } from "graphql-request";
 
 import { logger } from "@/infrastructure";
+import { TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
 import { graphqlClient } from "../../clients/graphql";
 import type {
@@ -175,11 +176,21 @@ export async function fetchAppProviders(
     { appController: applicationEntryPoint.toLowerCase() },
   );
 
-  const vaultProviders: VaultProvider[] = response.vaultProviders.items
-    .filter(
-      (provider): provider is typeof provider & { rpcUrl: string } =>
-        provider.rpcUrl !== null,
-    )
+  const rawProviders = response.vaultProviders.items;
+  const withRpcUrl = rawProviders.filter(
+    (
+      provider,
+    ): provider is (typeof rawProviders)[number] & { rpcUrl: string } =>
+      provider.rpcUrl !== null,
+  );
+  if (withRpcUrl.length < rawProviders.length) {
+    logger.warn("Dropped vault providers with null rpcUrl from indexer", {
+      dropped: rawProviders.length - withRpcUrl.length,
+      total: rawProviders.length,
+    });
+  }
+
+  const vaultProviders: VaultProvider[] = withRpcUrl
     .filter((provider) => validateAppProvider(provider) !== null)
     .map((provider) => ({
       id: provider.id,
@@ -189,6 +200,18 @@ export async function fetchAppProviders(
       metadataStatus: normalizeMetadataStatus(provider.metadataStatus),
       metadataRejectionReason: provider.metadataRejectionReason ?? undefined,
     }));
+
+  // The indexer knows providers but every row was dropped (null rpcUrl or
+  // failed validation): a systemic schema/data regression that blocks every
+  // deposit at the picker. Distinct from a legitimately empty application.
+  if (rawProviders.length > 0 && vaultProviders.length === 0) {
+    logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
+      level: "warning",
+      category: "onboarding",
+      reason: "all_rows_invalid",
+      total: rawProviders.length,
+    });
+  }
 
   const vaultKeeperItems: VaultKeeperItem[] =
     response.vaultKeeperApplications.items
