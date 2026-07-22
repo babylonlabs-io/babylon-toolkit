@@ -203,6 +203,7 @@ vi.mock("../DepositProgressView", () => ({
     terminalMessage,
     canContinueInBackground,
     onRetry,
+    wotsApprovalHint,
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
@@ -211,8 +212,10 @@ vi.mock("../DepositProgressView", () => ({
     terminalMessage?: string | null;
     canContinueInBackground?: boolean;
     onRetry?: () => void;
+    wotsApprovalHint?: string | null;
   }) => (
     <div data-testid="progress-view">
+      <span data-testid="wots-hint">{wotsApprovalHint ?? ""}</span>
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="error-title">{error?.title ?? ""}</span>
@@ -327,6 +330,28 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
       expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
     });
     expect(mockParseFundingOutpointsFromTx).toHaveBeenCalledWith("0xindexertx");
+  });
+
+  it("passes the wallet-approval hint to the progress view", async () => {
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(getByTestId("wots-hint").textContent).toBe(
+      COPY.deposit.resume.wotsWalletApprovalHint,
+    );
+
+    await waitFor(() => {
+      expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

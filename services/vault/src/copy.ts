@@ -585,6 +585,10 @@ export const COPY = {
       readyToActivateMessage:
         "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
       wotsMismatchError: WRONG_WALLET_BODY,
+      // Resume's cold path fires a wallet approval the WOTS step copy doesn't
+      // mention, and some extensions queue it without surfacing a popup.
+      wotsWalletApprovalHint:
+        "You may be asked to approve a request in your BTC wallet. If no approval window appears, open your wallet extension.",
     },
     warnings: {
       depositRecordNotSaved:

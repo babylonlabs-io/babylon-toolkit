@@ -706,4 +706,69 @@ describe("DepositProgressView", () => {
       expect(onSign).not.toHaveBeenCalled();
     });
   });
+
+  describe("WOTS wallet-approval hint", () => {
+    it("renders the hint under the active WOTS step when provided", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+          wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.resume.wotsWalletApprovalHint),
+      ).toBeInTheDocument();
+    });
+
+    it("does not render the hint at a non-WOTS step", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.resume.wotsWalletApprovalHint),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not render the hint when the WOTS step failed", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+          error={{ title: "Transaction failed", body: "boom" }}
+          wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.resume.wotsWalletApprovalHint),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the hint only under the active vault's column in a split deposit", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+          vaultCount={2}
+          currentVaultIndex={0}
+          perVaultSteps={[
+            DepositFlowStep.SUBMIT_WOTS_KEYS,
+            DepositFlowStep.SUBMIT_WOTS_KEYS,
+          ]}
+          wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
+        />,
+      );
+
+      expect(
+        screen.getAllByText(COPY.deposit.resume.wotsWalletApprovalHint),
+      ).toHaveLength(1);
+    });
+  });
 });

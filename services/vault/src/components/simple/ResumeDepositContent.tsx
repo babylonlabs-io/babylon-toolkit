@@ -535,6 +535,7 @@ export function ResumeWotsContent({
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
       btcConfirmationDetail={btcConfirmationDetail}
+      wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
       offchainParamsVersion={activity.offchainParamsVersion}
     />
   );

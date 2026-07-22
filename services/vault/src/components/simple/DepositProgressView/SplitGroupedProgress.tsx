@@ -45,7 +45,7 @@ interface SplitGroupedProgressProps {
    */
   renderStepDetail?: (
     step: DepositFlowStep,
-    opts: { stacked: boolean },
+    opts: { stacked: boolean; isActiveVault?: boolean },
   ) => ReactNode;
   /**
    * Per-vault raw steps (resume path), indexed to match the columns. When
@@ -176,6 +176,7 @@ export function SplitGroupedProgress({
               }
               activeStepDetail={renderStepDetail?.(vaultRawStep, {
                 stacked: true,
+                isActiveVault: vaultIndex === currentVaultIndex,
               })}
             />
           );

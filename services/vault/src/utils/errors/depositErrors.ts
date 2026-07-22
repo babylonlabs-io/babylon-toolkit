@@ -51,6 +51,13 @@ export interface DepositErrorContent {
 
 const ERRORS = COPY.deposit.errors;
 
+/** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
+const LIVENESS_BODIES = [
+  COPY.wallet.liveness.unresponsive,
+  COPY.wallet.liveness.emptyAddress,
+  COPY.wallet.liveness.addressMismatch,
+];
+
 /**
  * Thrown by the deposit flow when the selected vault provider's commission
  * never loaded, so it can't be quoted as `maxAcceptableCommissionBps`. Used as
@@ -152,6 +159,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     msg.includes("failed to get wallet client")
   ) {
     return ERRORS.walletNotConnected;
+  }
+
+  // 5b. BTC wallet liveness-probe failures. Resume surfaces stringify the
+  // BtcWalletLivenessError, so match the copy strings and keep the matched
+  // (actionable) body under the liveness title instead of the generic one.
+  const livenessBody = LIVENESS_BODIES.find((body) =>
+    msg.includes(body.toLowerCase()),
+  );
+  if (livenessBody) {
+    return { title: COPY.wallet.liveness.errorTitle, body: livenessBody };
   }
 
   // 6. Wallet signing rejection. The coded path (step 1) misses rejections that
