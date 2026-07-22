@@ -24,6 +24,15 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import type { ProtocolStatus } from "@/components/shared/protocolStatus";
+
+import {
+  DEBUG_FORCED_MAX_VAULTS,
+  setDebugMaxVaultsOverride,
+  setDebugProtocolStatusOverride,
+  useDebugMaxVaultsOverride,
+  useDebugProtocolStatusOverride,
+} from "./debugPositionStore";
 import {
   setArtifactDownloadMockEnabled,
   useArtifactDownloadMockEnabled,
@@ -348,10 +357,99 @@ function ThemeControls() {
   );
 }
 
+/**
+ * The three notifications that are NOT derived from the liquidation-cascade
+ * calculation (Figma v3 §7 soft-paused / §8 fully paused / §9 maximum vaults
+ * reached). They are driven by live chain reads — `useVaultCountCap` and
+ * `useProtocolGateState` — so each gets a store override here that the
+ * rendering component prefers over its live value.
+ *
+ * These live in the always-mounted panel body rather than inside the
+ * position-notifications section, because they are independent of the
+ * liquidation-notifications flag that gates that section. The overrides survive
+ * collapsing the panel on purpose: you collapse it to look at the card.
+ */
+const PROTOCOL_STATUS_LABELS: Record<ProtocolStatus, string> = {
+  frozen: "Soft-paused",
+  paused: "Fully paused",
+};
+
+function SegmentButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded border px-2 py-1 text-xs ${
+        active
+          ? "border-orange-500 bg-orange-500/20 text-white"
+          : "border-zinc-600 text-zinc-300"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function NotificationOverrideControls() {
+  const maxVaultsOverride = useDebugMaxVaultsOverride();
+  const protocolStatusOverride = useDebugProtocolStatusOverride();
+
+  return (
+    <div className="space-y-2">
+      <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
+        Notifications
+      </div>
+
+      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm">
+        <span>Maximum vaults reached</span>
+        <input
+          type="checkbox"
+          checked={maxVaultsOverride !== null}
+          onChange={(e) =>
+            setDebugMaxVaultsOverride(
+              e.target.checked ? DEBUG_FORCED_MAX_VAULTS : null,
+            )
+          }
+        />
+      </label>
+
+      <div className="space-y-1">
+        <div className="text-xs text-zinc-400">Protocol status</div>
+        <div className="flex gap-2">
+          <SegmentButton
+            label="Live"
+            active={protocolStatusOverride === null}
+            onClick={() => setDebugProtocolStatusOverride(null)}
+          />
+          {(Object.keys(PROTOCOL_STATUS_LABELS) as ProtocolStatus[]).map(
+            (status) => (
+              <SegmentButton
+                key={status}
+                label={PROTOCOL_STATUS_LABELS[status]}
+                active={protocolStatusOverride === status}
+                onClick={() => setDebugProtocolStatusOverride(status)}
+              />
+            ),
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PanelBody({ children }: { children?: ReactNode }) {
   return (
     <div className="space-y-4">
       <ThemeControls />
+      <NotificationOverrideControls />
       <div className="space-y-2">
         <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
           Mocks

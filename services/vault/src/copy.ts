@@ -780,6 +780,7 @@ export const COPY = {
     applying: "Applying...",
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
+    dismissNotification: "Dismiss notification",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
@@ -1386,6 +1387,22 @@ export const COPY = {
       body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
     },
   },
+  // v3 (Premium Design) freeze/pause banners, behind ENABLE_V3_UI. A flat
+  // sibling (not nested under protocolStatus) so `COPY.protocolStatus` stays a
+  // clean Record<ProtocolStatus>. Same per-scope accuracy constraint as the v2
+  // copy above applies here: gating is per-scope, so the wording is deliberately
+  // non-specific — an aave-only freeze leaves deposits working, so naming
+  // specific actions would be inaccurate. Keyed by ProtocolStatus.
+  protocolStatusV3: {
+    frozen: {
+      title: "Protocol is soft-paused",
+      body: "Some new actions are temporarily restricted while the protocol is soft-paused. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
+    },
+    paused: {
+      title: "Protocol is fully paused",
+      body: "Some actions are temporarily unavailable while the protocol is fully paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
+    },
+  },
   // Full-width critical banner rendered above the header when the position is at
   // imminent liquidation risk (red severity). The warning glyph is supplied via
   // the banner's icon slot, not the message string.
@@ -1481,6 +1498,10 @@ export const COPY = {
     },
     maxVaults: {
       title: "Maximum BTC Vaults reached",
+      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body
+      // keeps. Separate key so the v2 title above is untouched with the flag
+      // off, and so both retire in one edit when v2 goes.
+      titleV3: "Maximum vaults reached",
       detail: (cap: number) =>
         `This position already has the maximum number of BTC Vaults (${cap}).`,
     },

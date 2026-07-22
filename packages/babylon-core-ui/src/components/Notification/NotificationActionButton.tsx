@@ -22,20 +22,28 @@ export interface NotificationActionButtonProps {
   accentBg: string;
   /** Foreground that sits on `accentBg` for a `primary` action. */
   onAccent: string;
+  /**
+   * Per-call-site overrides merged last (radius, height, horizontal padding,
+   * text size, border color). Lets a caller restyle the shared shell without
+   * forking the component; the v2 pill stays the default.
+   */
+  className?: string;
 }
 
 export function NotificationActionButton({
   action,
   accentBg,
   onAccent,
+  className,
 }: NotificationActionButtonProps) {
   const { label, emphasis = "primary", onClick, disabled } = action;
   const styles =
     emphasis === "primary"
-      ? twMerge(ACTION_BASE, accentBg, onAccent, "hover:opacity-90")
+      ? twMerge(ACTION_BASE, accentBg, onAccent, "hover:opacity-90", className)
       : twMerge(
           ACTION_BASE,
           "border border-secondary-strokeLight text-accent-primary hover:bg-neutral-200",
+          className,
         );
 
   return (

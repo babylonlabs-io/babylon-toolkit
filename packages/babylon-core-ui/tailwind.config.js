@@ -11,7 +11,7 @@ export default {
   safelist: [
     // Include theme color classes with proper pattern syntax
     {
-      pattern: /(bg|text|border)-(primary|secondary|accent|surface|error|warning|info|success|neutral)-(main|light|dark|contrast|highlight|strokeLight|strokeDark|100|200)/,
+      pattern: /(bg|text|border)-(primary|secondary|accent|surface|error|warning|info|success|neutral|background)-(main|light|dark|secondary|navy|contrast|highlight|strokeLight|strokeDark|100|200)/,
       variants: ['dark', 'hover', 'focus', 'disabled'],
     },
     // Animation patterns
@@ -213,6 +213,11 @@ export default {
           secondary: "#666666",
           disabled: "#9ab7c2",
           contrast: "#ffffff",
+          navy: "#042F40",
+        },
+        background: {
+          secondary: "#F9F9F9",
+          contrast: "#F2F2F2",
         },
         neutral: {
           100: "#F9F9F9",
@@ -260,6 +265,11 @@ export default {
           secondary: "#B0B0B0",
           disabled: "#787878",
           contrast: "#ffffff",
+          navy: "#042F40",
+        },
+        background: {
+          secondary: "#202020",
+          contrast: "#191919",
         },
         neutral: {
           100: "#252525",
