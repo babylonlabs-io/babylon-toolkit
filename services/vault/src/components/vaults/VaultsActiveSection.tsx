@@ -35,6 +35,8 @@ function ActiveVaultRow({
   onWithdraw: (vaultId: string) => void;
   isWithdrawDisabled: boolean;
 }) {
+  // Peg-in first: once a vault is active the peg-in tx is the canonical
+  // on-Bitcoin one (pending/inactive rows prefer the opposite).
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
 
   return (

@@ -28,7 +28,7 @@ import {
 } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
-import { invalidateVaultQueries } from "@/utils/queryKeys";
+import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
 
@@ -105,7 +105,7 @@ export function PositionNotificationBanner({
     setIsReorderSuccess(false);
     if (address) {
       queryClient.invalidateQueries({
-        queryKey: ["vaultOrder", address.toLowerCase()],
+        queryKey: vaultOrderQueryKey(address),
       });
       invalidateVaultQueries(queryClient, address as Address);
     }

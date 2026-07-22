@@ -26,7 +26,6 @@ const dashboardState = vi.hoisted(() => ({
   healthFactor: null as number | null,
   healthFactorStatus: "no_debt",
   collateralVaults: [] as CollateralVaultEntry[],
-  isLoading: false,
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
@@ -127,6 +126,33 @@ describe("useVaultsPageData", () => {
 
   it("omits the liquidation order for a single vault", () => {
     dashboardState.collateralVaults = [makeVault({ id: "a", amountBtc: 0.6 })];
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.summary.liquidationOrder).toBeNull();
+  });
+
+  it("keeps optimistic activating rows out of the liquidation-order sequence", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
+      makeVault({ id: "b", amountBtc: 0.2, liquidationIndex: 1 }),
+      makeVault({ id: "activating", amountBtc: 0.3, isActivating: true }),
+    ];
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.summary.liquidationOrder).toContain("0.6 → 0.2");
+    expect(result.current.summary.liquidationOrder).not.toContain("0.3");
+    // The count still includes the activating row, matching the Active
+    // Vaults section header.
+    expect(result.current.summary.activeVaultsCount).toBe(3);
+  });
+
+  it("omits the liquidation order when only one row has an established position", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
+      makeVault({ id: "activating", amountBtc: 0.3, isActivating: true }),
+    ];
 
     const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
 

@@ -34,10 +34,11 @@ import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDemoDeposit } from "@/dev/demoDeposit";
+import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
-import { invalidateVaultQueries } from "@/utils/queryKeys";
+import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
 
 const EMPTY_ILLUSTRATION_SRC = "/images/vaults-empty.svg";
 
@@ -56,8 +57,12 @@ export default function VaultsPage() {
   const { address } = useETHWallet();
   const gate = useProtocolGateState();
   const queryClient = useQueryClient();
+  // The page's single usePendingDeposits instance — shared by the emptiness
+  // hook and the lifecycle sections so the broadcast/refund modal state pair
+  // is instantiated once.
+  const deposits = usePendingDeposits();
   const { isLoading, isEmpty, hasError, hasPartialError } =
-    useVaultsPageEmptiness();
+    useVaultsPageEmptiness(deposits);
   const {
     summary,
     displayVaults,
@@ -98,7 +103,7 @@ export default function VaultsPage() {
     setIsReorderSuccess(false);
     if (address) {
       queryClient.invalidateQueries({
-        queryKey: ["vaultOrder", address.toLowerCase()],
+        queryKey: vaultOrderQueryKey(address),
       });
       invalidateVaultQueries(queryClient, address as Address);
     }
@@ -136,7 +141,7 @@ export default function VaultsPage() {
       />
       {/* Section order is Pending → Active → Inactive: the lifecycle
           component renders its children between its two lists. */}
-      <VaultsLifecycleSections>
+      <VaultsLifecycleSections deposits={deposits}>
         <VaultsActiveSection
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}
@@ -186,6 +191,7 @@ export default function VaultsPage() {
             ? COPY.deposit.disabled.description
             : COPY.vaults.empty.description
         }
+        descriptionVariant="wide"
         isConnected={isConnected}
         action={
           <DepositButton

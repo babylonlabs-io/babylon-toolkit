@@ -27,13 +27,24 @@
  * Withdrawal-only positions (every vault redeemed, pegout still in flight)
  * are not yet consulted; the withdrawal sections join the page with the
  * relocation step of issue #2041.
+ *
+ * The deposit lists arrive as a parameter — the page's single
+ * `usePendingDeposits` result, shared with VaultsLifecycleSections — so this
+ * hook never instantiates a second broadcast/refund modal state pair.
  */
 
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
-import { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import type { VaultActivity } from "@/types/activity";
 
-export function useVaultsPageEmptiness(): {
+interface VaultsPageDeposits {
+  pendingActivities: VaultActivity[];
+  expiredActivities: VaultActivity[];
+  isLoading: boolean;
+  error: Error | null;
+}
+
+export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   isLoading: boolean;
   isEmpty: boolean;
   hasError: boolean;
@@ -51,7 +62,7 @@ export function useVaultsPageEmptiness(): {
     expiredActivities,
     isLoading: isDepositsLoading,
     error: depositsError,
-  } = usePendingDeposits();
+  } = deposits;
 
   const isLoading = isConnected && (isPositionLoading || isDepositsLoading);
   const hasAnythingToShow =

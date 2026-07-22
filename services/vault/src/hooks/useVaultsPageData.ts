@@ -4,9 +4,9 @@
  * Data assembly for the v3 /vaults page: the summary-card values plus the
  * active-vaults list. Mirrors DashboardPage's demo handling — god-mode demo
  * collateral rows are merged in for display (demo rows first, real rows
- * dropped when `hideReal` is set) while the raw indexer-backed entries and
- * financial totals are returned separately for action flows (withdraw,
- * reorder), which must never see demo rows. Inert in production.
+ * dropped when `hideReal` is set) while the demo-free entries and financial
+ * totals are returned separately for action flows (withdraw, reorder), which
+ * must never see demo rows. Inert in production.
  */
 
 import { useMemo } from "react";
@@ -32,7 +32,6 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     healthFactor,
     healthFactorStatus,
     collateralVaults,
-    isLoading,
   } = useDashboardState(connectedAddress);
 
   const demoCollateral = useDemoCollateral();
@@ -56,11 +55,16 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
 
   // Liquidation-order sequence, seized-first vault leading. `collateralVaults`
   // is already liquidation-ordered by useDashboardState; demo rows keep their
-  // merged position.
+  // merged position. Optimistic activating rows stay out of the sequence —
+  // their liquidation position is a placeholder until the indexer ingests the
+  // vault (their row hides the ordinal for the same reason) — while
+  // `activeVaultsCount` still includes them so the summary matches the Active
+  // Vaults section header count.
   const liquidationOrder = useMemo(() => {
-    if (displayVaults.length < 2) return null;
+    const orderedVaults = displayVaults.filter((vault) => !vault.isActivating);
+    if (orderedVaults.length < 2) return null;
     return COPY.vaults.summary.liquidationOrder(
-      displayVaults.map((vault) => formatBtcValue(vault.amountBtc)),
+      orderedVaults.map((vault) => formatBtcValue(vault.amountBtc)),
       btcConfig.coinSymbol,
     );
   }, [displayVaults]);
@@ -76,10 +80,14 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     },
     /** Demo-merged entries for display sections only. */
     displayVaults,
-    /** Raw indexer-backed entries — the only list action flows may receive. */
+    /**
+     * Demo-free entries — the only list action flows may receive. Alongside
+     * indexer-backed rows it still carries the optimistic `isActivating` ones,
+     * which action surfaces must themselves exclude (withdraw disables them
+     * per-row, reorder filters them out).
+     */
     rawCollateralVaults: collateralVaults,
     collateralBtc,
     collateralValueUsd,
-    isLoading,
   };
 }

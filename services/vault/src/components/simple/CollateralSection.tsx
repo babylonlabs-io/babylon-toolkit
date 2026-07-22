@@ -41,7 +41,7 @@ import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
-import { invalidateVaultQueries } from "@/utils/queryKeys";
+import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
 
 import { CollateralExpandedContent } from "./CollateralExpandedContent";
 import { ReorderSuccessModal, ReorderVaultsModal } from "./ReorderVaults";
@@ -210,7 +210,7 @@ export function CollateralSection({
     setIsReorderSuccess(false);
     if (address) {
       queryClient.invalidateQueries({
-        queryKey: ["vaultOrder", address.toLowerCase()],
+        queryKey: vaultOrderQueryKey(address),
       });
       invalidateVaultQueries(queryClient, address as Address);
     }

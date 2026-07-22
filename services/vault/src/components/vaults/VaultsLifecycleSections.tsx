@@ -10,7 +10,9 @@
  * stay under the single ProtocolParamsProvider + PeginPollingProvider this
  * component mounts (exactly like the v2 PendingDepositSection) — row state
  * and CTAs derive from the polling result, so god-mode demo rows work
- * unchanged.
+ * unchanged. `deposits` arrives from the page's single `usePendingDeposits`
+ * call (shared with the emptiness hook) so the broadcast/refund modal state
+ * is instantiated once.
  */
 
 import {
@@ -41,8 +43,9 @@ import {
 } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { getDemoStepperBatch } from "@/dev/demoDeposit";
-import { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import {
+  canPerformAction,
   getPeginDisplayStep,
   isRefundInFlightOrSettled,
   PeginAction,
@@ -81,6 +84,25 @@ function findProvider(
   return vaultProviders.find(
     (candidate) => candidate.id.toLowerCase() === providerId.toLowerCase(),
   );
+}
+
+/**
+ * Explorer link for a lifecycle row's hash, matching v2's PendingDepositCard
+ * `linkPrePegin` gate: the Pre-PegIn tx is on Bitcoin only once the depositor
+ * has broadcast it — before that (and while the polling result is still
+ * loading) a link would 404, so the hash stays copy-only. A peg-in hash
+ * surfacing here is never linked; the vault provider broadcasts that tx only
+ * at activation, which is past both lifecycle sections.
+ */
+function getRowExplorerUrl(
+  activity: VaultActivity,
+  peginState: PeginState | undefined,
+): string | undefined {
+  if (!activity.prePeginTxHash || !peginState) return undefined;
+  if (canPerformAction(peginState, PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+    return undefined;
+  }
+  return getBtcExplorerTxUrl(activity.prePeginTxHash);
 }
 
 function PendingRow({
@@ -125,6 +147,8 @@ function PendingRow({
     onOpenDetails(activity.id);
   };
 
+  // Pre-PegIn first: while a deposit is in flight the Pre-PegIn tx exists
+  // before the peg-in tx does (active rows prefer the opposite).
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
@@ -201,7 +225,7 @@ function PendingRow({
           <CopyableHash
             hash={hash}
             chain="BTC"
-            explorerUrl={getBtcExplorerTxUrl(hash)}
+            explorerUrl={getRowExplorerUrl(activity, peginState)}
           />
         )}
       </div>
@@ -258,11 +282,17 @@ function InactiveRow({
   const isRefundAvailable =
     actionStatus.type === "available" &&
     actionStatus.action.action === PeginAction.REFUND_HTLC;
-  const isRefundBlocked =
+  // The narrowed disabled status, kept whole so the JSX below can read its
+  // tooltip without re-checking the discriminant.
+  const blockedRefundStatus =
     actionStatus.type === "disabled" &&
     actionStatus.action?.action === PeginAction.REFUND_HTLC &&
-    !(peginState ? isRefundInFlightOrSettled(peginState) : false);
+    !(peginState ? isRefundInFlightOrSettled(peginState) : false)
+      ? actionStatus
+      : null;
 
+  // Pre-PegIn first: an expired deposit never activated, so the Pre-PegIn tx
+  // is the one that exists (active rows prefer the opposite).
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
@@ -324,7 +354,7 @@ function InactiveRow({
           <CopyableHash
             hash={hash}
             chain="BTC"
-            explorerUrl={getBtcExplorerTxUrl(hash)}
+            explorerUrl={getRowExplorerUrl(activity, peginState)}
           />
         )}
       </div>
@@ -338,8 +368,8 @@ function InactiveRow({
           {COPY.vaults.actions.withdraw}
         </button>
       )}
-      {actionStatus.type === "disabled" && isRefundBlocked && (
-        <Hint tooltip={actionStatus.tooltip} attachToChildren>
+      {blockedRefundStatus && (
+        <Hint tooltip={blockedRefundStatus.tooltip} attachToChildren>
           <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
             {COPY.vaults.actions.withdraw}
           </button>
@@ -350,8 +380,11 @@ function InactiveRow({
 }
 
 export function VaultsLifecycleSections({
+  deposits,
   children,
 }: {
+  /** The page's single `usePendingDeposits` result, shared with the emptiness hook. */
+  deposits: ReturnType<typeof usePendingDeposits>;
   children?: ReactNode;
 }) {
   // Vault IDs whose multistepper view modal is open — the full batch for a
@@ -369,7 +402,7 @@ export function VaultsLifecycleSections({
     broadcastModal,
     refundModal,
     demo,
-  } = usePendingDeposits();
+  } = deposits;
 
   const rows = [...pendingActivities, ...expiredActivities];
 
@@ -451,7 +484,7 @@ export function VaultsLifecycleSections({
                   {COPY.vaults.sections.count(pendingActivities.length)}
                 </span>
               </Heading>
-              <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+              <Loader size={16} className="text-accent-primary" />
             </div>
             <div className="space-y-2">
               {pendingActivities.map((activity) => (

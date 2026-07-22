@@ -35,6 +35,18 @@ vi.mock("@/hooks/useVaultsPageEmptiness", () => ({
   useVaultsPageEmptiness: () => emptinessState,
 }));
 
+// The page instantiates the single usePendingDeposits shared by the emptiness
+// hook and the lifecycle sections; both consumers are mocked here, so a
+// minimal stub suffices.
+vi.mock("@/hooks/usePendingDeposits", () => ({
+  usePendingDeposits: () => ({
+    pendingActivities: [],
+    expiredActivities: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 const walletState = vi.hoisted(() => ({ isConnected: true }));
 
 vi.mock("@/context/wallet", () => ({
@@ -60,7 +72,6 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
     rawCollateralVaults: [],
     collateralBtc: 0,
     collateralValueUsd: 0,
-    isLoading: false,
   }),
 }));
 

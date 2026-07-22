@@ -20,6 +20,12 @@ interface EmptyStateProps {
   title: string;
   /** Secondary text/description (optional) */
   description?: string;
+  /**
+   * Description presentation: "compact" keeps the original small text used by
+   * the v2 surfaces (e.g. the reserve-detail connect prompt); "wide" is the
+   * larger, centered, width-capped look of the v3 /vaults empty state.
+   */
+  descriptionVariant?: "compact" | "wide";
   /** Whether the user is connected */
   isConnected?: boolean;
   /** Action rendered when connected (a Connect button is shown when disconnected) */
@@ -28,12 +34,21 @@ interface EmptyStateProps {
   withCard?: boolean;
 }
 
+const DESCRIPTION_CLASS: Record<
+  NonNullable<EmptyStateProps["descriptionVariant"]>,
+  string
+> = {
+  compact: "text-sm text-accent-secondary",
+  wide: "max-w-[600px] text-center text-base text-accent-secondary",
+};
+
 export function EmptyState({
   avatarUrl,
   avatarAlt,
   illustration,
   title,
   description,
+  descriptionVariant = "compact",
   isConnected = false,
   action,
   withCard = false,
@@ -56,9 +71,7 @@ export function EmptyState({
 
         {/* Secondary Text */}
         {description && (
-          <p className="max-w-[600px] text-center text-base text-accent-secondary">
-            {description}
-          </p>
+          <p className={DESCRIPTION_CLASS[descriptionVariant]}>{description}</p>
         )}
 
         {/* Action */}

@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
+import type { VaultActivity } from "@/types/activity";
 
 const walletState = vi.hoisted(() => ({
   isConnected: true,
@@ -25,16 +26,16 @@ vi.mock("@/hooks/useDashboardState", () => ({
   useDashboardState: useDashboardStateMock,
 }));
 
-const depositsState = vi.hoisted(() => ({
-  pendingActivities: [] as unknown[],
-  expiredActivities: [] as unknown[],
+// Passed straight into the hook — the page hands over its single
+// usePendingDeposits result the same way, so no module mock is needed.
+const depositsState = {
+  pendingActivities: [] as VaultActivity[],
+  expiredActivities: [] as VaultActivity[],
   isLoading: false,
   error: null as Error | null,
-}));
+};
 
-vi.mock("@/hooks/usePendingDeposits", () => ({
-  usePendingDeposits: () => depositsState,
-}));
+const stubActivity = (id: string) => ({ id }) as VaultActivity;
 
 describe("useVaultsPageEmptiness", () => {
   beforeEach(() => {
@@ -53,7 +54,7 @@ describe("useVaultsPageEmptiness", () => {
   it("is empty and not loading while disconnected", () => {
     walletState.isConnected = false;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -65,9 +66,9 @@ describe("useVaultsPageEmptiness", () => {
 
   it("is empty while disconnected even when ETH-keyed queries returned deposits", () => {
     walletState.isConnected = false;
-    depositsState.pendingActivities = [{ id: "pending-1" }];
+    depositsState.pendingActivities = [stubActivity("pending-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.isEmpty).toBe(true);
   });
@@ -75,13 +76,13 @@ describe("useVaultsPageEmptiness", () => {
   it("passes undefined to useDashboardState while disconnected", () => {
     walletState.isConnected = false;
 
-    renderHook(() => useVaultsPageEmptiness());
+    renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
   });
 
   it("passes the wallet address to useDashboardState while connected", () => {
-    renderHook(() => useVaultsPageEmptiness());
+    renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
@@ -89,7 +90,7 @@ describe("useVaultsPageEmptiness", () => {
   it("is loading, not empty, while the position query resolves", () => {
     dashboardState.isLoading = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current).toEqual({
       isLoading: true,
@@ -102,7 +103,7 @@ describe("useVaultsPageEmptiness", () => {
   it("is loading, not empty, while the deposits query resolves", () => {
     depositsState.isLoading = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.isEmpty).toBe(false);
@@ -111,29 +112,29 @@ describe("useVaultsPageEmptiness", () => {
   it("is not empty when the account has display collateral", () => {
     dashboardState.hasDisplayCollateral = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.isEmpty).toBe(false);
   });
 
   it("is not empty when a deposit is pending", () => {
-    depositsState.pendingActivities = [{ id: "pending-1" }];
+    depositsState.pendingActivities = [stubActivity("pending-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.isEmpty).toBe(false);
   });
 
   it("is not empty when an expired deposit awaits refund", () => {
-    depositsState.expiredActivities = [{ id: "expired-1" }];
+    depositsState.expiredActivities = [stubActivity("expired-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.isEmpty).toBe(false);
   });
 
   it("is empty when connected with no vaults and no deposits", () => {
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -146,7 +147,7 @@ describe("useVaultsPageEmptiness", () => {
   it("reports an error, never an empty account, when the position read failed", () => {
     dashboardState.positionError = new Error("rpc down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -159,7 +160,7 @@ describe("useVaultsPageEmptiness", () => {
   it("reports an error, never an empty account, when the deposits read failed", () => {
     depositsState.error = new Error("indexer down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.hasError).toBe(true);
     expect(result.current.isEmpty).toBe(false);
@@ -167,9 +168,9 @@ describe("useVaultsPageEmptiness", () => {
 
   it("prefers showable data over a failed read from the other source", () => {
     dashboardState.positionError = new Error("rpc down");
-    depositsState.pendingActivities = [{ id: "pending-1" }];
+    depositsState.pendingActivities = [stubActivity("pending-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -183,7 +184,7 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.hasDisplayCollateral = true;
     depositsState.error = new Error("indexer down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.hasPartialError).toBe(true);
     expect(result.current.hasError).toBe(false);
@@ -193,7 +194,7 @@ describe("useVaultsPageEmptiness", () => {
   it("does not flag a partial error when both sources loaded cleanly", () => {
     dashboardState.hasDisplayCollateral = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.hasPartialError).toBe(false);
   });
@@ -203,7 +204,7 @@ describe("useVaultsPageEmptiness", () => {
     // partial flag must not also fire or the page would try to render both.
     dashboardState.positionError = new Error("rpc down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.hasError).toBe(true);
     expect(result.current.hasPartialError).toBe(false);
@@ -213,7 +214,7 @@ describe("useVaultsPageEmptiness", () => {
     walletState.isConnected = false;
     depositsState.error = new Error("indexer down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness());
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current).toEqual({
       isLoading: false,
