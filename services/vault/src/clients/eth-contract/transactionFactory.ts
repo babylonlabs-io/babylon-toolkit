@@ -20,7 +20,10 @@ import {
 import { getETHChain } from "@/config/network";
 import { logger } from "@/infrastructure";
 
-import { mapViemErrorToContractError } from "../../utils/errors";
+import {
+  mapViemErrorToContractError,
+  tagSimulationPhase,
+} from "../../utils/errors";
 
 import { ethClient } from "./client";
 
@@ -100,7 +103,18 @@ export async function executeWrite(
       args,
       account,
     });
+  } catch (error) {
+    // Tagged so callers can safely auto-retry: nothing was signed or sent,
+    // and the failure may be a lagging RPC backend, not the chain.
+    throw tagSimulationPhase(
+      mapViemErrorToContractError(error, errorContext, [
+        abi as Abi,
+        ...(errorAbis ?? []),
+      ]),
+    );
+  }
 
+  try {
     // Simulation passed, now send the actual transaction
     const hash = await walletClient.writeContract({
       address,

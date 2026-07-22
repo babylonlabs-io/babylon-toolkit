@@ -183,6 +183,7 @@ export function useRepayTransaction({
           reserve.reserveId,
           reserve.token.address,
           proxyContract as Address,
+          reserve.token,
         );
       } else if (mode === "max-capped") {
         // max-capped requires the caller-supplied exact bigint. The float
@@ -203,6 +204,7 @@ export function useRepayTransaction({
           reserve.reserveId,
           reserve.token.address,
           repayAmountRaw,
+          reserve.token,
         );
       } else {
         // partial path: convert the user-typed float to bigint. Float rounding
@@ -229,6 +231,7 @@ export function useRepayTransaction({
           reserve.reserveId,
           reserve.token.address,
           amountBigInt,
+          reserve.token,
         );
       }
 
