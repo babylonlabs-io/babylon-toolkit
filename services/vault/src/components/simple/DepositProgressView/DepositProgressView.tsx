@@ -110,6 +110,12 @@ export interface DepositProgressViewProps {
    */
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
   /**
+   * Hint rendered under the active SUBMIT_WOTS_KEYS step. Resume passes it
+   * because its cold path fires a wallet approval the step copy doesn't
+   * mention — and some extensions queue that approval without a popup.
+   */
+  wotsApprovalHint?: string | null;
+  /**
    * The deposit's registered offchain-params version. Keeps the header's
    * total-duration estimate on the same pinned confirmation depth the flow
    * gates on. Omit pre-sign (no registered version yet) → latest params.
@@ -127,12 +133,36 @@ export interface DepositProgressViewProps {
 function resolveActiveStepDetail(params: {
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
+  wotsApprovalHint?: string | null;
   /** Stack the panel's rows — used for the narrow split-deposit columns. */
   stacked?: boolean;
+  /**
+   * In split layouts, whether this column is the vault the flow is currently
+   * driving. The WOTS hint only belongs under that vault — sibling columns
+   * parked on the same step are not awaiting this modal's wallet approval.
+   */
+  isActiveVault?: boolean;
 }): ReactNode {
-  const { currentStep, btcConfirmationDetail, stacked } = params;
+  const {
+    currentStep,
+    btcConfirmationDetail,
+    wotsApprovalHint,
+    stacked,
+    isActiveVault,
+  } = params;
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
     return <PeginFeeWarning />;
+  }
+  if (
+    currentStep === DepositFlowStep.SUBMIT_WOTS_KEYS &&
+    wotsApprovalHint &&
+    isActiveVault !== false
+  ) {
+    return (
+      <Text as="p" variant="body2" className="mt-3 text-accent-secondary">
+        {wotsApprovalHint}
+      </Text>
+    );
   }
   if (
     currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
@@ -174,6 +204,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     terminalMessage,
     onRetry,
     btcConfirmationDetail,
+    wotsApprovalHint,
     offchainParamsVersion,
     started = true,
     onSign,
@@ -238,6 +269,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const activeStepDetail = resolveActiveStepDetail({
     currentStep,
     btcConfirmationDetail,
+    wotsApprovalHint,
   });
 
   // Split columns resolve the detail from each column's OWN step (so two
@@ -245,13 +277,18 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // columns each show their own). Rendered stacked because the columns are
   // narrow. The single-column path keeps the inline `activeStepDetail` above.
   const renderStepDetail = useCallback(
-    (step: DepositFlowStep, opts: { stacked: boolean }): ReactNode =>
+    (
+      step: DepositFlowStep,
+      opts: { stacked: boolean; isActiveVault?: boolean },
+    ): ReactNode =>
       resolveActiveStepDetail({
         currentStep: step,
         btcConfirmationDetail,
+        wotsApprovalHint,
         stacked: opts.stacked,
+        isActiveVault: opts.isActiveVault,
       }),
-    [btcConfirmationDetail],
+    [btcConfirmationDetail, wotsApprovalHint],
   );
 
   return (

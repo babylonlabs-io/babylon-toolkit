@@ -173,6 +173,15 @@ vi.mock("@/copy", () => ({
         },
       },
     },
+    // depositErrors.ts (imported transitively here) matches liveness copy.
+    wallet: {
+      liveness: {
+        errorTitle: "Wallet not responding",
+        unresponsive: "Your BTC wallet is not responding.",
+        emptyAddress: "Your BTC wallet did not return an address.",
+        addressMismatch: "Wrong wallet account connected.",
+      },
+    },
     common: {
       somethingWentWrong: { body: "Please close this and try again." },
       // formatting.ts builds FRIENDLY_MESSAGES from these at module load, and

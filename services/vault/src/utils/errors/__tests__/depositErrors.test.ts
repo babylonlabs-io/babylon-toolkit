@@ -48,6 +48,21 @@ describe("mapDepositError", () => {
     expect(result.body).toContain("hasn't ingested");
   });
 
+  it("maps a BTC wallet liveness failure to the wallet-not-responding callout", () => {
+    const err = new Error(COPY.wallet.liveness.unresponsive);
+    expect(mapDepositError(err)).toEqual({
+      title: COPY.wallet.liveness.errorTitle,
+      body: COPY.wallet.liveness.unresponsive,
+    });
+  });
+
+  it("maps a liveness address mismatch surfaced as a plain string", () => {
+    expect(mapDepositError(COPY.wallet.liveness.addressMismatch)).toEqual({
+      title: COPY.wallet.liveness.errorTitle,
+      body: COPY.wallet.liveness.addressMismatch,
+    });
+  });
+
   it("maps a registered-version mismatch to the version-changed callout", () => {
     const err = new Error("on-chain version differs");
     err.name = "RegisteredVaultVersionMismatchError";
