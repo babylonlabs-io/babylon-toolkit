@@ -21,15 +21,36 @@ interface EmptyStateProps {
   title: string;
   /** Secondary text/description (optional) */
   description?: string;
+  /**
+   * Description presentation: "compact" keeps the original small text used by
+   * the v2 surfaces (e.g. the reserve-detail connect prompt); "wide" is the
+   * larger, centered, width-capped look of the v3 /vaults empty state.
+   */
+  descriptionVariant?: "compact" | "wide";
   /** Whether the user is connected */
   isConnected?: boolean;
-  /** Button label when connected (if not provided, no button is shown when connected) */
+  /**
+   * Fully custom action node rendered when connected (e.g. the vaults Deposit
+   * CTA carrying its E2E testid). Takes precedence over
+   * `actionLabel`/`onAction` — consumers pass one or the other. A Connect
+   * button is always shown instead while disconnected.
+   */
+  action?: ReactNode;
+  /** Button label when connected (used when `action` is not provided) */
   actionLabel?: string;
-  /** Callback when action button is clicked */
+  /** Callback when the labeled action button is clicked */
   onAction?: () => void;
   /** Whether to wrap content in a Card component */
   withCard?: boolean;
 }
+
+const DESCRIPTION_CLASS: Record<
+  NonNullable<EmptyStateProps["descriptionVariant"]>,
+  string
+> = {
+  compact: "text-sm text-accent-secondary",
+  wide: "max-w-[600px] text-center text-base text-accent-secondary",
+};
 
 export function EmptyState({
   avatarUrl,
@@ -37,11 +58,34 @@ export function EmptyState({
   icon,
   title,
   description,
+  descriptionVariant = "compact",
   isConnected = false,
+  action,
   actionLabel,
   onAction,
   withCard = false,
 }: EmptyStateProps) {
+  const connectedAction =
+    action ??
+    (actionLabel && onAction && (
+      <Button
+        // The brand orange CTA is core-ui's `secondary` color
+        // (`bg-secondary-main`) — the same the ConnectButton uses.
+        // `primary` (`bg-primary-light`) is the blue, not what we want here.
+        variant="contained"
+        color="secondary"
+        size="medium"
+        // Invoked with no arguments on purpose: callers pass handlers
+        // that take optional parameters (e.g. `openDeposit(amountBtc?)`),
+        // and forwarding the click event would land a MouseEvent in that
+        // parameter. TypeScript can't catch it — a zero-arg signature is
+        // assignable to onClick's.
+        onClick={() => onAction()}
+      >
+        {actionLabel}
+      </Button>
+    ));
+
   // A single centered surface. When `withCard` is set, the `Card` below is the
   // only surface — the content sits directly on it (no inner panel), matching
   // the v3 empty-state design.
@@ -51,12 +95,14 @@ export function EmptyState({
       {icon ? (
         <div className="mb-2">{icon}</div>
       ) : (
-        <Avatar
-          url={avatarUrl}
-          alt={avatarAlt}
-          size="xlarge"
-          className="mb-2 h-[100px] w-[100px]"
-        />
+        avatarUrl && (
+          <Avatar
+            url={avatarUrl}
+            alt={avatarAlt ?? ""}
+            size="xlarge"
+            className="mb-2 h-[100px] w-[100px]"
+          />
+        )
       )}
 
       {/* Primary Text */}
@@ -64,35 +110,15 @@ export function EmptyState({
 
       {/* Secondary Text */}
       {description && (
-        <p className="text-sm text-accent-secondary">{description}</p>
+        <p className={DESCRIPTION_CLASS[descriptionVariant]}>{description}</p>
       )}
 
-      {/* Action Button */}
-      <div className="mt-8">
-        {isConnected ? (
-          actionLabel &&
-          onAction && (
-            <Button
-              // The brand orange CTA is core-ui's `secondary` color
-              // (`bg-secondary-main`) — the same the ConnectButton uses.
-              // `primary` (`bg-primary-light`) is the blue, not what we want here.
-              variant="contained"
-              color="secondary"
-              size="medium"
-              // Invoked with no arguments on purpose: callers pass handlers
-              // that take optional parameters (e.g. `openDeposit(amountBtc?)`),
-              // and forwarding the click event would land a MouseEvent in that
-              // parameter. TypeScript can't catch it — a zero-arg signature is
-              // assignable to onClick's.
-              onClick={() => onAction()}
-            >
-              {actionLabel}
-            </Button>
-          )
-        ) : (
-          <Connect />
-        )}
-      </div>
+      {/* Action */}
+      {(!isConnected || connectedAction) && (
+        <div className="mt-8">
+          {isConnected ? connectedAction : <Connect />}
+        </div>
+      )}
     </div>
   );
 

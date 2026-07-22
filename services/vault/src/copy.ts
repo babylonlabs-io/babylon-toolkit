@@ -1272,6 +1272,47 @@ export const COPY = {
       },
     },
   },
+  vaults: {
+    empty: {
+      title: "Your BTC Vaults will appear here",
+      description:
+        "Deposit BTC to create your first BTC Vault and unlock borrowing power without selling your Bitcoin.",
+      depositAction: "Deposit",
+    },
+    loadError:
+      "We couldn't load your BTC Vaults. Check your connection and try again.",
+    partialLoadError: {
+      title: "Some of your BTC Vault data couldn't be loaded",
+      body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
+    },
+    summary: {
+      totalCollateralLabel: "Total Collateral Value",
+      activeVaultsLabel: "Active Vaults",
+      healthFactorLabel: "Health Factor",
+      healthFactorCaption:
+        "When the ratio falls below 1.0, liquidation may occur.",
+      vaultCount: (count: number) =>
+        count === 1 ? "1 Vault" : `${count} Vaults`,
+      // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first
+      // vault leading.
+      liquidationOrder: (amounts: string[], coinSymbol: string) =>
+        `Order: ${amounts.join(" → ")} ${coinSymbol}`,
+      // Liquidation ordinal shown beside a vault amount, e.g. "(1st)".
+      liquidationOrdinal: (ordinal: string) => `(${ordinal})`,
+    },
+    sections: {
+      pendingDepositsTitle: "Pending Deposit",
+      activeVaultsTitle: "Active Vaults",
+      inactiveVaultsTitle: "Inactive Vaults",
+      count: (count: number) => `(${count})`,
+    },
+    progressPercent: (percent: number) => `${percent}%`,
+    actions: {
+      reorder: "Reorder",
+      withdraw: "Withdraw",
+      viewDetails: "View Details",
+    },
+  },
   risk: {
     title: "Risk",
     healthFactorTitle: "Health Factor",

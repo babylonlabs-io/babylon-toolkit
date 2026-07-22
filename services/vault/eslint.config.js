@@ -150,6 +150,13 @@ export default tseslint.config(
       "**/*.test.{ts,tsx}",
       // Sanctioned seams that legitimately mount / inject the dev tooling.
       "src/components/simple/DashboardPage.tsx",
+      // v3 /vaults (#2041): mounts the god-mode panel, routes to the populated
+      // layout under demo injection, and merges demo collateral / routes demo
+      // stepper clicks — the same seams DashboardPage and
+      // PendingDepositSection hold for v2.
+      "src/components/pages/VaultsPage.tsx",
+      "src/components/vaults/VaultsLifecycleSections.tsx",
+      "src/hooks/useVaultsPageData.ts",
       "src/hooks/usePendingDeposits.ts",
       "src/context/deposit/PeginPollingContext.tsx",
       // God-mode simulated-activation walk: routes demo card clicks to the

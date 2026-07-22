@@ -10,6 +10,15 @@ import type { Address } from "viem";
 import { VAULTS_QUERY_KEY } from "../hooks/useVaults";
 
 /**
+ * Query key for the depositor's vault liquidation order. The address is
+ * lowercased so callers with checksummed and lowercase addresses hit the
+ * same cache entry.
+ */
+export function vaultOrderQueryKey(address: string): [string, string] {
+  return ["vaultOrder", address.toLowerCase()];
+}
+
+/**
  * Invalidate vault-related queries after collateral operations
  *
  * Use this after:

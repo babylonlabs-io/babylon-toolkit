@@ -39,6 +39,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     healthFactor,
     healthFactorStatus,
     isLoading,
+    error: positionError,
   } = useAaveUserPosition(connectedAddress);
 
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -199,5 +200,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralVaults,
     selectableBorrowedAssets,
     isLoading,
+    positionError,
   };
 }
