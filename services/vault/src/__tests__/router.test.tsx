@@ -5,7 +5,7 @@
  *    useAaveConfig() through useActivities(). If the route element loses its
  *    AaveConfigProvider wrapper, the page throws synchronously on mount.
  * 2. The reserve detail is an overlay: v2 uses `/?reserve=<id>&tab=<tab>` over the
- *    dashboard, v3 uses `/loans?reserve=<id>&tab=<tab>` over the loans placeholder.
+ *    dashboard, v3 uses `/loans?reserve=<id>&tab=<tab>` over the loans page.
  *    Both are gated by pathname to prevent wrong-base rendering. The dashboard
  *    stays mounted in v2 so opening the overlay never blanks the page.
  * 3. /vaults, /loans, and /liquidations are reachable only when ENABLE_V3_UI
@@ -83,6 +83,7 @@ vi.mock("@/context/wallet", () => ({
 
 const DASHBOARD_TESTID = "dashboard";
 const RESERVE_DETAIL_TESTID = "reserve-detail";
+const LOANS_TESTID = "loans-page";
 
 vi.mock("../components/simple/DashboardPage", () => ({
   DashboardPage: () => {
@@ -98,6 +99,10 @@ vi.mock("../components/simple/DashboardPage", () => ({
       />
     );
   },
+}));
+
+vi.mock("../components/pages/Loans", () => ({
+  default: () => <div data-testid={LOANS_TESTID} />,
 }));
 
 vi.mock("../applications/aave/components/Detail", () => ({
@@ -242,7 +247,7 @@ describe("Router — new v3 placeholder routes", () => {
     },
   );
 
-  it.each(["/vaults", "/loans", "/liquidations"])(
+  it.each(["/vaults", "/liquidations"])(
     "renders a placeholder at %s when the flag is on, not the dashboard",
     async (path) => {
       setV3Flag("true");
@@ -257,6 +262,17 @@ describe("Router — new v3 placeholder routes", () => {
       ).not.toBeInTheDocument();
     },
   );
+
+  it("renders the Loans page at /loans when the flag is on, not the dashboard or a placeholder", async () => {
+    setV3Flag("true");
+    renderAt("/loans");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(LOANS_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
+    expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
+  });
 
   it.each(["/app/aave/reserve/usdc/borrow", "/vaults/details"])(
     "rejects the nested path %s",

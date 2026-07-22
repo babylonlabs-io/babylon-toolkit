@@ -1,18 +1,27 @@
 import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
+
+import { COPY } from "@/copy";
+import { formatMeterLabel } from "@/utils/formatting";
 
 export interface PositionStatCard {
   label: string;
   tooltip?: string;
   value: string;
+  /** Custom value rendering (e.g. colored health factor + heart). Overrides
+   *  `value` when set; `value` is still used for accessibility fallbacks. */
+  valueNode?: ReactNode;
   caption?: string;
   meter?: {
     percent: number;
     label: string;
   };
-  actionLabel: string;
-  onAction: () => void;
-  actionDisabled: boolean;
+  /** Action button. Omit all three to render a card with no button. */
+  actionLabel?: string;
+  onAction?: () => void;
+  actionDisabled?: boolean;
+  /** Optional test hook for the action button (E2E real-wallet CLI). */
+  actionTestId?: string;
 }
 
 function StatMeter({
@@ -48,6 +57,7 @@ function StatMeter({
 }
 
 function StatSection({ card }: { card: PositionStatCard }) {
+  const hasAction = card.actionLabel != null && card.onAction != null;
   return (
     <div className="flex flex-1 items-center justify-between gap-4">
       <div className="flex flex-col gap-3">
@@ -64,8 +74,8 @@ function StatSection({ card }: { card: PositionStatCard }) {
           )}
         </div>
 
-        <span className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
-          {card.value}
+        <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
+          {card.valueNode ?? card.value}
         </span>
 
         {card.meter ? (
@@ -81,14 +91,17 @@ function StatSection({ card }: { card: PositionStatCard }) {
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => card.onAction()}
-        disabled={card.actionDisabled}
-        className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled"
-      >
-        {card.actionLabel}
-      </button>
+      {hasAction && (
+        <button
+          type="button"
+          onClick={() => card.onAction?.()}
+          disabled={card.actionDisabled}
+          data-testid={card.actionTestId}
+          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled"
+        >
+          {card.actionLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -108,4 +121,86 @@ export function PositionStatCards({ cards }: { cards: PositionStatCard[] }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Builds the two borrow-capacity summary cards — "Available to borrow" and
+ * "Total borrowed" — shared by the Overview position summary and the Loans
+ * page. Keeps the meter-label branching (near-full / below-one) single-sourced.
+ */
+export function buildBorrowCapacityCards({
+  availableToBorrow,
+  availableMeterPercent,
+  totalBorrowed,
+  borrowedMeterPercent,
+  borrowCapacityLoading,
+  borrowCapacityError,
+  onBorrow,
+  onRepay,
+  canBorrow,
+  canRepay,
+  borrowTestId,
+  repayTestId,
+}: {
+  availableToBorrow: string;
+  availableMeterPercent: number;
+  totalBorrowed: string;
+  borrowedMeterPercent: number;
+  borrowCapacityLoading: boolean;
+  borrowCapacityError: Error | null;
+  onBorrow: () => void;
+  onRepay: () => void;
+  canBorrow: boolean;
+  canRepay: boolean;
+  /** Optional E2E test hooks for the borrow / repay action buttons. */
+  borrowTestId?: string;
+  repayTestId?: string;
+}): PositionStatCard[] {
+  const capacityUnavailable =
+    borrowCapacityLoading || borrowCapacityError != null;
+
+  const availableValue = borrowCapacityLoading
+    ? COPY.common.loading
+    : borrowCapacityError
+      ? COPY.common.emptyValue
+      : availableToBorrow;
+
+  return [
+    {
+      label: COPY.overview.availableToBorrowLabel,
+      value: availableValue,
+      meter: capacityUnavailable
+        ? undefined
+        : {
+            percent: availableMeterPercent,
+            label: formatMeterLabel(availableMeterPercent, {
+              belowOne: COPY.overview.availableMeterBelowOneLabel,
+              nearFull: COPY.overview.availableMeterNearFullLabel,
+              exact: COPY.overview.availableMeterLabel,
+            }),
+          },
+      actionLabel: COPY.overview.borrowAction,
+      onAction: onBorrow,
+      actionDisabled: !canBorrow,
+      actionTestId: borrowTestId,
+    },
+    {
+      label: COPY.overview.totalBorrowedLabel,
+      value: totalBorrowed,
+      meter: capacityUnavailable
+        ? undefined
+        : {
+            percent: borrowedMeterPercent,
+            label: formatMeterLabel(borrowedMeterPercent, {
+              belowOne: COPY.overview.borrowedMeterBelowOneLabel,
+              nearFull: COPY.overview.borrowedMeterNearFullLabel,
+              exact: COPY.overview.borrowedMeterLabel,
+            }),
+          },
+      actionLabel: COPY.overview.repayAction,
+      onAction: onRepay,
+      actionDisabled: !canRepay,
+      actionTestId: repayTestId,
+    },
+  ];
 }

@@ -27,6 +27,9 @@ import { useAaveBorrowAprs } from "./useAaveBorrowAprs";
  * Borrowed asset for display
  */
 export interface BorrowedAsset {
+  /** Reserve ID (`reserveId.toString()`), the key for per-reserve reads such as
+   *  liquidity/utilization in `useAaveReserveLiquidity`. */
+  reserveId: string;
   /** Token symbol */
   symbol: string;
   /** Full token name (e.g. "USD Coin"); falls back to the symbol. */
@@ -131,7 +134,14 @@ function transformToBorrowedAsset(
   const borrowRate =
     aprPercent != null ? formatAprPercent(aprPercent) : undefined;
 
-  return { symbol, name, amount, icon, borrowRate };
+  return {
+    reserveId: reserve.reserveId.toString(),
+    symbol,
+    name,
+    amount,
+    icon,
+    borrowRate,
+  };
 }
 
 /**

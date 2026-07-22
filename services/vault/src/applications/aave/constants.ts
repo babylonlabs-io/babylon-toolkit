@@ -120,6 +120,16 @@ export const NEAR_ZERO_DEBT_RELATIVE_THRESHOLD = 0.005;
 export const NEAR_ZERO_DEBT_RELATIVE_CAP_USD = 5;
 
 /**
+ * Threshold (in USD) at or above which the position is considered to have
+ * borrow headroom. Remaining capacity below one cent is a float / health-factor
+ * dust residual (the capacity display rounds it to "$0.00"), so a fully-borrowed
+ * position is treated as having no headroom and the Borrow CTA is disabled —
+ * we don't open a borrow flow the user can't complete. Matches the design,
+ * which shows Borrow disabled at $0 capacity.
+ */
+export const MIN_BORROWABLE_USD = 0.01;
+
+/**
  * Loan tab identifiers
  * Used for URL params and tab switching
  */
