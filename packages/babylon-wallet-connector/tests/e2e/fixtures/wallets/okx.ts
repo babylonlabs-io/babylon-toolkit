@@ -60,6 +60,18 @@ async function clickPrimaryButton(frame: Frame): Promise<void> {
 }
 
 /**
+ * Switch OKX's seed grid to `count` words. OKX renders in the OS locale, so we drive the phrase-length
+ * selector structurally (never by the visible "N words" label): open the `okd-select-text` control, then
+ * pick the option carrying `data-e2e-okd-select-option-value="<count>"` (e.g. 12 or 24).
+ */
+async function selectOkxSeedWordCount(frame: Frame, count: number): Promise<void> {
+  await frame.locator('[data-testid="okd-select-text"]').first().click({ force: true }).catch(() => {});
+  await sleep(SETTLE.SHORT);
+  await frame.locator(`[data-e2e-okd-select-option-value="${count}"]`).first().click({ force: true }).catch(() => {});
+  await sleep(SETTLE.MODAL);
+}
+
+/**
  * OKX intermittently shows a promo/warning modal over the home (e.g. the OKT-Network shutdown notice).
  * Its overlay blocks the settings/network/copy controls, so close it if present. Best-effort no-op when
  * absent. NOTE: this uses OKX's generic dialog close-icon testid (the network selector shares it), so
@@ -197,8 +209,20 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
   const seedFrame = sesFrame(tab, "import");
   if (!seedFrame) throw new Error("OKX: seed-entry iframe (ses.html) not found");
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
-  const boxes = seedFrame.locator('input[data-testid="import-seed-phrase-or-private-key-page-seed-phrase-input"]');
+  let boxes = seedFrame.locator('input[data-testid="import-seed-phrase-or-private-key-page-seed-phrase-input"]');
   await boxes.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  // The seed screen defaults to a 12-input grid with a phrase-length selector; a 24-word phrase needs
+  // it switched first, or the extra words are dropped. OKX renders in the OS locale, so we NEVER match
+  // the visible "N words" text — we drive the selector by its language-agnostic data attributes.
+  if ((await boxes.count()) !== words.length) {
+    await selectOkxSeedWordCount(seedFrame, words.length);
+    boxes = seedFrame.locator('input[data-testid="import-seed-phrase-or-private-key-page-seed-phrase-input"]');
+  }
+  const boxCount = await boxes.count();
+  if (boxCount < words.length)
+    throw new Error(
+      `OKX: seed grid shows ${boxCount} inputs but the phrase has ${words.length} words — the phrase-length selector (okd-select-text) did not switch. OKX's import UI likely changed; re-derive selectOkxSeedWordCount (okx.ts).`,
+    );
   for (let i = 0; i < words.length; i++) {
     await boxes.nth(i).click().catch(() => {});
     await boxes.nth(i).fill(words[i]).catch(() => {});

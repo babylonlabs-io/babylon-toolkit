@@ -4,23 +4,26 @@
  * Bitcoin transaction or the on-chain PegIn registration.
  *
  * CLAUDE.md critical path #1: the Rust/WASM layer computes
- * `htlcValue = peginAmount + depositorClaimValue + minPeginFee` internally
- * and JS receives the outputs with no runtime validation. A doctored or
- * buggy binary that returns a different `peginAmount`, an out-of-formula
- * `htlcValue`, or a wrong `depositorClaimValue` would otherwise be committed
- * verbatim — taxing the depositor or starving the downstream tx graph of fees.
+ * `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue +
+ * minPeginFee` internally (the anchor term is 0 for graph versions without a
+ * P2A anchor, 240 sats for v2) and JS receives the outputs with no runtime
+ * validation. A doctored or buggy binary that returns a different
+ * `peginAmount`, an out-of-formula `htlcValue`, or a wrong
+ * `depositorClaimValue` would otherwise be committed verbatim — taxing the
+ * depositor or starving the downstream tx graph of fees.
  *
  * @module primitives/psbt/assertWasmPeginSizing
  */
 
 import {
   computeMinClaimValue,
+  computeMinPeginFee,
+  peginP2aAnchorOutput,
   type PrePeginResult,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 import { MAX_REASONABLE_PEGIN_VBYTES } from "../../utils/fee/constants";
 import type { ParsedOutput } from "../../utils/transaction/fundPeginTransaction";
-import { TX_GRAPH_VERSION_V1 } from "../txGraphVersion";
 
 import type { PrePeginParams } from "./pegin";
 
@@ -28,20 +31,21 @@ import type { PrePeginParams } from "./pegin";
  * Assert the WASM Pre-PegIn sizing result is internally consistent and
  * matches what the caller requested.
  *
- * The strong checks are pure-JS and fully independent of the WASM binary:
- * the per-HTLC `peginAmount` must equal the requested amount, array lengths
- * must match, and every value must be positive. The implied PegIn fee
- * (`htlcValue - peginAmount - depositorClaimValue`) is bounded by
- * plausibility rather than recomputed exactly, because JS↔Rust vbyte parity
- * is not a cross-stack guarantee (see {@link MAX_REASONABLE_PEGIN_VBYTES}).
- * The `depositorClaimValue` cross-check against `computeMinClaimValue` is a
- * WASM-vs-WASM consistency check (a different entry point), not an
- * independent one.
+ * Two layers of checks. Pure-JS, binary-INDEPENDENT: the per-HTLC
+ * `peginAmount` must echo the requested amount, array lengths must match,
+ * every value must be positive, and the implied per-HTLC reserve
+ * (`htlcValue - peginAmount - depositorClaimValue`) must be strictly
+ * positive and under the plausibility cap
+ * ({@link MAX_REASONABLE_PEGIN_VBYTES}). WASM-vs-WASM consistency: the
+ * reserve must also EXACTLY equal `computeMinPeginFee(version, …) +
+ * p2aAnchorValue(version)` (like the `computeMinClaimValue` check) —
+ * exact, but both sides come from the same binary, which is why the
+ * independent bounds above are kept alongside it.
  *
  * @param result - The result returned by `createPrePeginTransaction`.
  * @param params - The parameters that were passed to build it.
  * @throws If any value is missing, non-positive, mismatched against the
- *   request, or outside the protocol formula / plausibility bounds.
+ *   request, or outside the protocol formula.
  */
 export async function assertWasmPeginSizing(
   result: PrePeginResult,
@@ -82,9 +86,8 @@ export async function assertWasmPeginSizing(
     );
   }
   const expectedClaimValue = await computeMinClaimValue(
-    // Phase-1 pin: the builder constructs the v1 graph, so the cross-check
-    // must price the same version's claim value.
-    TX_GRAPH_VERSION_V1,
+    // Must price the same graph version the builder constructed.
+    params.vaultCoreVersion,
     params.numLocalChallengers,
     params.universalChallengerPubkeys.length,
     params.councilQuorum,
@@ -95,14 +98,36 @@ export async function assertWasmPeginSizing(
     throw new Error(
       `WASM Pre-PegIn depositorClaimValue ${result.depositorClaimValue} does ` +
         `not match the independently computed minimum claim value ` +
-        `${expectedClaimValue} (numLocalChallengers=${params.numLocalChallengers}, ` +
+        `${expectedClaimValue} (vaultCoreVersion=${params.vaultCoreVersion}, ` +
+        `numLocalChallengers=${params.numLocalChallengers}, ` +
         `numUniversalChallengers=${params.universalChallengerPubkeys.length}, ` +
         `councilQuorum=${params.councilQuorum}, councilSize=${params.councilSize}, ` +
         `feeRate=${params.feeRate}).`,
     );
   }
 
-  const maxImpliedFee = params.minPeginFeeRate * MAX_REASONABLE_PEGIN_VBYTES;
+  // The per-HTLC reserve above pegin+claim decomposes into the version's
+  // P2A anchor value (0 when the version has no anchor) plus the exact
+  // minimum PegIn fee. Both terms are Rust-model values fetched through
+  // independent WASM entry points; the builder must reproduce their sum.
+  // The Rust fee model sizes the PegIn input witness from the vault keeper
+  // and universal challenger counts (btc-vault `PegInTx::estimate_vsize`).
+  const anchor = await peginP2aAnchorOutput(params.vaultCoreVersion);
+  const anchorValue = anchor?.value ?? 0n;
+  const expectedPeginFee = await computeMinPeginFee(
+    params.vaultCoreVersion,
+    params.vaultKeeperPubkeys.length,
+    params.universalChallengerPubkeys.length,
+    params.minPeginFeeRate,
+  );
+  const expectedReserve = expectedPeginFee + anchorValue;
+  // Binary-INDEPENDENT plausibility cap: the exact identity below compares
+  // WASM against WASM, so a consistently doctored binary could satisfy it
+  // with an inflated reserve. This pure-JS bound (max standard-relay tx
+  // vbytes × the caller's fee rate) caps how much a compromised binary can
+  // burn.
+  const maxImpliedReserve =
+    params.minPeginFeeRate * MAX_REASONABLE_PEGIN_VBYTES;
 
   for (let i = 0; i < expectedCount; i++) {
     const requested = params.pegInAmounts[i];
@@ -134,25 +159,42 @@ export async function assertWasmPeginSizing(
       );
     }
 
-    // Formula: htlcValue = peginAmount + depositorClaimValue + minPeginFee.
-    // The implied fee must be strictly positive (the HTLC must reserve a real
-    // PegIn fee) and within the plausibility bound.
-    const impliedFee = htlcValue - peginAmount - result.depositorClaimValue;
-    if (impliedFee <= 0n) {
+    // Formula: htlcValue = peginAmount + depositorClaimValue +
+    // p2aAnchorValue + minPeginFee. The reserve must match exactly — a
+    // shortfall starves the PegIn's fee/anchor, an excess locks sats
+    // irrecoverably in the HTLC.
+    const impliedReserve = htlcValue - peginAmount - result.depositorClaimValue;
+    // Independent JS-side bounds first (see maxImpliedReserve above): the
+    // reserve must be strictly positive (a zero reserve starves the PegIn
+    // of its fee) and plausibly sized, regardless of what the binary's own
+    // reference entry points claim.
+    if (impliedReserve <= 0n) {
       throw new Error(
-        `WASM Pre-PegIn htlcValue[${i}] ${htlcValue} does not strictly cover ` +
-          `peginAmount ${peginAmount} + depositorClaimValue ` +
-          `${result.depositorClaimValue} + a PegIn fee (implied fee ` +
-          `${impliedFee}).`,
+        `WASM Pre-PegIn htlcValue[${i}] ${htlcValue} does not strictly ` +
+          `cover peginAmount ${peginAmount} + depositorClaimValue ` +
+          `${result.depositorClaimValue} + a PegIn reserve (implied ` +
+          `reserve ${impliedReserve}).`,
       );
     }
-    if (impliedFee > maxImpliedFee) {
+    if (impliedReserve > maxImpliedReserve) {
       throw new Error(
-        `WASM Pre-PegIn implied PegIn fee for HTLC[${i}] (${impliedFee} sat) ` +
-          `exceeds the plausibility cap ${maxImpliedFee} sat ` +
+        `WASM Pre-PegIn implied reserve for HTLC[${i}] (${impliedReserve} ` +
+          `sat) exceeds the plausibility cap ${maxImpliedReserve} sat ` +
           `(minPeginFeeRate=${params.minPeginFeeRate} × ` +
           `${MAX_REASONABLE_PEGIN_VBYTES} vbytes); htlcValue ${htlcValue} ` +
           `appears grossly inflated.`,
+      );
+    }
+    if (impliedReserve !== expectedReserve) {
+      throw new Error(
+        `WASM Pre-PegIn htlcValue[${i}] ${htlcValue} implies a PegIn ` +
+          `fee+anchor reserve of ${impliedReserve} sat, expected exactly ` +
+          `${expectedReserve} sat (minPeginFee ${expectedPeginFee} + ` +
+          `p2aAnchor ${anchorValue} for vaultCoreVersion ` +
+          `${params.vaultCoreVersion}, vaultKeepers=` +
+          `${params.vaultKeeperPubkeys.length}, universalChallengers=` +
+          `${params.universalChallengerPubkeys.length}, minPeginFeeRate=` +
+          `${params.minPeginFeeRate}).`,
       );
     }
   }

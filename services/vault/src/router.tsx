@@ -33,6 +33,7 @@ import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
 const VaultsPage = lazyWithRetry(() => import("./components/pages/VaultsPage"));
+const LoansPage = lazyWithRetry(() => import("./components/pages/Loans"));
 const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -124,7 +125,18 @@ export const Router = () => (
         {featureFlags.isV3UiEnabled && (
           <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
         )}
-        <Route path={ROUTES.LOANS} element={<V3Placeholder />} />
+        <Route
+          path={ROUTES.LOANS}
+          element={
+            featureFlags.isV3UiEnabled ? (
+              <Suspense fallback={<RouteFallback />}>
+                <LoansPage />
+              </Suspense>
+            ) : (
+              <Navigate to={ROUTES.OVERVIEW} replace />
+            )
+          }
+        />
       </Route>
       <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
       <Route

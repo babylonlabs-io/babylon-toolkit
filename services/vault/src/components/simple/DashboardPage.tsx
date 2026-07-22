@@ -6,14 +6,12 @@
 
 import { Container } from "@babylonlabs-io/core-ui";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
-import { useNavigate, useOutletContext } from "react-router";
+import { useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
-import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
-import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
@@ -24,10 +22,10 @@ import { useDebugPositionOverride } from "@/dev/debugPositionStore";
 import { useDemoCollateral, useDemoWithdrawal } from "@/dev/demoDeposit";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
+import { useLoanActions } from "@/hooks/useLoanActions";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { usePrices } from "@/hooks/usePrices";
 import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
-import { getReserveDetailRoute } from "@/routes";
 import {
   formatBasisPointsAsPercent,
   formatBtcAmount,
@@ -59,17 +57,12 @@ const GodModePanel = import.meta.env.DEV
   : null;
 
 export function DashboardPage() {
-  const navigate = useNavigate();
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
-  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
-    LOAN_TAB.BORROW,
-  );
 
   // Dev-only banner override driven by the position-notifications section of
   // the god-mode panel (see debugPositionStore). Always null in production, so
@@ -83,6 +76,7 @@ export function DashboardPage() {
     debtValueUsd,
     maxTotalDebtUsd,
     availableToBorrowUsd,
+    canBorrow,
     collateralFactorBps,
     healthFactor,
     healthFactorStatus,
@@ -95,6 +89,11 @@ export function DashboardPage() {
     isBorrowCapacityLoading,
     borrowCapacityError,
   } = useDashboardState(isConnected ? address : undefined);
+
+  const { openBorrowPicker, openRepay, assetModalProps } = useLoanActions({
+    borrowedAssets,
+    selectableBorrowedAssets,
+  });
 
   const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
     isConnected ? address : undefined,
@@ -260,36 +259,19 @@ export function DashboardPage() {
     setSelectedVaultIds([]);
   }, []);
 
-  const handleBorrow = () => {
-    setAssetModalMode(LOAN_TAB.BORROW);
-    setIsAssetModalOpen(true);
-  };
-
-  const handleRepay = () => {
-    if (borrowedAssets.length === 1) {
-      const assetSymbol = borrowedAssets[0].symbol;
-      navigate(
-        getReserveDetailRoute(
-          assetSymbol,
-          LOAN_TAB.REPAY,
-          featureFlags.isV3UiEnabled,
-        ),
-      );
-      return;
-    }
-    setAssetModalMode(LOAN_TAB.REPAY);
-    setIsAssetModalOpen(true);
-  };
-
-  const handleSelectAsset = (assetSymbol: string) => {
-    navigate(
-      getReserveDetailRoute(
-        assetSymbol,
-        assetModalMode,
-        featureFlags.isV3UiEnabled,
-      ),
-    );
-  };
+  // The cascade banner's slot differs by UI version: v3 places it between the
+  // Position and Risk sections (Figma 10204-45310), v2 keeps it above Overview
+  // alongside the other notifications. Same element either way — declared once
+  // so the two slots can't drift apart.
+  const cascadeBanner = liquidationNotificationsEnabled ? (
+    <PositionNotificationBanner
+      connectedAddress={address}
+      onDeposit={openDeposit}
+      onRepay={openRepay}
+      result={debugResultOverride ?? undefined}
+      statusOverride={debugStatusOverride ?? undefined}
+    />
+  ) : null;
 
   // Dev/QA god-mode admin panel (NEXT_PUBLIC_FF_GOD_MODE_PANEL). Floats over
   // the page and drives the demo items rendered in the real sections below.
@@ -343,15 +325,7 @@ export function DashboardPage() {
             all-pending position still surfaces it. */}
         <MaxVaultsNotification connectedAddress={address} />
 
-        {liquidationNotificationsEnabled && (
-          <PositionNotificationBanner
-            connectedAddress={address}
-            onDeposit={openDeposit}
-            onRepay={handleRepay}
-            result={debugResultOverride ?? undefined}
-            statusOverride={debugStatusOverride ?? undefined}
-          />
-        )}
+        {!featureFlags.isV3UiEnabled && cascadeBanner}
 
         {showOverview && (
           <OverviewSection
@@ -369,12 +343,14 @@ export function DashboardPage() {
             borrowCapacityError={borrowCapacityError}
             borrowedMeterPercent={borrowedMeterPercent}
             onDeposit={openDeposit}
-            onBorrow={handleBorrow}
-            onRepay={handleRepay}
-            canBorrow={availableToBorrowUsd > 0}
+            onBorrow={openBorrowPicker}
+            onRepay={openRepay}
+            canBorrow={canBorrow}
             canRepay={hasLoans}
           />
         )}
+
+        {featureFlags.isV3UiEnabled && cascadeBanner}
 
         {featureFlags.isV3UiEnabled && (
           <RiskSection
@@ -424,8 +400,8 @@ export function DashboardPage() {
               hasCollateral={hasCollateral}
               isConnected={isConnected}
               borrowedAssets={borrowedAssets}
-              onBorrow={handleBorrow}
-              onRepay={handleRepay}
+              onBorrow={openBorrowPicker}
+              onRepay={openRepay}
             />
           </>
         )}
@@ -450,17 +426,7 @@ export function DashboardPage() {
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}
-      <AssetSelectionModal
-        isOpen={isAssetModalOpen}
-        onClose={() => setIsAssetModalOpen(false)}
-        onSelectAsset={handleSelectAsset}
-        mode={assetModalMode}
-        assets={
-          assetModalMode === LOAN_TAB.REPAY
-            ? (selectableBorrowedAssets as Asset[])
-            : undefined
-        }
-      />
+      <AssetSelectionModal {...assetModalProps} />
 
       {godModePanel}
     </Container>

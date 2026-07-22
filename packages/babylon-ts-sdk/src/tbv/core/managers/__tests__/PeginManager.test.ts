@@ -183,6 +183,7 @@ const FOREIGN_BTC_ADDRESS = deriveTaprootAddress(
 // Base params for preparePegin — shared across tests. Hashlocks are
 // derived internally from the wallet root, so they are NOT passed in.
 const BASE_PREPARE_PEGIN_PARAMS = {
+  vaultCoreVersion: 1,
   vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
   vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
   universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
@@ -251,16 +252,17 @@ describe("PeginManager", () => {
   });
 
   describe("preparePegin", () => {
-    it("passes the wallet's raw (compressed) pubkey to signPsbts", async () => {
+    it("passes the wallet's raw (compressed) pubkey to signPsbt (single-vault pegin)", async () => {
       // Regression: taproot signPsbt expects the wallet's native format
       // on signInputs[].publicKey (UniSat/OKX/OneKey reject x-only with
-      // "invalid public key in toSignInput").
+      // "invalid public key in toSignInput"). A single-vault pegin is one
+      // PSBT, so signPsbtsWithFallback routes it to signPsbt.
       const compressedPubkey = `02${TEST_KEYS.DEPOSITOR}`;
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: compressedPubkey,
       });
       const ethWallet = new MockEthereumWallet();
-      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
+      const signPsbtSpy = vi.spyOn(btcWallet, "signPsbt");
 
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -277,9 +279,9 @@ describe("PeginManager", () => {
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
-      expect(signPsbtsSpy).toHaveBeenCalled();
-      const signOptions = signPsbtsSpy.mock.calls[0][1];
-      const publicKey = signOptions?.[0]?.signInputs?.[0]?.publicKey;
+      expect(signPsbtSpy).toHaveBeenCalled();
+      const signOptions = signPsbtSpy.mock.calls[0][1];
+      const publicKey = signOptions?.signInputs?.[0]?.publicKey;
       expect(publicKey).toBe(compressedPubkey);
     });
 

@@ -77,21 +77,24 @@
 // Challenger counting
 export { computeNumLocalChallengers } from "./challengers";
 
-// Tx graph (vault-core) version constants
-export { TX_GRAPH_VERSION_V1 } from "./txGraphVersion";
+// Vault core (tx-graph) version validation
+export { assertValidVaultCoreVersion } from "./vaultCoreVersion";
 
 // Core types and functions from WASM package
 export {
   computeMinClaimValue,
   computeMinPeginFee,
   deriveVaultId,
+  peginP2aAnchorOutput,
   supportedTxGraphVersions,
+  validatePeginP2aAnchor,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
   Network,
   PayoutConnectorParams,
+  PeginP2aAnchorInfo,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**

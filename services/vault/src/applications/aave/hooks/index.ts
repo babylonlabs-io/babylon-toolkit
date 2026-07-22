@@ -30,6 +30,7 @@ export {
   type UseAaveUserPositionResult,
 } from "./useAaveUserPosition";
 export { useAaveVaults, type UseAaveVaultsResult } from "./useAaveVaults";
+export { useActiveLoans, type ActiveLoanRow } from "./useActiveLoans";
 export {
   useBorrowTransaction,
   type UseBorrowTransactionResult,

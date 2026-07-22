@@ -10,7 +10,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useActivatingVaults } from "@/applications/aave/context";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
-import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
@@ -109,10 +108,11 @@ export function useActivationState({
             setActivated(true);
           },
         });
-      } catch (err) {
-        logger.error(err instanceof Error ? err : new Error(String(err)), {
-          data: { context: "Vault activation failed" },
-        });
+      } catch {
+        // Defensive. `vaultHandleActivation` reports its own failures (including
+        // the activation.reveal capture) and resolves rather than rethrowing, so
+        // this cannot fire today — it only resets local state if that contract
+        // ever changes. Capturing here instead would be dead code.
         if (mountedRef.current) setLocalActivating(false);
       }
     },

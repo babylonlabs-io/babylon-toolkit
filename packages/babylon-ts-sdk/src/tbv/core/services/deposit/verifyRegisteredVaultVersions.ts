@@ -8,6 +8,14 @@ export interface VerifyRegisteredVaultVersionsParams {
   expectedOffchainParamsVersion: number;
   expectedAppVaultKeepersVersion: number;
   expectedUniversalChallengersVersion: number;
+  /**
+   * Vault core (tx-graph) version the BTC artifacts were BUILT with. The
+   * contract stamps `activeVaultCoreVersion` at registration-tx execution
+   * time, so a governance flip between build and registration stamps a
+   * different graph than the one the depositor signed — broadcasting would
+   * lock BTC into a graph no resume path can rebuild.
+   */
+  expectedVaultCoreVersion: number;
 }
 
 // Distinct from a transient RPC failure: the orchestrator removes pending
@@ -39,6 +47,7 @@ export async function verifyRegisteredVaultVersions(
     expectedOffchainParamsVersion,
     expectedAppVaultKeepersVersion,
     expectedUniversalChallengersVersion,
+    expectedVaultCoreVersion,
   } = params;
 
   const infos = await vaultRegistryReader.getProtocolInfoBatch(vaultIds);
@@ -59,6 +68,11 @@ export async function verifyRegisteredVaultVersions(
     if (v.universalChallengersVersion !== expectedUniversalChallengersVersion) {
       mismatches.push(
         `vault ${id}: universalChallengers expected v${expectedUniversalChallengersVersion}, got v${v.universalChallengersVersion}`,
+      );
+    }
+    if (v.vaultCoreVersion !== expectedVaultCoreVersion) {
+      mismatches.push(
+        `vault ${id}: vaultCoreVersion expected v${expectedVaultCoreVersion} (build-time active), got v${v.vaultCoreVersion}`,
       );
     }
   });

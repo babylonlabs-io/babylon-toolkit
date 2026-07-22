@@ -50,6 +50,7 @@ const validPegin: PendingPeginRequest = {
   buildOffchainParamsVersion: 7,
   buildAppVaultKeepersVersion: 3,
   buildUniversalChallengersVersion: 5,
+  buildVaultCoreVersion: 1,
 };
 
 describe("getPendingPegins integrity validation", () => {
@@ -295,6 +296,37 @@ describe("getPendingPegins integrity validation", () => {
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
   });
 
+  // Records written before the buildVaultCoreVersion stamp were all built
+  // with graph v1 (every construction site was hard-pinned) — they must be
+  // backfilled, not filtered, so an in-flight deposit survives the deploy.
+  it("backfills buildVaultCoreVersion=1 for records that predate the field", () => {
+    const preStamp = { ...validPegin };
+    delete (preStamp as Partial<PendingPeginRequest>).buildVaultCoreVersion;
+    localStorage.setItem(storageKey, JSON.stringify([preStamp]));
+
+    const result = getPendingPegins(ETH_ADDRESS);
+    expect(result).toHaveLength(1);
+    expect(result[0].buildVaultCoreVersion).toBe(1);
+  });
+
+  it("does not backfill buildVaultCoreVersion when the other build fields are also missing", () => {
+    const legacy = { ...validPegin };
+    delete (legacy as Partial<PendingPeginRequest>).buildVaultCoreVersion;
+    delete (legacy as Partial<PendingPeginRequest>).buildOffchainParamsVersion;
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  // 0 is never a valid vault core version (contract stamps >= 1; pre-stamp
+  // records backfill to 1) — a stored 0 is tampering or corruption.
+  it("filters PENDING entries with buildVaultCoreVersion 0", () => {
+    const tampered = { ...validPegin, buildVaultCoreVersion: 0 };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
   it("filters PENDING entries with non-integer build versions", () => {
     const tampered = {
       ...validPegin,
@@ -444,6 +476,7 @@ describe("removePendingPegin", () => {
       buildOffchainParamsVersion: 7,
       buildAppVaultKeepersVersion: 3,
       buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
     });
     addPendingPegin(ETH_ADDRESS, {
       id: VALID_VAULT_ID_2,
@@ -452,6 +485,7 @@ describe("removePendingPegin", () => {
       buildOffchainParamsVersion: 7,
       buildAppVaultKeepersVersion: 3,
       buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
     });
 
     removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID);
@@ -500,6 +534,7 @@ describe("addPendingPegin persistence failures", () => {
       buildOffchainParamsVersion: 7,
       buildAppVaultKeepersVersion: 3,
       buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
     });
     addPendingPegin(ETH_ADDRESS, {
       id: VALID_VAULT_ID_2,
@@ -508,6 +543,7 @@ describe("addPendingPegin persistence failures", () => {
       buildOffchainParamsVersion: 7,
       buildAppVaultKeepersVersion: 3,
       buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
     });
 
     const setItemSpy = vi

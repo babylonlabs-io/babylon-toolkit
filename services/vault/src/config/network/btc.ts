@@ -46,11 +46,11 @@ const STATIC_CONFIG: Record<
  */
 export function getNetworkConfigBTC(): BtcNetworkConfig {
   const { btcNetwork, mempoolApiUrl } = getBabylonConfigState();
-  const base = STATIC_CONFIG[btcNetwork];
+  // `mempoolApiUrl` already carries the network path (mempool.space/signet, or
+  // a signet-specific host); do NOT append `/signet` here or it double-prefixes.
   return {
-    ...base,
-    mempoolApiUrl:
-      btcNetwork === BTC_SIGNET ? `${mempoolApiUrl}/signet` : mempoolApiUrl,
+    ...STATIC_CONFIG[btcNetwork],
+    mempoolApiUrl,
   };
 }
 

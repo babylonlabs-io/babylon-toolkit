@@ -17,9 +17,12 @@ import { useSyncExternalStore } from "react";
 
 import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type {
+  BannerSeverity,
   CalculatorParams,
   CalculatorResult,
 } from "@/applications/aave/positionNotifications";
+import type { ProtocolStatus } from "@/components/shared/protocolStatus";
+import featureFlags from "@/config/featureFlags";
 
 /** Derived banner override the dashboard reads: null result/status = use live. */
 export interface DebugPositionOverride {
@@ -54,12 +57,130 @@ export function makeDefaultDebugParams(): CalculatorParams {
   };
 }
 
+/**
+ * One-click scenarios for the debug panel. Every banner state the dashboard can
+ * render has an entry here, so this list is the single place to look up (or add)
+ * a reproducible notification case. `expectedSeverity` is what
+ * `deriveBannerState(calculate(params))` must return — asserted in
+ * `__tests__/debugPositionStore.test.ts`, so a calculator change that moves a
+ * preset off its state fails the test instead of silently mislabelling a button.
+ * The stale-price banner has no preset: it is a status, not a calculation, and
+ * is driven by the panel's "Simulate stale price" checkbox.
+ */
+export interface DebugPreset {
+  label: string;
+  expectedSeverity: BannerSeverity;
+  params: CalculatorParams;
+}
+
+function vaults(...btc: number[]): CalculatorParams["vaults"] {
+  return btc.map((amount, i) => ({
+    id: `v-${i + 1}`,
+    name: `Vault ${i + 1}`,
+    btc: amount,
+  }));
+}
+
+/** Ratio params shared by every preset — only price/debt/vaults vary. */
+const PRESET_RATIOS = {
+  CF: DEBUG_DEFAULT_CF,
+  THF: DEBUG_DEFAULT_THF,
+  maxLB: DEBUG_DEFAULT_MAX_LB,
+  expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
+};
+
+export const DEBUG_PRESETS: DebugPreset[] = [
+  {
+    label: "Urgent",
+    expectedSeverity: "red",
+    params: { ...makeDefaultDebugParams() },
+  },
+  {
+    label: "Liquidatable",
+    expectedSeverity: "red",
+    params: {
+      btcPrice: 55000,
+      totalDebtUsd: 44287.72,
+      vaults: vaults(0.65, 0.35),
+      ...PRESET_RATIOS,
+    },
+  },
+  {
+    label: "Cliff",
+    expectedSeverity: "yellow",
+    params: {
+      btcPrice: 90000,
+      totalDebtUsd: 30000,
+      vaults: vaults(1),
+      ...PRESET_RATIOS,
+    },
+  },
+  {
+    label: "Too many vaults",
+    expectedSeverity: "yellow",
+    params: {
+      btcPrice: 90000,
+      totalDebtUsd: 30000,
+      vaults: vaults(...Array.from({ length: 18 }, () => 0.1)),
+      ...PRESET_RATIOS,
+    },
+  },
+  {
+    label: "Dust",
+    expectedSeverity: "soft",
+    params: {
+      btcPrice: 61722.5,
+      totalDebtUsd: 500,
+      vaults: vaults(0.01, 0.005),
+      ...PRESET_RATIOS,
+    },
+  },
+  {
+    label: "Reorder",
+    expectedSeverity: "soft",
+    params: {
+      btcPrice: 90000,
+      totalDebtUsd: 30000,
+      vaults: vaults(0.2, 0.5, 0.3),
+      ...PRESET_RATIOS,
+    },
+  },
+  {
+    label: "Healthy",
+    expectedSeverity: "green",
+    params: {
+      btcPrice: 200000,
+      totalDebtUsd: 20000,
+      vaults: vaults(0.65, 0.35),
+      ...PRESET_RATIOS,
+    },
+  },
+];
+
+/** Apply a preset: switches manual mode on and loads its inputs. */
+export function applyDebugPreset(preset: DebugPreset) {
+  manualMode = true;
+  manualParams = preset.params;
+  emit();
+}
+
 const NO_OVERRIDE: DebugPositionOverride = { result: null, status: null };
+
+/**
+ * Cap used when "maximum vaults reached" is forced from the panel — the
+ * on-chain governance value at the time of writing, so the forced card reads
+ * like the real one.
+ */
+export const DEBUG_FORCED_MAX_VAULTS = 10;
 
 let manualMode = false;
 let simulateStalePrice = false;
 let manualParams: CalculatorParams = makeDefaultDebugParams();
 let override: DebugPositionOverride = NO_OVERRIDE;
+// Non-cascade notification overrides (Figma v3 §7 / §8 / §9). null = no
+// override, i.e. the component uses live chain state.
+let maxVaultsOverride: number | null = null;
+let protocolStatusOverride: ProtocolStatus | null = null;
 
 const listeners = new Set<() => void>();
 
@@ -108,6 +229,18 @@ export function setDebugPositionOverride(
   emit();
 }
 
+/** Force (a cap number) or release (null) the "maximum vaults reached" card. */
+export function setDebugMaxVaultsOverride(cap: number | null) {
+  maxVaultsOverride = cap;
+  emit();
+}
+
+/** Force (a status) or release (null) the protocol soft/fully-paused banner. */
+export function setDebugProtocolStatusOverride(status: ProtocolStatus | null) {
+  protocolStatusOverride = status;
+  emit();
+}
+
 function getManualMode() {
   return manualMode;
 }
@@ -139,4 +272,33 @@ export function useDebugManualParams(): CalculatorParams {
 
 export function useDebugPositionOverride(): DebugPositionOverride {
   return useSyncExternalStore(subscribe, getOverride, getOverride);
+}
+
+// The two overrides below are read by PRODUCTION components (the max-vaults
+// notice and the protocol banner), so they are additionally gated on the
+// god-mode flag — which is itself hard-gated on `import.meta.env.DEV`. In a
+// production build these getters are compile-time constant `null`, exactly like
+// demoArtifactDownload's mock gate, so the components always see live state.
+function getMaxVaultsOverride(): number | null {
+  return featureFlags.isGodModePanelEnabled ? maxVaultsOverride : null;
+}
+
+function getProtocolStatusOverride(): ProtocolStatus | null {
+  return featureFlags.isGodModePanelEnabled ? protocolStatusOverride : null;
+}
+
+export function useDebugMaxVaultsOverride(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    getMaxVaultsOverride,
+    getMaxVaultsOverride,
+  );
+}
+
+export function useDebugProtocolStatusOverride(): ProtocolStatus | null {
+  return useSyncExternalStore(
+    subscribe,
+    getProtocolStatusOverride,
+    getProtocolStatusOverride,
+  );
 }

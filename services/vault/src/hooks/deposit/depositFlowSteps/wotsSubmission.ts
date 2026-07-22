@@ -21,7 +21,11 @@ import {
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 import type { WotsSubmissionParams } from "./types";
 
-const DEFAULT_WOTS_READY_TIMEOUT_MS = 20 * 60 * 1000;
+// 90 min: the VP only reaches PendingDepositorWotsPK after it ingests the
+// shared Pre-PegIn, which in the worst case waits on slow/irregular BTC block
+// production. The gate polls every 30s and breaks the moment the VP is ready,
+// so this only bounds how long we tolerate a lagging VP before soft-skipping.
+const DEFAULT_WOTS_READY_TIMEOUT_MS = 90 * 60 * 1000;
 
 export interface WaitForWotsReadinessParams {
   vaults: BatchReadinessVault[];

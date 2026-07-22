@@ -10,12 +10,20 @@ import type {
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { computeMinClaimValueMock } = vi.hoisted(() => ({
+const {
+  computeMinClaimValueMock,
+  computeMinPeginFeeMock,
+  peginP2aAnchorOutputMock,
+} = vi.hoisted(() => ({
   computeMinClaimValueMock: vi.fn(),
+  computeMinPeginFeeMock: vi.fn(),
+  peginP2aAnchorOutputMock: vi.fn(),
 }));
 
 vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
   computeMinClaimValue: computeMinClaimValueMock,
+  computeMinPeginFee: computeMinPeginFeeMock,
+  peginP2aAnchorOutput: peginP2aAnchorOutputMock,
 }));
 
 import {
@@ -27,12 +35,16 @@ import type { PrePeginParams } from "../pegin";
 const CLAIM_VALUE = 5_000n;
 const PEGIN_AMOUNT = 100_000n;
 const PEGIN_FEE = 1_000n;
-// makeParams uses minPeginFeeRate = 10n, so the plausibility cap is
-// 10 × MAX_REASONABLE_PEGIN_VBYTES (100_000) = 1_000_000 sat.
-const FEE_PLAUSIBILITY_CAP = 1_000_000n;
+// v2 P2A anchor value the mocked peginP2aAnchorOutput reports.
+const ANCHOR_VALUE = 240n;
+// makeParams uses minPeginFeeRate = 10n, so the binary-independent
+// plausibility cap is 10 × MAX_REASONABLE_PEGIN_VBYTES (100_000) =
+// 1_000_000 sat.
+const RESERVE_PLAUSIBILITY_CAP = 1_000_000n;
 
 function makeParams(overrides?: Partial<PrePeginParams>): PrePeginParams {
   return {
+    vaultCoreVersion: 1,
     depositorPubkey: "aa".repeat(32),
     vaultProviderPubkey: "bb".repeat(32),
     vaultKeeperPubkeys: ["cc".repeat(32)],
@@ -67,6 +79,11 @@ describe("assertWasmPeginSizing", () => {
   beforeEach(() => {
     computeMinClaimValueMock.mockReset();
     computeMinClaimValueMock.mockResolvedValue(CLAIM_VALUE);
+    computeMinPeginFeeMock.mockReset();
+    computeMinPeginFeeMock.mockResolvedValue(PEGIN_FEE);
+    // Default: v1 — no P2A anchor.
+    peginP2aAnchorOutputMock.mockReset();
+    peginP2aAnchorOutputMock.mockResolvedValue(null);
   });
 
   it("resolves without throwing for a valid single-vault result", async () => {
@@ -124,22 +141,28 @@ describe("assertWasmPeginSizing", () => {
     ).rejects.toThrow(/does not match the requested amount/);
   });
 
-  it("throws when htlcValue does not strictly cover amount + claim + fee", async () => {
+  it("throws the independent strict-cover bound when the reserve is zero", async () => {
     await expect(
       assertWasmPeginSizing(
-        // implied fee == 0
+        // implied reserve == 0: fee/anchor budget missing entirely. This
+        // must trip the binary-independent floor, not just the
+        // WASM-vs-WASM identity.
         makeResult({ htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE] }),
         makeParams(),
       ),
     ).rejects.toThrow(/does not strictly cover/);
   });
 
-  it("throws when the implied PegIn fee exceeds the plausibility cap", async () => {
+  it("throws the independent plausibility cap even when the WASM reference agrees", async () => {
+    // A consistently doctored binary: the builder AND computeMinPeginFee
+    // both report the same grossly inflated reserve, so the exact identity
+    // holds — only the pure-JS cap can reject it.
+    computeMinPeginFeeMock.mockResolvedValue(RESERVE_PLAUSIBILITY_CAP + 1n);
     await expect(
       assertWasmPeginSizing(
         makeResult({
           htlcValues: [
-            PEGIN_AMOUNT + CLAIM_VALUE + FEE_PLAUSIBILITY_CAP + 1n,
+            PEGIN_AMOUNT + CLAIM_VALUE + RESERVE_PLAUSIBILITY_CAP + 1n,
           ],
         }),
         makeParams(),
@@ -147,15 +170,47 @@ describe("assertWasmPeginSizing", () => {
     ).rejects.toThrow(/exceeds the plausibility cap/);
   });
 
-  it("accepts an implied fee exactly at the plausibility cap", async () => {
+  it("throws when the reserve exceeds the exact minPeginFee (inflated htlcValue)", async () => {
     await expect(
       assertWasmPeginSizing(
         makeResult({
-          htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + FEE_PLAUSIBILITY_CAP],
+          htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + 1n],
         }),
         makeParams(),
       ),
+    ).rejects.toThrow(/expected exactly/);
+  });
+
+  it("v2: accepts a reserve of exactly minPeginFee + anchor value", async () => {
+    peginP2aAnchorOutputMock.mockResolvedValue({
+      value: ANCHOR_VALUE,
+      vout: 2,
+      scriptPubKey: "51024e73",
+    });
+    await expect(
+      assertWasmPeginSizing(
+        makeResult({
+          htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE],
+        }),
+        makeParams({ vaultCoreVersion: 2 }),
+      ),
     ).resolves.toBeUndefined();
+  });
+
+  it("v2: throws when the htlcValue omits the anchor value (v1 formula)", async () => {
+    peginP2aAnchorOutputMock.mockResolvedValue({
+      value: ANCHOR_VALUE,
+      vout: 2,
+      scriptPubKey: "51024e73",
+    });
+    await expect(
+      assertWasmPeginSizing(
+        makeResult({
+          htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE],
+        }),
+        makeParams({ vaultCoreVersion: 2 }),
+      ),
+    ).rejects.toThrow(/expected exactly/);
   });
 
   describe("two-vault batch (overlapping inputs, distinct keys)", () => {
@@ -201,18 +256,18 @@ describe("assertWasmPeginSizing", () => {
       ).rejects.toThrow(/peginAmount\[1\].*does not match the requested amount/);
     });
 
-    it("catches a grossly inflated second-vault htlcValue", async () => {
+    it("catches an inflated second-vault htlcValue", async () => {
       await expect(
         assertWasmPeginSizing(
           makeTwoVaultResult({
             htlcValues: [
               PEGIN_A + CLAIM_VALUE + PEGIN_FEE,
-              PEGIN_B + CLAIM_VALUE + FEE_PLAUSIBILITY_CAP + 1n,
+              PEGIN_B + CLAIM_VALUE + PEGIN_FEE + 1n,
             ],
           }),
           makeTwoVaultParams(),
         ),
-      ).rejects.toThrow(/HTLC\[1\].*exceeds the plausibility cap/);
+      ).rejects.toThrow(/htlcValue\[1\].*expected exactly/);
     });
   });
 });

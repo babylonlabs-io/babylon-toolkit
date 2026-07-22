@@ -86,7 +86,9 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   // Mirrors the real peginOutputCount: vaultCount + CPFP + (auth-anchor ? 1 : 0).
   peginOutputCount: (vaultCount: number, hasAuthAnchor: boolean) =>
     vaultCount + 1 + (hasAuthAnchor ? 1 : 0),
-  TX_GRAPH_VERSION_V1: 1,
+  // v1 default: no P2A anchor. Version-2 tests override.
+  peginP2aAnchorOutput: vi.fn(async () => null),
+  supportedTxGraphVersions: vi.fn(async () => [1, 2]),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
@@ -100,6 +102,7 @@ vi.mock("@/hooks/useBtcPublicKey", () => ({
 vi.mock("../../../context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(() => ({
     config: {
+      activeVaultCoreVersion: 1,
       offchainParams: {
         babeInstancesToFinalize: 2,
         councilQuorum: 1,
@@ -493,6 +496,44 @@ describe("useDepositPageForm", () => {
         selectedProvider: "",
       });
       expect(result.current.errors).toEqual({});
+    });
+
+    it("fails closed when the active vault core version is unsupported by this build", async () => {
+      const { useProtocolParamsContext } = await import(
+        "../../../context/ProtocolParamsContext"
+      );
+      const ctxMock = vi.mocked(useProtocolParamsContext);
+      const originalImpl = ctxMock.getMockImplementation();
+      ctxMock.mockReturnValue({
+        config: {
+          // Real WASM is mocked to support [1, 2]; 99 must fail closed.
+          activeVaultCoreVersion: 99,
+          offchainParams: {
+            babeInstancesToFinalize: 2,
+            councilQuorum: 1,
+            securityCouncilKeys: ["0xcouncil1"],
+            feeRate: 10n,
+          },
+        },
+        latestUniversalChallengers: [
+          { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
+        ],
+      } as never);
+
+      try {
+        const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+        await waitFor(() =>
+          expect(result.current.appVersionUnsupported).toBe(true),
+        );
+        // The WASM fee previews stay disabled for an unbuildable version.
+        const { computeMinClaimValue } = await import(
+          "@babylonlabs-io/ts-sdk/tbv/core"
+        );
+        expect(vi.mocked(computeMinClaimValue)).not.toHaveBeenCalled();
+      } finally {
+        if (originalImpl) ctxMock.mockImplementation(originalImpl);
+      }
     });
 
     it("should resolve application from aave config on mount", () => {

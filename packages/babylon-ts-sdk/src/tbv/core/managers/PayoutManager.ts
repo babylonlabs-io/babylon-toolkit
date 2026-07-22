@@ -48,6 +48,13 @@ export interface PayoutManagerConfig {
  */
 interface SignPayoutBaseParams {
   /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion`. Forwarded to
+   * {@link buildPayoutPsbt} to derive the matching graph's payout scripts.
+   */
+  vaultCoreVersion: number;
+
+  /**
    * Peg-in transaction hex.
    * The original transaction that created the vault output being spent.
    */
@@ -207,6 +214,7 @@ export class PayoutManager {
     // validation happens inside buildPayoutPsbt against the resolved input
     // values.
     const payoutPsbt = await buildPayoutPsbt({
+      vaultCoreVersion: params.vaultCoreVersion,
       payoutTxHex: params.payoutTxHex,
       peginTxHex: params.peginTxHex,
       assertTxHex: params.assertTxHex,
@@ -307,6 +315,7 @@ export class PayoutManager {
       // Build Payout PSBT (output validation runs inside buildPayoutPsbt
       // against resolved input values).
       const payoutPsbt = await buildPayoutPsbt({
+        vaultCoreVersion: tx.vaultCoreVersion,
         payoutTxHex: tx.payoutTxHex,
         peginTxHex: tx.peginTxHex,
         assertTxHex: tx.assertTxHex,

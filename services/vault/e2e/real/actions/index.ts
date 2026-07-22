@@ -1,6 +1,6 @@
 /**
  * Registry of implemented actions: connect, observe, wallet-config, pegin, sign-conformance, borrow,
- * repay, and withdraw.
+ * repay, withdraw, and resume.
  */
 import type { ActionId } from "../config";
 
@@ -9,6 +9,7 @@ import { connectAction } from "./connect";
 import { observeAction } from "./observe";
 import { peginAction } from "./pegin";
 import { repayAction } from "./repay";
+import { resumeAction } from "./resume";
 import { signConformanceAction } from "./signConformance";
 import type { Action } from "./types";
 import { walletConfigAction } from "./walletConfig";
@@ -23,4 +24,5 @@ export const ACTIONS_BY_ID: Partial<Record<ActionId, Action>> = {
   borrow: borrowAction,
   repay: repayAction,
   withdraw: withdrawAction,
+  resume: resumeAction,
 };

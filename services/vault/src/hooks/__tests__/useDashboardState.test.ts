@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   BPS_SCALE,
+  MIN_BORROWABLE_USD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@/applications/aave/constants";
 
@@ -293,5 +294,52 @@ describe("useDashboardState", () => {
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
     expect(result.current.borrowCapacityError).toBe(mockSplitError);
+  });
+
+  // Max total debt for the shared collateral/split fixture below.
+  const fixtureMaxTotalDebtUsd =
+    (10000 * Math.round(0.8 * BPS_SCALE)) /
+    BPS_SCALE /
+    MIN_HEALTH_FACTOR_FOR_BORROW;
+
+  it("disables borrow when remaining capacity is sub-cent dust (fully borrowed)", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    // Borrowed to within a fraction of a cent of the max — the float/HF-buffer
+    // residual a fully-borrowed position leaves behind.
+    mockDebtValueUsd = fixtureMaxTotalDebtUsd - 0.003;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.availableToBorrowUsd).toBeLessThan(
+      MIN_BORROWABLE_USD,
+    );
+    expect(result.current.canBorrow).toBe(false);
+  });
+
+  it("enables borrow when there is at least a cent of capacity", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockDebtValueUsd = fixtureMaxTotalDebtUsd - 50;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.availableToBorrowUsd).toBeGreaterThan(
+      MIN_BORROWABLE_USD,
+    );
+    expect(result.current.canBorrow).toBe(true);
+  });
+
+  it("disables borrow while split params are unavailable (zero capacity)", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockDebtValueUsd = 0;
+    mockSplitParams = null;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.canBorrow).toBe(false);
   });
 });

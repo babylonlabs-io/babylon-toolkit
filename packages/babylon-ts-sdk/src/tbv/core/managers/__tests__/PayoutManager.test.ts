@@ -231,6 +231,7 @@ describe("PayoutManager", () => {
 
       const results = await manager.signPayoutTransactionsBatch([
         {
+          vaultCoreVersion: 1,
           payoutTxHex: payoutTxHex1,
           peginTxHex,
           assertTxHex,
@@ -244,6 +245,7 @@ describe("PayoutManager", () => {
           commissionBps: 500,
         },
         {
+          vaultCoreVersion: 1,
           payoutTxHex: payoutTxHex2,
           peginTxHex,
           assertTxHex,
@@ -292,6 +294,7 @@ describe("PayoutManager", () => {
       await expect(
         manager.signPayoutTransactionsBatch([
           {
+            vaultCoreVersion: 1,
             payoutTxHex: "0200000001...",
             peginTxHex: "0200000001...",
             assertTxHex: "0200000001...",
@@ -337,6 +340,7 @@ describe("PayoutManager", () => {
       await expect(
         manager.signPayoutTransactionsBatch([
           {
+            vaultCoreVersion: 1,
             payoutTxHex: "0200000001...",
             peginTxHex: "0200000001...",
             assertTxHex: "0200000001...",
@@ -397,6 +401,7 @@ describe("PayoutManager", () => {
       await expect(
         manager.signPayoutTransactionsBatch([
           {
+            vaultCoreVersion: 1,
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
             peginTxHex,
             assertTxHex,
@@ -410,6 +415,7 @@ describe("PayoutManager", () => {
             commissionBps: 500,
           },
           {
+            vaultCoreVersion: 1,
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
             peginTxHex,
             assertTxHex,
@@ -472,6 +478,7 @@ describe("PayoutManager", () => {
       await expect(
         manager.signPayoutTransactionsBatch([
           {
+            vaultCoreVersion: 1,
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
             peginTxHex,
             assertTxHex,
@@ -485,6 +492,7 @@ describe("PayoutManager", () => {
             commissionBps: 500,
           },
           {
+            vaultCoreVersion: 1,
             payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
             peginTxHex,
             assertTxHex,
@@ -573,6 +581,7 @@ describe("PayoutManager", () => {
 
       await expect(
         manager.signPayoutTransaction({
+          vaultCoreVersion: 1,
           payoutTxHex,
           peginTxHex,
           assertTxHex,
@@ -611,6 +620,7 @@ describe("PayoutManager", () => {
       // It will fail later in PSBT building, but that's unrelated.
       await expect(
         manager.signPayoutTransaction({
+          vaultCoreVersion: 1,
           payoutTxHex,
           peginTxHex,
           assertTxHex,
@@ -644,6 +654,7 @@ describe("PayoutManager", () => {
 
       await expect(
         manager.signPayoutTransaction({
+          vaultCoreVersion: 1,
           payoutTxHex,
           peginTxHex,
           assertTxHex,
@@ -703,6 +714,7 @@ describe("PayoutManager", () => {
 
       await expect(
         manager.signPayoutTransaction({
+          vaultCoreVersion: 1,
           payoutTxHex: maliciousTx.toHex(),
           peginTxHex,
           assertTxHex,
@@ -761,6 +773,7 @@ describe("PayoutManager", () => {
 
       await expect(
         manager.signPayoutTransaction({
+          vaultCoreVersion: 1,
           payoutTxHex,
           peginTxHex,
           assertTxHex,
@@ -796,6 +809,7 @@ describe("PayoutManager", () => {
       await expect(
         manager.signPayoutTransactionsBatch([
           {
+            vaultCoreVersion: 1,
             payoutTxHex,
             peginTxHex,
             assertTxHex,

@@ -17,6 +17,7 @@ import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOver
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
+import { depositService } from "@/services/deposit";
 import { resolveVaultCapState } from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -121,6 +122,8 @@ function SimpleDepositContent({
     capUnavailable,
     minPeginFee,
     minPeginFeeError,
+    appVersionUnsupported,
+    p2aAnchorValueSats,
     isTwoVaultSplit,
     setIsTwoVaultSplit,
     canSplit,
@@ -137,35 +140,6 @@ function SimpleDepositContent({
     validateForm,
     resetForm,
   } = useDepositPageForm();
-
-  const depositBatchSize =
-    isTwoVaultSplit && vaultAmounts ? vaultAmounts.length : 1;
-
-  const {
-    feeEthFormatted: protocolFeeAmount,
-    feeUsdFormatted: protocolFeePrice,
-    isError: protocolFeeIsError,
-  } = useDepositPeginFee(
-    formData.selectedProvider
-      ? (formData.selectedProvider as Address)
-      : undefined,
-    depositBatchSize,
-  );
-
-  const totalDepositorClaimValue =
-    depositorClaimValue !== undefined
-      ? depositorClaimValue * BigInt(depositBatchSize)
-      : undefined;
-
-  // Full HTLC output values the protocol charges commission on. `amountSats`
-  // is the total deposit, while split deposits are charged per HTLC/payout, so
-  // keep the per-vault values distinct to preserve each floor operation.
-  const commissionHtlcValues =
-    depositorClaimValue !== undefined && minPeginFee != null
-      ? (isTwoVaultSplit && vaultAmounts ? vaultAmounts : [amountSats]).map(
-          (vaultAmount) => vaultAmount + depositorClaimValue + minPeginFee,
-        )
-      : undefined;
 
   // Live commission (bps) for the selected provider, read from the current
   // providers list. Captured into the deposit snapshot at commit time
@@ -220,10 +194,55 @@ function SimpleDepositContent({
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
+  const suggestedAmountSats =
+    initialAmountBtc && FeatureFlags.isV3UiEnabled
+      ? depositService.parseBtcToSatoshis(initialAmountBtc)
+      : null;
   const allowSplit =
     !isSupplementalDeposit &&
     !isSplitCapReached &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
+
+  // Effective split = the same condition handleDeposit uses at submit
+  // (`shouldSplit`). Every batch-sized display row (protocol fee, total
+  // claim reserve, commission) must match what will actually be submitted —
+  // a stale split intent (below split minimum, split no longer allowed)
+  // falls back to a single vault at submit.
+  const isEffectiveSplit = isTwoVaultSplit && allowSplit && !!vaultAmounts;
+
+  const depositBatchSize =
+    isEffectiveSplit && vaultAmounts ? vaultAmounts.length : 1;
+
+  const {
+    feeEthFormatted: protocolFeeAmount,
+    feeUsdFormatted: protocolFeePrice,
+    isError: protocolFeeIsError,
+  } = useDepositPeginFee(
+    formData.selectedProvider
+      ? (formData.selectedProvider as Address)
+      : undefined,
+    depositBatchSize,
+  );
+
+  const totalDepositorClaimValue =
+    depositorClaimValue !== undefined
+      ? depositorClaimValue * BigInt(depositBatchSize)
+      : undefined;
+
+  // Per-vault deposit amounts the protocol charges commission on
+  // (btc-vault computes `floor(peginAmount × bps / 10000)` per payout —
+  // claim value, PegIn fee, and the P2A anchor are NOT part of the basis).
+  // Split deposits keep per-vault values distinct to preserve each floor.
+  // isSplitPending = split intended and feasible but per-vault amounts not
+  // yet resolved — the only state that shows the fee-line placeholder.
+  const isSplitPending =
+    isTwoVaultSplit && allowSplit && canSplit && !vaultAmounts;
+  const commissionBaseValues =
+    isEffectiveSplit && vaultAmounts
+      ? vaultAmounts
+      : isSplitPending
+        ? undefined
+        : [amountSats];
 
   // Auto-enable split once when it first becomes available and allowed
   const hasAutoChecked = useRef(false);
@@ -282,9 +301,10 @@ function SimpleDepositContent({
     setOverlappingPendingVaultCount(null);
     resetDeposit();
     resetForm();
-    // Re-apply the suggested amount for supplemental deposits opened from a
-    // notification; plain opens start blank.
-    if (initialAmountBtc) {
+    // v2 pre-fills the suggested amount for supplemental deposits opened from a
+    // notification. v3 offers it via SuggestedDepositContainer instead so the
+    // user selects it; plain opens start blank.
+    if (initialAmountBtc && !FeatureFlags.isV3UiEnabled) {
       setFormData({ amountBtc: initialAmountBtc });
     }
   }, [
@@ -443,10 +463,13 @@ function SimpleDepositContent({
                   maxDepositSats,
                   effectiveRemaining,
                   capUnavailable,
+                  suggestedAmountSats,
                 }}
                 feeState={{
                   minPeginFee,
                   minPeginFeeError,
+                  appVersionUnsupported,
+                  p2aAnchorValueSats,
                   btcPrice,
                   hasPriceFetchError,
                   estimatedFeeSats,
@@ -454,7 +477,7 @@ function SimpleDepositContent({
                   isLoadingFee,
                   feeError,
                   depositorClaimValue: totalDepositorClaimValue,
-                  commissionHtlcValues,
+                  commissionBaseValues,
                   depositorClaimValueError,
                   protocolFeeAmount,
                   protocolFeePrice,

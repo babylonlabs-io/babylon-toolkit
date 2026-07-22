@@ -423,11 +423,11 @@ export function useDepositFlow(
         // ========================================================================
 
         setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
-        // Sign the peg-in PSBTs in a single native batch popup when the wallet
-        // supports signPsbts; the (x of n) sub-counter jumps 0 -> N around the
-        // one call. Wallets without native batch signing fall back to
-        // sequential signPsbt (via the SDK's signPsbtsWithFallback), where the
-        // per-tx wrapper ticks the counter once per signature.
+        // A single peg-in PSBT signs via signPsbt (the SDK's
+        // signPsbtsWithFallback routes lone PSBTs there), ticking the counter
+        // once. Multi-vault: one native batch popup when the wallet supports
+        // signPsbts — the (x of n) sub-counter jumps 0 -> N around the one
+        // call — else sequential signPsbt ticks it per signature.
         const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
           psbtHex,
           opts,
@@ -499,6 +499,12 @@ export function useDepositFlow(
           phaseTrackingBtcWallet,
           walletClient,
           {
+            // Read atomically with the offchain params below. The contract
+            // stamps whatever version is active at registration-tx time, so
+            // the post-registration verifyRegisteredVaultVersions call
+            // asserts the stamp matches this build-time value before the
+            // BTC broadcast.
+            vaultCoreVersion: config.activeVaultCoreVersion,
             pegInAmounts: vaultAmounts,
             protocolFeeRate: config.offchainParams.feeRate,
             minPeginFeeRate: config.offchainParams.minPeginFeeRate,
@@ -668,6 +674,7 @@ export function useDepositFlow(
               validatedKeys.expectedAppVaultKeepersVersion,
             buildUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
+            buildVaultCoreVersion: config.activeVaultCoreVersion,
           };
           // Persist the resume record. A localStorage failure (quota /
           // private browsing) must NOT abort: the vault is already
@@ -709,6 +716,7 @@ export function useDepositFlow(
               validatedKeys.expectedAppVaultKeepersVersion,
             expectedUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
+            expectedVaultCoreVersion: config.activeVaultCoreVersion,
           });
         } catch (err) {
           // Only a confirmed mismatch removes pending entries — transient RPC

@@ -60,8 +60,6 @@ const ACTIVATION_REQUIRED_LABEL = "Activation required";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
-// Trailing "Learn more" link label, shared by the frozen and paused status banners.
-const PROTOCOL_STATUS_LEARN_MORE = "Learn more";
 // In-place cancel action for an in-flight artifact download, shared by the
 // artifact-download and activate-confirmation dialog footers so the two
 // can't drift.
@@ -501,6 +499,9 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      transactionReserveLabel: "Transaction Reserve",
+      transactionReserveTooltip:
+        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.",
       // Amount-input left-field label; the slider renders its Max button when
       // this reads "max" (case-insensitive), so keep the value as "Max".
       maxLabel: "Max",
@@ -577,6 +578,7 @@ export const COPY = {
       depositFeeLabel: "Deposit Fee",
       depositFeeTooltip:
         "A one-time fee charged by the protocol to process your deposit.",
+      suggestedDepositLabel: "Suggested deposit",
     },
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
@@ -629,6 +631,15 @@ export const COPY = {
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
+      },
+      // Fail-closed preflight: the protocol (or a resumed deposit's stamped
+      // version) requires a transaction format this app build cannot
+      // construct. Shown as the disabled deposit CTA label (title) and as
+      // the error body on resume actions (broadcast / sign / refund) and in
+      // the defense-in-depth error mapping. No funds move.
+      appVersionUnsupported: {
+        title: "App update required",
+        body: "This deposit requires a newer version of the app. Please refresh the page and try again — if the issue persists, an updated release is on its way.",
       },
       activationDeadlinePassed: {
         title: "Activation deadline passed",
@@ -769,6 +780,7 @@ export const COPY = {
     applying: "Applying...",
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
+    dismissNotification: "Dismiss notification",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
@@ -983,6 +995,16 @@ export const COPY = {
     heading: "Loans",
     borrowButton: "Borrow",
     repayButton: "Repay",
+    // v3 Loans page: "Active Loans (N)" section heading.
+    activeLoansHeading: (count: number) => `Active Loans (${count})`,
+    // v3 Loans page empty state (connected, no debt).
+    noActiveLoans: {
+      title: "No active loans",
+      body: "You haven't borrowed any assets yet",
+    },
+    // v3 Loans summary — caption under the health-factor value.
+    healthFactorCaption:
+      "When the ratio falls below 1.0, liquidation may occur.",
     // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
     // an APR, the same figure the asset picker labels "Borrow APR". One number,
     // one label.
@@ -1119,6 +1141,67 @@ export const COPY = {
     // components/shared/NetworkBadge.tsx).
     networkBadge: "Testnet",
   },
+  // v3 Liquidation Dashboard (components/pages/Liquidations).
+  liquidations: {
+    heading: "Liquidation Analysis",
+    vaultsLiquidated: (liquidated: number, total: number) =>
+      `${liquidated}/${total} vaults liquidated`,
+    simulationChip: "Simulation",
+    seizedSummaryLabel: "Seized",
+    collateralSummaryLabel: "Collateral",
+    seizureMapTab: "Seizure Map",
+    timelineTab: "Timeline",
+    simulateLabel: "Simulate BTC price",
+    reset: "Reset",
+    bandClickHint: "click to open card",
+    eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
+    containVaults: (names: string) => `(contain ${names})`,
+    cumulativeSeized: (percent: number) => `${percent}% seized`,
+    popover: {
+      atPrice: "At price",
+      distance: "Distance",
+      vaults: "Vaults",
+      seizes: "Seizes",
+    },
+    safeZone: {
+      title: "Safe zone",
+      noEventsAbove: (price: string) => `no events above ${price}`,
+      dropToFirstEvent: (percent: string) => `${percent} drop to Liq 1`,
+    },
+    events: {
+      heading: "Liquidation Events",
+      subheading:
+        "Vaults are seized in order — each vault group is one liquidation event.",
+      badgeSacrificial: "Sacrificial",
+      badgeProtected: "Protected",
+      collateral: "Collateral",
+      liqPrice: "Liq Price",
+      distance: "Distance",
+      seizedVaultsSection: "Seized Vaults",
+      targetSeizure: "Target seizure",
+      overSeizure: "Over seizure",
+      estimatedLiquidationSection: "Estimated Liquidation",
+      collateralLiquidated: "Collateral liquidated",
+      debtRepaid: "Debt Repaid",
+      liquidatorProfit: "Liquidator profit",
+      fairnessDebtRepaid: "Fairness Debt Repaid",
+      fairnessPaymentWbtc: "Fairness Payment (wBTC)",
+      positionAfterSection: "Position After Liquidation",
+      btcRemaining: "BTC remaining",
+      debtRemaining: "Debt remaining",
+      hfAfterLiquidation: "HF after Liquidation",
+    },
+    position: {
+      heading: "Position Overview",
+      totalCollateralValue: "Total Collateral Value",
+      totalBorrowed: "Total Borrowed",
+      healthFactor: "Health Factor",
+      deposit: "Deposit",
+      repay: "Repay",
+    },
+    emptyNoWallet: "Connect your wallet to analyze liquidation risk.",
+    emptyNoVaults: "No borrow position — nothing to liquidate.",
+  },
   overview: {
     heading: "Overview",
     positionTitle: "Position",
@@ -1139,6 +1222,10 @@ export const COPY = {
     repayAction: "Repay",
     availableMeterLabel: (percent: number) => `${percent}% remaining`,
     borrowedMeterLabel: (percent: number) => `${percent}% borrowed`,
+    availableMeterNearFullLabel: ">99% remaining",
+    borrowedMeterBelowOneLabel: "<1% borrowed",
+    availableMeterBelowOneLabel: "<1% remaining",
+    borrowedMeterNearFullLabel: ">99% borrowed",
     liquidationPriceLabel: "Liquidation price",
     btcPriceLabel: "BTC price",
     pctToLiquidationLabel: "% to liquidation",
@@ -1290,6 +1377,7 @@ export const COPY = {
     confirmButton: "Confirm",
   },
   protocolFees: {
+    sectionTitle: "Protocol Parameters",
     minDeposit: {
       label: "Min deposit",
       tooltip:
@@ -1316,7 +1404,7 @@ export const COPY = {
   },
   // Operator-controlled protocol governance-status banners (Freeze / Pause). The
   // body may be overridden per incident via NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE;
-  // these are the defaults. Each renders a trailing "Learn more" link.
+  // these are the defaults.
   //
   // INTERIM copy: states only what the dApp currently *enforces* (new deposits
   // and borrows are disabled — see `isDepositBlocked` / `isBorrowBlocked`). The
@@ -1332,14 +1420,28 @@ export const COPY = {
       // that reassurance is safe to state. The per-action buttons are the
       // precise source of truth.
       body: "Some new actions are temporarily restricted while the protocol is frozen. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
-      learnMore: PROTOCOL_STATUS_LEARN_MORE,
     },
     paused: {
       title: "Protocol is paused",
       // Non-specific for the same reason — under a per-scope pause the exact set
       // of blocked actions varies. Each affected button explains itself.
       body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
-      learnMore: PROTOCOL_STATUS_LEARN_MORE,
+    },
+  },
+  // v3 (Premium Design) freeze/pause banners, behind ENABLE_V3_UI. A flat
+  // sibling (not nested under protocolStatus) so `COPY.protocolStatus` stays a
+  // clean Record<ProtocolStatus>. Same per-scope accuracy constraint as the v2
+  // copy above applies here: gating is per-scope, so the wording is deliberately
+  // non-specific — an aave-only freeze leaves deposits working, so naming
+  // specific actions would be inaccurate. Keyed by ProtocolStatus.
+  protocolStatusV3: {
+    frozen: {
+      title: "Protocol is soft-paused",
+      body: "Some new actions are temporarily restricted while the protocol is soft-paused. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
+    },
+    paused: {
+      title: "Protocol is fully paused",
+      body: "Some actions are temporarily unavailable while the protocol is fully paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
     },
   },
   // Full-width critical banner rendered above the header when the position is at
@@ -1437,6 +1539,10 @@ export const COPY = {
     },
     maxVaults: {
       title: "Maximum BTC Vaults reached",
+      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body
+      // keeps. Separate key so the v2 title above is untouched with the flag
+      // off, and so both retire in one edit when v2 goes.
+      titleV3: "Maximum vaults reached",
       detail: (cap: number) =>
         `This position already has the maximum number of BTC Vaults (${cap}).`,
     },

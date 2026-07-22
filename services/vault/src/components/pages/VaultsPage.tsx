@@ -76,8 +76,9 @@ export default function VaultsPage() {
   // disconnected, so the sections can be exercised without a wallet.
   const demo = useDemoDeposit();
 
-  // Withdraw flow, opened per-row with that vault preselected. Only raw
-  // indexer-backed entries ever reach it (never demo-merged rows).
+  // Withdraw flow, opened per-row with that vault preselected. Only the
+  // demo-free list ever reaches it; its optimistic activating entries are
+  // unselectable (each such row's Withdraw stays disabled until indexed).
   const [withdrawVaultIds, setWithdrawVaultIds] = useState<string[] | null>(
     null,
   );
@@ -174,11 +175,11 @@ export default function VaultsPage() {
     if (!isEmpty) return populatedBody;
     return (
       <EmptyState
-        illustration={
+        icon={
           <img
             src={EMPTY_ILLUSTRATION_SRC}
             alt=""
-            className="mb-2 h-[100px] w-[94px]"
+            className="h-[100px] w-[94px]"
           />
         }
         title={

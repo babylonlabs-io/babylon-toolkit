@@ -21,6 +21,8 @@ import {
 } from "react";
 
 import { useDemoDeposit } from "@/dev/demoDeposit";
+import { logger } from "@/infrastructure";
+import { shortId } from "@/infrastructure/telemetryEvents";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useRequiredPrePeginDepthResolver } from "../../hooks/deposit/useRequiredPrePeginDepth";
@@ -55,6 +57,10 @@ import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 import { useProtocolParamsContext } from "../ProtocolParamsContext";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
+import {
+  collectTerminalMilestones,
+  getSharedTerminalMilestoneTracking,
+} from "./terminalMilestones";
 
 /** React Query namespace for the Pre-PegIn confirmation poller. */
 const PREPEGIN_CONFIRMATIONS_QUERY_KEY = "prePeginMempoolConfirmations";
@@ -338,6 +344,28 @@ export function PeginPollingProvider({
       return next;
     });
   }, [htlcRefundByDepositId, refundedHtlcVaultIds]);
+
+  // Emit the on-chain funnel terminals — activation.verified and
+  // deposit.completed — once per vault as its contractStatus transitions. The
+  // detector seeds already-terminal vaults on first observation, so a dashboard
+  // load never emits a burst for prior-session completions. Tracking is
+  // app-scoped rather than per-provider: the continuation modal mounts a second
+  // provider over the same vault, and per-instance tracking would count every
+  // terminal twice. It is a plain module store, not state — emitting telemetry
+  // must not trigger a re-render.
+  useEffect(() => {
+    const milestones = collectTerminalMilestones(
+      activities,
+      getSharedTerminalMilestoneTracking(),
+    );
+    for (const milestone of milestones) {
+      logger.event(milestone.event, {
+        level: "info",
+        category: milestone.category,
+        vaultId: shortId(milestone.vaultId),
+      });
+    }
+  }, [activities]);
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(

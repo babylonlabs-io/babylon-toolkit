@@ -1,6 +1,7 @@
 import { Accordion, AccordionDetails, Card } from "@babylonlabs-io/core-ui";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
+import { FeatureFlags } from "@/config";
 import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
@@ -25,6 +26,7 @@ export function UtxoSplitSelector({
   expanded,
   onExpandedChange,
 }: UtxoSplitSelectorProps) {
+  const v3 = FeatureFlags.isV3UiEnabled;
   const splitDisabled = !twoVaultSplit.canSplit || twoVaultSplit.isLoading;
 
   const handleSelectSplit = () => {
@@ -39,6 +41,11 @@ export function UtxoSplitSelector({
   const noSplitTitleColor = twoVaultSplit.isEnabled
     ? "text-accent-secondary"
     : "text-accent-primary";
+
+  const optionBox = (selected: boolean) =>
+    v3 && selected
+      ? " rounded-lg border border-secondary-strokeLight bg-primary-contrast p-4"
+      : "";
 
   return (
     <Accordion expanded={expanded}>
@@ -71,13 +78,17 @@ export function UtxoSplitSelector({
       <AccordionDetails className="pt-4">
         <Card
           variant="default"
-          className="flex w-full flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
+          className={`flex w-full flex-col !rounded-lg ${
+            v3
+              ? "gap-4 !bg-transparent !p-0"
+              : "gap-6 !bg-primary-contrast !py-4"
+          }`}
         >
           <div
             role="button"
             tabIndex={splitDisabled ? -1 : 0}
             aria-disabled={splitDisabled}
-            className={`flex w-full items-start justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+            className={`flex w-full items-start justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}${optionBox(twoVaultSplit.isEnabled)}`}
             onClick={handleSelectSplit}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -116,7 +127,7 @@ export function UtxoSplitSelector({
           <div
             role="button"
             tabIndex={0}
-            className="flex w-full cursor-pointer items-start justify-between gap-3 text-left"
+            className={`flex w-full cursor-pointer items-start justify-between gap-3 text-left${optionBox(!twoVaultSplit.isEnabled)}`}
             onClick={handleSelectNoSplit}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {

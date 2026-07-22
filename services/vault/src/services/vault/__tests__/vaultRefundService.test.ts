@@ -48,6 +48,21 @@ const mockGetOffchainParamsByVersion = vi.fn();
 const mockGetVaultKeepersByVersion = vi.fn();
 const mockGetUniversalChallengersByVersion = vi.fn();
 const mockGetVaultProviderBtcPubKey = vi.fn();
+// Lean sibling pre-filter used by discoverBatch. Defaults to deriving
+// prePeginTxHash from the same getVaultFromChain fixtures each test
+// configures, so sibling scenarios keep one source of truth. Tests that
+// exercise the broken-candidate path override it directly.
+const mockGetProtocolInfoBatch = vi.fn(async (ids: readonly string[]) => {
+  const { getVaultFromChain } = await import(
+    "../../../clients/eth-contract/btc-vault-registry/query"
+  );
+  return Promise.all(
+    ids.map(async (id) => {
+      const v = await (getVaultFromChain as Mock)(id);
+      return { prePeginTxHash: v.prePeginTxHash };
+    }),
+  );
+});
 vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getProtocolParamsReader: vi.fn().mockResolvedValue({
     getOffchainParamsByVersion: (...args: unknown[]) =>
@@ -64,6 +79,8 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn().mockReturnValue({
     getVaultProviderBtcPubKey: (...args: unknown[]) =>
       mockGetVaultProviderBtcPubKey(...args),
+    getProtocolInfoBatch: (ids: readonly string[]) =>
+      mockGetProtocolInfoBatch(ids),
   }),
 }));
 
@@ -108,6 +125,7 @@ const ON_CHAIN_VAULT = {
   // happy-path tests. The wallet-mismatch tests below override it.
   depositor: DEPOSITOR_ADDRESS,
   offchainParamsVersion: 1,
+  vaultCoreVersion: 1,
   vaultProvider: "0xprovider",
   applicationEntryPoint: "0xapp",
   appVaultKeepersVersion: 1,
@@ -226,6 +244,61 @@ describe("vaultRefundService - adapter wiring", () => {
     const input = mockBuildAndBroadcastRefund.mock.calls[0][0];
     expect(input.vaultId).toBe(VAULT_ID);
     expect(txId).toBe("broadcast_txid");
+  });
+
+  it("aborts the refund before signing when the stamped vaultCoreVersion is unsupported", async () => {
+    (getVaultFromChain as Mock).mockResolvedValue({
+      ...ON_CHAIN_VAULT,
+      vaultCoreVersion: 3, // real WASM supports [1, 2] — fail closed
+    });
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).rejects.toThrow(/requires a newer version of the app/);
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("refunds the target even when an unrelated vault fails full validation during sibling discovery", async () => {
+    // The depositor also owns an unrelated vault whose validated read
+    // fail-closes (e.g. stamped vaultCoreVersion 0). The lean
+    // prePeginTxHash pre-filter must exclude it BEFORE the validated read,
+    // so the target's refund is unaffected.
+    const brokenVaultId = "0xbroken_unrelated_vault" as `0x${string}`;
+    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+      VAULT_ID,
+      brokenVaultId,
+    ]);
+    (getVaultFromChain as Mock).mockImplementation((id: string) => {
+      if (id === VAULT_ID) return Promise.resolve(ON_CHAIN_VAULT);
+      return Promise.reject(
+        new Error(
+          `Invalid vaultCoreVersion 0 from BTCVaultRegistry.getBtcVaultProtocolInfo(${id})`,
+        ),
+      );
+    });
+    mockGetProtocolInfoBatch.mockResolvedValueOnce([
+      { prePeginTxHash: "0xsome_other_pre_pegin_hash" },
+    ]);
+
+    const txId = await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(txId).toBe("broadcast_txid");
+    // The broken candidate was filtered by the lean read — the validated
+    // read only ran for the target.
+    expect(getVaultFromChain).toHaveBeenCalledWith(VAULT_ID);
+    expect(getVaultFromChain).not.toHaveBeenCalledWith(brokenVaultId);
   });
 
   it("readVault merges on-chain + indexer fields and overrides depositor pubkey with caller's", async () => {

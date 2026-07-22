@@ -13,6 +13,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import {
+  captureFunnelFailure,
+  shortId,
+  TELEMETRY_STAGE,
+} from "@/infrastructure/telemetryEvents";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
@@ -22,8 +27,8 @@ import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import { fetchVaultPayoutScriptPubKey } from "../../../services/vault/fetchVaults";
 import type { VaultActivity } from "../../../types/activity";
 import {
-  BtcWalletLivenessError,
   btcAddressToScriptPubKeyHex,
+  BtcWalletLivenessError,
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
@@ -304,6 +309,16 @@ export function usePayoutSigningState({
           setSigning(false);
           return;
         }
+        // Critical-path #3 presign failure on the resume path — previously
+        // only surfaced to UI state, invisible to Sentry.
+        captureFunnelFailure(
+          TELEMETRY_STAGE.ACTIVATION_PAYOUTS,
+          err,
+          activity.id,
+          {
+            providerId: shortId(vaultProviderAddress),
+          },
+        );
         setError(formatPayoutSignatureError(err));
         setSigning(false);
       }

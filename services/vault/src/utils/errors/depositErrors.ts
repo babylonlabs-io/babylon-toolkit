@@ -118,6 +118,18 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.wrongWalletAccount;
   }
 
+  // 4c'. App build can't construct the required graph version: either the
+  // WASM facade threw its stable "unsupported tx graph version ..." error
+  // directly, or assertVaultCoreVersionSupported fired with the user-facing
+  // body (which survives paths that stringify the error, e.g. the resume
+  // broadcast surface). Both get the actionable "App update required" title.
+  if (
+    msg.includes("unsupported tx graph version") ||
+    msg.includes(ERRORS.appVersionUnsupported.body.toLowerCase())
+  ) {
+    return ERRORS.appVersionUnsupported;
+  }
+
   // 4c. VP commission drift / unavailability. The SDK throws "...commission
   // changed since quote..." when the on-chain commission rose above the quoted
   // value plus headroom; the flow throws COMMISSION_UNAVAILABLE_ERROR when the

@@ -14,6 +14,7 @@ import {
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
+import { COPY } from "@/copy";
 import { getBtcSymbol } from "@/utils/formatting";
 
 export {
@@ -97,6 +98,21 @@ export function validateMultiVaultDepositInputs(
 export interface DepositCtaParams extends DepositFormValidityParams {
   /** DISABLE_DEPOSIT kill-switch — blocks the CTA at every deposit entry point. */
   isDepositDisabled: boolean;
+  /**
+   * True when the contract's activeVaultCoreVersion is NOT buildable by this
+   * build's WASM (`supportedTxGraphVersions()`). Terminal for the whole
+   * deposit page: every fresh deposit would fail at construction, so the CTA
+   * fails closed with an "update the app" message instead of a mid-flow
+   * WASM error after wallet popups.
+   */
+  appVersionUnsupported: boolean;
+  /**
+   * Per-vault P2A anchor value (0n for versions without an anchor). Null
+   * while the WASM query loads — the CTA must treat that like the
+   * minPeginFee loading window: a Max click before it resolves would
+   * overstate the depositable amount by the anchor reserve.
+   */
+  p2aAnchorValueSats: bigint | null;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
@@ -269,6 +285,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return { disabled: true, label: "Deposits unavailable" };
   }
 
+  if (params.appVersionUnsupported) {
+    return {
+      disabled: true,
+      label: COPY.deposit.errors.appVersionUnsupported.title,
+    };
+  }
+
   if (params.isGeoBlocked) {
     return { disabled: true, label: "Service unavailable in your region" };
   }
@@ -387,7 +410,10 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // treated as 0n) until this query resolves; submitting in that window
   // would let an amount that won't actually fund the real HTLC sizing pass
   // validateForm and fail later inside the signing path.
-  if (params.amountSats > 0n && params.minPeginFee === null) {
+  if (
+    params.amountSats > 0n &&
+    (params.minPeginFee === null || params.p2aAnchorValueSats === null)
+  ) {
     return { disabled: true, label: "Calculating fees..." };
   }
 

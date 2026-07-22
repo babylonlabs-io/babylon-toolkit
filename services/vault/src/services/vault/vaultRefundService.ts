@@ -29,6 +29,8 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
+import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
+
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import { fetchHtlcSpend } from "../../clients/btc/outspend";
 import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
@@ -67,8 +69,9 @@ export interface RefundPreview {
   /**
    * The amount actually reclaimed by the refund: the funded HTLC output value
    * at `htlcVout` in the on-chain Pre-PegIn tx. This is the vault deposit
-   * amount PLUS the protocol reserve (`depositorClaimValue + minPeginFee`)
-   * that peg-in baked into the HTLC output — the depositor reclaims all of it
+   * amount PLUS the protocol reserve (`depositorClaimValue + minPeginFee`,
+   * plus the 240-sat P2A anchor for tx-graph v2 vaults) that peg-in baked
+   * into the HTLC output — the depositor reclaims all of it
    * (minus the network fee) because activation never spent the reserve. NOT
    * the bare on-chain `amount` field, which is only the deposit amount. The
    * broadcast path pins the refund output to exactly this value minus the fee
@@ -298,8 +301,19 @@ async function discoverBatch(
     (id) => id.toLowerCase() !== targetIdLower,
   );
 
-  const candidateOnChain = await Promise.all(
-    candidateIds.map((id) => getVaultFromChain(id)),
+  // Lean sibling filter first: one multicall for the candidates'
+  // prePeginTxHash only. The fully-validated getVaultFromChain read (which
+  // fail-closes on a bad stamped vaultCoreVersion) runs only for actual
+  // siblings — an unrelated broken vault in the depositor's list must not
+  // block this refund.
+  const candidateInfos =
+    await getVaultRegistryReader().getProtocolInfoBatch(candidateIds);
+  const siblingIds = candidateIds.filter(
+    (_, i) =>
+      candidateInfos[i].prePeginTxHash.toLowerCase() === targetPrePeginTxHash,
+  );
+  const siblingOnChain = await Promise.all(
+    siblingIds.map((id) => getVaultFromChain(id)),
   );
 
   const siblings: VaultBatchEntry[] = [
@@ -309,8 +323,8 @@ async function discoverBatch(
       htlcVout: target.onChainVault.htlcVout,
     },
   ];
-  for (let i = 0; i < candidateIds.length; i++) {
-    const sib = candidateOnChain[i];
+  for (const sib of siblingOnChain) {
+    // Re-check on the validated read — the two reads are separate RPCs.
     if (sib.prePeginTxHash.toLowerCase() !== targetPrePeginTxHash) continue;
     siblings.push({
       hashlock: sib.hashlock,
@@ -343,9 +357,13 @@ async function readVaultForRefund(
   depositorAddress: Address,
 ): Promise<VaultRefundData> {
   const target = await readTargetVault(vaultId);
+  // Fail closed before signing when this build's WASM can't reconstruct the
+  // vault's stamped graph version for the refund template.
+  await assertVaultCoreVersionSupported(target.onChainVault.vaultCoreVersion);
   const batch = await discoverBatch(target, vaultId, depositorAddress);
 
   return {
+    vaultCoreVersion: target.onChainVault.vaultCoreVersion,
     hashlock: target.onChainVault.hashlock,
     htlcVout: target.onChainVault.htlcVout,
     offchainParamsVersion: target.onChainVault.offchainParamsVersion,

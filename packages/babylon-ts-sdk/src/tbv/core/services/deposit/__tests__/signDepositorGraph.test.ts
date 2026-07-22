@@ -266,6 +266,9 @@ function createSigningContext(
   // excluded) ∪ UniversalChallengers. Default fixture uses 2 VKs and 0 UCs
   // so most tests can build a 2-entry graph; tests that need a UC override.
   return {
+    // Non-default on purpose: a re-hardcoded version anywhere in the
+    // signing path would fail the threading assertions below.
+    vaultCoreVersion: 2,
     peginTxHex: PEGIN_TX_HEX,
     depositorBtcPubkey: DEPOSITOR_PUBKEY,
     vaultProviderBtcPubkey: VP_PUBKEY,
@@ -304,6 +307,7 @@ describe("signDepositorGraph", () => {
 
     expect(builder).toHaveBeenCalledOnce();
     expect(builder).toHaveBeenCalledWith({
+      vaultCoreVersion: 2,
       payoutTxHex: graph.payout_tx.tx_hex,
       peginTxHex: ctx.peginTxHex,
       assertTxHex: graph.assert_tx.tx_hex,
@@ -355,7 +359,7 @@ describe("signDepositorGraph", () => {
           { script_pubkey: "dd", value: 300 },
         ],
         connectorParams: {
-          txGraphVersion: 1,
+          txGraphVersion: 2,
           claimer: DEPOSITOR_PUBKEY,
           localChallengers: expectedLocalChallengers,
           universalChallengers: ctx.universalChallengerBtcPubkeys,
@@ -634,7 +638,7 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("expected 3");
+    ).rejects.toThrow(/expected 3/i);
   });
 
   it("strips 0x prefix from depositor pubkey", async () => {

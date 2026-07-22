@@ -4,18 +4,19 @@
  * or empty data states with customizable content
  */
 
-import { Avatar, Card, SubSection } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 import { Connect } from "@/components/Wallet";
 
 interface EmptyStateProps {
-  /** Avatar image URL (ignored when an illustration is provided) */
+  /** Avatar image URL. Ignored when `icon` is provided. */
   avatarUrl?: string;
   /** Avatar alt text */
   avatarAlt?: string;
-  /** Custom illustration rendered in place of the avatar */
-  illustration?: ReactNode;
+  /** Custom illustration rendered instead of the circular avatar (e.g. a line
+   *  icon from the v3 designs). Takes precedence over `avatarUrl`. */
+  icon?: ReactNode;
   /** Primary text/title */
   title: string;
   /** Secondary text/description (optional) */
@@ -28,8 +29,17 @@ interface EmptyStateProps {
   descriptionVariant?: "compact" | "wide";
   /** Whether the user is connected */
   isConnected?: boolean;
-  /** Action rendered when connected (a Connect button is shown when disconnected) */
+  /**
+   * Fully custom action node rendered when connected (e.g. the vaults Deposit
+   * CTA carrying its E2E testid). Takes precedence over
+   * `actionLabel`/`onAction` — consumers pass one or the other. A Connect
+   * button is always shown instead while disconnected.
+   */
   action?: ReactNode;
+  /** Button label when connected (used when `action` is not provided) */
+  actionLabel?: string;
+  /** Callback when the labeled action button is clicked */
+  onAction?: () => void;
   /** Whether to wrap content in a Card component */
   withCard?: boolean;
 }
@@ -45,41 +55,71 @@ const DESCRIPTION_CLASS: Record<
 export function EmptyState({
   avatarUrl,
   avatarAlt,
-  illustration,
+  icon,
   title,
   description,
   descriptionVariant = "compact",
   isConnected = false,
   action,
+  actionLabel,
+  onAction,
   withCard = false,
 }: EmptyStateProps) {
+  const connectedAction =
+    action ??
+    (actionLabel && onAction && (
+      <Button
+        // The brand orange CTA is core-ui's `secondary` color
+        // (`bg-secondary-main`) — the same the ConnectButton uses.
+        // `primary` (`bg-primary-light`) is the blue, not what we want here.
+        variant="contained"
+        color="secondary"
+        size="medium"
+        // Invoked with no arguments on purpose: callers pass handlers
+        // that take optional parameters (e.g. `openDeposit(amountBtc?)`),
+        // and forwarding the click event would land a MouseEvent in that
+        // parameter. TypeScript can't catch it — a zero-arg signature is
+        // assignable to onClick's.
+        onClick={() => onAction()}
+      >
+        {actionLabel}
+      </Button>
+    ));
+
+  // A single centered surface. When `withCard` is set, the `Card` below is the
+  // only surface — the content sits directly on it (no inner panel), matching
+  // the v3 empty-state design.
   const content = (
-    <SubSection className="w-full py-28">
-      <div className="flex flex-col items-center justify-center gap-2">
-        {illustration ??
-          (avatarUrl && (
-            <Avatar
-              url={avatarUrl}
-              alt={avatarAlt ?? ""}
-              size="xlarge"
-              className="mb-2 h-[100px] w-[100px]"
-            />
-          ))}
+    <div className="flex w-full flex-col items-center justify-center gap-2 py-16">
+      {/* Illustration: custom icon node when provided, else the avatar image */}
+      {icon ? (
+        <div className="mb-2">{icon}</div>
+      ) : (
+        avatarUrl && (
+          <Avatar
+            url={avatarUrl}
+            alt={avatarAlt ?? ""}
+            size="xlarge"
+            className="mb-2 h-[100px] w-[100px]"
+          />
+        )
+      )}
 
-        {/* Primary Text */}
-        <p className="text-xl text-accent-primary">{title}</p>
+      {/* Primary Text */}
+      <p className="text-xl text-accent-primary">{title}</p>
 
-        {/* Secondary Text */}
-        {description && (
-          <p className={DESCRIPTION_CLASS[descriptionVariant]}>{description}</p>
-        )}
+      {/* Secondary Text */}
+      {description && (
+        <p className={DESCRIPTION_CLASS[descriptionVariant]}>{description}</p>
+      )}
 
-        {/* Action */}
-        {(!isConnected || action) && (
-          <div className="mt-8">{isConnected ? action : <Connect />}</div>
-        )}
-      </div>
-    </SubSection>
+      {/* Action */}
+      {(!isConnected || connectedAction) && (
+        <div className="mt-8">
+          {isConnected ? connectedAction : <Connect />}
+        </div>
+      )}
+    </div>
   );
 
   if (withCard) {

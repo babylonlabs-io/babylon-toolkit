@@ -4,6 +4,14 @@ export interface LogoResponse {
   [identity: string]: string;
 }
 
+// The sidecar wraps every response in its PublicResponse envelope:
+// { "data": { "images": { <identity>: <url> } } }
+interface LogoApiResponse {
+  data?: {
+    images?: LogoResponse;
+  };
+}
+
 export async function fetchLogos(identities: string[]): Promise<LogoResponse> {
   if (!ENV.SIDECAR_API_URL || identities.length === 0) {
     return {};
@@ -22,8 +30,8 @@ export async function fetchLogos(identities: string[]): Promise<LogoResponse> {
       return {};
     }
 
-    const data: LogoResponse = await response.json();
-    return data;
+    const payload: LogoApiResponse = await response.json();
+    return payload.data?.images ?? {};
   } catch {
     return {};
   }

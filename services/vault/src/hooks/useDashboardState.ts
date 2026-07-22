@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo } from "react";
 
-import { BPS_SCALE } from "@/applications/aave/constants";
+import { BPS_SCALE, MIN_BORROWABLE_USD } from "@/applications/aave/constants";
 import {
   useActivatingVaults,
   useReorderOverride,
@@ -60,6 +60,12 @@ export function useDashboardState(connectedAddress: string | undefined) {
     currentDebtUsd: debtValueUsd,
     liquidationThresholdBps,
   });
+
+  // Borrow is offered only with at least a cent of headroom. A fully-borrowed
+  // position leaves sub-cent dust here (float / HF buffer), which must not
+  // enable the Borrow CTA. While capacity is loading/errored this is 0 → false,
+  // the safe default.
+  const canBorrow = availableToBorrowUsd >= MIN_BORROWABLE_USD;
 
   const { findProvider } = useVaultProviders();
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
@@ -181,6 +187,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     maxTotalDebtUsd,
     availableToBorrowUsd,
+    canBorrow,
     collateralFactorBps: splitParams ? liquidationThresholdBps : null,
     isBorrowCapacityLoading,
     borrowCapacityError,

@@ -67,11 +67,22 @@ vi.mock("../../../../utils/btc", () => ({
   },
 }));
 
-vi.mock("../../../../utils/errors/formatting", () => ({
+// Stub only the message formatter. `classifyError` stays real so the
+// user-rejection filter is exercised against genuine EIP-1193 classification
+// rather than a stub that could agree with a wrong implementation.
+vi.mock("../../../../utils/errors/formatting", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../../../utils/errors/formatting")
+  >()),
   formatPayoutSignatureError: (err: unknown) => ({
     title: "Sign Error",
     message: err instanceof Error ? err.message : String(err),
   }),
+}));
+
+const mockLoggerError = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: { error: mockLoggerError },
 }));
 
 const ACTIVITY = {
@@ -183,6 +194,62 @@ describe("usePayoutSigningState", () => {
         completed: 9,
         total: 9,
       });
+    });
+  });
+
+  describe("failure telemetry", () => {
+    it("captures a signing failure to Sentry with the activation.payouts stage and a scrubbed vaultId", async () => {
+      mockSignAndSubmitPayouts.mockRejectedValueOnce(
+        new Error("VP rejected the depositor graph"),
+      );
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+      const [err, ctx] = mockLoggerError.mock.calls[0];
+      expect(err).toBeInstanceOf(Error);
+      expect(ctx.tags.funnelStage).toBe("activation.payouts");
+      expect(ctx.data.vaultId).toBe("0xvault");
+      expect(result.current.error?.title).toBe("Sign Error");
+    });
+
+    it("does not capture a user-cancelled (AbortError) signing attempt", async () => {
+      const abort = new Error("aborted");
+      abort.name = "AbortError";
+      mockSignAndSubmitPayouts.mockRejectedValueOnce(abort);
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockLoggerError).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("does not capture a wallet decline, but still surfaces it to the user", async () => {
+      // EIP-1193 4001 — what a wallet throws when the depositor hits Reject.
+      // Routine drop-off, not a presign failure: it must not reach Sentry and
+      // inflate the rate the activation.payouts tag alerts on.
+      const declined = Object.assign(new Error("User rejected the request"), {
+        code: 4001,
+      });
+      mockSignAndSubmitPayouts.mockRejectedValueOnce(declined);
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockLoggerError).not.toHaveBeenCalled();
+      // Unlike AbortError (modal closed), the user is still here — show them why.
+      expect(result.current.error?.title).toBe("Sign Error");
     });
   });
 

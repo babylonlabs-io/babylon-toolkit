@@ -122,6 +122,9 @@ function buildVault(overrides?: Partial<VaultRefundData>): VaultRefundData {
   // every test case satisfies the orchestrator's positive invariants.
   const defaultBatch = [{ hashlock, amount, htlcVout: 0 }];
   return {
+    // Non-default on purpose: a re-hardcoded version in the refund path
+    // would fail the forwarding assertion.
+    vaultCoreVersion: 2,
     hashlock,
     htlcVout,
     offchainParamsVersion: 1,
@@ -345,6 +348,7 @@ describe("buildAndBroadcastRefund", () => {
     });
 
     const [call] = mockedBuildRefundPsbt.mock.calls;
+    expect(call[0].prePeginParams.vaultCoreVersion).toBe(2);
     expect(call[0].prePeginParams.depositorPubkey).toBe(DEPOSITOR_PUBKEY);
     expect(call[0].prePeginParams.vaultProviderPubkey).toBe(VP_PUBKEY);
     expect(call[0].prePeginParams.vaultKeeperPubkeys).toEqual([VK_PUBKEY]);

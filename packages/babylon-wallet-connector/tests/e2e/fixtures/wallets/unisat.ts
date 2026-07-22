@@ -39,6 +39,25 @@ async function dismissModals(page: Page): Promise<void> {
   }
 }
 
+/**
+ * Switch UniSat's restore-screen seed grid to `count` words. The screen defaults to a 12-input grid and
+ * exposes a word-count selector, but its options are bare <span>s with no testid/role/class — so we
+ * can't target them structurally. The option LABEL always contains the count as digits, though ("24
+ * words" / "24 слова" / "24 词"), so we match the DIGITS — which are the same in every UI language — and
+ * exclude the numbered seed-row labels ("24."). Picking the option resizes the grid.
+ */
+async function selectSeedWordCount(page: Page, count: number): Promise<void> {
+  // \b<count>\b not followed by a "." (so a "24." row label can't match), anywhere in the label.
+  const target = new RegExp(`\\b${count}\\b(?!\\.)`);
+  const option = page.getByText(target).first();
+  await option.click({ force: true }).catch(() => {});
+  await page.waitForTimeout(SETTLE.SHORT);
+  if ((await page.locator("input:visible, textarea:visible").count()) >= count) return;
+  // Fallback: the selector may be a closed dropdown — click it again after a settle to open + pick.
+  await option.click({ force: true }).catch(() => {});
+  await page.waitForTimeout(SETTLE.SHORT);
+}
+
 /** Switch the network to Bitcoin Signet: pill → expand "Bitcoin Testnet" → "Bitcoin Signet". */
 async function switchToSignet(page: Page): Promise<void> {
   await dismissModals(page);
@@ -164,16 +183,21 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   // Seed-entry screen — type each word with real key events.
   await page.waitForTimeout(SETTLE.BRIEF);
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
-  const seedInputs = page.locator("input:visible, textarea:visible");
+  // The restore screen defaults to a 12-input grid with a "<n> words" selector. A 24-word phrase needs
+  // the grid switched to 24 first, or the extra words are dropped — so match the grid to the phrase.
+  let seedInputs = page.locator("input:visible, textarea:visible");
+  if ((await seedInputs.count()) !== words.length) {
+    await selectSeedWordCount(page, words.length);
+    seedInputs = page.locator("input:visible, textarea:visible");
+  }
   const seedCount = await seedInputs.count();
-  if (seedCount >= words.length) {
-    for (let i = 0; i < words.length; i++) {
-      await seedInputs.nth(i).click();
-      await seedInputs.nth(i).pressSequentially(words[i], { delay: TYPE_DELAY_MS });
-    }
-  } else {
-    await seedInputs.first().click();
-    await seedInputs.first().fill(mnemonic.trim());
+  if (seedCount < words.length)
+    throw new Error(
+      `UniSat: seed grid shows ${seedCount} inputs but the phrase has ${words.length} words — the word-count selector did not switch. Its restore UI likely changed; re-derive selectSeedWordCount (unisat.ts).`,
+    );
+  for (let i = 0; i < words.length; i++) {
+    await seedInputs.nth(i).click();
+    await seedInputs.nth(i).pressSequentially(words[i], { delay: TYPE_DELAY_MS });
   }
   await page.waitForTimeout(SETTLE.BRIEF);
   await advance(page, /continue|import|next|confirm/i);

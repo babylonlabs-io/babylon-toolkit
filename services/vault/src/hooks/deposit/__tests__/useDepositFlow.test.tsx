@@ -304,6 +304,9 @@ async function setupDefaultMocks() {
 
   vi.mocked(useProtocolParamsContext).mockReturnValue({
     config: {
+      // Non-default on purpose: a literal version in useDepositFlow would
+      // fail the preparePeginTransaction assertion.
+      activeVaultCoreVersion: 3,
       offchainParams: {
         babeInstancesToFinalize: 2,
         councilQuorum: 1,
@@ -433,6 +436,9 @@ describe("useDepositFlow", () => {
           }),
           MOCK_ETH_WALLET,
           expect.objectContaining({
+            // Active version from ProtocolParams — a re-pinned constant here
+            // would keep building v1 graphs after governance flips to v2.
+            vaultCoreVersion: 3,
             pegInAmounts: [100000n, 100000n],
             vaultProviderBtcPubkey: MOCK_PARAMS.vaultProviderBtcPubkey,
             vaultKeeperBtcPubkeys: MOCK_PARAMS.vaultKeeperBtcPubkeys,

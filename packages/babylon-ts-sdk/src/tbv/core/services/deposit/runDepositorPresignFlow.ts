@@ -34,6 +34,13 @@ import { waitForPeginStatus } from "./waitForPeginStatus";
  * Caller builds this from on-chain data (contract queries, GraphQL, config).
  */
 export interface PayoutSigningContext {
+  /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
+   * Selects which graph's connector scripts every payout/nopayout PSBT is
+   * rebuilt with.
+   */
+  vaultCoreVersion: number;
   /** Raw pegin BTC transaction hex (for PSBT construction) */
   peginTxHex: string;
   /** Vault provider's BTC public key (x-only hex, no prefix) */
@@ -220,6 +227,7 @@ function buildPayoutSigningInput(
   context: PayoutSigningContext,
 ) {
   return {
+    vaultCoreVersion: context.vaultCoreVersion,
     payoutTxHex: tx.payoutTxHex,
     peginTxHex: context.peginTxHex,
     assertTxHex: tx.assertTxHex,
@@ -373,6 +381,7 @@ export async function runDepositorPresignFlow(
     depositorGraph: response.depositor_graph,
     btcWallet,
     signingContext: {
+      vaultCoreVersion: signingContext.vaultCoreVersion,
       peginTxHex: signingContext.peginTxHex,
       depositorBtcPubkey: depositorPk,
       vaultProviderBtcPubkey: signingContext.vaultProviderBtcPubkey,

@@ -39,7 +39,12 @@ export interface BabylonConfigOptions {
   /** Bitcoin network. Must be "mainnet" or "signet". */
   btcNetwork: BtcNetworkName;
 
-  /** Optional mempool API base URL. Defaults to `https://mempool.space`. */
+  /**
+   * Optional mempool host base URL — WITHOUT the `/signet` network path or a
+   * trailing `/api`. For signet, `/signet` is appended from `btcNetwork`; the
+   * reader appends `/api`. Defaults to mempool.space when omitted.
+   * See {@link resolveMempoolApiUrl}.
+   */
   mempoolApiUrl?: string;
 }
 
@@ -50,7 +55,27 @@ export interface BabylonConfigState {
   mempoolApiUrl: string;
 }
 
-const DEFAULT_MEMPOOL_API_URL = "https://mempool.space";
+// Default mempool host when NEXT_PUBLIC_MEMPOOL_API is unset.
+const DEFAULT_MEMPOOL_HOST = "https://mempool.space";
+
+/**
+ * Resolve the mempool API base URL (WITHOUT a trailing `/api`) for the declared
+ * BTC network.
+ *
+ * Every mempool host we use — public mempool.space and the babylon proxy alike —
+ * serves signet under a `/signet` path (mainnet is at the root), so `/signet` is
+ * appended for signet regardless of host. It is appended idempotently: a base
+ * that already ends in `/signet` is left as-is, so it can never double to
+ * `.../signet/signet`.
+ */
+export function resolveMempoolApiUrl(
+  base: string | undefined,
+  network: BtcNetworkName,
+): string {
+  const trimmed = (base ?? DEFAULT_MEMPOOL_HOST).replace(/\/+$/, "");
+  if (network !== BTC_SIGNET) return trimmed;
+  return trimmed.endsWith("/signet") ? trimmed : `${trimmed}/signet`;
+}
 
 let state: BabylonConfigState | null = null;
 
@@ -111,7 +136,7 @@ export function configureBabylonConfig(opts: BabylonConfigOptions): void {
     ethChainId: opts.ethChainId,
     ethRpcUrl: opts.ethRpcUrl,
     btcNetwork: opts.btcNetwork,
-    mempoolApiUrl: opts.mempoolApiUrl ?? DEFAULT_MEMPOOL_API_URL,
+    mempoolApiUrl: resolveMempoolApiUrl(opts.mempoolApiUrl, opts.btcNetwork),
   };
 }
 

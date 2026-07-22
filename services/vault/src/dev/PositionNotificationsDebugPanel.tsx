@@ -19,10 +19,12 @@ import {
 } from "@/applications/aave/positionNotifications";
 import { useETHWallet } from "@/context/wallet";
 import {
+  applyDebugPreset,
   DEBUG_DEFAULT_CF,
   DEBUG_DEFAULT_EXPECTED_HF,
   DEBUG_DEFAULT_MAX_LB,
   DEBUG_DEFAULT_THF,
+  DEBUG_PRESETS,
   resetDebugManualParams,
   setDebugManualMode,
   setDebugManualParams,
@@ -64,9 +66,15 @@ const STATUS_MESSAGES: Record<
   "stale-price": "BTC price is stale or unavailable",
 };
 
+// The panel lives inside the ~420px god-mode box, so every layout here is
+// container-sized: full-width inputs in a fixed 2-column grid. Viewport `md:`
+// breakpoints would fire on a wide window and overflow the narrow box.
 const INPUT_CLASS =
-  "w-28 rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
-const LABEL_CLASS = "text-xs text-gray-600 dark:text-gray-400";
+  "w-full min-w-0 rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
+const LABEL_CLASS = "truncate text-xs text-gray-600 dark:text-gray-400";
+const FIELD_GRID_CLASS = "grid grid-cols-2 gap-x-3 gap-y-2";
+const PRESET_BUTTON_CLASS =
+  "rounded bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-800/50";
 
 /** Initial counter for generated vault IDs (avoids collision with default vaults) */
 const INITIAL_VAULT_ID_COUNTER = 100;
@@ -169,7 +177,7 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
         <summary className="cursor-pointer font-medium">
           Protocol Parameters
         </summary>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
           <div>
             HF: <strong>{fmt(result.currentHF, 3)}</strong>
           </div>
@@ -299,7 +307,7 @@ function ManualInputPanel({
   return (
     <div className="space-y-3 rounded border border-purple-200 bg-white p-3 dark:border-purple-800 dark:bg-gray-800/50">
       {/* Market & Debt */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className={FIELD_GRID_CLASS}>
         <div>
           <div className={LABEL_CLASS}>BTC Price ($)</div>
           <input
@@ -356,7 +364,7 @@ function ManualInputPanel({
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className={FIELD_GRID_CLASS}>
         <div>
           <div className={LABEL_CLASS}>LB (maxLB)</div>
           <input
@@ -487,8 +495,23 @@ export function PositionNotificationsDebugPanel() {
         {manualMode && " (manual)"}
       </summary>
       <div className="mt-3 space-y-3">
+        {/* One-click scenarios — each loads manual mode with inputs that land on
+            the labelled banner state (see DEBUG_PRESETS). */}
+        <div className="flex flex-wrap gap-1.5">
+          {DEBUG_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => applyDebugPreset(preset)}
+              className={PRESET_BUTTON_CLASS}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
         {/* Mode toggle */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="checkbox"

@@ -21,8 +21,6 @@
 import { type Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
-import { TX_GRAPH_VERSION_V1 } from "../../primitives/txGraphVersion";
-
 import type {
   BitcoinWallet,
   SignPsbtOptions,
@@ -46,6 +44,7 @@ import {
   extractPayoutSignature,
 } from "../../primitives/psbt/payout";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
+import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import {
   stripHexPrefix,
   uint8ArrayToHex,
@@ -250,6 +249,7 @@ async function collectDepositorGraphPsbts(
   //    derived from trusted on-chain connector params, not from the VP.
   //    buildPayoutPsbt also runs the per-role output validation.
   const builtPayout = await buildPayoutPsbt({
+    vaultCoreVersion: ctx.vaultCoreVersion,
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,
     assertTxHex: depositorGraph.assert_tx.tx_hex,
@@ -405,7 +405,7 @@ async function buildLocalNoPayoutPsbt(
     challengerPubkey,
     prevouts,
     connectorParams: {
-      txGraphVersion: TX_GRAPH_VERSION_V1,
+      txGraphVersion: ctx.vaultCoreVersion,
       claimer: claimerPubkey,
       localChallengers,
       universalChallengers: ctx.universalChallengerBtcPubkeys,
@@ -482,26 +482,6 @@ function extractDepositorGraphSignatures(
   };
 }
 
-/**
- * Sign multiple PSBTs, using batch signing when the wallet supports it.
- * Falls back to sequential `signPsbt` calls for wallets without `signPsbts`.
- */
-async function signPsbtsWithFallback(
-  wallet: BitcoinWallet,
-  psbtHexes: string[],
-  options?: SignPsbtOptions[],
-): Promise<string[]> {
-  if (typeof wallet.signPsbts === "function") {
-    return wallet.signPsbts(psbtHexes, options);
-  }
-
-  const signed: string[] = [];
-  for (let i = 0; i < psbtHexes.length; i++) {
-    signed.push(await wallet.signPsbt(psbtHexes[i], options?.[i]));
-  }
-  return signed;
-}
-
 // ============================================================================
 // Main entry point
 // ============================================================================
@@ -513,6 +493,12 @@ async function signPsbtsWithFallback(
  * directly into the Taproot sighash.
  */
 export interface DepositorGraphSigningContext {
+  /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
+   * Selects which graph's connector scripts every PSBT is rebuilt with.
+   */
+  vaultCoreVersion: number;
   /** Raw pegin BTC transaction hex (provides the depositor's signed prevout) */
   peginTxHex: string;
   /** Depositor's BTC public key (x-only, 64-char hex, no 0x prefix) */
@@ -593,17 +579,13 @@ export async function signDepositorGraph(
     );
 
   // 2. Sign all PSBTs (batch when supported, sequential fallback for mobile)
+  // signPsbtsWithFallback guarantees one signed PSBT per input (or throws), so
+  // no separate arity check is needed here.
   const signedPsbtHexes = await signPsbtsWithFallback(
     btcWallet,
     psbtHexes,
     signOptions,
   );
-
-  if (signedPsbtHexes.length !== psbtHexes.length) {
-    throw new Error(
-      `Wallet returned ${signedPsbtHexes.length} signed PSBTs, expected ${psbtHexes.length}`,
-    );
-  }
 
   // 3. Pair requested with signed and extract signatures
   const psbtPairs: PsbtPair[] = psbtHexes.map((requestedPsbtHex, i) => ({

@@ -84,7 +84,11 @@ export interface PrePeginResult {
  * Result of building the PegIn transaction from a funded Pre-PegIn txid.
  */
 export interface PeginTxResult {
-  /** PegIn transaction hex (1 input spending HTLC output, 1 vault output) */
+  /**
+   * PegIn transaction hex. 1 input spending the HTLC output; outputs are
+   * version-shaped: v1 = vault + depositor claim (nVersion 2), v2 = vault +
+   * depositor claim + P2A anchor at vout 2 (nVersion 3 / TRUC).
+   */
   txHex: string;
   /** PegIn transaction ID */
   txid: string;
@@ -92,6 +96,21 @@ export interface PeginTxResult {
   vaultScriptPubKey: string;
   /** Vault output value in satoshis */
   vaultValue: bigint;
+}
+
+/**
+ * A graph version's PegIn P2A (pay-to-anchor) output description, copied out
+ * of the WASM object into plain JS. v2: 240 sats at vout 2, script
+ * `51024e73`. Versions without an anchor (v1) yield `null` from
+ * `peginP2aAnchorOutput`, never a zero-valued record.
+ */
+export interface PeginP2aAnchorInfo {
+  /** Anchor output value in satoshis (240 for v2) */
+  value: bigint;
+  /** Anchor output index in the PegIn transaction (2 for v2) */
+  vout: number;
+  /** Anchor scriptPubKey hex (`51024e73` for v2) */
+  scriptPubKey: string;
 }
 
 /**
