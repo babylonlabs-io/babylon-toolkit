@@ -144,13 +144,13 @@ export function PeginPollingProvider({
 
   // Use the polling query hook
   const {
+    polledIds,
     errors,
     needsWotsKey,
     pendingIngestion,
     pendingDepositorSignatures,
     isLoading,
     refetch,
-    depositsToPoll,
   } = usePeginPollingQuery({
     activities,
     pendingPegins,
@@ -376,11 +376,16 @@ export function PeginPollingProvider({
   // daemon reports a terminal drop (Expired / AmlRejected / ...). These states
   // stop polling and previously transmitted nothing — a rejected deposit was
   // invisible. Same seeding rule and shared-store rationale as the milestone
-  // effect above; gated on `errors` so it only runs once a poll has resolved.
+  // effect above; runs only once a poll has resolved. `polledIds` is captured
+  // inside the queryFn, so ids and errors are always the same poll's snapshot —
+  // pairing the live `depositsToPoll` memo with `errors` instead would, under
+  // `keepPreviousData`, seed new vaults (wallet switch, late-arriving
+  // activities) against a stale map and later emit their pre-existing
+  // terminals as fresh transitions.
   useEffect(() => {
-    if (!errors) return;
+    if (!polledIds || !errors) return;
     const terminalEvents = collectDaemonTerminalEvents(
-      depositsToPoll.map((deposit) => deposit.activity.id),
+      polledIds,
       errors,
       getSharedDaemonTerminalTracking(),
     );
@@ -392,7 +397,7 @@ export function PeginPollingProvider({
         daemonStatus: terminal.daemonStatus,
       });
     }
-  }, [errors, depositsToPoll]);
+  }, [polledIds, errors]);
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(

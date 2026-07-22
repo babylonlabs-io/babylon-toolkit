@@ -14,6 +14,16 @@
  *  - Thereafter each terminal kind emits once per vault. Kinds are keyed
  *    independently, so a vault that times out and later (after a manual
  *    refetch) reaches payout_broadcast still emits the success terminal.
+ *    Timeouts are additionally keyed per give-up reason — mirroring the
+ *    per-status keying in `daemonTerminalEvents` — so a vault that times out,
+ *    recovers, and later times out down a different give-up path emits the
+ *    new reason instead of being swallowed by the first.
+ *  - A failure-shaped result (no response, no give-up reason — the shape
+ *    `applyPegoutFailure` and the provider-not-found path record before the
+ *    give-up threshold) is a FAILED observation: the poll learned nothing
+ *    about the vault, so it neither seeds nor emits. Otherwise a provider
+ *    blip on the first poll after reload would mis-seed the vault as
+ *    non-terminal and its prior-session terminal would emit as fresh.
  */
 
 import {
@@ -37,7 +47,7 @@ export interface PegoutTerminalEvent {
   /** Raw vaultId; the caller shortens it before it enters event context. */
   vaultId: string;
   /** Only set for pegout_timeout — which give-up path fired. */
-  timeoutReason?: string;
+  timeoutReason?: PegoutPollingResult["timeoutReason"];
 }
 
 export function createPegoutTerminalTracking(): PegoutTerminalTracking {
@@ -69,7 +79,7 @@ interface ClassifiedTerminal {
   kind: string;
   event: TelemetryEvent;
   level: "info" | "warning";
-  timeoutReason?: string;
+  timeoutReason?: PegoutPollingResult["timeoutReason"];
 }
 
 function classifyTerminal(
@@ -77,7 +87,8 @@ function classifyTerminal(
 ): ClassifiedTerminal | null {
   if (result.timeoutReason !== undefined) {
     return {
-      kind: "timeout",
+      // Reason-suffixed so each distinct give-up path dedups independently.
+      kind: `timeout:${result.timeoutReason}`,
       event: TELEMETRY_EVENT.EXIT_REDEEM_PEGOUT_TIMEOUT,
       level: "warning",
       timeoutReason: result.timeoutReason,
@@ -112,6 +123,14 @@ export function collectPegoutTerminalEvents(
   const out: PegoutTerminalEvent[] = [];
 
   for (const [vaultId, result] of results) {
+    // Failure shape = failed observation: the poll learned nothing about this
+    // vault, so skip it entirely — in particular it must not seed. Every
+    // genuinely observed status carries `response`; every give-up carries
+    // `timeoutReason`.
+    if (result.response === undefined && result.timeoutReason === undefined) {
+      continue;
+    }
+
     const terminal = classifyTerminal(result);
 
     if (!tracking.seen.has(vaultId)) {

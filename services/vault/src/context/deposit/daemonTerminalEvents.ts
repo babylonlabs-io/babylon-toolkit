@@ -15,7 +15,16 @@
  * Seeding is keyed to the POLLED set, not the errors map: a vault only enters
  * the errors map once it errors, so its first appearance there would always
  * look pre-existing and nothing would ever emit.
+ *
+ * A polled id whose errors entry is a plain (non-terminal) Error is a FAILED
+ * observation — provider unreachable, entry omitted or duplicated — so the
+ * poll learned nothing about that vault. It neither seeds nor emits; seeding
+ * waits for a poll that genuinely observes the vault, otherwise a
+ * connectivity blip on the first poll after reload would mis-seed the vault
+ * as healthy and its prior-session terminal would emit as a fresh warning.
  */
+
+import type { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
 import { TerminalPeginPollingError } from "../../utils/peginPolling";
 
@@ -30,7 +39,7 @@ export interface DaemonTerminalEvent {
   /** Raw vaultId; the caller shortens it before it enters event context. */
   vaultId: string;
   /** VP daemon status name (e.g. "Expired", "AmlRejected") — safe to emit. */
-  daemonStatus: string;
+  daemonStatus: DaemonStatus;
 }
 
 export function createDaemonTerminalTracking(): DaemonTerminalTracking {
@@ -63,7 +72,10 @@ export function resetSharedDaemonTerminalTracking(): void {
  * Return the daemon-terminal events to emit for this poll, mutating `tracking`
  * so each (vault, status) pair fires at most once. `polledIds` is the set of
  * deposits the poll observed; `errors` is the per-deposit error map from the
- * same poll (non-terminal entries are ignored).
+ * SAME resolved poll (non-terminal entries are ignored). Pairing ids and
+ * errors from different polls breaks seeding: a vault new to the id set would
+ * be seeded as healthy against a map that could not contain it, and its
+ * pre-existing terminal would then emit as a fresh transition.
  */
 export function collectDaemonTerminalEvents(
   polledIds: readonly string[],
@@ -76,6 +88,10 @@ export function collectDaemonTerminalEvents(
     const error = errors.get(vaultId);
     const daemonStatus =
       error instanceof TerminalPeginPollingError ? error.daemonStatus : null;
+
+    // Plain error = failed observation: the poll learned nothing about this
+    // vault, so skip it entirely — in particular it must not seed as healthy.
+    if (error !== undefined && daemonStatus === null) continue;
 
     if (!tracking.seen.has(vaultId)) {
       tracking.seen.add(vaultId);

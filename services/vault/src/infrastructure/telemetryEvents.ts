@@ -4,8 +4,8 @@
  *
  * Event names are stable, machine-readable telemetry identifiers (not
  * user-facing copy), so they live here rather than in copy.ts. Names are
- * dot-delimited and lead with the funnel phase (`deposit` / `activation`),
- * followed by the stage and, where it adds signal, the outcome.
+ * dot-delimited and lead with the funnel phase (`deposit` / `activation` /
+ * `exit`), followed by the stage and, where it adds signal, the outcome.
  */
 
 import { redactIdentifier } from "@/utils/telemetry";

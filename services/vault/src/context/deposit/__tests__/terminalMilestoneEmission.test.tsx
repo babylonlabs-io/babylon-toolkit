@@ -12,13 +12,13 @@ import { resetSharedTerminalMilestoneTracking } from "../terminalMilestones";
 
 vi.mock("../../../hooks/deposit/usePeginPollingQuery", () => ({
   usePeginPollingQuery: () => ({
+    polledIds: undefined,
     errors: undefined,
     needsWotsKey: undefined,
     pendingIngestion: undefined,
     pendingDepositorSignatures: undefined,
     isLoading: false,
     refetch: vi.fn(),
-    depositsToPoll: [],
   }),
 }));
 

@@ -68,4 +68,40 @@ describe("collectDaemonTerminalEvents", () => {
     const errors = new Map([["0xa", new Error("Provider unreachable")]]);
     expect(collectDaemonTerminalEvents(["0xa"], errors, tracking)).toEqual([]);
   });
+
+  it("does not seed from a connectivity-errored first poll, so a prior-session terminal stays suppressed", () => {
+    const tracking = createDaemonTerminalTracking();
+
+    // First poll after reload fails to reach the provider: not an observation.
+    const unreachable = new Map([["0xold", new Error("Provider unreachable")]]);
+    expect(
+      collectDaemonTerminalEvents(["0xold"], unreachable, tracking),
+    ).toEqual([]);
+
+    // Next poll succeeds and reports the prior-session drop: this is the first
+    // genuine observation, so it seeds without emitting.
+    const errors = new Map([["0xold", terminalError(DaemonStatus.EXPIRED)]]);
+    expect(collectDaemonTerminalEvents(["0xold"], errors, tracking)).toEqual(
+      [],
+    );
+    expect(collectDaemonTerminalEvents(["0xold"], errors, tracking)).toEqual(
+      [],
+    );
+  });
+
+  it("still emits a genuine transition after an initial connectivity error", () => {
+    const tracking = createDaemonTerminalTracking();
+
+    const unreachable = new Map([["0xa", new Error("Provider unreachable")]]);
+    collectDaemonTerminalEvents(["0xa"], unreachable, tracking);
+
+    // First genuine observation is healthy — seeds.
+    collectDaemonTerminalEvents(["0xa"], new Map(), tracking);
+
+    // The in-session drop that follows emits.
+    const errors = new Map([["0xa", terminalError(DaemonStatus.AML_REJECTED)]]);
+    expect(collectDaemonTerminalEvents(["0xa"], errors, tracking)).toEqual([
+      { vaultId: "0xa", daemonStatus: DaemonStatus.AML_REJECTED },
+    ]);
+  });
 });
