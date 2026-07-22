@@ -13,9 +13,12 @@ import type {
   TransactionReceipt,
   WalletClient,
 } from "viem";
-import { maxUint256 } from "viem";
+import { formatUnits, isAddressEqual, maxUint256, parseEventLogs } from "viem";
+
+import { COPY } from "@/copy";
 
 import { ERC20 } from "../../../clients/eth-contract";
+import { ErrorCode, isSimulationPhaseError } from "../../../utils/errors";
 import { AaveAdapterTx, AaveSpoke } from "../clients";
 import { getAaveAdapterAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
@@ -95,13 +98,118 @@ export async function repay(
   };
 }
 
+/** Display metadata for the debt token, used only in error copy. */
+interface TokenDisplay {
+  symbol: string;
+  decimals: number;
+}
+
+type RepayResult = { transactionHash: Hash; receipt: TransactionReceipt };
+
+/** Bounded fallback verification when the approve receipt has no usable Approval event. */
+const ALLOWANCE_VERIFY_ATTEMPTS = 3;
+const ALLOWANCE_VERIFY_RETRY_DELAY_MS = 2000;
+
+/** Delay before retrying a repay whose simulation hit a stale backend. */
+const REPAY_STALE_SIM_RETRY_DELAY_MS = 3000;
+
+/** Decoded reason for the OZ allowance revert (always in COMMON_ERROR_ABI). */
+const ERC20_INSUFFICIENT_ALLOWANCE_REASON = "ERC20InsufficientAllowance";
+
+/** Approval event ABI for parsing the approve receipt's logs. */
+const ERC20_APPROVAL_EVENT_ABI = [
+  {
+    type: "event",
+    name: "Approval",
+    inputs: [
+      { indexed: true, name: "owner", type: "address" },
+      { indexed: true, name: "spender", type: "address" },
+      { indexed: false, name: "value", type: "uint256" },
+    ],
+  },
+] as const;
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatTokenAmount(amount: bigint, token: TokenDisplay): string {
+  return `${formatUnits(amount, token.decimals)} ${token.symbol}`;
+}
+
 /**
- * Approve if needed, then verify the approval landed on-chain.
- *
- * We've seen the subsequent repay tx revert with `ERC20InsufficientAllowance`
- * after the approve receipt returned cleanly — the public RPC can briefly
- * serve pre-block state, so the next tx executes against a stale allowance.
- * Re-reading turns a revert-after-signing into a pre-broadcast error.
+ * Send the approval and verify it from its own mined receipt's Approval event
+ * — the receipt is chain truth for this tx, immune to a load-balanced RPC
+ * serving pre-block state on a follow-up read. The read-based fallback covers
+ * receipts without a matching event: wallet-replaced txs (cancel / speed-up
+ * resolve to the replacement's receipt) and tokens that don't emit Approval.
+ */
+async function approveAndVerify(
+  walletClient: WalletClient,
+  chain: Chain,
+  tokenAddress: Address,
+  ownerAddress: Address,
+  spenderAddress: Address,
+  requiredAmount: bigint,
+  token: TokenDisplay,
+): Promise<void> {
+  const { receipt } = await ERC20.approveERC20(
+    walletClient,
+    chain,
+    tokenAddress,
+    spenderAddress,
+    requiredAmount,
+  );
+
+  const approvalLogs = parseEventLogs({
+    abi: ERC20_APPROVAL_EVENT_ABI,
+    logs: receipt.logs,
+    eventName: "Approval",
+  });
+  // Last match wins: a Safe batch execution can carry sibling Approval logs.
+  const matched = approvalLogs
+    .filter(
+      (log) =>
+        isAddressEqual(log.address, tokenAddress) &&
+        isAddressEqual(log.args.owner, ownerAddress) &&
+        isAddressEqual(log.args.spender, spenderAddress),
+    )
+    .at(-1);
+
+  if (matched) {
+    if (matched.args.value >= requiredAmount) return;
+    // Deterministic shortfall — e.g. the user edited the wallet's spending
+    // cap below what the repay needs. No retry can fix it.
+    throw new Error(
+      COPY.loans.repay.approvalBelowRequired(
+        formatTokenAmount(requiredAmount, token),
+        formatTokenAmount(matched.args.value, token),
+      ),
+    );
+  }
+
+  let observed = 0n;
+  for (let attempt = 0; attempt < ALLOWANCE_VERIFY_ATTEMPTS; attempt++) {
+    if (attempt > 0) await wait(ALLOWANCE_VERIFY_RETRY_DELAY_MS);
+    observed = await ERC20.getERC20Allowance(
+      tokenAddress,
+      ownerAddress,
+      spenderAddress,
+    );
+    if (observed >= requiredAmount) return;
+  }
+  throw new Error(
+    COPY.loans.repay.approvalNotConfirmed(
+      formatTokenAmount(requiredAmount, token),
+      formatTokenAmount(observed, token),
+    ),
+  );
+}
+
+/**
+ * Ensure the adapter can pull `requiredAmount`, approving when the current
+ * allowance is short. Returns whether an approve was actually sent so the
+ * repay retry can force one if the short-circuit read turns out stale.
  */
 async function ensureAllowance(
   walletClient: WalletClient,
@@ -110,32 +218,76 @@ async function ensureAllowance(
   ownerAddress: Address,
   spenderAddress: Address,
   requiredAmount: bigint,
-): Promise<void> {
+  token: TokenDisplay,
+): Promise<{ approveSent: boolean }> {
   const currentAllowance = await ERC20.getERC20Allowance(
     tokenAddress,
     ownerAddress,
     spenderAddress,
   );
-  if (currentAllowance >= requiredAmount) return;
+  if (currentAllowance >= requiredAmount) return { approveSent: false };
 
-  await ERC20.approveERC20(
+  await approveAndVerify(
     walletClient,
     chain,
     tokenAddress,
-    spenderAddress,
-    requiredAmount,
-  );
-
-  const verifiedAllowance = await ERC20.getERC20Allowance(
-    tokenAddress,
     ownerAddress,
     spenderAddress,
+    requiredAmount,
+    token,
   );
-  if (verifiedAllowance < requiredAmount) {
-    throw new Error(
-      `Approval did not take effect on-chain (expected at least ${requiredAmount}, got ${verifiedAllowance}). This is usually a transient RPC lag — please refresh the page and try again.`,
-    );
+  return { approveSent: true };
+}
+
+/**
+ * True for an ERC20InsufficientAllowance raised at pre-flight simulation:
+ * nothing was signed or broadcast, so with a receipt-verified approval it can
+ * only mean the simulating backend has not caught up to the approve block.
+ */
+function isStaleAllowanceSimulationError(err: unknown): boolean {
+  return (
+    isSimulationPhaseError(err) &&
+    err.code === ErrorCode.CONTRACT_REVERT &&
+    err.reason === ERC20_INSUFFICIENT_ALLOWANCE_REASON
+  );
+}
+
+/**
+ * Run the repay, absorbing stale-backend allowance reverts at simulation: one
+ * plain delayed retry first; if the approve was short-circuited (a stale HIGH
+ * allowance read can skip a genuinely needed approve), force the approve
+ * before the final attempt. Mined reverts and all other errors propagate
+ * untouched — auto-retrying a broadcast tx would re-prompt the wallet.
+ * Note: repayMaxCapped can revert here legitimately (accrued interest pushed
+ * debt past the approved balance cap); the retries just delay that error.
+ */
+async function repayWithStaleSimulationRetry(params: {
+  execute: () => Promise<RepayResult>;
+  approveSent: boolean;
+  forceApprove: () => Promise<void>;
+}): Promise<RepayResult> {
+  const { execute, approveSent, forceApprove } = params;
+
+  try {
+    return await execute();
+  } catch (firstError) {
+    if (!isStaleAllowanceSimulationError(firstError)) throw firstError;
+    await wait(REPAY_STALE_SIM_RETRY_DELAY_MS);
   }
+
+  try {
+    return await execute();
+  } catch (secondError) {
+    if (!isStaleAllowanceSimulationError(secondError) || approveSent) {
+      throw secondError;
+    }
+    // Approve was skipped on a possibly stale-high read; force it once, then
+    // give the backends the same catch-up window before the final attempt.
+    await forceApprove();
+    await wait(REPAY_STALE_SIM_RETRY_DELAY_MS);
+  }
+
+  return execute();
 }
 
 /**
@@ -157,6 +309,7 @@ export async function repayPartial(
   debtReserveId: bigint,
   tokenAddress: Address,
   amount: bigint,
+  token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
@@ -172,16 +325,31 @@ export async function repayPartial(
     );
   }
 
-  await ensureAllowance(
+  const { approveSent } = await ensureAllowance(
     walletClient,
     chain,
     tokenAddress,
     userAddress,
     adapterAddress,
     amount,
+    token,
   );
 
-  return repay(walletClient, chain, userAddress, debtReserveId, amount);
+  return repayWithStaleSimulationRetry({
+    execute: () =>
+      repay(walletClient, chain, userAddress, debtReserveId, amount),
+    approveSent,
+    forceApprove: () =>
+      approveAndVerify(
+        walletClient,
+        chain,
+        tokenAddress,
+        userAddress,
+        adapterAddress,
+        amount,
+        token,
+      ),
+  });
 }
 
 /**
@@ -199,6 +367,7 @@ export async function repayMaxCapped(
   debtReserveId: bigint,
   tokenAddress: Address,
   balanceAmount: bigint,
+  token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
@@ -211,16 +380,31 @@ export async function repayMaxCapped(
 
   const adapterAddress = getAaveAdapterAddress();
 
-  await ensureAllowance(
+  const { approveSent } = await ensureAllowance(
     walletClient,
     chain,
     tokenAddress,
     userAddress,
     adapterAddress,
     balanceAmount,
+    token,
   );
 
-  return repay(walletClient, chain, userAddress, debtReserveId, maxUint256);
+  return repayWithStaleSimulationRetry({
+    execute: () =>
+      repay(walletClient, chain, userAddress, debtReserveId, maxUint256),
+    approveSent,
+    forceApprove: () =>
+      approveAndVerify(
+        walletClient,
+        chain,
+        tokenAddress,
+        userAddress,
+        adapterAddress,
+        balanceAmount,
+        token,
+      ),
+  });
 }
 
 /**
@@ -246,6 +430,7 @@ export async function repayFull(
   debtReserveId: bigint,
   tokenAddress: Address,
   proxyContract: Address,
+  token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
@@ -279,16 +464,31 @@ export async function repayFull(
     );
   }
 
-  await ensureAllowance(
+  const { approveSent } = await ensureAllowance(
     walletClient,
     chain,
     tokenAddress,
     userAddress,
     adapterAddress,
     amountToRepay,
+    token,
   );
 
-  return repay(walletClient, chain, userAddress, debtReserveId, amountToRepay);
+  return repayWithStaleSimulationRetry({
+    execute: () =>
+      repay(walletClient, chain, userAddress, debtReserveId, amountToRepay),
+    approveSent,
+    forceApprove: () =>
+      approveAndVerify(
+        walletClient,
+        chain,
+        tokenAddress,
+        userAddress,
+        adapterAddress,
+        amountToRepay,
+        token,
+      ),
+  });
 }
 
 /**

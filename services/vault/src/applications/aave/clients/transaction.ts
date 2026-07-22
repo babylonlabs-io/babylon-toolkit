@@ -23,7 +23,10 @@ import {
   throwRevertError,
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
-import { mapViemErrorToContractError } from "../../../utils/errors";
+import {
+  mapViemErrorToContractError,
+  tagSimulationPhase,
+} from "../../../utils/errors";
 
 /**
  * Read the Core Spoke address from the controller contract.
@@ -103,7 +106,18 @@ async function executeTx(
   try {
     // Pre-flight simulation - catches errors before user signs
     await simulateTx(to, data, account);
+  } catch (error) {
+    // Tagged so callers can safely auto-retry: nothing was signed or sent,
+    // and the failure may be a lagging RPC backend, not the chain.
+    throw tagSimulationPhase(
+      mapViemErrorToContractError(error, errorContext, [
+        AaveIntegrationAdapterABI,
+        BTCVaultRegistryABI,
+      ]),
+    );
+  }
 
+  try {
     // Simulation passed, now send the actual transaction
     const hash = await walletClient.sendTransaction({
       to,
