@@ -4,12 +4,53 @@ import { twJoin } from "tailwind-merge";
 
 import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
+import { useMidnightTick } from "@/hooks/useMidnightTick";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
+import { formatActivityDateGroup } from "@/utils/formatting";
 
 import { ActivityCard } from "./ActivityCard";
 import { ActivityEmptyState } from "./ActivityEmptyState";
+import { ActivityRowV3 } from "./ActivityRowV3";
 import { FilterDropdown } from "./FilterDropdown";
 import { LiquidationGroupCard } from "./LiquidationGroupCard";
+
+interface ActivityDateGroup {
+  label: string;
+  rows: ActivityRow[];
+}
+
+// Buckets the (already newest-first) rows under date-group headers, preserving
+// order: each row keeps its position and groups appear in first-seen order.
+function groupByDate(
+  rows: ActivityRow[],
+  reference: Date,
+): ActivityDateGroup[] {
+  const labels = {
+    today: COPY.activity.dateToday,
+    yesterday: COPY.activity.dateYesterday,
+  };
+  const ordered: ActivityDateGroup[] = [];
+  const byLabel = new Map<string, ActivityDateGroup>();
+  for (const row of rows) {
+    const label = formatActivityDateGroup(row.date, reference, labels);
+    let group = byLabel.get(label);
+    if (!group) {
+      group = { label, rows: [] };
+      byLabel.set(label, group);
+      ordered.push(group);
+    }
+    group.rows.push(row);
+  }
+  return ordered;
+}
+
+function ActivityRow({ row }: { row: ActivityRow }) {
+  return row.kind === "liquidationGroup" ? (
+    <LiquidationGroupCard row={row} />
+  ) : (
+    <ActivityRowV3 row={row} />
+  );
+}
 
 // Single-app surface today. When multi-app ships this becomes an app picker
 // fed from the applications registry.
@@ -30,11 +71,16 @@ interface ActivityListProps {
 
 export function ActivityList({ activities, isConnected }: ActivityListProps) {
   const isMobile = useIsMobile();
+  const isV3 = FeatureFlags.isV3UiEnabled;
   // v3 desktop replaces this in-page heading with the persistent header's
   // page title; v3 mobile has no header title slot (Header only shows it on
   // desktop), so the heading must stay to avoid a page with no title at all.
-  const hideHeading = FeatureFlags.isV3UiEnabled && !isMobile;
+  const hideHeading = isV3 && !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
+
+  // Re-render at local midnight so the v3 "Today" / "Yesterday" date-group
+  // headers stay correct on a page left open overnight (the feed doesn't poll).
+  useMidnightTick();
 
   // The filter control is hidden when the wallet disconnects, so leaving the
   // selection in place would trap the user on an empty-but-filtered list with
@@ -84,8 +130,37 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
           isConnected={isConnected}
           isFiltered={filter !== null}
         />
+      ) : isV3 ? (
+        // v3: rows grouped under date headers, each group a rounded card with
+        // divider-separated rows (matches the Figma "after deposit" frame).
+        <div className="flex flex-col gap-6">
+          {groupByDate(visible, new Date()).map((group) => (
+            <div key={group.label} className="flex flex-col gap-3">
+              <p className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+                {group.label}
+              </p>
+              <ul
+                role="list"
+                className="overflow-hidden rounded-lg bg-secondary-highlight"
+              >
+                {group.rows.map((r, index) => (
+                  <li
+                    key={r.id}
+                    className={
+                      index > 0
+                        ? "border-t border-secondary-strokeLight dark:border-secondary-strokeDark"
+                        : ""
+                    }
+                  >
+                    <ActivityRow row={r} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       ) : (
-        // Scroll container: min-h keeps the card substantial when there are
+        // v2 scroll container: min-h keeps the card substantial when there are
         // only a handful of rows; max-h caps tall histories so the page never
         // grows arbitrarily. Only the row list scrolls — the title + filter
         // sit outside the container and stay pinned.

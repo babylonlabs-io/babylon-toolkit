@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getNetworkConfigBTC } from "@/config";
 
 import {
+  formatActivityDateGroup,
+  formatActivityTime,
   formatAmount,
   formatAprPercent,
   formatBasisPointsAsPercent,
@@ -522,5 +524,75 @@ describe("formatMeterLabel", () => {
   it("clamps out-of-range ratios before formatting", () => {
     expect(formatMeterLabel(-0.5, labels)).toBe("0% remaining");
     expect(formatMeterLabel(1.5, labels)).toBe("100% remaining");
+  });
+});
+
+describe("formatActivityTime", () => {
+  it("formats a date as zero-padded HH:mm:ss (local time)", () => {
+    expect(formatActivityTime(new Date(2025, 8, 8, 9, 5, 3))).toBe("09:05:03");
+  });
+
+  it("handles midnight and end of day", () => {
+    expect(formatActivityTime(new Date(2025, 8, 8, 0, 0, 0))).toBe("00:00:00");
+    expect(formatActivityTime(new Date(2025, 8, 8, 23, 59, 59))).toBe(
+      "23:59:59",
+    );
+  });
+});
+
+describe("formatActivityDateGroup", () => {
+  const labels = { today: "Today", yesterday: "Yesterday" };
+  // Reference "now": Sep 8, 2025, mid-afternoon (local time).
+  const reference = new Date(2025, 8, 8, 15, 30, 0);
+
+  it("labels the same calendar day 'Today' regardless of time", () => {
+    expect(
+      formatActivityDateGroup(new Date(2025, 8, 8, 0, 1, 0), reference, labels),
+    ).toBe("Today");
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 8, 23, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Today");
+  });
+
+  it("labels the previous calendar day 'Yesterday'", () => {
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 7, 23, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Yesterday");
+  });
+
+  it("labels older days with the explicit YYYY-MM-DD date", () => {
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 6, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("2025-09-06");
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 0, 2, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("2025-01-02");
+  });
+
+  it("groups by calendar day, not elapsed 24h windows", () => {
+    // ~2 hours before the reference but on the previous calendar day → Yesterday.
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 7, 23, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Yesterday");
   });
 });

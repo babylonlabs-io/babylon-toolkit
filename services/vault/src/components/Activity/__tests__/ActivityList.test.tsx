@@ -17,6 +17,12 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => "signet",
 }));
 
+// The v3 disconnected empty state renders the shared EmptyState, which mounts
+// <Connect/> (many wallet providers). Stub it so the list stays a unit test.
+vi.mock("@/components/Wallet", () => ({
+  Connect: () => <button type="button">Connect</button>,
+}));
+
 import { ActivityList } from "../ActivityList";
 
 beforeEach(() => {
@@ -229,5 +235,45 @@ describe("ActivityList", () => {
     expect(
       screen.getByRole("button", { name: /show all/i }),
     ).toBeInTheDocument();
+  });
+
+  it("v3 UI: groups rows under date-group headers (Today vs an explicit date)", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    const rows = [
+      makeRow({ id: "today", type: "Deposit", date: new Date() }),
+      makeRow({
+        id: "old",
+        type: "Borrow",
+        amount: { value: "100", symbol: "USDC" },
+        date: new Date(2025, 0, 2, 12, 0, 0),
+      }),
+    ];
+    renderList({ activities: rows, isConnected: true });
+
+    expect(screen.getByText(COPY.activity.dateToday)).toBeInTheDocument();
+    expect(screen.getByText("2025-01-02")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("v3 UI + connected + no activity: shows the shared empty state with a Deposit CTA", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    renderList({ activities: [], isConnected: true });
+
+    expect(screen.getByText(COPY.activity.emptyV3Title)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: COPY.overview.depositAction }),
+    ).toBeInTheDocument();
+  });
+
+  it("v3 UI + filtered to empty: distinct filtered-empty state with no CTA", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    const rows = [makeRow({ id: "a", type: "Deposit" })];
+    renderList({ activities: rows, isConnected: true });
+
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+    fireEvent.click(screen.getByRole("option", { name: "Borrowed" }));
+
+    expect(screen.getByText(COPY.activity.emptyFiltered)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /deposit/i })).toBeNull();
   });
 });

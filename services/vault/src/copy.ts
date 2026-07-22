@@ -36,6 +36,7 @@
 
 // Direct file import (not the barrel) so we don't pull errorMessages' siblings
 // that import this file back. errorMessages.ts is import-free, so this is safe.
+import type { ActivityType } from "@/types/activityLog";
 import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
 
 // Shared strings that legitimately appear in multiple places. Hoisting them
@@ -1355,6 +1356,18 @@ export const COPY = {
       "Partially Liquidated": "Partially Liquidated",
       "Fully Liquidated": "Fully Liquidated",
     },
+    // Row type labels (the transaction-type column). Pending Deposit reads as a
+    // normal "Deposit"; keep this exhaustive with the ActivityType union.
+    typeLabels: {
+      Deposit: "Deposit",
+      Withdraw: "Withdraw",
+      Borrow: "Borrow",
+      Repay: "Repay",
+      Redeem: "Redeem",
+      "Partially Liquidated": "Partially Liquidated",
+      "Fully Liquidated": "Fully Liquidated",
+      "Pending Deposit": "Deposit",
+    } satisfies Record<ActivityType, string>,
     hashPending: "Pending…",
     expiredTooltip: "Deposit expired",
     // Labels for the two child rows nested inside a LiquidationGroupRow.
@@ -1366,6 +1379,19 @@ export const COPY = {
     emptyConnected: "No activity yet. Make your first deposit to get started.",
     emptyFiltered: "No activity",
     depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
+    // v3 activity page (behind ENABLE_V3_UI): the empty state matches the
+    // shared v3 EmptyState card; status labels are derived from the row type
+    // plus pending/expired (a deposit's collateral is "In use", every other
+    // settled action is "Done"); date-group headers label the rows by day.
+    emptyV3Title: "No activity yet",
+    emptyV3Body:
+      "Your account activity will appear here once you start using Babylon",
+    statusPending: "Pending",
+    statusExpired: "Expired",
+    statusInUse: "In use",
+    statusDone: "Done",
+    dateToday: "Today",
+    dateYesterday: "Yesterday",
   },
   banner: {
     addCollateral: "Add Collateral",

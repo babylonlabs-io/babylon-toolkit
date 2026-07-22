@@ -285,6 +285,52 @@ export function formatDateTime(date: Date): string {
 }
 
 /**
+ * Format a date as "HH:mm:ss" (local time). Used by the v3 activity rows, whose
+ * calendar day lives in the group header, so only the time is shown per row.
+ * @param date - The date to format
+ * @returns Formatted time string
+ */
+export function formatActivityTime(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Label for the v3 activity date-group header the given row belongs to:
+ * "Today" / "Yesterday" for the two most recent calendar days, else the
+ * explicit "YYYY-MM-DD". Pure and deterministic — the caller passes the
+ * reference "now" so it stays testable without touching the real clock.
+ * Grouping compares by local calendar day, not elapsed hours.
+ * @param date - The row's timestamp
+ * @param reference - The current time to compare against
+ * @param labels - Localized "Today"/"Yesterday" strings (from COPY)
+ */
+export function formatActivityDateGroup(
+  date: Date,
+  reference: Date,
+  labels: { today: string; yesterday: string },
+): string {
+  const startOfDay = (d: Date): number =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const dayDiff = Math.round(
+    (startOfDay(reference) - startOfDay(date)) / MS_PER_DAY,
+  );
+
+  if (dayDiff === 0) return labels.today;
+  if (dayDiff === 1) return labels.yesterday;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Format a timestamp as relative time (e.g., "5 minutes ago", "2 days ago")
  * @param timestamp - Timestamp in milliseconds since epoch. Future timestamps return "just now".
  * @returns Formatted relative time string

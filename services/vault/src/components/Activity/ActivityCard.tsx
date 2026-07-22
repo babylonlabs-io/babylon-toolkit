@@ -2,7 +2,7 @@ import { Avatar, Loader } from "@babylonlabs-io/core-ui";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { COPY } from "@/copy";
-import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
+import type { ActivityLog } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
 import { formatDateTime } from "@/utils/formatting";
 
@@ -18,9 +18,9 @@ export function ActivityCard({ row }: ActivityCardProps) {
   const showSpinner = isPending && !isExpired;
   const showHash = row.transactionHash !== "";
 
-  // PENDING_DEPOSIT_TYPE is an internal type used to keep pending peg-ins out
-  // of the filter menu; the row itself reads as a normal "Deposit" with a spinner.
-  const displayLabel = row.type === PENDING_DEPOSIT_TYPE ? "Deposit" : row.type;
+  // The type label comes from the copy catalog; "Pending Deposit" (an internal
+  // type kept out of the filter menu) reads as a normal "Deposit" with a spinner.
+  const displayLabel = COPY.activity.typeLabels[row.type];
 
   const mutedTextClass = isPending
     ? "text-accent-secondary"

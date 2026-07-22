@@ -52,6 +52,12 @@ vi.mock("../components/pages/not-found", () => ({
   default: () => <div data-testid="not-found" />,
 }));
 
+// The Activity page's empty state pulls in the shared EmptyState → <Connect/>
+// (heavy wallet-connector graph). Stub it so the router test stays a unit test.
+vi.mock("@/components/Wallet", () => ({
+  Connect: () => <button type="button">Connect</button>,
+}));
+
 vi.mock("../applications", () => ({
   getApplication: () => undefined,
   getApplicationMetadataByController: () => undefined,
