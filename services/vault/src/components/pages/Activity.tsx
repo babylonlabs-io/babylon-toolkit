@@ -16,7 +16,7 @@ export default function Activity() {
   return (
     <Container
       as="main"
-      className={`${PAGE_CONTENT_CLASS} mx-auto flex flex-1 flex-col gap-6 pb-6 max-md:flex-none max-md:gap-4 max-md:pb-4 max-md:pt-0`}
+      className={`${PAGE_CONTENT_CLASS} flex flex-1 flex-col gap-6 pb-6 max-md:flex-none max-md:gap-4 max-md:pb-4 max-md:pt-0`}
     >
       <div className="w-full">
         {isLoading ? (

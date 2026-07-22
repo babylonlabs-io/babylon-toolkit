@@ -23,8 +23,7 @@ export interface SeizureGutterProps {
  * then the liquidation bands. Each band's TOP is anchored exactly at its
  * trigger price; bands extend downward (with a minimum height) and anything
  * past the plot floor is clipped by this wrapper — events below the visible
- * price domain are simply out of frame, like Figma. Extend the price axis
- * to reveal them.
+ * price domain are simply out of frame. Extend the price axis to reveal them.
  */
 export function SeizureGutter({
   bands,

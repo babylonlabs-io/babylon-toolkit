@@ -52,7 +52,7 @@ export interface LiquidationEventCard {
 export interface LiquidationChartData {
   bands: LiquidationBand[];
   priceAxis: PriceAxisTick[];
-  shareAxisLabels: string[];
+  shareAxisTicks: { fraction: number; label: string }[];
   cards: LiquidationEventCard[];
 }
 
@@ -61,6 +61,47 @@ export interface LiquidationChartOptions {
   btcPrice: number;
   /** Collateral factor (0–1) from on-chain params, for post-liq HF. */
   collateralFactor: number;
+}
+
+/**
+ * Headroom below the last trigger for the axis floor, so the final event reads
+ * as a band rather than a hairline. The axis deliberately stops above $0.
+ */
+const AXIS_FLOOR_MARGIN = 0.05;
+
+/** Bottom of the price axis: just under the last trigger, or 0 with no events. */
+export function axisFloorPrice(result: CalculatorResult): number {
+  const triggers = result.groups.map((g) => g.liquidationPrice);
+  if (triggers.length === 0) return 0;
+  return Math.min(...triggers) * (1 - AXIS_FLOOR_MARGIN);
+}
+
+/**
+ * Exponent applied to a collateral share before it becomes a band width. 1 is
+ * true proportions, which renders a 1% event as an unreadable sliver; 0 is all
+ * bands equal, which hides that some events seize far more. The square root
+ * keeps both the ordering and a visible size difference.
+ */
+const SHARE_WIDTH_EXPONENT = 0.5;
+
+/**
+ * Band widths from collateral shares, compressed by {@link SHARE_WIDTH_EXPONENT}
+ * and renormalised to fill the axis. Returns cumulative edges, `[0, …, 1]`.
+ */
+export function compressedShareBoundaries(shares: number[]): number[] {
+  const weights = shares.map((share) =>
+    Math.pow(Math.max(0, share), SHARE_WIDTH_EXPONENT),
+  );
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  const boundaries = [0];
+  let cumulative = 0;
+  for (const weight of weights) {
+    cumulative += total > 0 ? weight / total : 0;
+    boundaries.push(cumulative);
+  }
+  // Guard against float drift leaving the last edge just shy of the axis end.
+  boundaries[boundaries.length - 1] = 1;
+  return boundaries;
 }
 
 const toneFor = (index: number): LiquidationBandTone =>
@@ -128,16 +169,22 @@ export function buildLiquidationChartData(
 ): LiquidationChartData {
   const groups = result.groups;
   const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
+  const floorPrice = axisFloorPrice(result);
+  const shares = groups.map((g) =>
+    totalBtc > 0 ? g.combinedBtc / totalBtc : 0,
+  );
+  const widthBoundaries = compressedShareBoundaries(shares);
 
   let cumulativeBtc = 0;
   const bands: LiquidationBand[] = groups.map((group, i) => {
-    const shareStart = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
+    const shareStart = widthBoundaries[i];
     cumulativeBtc += group.combinedBtc;
-    const shareEnd = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
+    const trueShareEnd = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
+    const shareEnd = widthBoundaries[i + 1];
     // Band spans from where this event triggers down to the next event's
-    // trigger; the last band bottoms out at the axis floor (0 = fully wiped).
+    // trigger; the last band bottoms out at the axis floor.
     const priceBottom =
-      i < groups.length - 1 ? groups[i + 1].liquidationPrice : 0;
+      i < groups.length - 1 ? groups[i + 1].liquidationPrice : floorPrice;
     const tone = toneFor(i);
 
     return {
@@ -173,7 +220,7 @@ export function buildLiquidationChartData(
         },
       ],
       cumulativeLabel: COPY.liquidations.cumulativeSeized(
-        Math.round(shareEnd * 100),
+        Math.round(trueShareEnd * 100),
       ),
     };
   });
@@ -184,23 +231,31 @@ export function buildLiquidationChartData(
   // segmentedFraction collapses the current-price rule and first event to the
   // top. Dedup avoids duplicate tick values (React keys) when prices coincide.
   const axisValues = Array.from(
-    new Set([btcPrice, ...groups.map((g) => g.liquidationPrice), 0]),
+    new Set([btcPrice, ...groups.map((g) => g.liquidationPrice), floorPrice]),
   ).sort((a, b) => b - a);
   const priceAxis: PriceAxisTick[] = axisValues.map((value) => ({
     value,
     label: formatPriceUsd(value),
   }));
 
-  const shareAxisLabels = [
-    "0%",
-    ...bands.slice(0, -1).map((b) => `${Math.round(b.shareEnd * 100)}%`),
-    "100%",
+  // Ticks sit at the compressed band edges but read out the true cumulative
+  // share, so the axis stays honest about what the widths represent.
+  let cumulativeShare = 0;
+  const shareAxisTicks = [
+    { fraction: 0, label: "0%" },
+    ...shares.map((share, i) => {
+      cumulativeShare += share;
+      return {
+        fraction: widthBoundaries[i + 1],
+        label: `${Math.round(cumulativeShare * 100)}%`,
+      };
+    }),
   ];
 
   return {
     bands,
     priceAxis,
-    shareAxisLabels,
+    shareAxisTicks,
     cards: groups.map((g) => toCard(g, btcPrice, collateralFactor)),
   };
 }

@@ -40,7 +40,11 @@ export interface LiquidationBand {
   /** Band vertical extent in price. `priceTop` is where the event triggers. */
   priceTop: number;
   priceBottom: number;
-  /** Cumulative collateral share [0,1] — the Seizure Map X extent. */
+  /**
+   * The Seizure Map X extent, [0,1]. Normally the cumulative collateral share;
+   * the app may compress it so a tiny event stays readable, in which case
+   * `shareAxisTicks` carries the true percentages.
+   */
   shareStart: number;
   shareEnd: number;
   state: LiquidationBandState;
@@ -66,8 +70,8 @@ export type LiquidationChartVariant = "full" | "compact";
 /**
  * A price-axis tick. The Seizure Map uses a *segmented* axis: ticks are spaced
  * evenly regardless of the price gap between them, so each event gets equal
- * vertical weight (matching Figma, where an $180 final segment reads as tall as
- * a $37k one). A price is positioned by piecewise-linear interpolation between
+ * vertical weight, so an $180 final segment reads as tall as a $37k one. A
+ * price is positioned by piecewise-linear interpolation between
  * adjacent ticks. Order top→bottom (descending value); band `priceTop`/
  * `priceBottom` should coincide with tick values.
  */
@@ -110,8 +114,22 @@ interface LiquidationChartBase {
 export interface SeizureMapProps extends LiquidationChartBase {
   /** X-axis tick labels left→right, pre-formatted, e.g. ["0%","55%","91%","100%"]. */
   shareAxisLabels?: string[];
+  /**
+   * X-axis ticks at explicit fractions, for when the band widths are not the
+   * raw shares (see `shareStart`/`shareEnd`). Takes precedence over
+   * `shareAxisLabels`, which spaces its labels evenly.
+   */
+  shareAxisTicks?: { fraction: number; label: string }[];
+  /**
+   * Show the collateral-share legend strip above the plot. Default true in the
+   * `full` variant; `compact` never renders it. Off gives a bare plot that
+   * still keeps the share axis.
+   */
+  showShareLegend?: boolean;
   /** Show the inline price-line label. Default true. */
   showPriceLineLabel?: boolean;
+  /** Caption at the left of the price line, e.g. "Bitcoin Price". */
+  priceLineCaption?: string;
   /** Override the price-line colour (line + default label). Default: `--liq-price-line`. */
   priceLineColor?: string;
   /** Override the price-line label colour. Default: the price-line colour. */
@@ -125,7 +143,7 @@ export interface SafeZone {
 }
 
 /**
- * Optional, toggleable chart interactions. Not part of the Figma spec — enable
+ * Optional, toggleable chart interactions. Not part of the design spec — enable
  * per surface. Both default off so the chart stays a static render unless asked.
  */
 export interface TimelineInteractions {

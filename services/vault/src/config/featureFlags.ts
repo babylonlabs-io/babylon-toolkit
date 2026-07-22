@@ -175,6 +175,22 @@ export default {
   },
 
   /**
+   * LIQUIDATION_ANALYSIS_CHART feature flag
+   *
+   * Purpose: Shows the seizure-map chart inside the overview's Liquidation
+   * Analysis card. The card's empty states read the live position and are not
+   * gated by this; only the chart is.
+   * Why needed: until the cascade is wired to `usePositionNotifications`, the
+   * only cascade available is a placeholder, and rendering it beside a real
+   * position would present fabricated liquidation prices as the user's own.
+   * The v3 flag alone is not enough — v3 is enabled on devnet/testnet.
+   * Default: false (no chart unless explicitly set to "true")
+   */
+  get isLiquidationAnalysisChartEnabled() {
+    return process.env.NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART === "true";
+  },
+
+  /**
    * NOTICE_BANNER_MESSAGE config
    *
    * Purpose: Operator-controlled freeform banner shown at the top of the app

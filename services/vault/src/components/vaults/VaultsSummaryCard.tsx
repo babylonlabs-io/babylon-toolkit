@@ -15,9 +15,8 @@ import {
   getHealthFactorColor,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
+import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { COPY } from "@/copy";
-
-import { NEUTRAL_BUTTON_CLASS } from "./buttonClasses";
 
 interface VaultsSummaryCardProps {
   totalCollateralBtc: string;

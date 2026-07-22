@@ -17,9 +17,18 @@ import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import { LiquidationAnalysisDebugPanel } from "@/dev/LiquidationAnalysisDebugPanel";
 import { PositionNotificationsDebugPanel } from "@/dev/PositionNotificationsDebugPanel";
-import { useDebugPositionOverride } from "@/dev/debugPositionStore";
+import {
+  useDebugManualMode,
+  useDebugManualParams,
+  useDebugPositionOverride,
+} from "@/dev/debugPositionStore";
 import { useDemoCollateral, useDemoWithdrawal } from "@/dev/demoDeposit";
+import {
+  resolveLiquidationCardState,
+  useLiquidationDebugState,
+} from "@/dev/liquidationDebugStore";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
@@ -37,6 +46,7 @@ import {
 import { CollateralSection } from "./CollateralSection";
 import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
+import { LiquidationAnalysisSection } from "./LiquidationAnalysisSection";
 import { LoansSection } from "./LoansSection";
 import { MaxVaultsNotification } from "./MaxVaultsNotification";
 import { OverviewSection } from "./OverviewSection";
@@ -69,6 +79,27 @@ export function DashboardPage() {
   // the banners fall back to the live calculation with no behavioural change.
   const { result: debugResultOverride, status: debugStatusOverride } =
     useDebugPositionOverride();
+  // Manual mode only: live mode republishes the live result as a no-op
+  // override, which is not a simulation.
+  const debugManualMode = useDebugManualMode();
+  const debugManualParams = useDebugManualParams();
+  const liquidationDebugState = useLiquidationDebugState();
+  // No live source yet: the chart renders only from the god-mode cascade,
+  // behind its own flag. Elsewhere it stays absent rather than charting a real
+  // position from placeholder numbers.
+  const liquidationCascade = useMemo(
+    () =>
+      featureFlags.isLiquidationAnalysisChartEnabled &&
+      debugManualMode &&
+      debugResultOverride
+        ? {
+            result: debugResultOverride,
+            btcPrice: debugManualParams.btcPrice,
+            collateralFactor: debugManualParams.CF,
+          }
+        : null,
+    [debugManualMode, debugResultOverride, debugManualParams],
+  );
   const {
     collateralBtc,
     displayCollateralBtc,
@@ -205,6 +236,10 @@ export function DashboardPage() {
   // the financial flags (not the display ones) so an optimistic "activating"
   // vault, whose values are still $0, doesn't surface an empty panel.
   const hasOverviewData = hasCollateral || hasLoans;
+  const liquidationCardState = resolveLiquidationCardState(
+    liquidationDebugState,
+    { hasCollateral: hasDisplayCollateral, hasLoans },
+  );
   const showOverview = featureFlags.isV3UiEnabled || hasOverviewData;
 
   const availableMeterPercent =
@@ -285,6 +320,7 @@ export function DashboardPage() {
     featureFlags.isGodModePanelEnabled ? (
       <Suspense fallback={null}>
         <GodModePanel>
+          {featureFlags.isV3UiEnabled && <LiquidationAnalysisDebugPanel />}
           {liquidationNotificationsEnabled &&
             featureFlags.isPositionDebugPanelEnabled && (
               <PositionNotificationsDebugPanel />
@@ -364,6 +400,16 @@ export function DashboardPage() {
             collateralFactorLoading={isBorrowCapacityLoading}
             btcPriceUsd={usableBtcPriceUsd}
             liquidationPriceUsd={liquidationPriceUsd}
+          />
+        )}
+
+        {featureFlags.isV3UiEnabled && (
+          <LiquidationAnalysisSection
+            hasCollateral={liquidationCardState.hasCollateral}
+            hasLoans={liquidationCardState.hasLoans}
+            onDeposit={openDeposit}
+            onBorrow={openBorrowPicker}
+            cascade={liquidationCascade}
           />
         )}
 

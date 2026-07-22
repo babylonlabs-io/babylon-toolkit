@@ -66,7 +66,7 @@ describe("buildLiquidationChartData", () => {
     ]);
   });
 
-  it("stacks band price extents from each trigger down to the next (last → floor 0)", () => {
+  it("stacks band price extents from each trigger down to the next (last → axis floor)", () => {
     const result = makeResult([
       makeGroup(0, { liquidationPrice: 77682 }),
       makeGroup(1, { liquidationPrice: 40283 }),
@@ -79,13 +79,15 @@ describe("buildLiquidationChartData", () => {
 
     expect(bands[0].priceTop).toBe(77682);
     expect(bands[0].priceBottom).toBe(40283);
-    expect(bands[2].priceBottom).toBe(0); // last band floors at 0
+    // The axis stops just under the last trigger, not at $0 — otherwise the
+    // final event renders as a hairline.
+    expect(bands[2].priceBottom).toBeCloseTo(3417.15, 2);
     expect(priceAxis.map((t) => t.value)).toEqual([
-      88400, 77682, 40283, 3597, 0,
+      88400, 77682, 40283, 3597, 3417.1499999999996,
     ]);
   });
 
-  it("accumulates collateral share across bands", () => {
+  it("tiles band widths edge to edge across the whole axis", () => {
     const result = makeResult([
       makeGroup(0, { combinedBtc: 0.6 }),
       makeGroup(1, { combinedBtc: 0.4 }),
@@ -96,9 +98,39 @@ describe("buildLiquidationChartData", () => {
     });
 
     expect(bands[0].shareStart).toBeCloseTo(0);
-    expect(bands[0].shareEnd).toBeCloseTo(0.6);
-    expect(bands[1].shareStart).toBeCloseTo(0.6);
+    expect(bands[1].shareStart).toBeCloseTo(bands[0].shareEnd);
     expect(bands[1].shareEnd).toBeCloseTo(1);
+    // Widths are compressed, so the larger event stays wider without the
+    // smaller one collapsing to its raw 40% share.
+    expect(bands[0].shareEnd).toBeGreaterThan(0.5);
+    expect(bands[0].shareEnd).toBeLessThan(0.6);
+  });
+
+  it("keeps the share axis honest about the true cumulative percentages", () => {
+    // 90 / 9 / 1 by collateral: the last event is a sliver at true scale.
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.9 }),
+      makeGroup(1, { combinedBtc: 0.09 }),
+      makeGroup(2, { combinedBtc: 0.01 }),
+    ]);
+    const { bands, shareAxisTicks } = buildLiquidationChartData(result, {
+      btcPrice: 90000,
+      collateralFactor: CF,
+    });
+
+    expect(shareAxisTicks.map((t) => t.label)).toEqual([
+      "0%",
+      "90%",
+      "99%",
+      "100%",
+    ]);
+    // Each tick sits on the band edge it names, not at an even interval.
+    expect(shareAxisTicks[1].fraction).toBeCloseTo(bands[0].shareEnd);
+    expect(shareAxisTicks[2].fraction).toBeCloseTo(bands[1].shareEnd);
+    // The 1% event renders far wider than 1% so its label stays readable.
+    const lastWidth = bands[2].shareEnd - bands[2].shareStart;
+    expect(lastWidth).toBeGreaterThan(0.05);
+    expect(lastWidth).toBeLessThan(bands[1].shareEnd - bands[1].shareStart);
   });
 
   it("marks a band liquidated once the simulated price is at/below its trigger", () => {
@@ -127,7 +159,7 @@ describe("buildLiquidationChartData", () => {
     });
 
     const values = priceAxis.map((t) => t.value);
-    expect(values).toEqual([77682, 60000, 40283, 0]);
+    expect(values).toEqual([77682, 60000, 40283, 38268.85]);
     expect(values).toStrictEqual([...values].sort((a, b) => b - a));
   });
 

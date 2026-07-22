@@ -12,13 +12,12 @@
 import { Heading, Loader } from "@babylonlabs-io/core-ui";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
+import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
-
-import { NEUTRAL_ROW_BUTTON_CLASS } from "./buttonClasses";
 
 interface VaultsActiveSectionProps {
   vaults: CollateralVaultEntry[];

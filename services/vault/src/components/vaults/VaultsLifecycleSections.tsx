@@ -28,6 +28,10 @@ import type { Address, Hex } from "viem";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { getActionStatus } from "@/components/deposit/actionStatus";
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import {
+  NEUTRAL_ROW_BUTTON_CLASS,
+  PRIMARY_ROW_BUTTON_CLASS,
+} from "@/components/shared/buttonClasses";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
 import {
   getStepFillPercent,
@@ -56,11 +60,6 @@ import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
-
-import {
-  NEUTRAL_ROW_BUTTON_CLASS,
-  PRIMARY_ROW_BUTTON_CLASS,
-} from "./buttonClasses";
 
 /** Step-progress bar fill — the pending amber, matching the status dot. */
 const PROGRESS_FILL_COLOR = "rgb(var(--risk-amber))";

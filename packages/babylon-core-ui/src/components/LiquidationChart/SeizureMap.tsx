@@ -29,9 +29,12 @@ export function SeizureMap({
   currentPriceLabel,
   priceAxis,
   shareAxisLabels,
+  shareAxisTicks,
+  showShareLegend = true,
   variant = "full",
   grid,
   showPriceLineLabel,
+  priceLineCaption,
   priceLineColor,
   priceLineLabelColor,
   hideBandLabels,
@@ -49,15 +52,17 @@ export function SeizureMap({
       currentPrice={currentPrice}
       currentPriceLabel={currentPriceLabel}
       xAxisLabels={compact ? undefined : shareAxisLabels}
+      xAxisTicks={compact ? undefined : shareAxisTicks}
       grid={grid}
       showPriceLineLabel={showPriceLineLabel}
+      priceLineCaption={priceLineCaption}
       priceLineColor={priceLineColor}
       priceLineLabelColor={priceLineLabelColor}
       variant={variant}
       className={twJoin(hideBandLabels && "bbn-liq-chart--no-band-labels", className)}
-      topLegend={compact ? undefined : <ShareLegend bands={bands} />}
+      topLegend={compact || !showShareLegend ? undefined : <ShareLegend bands={bands} />}
     >
-      {/* Vertical gridlines at the band boundaries (Figma "Background Chart"). */}
+      {/* Vertical gridlines at the band boundaries. */}
       {[0, ...bands.map((b) => b.shareEnd)].map((f) => (
         <span key={f} className="bbn-liq-chart__vgridline" style={{ left: pct(f) }} aria-hidden />
       ))}
