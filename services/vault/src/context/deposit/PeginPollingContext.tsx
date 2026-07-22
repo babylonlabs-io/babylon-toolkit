@@ -22,7 +22,7 @@ import {
 
 import { useDemoDeposit } from "@/dev/demoDeposit";
 import { logger } from "@/infrastructure";
-import { shortId } from "@/infrastructure/telemetryEvents";
+import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useRequiredPrePeginDepthResolver } from "../../hooks/deposit/useRequiredPrePeginDepth";
@@ -57,6 +57,10 @@ import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 import { useProtocolParamsContext } from "../ProtocolParamsContext";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
+import {
+  collectDaemonTerminalEvents,
+  getSharedDaemonTerminalTracking,
+} from "./daemonTerminalEvents";
 import {
   collectTerminalMilestones,
   getSharedTerminalMilestoneTracking,
@@ -140,6 +144,7 @@ export function PeginPollingProvider({
 
   // Use the polling query hook
   const {
+    polledIds,
     errors,
     needsWotsKey,
     pendingIngestion,
@@ -366,6 +371,33 @@ export function PeginPollingProvider({
       });
     }
   }, [activities]);
+
+  // Emit activation.daemon.terminal once per (vault, daemonStatus) as the VP
+  // daemon reports a terminal drop (Expired / AmlRejected / ...). These states
+  // stop polling and previously transmitted nothing — a rejected deposit was
+  // invisible. Same seeding rule and shared-store rationale as the milestone
+  // effect above; runs only once a poll has resolved. `polledIds` is captured
+  // inside the queryFn, so ids and errors are always the same poll's snapshot —
+  // pairing the live `depositsToPoll` memo with `errors` instead would, under
+  // `keepPreviousData`, seed new vaults (wallet switch, late-arriving
+  // activities) against a stale map and later emit their pre-existing
+  // terminals as fresh transitions.
+  useEffect(() => {
+    if (!polledIds || !errors) return;
+    const terminalEvents = collectDaemonTerminalEvents(
+      polledIds,
+      errors,
+      getSharedDaemonTerminalTracking(),
+    );
+    for (const terminal of terminalEvents) {
+      logger.event(TELEMETRY_EVENT.ACTIVATION_DAEMON_TERMINAL, {
+        level: "warning",
+        category: "activation",
+        vaultId: shortId(terminal.vaultId),
+        daemonStatus: terminal.daemonStatus,
+      });
+    }
+  }, [polledIds, errors]);
 
   // Optimistic status handlers
   const setOptimisticStatus = useCallback(

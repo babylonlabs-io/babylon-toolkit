@@ -50,6 +50,15 @@ interface UsePeginPollingQueryParams {
 
 /** Result from polling query */
 interface PollingQueryData {
+  /**
+   * DepositIds this poll actually observed — captured inside the queryFn so it
+   * is always the same snapshot as `errors`. Consumers that diff terminal
+   * transitions (daemon-terminal seeding) must read this, not the live
+   * `depositsToPoll` memo: under `keepPreviousData` a query-key change serves
+   * the previous poll's data, and pairing it with a fresher id set would seed
+   * new vaults against an errors map that could not contain them.
+   */
+  polledIds: string[];
   /** Map of depositId -> error (for deposits with provider connectivity issues) */
   errors: Map<string, Error>;
   /** Set of depositIds where vault provider needs the depositor's WOTS key */
@@ -61,6 +70,8 @@ interface PollingQueryData {
 }
 
 interface UsePeginPollingQueryResult {
+  /** DepositIds observed by the resolved poll — same snapshot as `errors`. */
+  polledIds: string[] | undefined;
   /** Map of depositId -> error */
   errors: Map<string, Error> | undefined;
   /** Set of depositIds needing WOTS key submission */
@@ -73,8 +84,6 @@ interface UsePeginPollingQueryResult {
   isLoading: boolean;
   /** Trigger manual refetch */
   refetch: () => void;
-  /** Deposits that are being polled */
-  depositsToPoll: DepositToPoll[];
 }
 
 /**
@@ -337,6 +346,7 @@ export function usePeginPollingQuery({
 
       if (!currentBtcPubKey || currentDeposits.length === 0) {
         return {
+          polledIds: [],
           errors: new Map<string, Error>(),
           needsWotsKey: new Set<string>(),
           pendingIngestion: new Set<string>(),
@@ -367,6 +377,7 @@ export function usePeginPollingQuery({
 
       await Promise.all(fetchPromises);
       return {
+        polledIds: currentDeposits.map((d) => d.activity.id),
         errors,
         needsWotsKey,
         pendingIngestion,
@@ -412,12 +423,12 @@ export function usePeginPollingQuery({
   }, [isEnabled, refetch]);
 
   return {
+    polledIds: data?.polledIds,
     errors: data?.errors,
     needsWotsKey: data?.needsWotsKey,
     pendingIngestion: data?.pendingIngestion,
     pendingDepositorSignatures: data?.pendingDepositorSignatures,
     isLoading,
     refetch,
-    depositsToPoll,
   };
 }

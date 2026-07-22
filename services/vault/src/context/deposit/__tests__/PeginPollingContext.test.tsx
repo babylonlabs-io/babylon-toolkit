@@ -14,13 +14,13 @@ import type { VaultActivity } from "../../../types/activity";
 import { PeginPollingProvider, usePeginPolling } from "../PeginPollingContext";
 
 const mockQueryResult = {
+  polledIds: undefined as string[] | undefined,
   errors: undefined as Map<string, Error> | undefined,
   needsWotsKey: undefined as Set<string> | undefined,
   pendingIngestion: undefined as Set<string> | undefined,
   pendingDepositorSignatures: undefined as Set<string> | undefined,
   isLoading: false,
   refetch: vi.fn(),
-  depositsToPoll: [],
 };
 
 vi.mock("../../../hooks/deposit/usePeginPollingQuery", () => ({
