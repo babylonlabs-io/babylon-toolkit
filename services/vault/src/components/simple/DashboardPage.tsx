@@ -79,15 +79,19 @@ export function DashboardPage() {
   // the banners fall back to the live calculation with no behavioural change.
   const { result: debugResultOverride, status: debugStatusOverride } =
     useDebugPositionOverride();
-  // Manual mode only — in live mode the panel republishes the live result as a
-  // no-op override, which the (still fixture-backed) liquidation card must not
-  // pick up as a simulation.
+  // Manual mode only: live mode republishes the live result as a no-op
+  // override, which is not a simulation.
   const debugManualMode = useDebugManualMode();
   const debugManualParams = useDebugManualParams();
   const liquidationDebugState = useLiquidationDebugState();
-  const liquidationCascadeOverride = useMemo(
+  // No live source yet: the chart renders only from the god-mode cascade,
+  // behind its own flag. Elsewhere it stays absent rather than charting a real
+  // position from placeholder numbers.
+  const liquidationCascade = useMemo(
     () =>
-      debugManualMode && debugResultOverride
+      featureFlags.isLiquidationAnalysisChartEnabled &&
+      debugManualMode &&
+      debugResultOverride
         ? {
             result: debugResultOverride,
             btcPrice: debugManualParams.btcPrice,
@@ -405,7 +409,7 @@ export function DashboardPage() {
             hasLoans={liquidationCardState.hasLoans}
             onDeposit={openDeposit}
             onBorrow={openBorrowPicker}
-            cascadeOverride={liquidationCascadeOverride}
+            cascade={liquidationCascade}
           />
         )}
 

@@ -3,18 +3,17 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
 import type { CalculatorResult } from "@/applications/aave/positionNotifications/types";
-import {
-  FIXTURE_BTC_PRICE,
-  FIXTURE_CASCADE,
-  FIXTURE_COLLATERAL_FACTOR,
-} from "@/components/pages/Liquidations/fixtures";
 import { buildLiquidationChartData } from "@/components/pages/Liquidations/liquidationChartData";
+import {
+  NEUTRAL_BUTTON_CLASS,
+  PRIMARY_BUTTON_CLASS,
+} from "@/components/shared/buttonClasses";
 import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 import { formatPriceUsd } from "@/utils/formatting";
 
-/** God-mode manual cascade, injected by DashboardPage (the sanctioned dev seam). */
-export interface LiquidationCascadeOverride {
+/** The cascade the chart renders. Absent = nothing to chart yet. */
+export interface LiquidationCascade {
   result: CalculatorResult;
   btcPrice: number;
   collateralFactor: number;
@@ -25,25 +24,19 @@ interface LiquidationAnalysisSectionProps {
   hasLoans: boolean;
   onDeposit: () => void;
   onBorrow: () => void;
-  cascadeOverride?: LiquidationCascadeOverride | null;
+  /**
+   * Required to render the chart — there is deliberately no placeholder
+   * fallback here, so a position can never be charted from made-up numbers.
+   */
+  cascade?: LiquidationCascade | null;
 }
 
 /**
  * Overview-page entry point to the Liquidation Dashboard: no collateral,
- * collateral without a loan, or the seizure map. There is no simulator here —
- * Explore hands off to the full page for that.
- *
- * The cascade is a fixture; the follow-up PR swaps it for the live
- * `usePositionNotifications` result DashboardPage already holds. The god-mode
- * panel's manual mode overrides it in the meantime.
+ * collateral without a loan, or the seizure map.
  */
 
-/** core-ui's `Button` is still on the pre-v3 spec. */
-const BUTTON_CLASS =
-  "flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg text-base leading-[1.5] tracking-[0.15px] transition-[filter] hover:brightness-110";
-const PRIMARY_BUTTON_CLASS = `${BUTTON_CLASS} bg-secondary-main text-accent-contrast`;
-const NEUTRAL_BUTTON_CLASS = `${BUTTON_CLASS} bg-secondary-strokeLight text-accent-primary`;
-
+/** A centred title/description/action block. */
 function EmptyState({
   title,
   description,
@@ -75,29 +68,66 @@ function EmptyState({
   );
 }
 
+function LiquidationChartPanel({
+  cascade,
+  onExplore,
+}: {
+  cascade: LiquidationCascade;
+  onExplore: () => void;
+}) {
+  const { bands, priceAxis, shareAxisTicks } = useMemo(
+    () =>
+      buildLiquidationChartData(cascade.result, {
+        btcPrice: cascade.btcPrice,
+        collateralFactor: cascade.collateralFactor,
+      }),
+    [cascade],
+  );
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col">
+          <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+            {COPY.liquidations.simulateLabel}
+          </span>
+          <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+            {COPY.liquidations.simulateDescription}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onExplore}
+          className={NEUTRAL_BUTTON_CLASS}
+        >
+          {COPY.liquidations.exploreAction}
+        </button>
+      </div>
+
+      <div className="h-px w-full bg-secondary-strokeLight" />
+
+      <SeizureMap
+        bands={bands}
+        currentPrice={cascade.btcPrice}
+        currentPriceLabel={formatPriceUsd(cascade.btcPrice)}
+        priceLineCaption={COPY.liquidations.bitcoinPriceCaption}
+        priceAxis={priceAxis}
+        shareAxisTicks={shareAxisTicks}
+        showShareLegend={false}
+      />
+    </>
+  );
+}
+
 export function LiquidationAnalysisSection({
   hasCollateral,
   hasLoans,
   onDeposit,
   onBorrow,
-  cascadeOverride,
+  cascade,
 }: LiquidationAnalysisSectionProps) {
   const navigate = useNavigate();
 
-  const btcPrice = cascadeOverride?.btcPrice ?? FIXTURE_BTC_PRICE;
-
-  const { bands, priceAxis, shareAxisTicks } = useMemo(
-    () =>
-      buildLiquidationChartData(cascadeOverride?.result ?? FIXTURE_CASCADE, {
-        btcPrice,
-        collateralFactor:
-          cascadeOverride?.collateralFactor ?? FIXTURE_COLLATERAL_FACTOR,
-      }),
-    [cascadeOverride, btcPrice],
-  );
-
-  // The cascade only exists once there is debt to liquidate, so a deposit with
-  // no loan gets its own prompt rather than an empty chart.
   let body;
   if (!hasCollateral) {
     body = (
@@ -109,6 +139,7 @@ export function LiquidationAnalysisSection({
       />
     );
   } else if (!hasLoans) {
+    // The cascade only exists once there is debt to liquidate.
     body = (
       <EmptyState
         title={COPY.liquidations.empty.noLoanTitle}
@@ -117,40 +148,17 @@ export function LiquidationAnalysisSection({
         onAction={onBorrow}
       />
     );
-  } else {
+  } else if (cascade) {
     body = (
-      <>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col">
-            <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-              {COPY.liquidations.simulateLabel}
-            </span>
-            <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-              {COPY.liquidations.simulateDescription}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate(ROUTES.LIQUIDATIONS)}
-            className={NEUTRAL_BUTTON_CLASS}
-          >
-            {COPY.liquidations.exploreAction}
-          </button>
-        </div>
-
-        <div className="h-px w-full bg-secondary-strokeLight" />
-
-        <SeizureMap
-          bands={bands}
-          currentPrice={btcPrice}
-          currentPriceLabel={formatPriceUsd(btcPrice)}
-          priceLineCaption={COPY.liquidations.bitcoinPriceCaption}
-          priceAxis={priceAxis}
-          shareAxisTicks={shareAxisTicks}
-          showShareLegend={false}
-        />
-      </>
+      <LiquidationChartPanel
+        cascade={cascade}
+        onExplore={() => navigate(ROUTES.LIQUIDATIONS)}
+      />
     );
+  } else {
+    // A real position with no cascade to chart: show nothing rather than an
+    // empty frame or a stand-in.
+    return null;
   }
 
   return (

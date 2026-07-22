@@ -247,11 +247,7 @@ export function PriceFrame({
       </div>
 
       {xAxisTicks?.length ? (
-        <div
-          className="bbn-liq-chart__xaxis bbn-liq-chart__xaxis--positioned"
-          style={plotInsetLeft > 0 ? { paddingLeft: pct(plotInsetLeft) } : undefined}
-          aria-hidden
-        >
+        <div className="bbn-liq-chart__xaxis bbn-liq-chart__xaxis--positioned" aria-hidden>
           {xAxisTicks.map((tick, index) => (
             <span
               key={`${tick.label}-${tick.fraction}`}
@@ -260,7 +256,10 @@ export function PriceFrame({
                 index === 0 && "bbn-liq-chart__xaxis-label--first",
                 index === xAxisTicks.length - 1 && "bbn-liq-chart__xaxis-label--last",
               )}
-              style={{ left: pct(tick.fraction) }}
+              // Folded into `left` rather than applied as padding: these spans are
+              // absolutely positioned, so a percentage resolves against the padding
+              // box and padding would rescale them instead of shifting them.
+              style={{ left: pct(plotInsetLeft + tick.fraction * (1 - plotInsetLeft)) }}
             >
               {tick.label}
             </span>

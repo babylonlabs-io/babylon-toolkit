@@ -70,8 +70,8 @@ export type LiquidationChartVariant = "full" | "compact";
 /**
  * A price-axis tick. The Seizure Map uses a *segmented* axis: ticks are spaced
  * evenly regardless of the price gap between them, so each event gets equal
- * vertical weight (matching Figma, where an $180 final segment reads as tall as
- * a $37k one). A price is positioned by piecewise-linear interpolation between
+ * vertical weight, so an $180 final segment reads as tall as a $37k one. A
+ * price is positioned by piecewise-linear interpolation between
  * adjacent ticks. Order top→bottom (descending value); band `priceTop`/
  * `priceBottom` should coincide with tick values.
  */
@@ -143,7 +143,7 @@ export interface SafeZone {
 }
 
 /**
- * Optional, toggleable chart interactions. Not part of the Figma spec — enable
+ * Optional, toggleable chart interactions. Not part of the design spec — enable
  * per surface. Both default off so the chart stays a static render unless asked.
  */
 export interface TimelineInteractions {

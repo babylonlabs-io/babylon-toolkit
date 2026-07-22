@@ -1,6 +1,5 @@
-// Story fixtures only — illustrative values mirroring Figma (nodes 10251:34931,
-// 10251:32415). Not exported from the package. Production values come from the
-// vault's liquidation cascade + price-history feed.
+// Story fixtures only, not exported from the package. Production values come
+// from the vault's liquidation cascade + price-history feed.
 import type { Candle, LiquidationBand, PriceAxisTick } from "./types";
 
 export const bands: LiquidationBand[] = [

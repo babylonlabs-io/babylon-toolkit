@@ -62,7 +62,7 @@ export function SeizureMap({
       className={twJoin(hideBandLabels && "bbn-liq-chart--no-band-labels", className)}
       topLegend={compact || !showShareLegend ? undefined : <ShareLegend bands={bands} />}
     >
-      {/* Vertical gridlines at the band boundaries (Figma "Background Chart"). */}
+      {/* Vertical gridlines at the band boundaries. */}
       {[0, ...bands.map((b) => b.shareEnd)].map((f) => (
         <span key={f} className="bbn-liq-chart__vgridline" style={{ left: pct(f) }} aria-hidden />
       ))}

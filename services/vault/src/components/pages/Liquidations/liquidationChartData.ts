@@ -77,18 +77,16 @@ export function axisFloorPrice(result: CalculatorResult): number {
 }
 
 /**
- * Exponent applied to each event's collateral share before it becomes a band
- * width. 1 renders true proportions, which makes a 1%-of-collateral event an
- * unreadable sliver; 0 renders every event equally wide, which hides that some
- * events seize far more than others. The square root keeps the ordering and a
- * visible size difference while lifting the smallest band into legibility.
+ * Exponent applied to a collateral share before it becomes a band width. 1 is
+ * true proportions, which renders a 1% event as an unreadable sliver; 0 is all
+ * bands equal, which hides that some events seize far more. The square root
+ * keeps both the ordering and a visible size difference.
  */
 const SHARE_WIDTH_EXPONENT = 0.5;
 
 /**
  * Band widths from collateral shares, compressed by {@link SHARE_WIDTH_EXPONENT}
- * and renormalised so they still fill the axis. Returns cumulative boundaries,
- * so `[0, …, 1]` with one entry per band edge.
+ * and renormalised to fill the axis. Returns cumulative edges, `[0, …, 1]`.
  */
 export function compressedShareBoundaries(shares: number[]): number[] {
   const weights = shares.map((share) =>

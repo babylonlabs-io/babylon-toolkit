@@ -7,13 +7,11 @@
  *
  * Colour tokens live at :root (light default + dark override) because the hover
  * popover renders in a portal outside the chart subtree and must still inherit
- * them. The dark selector lists every signal a consumer might set: the vault
- * runs next-themes with `attribute="class"` (`.dark`), core-ui's Storybook sets
- * both `.dark` and `data-mode`, and `data-theme` is the app's other documented
- * hook. Matching only one of them leaves a dark app on light gridlines — bright
- * white rules over a near-black plot. Motion uses --motion-* tokens per
- * docs/motion-system.md (fallbacks reproduce legacy behaviour; reduced-motion
- * handled by the global reset). */
+ * them. The dark selector must list every signal a consumer sets — `.dark`,
+ * `data-mode`, `data-theme` — since matching only one leaves a dark app drawing
+ * light gridlines. Motion uses --motion-* tokens per docs/motion-system.md
+ * (fallbacks reproduce legacy behaviour; reduced-motion handled by the global
+ * reset). */
 :root {
   --liq-band-1: #bf5833;
   --liq-band-2: #355e78;
@@ -198,8 +196,7 @@
   margin-left: var(--liq-gutter);
   margin-top: 0.375rem;
 }
-/* Ticks carrying their own position: each label is centred on its fraction,
- * with the first and last pulled inside so they don't overhang the plot. */
+/* Each label centred on its fraction; first and last pulled inside the plot. */
 .bbn-liq-chart__xaxis--positioned {
   display: block;
   position: relative;

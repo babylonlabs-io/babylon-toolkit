@@ -79,8 +79,8 @@ describe("buildLiquidationChartData", () => {
 
     expect(bands[0].priceTop).toBe(77682);
     expect(bands[0].priceBottom).toBe(40283);
-    // The axis stops just under the last trigger (Figma's $3,417 floor), not
-    // at $0 — otherwise the final event renders as a hairline.
+    // The axis stops just under the last trigger, not at $0 — otherwise the
+    // final event renders as a hairline.
     expect(bands[2].priceBottom).toBeCloseTo(3417.15, 2);
     expect(priceAxis.map((t) => t.value)).toEqual([
       88400, 77682, 40283, 3597, 3417.1499999999996,
