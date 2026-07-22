@@ -70,5 +70,22 @@ describe("FeesSection", () => {
       expect(screen.getByText("Min deposit")).toBeVisible();
       expect(screen.getByText("Collateral Factor")).toBeVisible();
     });
+
+    it("keeps the collapsed panel out of the layout at zero height", () => {
+      render(<FeesSection rows={rows} />);
+
+      const toggle = screen.getByRole("button", {
+        name: /Protocol Parameters/,
+      });
+      const panel = document.getElementById(
+        toggle.getAttribute("aria-controls") as string,
+      ) as HTMLElement;
+      const details = panel.firstElementChild as HTMLElement;
+
+      expect(details).toHaveStyle({ height: "0px", visibility: "hidden" });
+
+      fireEvent.click(toggle);
+      expect(details).toHaveStyle({ visibility: "visible" });
+    });
   });
 });

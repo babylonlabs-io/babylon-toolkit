@@ -5,13 +5,9 @@
  * withdrawal flow.
  */
 
-import {
-  Button,
-  FullScreenDialog,
-  Heading,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { formatBtcAmount } from "@/utils/formatting";
@@ -52,12 +48,12 @@ export function WithdrawVaultsModal({
     : COPY.withdraw.modal.confirmButton;
 
   return (
-    <FullScreenDialog
+    <V3ModalShell
       open={isOpen}
       onClose={onClose}
-      className="items-center justify-center p-6"
+      contentClassName="max-w-[564px]"
     >
-      <div className="mx-auto flex w-full max-w-[564px] flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Heading
             variant="h5"
@@ -111,6 +107,6 @@ export function WithdrawVaultsModal({
           )}
         </div>
       </div>
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }

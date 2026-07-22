@@ -4,7 +4,7 @@ import { IoInformationCircle } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
-import { getNetworkConfigBTC } from "@/config";
+import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
@@ -18,9 +18,22 @@ import {
   UtxoSplitSelector,
   type TwoVaultSplitProps,
 } from "./UtxoSplitSelector";
+import { UtxoSplitSelectorV3 } from "./UtxoSplitSelectorV3";
 import { VaultProviderSelector } from "./VaultProviderSelector";
+import {
+  VaultProviderSelectorV3,
+  type VaultProviderSelectorProps,
+} from "./VaultProviderSelectorV3";
 
 const btcConfig = getNetworkConfigBTC();
+
+// v3 deposit CTA: accent-primary (#CE6533) enabled, stroke-primary (#5A5A5A)
+// disabled, 8px radius. core-ui's contained/primary button is slate blue with a
+// 30%-opacity disabled state, so both states are overridden here rather than in
+// the shared component. Undefined pre-v3, which leaves the core-ui styling.
+const V3_CTA_CLASSES = FeatureFlags.isV3UiEnabled
+  ? "!rounded-lg !bg-secondary-main disabled:!bg-secondary-strokeDark disabled:!opacity-100"
+  : undefined;
 
 interface Application {
   id: string;
@@ -263,6 +276,14 @@ export function DepositForm({
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
       setOpenPanel(expanded ? panel : null);
+  const providerSelectorProps: VaultProviderSelectorProps = {
+    providers,
+    isLoadingProviders,
+    selectedProvider,
+    onProviderSelect,
+    expanded: openPanel === "provider",
+    onExpandedChange: setPanelExpanded("provider"),
+  };
   // The depositable max is unknown until the fee estimate, UTXOs, and the
   // on-chain supply cap resolve. Until then we never fall back to the raw
   // balance, which would let the user select an amount above the real cap that
@@ -331,6 +352,12 @@ export function DepositForm({
   ) : null;
 
   const selectedApp = applications.find((a) => a.id === selectedApplication);
+
+  const maxTooltip = hasUnconfirmedBalanceOnly
+    ? undefined
+    : COPY.deposit.form.maxTooltip({
+        hasSupplyCap: effectiveRemaining !== null,
+      });
 
   // Commission (bps) shown for the selected provider. Drives the fee breakdown
   // and gates the CTA: a selected provider whose commission hasn't loaded
@@ -411,29 +438,43 @@ export function DepositForm({
             )
           }
           sliderVariant="primary"
-          leftField={{
-            label: COPY.deposit.form.maxLabel,
-            value: maxDepositLabel,
-            // Mention the supply cap only when one exists for this user.
-            // `effectiveRemaining` is null both when no cap applies and while
-            // the cap read is loading; either way we omit the cap clause
-            // until we know it's a real constraint.
-            //
-            // Drop the Max tooltip while the pending-confirmation note is shown
-            // so the row carries a single info icon (the pending one) rather
-            // than two competing tooltips.
-            tooltip: hasUnconfirmedBalanceOnly
-              ? undefined
-              : COPY.deposit.form.maxTooltip({
-                  hasSupplyCap: effectiveRemaining !== null,
-                }),
-          }}
-          rightField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-              : usdValue,
-          }}
-          maxPosition="left"
+          // v3 mirrors the Figma row: USD value on the left, balance + Max
+          // pill on the right. v2 keeps the Max-pill-first layout.
+          leftField={
+            FeatureFlags.isV3UiEnabled
+              ? {
+                  value: !hasAmount
+                    ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+                    : usdValue,
+                }
+              : {
+                  label: COPY.deposit.form.maxLabel,
+                  value: maxDepositLabel,
+                  // Mention the supply cap only when one exists for this user.
+                  // `effectiveRemaining` is null both when no cap applies and
+                  // while the cap read is loading; either way we omit the cap
+                  // clause until we know it's a real constraint.
+                  //
+                  // Drop the Max tooltip while the pending-confirmation note is
+                  // shown so the row carries a single info icon (the pending
+                  // one) rather than two competing tooltips.
+                  tooltip: maxTooltip,
+                }
+          }
+          rightField={
+            FeatureFlags.isV3UiEnabled
+              ? {
+                  label: COPY.deposit.form.balanceLabel,
+                  value: maxDepositLabel,
+                  tooltip: maxTooltip,
+                }
+              : {
+                  value: !hasAmount
+                    ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+                    : usdValue,
+                }
+          }
+          maxPosition={FeatureFlags.isV3UiEnabled ? "right" : "left"}
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
@@ -485,16 +526,24 @@ export function DepositForm({
         )}
       </Card>
 
-      {twoVaultSplit && (
-        <UtxoSplitSelector
-          twoVaultSplit={twoVaultSplit}
-          expanded={openPanel === "split"}
-          onExpandedChange={setPanelExpanded("split")}
-        />
-      )}
+      {twoVaultSplit &&
+        (FeatureFlags.isV3UiEnabled ? (
+          <UtxoSplitSelectorV3
+            twoVaultSplit={twoVaultSplit}
+            expanded={openPanel === "split"}
+            onExpandedChange={setPanelExpanded("split")}
+          />
+        ) : (
+          <UtxoSplitSelector
+            twoVaultSplit={twoVaultSplit}
+            expanded={openPanel === "split"}
+            onExpandedChange={setPanelExpanded("split")}
+          />
+        ))}
 
-      {/* Aave app */}
-      {selectedApp && (
+      {/* Aave app. v3 shows the application logo in the page header instead
+          (see SimpleDeposit), so this row is v2-only. */}
+      {!FeatureFlags.isV3UiEnabled && selectedApp && (
         <Card variant="filled" className="flex items-center gap-3 !rounded-lg">
           <ApplicationLogo
             logoUrl={selectedApp.logoUrl}
@@ -507,14 +556,11 @@ export function DepositForm({
         </Card>
       )}
 
-      <VaultProviderSelector
-        providers={providers}
-        isLoadingProviders={isLoadingProviders}
-        selectedProvider={selectedProvider}
-        onProviderSelect={onProviderSelect}
-        expanded={openPanel === "provider"}
-        onExpandedChange={setPanelExpanded("provider")}
-      />
+      {FeatureFlags.isV3UiEnabled ? (
+        <VaultProviderSelectorV3 {...providerSelectorProps} />
+      ) : (
+        <VaultProviderSelector {...providerSelectorProps} />
+      )}
 
       {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
           ("Unlock wallet") is the affordance. A liveness failure still surfaces
@@ -531,6 +577,7 @@ export function DepositForm({
         color="primary"
         size="large"
         fluid
+        className={V3_CTA_CLASSES}
         disabled={
           cta.disabled ||
           isVerifyingWallet ||

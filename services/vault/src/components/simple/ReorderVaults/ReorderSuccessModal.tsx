@@ -1,10 +1,7 @@
-import {
-  Button,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  ResponsiveDialog,
-} from "@babylonlabs-io/core-ui";
+import { Button } from "@babylonlabs-io/core-ui";
+
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
+import { COPY } from "@/copy";
 
 import { REORDER_SUCCESS_TEXT, REORDER_SUCCESS_TITLE } from "./constants";
 import { ReorderSuccessIcon } from "./ReorderSuccessIcon";
@@ -19,15 +16,21 @@ export function ReorderSuccessModal({
   onClose,
 }: ReorderSuccessModalProps) {
   return (
-    <ResponsiveDialog open={isOpen} onClose={onClose}>
-      <DialogHeader title={REORDER_SUCCESS_TITLE} onClose={onClose} />
-      <DialogBody>
-        <ReorderSuccessIcon className="mx-auto my-3 text-accent-primary" />
-        <p className="py-3 text-center text-accent-secondary">
-          {REORDER_SUCCESS_TEXT}
-        </p>
-      </DialogBody>
-      <DialogFooter>
+    <V3ModalShell
+      open={isOpen}
+      onClose={onClose}
+      contentClassName="max-w-[564px]"
+    >
+      <div className="flex w-full flex-col items-center gap-10 rounded-2xl border border-secondary-strokeLight bg-primary-contrast px-6 pb-6 pt-10">
+        <ReorderSuccessIcon className="text-accent-primary" />
+        <div className="flex w-full flex-col items-center gap-4 text-center">
+          <h2 className="text-[34px] leading-[1.235] tracking-[0.25px] text-accent-primary">
+            {REORDER_SUCCESS_TITLE}
+          </h2>
+          <p className="text-xl leading-[1.6] tracking-[0.15px] text-accent-secondary">
+            {REORDER_SUCCESS_TEXT}
+          </p>
+        </div>
         <Button
           variant="contained"
           color="secondary"
@@ -35,9 +38,9 @@ export function ReorderSuccessModal({
           fluid
           onClick={onClose}
         >
-          Done
+          {COPY.reorder.doneButton}
         </Button>
-      </DialogFooter>
-    </ResponsiveDialog>
+      </div>
+    </V3ModalShell>
   );
 }

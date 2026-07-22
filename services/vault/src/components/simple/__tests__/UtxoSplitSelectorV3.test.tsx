@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import { COPY } from "@/copy";
 
 import {
-  UtxoSplitSelector,
+  UtxoSplitSelectorV3,
   type TwoVaultSplitProps,
-} from "../UtxoSplitSelector";
+} from "../UtxoSplitSelectorV3";
 
 function baseSplit(
   overrides: Partial<TwoVaultSplitProps> = {},
@@ -35,10 +35,10 @@ function noSplitRow() {
     .closest('[role="button"]') as HTMLElement;
 }
 
-describe("UtxoSplitSelector", () => {
+describe("UtxoSplitSelectorV3", () => {
   it("renders both split options when expanded", () => {
     render(
-      <UtxoSplitSelector
+      <UtxoSplitSelectorV3
         twoVaultSplit={baseSplit()}
         expanded
         onExpandedChange={vi.fn()}
@@ -52,7 +52,7 @@ describe("UtxoSplitSelector", () => {
   it("selects the two-vault split when its row is chosen", () => {
     const onChange = vi.fn();
     render(
-      <UtxoSplitSelector
+      <UtxoSplitSelectorV3
         twoVaultSplit={baseSplit({ onChange })}
         expanded
         onExpandedChange={vi.fn()}
@@ -66,7 +66,7 @@ describe("UtxoSplitSelector", () => {
   it("selects no-split when its row is chosen", () => {
     const onChange = vi.fn();
     render(
-      <UtxoSplitSelector
+      <UtxoSplitSelectorV3
         twoVaultSplit={baseSplit({ isEnabled: true, onChange })}
         expanded
         onExpandedChange={vi.fn()}
@@ -77,13 +77,32 @@ describe("UtxoSplitSelector", () => {
     expect(onChange).toHaveBeenCalledWith(false);
   });
 
+  it("collapses the panel after an option is selected", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <UtxoSplitSelectorV3
+        twoVaultSplit={baseSplit()}
+        expanded
+        onExpandedChange={onExpandedChange}
+      />,
+    );
+
+    fireEvent.click(splitRow());
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
+
+    onExpandedChange.mockClear();
+    fireEvent.click(noSplitRow());
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
+  });
+
   it("keeps the split option unavailable (aria-disabled) and unselectable when it cannot split", () => {
     const onChange = vi.fn();
+    const onExpandedChange = vi.fn();
     render(
-      <UtxoSplitSelector
+      <UtxoSplitSelectorV3
         twoVaultSplit={baseSplit({ canSplit: false, onChange })}
         expanded
-        onExpandedChange={vi.fn()}
+        onExpandedChange={onExpandedChange}
       />,
     );
 
@@ -91,5 +110,7 @@ describe("UtxoSplitSelector", () => {
     expect(row).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(row);
     expect(onChange).not.toHaveBeenCalledWith(true);
+    // A rejected selection must not collapse the panel either.
+    expect(onExpandedChange).not.toHaveBeenCalled();
   });
 });

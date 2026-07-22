@@ -4,6 +4,10 @@ import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
+/**
+ * Split state driving the picker. Declared here (rather than imported from the
+ * v2 file) so the v2 selector can be deleted whole when ENABLE_V3_UI retires.
+ */
 export interface TwoVaultSplitProps {
   isEnabled: boolean;
   onChange: (checked: boolean) => void;
@@ -14,24 +18,31 @@ export interface TwoVaultSplitProps {
   isSplitAmountTooLow: boolean;
 }
 
-interface UtxoSplitSelectorProps {
+export interface UtxoSplitSelectorProps {
   twoVaultSplit: TwoVaultSplitProps;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }
 
-export function UtxoSplitSelector({
+const FORM_COPY = COPY.deposit.form;
+
+export function UtxoSplitSelectorV3({
   twoVaultSplit,
   expanded,
   onExpandedChange,
 }: UtxoSplitSelectorProps) {
   const splitDisabled = !twoVaultSplit.canSplit || twoVaultSplit.isLoading;
 
+  // Picking an option collapses the panel, matching the vault provider picker.
+  const select = (enabled: boolean) => {
+    twoVaultSplit.onChange(enabled);
+    onExpandedChange(false);
+  };
   const handleSelectSplit = () => {
     if (splitDisabled) return;
-    twoVaultSplit.onChange(true);
+    select(true);
   };
-  const handleSelectNoSplit = () => twoVaultSplit.onChange(false);
+  const handleSelectNoSplit = () => select(false);
 
   const splitTitleColor = twoVaultSplit.isEnabled
     ? "text-accent-primary"
@@ -39,6 +50,12 @@ export function UtxoSplitSelector({
   const noSplitTitleColor = twoVaultSplit.isEnabled
     ? "text-accent-secondary"
     : "text-accent-primary";
+
+  // Selected option is filled; the unselected one keeps the same padding so
+  // the two rows stay aligned. The card clips the corners, so the top option
+  // can never show bottom corners (and vice versa).
+  const optionBox = (selected: boolean) =>
+    `p-4${selected ? " bg-primary-contrast" : ""}`;
 
   return (
     <Accordion expanded={expanded}>
@@ -51,15 +68,13 @@ export function UtxoSplitSelector({
           <span className="text-sm text-accent-primary">
             {twoVaultSplit.isEnabled ? (
               <>
-                {COPY.deposit.form.splitOptionLabel(
-                  twoVaultSplit.splitRatioLabel,
-                )}{" "}
+                {FORM_COPY.splitOptionLabel(twoVaultSplit.splitRatioLabel)}{" "}
                 <span className="text-accent-secondary">
-                  {COPY.deposit.form.splitOptionRecommended}
+                  {FORM_COPY.splitOptionRecommended}
                 </span>
               </>
             ) : (
-              COPY.deposit.form.doNotSplit
+              FORM_COPY.doNotSplit
             )}
           </span>
           <IoChevronUp
@@ -71,13 +86,13 @@ export function UtxoSplitSelector({
       <AccordionDetails className="pt-4">
         <Card
           variant="default"
-          className="flex w-full flex-col gap-6 !rounded-lg !bg-primary-contrast !py-4"
+          className="flex w-full flex-col overflow-hidden !rounded-lg !bg-transparent !p-0"
         >
           <div
             role="button"
             tabIndex={splitDisabled ? -1 : 0}
             aria-disabled={splitDisabled}
-            className={`flex w-full items-start justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+            className={`flex w-full items-start justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${optionBox(twoVaultSplit.isEnabled)}`}
             onClick={handleSelectSplit}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -88,15 +103,13 @@ export function UtxoSplitSelector({
           >
             <span className="flex flex-col gap-1">
               <span className={`text-sm ${splitTitleColor}`}>
-                {COPY.deposit.form.splitOptionLabel(
-                  twoVaultSplit.splitRatioLabel,
-                )}{" "}
+                {FORM_COPY.splitOptionLabel(twoVaultSplit.splitRatioLabel)}{" "}
                 <span className="text-accent-secondary">
-                  {COPY.deposit.form.splitOptionRecommended}
+                  {FORM_COPY.splitOptionRecommended}
                 </span>
               </span>
               <span className="text-xs text-accent-secondary">
-                {COPY.deposit.form.splitOptionDescription}{" "}
+                {FORM_COPY.splitOptionDescription}{" "}
                 <a
                   href={TWO_VAULT_SPLIT_DOCS_URL}
                   target="_blank"
@@ -104,7 +117,7 @@ export function UtxoSplitSelector({
                   className="text-secondary-main underline"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  {COPY.deposit.form.learnMore}
+                  {FORM_COPY.learnMore}
                 </a>
               </span>
             </span>
@@ -116,7 +129,7 @@ export function UtxoSplitSelector({
           <div
             role="button"
             tabIndex={0}
-            className="flex w-full cursor-pointer items-start justify-between gap-3 text-left"
+            className={`flex w-full cursor-pointer items-start justify-between gap-3 text-left ${optionBox(!twoVaultSplit.isEnabled)}`}
             onClick={handleSelectNoSplit}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -127,10 +140,10 @@ export function UtxoSplitSelector({
           >
             <span className="flex flex-col gap-1">
               <span className={`text-sm ${noSplitTitleColor}`}>
-                {COPY.deposit.form.doNotSplit}
+                {FORM_COPY.doNotSplit}
               </span>
               <span className="text-xs text-accent-secondary">
-                {COPY.deposit.form.noSplitOptionDescription}
+                {FORM_COPY.noSplitOptionDescription}
               </span>
             </span>
             {!twoVaultSplit.isEnabled && (
@@ -139,8 +152,8 @@ export function UtxoSplitSelector({
           </div>
 
           {twoVaultSplit.isLoading && (
-            <span className="text-xs text-accent-secondary">
-              {COPY.deposit.form.computingAllocation}
+            <span className="px-4 pb-4 text-xs text-accent-secondary">
+              {FORM_COPY.computingAllocation}
             </span>
           )}
         </Card>

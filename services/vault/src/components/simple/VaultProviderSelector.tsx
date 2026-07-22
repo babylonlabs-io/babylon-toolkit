@@ -16,16 +16,11 @@ import {
 } from "@/utils/formatting";
 import { isProblematicVaultProvider } from "@/utils/sortVaultProviders";
 
-const FORM_COPY = COPY.deposit.form;
+// Props live in the v3 file so this whole file can be deleted when
+// ENABLE_V3_UI retires.
+import type { VaultProviderSelectorProps } from "./VaultProviderSelectorV3";
 
-interface VaultProviderSelectorProps {
-  providers: VaultProviderListItem[];
-  isLoadingProviders: boolean;
-  selectedProvider: string;
-  onProviderSelect: (providerId: string) => void;
-  expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
-}
+const FORM_COPY = COPY.deposit.form;
 
 /**
  * Status line text for a problematic provider row. Healthy providers don't

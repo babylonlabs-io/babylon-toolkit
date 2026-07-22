@@ -1,9 +1,11 @@
-import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
+import { Heading } from "@babylonlabs-io/core-ui";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
+import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
@@ -438,18 +440,28 @@ function SimpleDepositContent({
   };
 
   const showForm = !renderedStep || renderedStep === DepositStep.FORM;
+  const headerApp = FeatureFlags.isV3UiEnabled
+    ? applications.find((a) => a.id === effectiveSelectedApplication)
+    : undefined;
   const stepKey = renderedStep ?? "form";
 
   return (
-    <FullScreenDialog
-      open={open}
-      onClose={onClose}
-      className="items-center justify-center p-6"
-    >
+    <V3ModalShell open={open} onClose={onClose}>
       <FadeTransition stepKey={stepKey}>
         {showForm && (
           <div className="mx-auto w-full max-w-[564px]">
-            <Heading variant="h5">Deposit</Heading>
+            {/* v3 puts the target application's logo in the header row
+                instead of a separate app card inside the form. */}
+            <div className="flex items-center justify-between gap-2">
+              <Heading variant="h5">Deposit</Heading>
+              {headerApp && (
+                <ApplicationLogo
+                  logoUrl={headerApp.logoUrl}
+                  name={headerApp.name}
+                  size="small"
+                />
+              )}
+            </div>
             <div className="mt-4">
               <DepositForm
                 amountState={{
@@ -563,7 +575,7 @@ function SimpleDepositContent({
           </div>
         )}
       </FadeTransition>
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }
 
@@ -579,21 +591,19 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
   if (resumeMode) {
     return (
       <ProtocolParamsProvider>
-        <FullScreenDialog
+        <V3ModalShell
           open={open}
           onClose={onClose}
-          className="items-center justify-center p-6"
+          contentClassName="max-w-[520px]"
         >
-          <div className="mx-auto w-full max-w-[520px]">
-            <ResumeBroadcastContent
-              activity={props.activity}
-              batchVaultIds={props.batchVaultIds}
-              depositorEthAddress={props.depositorEthAddress}
-              onClose={onClose}
-              onSuccess={props.onResumeSuccess}
-            />
-          </div>
-        </FullScreenDialog>
+          <ResumeBroadcastContent
+            activity={props.activity}
+            batchVaultIds={props.batchVaultIds}
+            depositorEthAddress={props.depositorEthAddress}
+            onClose={onClose}
+            onSuccess={props.onResumeSuccess}
+          />
+        </V3ModalShell>
       </ProtocolParamsProvider>
     );
   }

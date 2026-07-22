@@ -1,8 +1,8 @@
-import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { EmptyState } from "@/components/shared";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { getReserveDetailBaseRoute } from "@/routes";
@@ -161,17 +161,17 @@ export function AaveReserveDetail({
 
   return (
     <>
-      <FullScreenDialog
+      <V3ModalShell
         open={!showSuccess}
         // Withholding `onClose` hides the close button and no-ops the backdrop
         // click; `disableEscapeClose` covers the ESC key — together they lock
         // all three dismiss paths while a tx is in flight.
         onClose={isTxInFlight ? undefined : handleClose}
         disableEscapeClose={isTxInFlight}
-        className="items-center justify-center p-6"
+        contentClassName="max-w-[520px]"
       >
-        <div className="mx-auto w-full max-w-[520px]">{renderContent()}</div>
-      </FullScreenDialog>
+        {renderContent()}
+      </V3ModalShell>
 
       {selectedReserve && assetConfig && (
         <>

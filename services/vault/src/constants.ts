@@ -25,6 +25,10 @@ export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 export const TWO_VAULT_SPLIT_DOCS_URL =
   "https://docs.babylonlabs.io/trustless-bitcoin-vault/use-for-lending/create-a-vault/#step-1-decide-how-to-split-your-btc";
 
+// Vault provider docs link, surfaced from the v3 provider picker intro.
+// TODO(product): swap in the exact vault-provider page once confirmed.
+export const VAULT_PROVIDER_DOCS_URL = "https://docs.babylonlabs.io";
+
 // Bitcoin protocol constants
 export const BTC_BLOCK_TIME_MINS = 10;
 export const MINS_PER_HOUR = 60;

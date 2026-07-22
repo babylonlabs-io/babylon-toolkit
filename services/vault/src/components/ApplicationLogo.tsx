@@ -4,7 +4,7 @@ import { useState } from "react";
 interface ApplicationLogoProps {
   logoUrl: string | null;
   name: string;
-  size?: "xs" | "small" | "large";
+  size?: "xs" | "sm" | "small" | "large";
   shape?: "circle" | "rounded";
 }
 
@@ -13,8 +13,19 @@ const SIZE_CLASSES: Record<
   string
 > = {
   xs: "h-4 w-4",
+  sm: "h-6 w-6",
   small: "h-8 w-8",
   large: "h-10 w-10",
+};
+
+const FALLBACK_TEXT_CLASSES: Record<
+  NonNullable<ApplicationLogoProps["size"]>,
+  string
+> = {
+  xs: "text-[10px]",
+  sm: "text-xs",
+  small: "text-base",
+  large: "text-base",
 };
 
 export function ApplicationLogo({
@@ -35,7 +46,7 @@ export function ApplicationLogo({
       >
         <Text
           as="span"
-          className={`font-medium text-accent-contrast ${size === "xs" ? "text-[10px]" : "text-base"}`}
+          className={`font-medium text-accent-contrast ${FALLBACK_TEXT_CLASSES[size]}`}
         >
           {name.charAt(0).toUpperCase()}
         </Text>
