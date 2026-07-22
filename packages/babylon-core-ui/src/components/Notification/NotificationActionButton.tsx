@@ -14,7 +14,7 @@ export interface NotificationAction {
 }
 
 const ACTION_BASE =
-  "rounded-lg px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded-full px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
 export interface NotificationActionButtonProps {
   action: NotificationAction;
@@ -23,10 +23,9 @@ export interface NotificationActionButtonProps {
   /** Foreground that sits on `accentBg` for a `primary` action. */
   onAccent: string;
   /**
-   * Per-call-site overrides merged last (height, horizontal padding, text size,
-   * border color). Figma shares one 8px radius across every notification button
-   * but not one size, so the size deltas ride in here instead of forking the
-   * component.
+   * Per-call-site overrides merged last (radius, height, horizontal padding,
+   * text size, border color). Lets a caller restyle the shared shell without
+   * forking the component; the v2 pill stays the default.
    */
   className?: string;
 }

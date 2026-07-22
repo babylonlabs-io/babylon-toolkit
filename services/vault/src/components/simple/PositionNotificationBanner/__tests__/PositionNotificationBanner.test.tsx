@@ -899,6 +899,31 @@ describe("PositionNotificationBanner v3", () => {
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
+  it("renders no dismiss control on a cliff card carrying a too-many-vaults secondary", () => {
+    // The secondary warning is stacked inside the same card, so dismissing the
+    // cliff would also hide a notice that is dismissible in neither UI version.
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+        },
+        {
+          type: "too-many-vaults",
+          title: "Too many BTC Vaults to optimize",
+          detail: "You have 18 BTC Vaults.",
+        },
+      ],
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByText("Too many BTC Vaults to optimize")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss notification" }),
+    ).toBeNull();
+  });
+
   it("renders the standalone reorder v3 card as dismissible", () => {
     const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);

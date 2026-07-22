@@ -1497,8 +1497,11 @@ export const COPY = {
         "Consider consolidating smaller BTC Vaults into fewer larger ones — fewer BTC Vaults means lower fees and better optimization.",
     },
     maxVaults: {
-      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body keeps.
-      title: "Maximum vaults reached",
+      title: "Maximum BTC Vaults reached",
+      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body
+      // keeps. Separate key so the v2 title above is untouched with the flag
+      // off, and so both retire in one edit when v2 goes.
+      titleV3: "Maximum vaults reached",
       detail: (cap: number) =>
         `This position already has the maximum number of BTC Vaults (${cap}).`,
     },

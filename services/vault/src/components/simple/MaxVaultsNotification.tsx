@@ -40,7 +40,7 @@ export function MaxVaultsNotification({
     return (
       <NotificationCard
         tone="too-many"
-        title={COPY.liquidationWarnings.maxVaults.title}
+        title={COPY.liquidationWarnings.maxVaults.titleV3}
         data-testid={TEST_ID}
         data-severity="yellow"
       >

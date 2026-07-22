@@ -54,9 +54,12 @@ const ON_LIGHT_ACCENT = "text-primary-main";
 const SURFACE = "bg-background-secondary";
 const SURFACE_CONTRAST = "bg-background-contrast";
 
-// Figma shares one radius (8px, from core-ui's action button) but not one size.
-// The default is core-ui's own `px-4 py-2 text-sm` = the 36px critical-card
-// buttons; the other two frames deviate per card.
+// Figma shares one radius across every v3 notification button (8px) but not one
+// size. The radius overrides core-ui's v2 pill here rather than in core-ui, so
+// the flag-off path keeps its existing shape. The default size is core-ui's own
+// `px-4 py-2 text-sm` = the 36px critical-card buttons; the other two frames
+// deviate per card.
+const ACTION_RADIUS = "rounded-lg";
 const ACTION_SIZE_DEFAULT = "";
 const ACTION_SIZE_TALL = "h-10 text-base"; // "Add sacrificial vault" (§3)
 const ACTION_SIZE_WIDE = "h-9 px-6"; // "Apply Optimal Order" (§5)
@@ -241,8 +244,8 @@ export function NotificationCard({
   const centerAlign = hasInlineActions && !suggestion && !onClose;
   const alignClass = centerAlign ? "items-center" : "items-start";
 
-  // core-ui owns the shared button shell (8px radius, base padding, disabled
-  // state); only the per-card size and the outlined border ride in as overrides.
+  // core-ui owns the shared button shell (base padding, disabled state); the v3
+  // radius, the per-card size and the outlined border ride in as overrides.
   const actionButtons = actions?.map((action, index) => (
     <NotificationActionButton
       key={index}
@@ -250,6 +253,7 @@ export function NotificationCard({
       accentBg={accent.actionBg}
       onAccent={accent.onAction}
       className={twMerge(
+        ACTION_RADIUS,
         accent.actionSize,
         action.emphasis === "secondary" && SECONDARY_ACTION_BORDER,
       )}

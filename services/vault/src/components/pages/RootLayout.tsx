@@ -109,16 +109,21 @@ const FOOTER_SOCIAL_LINKS: SocialLink[] = [
 // starts at the same x-position as the navbar/body instead of the raw edge.
 const FOOTER_SOCIAL_MARGIN_CLASS = "md:ml-[max(0px,calc((100vw-1080px)/2))]";
 
-// Stacking order of the full-bleed top-banner wrapper.
+// Stacking order of the two full-bleed top banners.
 // core-ui's Dialog / FullScreenDialog render at `z-50` (backdrop `z-40`) from a
 // portal whose container (`providers.tsx` app root) establishes no stacking
-// context, so they resolve against the root one — the same one this wrapper
-// competes in. Figma §2 (node 10092-19911) requires the critical banner to stay
-// visible above an open modal (e.g. the repay modal), so v3 outranks them.
-// It has to live on the wrapper: `sticky` + a z-index makes the wrapper its own
-// stacking context, so a raised z-index on a banner inside it could not escape.
-// v2 keeps `z-30` so its banner stack still passes under modals exactly as before.
-const TOP_BANNER_Z_CLASS = FeatureFlags.isV3UiEnabled ? "z-[60]" : "z-30";
+// context, so they resolve against the root one — the same one these banners
+// compete in. Figma §2 (node 10092-19911) asks that of the critical banner only,
+// so it alone outranks a modal; the deposit-disabled notice keeps its original
+// `z-30` and still passes under the backdrop.
+// The two therefore stick independently rather than sharing one sticky wrapper:
+// `position: sticky` always creates a stacking context, so a shared sticky
+// parent would trap both children at the parent's z-index and drag the
+// deposit-disabled banner over modals with the critical one. The measured
+// wrapper stays static (no stacking context of its own) so each child's z-index
+// resolves against the root as described above.
+const CRITICAL_BANNER_Z_CLASS = "z-[60]";
+const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 
 function AppNavLink({
   to,
@@ -274,30 +279,43 @@ export default function RootLayout() {
         { "--tbv-top-banner-height": `${topBannerHeight}px` } as CSSProperties
       }
     >
-      <div
-        ref={topBannerRef}
-        className={twJoin("sticky top-0", TOP_BANNER_Z_CLASS)}
-      >
-        {/* Portal target for the critical near-liquidation banner. It lives in
-            this wrapper — a sibling ABOVE the sidebar/content row — so the red
-            bar spans the entire window width including the side nav, per Figma
-            §D / node 10204-45613, and so the wrapper's height measurement above
-            covers it too (no second mechanism needed).
+      <div ref={topBannerRef}>
+        {/* v3 portal target for the critical near-liquidation banner. It lives
+            in this wrapper — a sibling ABOVE the sidebar/content row — so the
+            red bar spans the entire window width including the side nav, per
+            Figma §D / node 10204-45613, and so the wrapper's height measurement
+            above covers it too (no second mechanism needed).
 
-            Rendered unconditionally, and outside every conditional branch: the
-            consumer (`CriticalLiquidationTopBanner`) resolves this node once on
-            mount via `getElementById` and holds the reference, so if the node
-            were ever unmounted and re-created — e.g. by crossing the 768px
-            `showV3Sidebar` breakpoint — the portal would silently keep writing
-            into a detached element. Owned by the dashboard (where the Aave data
-            + debug override live) but portaled here so it renders above the
-            header and above the deposit-disabled banner. */}
-        <div id={CRITICAL_BANNER_SLOT_ID} />
-        <DepositDisabledBanner visible={showDepositDisabledBanner} />
+            The full-bleed placement is a v3 design change, but the banner
+            itself is gated on the liquidation-notifications flag, so the slot is
+            flag-switched rather than moved outright: with v3 off it stays where
+            it has always been, first child of the content column.
+            `isV3UiEnabled` is a build-time constant, so exactly one of the two
+            slots exists for the life of the app and neither can be
+            unmounted/remounted at runtime — which matters because the consumer
+            (`CriticalLiquidationTopBanner`) resolves this node once on mount via
+            `getElementById` and holds the reference; a node that came and went
+            (e.g. across the 768px `showV3Sidebar` breakpoint) would leave the
+            portal silently writing into a detached element. Owned by the
+            dashboard (where the Aave data + debug override live) but portaled
+            here so it renders above the header and above the deposit-disabled
+            banner. */}
+        {FeatureFlags.isV3UiEnabled && (
+          <div
+            id={CRITICAL_BANNER_SLOT_ID}
+            className={twJoin("sticky top-0", CRITICAL_BANNER_Z_CLASS)}
+          />
+        )}
+        <div
+          className={twJoin("sticky top-0", DEPOSIT_DISABLED_BANNER_Z_CLASS)}
+        >
+          <DepositDisabledBanner visible={showDepositDisabledBanner} />
+        </div>
       </div>
       <div className="flex min-w-0 flex-1">
         {showV3Sidebar && <AppSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
+          {!FeatureFlags.isV3UiEnabled && <div id={CRITICAL_BANNER_SLOT_ID} />}
           {operationalBanners}
           <Header
             size="md"
