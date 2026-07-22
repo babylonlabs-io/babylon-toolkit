@@ -36,6 +36,12 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => "signet",
 }));
 
+// The v3 empty state pulls in the shared EmptyState, which mounts <Connect/>
+// (heavy wallet-connector graph). Stub it so the page stays a unit test.
+vi.mock("@/components/Wallet", () => ({
+  Connect: () => <button type="button">Connect</button>,
+}));
+
 import Activity from "../Activity";
 
 function renderActivity() {

@@ -1321,6 +1321,19 @@ export const COPY = {
     emptyConnected: "No activity yet. Make your first deposit to get started.",
     emptyFiltered: "No activity",
     depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
+    // v3 activity page (behind ENABLE_V3_UI): the empty state matches the
+    // shared v3 EmptyState card; status labels are derived from the row type
+    // plus pending/expired (a deposit's collateral is "In use", every other
+    // settled action is "Done"); date-group headers label the rows by day.
+    emptyV3Title: "No activity yet",
+    emptyV3Body:
+      "Your account activity will appear here once you start using Babylon",
+    statusPending: "Pending",
+    statusExpired: "Expired",
+    statusInUse: "In use",
+    statusDone: "Done",
+    dateToday: "Today",
+    dateYesterday: "Yesterday",
   },
   banner: {
     addCollateral: "Add Collateral",
