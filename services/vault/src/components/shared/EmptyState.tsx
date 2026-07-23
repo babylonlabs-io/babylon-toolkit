@@ -6,8 +6,8 @@
  *   Activity (Figma "Home Screen Cards": 11716:54592, 10044:14068,
  *   10044:13346). Document illustration, filled card, 24px gaps, a
  *   600px-capped centered copy block with a 4px title/body gap, then the CTA.
- * - `compact` — the older inline surfaces (the reserve-detail connect prompt
- *   and the overview liquidation panel). No illustration unless the caller
+ * - `compact` — the v2 reserve-detail connect prompt, which predates this
+ *   design and must keep its old look: no illustration unless the caller
  *   supplies an avatar, plain card chrome, 14px description.
  */
 

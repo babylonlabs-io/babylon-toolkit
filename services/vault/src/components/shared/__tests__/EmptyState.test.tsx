@@ -69,9 +69,8 @@ describe("EmptyState", () => {
   });
 
   it("renders no illustration for the compact variant", () => {
-    // The compact surfaces (reserve-detail prompt, overview liquidation panel)
-    // sit inside their own chrome and predate the v3 illustration — the v3
-    // default must not leak into them.
+    // The v2 reserve-detail prompt predates the v3 illustration — the v3
+    // default must not leak into it.
     const { container } = render(
       <EmptyState
         variant="compact"
