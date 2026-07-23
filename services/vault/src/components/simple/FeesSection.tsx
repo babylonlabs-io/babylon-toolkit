@@ -5,7 +5,7 @@ import {
   Hint,
 } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useId, useState } from "react";
-import { IoChevronUp } from "react-icons/io5";
+import { IoAdd, IoChevronUp, IoRemove } from "react-icons/io5";
 
 import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
@@ -43,7 +43,10 @@ function FeesSectionV3({ rows }: FeesSectionProps) {
   const panelId = useId();
 
   return (
-    <div className="border-t border-secondary-strokeLight pt-4">
+    <Accordion
+      expanded={expanded}
+      className="border-t border-secondary-strokeLight pt-4"
+    >
       <button
         type="button"
         aria-expanded={expanded}
@@ -54,14 +57,20 @@ function FeesSectionV3({ rows }: FeesSectionProps) {
         <span className="text-sm text-accent-primary">
           {COPY.protocolFees.sectionTitle}
         </span>
-        <IoChevronUp
-          className={`text-secondary-strokeDark transition-transform ${expanded ? "" : "rotate-180"}`}
-        />
+        <span className="flex size-6 shrink-0 items-center justify-center rounded bg-neutral-200 text-accent-primary">
+          {expanded ? <IoRemove size={16} /> : <IoAdd size={16} />}
+        </span>
       </button>
-      <div id={panelId} hidden={!expanded} className="flex flex-col gap-2 pt-3">
-        <FeeRows rows={rows} />
+      {/* AccordionDetails carries the shared dropdown motion (height +
+          opacity/translate from the `--motion-*` tokens) and owns the
+          collapsed visibility, so the panel animates like every other
+          expandable instead of snapping open. */}
+      <div id={panelId}>
+        <AccordionDetails className="flex flex-col gap-2 pt-3">
+          <FeeRows rows={rows} />
+        </AccordionDetails>
       </div>
-    </div>
+    </Accordion>
   );
 }
 

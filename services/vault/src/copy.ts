@@ -510,6 +510,9 @@ export const COPY = {
       // Amount-input left-field label; the slider renders its Max button when
       // this reads "max" (case-insensitive), so keep the value as "Max".
       maxLabel: "Max",
+      // v3 amount row: the depositable maximum is labelled as the balance,
+      // with `maxTooltip` explaining the fee buffer / cap adjustments.
+      balanceLabel: "Balance",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
           ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
@@ -521,6 +524,16 @@ export const COPY = {
       doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a vault provider to secure your BTC",
+      // v3 picker intro. The docs clause + link is appended only when a vault
+      // provider docs URL is configured (see VAULT_PROVIDER_DOCS_URL); the
+      // lead-in sentence stands alone otherwise.
+      providerSelectDescriptionV3:
+        "Choose a vault provider to assist with your vault maintenance.",
+      providerSelectDescriptionDocs:
+        " For more information about vault provider or to create your own, ",
+      providerSelectDescriptionLink: "please go here.",
+      // Sub-line under the v3 intro, describing the picker's ordering.
+      providerSortNote: "Sorted by most recent deposit",
       providerSelectEmpty: "No vault providers available at this time.",
       providerStatusUnavailable: "Unavailable",
       // Status label for a vault provider that has recently been unreachable
@@ -534,6 +547,12 @@ export const COPY = {
       // Per-provider metric labels shown in the picker.
       providerCommissionLabel: "Commission",
       providerActiveLabel: "Total locked",
+      // v3 picker column labels + healthy-provider status line. The v3 rows
+      // are a metric table, so the labels sit under their values instead of
+      // reading as a sentence.
+      providerActiveBtcLabel: "Active BTC",
+      providerLastDepositLabel: "Last deposit",
+      providerStatusActive: "Active",
       // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
       // submits. The commission label appends the percent, e.g. "VP commission
       // (2.50%)"; net payout is the deposit minus that commission.
@@ -785,6 +804,8 @@ export const COPY = {
     // Separator between a metric's current and projected value (before → after).
     valueTransitionArrow: "→",
     loading: "Loading...",
+    // Accessible label for the shared v3 modal header close control.
+    close: "Close",
     confirming: "Confirming...",
     applying: "Applying...",
     checking: "Checking...",
@@ -1329,6 +1350,9 @@ export const COPY = {
     },
     sections: {
       pendingDepositsTitle: "Pending Deposit",
+      // Heading over the vaults list before any vault is active — the count
+      // is dropped while the section only holds the empty state.
+      vaultsTitle: "Vaults",
       activeVaultsTitle: "Active Vaults",
       inactiveVaultsTitle: "Inactive Vaults",
       count: (count: number) => `(${count})`,
@@ -1427,6 +1451,9 @@ export const COPY = {
   },
   reorder: {
     confirmButton: "Confirm",
+    doneButton: "Done",
+    successTitle: "BTC Vault order updated",
+    successText: "The liquidation order of your BTC Vaults has been updated.",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",

@@ -10,10 +10,12 @@
  */
 
 import { Heading, Loader } from "@babylonlabs-io/core-ui";
+import type { ReactNode } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ListRowCard } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -23,6 +25,9 @@ interface VaultsActiveSectionProps {
   vaults: CollateralVaultEntry[];
   onWithdraw: (vaultId: string) => void;
   isWithdrawDisabled: boolean;
+  /** Shown under a plain "Vaults" heading while no vault is active yet —
+   *  the page reaches this section with pending deposits only. */
+  emptyState?: ReactNode;
 }
 
 function ActiveVaultRow({
@@ -39,7 +44,7 @@ function ActiveVaultRow({
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4 dark:bg-[#202020]">
+    <ListRowCard>
       {/* Amount + liquidation ordinal */}
       <div className="flex w-[180px] shrink-0 items-center gap-2">
         <ApplicationLogo
@@ -120,7 +125,7 @@ function ActiveVaultRow({
       >
         {COPY.vaults.actions.withdraw}
       </button>
-    </div>
+    </ListRowCard>
   );
 }
 
@@ -128,8 +133,23 @@ export function VaultsActiveSection({
   vaults,
   onWithdraw,
   isWithdrawDisabled,
+  emptyState,
 }: VaultsActiveSectionProps) {
-  if (vaults.length === 0) return null;
+  if (vaults.length === 0) {
+    if (!emptyState) return null;
+    return (
+      <section className="w-full space-y-3">
+        <Heading
+          variant="h6"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
+          {COPY.vaults.sections.vaultsTitle}
+        </Heading>
+        {emptyState}
+      </section>
+    );
+  }
 
   return (
     <section className="w-full space-y-3">

@@ -15,11 +15,6 @@ import { useOutletContext } from "react-router";
 import type { Address } from "viem";
 
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
-import {
-  ACTION_WIDTH_CLASS,
-  DepositButton,
-  EmptyState,
-} from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
   isDepositBlocked,
@@ -32,6 +27,7 @@ import {
 } from "@/components/simple/ReorderVaults";
 import WithdrawFlow from "@/components/simple/WithdrawFlow";
 import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
+import { VaultsEmptyState } from "@/components/vaults/VaultsEmptyState";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { VaultsSummaryCard } from "@/components/vaults/VaultsSummaryCard";
 import { FeatureFlags } from "@/config";
@@ -88,6 +84,19 @@ export default function VaultsPage() {
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
 
   const isDepositsPaused = FeatureFlags.isDepositDisabled;
+
+  // `sectionPlacement` = rendered inline in the Vaults section beneath a pending
+  // deposit, where it sits on the same bordered surface as the sibling cards.
+  // The whole-page state (false) sits on the standalone v3 empty-state card.
+  const renderEmptyState = (sectionPlacement: boolean) => (
+    <VaultsEmptyState
+      isConnected={isConnected}
+      isDepositsPaused={isDepositsPaused}
+      isDepositDisabled={isDepositBlocked(gate)}
+      onDeposit={() => openDeposit()}
+      sectionPlacement={sectionPlacement}
+    />
+  );
 
   const reorderableVaults = useMemo(
     () => rawCollateralVaults.filter((vault) => !vault.isActivating),
@@ -149,6 +158,11 @@ export default function VaultsPage() {
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}
           isWithdrawDisabled={isWithdrawBlocked(gate)}
+          // Pending deposits keep the page populated while the vault list is
+          // still empty — the section shows the empty state until the deposit
+          // confirms and activates. Section placement sits on the sibling-card
+          // surface, not the standalone empty-state card.
+          emptyState={renderEmptyState(true)}
         />
       </VaultsLifecycleSections>
     </div>
@@ -175,39 +189,7 @@ export default function VaultsPage() {
       );
     }
     if (!isEmpty) return populatedBody;
-    // The paused notice outranks the connect prompt: a depositor should learn
-    // deposits are off without having to connect a wallet first. Disconnected
-    // is a title-only prompt (the Loans and Activity tabs do the same) — there
-    // is no position to describe until a wallet is attached.
-    const emptyCopy = isDepositsPaused
-      ? COPY.deposit.disabled
-      : isConnected
-        ? COPY.vaults.empty
-        : { title: COPY.vaults.empty.disconnected, description: undefined };
-    return (
-      <EmptyState
-        title={emptyCopy.title}
-        description={emptyCopy.description}
-        isConnected={isConnected}
-        withCard
-        action={
-          <DepositButton
-            // This control's data-testid is a real-wallet E2E hook
-            // (e2e/real/actions/walletConnect.ts, e2e/real/actions/pegin.ts)
-            // — carry it over if you move or rename the element.
-            data-testid="deposit-button"
-            variant="contained"
-            color="secondary"
-            size="large"
-            className={ACTION_WIDTH_CLASS}
-            onClick={() => openDeposit()}
-            disabled={isDepositBlocked(gate)}
-          >
-            {COPY.vaults.empty.depositAction}
-          </DepositButton>
-        }
-      />
-    );
+    return renderEmptyState(false);
   };
 
   // Dev/QA god-mode panel (same gate and pattern as DashboardPage) so demo
