@@ -1,5 +1,5 @@
 import React from 'react';
-import { Avatar } from '../../../../components/Avatar';
+import { WalletIcon } from '../../../../components/Avatar';
 import { Text } from '../../../../components/Text';
 import { DisplayHash } from '../../../../components/DisplayHash';
 import { CopyIcon } from '../../../../components/Icons';
@@ -26,6 +26,8 @@ export interface WalletMenuCardProps {
   walletType: 'Bitcoin' | 'Babylon' | 'Ethereum';
   walletName?: string;
   walletIcon?: string;
+  /** Brand fill for single-colour wallet marks. See `IWallet.iconBackground`. */
+  walletIconBackground?: string;
   address: string;
   isCopied: boolean;
   onCopy: () => void;
@@ -43,6 +45,7 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
   walletType,
   walletName,
   walletIcon,
+  walletIconBackground,
   address,
   isCopied,
   onCopy,
@@ -161,12 +164,11 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
     )}>
       <div className="flex flex-col w-full">
         <div className="flex items-center gap-2.5 mb-2 md:mb-3">
-          <Avatar
+          <WalletIcon
             alt={walletName || walletType}
             url={walletIcon || ''}
-            size="large"
-            variant="rounded"
-            className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0 !overflow-visible"
+            background={walletIconBackground}
+            className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0"
           />
 
           <div className="flex flex-1 flex-col items-start min-w-0">

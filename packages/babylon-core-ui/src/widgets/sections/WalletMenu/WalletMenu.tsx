@@ -12,7 +12,7 @@ export interface WalletMenuProps {
   btcAddress?: string;
   bbnAddress?: string;
   ethAddress?: string;
-  selectedWallets: Partial<Record<WalletChain, { name: string; icon: string }>>;
+  selectedWallets: Partial<Record<WalletChain, { name: string; icon: string; iconBackground?: string }>>;
   onDisconnect: () => void;
   forceOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
@@ -106,6 +106,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               walletType="Bitcoin"
               walletName={selectedWallets["BTC"]?.name}
               walletIcon={selectedWallets["BTC"]?.icon}
+              walletIconBackground={selectedWallets["BTC"]?.iconBackground}
               address={btcAddress}
               isCopied={isCopied("btc")}
               onCopy={() => copyToClipboard("btc", btcAddress)}
@@ -122,6 +123,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               walletType="Babylon"
               walletName={selectedWallets["BBN"]?.name}
               walletIcon={selectedWallets["BBN"]?.icon}
+              walletIconBackground={selectedWallets["BBN"]?.iconBackground}
               address={bbnAddress}
               isCopied={isCopied("bbn")}
               onCopy={() => copyToClipboard("bbn", bbnAddress)}
@@ -137,6 +139,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               walletType="Ethereum"
               walletName={selectedWallets["ETH"]?.name}
               walletIcon={selectedWallets["ETH"]?.icon}
+              walletIconBackground={selectedWallets["ETH"]?.iconBackground}
               address={ethAddress}
               isCopied={isCopied("eth")}
               onCopy={() => copyToClipboard("eth", ethAddress)}

@@ -1,9 +1,9 @@
 import {
-  Avatar,
   AvatarGroup,
   BtcEthWalletMenu,
   ConnectButton,
   Hint,
+  WalletIcon,
 } from "@babylonlabs-io/core-ui";
 import {
   useChainConnector,
@@ -112,19 +112,19 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
         <BtcEthWalletMenu
           trigger={
             <div className="cursor-pointer">
-              <AvatarGroup max={3} variant="circular" className="!-space-x-2">
+              <AvatarGroup max={3} className="!-space-x-2">
                 {displayWallets["BTC"] && (
-                  <Avatar
+                  <WalletIcon
                     alt={displayWallets["BTC"].name}
                     url={displayWallets["BTC"].icon}
-                    size="large"
+                    background={displayWallets["BTC"].iconBackground}
                   />
                 )}
                 {displayWallets["ETH"] && (
-                  <Avatar
+                  <WalletIcon
                     alt={displayWallets["ETH"].name}
                     url={displayWallets["ETH"].icon}
-                    size="large"
+                    background={displayWallets["ETH"].iconBackground}
                   />
                 )}
               </AvatarGroup>

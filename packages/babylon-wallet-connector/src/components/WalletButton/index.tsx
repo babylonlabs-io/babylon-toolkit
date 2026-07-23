@@ -1,4 +1,4 @@
-import { Avatar, Chip, Text } from "@babylonlabs-io/core-ui";
+import { Chip, Text, WalletIcon } from "@babylonlabs-io/core-ui";
 import { twMerge } from "tailwind-merge";
 
 // Green = software wallet detected/installed; yellow = hardware wallet that is
@@ -11,9 +11,7 @@ const HARDWARE_DOT = "bg-[#FFB300]";
 interface WalletButtonProps {
   className?: string;
   logo: string;
-  // Solid brand-color fill behind `logo`. The logo source is a circular SVG
-  // (transparent outside the circle), so this shows through the corners of
-  // the rounded-square clip below, matching the wallet's own icon color.
+  // See `IWallet.iconBackground`.
   logoBackground?: string;
   disabled?: boolean;
   name: string;
@@ -65,13 +63,7 @@ export function WalletButton({
       {...btnProps}
       data-testid={getTestId()}
     >
-      <Avatar
-        variant="rounded"
-        className="shrink-0 !rounded-[2px]"
-        style={logoBackground ? { backgroundColor: logoBackground } : undefined}
-        alt={name}
-        url={logo}
-      />
+      <WalletIcon className="shrink-0" alt={name} url={logo} background={logoBackground} />
       <span className={twMerge("min-w-0 flex-1 truncate text-left", !installed && "text-accent-secondary")}>{name}</span>
 
       <Chip

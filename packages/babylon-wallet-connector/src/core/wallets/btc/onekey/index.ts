@@ -1,9 +1,8 @@
 import { IBTCProvider, Network, type BTCConfig, type WalletMetadata } from "@/core/types";
+import { ONEKEY_BRAND_GREEN } from "@/core/wallets/constants";
 
 import logo from "./logo.svg";
 import { OneKeyProvider, WALLET_PROVIDER_NAME } from "./provider";
-
-const ONEKEY_BRAND_GREEN = "#1FE121";
 
 const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   id: "onekey",

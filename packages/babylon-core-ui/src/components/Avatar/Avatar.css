@@ -25,6 +25,25 @@
     @apply size-16;
   }
 
+  /* Inset for a glyph drawn edge-to-edge in its own viewBox, so a circular
+     fill doesn't clip its corners. Sized per avatar size since percentage
+     padding would resolve against the parent, not the avatar. */
+  &-inset {
+    @apply p-0.5;
+
+    &.bbn-avatar-medium {
+      @apply p-1.5;
+    }
+
+    &.bbn-avatar-large {
+      @apply p-2;
+    }
+
+    &.bbn-avatar-xlarge {
+      @apply p-3;
+    }
+  }
+
   &-circular {
     @apply rounded-full;
   }
