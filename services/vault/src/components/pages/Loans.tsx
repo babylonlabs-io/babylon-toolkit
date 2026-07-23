@@ -74,8 +74,12 @@ export default function Loans() {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <EmptyState
-          title={COPY.loans.noActiveLoans.title}
-          description={COPY.loans.noActiveLoans.body}
+          title={
+            isConnected
+              ? COPY.loans.noActiveLoans.title
+              : COPY.loans.emptyDisconnected
+          }
+          description={isConnected ? COPY.loans.noActiveLoans.body : undefined}
           isConnected={isConnected}
           actionLabel={COPY.overview.depositAction}
           onAction={() => openDeposit()}

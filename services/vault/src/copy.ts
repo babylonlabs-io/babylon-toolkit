@@ -45,6 +45,10 @@ import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
 const PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE =
   "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
 const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
+// Disconnected empty state on every v3 tab (Vaults / Loans / Activity). One
+// builder so the three can't drift apart.
+const connectToView = (subject: string) =>
+  `Connect your wallet to view your ${subject}`;
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // Shared between the resume WOTS error string and the mapped callout body so
@@ -1007,6 +1011,9 @@ export const COPY = {
       title: "No active loans",
       body: "You haven't borrowed any assets yet",
     },
+    // v3 Loans page empty state, disconnected — no position to describe yet,
+    // so it's a title-only prompt like the Activity tab's.
+    emptyDisconnected: connectToView("loans"),
     // v3 Loans summary — caption under the health-factor value.
     healthFactorCaption:
       "When the ratio falls below 1.0, liquidation may occur.",
@@ -1295,6 +1302,8 @@ export const COPY = {
       title: "Your BTC Vaults will appear here",
       description:
         "Deposit BTC to create your first BTC Vault and unlock borrowing power without selling your Bitcoin.",
+      // Disconnected: title-only prompt, matching the Loans and Activity tabs.
+      disconnected: connectToView("BTC Vaults"),
       depositAction: "Deposit",
     },
     loadError:
@@ -1388,7 +1397,7 @@ export const COPY = {
       collateralLabel: "Collateral Liquidated",
       repaidLabel: "Loan Repaid",
     },
-    emptyDisconnected: "Connect your wallet to view your activity",
+    emptyDisconnected: connectToView("activity"),
     emptyConnected: "No activity yet. Make your first deposit to get started.",
     emptyFiltered: "No activity",
     depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,

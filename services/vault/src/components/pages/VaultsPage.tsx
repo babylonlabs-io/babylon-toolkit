@@ -171,18 +171,19 @@ export default function VaultsPage() {
       );
     }
     if (!isEmpty) return populatedBody;
+    // The paused notice outranks the connect prompt: a depositor should learn
+    // deposits are off without having to connect a wallet first. Disconnected
+    // is a title-only prompt (the Loans and Activity tabs do the same) — there
+    // is no position to describe until a wallet is attached.
+    const emptyCopy = isDepositsPaused
+      ? COPY.deposit.disabled
+      : isConnected
+        ? COPY.vaults.empty
+        : { title: COPY.vaults.empty.disconnected, description: undefined };
     return (
       <EmptyState
-        title={
-          isDepositsPaused
-            ? COPY.deposit.disabled.title
-            : COPY.vaults.empty.title
-        }
-        description={
-          isDepositsPaused
-            ? COPY.deposit.disabled.description
-            : COPY.vaults.empty.description
-        }
+        title={emptyCopy.title}
+        description={emptyCopy.description}
         isConnected={isConnected}
         withCard
         action={
