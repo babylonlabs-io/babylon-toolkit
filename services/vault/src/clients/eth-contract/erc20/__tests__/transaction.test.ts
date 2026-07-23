@@ -128,6 +128,25 @@ describe("approveERC20", () => {
     expect(mockExecuteWrite).toHaveBeenCalledTimes(1);
   });
 
+  it("rethrows the original revert when the fallback's allowance read fails", async () => {
+    // A failed read leaves the non-zero-allowance condition unproven; the
+    // read error must not mask the approve revert that triggered the path.
+    mockGetERC20Allowance.mockRejectedValue(new Error("rpc unreachable"));
+    mockExecuteWrite.mockRejectedValue(simulationRevert());
+
+    await expect(
+      approveERC20(
+        mockWalletClient,
+        mockChain,
+        TOKEN_ADDRESS,
+        SPENDER_ADDRESS,
+        1000n,
+      ),
+    ).rejects.toThrow("approve reverted");
+
+    expect(mockExecuteWrite).toHaveBeenCalledTimes(1);
+  });
+
   it("rethrows a mined (untagged) revert without the fallback", async () => {
     // The tx was broadcast and reverted on-chain — gas was burned; auto-firing
     // a reset prompt on top would surprise the user.

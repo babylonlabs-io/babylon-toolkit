@@ -80,15 +80,17 @@ export async function approveERC20(
     }
     // The quirk only exists for non-zero → non-zero approvals: with a zero
     // allowance the revert has some other cause — surface the original error
-    // instead of firing a pointless reset prompt. Failure-path-only read.
+    // instead of firing a pointless reset prompt. Failure-path-only read; if
+    // the read itself fails the condition is unproven, so the original revert
+    // (not the read error) surfaces.
     const ownerAddress = walletClient.account?.address;
     if (!ownerAddress) throw error;
     const currentAllowance = await getERC20Allowance(
       tokenAddress,
       ownerAddress,
       spenderAddress,
-    );
-    if (currentAllowance === 0n) throw error;
+    ).catch(() => null);
+    if (currentAllowance === null || currentAllowance === 0n) throw error;
     logger.warn("Direct ERC20 approve reverted; using zero-first fallback", {
       data: { tokenAddress },
     });
