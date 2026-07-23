@@ -6,6 +6,19 @@
 import featureFlags from "@/config/featureFlags";
 
 /**
+ * Horizontal inset of a full-screen modal's top bar. Figma's shared Header
+ * component puts its content 120px from each edge, unchanged across the 1440
+ * and 1512 frames, so every modal's close / network / settings land in the
+ * same place. Below `md` that gutter would swallow a phone screen, so it drops
+ * to the page gutter there.
+ *
+ * A margin, and deliberately not PAGE_CONTENT_CLASS: that class carries
+ * `!w-auto` to undo a core-ui `container`, and on an ordinary element the
+ * `!important` beats `w-full` and collapses the box to its content width.
+ */
+export const MODAL_TOP_BAR_GUTTER_CLASS = "mx-10 md:mx-[120px]";
+
+/**
  * Content width + horizontal inset shared by the navbar and every top-level page
  * container; `!` overrides core-ui `<Container>`/`Header`'s default `container`
  * width so the navbar and body stay the same width.

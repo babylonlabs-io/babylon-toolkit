@@ -21,7 +21,7 @@ import { IoClose } from "react-icons/io5";
 import { twJoin } from "tailwind-merge";
 
 import { NetworkBadge } from "@/components/shared/NetworkBadge";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { MODAL_TOP_BAR_GUTTER_CLASS } from "@/components/shared/layoutClasses";
 import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 
@@ -64,16 +64,18 @@ export function V3ModalShell({
       open={open}
       onClose={onClose}
       disableEscapeClose={disableEscapeClose}
-      // The shell renders its own header aligned to the page column, so hide
-      // FullScreenDialog's fixed built-in close/back button (onClose is still
-      // wired for backdrop + Escape dismissal).
+      // The shell renders its own header, so hide FullScreenDialog's fixed
+      // built-in close/back button (onClose is still wired for backdrop +
+      // Escape dismissal).
       closeButtonClassName="!hidden"
     >
-      {/* Header row: close on the left, network + settings on the right, both
-          on the page's content column so the modal chrome lines up with the
-          page underneath. */}
+      {/* Header row: close on the left, network + settings on the right, on
+          the design's 120px inset so every modal's chrome lands in the same
+          place. As a stretched flex child the row fills the dialog minus that
+          gutter on its own — it needs no width class, which
+          MODAL_TOP_BAR_GUTTER_CLASS explains is just as well. */}
       <div
-        className={`mx-auto flex w-full items-center justify-between py-4 ${PAGE_CONTENT_CLASS}`}
+        className={`flex items-center justify-between py-4 ${MODAL_TOP_BAR_GUTTER_CLASS}`}
       >
         {onClose ? (
           <button
