@@ -12,11 +12,11 @@
  * the user signs against can be falsified. This guard resolves the proxy
  * on-chain and fails closed if it disagrees.
  *
- * Resolves the proxy from the env-pinned adapter the tx path uses (via
- * `getAaveAdapterAddress()` at the call site), NOT the indexer-supplied
- * `aaveConfig.coreSpokeAddress` or any indexer-derived address. Otherwise an
- * attacker-controlled adapter could return a matching proxy that passes the
- * check while the real position lives elsewhere.
+ * Resolves the proxy on-chain from the env-pinned adapter the tx path uses
+ * (via `getAaveAdapterAddress()` at the call site), never from an
+ * indexer-derived address. Otherwise an attacker-controlled adapter could
+ * return a matching proxy that passes the check while the real position lives
+ * elsewhere.
  */
 
 import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
