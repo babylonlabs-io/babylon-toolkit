@@ -47,8 +47,20 @@ export interface ActivityAmount {
  */
 export interface ActivityLog {
   kind: "row";
-  /** Unique identifier for the activity */
+  /**
+   * Unique identifier for the activity. NOT a stable id space across sources:
+   * an indexed row is keyed by its event (`txHash-logIndex-type`), a pending
+   * row from localStorage by the derived vault id. Never match it against a
+   * vault id — use `vaultId` for that.
+   */
   id: string;
+  /**
+   * The on-chain vault this row belongs to, where the source knows it. The
+   * only field safe to correlate with vault-keyed state (e.g. the deposit
+   * lifecycle's refundable-expired set). Null on rows the indexer does not
+   * scope to a vault, such as a borrow or repay against the position.
+   */
+  vaultId?: string | null;
   /** Timestamp of the activity */
   date: Date;
   /** Source URL for the left avatar. BTC icon for native rows, reserve token icon for borrow/repay. */

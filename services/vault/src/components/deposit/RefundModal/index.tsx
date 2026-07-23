@@ -66,7 +66,13 @@ export function RefundModal({
   // the wrong screen.
   if (previewQuery.isLoading) {
     return (
-      <V3ModalShell open={open} onClose={onClose}>
+      // The shell stretches its content box to full width; the spinner is a
+      // fixed-size inline element, so it needs centering of its own.
+      <V3ModalShell
+        open={open}
+        onClose={onClose}
+        contentClassName="flex justify-center"
+      >
         <Loader />
       </V3ModalShell>
     );

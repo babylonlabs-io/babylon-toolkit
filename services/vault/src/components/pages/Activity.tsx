@@ -37,10 +37,10 @@ export default function Activity() {
     refundModal,
   } = deposits;
 
-  // Expired deposits are keyed by vault id, the same id the localStorage-backed
-  // pending rows carry — so a row in this set is a deposit that expired before
-  // activation and has not been reclaimed yet.
-  const refundableDepositIds = useMemo(
+  // Deposits that expired before activation and have not been reclaimed yet,
+  // keyed by vault id. Correlate these against a row's `vaultId` and never its
+  // `id`: an indexed row's id is its event, not its vault (see ActivityLog).
+  const refundableVaultIds = useMemo(
     () => new Set<string>(expiredActivities.map((a) => a.id)),
     [expiredActivities],
   );
@@ -50,15 +50,15 @@ export default function Activity() {
   const rows = useMemo<ActivityRow[]>(
     () =>
       (activities ?? []).map((row) =>
-        row.kind === "row" && refundableDepositIds.has(row.id)
+        row.kind === "row" && row.vaultId && refundableVaultIds.has(row.vaultId)
           ? { ...row, isPending: false, isExpired: true }
           : row,
       ),
-    [activities, refundableDepositIds],
+    [activities, refundableVaultIds],
   );
 
   const handleWithdraw = useCallback(
-    (depositId: string) => refundModal.handleRefundClick(depositId),
+    (vaultId: string) => refundModal.handleRefundClick(vaultId),
     [refundModal],
   );
 
@@ -66,7 +66,7 @@ export default function Activity() {
     <ActivityList
       activities={rows}
       isConnected={isConnected}
-      refundableDepositIds={refundableDepositIds}
+      refundableVaultIds={refundableVaultIds}
       onWithdraw={handleWithdraw}
     />
   );
@@ -81,7 +81,7 @@ export default function Activity() {
           <div className="flex items-center justify-center py-12">
             <Loader />
           </div>
-        ) : refundableDepositIds.size === 0 ? (
+        ) : refundableVaultIds.size === 0 ? (
           // No refund to offer: render the feed bare. ProtocolParamsProvider
           // below BLOCKS its children until the contract params resolve, so
           // wrapping it around the list unconditionally would hold the whole

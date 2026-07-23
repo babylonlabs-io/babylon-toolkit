@@ -59,15 +59,16 @@ interface ActivityListProps {
   activities: ActivityRow[];
   isConnected: boolean;
   /** Vault ids of expired deposits whose HTLC refund is still outstanding —
-   *  those rows get the Withdraw action. Omitted by the v2 surface. */
-  refundableDepositIds?: ReadonlySet<string>;
-  onWithdraw?: (depositId: string) => void;
+   *  those rows get the Withdraw action. Matched against a row's `vaultId`,
+   *  never its `id` (see ActivityLog). Omitted by the v2 surface. */
+  refundableVaultIds?: ReadonlySet<string>;
+  onWithdraw?: (vaultId: string) => void;
 }
 
 export function ActivityList({
   activities,
   isConnected,
-  refundableDepositIds,
+  refundableVaultIds,
   onWithdraw,
 }: ActivityListProps) {
   const isMobile = useIsMobile();
@@ -147,9 +148,11 @@ export function ActivityList({
                         <ActivityRowV3
                           row={r}
                           action={
-                            refundableDepositIds?.has(r.id) && onWithdraw ? (
+                            r.vaultId &&
+                            refundableVaultIds?.has(r.vaultId) &&
+                            onWithdraw ? (
                               <ExpiredWithdrawButton
-                                depositId={r.id}
+                                vaultId={r.vaultId}
                                 onWithdraw={onWithdraw}
                               />
                             ) : undefined

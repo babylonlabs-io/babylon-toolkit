@@ -30,6 +30,8 @@ function convertPendingPeginToActivity(
   return {
     kind: "row",
     id: pending.id,
+    // A pending peg-in's storage id IS the derived vault id.
+    vaultId: pending.id,
     date: new Date(pending.timestamp),
     type: PENDING_DEPOSIT_TYPE,
     tokenIcon: btcConfig.icon,

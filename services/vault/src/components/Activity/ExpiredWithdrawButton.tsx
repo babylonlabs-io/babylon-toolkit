@@ -23,15 +23,15 @@ import {
 
 interface ExpiredWithdrawButtonProps {
   /** Vault id of the expired deposit — the refund modal's lookup key. */
-  depositId: string;
-  onWithdraw: (depositId: string) => void;
+  vaultId: string;
+  onWithdraw: (vaultId: string) => void;
 }
 
 export function ExpiredWithdrawButton({
-  depositId,
+  vaultId,
   onWithdraw,
 }: ExpiredWithdrawButtonProps) {
-  const result = useDepositPollingResult(depositId);
+  const result = useDepositPollingResult(vaultId);
   const actionStatus: ReturnType<typeof getActionStatus> = result
     ? getActionStatus(result)
     : { type: "noAction" };
@@ -43,7 +43,7 @@ export function ExpiredWithdrawButton({
     return (
       <button
         type="button"
-        onClick={() => onWithdraw(depositId)}
+        onClick={() => onWithdraw(vaultId)}
         className={ERROR_ROW_BUTTON_CLASS}
       >
         {COPY.vaults.actions.withdraw}

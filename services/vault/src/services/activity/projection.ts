@@ -207,6 +207,7 @@ export function projectRefundedDeposit(
   return {
     kind: "row",
     id: item.id,
+    vaultId: item.vaultId,
     date: new Date(parseInt(item.timestamp, 10) * 1000),
     tokenIcon: VAULT_COLLATERAL_ASSET.icon,
     type: "Deposit",
@@ -256,6 +257,7 @@ export function projectStandardRow(
   return {
     kind: "row",
     id: item.id,
+    vaultId: item.vaultId,
     date: new Date(parseInt(item.timestamp, 10) * 1000),
     tokenIcon,
     type: STANDARD_TYPE_LABEL[item.type],
