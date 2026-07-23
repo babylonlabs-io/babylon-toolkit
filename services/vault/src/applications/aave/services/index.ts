@@ -32,6 +32,11 @@ export {
 
 // On-chain integrity guards
 export {
+  ProxyMismatchError,
+  assertProxyMatchesOnChain,
+  resolveTrustedProxyContract,
+} from "./assertProxyMatchesOnChain";
+export {
   PositionChangedError,
   assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,

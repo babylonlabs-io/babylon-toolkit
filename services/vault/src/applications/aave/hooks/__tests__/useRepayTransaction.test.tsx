@@ -9,6 +9,7 @@ vi.mock("../../services", () => ({
   repayAll: (...a: unknown[]) => mockRepayAll(...a),
   repayPartial: (...a: unknown[]) => mockRepayPartial(...a),
   ReserveMismatchError: class ReserveMismatchError extends Error {},
+  ProxyMismatchError: class ProxyMismatchError extends Error {},
 }));
 
 vi.mock("../../config", () => ({
@@ -40,6 +41,9 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
+import { COPY } from "@/copy";
+
+import { ProxyMismatchError } from "../../services";
 import { useRepayTransaction } from "../useRepayTransaction";
 
 const RESERVE_TOKEN = { address: "0xtoken", decimals: 6, symbol: "USDC" };
@@ -141,5 +145,23 @@ describe("useRepayTransaction — max mode wiring", () => {
       123n,
       RESERVE_TOKEN,
     );
+  });
+});
+
+describe("useRepayTransaction — proxy integrity (F8)", () => {
+  it("maps a ProxyMismatchError to the integrity copy and returns false", async () => {
+    mockAssertReserve.mockResolvedValueOnce(undefined);
+    mockRepayAll.mockRejectedValueOnce(new ProxyMismatchError("proxy mismatch"));
+    const { result } = setup();
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe(false);
+    expect(result.current.error).toBe(COPY.loans.repay.integrityError);
   });
 });

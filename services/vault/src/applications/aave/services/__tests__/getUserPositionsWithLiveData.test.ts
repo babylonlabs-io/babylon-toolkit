@@ -5,11 +5,13 @@ const {
   mockGetUserPositionsBatch,
   mockGetUserTotalDebtsBatch,
   mockFetchActive,
+  mockAssertProxy,
 } = vi.hoisted(() => ({
   mockGetUserPositionWithAccountData: vi.fn(),
   mockGetUserPositionsBatch: vi.fn(),
   mockGetUserTotalDebtsBatch: vi.fn(),
   mockFetchActive: vi.fn(),
+  mockAssertProxy: vi.fn(),
 }));
 
 vi.mock("../../clients", () => ({
@@ -24,11 +26,21 @@ vi.mock("../fetchPositions", () => ({
   fetchAaveActivePositionsWithCollaterals: mockFetchActive,
 }));
 
+// The proxy-integrity guard is unit-tested in assertProxyMatchesOnChain.test.ts.
+// Here we only verify positionService wires it in at the chokepoint, so mock it.
+class MockProxyMismatchError extends Error {
+  readonly code = "PROXY_MISMATCH";
+}
+vi.mock("../assertProxyMatchesOnChain", () => ({
+  assertProxyMatchesOnChain: mockAssertProxy,
+}));
+
 import { getUserPositionsWithLiveData } from "../positionService";
 
 const DEPOSITOR = ("0x" + "1".repeat(40)) as `0x${string}`;
 const SPOKE = ("0x" + "2".repeat(40)) as `0x${string}`;
 const PROXY = ("0x" + "3".repeat(40)) as `0x${string}`;
+const ADAPTER = ("0x" + "a".repeat(40)) as `0x${string}`;
 const VBTC_RESERVE_ID = 1n;
 const USDC_RESERVE_ID = 2n;
 const DAI_RESERVE_ID = 3n;
@@ -48,6 +60,8 @@ const DEBT_POSITION = {
 };
 
 function setupHappyPath(borrowCount: bigint) {
+  // Default: on-chain proxy matches the indexer proxy — the guard returns it.
+  mockAssertProxy.mockResolvedValue(PROXY);
   mockFetchActive.mockResolvedValue([
     {
       id: "pos-1",
@@ -88,6 +102,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
       getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
         borrowableReserveIds: [],
         vbtcReserveId: VBTC_RESERVE_ID,
+        trustedAdapterAddress: ADAPTER,
       }),
     ).rejects.toThrow(/no reserve IDs were provided/);
   });
@@ -107,6 +122,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
       getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
         borrowableReserveIds: [USDC_RESERVE_ID, DAI_RESERVE_ID],
         vbtcReserveId: VBTC_RESERVE_ID,
+        trustedAdapterAddress: ADAPTER,
       }),
     ).rejects.toThrow(/found 1.*incomplete/i);
   });
@@ -117,6 +133,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     const result = await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
       borrowableReserveIds: [],
       vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
     });
 
     expect(result).toHaveLength(1);
@@ -136,6 +153,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     const result = await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
       borrowableReserveIds: [USDC_RESERVE_ID],
       vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
     });
 
     expect(result[0].debtPositions?.size).toBe(1);
@@ -147,6 +165,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
       borrowableReserveIds: [],
       vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
     });
 
     expect(mockGetUserPositionWithAccountData).toHaveBeenCalledTimes(1);
@@ -170,6 +189,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
       borrowableReserveIds: [USDC_RESERVE_ID, DAI_RESERVE_ID],
       vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
     });
 
     expect(mockGetUserPositionsBatch).toHaveBeenCalledTimes(1);
@@ -192,6 +212,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     const result = await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
       borrowableReserveIds: [USDC_RESERVE_ID, DAI_RESERVE_ID],
       vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
     });
 
     expect(result).toHaveLength(1);
@@ -219,6 +240,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
       getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
         borrowableReserveIds: [USDC_RESERVE_ID],
         vbtcReserveId: VBTC_RESERVE_ID,
+        trustedAdapterAddress: ADAPTER,
       }),
     ).rejects.toThrow("InvalidReserve");
   });
@@ -242,6 +264,7 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
     const result = await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
       borrowableReserveIds: [USDC_RESERVE_ID, DAI_RESERVE_ID],
       vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
     });
 
     expect(result[0].debtPositions?.get(USDC_RESERVE_ID)?.drawnShares).toBe(
@@ -252,5 +275,77 @@ describe("getUserPositionsWithLiveData — fail-closed debt reserve discovery (a
       2000n,
     );
     expect(result[0].debtPositions?.get(DAI_RESERVE_ID)?.totalDebt).toBe(200n);
+  });
+});
+
+describe("getUserPositionsWithLiveData — on-chain proxy verification (F8)", () => {
+  const ONCHAIN_PROXY = ("0x" + "9".repeat(40)) as `0x${string}`;
+  const FAKE_INDEXER_PROXY = ("0x" + "4".repeat(40)) as `0x${string}`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws and never reads the Spoke when the indexer proxy fails the on-chain check", async () => {
+    setupHappyPath(0n);
+    // Guard rejects: indexer proxy disagrees with the on-chain proxy.
+    mockAssertProxy.mockRejectedValue(
+      new MockProxyMismatchError("proxy mismatch"),
+    );
+
+    await expect(
+      getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
+        borrowableReserveIds: [],
+        vbtcReserveId: VBTC_RESERVE_ID,
+        trustedAdapterAddress: ADAPTER,
+      }),
+    ).rejects.toThrow(/proxy mismatch/);
+
+    // The fake proxy must never reach any Spoke read.
+    expect(mockGetUserPositionWithAccountData).not.toHaveBeenCalled();
+    expect(mockGetUserPositionsBatch).not.toHaveBeenCalled();
+    expect(mockGetUserTotalDebtsBatch).not.toHaveBeenCalled();
+  });
+
+  it("verifies the proxy against the env-pinned adapter and depositor", async () => {
+    setupHappyPath(0n);
+
+    await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
+      borrowableReserveIds: [],
+      vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
+    });
+
+    expect(mockAssertProxy).toHaveBeenCalledWith(ADAPTER, DEPOSITOR, PROXY);
+  });
+
+  it("reads the Spoke against the on-chain proxy and returns it, ignoring the indexer value", async () => {
+    setupHappyPath(0n);
+    // Indexer supplies a different proxy; the on-chain guard returns the real one.
+    mockFetchActive.mockResolvedValue([
+      {
+        id: "pos-1",
+        depositor: DEPOSITOR,
+        proxyContract: FAKE_INDEXER_PROXY,
+        reserveId: VBTC_RESERVE_ID,
+        totalCollateral: 100n,
+      },
+    ]);
+    mockAssertProxy.mockResolvedValue(ONCHAIN_PROXY);
+
+    const result = await getUserPositionsWithLiveData(DEPOSITOR, SPOKE, {
+      borrowableReserveIds: [],
+      vbtcReserveId: VBTC_RESERVE_ID,
+      trustedAdapterAddress: ADAPTER,
+    });
+
+    // Reads keyed on the verified proxy, not the indexer's.
+    expect(mockGetUserPositionWithAccountData).toHaveBeenCalledWith(
+      SPOKE,
+      VBTC_RESERVE_ID,
+      ONCHAIN_PROXY,
+    );
+    // Returned record carries the verified proxy so downstream inherits it.
+    expect(result[0].proxyContract).toBe(ONCHAIN_PROXY);
   });
 });

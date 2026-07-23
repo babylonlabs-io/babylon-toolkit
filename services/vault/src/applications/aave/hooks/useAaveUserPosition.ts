@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
+import { getAaveAdapterAddress } from "../config";
 import {
   POSITION_REFETCH_INTERVAL_MS,
   POSITION_STALENESS_THRESHOLD_MS,
@@ -81,6 +82,9 @@ export function useAaveUserPosition(
   const { config, allBorrowReserves } = useAaveConfig();
   const spokeAddress = config?.coreSpokeAddress;
   const vbtcReserveId = config?.vaultBtcReserveId;
+  // Env-pinned adapter used to verify the indexer proxy on-chain. Never the
+  // indexer-supplied `config.coreSpokeAddress`.
+  const trustedAdapterAddress = getAaveAdapterAddress();
 
   // Query debt positions across all non-vBTC reserves, not just currently
   // borrowable ones. A user may carry debt in a reserve that has since been
@@ -110,11 +114,13 @@ export function useAaveUserPosition(
       spokeAddress,
       vbtcReserveId?.toString(),
       borrowableReserveIdsKey,
+      trustedAdapterAddress,
     ],
     queryFn: () =>
       getUserPositionsWithLiveData(connectedAddress!, spokeAddress!, {
         borrowableReserveIds,
         vbtcReserveId: vbtcReserveId!,
+        trustedAdapterAddress,
       }),
     enabled: !!connectedAddress && !!spokeAddress && vbtcReserveId != null,
     refetchOnMount: true,

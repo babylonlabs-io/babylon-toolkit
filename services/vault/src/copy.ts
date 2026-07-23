@@ -1166,6 +1166,10 @@ export const COPY = {
         `Repaying in full needs ${required} (including accrued interest and fees), but your balance is ${balance}. Acquire a little more and try again.`,
       // Submit-time (Max intent) balance/debt refetch failure.
       refetchError: "Couldn't refresh balance/debt — please try again.",
+      // Shown when the indexer-supplied proxy contract disagrees with the
+      // on-chain proxy resolved from the env-pinned adapter (fail closed).
+      integrityError:
+        "Position integrity check failed: your position details returned by the indexer don't match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
     },
   },
   nav: {

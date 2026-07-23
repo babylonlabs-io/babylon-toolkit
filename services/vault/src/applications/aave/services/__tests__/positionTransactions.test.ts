@@ -14,6 +14,7 @@ const {
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
   mockWithdrawCollaterals,
+  mockAssertProxy,
 } = vi.hoisted(() => ({
   mockApproveERC20: vi.fn(),
   mockGetERC20Allowance: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
   mockWithdrawCollaterals: vi.fn(),
+  mockAssertProxy: vi.fn(),
 }));
 
 // Mock ERC20 module
@@ -49,6 +51,17 @@ vi.mock("../../clients", () => ({
 vi.mock("../../config", () => ({
   getAaveAdapterAddress: vi.fn(() => "0xadapter"),
 }));
+
+// The proxy-integrity guard is unit-tested in assertProxyMatchesOnChain.test.ts.
+// Default (in beforeEach) is identity so the existing repayAll tests see the
+// same proxy; the F8 block overrides it to exercise the mismatch behavior.
+vi.mock("../assertProxyMatchesOnChain", () => ({
+  assertProxyMatchesOnChain: mockAssertProxy,
+}));
+
+class MockProxyMismatchError extends Error {
+  readonly code = "PROXY_MISMATCH";
+}
 
 vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
@@ -122,6 +135,11 @@ describe("positionTransactions", () => {
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
+    // Default: on-chain proxy matches — return the supplied proxy unchanged so
+    // the existing repayAll tests are unaffected by the F8 verification.
+    mockAssertProxy.mockImplementation(
+      async (_adapter: unknown, _user: unknown, proxy: unknown) => proxy,
+    );
     // vi.clearAllMocks does not clear mockReturnValue overrides; pin the
     // default so per-describe overrides can't leak into later suites.
     (getAaveAdapterAddress as Mock).mockReturnValue("0xadapter");
@@ -310,6 +328,60 @@ describe("positionTransactions", () => {
         1n,
         maxUint256,
       );
+    });
+
+    it("verifies the proxy on-chain before quoting debt (F8)", async () => {
+      await repayAll(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        PROXY,
+        2000000n,
+        mockToken,
+      );
+
+      expect(mockAssertProxy).toHaveBeenCalledWith("0xadapter", "0xuser", PROXY);
+    });
+
+    it("throws before quoting debt and builds no tx when the proxy fails the on-chain check (F8)", async () => {
+      mockAssertProxy.mockRejectedValue(
+        new MockProxyMismatchError("proxy mismatch"),
+      );
+
+      await expect(
+        repayAll(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          PROXY,
+          2000000n,
+          mockToken,
+        ),
+      ).rejects.toThrow(/proxy mismatch/);
+
+      expect(mockGetPositionReserveTotalDebt).not.toHaveBeenCalled();
+      expect(mockApproveERC20).not.toHaveBeenCalled();
+      expect(mockRepayToCorePosition).not.toHaveBeenCalled();
+    });
+
+    it("quotes debt against the on-chain-verified proxy, not the passed-in one (F8)", async () => {
+      const VERIFIED = "0xverified" as any;
+      mockAssertProxy.mockResolvedValue(VERIFIED);
+
+      await repayAll(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        PROXY,
+        2000000n,
+        mockToken,
+      );
+
+      // Debt quote (which sizes the approval cap) keys off the verified proxy.
+      expect(mockGetPositionReserveTotalDebt).toHaveBeenCalledWith(VERIFIED, 1n);
     });
 
     it("caps the approval at quote + buffer when the balance has headroom", async () => {

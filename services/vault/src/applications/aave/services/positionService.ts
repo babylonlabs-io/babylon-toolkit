@@ -14,6 +14,7 @@ import {
 } from "../clients";
 import { hasDebtFromPosition } from "../utils";
 
+import { assertProxyMatchesOnChain } from "./assertProxyMatchesOnChain";
 import {
   fetchAaveActivePositionsWithCollaterals,
   type AavePosition,
@@ -85,6 +86,13 @@ export interface GetUserPositionsOptions {
    * Required for fetching collateral position data from Spoke.
    */
   vbtcReserveId: bigint;
+  /**
+   * Env-pinned Aave adapter address (from `getAaveAdapterAddress()`, never
+   * `config.coreSpokeAddress` or any indexer-derived address). Used to resolve
+   * the authoritative on-chain proxy and reject an indexer-spoofed one before
+   * any Spoke read runs against it.
+   */
+  trustedAdapterAddress: Address;
 }
 
 /**
@@ -119,7 +127,8 @@ export async function getUserPositionsWithLiveData(
   spokeAddress: Address,
   options: GetUserPositionsOptions,
 ): Promise<AavePositionWithLiveData[]> {
-  const { borrowableReserveIds, vbtcReserveId } = options;
+  const { borrowableReserveIds, vbtcReserveId, trustedAdapterAddress } =
+    options;
 
   // Fetch active positions with collaterals in a single GraphQL call
   const positions = await fetchAaveActivePositionsWithCollaterals(depositor);
@@ -130,7 +139,16 @@ export async function getUserPositionsWithLiveData(
 
   // User can only have one position in Babylon vault integration
   const position = positions[0];
-  const proxyAddress = position.proxyContract as Address;
+
+  // Verify the indexer-supplied proxy against the env-pinned adapter's
+  // on-chain position before any Spoke read keys on it. Fails closed on
+  // disagreement (a spoofed proxy would corrupt every risk figure below).
+  // Downstream consumers inherit the verified address via `proxyContract`.
+  const proxyAddress = await assertProxyMatchesOnChain(
+    trustedAdapterAddress,
+    depositor as Address,
+    position.proxyContract as Address,
+  );
 
   // One multicall for both live reads (vBTC collateral position + aggregate
   // account data) instead of two parallel `eth_call`s.
@@ -165,6 +183,9 @@ export async function getUserPositionsWithLiveData(
   return [
     {
       ...position,
+      // Overwrite the indexer-supplied proxy with the on-chain-verified one so
+      // every downstream consumer (e.g. the repay `proxyContract` prop) uses it.
+      proxyContract: proxyAddress,
       liveData: {
         drawnShares: spokePosition.drawnShares,
         premiumShares: spokePosition.premiumShares,
