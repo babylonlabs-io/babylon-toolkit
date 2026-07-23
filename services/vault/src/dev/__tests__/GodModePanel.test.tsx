@@ -243,6 +243,21 @@ describe("demoDeposit builders", () => {
     }
   });
 
+  // Regression: borrow / repay rows used to hard-code their debt figure, so
+  // the panel's amount control was inert for exactly those two scenarios.
+  it("drives every activity scenario's headline amount from the item", () => {
+    for (const [index, scenario] of ACTIVITY_SCENARIOS.entries()) {
+      const [row] = buildActivitiesDemo(
+        [activityItem(index + 1, index, "3.5")],
+        false,
+      ).rows;
+      const shown =
+        row.kind === "liquidationGroup" ? row.summary.collateral : row.amount;
+      expect(shown.value).toBe("3.5");
+      expect(shown.symbol).toBe(scenario.unit);
+    }
+  });
+
   it("ignores items of other types when building the activity feed", () => {
     const demo = buildActivitiesDemo(
       [depositItem(1, 0), activityItem(2, 0)],
@@ -465,6 +480,37 @@ describe("GodModePanel", () => {
     });
 
     expect(screen.getByText(ACTIVITY_SCENARIOS[0].label)).toBeInTheDocument();
+  });
+
+  // The amount field must name the unit of the value the selected scenario
+  // actually renders — activity rows are not uniformly BTC.
+  it("re-labels the amount field per activity scenario denomination", () => {
+    renderExpanded();
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
+      target: { value: "activity" },
+    });
+
+    // Two scenarios with different denominations — the field must follow the
+    // selected one, whatever the network's collateral symbol happens to be.
+    const collateralUnit = ACTIVITY_SCENARIOS[0].unit;
+    const debtIndex = ACTIVITY_SCENARIOS.findIndex(
+      (s) => s.unit !== collateralUnit,
+    );
+    const slider = screen.getByRole("slider", { name: "Mock 1 step" });
+
+    fireEvent.change(slider, { target: { value: "0" } });
+    expect(
+      screen.getByRole("spinbutton", {
+        name: `Mock 1 amount (${collateralUnit})`,
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(slider, { target: { value: String(debtIndex) } });
+    expect(
+      screen.getByRole("spinbutton", {
+        name: `Mock 1 amount (${ACTIVITY_SCENARIOS[debtIndex].unit})`,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("forces and releases the Loans summary health factor and capacity state", () => {

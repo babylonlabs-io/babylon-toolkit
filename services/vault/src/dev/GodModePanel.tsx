@@ -46,6 +46,7 @@ import {
 } from "./demoArtifactDownload";
 import {
   addDemoItem,
+  amountUnitFor,
   type DemoCta,
   type DemoItem,
   type DemoType,
@@ -79,12 +80,6 @@ const TYPE_LABELS: Record<DemoType, string> = {
   loan: "Loan",
   activity: "Activity",
 };
-
-/** Unit a mock item's amount is denominated in: BTC everywhere except loans,
- *  whose amount is the borrowed stablecoin. */
-function amountUnit(type: DemoType): string {
-  return type === "loan" ? "USDC" : "BTC";
-}
 
 const CTA_BADGE: Record<DemoCta, { label: string; className: string }> = {
   primary: { label: "Orange CTA", className: "bg-orange-500 text-white" },
@@ -257,7 +252,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
       </div>
 
       <label className="flex items-center justify-between gap-2 text-xs">
-        <span>Amount ({amountUnit(item.type)})</span>
+        <span>Amount ({amountUnitFor(item)})</span>
         <input
           type="number"
           min="0"
@@ -265,7 +260,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
           value={item.amount}
           onChange={(e) => setDemoItemAmount(item.key, e.target.value)}
           className="w-28 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs"
-          aria-label={`Mock ${position} amount (${amountUnit(item.type)})`}
+          aria-label={`Mock ${position} amount (${amountUnitFor(item)})`}
         />
       </label>
 

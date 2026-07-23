@@ -139,10 +139,10 @@ const ActivityWithProviders = () => (
         which this subtree mounts — so the Aave layout's PendingVaultsProvider
         is deliberately not duplicated here.
 
-        The page reads the indexer's activity list directly and does not
-        consume the demo store, so the panel drives theme, the protocol-status
-        / max-vaults overrides and the shared mock list here — no mock rows
-        render on this page. */}
+        The feed itself is demo-aware: `useActivitiesWithPending` merges the
+        panel's activity mocks into the rows it returns (see dev/demoDeposit),
+        so mock rows DO render on this page — while disconnected too —
+        alongside the theme and protocol-status / max-vaults overrides. */}
     <ReorderOverrideProvider>
       <Activity />
       <GodModePanelSlot />

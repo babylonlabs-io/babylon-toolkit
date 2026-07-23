@@ -59,6 +59,16 @@ import { getBatchSiblings } from "@/utils/batchedPegin";
 /** Whether (and how) a scenario is expected to render the action CTA. */
 export type DemoCta = "primary" | "outlined" | "none";
 
+/** Denomination of a mock's amount — what the panel labels its amount field
+ *  with, and the unit of the value that mock actually renders. */
+export type DemoAmountUnit = string;
+
+/** Deposit / withdrawal / collateral cards render the literal "BTC" (see
+ *  `buildActivity`), while activity rows render the network-aware collateral
+ *  symbol ("sBTC" on signet) — so the label a mock's amount field carries has
+ *  to follow whichever list builds it, not one global spelling. */
+const BTC_AMOUNT_UNIT = "BTC";
+
 /** The kind of thing a mock item represents. */
 export type DemoType =
   | "deposit"
@@ -545,13 +555,21 @@ export interface ActivityScenario extends BaseScenario {
   /** Days back from now, so a multi-mock list also exercises the v3
    *  Today / Yesterday / dated group headers. */
   daysAgo: number;
+  /** Denomination of the row's headline amount — the one the panel's amount
+   *  field drives, and the unit it labels that field with. */
+  unit: DemoAmountUnit;
   build: (id: string, date: Date, amount: string) => ActivityRow;
 }
 
 /** Prefix for a mock activity row's id — real ids are indexer event ids. */
 const DEMO_ACTIVITY_ID_PREFIX = "demo-activity-";
+/** What an activity row actually renders for BTC amounts. */
+const ACTIVITY_BTC_UNIT = VAULT_COLLATERAL_ASSET.symbol;
 const DEMO_ACTIVITY_DEBT_SYMBOL = "USDC";
-const DEMO_ACTIVITY_DEBT_AMOUNT = "12,500.00";
+/** Debt figure shown BESIDE the seized collateral on a liquidation card. A
+ *  liquidation row has two amounts and the panel drives only one (the
+ *  collateral, its headline), so this second one stays a fixed sample. */
+const DEMO_LIQUIDATION_DEBT_AMOUNT = "12,500.00";
 /** BTC txids render without the 0x prefix; EVM event hashes with it. */
 const DEMO_ACTIVITY_BTC_TXID = "b7".repeat(32);
 const DEMO_ACTIVITY_ETH_TX = `0x${"e7".repeat(32)}`;
@@ -587,9 +605,15 @@ function demoBtcAmount(amount: string) {
   return { value: amount, symbol: VAULT_COLLATERAL_ASSET.symbol };
 }
 
-function demoDebtAmount() {
+/** Borrow / repay rows are denominated in the debt asset, so the panel's
+ *  amount drives them directly. */
+function demoDebtAmount(amount: string) {
+  return { value: amount, symbol: DEMO_ACTIVITY_DEBT_SYMBOL };
+}
+
+function demoLiquidationDebtAmount() {
   return {
-    value: DEMO_ACTIVITY_DEBT_AMOUNT,
+    value: DEMO_LIQUIDATION_DEBT_AMOUNT,
     symbol: DEMO_ACTIVITY_DEBT_SYMBOL,
   };
 }
@@ -600,6 +624,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Deposit (confirmed)",
     expectedCta: "none",
     daysAgo: 0,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: "Deposit",
@@ -612,6 +637,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Deposit (pending, spinner)",
     expectedCta: "none",
     daysAgo: 0,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: PENDING_DEPOSIT_TYPE,
@@ -626,6 +652,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Deposit (expired, refunded)",
     expectedCta: "none",
     daysAgo: 1,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: "Deposit",
@@ -639,6 +666,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Withdraw",
     expectedCta: "none",
     daysAgo: 1,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: "Withdraw",
@@ -651,10 +679,11 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Borrow",
     expectedCta: "none",
     daysAgo: 2,
-    build: (id, date) =>
+    unit: DEMO_ACTIVITY_DEBT_SYMBOL,
+    build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: "Borrow",
-        amount: demoDebtAmount(),
+        amount: demoDebtAmount(amount),
         chain: "ETH",
         tokenIcon: demoDebtIcon(),
       }),
@@ -664,10 +693,11 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Repay",
     expectedCta: "none",
     daysAgo: 2,
-    build: (id, date) =>
+    unit: DEMO_ACTIVITY_DEBT_SYMBOL,
+    build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: "Repay",
-        amount: demoDebtAmount(),
+        amount: demoDebtAmount(amount),
         chain: "ETH",
         tokenIcon: demoDebtIcon(),
       }),
@@ -677,6 +707,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Redeem",
     expectedCta: "none",
     daysAgo: 5,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) =>
       demoActivityLog(id, date, {
         type: "Redeem",
@@ -689,13 +720,17 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Partially liquidated (group)",
     expectedCta: "none",
     daysAgo: 5,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) => ({
       kind: "liquidationGroup",
       id,
       date,
       type: "Partially Liquidated",
       tokenIcons: [VAULT_COLLATERAL_ASSET.icon, demoDebtIcon()],
-      summary: { collateral: demoBtcAmount(amount), debt: demoDebtAmount() },
+      summary: {
+        collateral: demoBtcAmount(amount),
+        debt: demoLiquidationDebtAmount(),
+      },
       children: [
         {
           id: `${id}-collateral`,
@@ -709,7 +744,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
         {
           id: `${id}-loan`,
           label: COPY.activity.liquidation.repaidLabel,
-          amount: demoDebtAmount(),
+          amount: demoLiquidationDebtAmount(),
           tokenIcon: demoDebtIcon(),
           chain: "ETH",
           transactionHash: DEMO_ACTIVITY_ETH_TX,
@@ -724,6 +759,7 @@ export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
     label: "Fully liquidated (group, no repay)",
     expectedCta: "none",
     daysAgo: 6,
+    unit: ACTIVITY_BTC_UNIT,
     build: (id, date, amount) => ({
       kind: "liquidationGroup",
       id,
@@ -754,6 +790,22 @@ export function scenariosForType(type: DemoType): BaseScenario[] {
   if (type === "loan") return LOAN_SCENARIOS;
   if (type === "activity") return ACTIVITY_SCENARIOS;
   return DEPOSIT_SCENARIOS;
+}
+
+/**
+ * Unit the item's amount is denominated in — the panel labels its amount field
+ * with this. Loans borrow the debt asset; activity rows vary per scenario
+ * (borrow / repay are debt-denominated, the rest are BTC); everything else is
+ * BTC. Kept here rather than in the panel so it can't drift from the scenario
+ * that renders the value.
+ */
+export function amountUnitFor(item: DemoItem): DemoAmountUnit {
+  if (item.type === "loan") return DEMO_LOAN_SYMBOL;
+  if (item.type === "activity") {
+    const scenario = ACTIVITY_SCENARIOS[item.stateIndex];
+    return scenario?.unit ?? ACTIVITY_BTC_UNIT;
+  }
+  return BTC_AMOUNT_UNIT;
 }
 
 /** Which dashboard section a mock item renders in (panel hint, derived from
