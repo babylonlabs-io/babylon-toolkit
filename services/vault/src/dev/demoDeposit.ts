@@ -3,9 +3,11 @@
  *
  * The god-mode panel builds a LIST of mock items that render inside the REAL
  * dashboard sections, so you can preview many states at once. Each item has a
- * TYPE (deposit / withdrawal / collateral) and a STATE; the state decides which
- * section it lands in (e.g. a deposit in an expired state renders under Expired
- * Deposits; a withdrawal in the payout-sent state under Withdrawals).
+ * TYPE (deposit / withdrawal / collateral / loan / activity) and a STATE; the
+ * state decides which section it lands in (e.g. a deposit in an expired state
+ * renders under Expired Deposits; a withdrawal in the payout-sent state under
+ * Withdrawals; a loan under Active Loans on the v3 Loans page; an activity row
+ * in the v3 Activity feed).
  *
  * How it stays safe and fully inert when off:
  *  - States are built by the REAL state machines (getPeginState /
@@ -25,11 +27,13 @@ import { useMemo, useSyncExternalStore } from "react";
 import type { Hex } from "viem";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
+import type { ActiveLoanRow } from "@/applications/aave/hooks/useActiveLoans";
 import {
   getStepLabel,
   getVisualStep,
 } from "@/components/simple/DepositProgressView/steps";
 import featureFlags from "@/config/featureFlags";
+import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
 import {
@@ -43,7 +47,10 @@ import {
   getPegoutDisplayState,
   TIMED_OUT_STATE,
 } from "@/models/pegoutStateMachine";
+import { VAULT_COLLATERAL_ASSET } from "@/services/activity/projection";
+import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 import type { VaultActivity } from "@/types/activity";
+import { type ActivityRow, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -53,7 +60,12 @@ import { getBatchSiblings } from "@/utils/batchedPegin";
 export type DemoCta = "primary" | "outlined" | "none";
 
 /** The kind of thing a mock item represents. */
-export type DemoType = "deposit" | "withdrawal" | "collateral";
+export type DemoType =
+  | "deposit"
+  | "withdrawal"
+  | "collateral"
+  | "loan"
+  | "activity";
 
 /** One mock item the panel manages. `batched` only applies to deposits. */
 export interface DemoItem {
@@ -458,10 +470,289 @@ export const COLLATERAL_SCENARIOS: CollateralScenario[] = [
   },
 ];
 
+// --- Loan (borrowed asset) scenarios ---------------------------------------
+
+/** One controllable loan row on the v3 Loans page. Loans have no card CTA of
+ *  their own — the row's Borrow/Repay buttons are always disabled for a mock
+ *  (see {@link buildLoansDemo}), so every scenario is `expectedCta: "none"`. */
+export interface LoanScenario extends BaseScenario {
+  symbol: string;
+  /** false → the per-reserve liquidity read is loading or failed (row shows –). */
+  hasLiquidity: boolean;
+  /** false → the reserve no longer accepts borrows (repay-only row). */
+  isBorrowable: boolean;
+  /** false → the borrow-APR read hasn't resolved yet (row shows –). */
+  hasBorrowRate: boolean;
+}
+
+const DEMO_LOAN_SYMBOL = "USDC";
+const DEMO_LOAN_BORROW_RATE = "5.861%";
+const DEMO_LOAN_AVAILABLE_LIQUIDITY = 1_250_000;
+/** 64.20% utilization. */
+const DEMO_LOAN_UTILIZATION_BPS = 6420;
+/** Prefix for a mock row's reserve id. Real ids are decimal `reserveId`
+ *  strings, so this can never collide with one. */
+const DEMO_LOAN_RESERVE_PREFIX = "demo-reserve-";
+
+export const LOAN_SCENARIOS: LoanScenario[] = [
+  {
+    key: "loan-borrowable",
+    label: "Borrowable reserve",
+    expectedCta: "none",
+    symbol: DEMO_LOAN_SYMBOL,
+    hasLiquidity: true,
+    isBorrowable: true,
+    hasBorrowRate: true,
+  },
+  {
+    key: "loan-repay-only",
+    label: "Repay only (reserve frozen)",
+    expectedCta: "none",
+    symbol: DEMO_LOAN_SYMBOL,
+    hasLiquidity: true,
+    isBorrowable: false,
+    hasBorrowRate: true,
+  },
+  {
+    key: "loan-no-liquidity-read",
+    label: "Liquidity / utilization unavailable",
+    expectedCta: "none",
+    symbol: DEMO_LOAN_SYMBOL,
+    hasLiquidity: false,
+    isBorrowable: true,
+    hasBorrowRate: true,
+  },
+  {
+    key: "loan-apr-pending",
+    label: "Borrow APR pending",
+    expectedCta: "none",
+    symbol: DEMO_LOAN_SYMBOL,
+    hasLiquidity: true,
+    isBorrowable: true,
+    hasBorrowRate: false,
+  },
+];
+
+// --- Activity-log scenarios (v3 Activity page) -----------------------------
+
+/**
+ * One controllable row on the Activity page. `build` returns the finished
+ * {@link ActivityRow} because the page renders two different row kinds (a flat
+ * log row and an expandable liquidation group) — a single flat config could not
+ * describe both without inventing a schema neither production type uses.
+ */
+export interface ActivityScenario extends BaseScenario {
+  /** Days back from now, so a multi-mock list also exercises the v3
+   *  Today / Yesterday / dated group headers. */
+  daysAgo: number;
+  build: (id: string, date: Date, amount: string) => ActivityRow;
+}
+
+/** Prefix for a mock activity row's id — real ids are indexer event ids. */
+const DEMO_ACTIVITY_ID_PREFIX = "demo-activity-";
+const DEMO_ACTIVITY_DEBT_SYMBOL = "USDC";
+const DEMO_ACTIVITY_DEBT_AMOUNT = "12,500.00";
+/** BTC txids render without the 0x prefix; EVM event hashes with it. */
+const DEMO_ACTIVITY_BTC_TXID = "b7".repeat(32);
+const DEMO_ACTIVITY_ETH_TX = `0x${"e7".repeat(32)}`;
+
+function demoDebtIcon(): string {
+  return getCurrencyIconWithFallback(undefined, DEMO_ACTIVITY_DEBT_SYMBOL);
+}
+
+/** Flat log row shared by every non-liquidation scenario. */
+function demoActivityLog(
+  id: string,
+  date: Date,
+  fields: Pick<ActivityRow & { kind: "row" }, "type" | "amount" | "chain"> &
+    Partial<Pick<ActivityRow & { kind: "row" }, "isPending" | "isExpired">> & {
+      tokenIcon?: string;
+      transactionHash?: string;
+    },
+): ActivityRow {
+  const { tokenIcon, transactionHash, ...rest } = fields;
+  return {
+    kind: "row",
+    id,
+    date,
+    tokenIcon: tokenIcon ?? VAULT_COLLATERAL_ASSET.icon,
+    transactionHash:
+      transactionHash ??
+      (rest.chain === "BTC" ? DEMO_ACTIVITY_BTC_TXID : DEMO_ACTIVITY_ETH_TX),
+    ...rest,
+  };
+}
+
+function demoBtcAmount(amount: string) {
+  return { value: amount, symbol: VAULT_COLLATERAL_ASSET.symbol };
+}
+
+function demoDebtAmount() {
+  return {
+    value: DEMO_ACTIVITY_DEBT_AMOUNT,
+    symbol: DEMO_ACTIVITY_DEBT_SYMBOL,
+  };
+}
+
+export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
+  {
+    key: "act-deposit",
+    label: "Deposit (confirmed)",
+    expectedCta: "none",
+    daysAgo: 0,
+    build: (id, date, amount) =>
+      demoActivityLog(id, date, {
+        type: "Deposit",
+        amount: demoBtcAmount(amount),
+        chain: "BTC",
+      }),
+  },
+  {
+    key: "act-deposit-pending",
+    label: "Deposit (pending, spinner)",
+    expectedCta: "none",
+    daysAgo: 0,
+    build: (id, date, amount) =>
+      demoActivityLog(id, date, {
+        type: PENDING_DEPOSIT_TYPE,
+        amount: demoBtcAmount(amount),
+        chain: "BTC",
+        isPending: true,
+        transactionHash: "",
+      }),
+  },
+  {
+    key: "act-deposit-expired",
+    label: "Deposit (expired, refunded)",
+    expectedCta: "none",
+    daysAgo: 1,
+    build: (id, date, amount) =>
+      demoActivityLog(id, date, {
+        type: "Deposit",
+        amount: demoBtcAmount(amount),
+        chain: "BTC",
+        isExpired: true,
+      }),
+  },
+  {
+    key: "act-withdraw",
+    label: "Withdraw",
+    expectedCta: "none",
+    daysAgo: 1,
+    build: (id, date, amount) =>
+      demoActivityLog(id, date, {
+        type: "Withdraw",
+        amount: demoBtcAmount(amount),
+        chain: "BTC",
+      }),
+  },
+  {
+    key: "act-borrow",
+    label: "Borrow",
+    expectedCta: "none",
+    daysAgo: 2,
+    build: (id, date) =>
+      demoActivityLog(id, date, {
+        type: "Borrow",
+        amount: demoDebtAmount(),
+        chain: "ETH",
+        tokenIcon: demoDebtIcon(),
+      }),
+  },
+  {
+    key: "act-repay",
+    label: "Repay",
+    expectedCta: "none",
+    daysAgo: 2,
+    build: (id, date) =>
+      demoActivityLog(id, date, {
+        type: "Repay",
+        amount: demoDebtAmount(),
+        chain: "ETH",
+        tokenIcon: demoDebtIcon(),
+      }),
+  },
+  {
+    key: "act-redeem",
+    label: "Redeem",
+    expectedCta: "none",
+    daysAgo: 5,
+    build: (id, date, amount) =>
+      demoActivityLog(id, date, {
+        type: "Redeem",
+        amount: demoBtcAmount(amount),
+        chain: "ETH",
+      }),
+  },
+  {
+    key: "act-liquidation-partial",
+    label: "Partially liquidated (group)",
+    expectedCta: "none",
+    daysAgo: 5,
+    build: (id, date, amount) => ({
+      kind: "liquidationGroup",
+      id,
+      date,
+      type: "Partially Liquidated",
+      tokenIcons: [VAULT_COLLATERAL_ASSET.icon, demoDebtIcon()],
+      summary: { collateral: demoBtcAmount(amount), debt: demoDebtAmount() },
+      children: [
+        {
+          id: `${id}-collateral`,
+          label: COPY.activity.liquidation.collateralLabel,
+          amount: demoBtcAmount(amount),
+          tokenIcon: VAULT_COLLATERAL_ASSET.icon,
+          chain: "ETH",
+          transactionHash: DEMO_ACTIVITY_ETH_TX,
+          date,
+        },
+        {
+          id: `${id}-loan`,
+          label: COPY.activity.liquidation.repaidLabel,
+          amount: demoDebtAmount(),
+          tokenIcon: demoDebtIcon(),
+          chain: "ETH",
+          transactionHash: DEMO_ACTIVITY_ETH_TX,
+          date,
+        },
+      ],
+      transactionHash: DEMO_ACTIVITY_ETH_TX,
+    }),
+  },
+  {
+    key: "act-liquidation-full",
+    label: "Fully liquidated (group, no repay)",
+    expectedCta: "none",
+    daysAgo: 6,
+    build: (id, date, amount) => ({
+      kind: "liquidationGroup",
+      id,
+      date,
+      type: "Fully Liquidated",
+      tokenIcons: [VAULT_COLLATERAL_ASSET.icon, ""],
+      summary: { collateral: demoBtcAmount(amount), debt: null },
+      children: [
+        {
+          id: `${id}-collateral`,
+          label: COPY.activity.liquidation.collateralLabel,
+          amount: demoBtcAmount(amount),
+          tokenIcon: VAULT_COLLATERAL_ASSET.icon,
+          chain: "ETH",
+          transactionHash: DEMO_ACTIVITY_ETH_TX,
+          date,
+        },
+      ],
+      transactionHash: DEMO_ACTIVITY_ETH_TX,
+    }),
+  },
+];
+
 /** Scenario list for a given mock type (drives the panel's state select). */
 export function scenariosForType(type: DemoType): BaseScenario[] {
   if (type === "withdrawal") return WITHDRAWAL_SCENARIOS;
   if (type === "collateral") return COLLATERAL_SCENARIOS;
+  if (type === "loan") return LOAN_SCENARIOS;
+  if (type === "activity") return ACTIVITY_SCENARIOS;
   return DEPOSIT_SCENARIOS;
 }
 
@@ -469,12 +760,18 @@ export function scenariosForType(type: DemoType): BaseScenario[] {
  *  type + state). */
 export function itemSectionHint(item: DemoItem): string {
   if (item.type === "withdrawal") {
+    // v2 only: the v3 /vaults page has no withdrawal section yet (the
+    // relocation step of #2041), so a withdrawal mock renders nothing there.
     const scenario = WITHDRAWAL_SCENARIOS[item.stateIndex];
     return scenario?.claimerStatus === ClaimerPegoutStatusValue.PAYOUT_BROADCAST
-      ? "Withdrawals"
-      : "Pending Withdrawals";
+      ? "Withdrawals (v2 only)"
+      : "Pending Withdrawals (v2 only)";
   }
-  if (item.type === "collateral") return "BTC Vaults (collateral)";
+  if (item.type === "collateral") {
+    return "BTC Vaults (v2) / Active Vaults (v3 Vaults)";
+  }
+  if (item.type === "loan") return "Active Loans (v3 Loans)";
+  if (item.type === "activity") return "Activity feed (v3 Activity)";
   const scenario = DEPOSIT_SCENARIOS[item.stateIndex];
   if (scenario?.contractStatus === ContractStatus.EXPIRED) {
     return "Expired Deposits (v2) / Inactive Vaults (v3)";
@@ -614,6 +911,18 @@ export interface ActiveDemoCollateral {
   hideReal: boolean;
 }
 
+export interface ActiveDemoActivity {
+  rows: ActivityRow[];
+  hideReal: boolean;
+}
+
+export interface ActiveDemoLoan {
+  rows: ActiveLoanRow[];
+  /** Total mock debt in USD — the Loans summary totals the rendered rows. */
+  debtUsd: number;
+  hideReal: boolean;
+}
+
 export function buildDepositsDemo(
   items: DemoItem[],
   hideReal: boolean,
@@ -683,6 +992,65 @@ export function buildCollateralsDemo(
     );
   }
   return { vaults, hideReal };
+}
+
+export function buildLoansDemo(
+  items: DemoItem[],
+  hideReal: boolean,
+): ActiveDemoLoan {
+  const rows: ActiveLoanRow[] = [];
+  let debtUsd = 0;
+  for (const item of items) {
+    if (item.type !== "loan") continue;
+    const scenario = LOAN_SCENARIOS[item.stateIndex] ?? LOAN_SCENARIOS[0];
+    const amount = safeAmount(item.amount);
+    // The mock borrows a stablecoin, so the token amount doubles as its USD
+    // value — enough for the summary to total the rendered rows.
+    debtUsd += Number.parseFloat(amount) || 0;
+    rows.push({
+      reserveId: `${DEMO_LOAN_RESERVE_PREFIX}${item.key}`,
+      symbol: scenario.symbol,
+      name: scenario.symbol,
+      amount,
+      icon: getCurrencyIconWithFallback(undefined, scenario.symbol),
+      borrowRate: scenario.hasBorrowRate ? DEMO_LOAN_BORROW_RATE : undefined,
+      availableLiquidity: scenario.hasLiquidity
+        ? DEMO_LOAN_AVAILABLE_LIQUIDITY
+        : null,
+      utilizationBps: scenario.hasLiquidity ? DEMO_LOAN_UTILIZATION_BPS : null,
+      isBorrowable: scenario.isBorrowable,
+      // Safety: the row's reserveId/symbol resolve to no real reserve, so both
+      // of its actions stay disabled (ActiveLoansList) — a mock can never open
+      // the borrow/repay overlay against a real position.
+      displayOnly: true,
+    });
+  }
+  return { rows, debtUsd, hideReal };
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function buildActivitiesDemo(
+  items: DemoItem[],
+  hideReal: boolean,
+): ActiveDemoActivity {
+  const rows: ActivityRow[] = [];
+  for (const item of items) {
+    if (item.type !== "activity") continue;
+    const scenario =
+      ACTIVITY_SCENARIOS[item.stateIndex] ?? ACTIVITY_SCENARIOS[0];
+    // Dates are relative to now (not the fixed DEMO_TIMESTAMP the card mocks
+    // use) so the Today / Yesterday group headers render the way a depositor
+    // would see them.
+    rows.push(
+      scenario.build(
+        `${DEMO_ACTIVITY_ID_PREFIX}${item.key}`,
+        new Date(Date.now() - scenario.daysAgo * MS_PER_DAY),
+        safeAmount(item.amount),
+      ),
+    );
+  }
+  return { rows, hideReal };
 }
 
 // --- Cross-component store (the panel writes; the sections read) ------------
@@ -916,6 +1284,36 @@ export function useDemoWithdrawal(): ActiveDemoWithdrawal | null {
     () =>
       import.meta.env.DEV && flagOn && enabled
         ? buildWithdrawalsDemo(items, hideReal)
+        : null,
+    [flagOn, enabled, items, hideReal],
+  );
+}
+
+/** Aggregate demo activity rows to inject, or null when off. */
+export function useDemoActivity(): ActiveDemoActivity | null {
+  const enabled = useDemoEnabled();
+  const hideReal = useDemoHideReal();
+  const items = useDemoItems();
+  const flagOn = featureFlags.isGodModePanelEnabled;
+  return useMemo(
+    () =>
+      import.meta.env.DEV && flagOn && enabled
+        ? buildActivitiesDemo(items, hideReal)
+        : null,
+    [flagOn, enabled, items, hideReal],
+  );
+}
+
+/** Aggregate demo loans to inject, or null when off. */
+export function useDemoLoan(): ActiveDemoLoan | null {
+  const enabled = useDemoEnabled();
+  const hideReal = useDemoHideReal();
+  const items = useDemoItems();
+  const flagOn = featureFlags.isGodModePanelEnabled;
+  return useMemo(
+    () =>
+      import.meta.env.DEV && flagOn && enabled
+        ? buildLoansDemo(items, hideReal)
         : null,
     [flagOn, enabled, items, hideReal],
   );

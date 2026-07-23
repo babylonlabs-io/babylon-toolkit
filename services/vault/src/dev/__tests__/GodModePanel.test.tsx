@@ -14,13 +14,17 @@ import { ContractStatus, PeginAction } from "@/models/peginStateMachine";
 import {
   ACTIVATED_SCENARIO_INDEX,
   ACTIVATION_CONFIRMING_SCENARIO_INDEX,
+  ACTIVITY_SCENARIOS,
+  buildActivitiesDemo,
   buildCollateralsDemo,
   buildDepositsDemo,
+  buildLoansDemo,
   buildWithdrawalsDemo,
   COLLATERAL_SCENARIOS,
   type DemoItem,
   DEPOSIT_SCENARIOS,
   getDemoStepperBatch,
+  LOAN_SCENARIOS,
   READY_TO_ACTIVATE_SCENARIO_INDEX,
   resetDemoState,
   setDemoItemState,
@@ -54,6 +58,18 @@ function depositItem(
   amount = "0.0375",
 ): DemoItem {
   return { key, type: "deposit", stateIndex, amount, batched };
+}
+
+function loanItem(key: number, stateIndex: number, amount: string): DemoItem {
+  return { key, type: "loan", stateIndex, amount, batched: false };
+}
+
+function activityItem(
+  key: number,
+  stateIndex: number,
+  amount = "0.5",
+): DemoItem {
+  return { key, type: "activity", stateIndex, amount, batched: false };
 }
 
 describe("demoDeposit builders", () => {
@@ -144,6 +160,96 @@ describe("demoDeposit builders", () => {
     );
     expect(collateral.vaults[0].amountBtc).toBe(2);
     expect(collateral.vaults[0].inUse).toBe(true);
+  });
+
+  it("builds loan rows the v3 Loans page can render, every one action-inert", () => {
+    const borrowable = LOAN_SCENARIOS.findIndex((s) => s.isBorrowable);
+    const repayOnly = LOAN_SCENARIOS.findIndex((s) => !s.isBorrowable);
+    const demo = buildLoansDemo(
+      [loanItem(1, borrowable, "1500"), loanItem(2, repayOnly, "500")],
+      false,
+    );
+
+    expect(demo.rows.map((row) => row.amount)).toEqual(["1500", "500"]);
+    expect(demo.rows.map((row) => row.isBorrowable)).toEqual([true, false]);
+    // The summary totals the rendered rows, so the mock debt must add up.
+    expect(demo.debtUsd).toBe(2000);
+    // Safety: a mock row must never reach the real borrow/repay overlay.
+    expect(demo.rows.every((row) => row.displayOnly)).toBe(true);
+    // Distinct, non-numeric ids that cannot collide with a real reserveId.
+    expect(new Set(demo.rows.map((row) => row.reserveId)).size).toBe(2);
+    expect(demo.rows.every((row) => Number.isNaN(Number(row.reserveId)))).toBe(
+      true,
+    );
+  });
+
+  it("drops the liquidity and APR reads for the scenarios that mock them missing", () => {
+    const noLiquidity = LOAN_SCENARIOS.findIndex((s) => !s.hasLiquidity);
+    const noRate = LOAN_SCENARIOS.findIndex((s) => !s.hasBorrowRate);
+
+    const [liquidityRow] = buildLoansDemo(
+      [loanItem(1, noLiquidity, "100")],
+      false,
+    ).rows;
+    expect(liquidityRow.availableLiquidity).toBeNull();
+    expect(liquidityRow.utilizationBps).toBeNull();
+
+    const [rateRow] = buildLoansDemo([loanItem(2, noRate, "100")], false).rows;
+    expect(rateRow.borrowRate).toBeUndefined();
+  });
+
+  it("ignores items of other types when building the loan rows", () => {
+    const demo = buildLoansDemo(
+      [depositItem(1, 0), loanItem(2, 0, "10")],
+      true,
+    );
+    expect(demo.rows).toHaveLength(1);
+    expect(demo.hideReal).toBe(true);
+  });
+
+  it("builds one activity row per mock, covering both row kinds", () => {
+    const groupIndex = ACTIVITY_SCENARIOS.findIndex((s) =>
+      s.key.startsWith("act-liquidation"),
+    );
+    const demo = buildActivitiesDemo(
+      [activityItem(1, 0, "0.25"), activityItem(2, groupIndex, "0.75")],
+      false,
+    );
+
+    expect(demo.rows).toHaveLength(2);
+    expect(demo.rows[0].kind).toBe("row");
+    // The liquidation scenarios render as the expandable group card, which is a
+    // different component — the builder must emit that shape, not a flat row.
+    expect(demo.rows[1].kind).toBe("liquidationGroup");
+    // Distinct, non-indexer ids so a mock can never collide with a real event.
+    expect(new Set(demo.rows.map((row) => row.id)).size).toBe(2);
+    expect(demo.rows.every((row) => row.id.startsWith("demo-activity-"))).toBe(
+      true,
+    );
+  });
+
+  it("dates activity mocks relative to now so the date-group headers apply", () => {
+    const now = Date.now();
+    const rows = ACTIVITY_SCENARIOS.map((_, i) =>
+      buildActivitiesDemo([activityItem(i + 1, i)], false),
+    ).flatMap((demo) => demo.rows);
+
+    // Every row is in the past and within the scenarios' daysAgo span.
+    const maxDaysAgo = Math.max(...ACTIVITY_SCENARIOS.map((s) => s.daysAgo));
+    for (const row of rows) {
+      const daysAgo = (now - row.date.getTime()) / (24 * 60 * 60 * 1000);
+      expect(daysAgo).toBeGreaterThanOrEqual(0);
+      expect(daysAgo).toBeLessThanOrEqual(maxDaysAgo + 1);
+    }
+  });
+
+  it("ignores items of other types when building the activity feed", () => {
+    const demo = buildActivitiesDemo(
+      [depositItem(1, 0), activityItem(2, 0)],
+      true,
+    );
+    expect(demo.rows).toHaveLength(1);
+    expect(demo.hideReal).toBe(true);
   });
 
   it("supports different amounts per item", () => {
@@ -338,6 +444,45 @@ describe("GodModePanel", () => {
     expect(screen.getByText(WITHDRAWAL_SCENARIOS[0].label)).toBeInTheDocument();
   });
 
+  it("switches a mock to a loan and re-labels its amount in the borrowed asset", () => {
+    renderExpanded();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
+      target: { value: "loan" },
+    });
+
+    expect(screen.getByText(LOAN_SCENARIOS[0].label)).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "Mock 1 amount (USDC)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("switches a mock to an activity row and shows that type's states", () => {
+    renderExpanded();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
+      target: { value: "activity" },
+    });
+
+    expect(screen.getByText(ACTIVITY_SCENARIOS[0].label)).toBeInTheDocument();
+  });
+
+  it("forces and releases the Loans summary health factor and capacity state", () => {
+    renderExpanded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Danger (0.95)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Error" }));
+
+    // Both controls sit under the Loans summary section and have their own
+    // "Live" release button, so releasing one must not release the other.
+    const [healthFactorLive, capacityLive] = screen.getAllByRole("button", {
+      name: "Live",
+    });
+    fireEvent.click(healthFactorLive);
+    expect(healthFactorLive).toBeInTheDocument();
+    fireEvent.click(capacityLive);
+  });
+
   it("exposes hide-real and a per-item amount control", () => {
     renderExpanded();
 
@@ -435,5 +580,7 @@ describe("demoDeposit scenario lists", () => {
     expect(DEPOSIT_SCENARIOS.length).toBeGreaterThan(0);
     expect(WITHDRAWAL_SCENARIOS.length).toBeGreaterThan(0);
     expect(COLLATERAL_SCENARIOS.length).toBeGreaterThan(0);
+    expect(LOAN_SCENARIOS.length).toBeGreaterThan(0);
+    expect(ACTIVITY_SCENARIOS.length).toBeGreaterThan(0);
   });
 });

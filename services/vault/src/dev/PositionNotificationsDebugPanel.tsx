@@ -35,24 +35,32 @@ import {
   useDebugSimulateStalePrice,
 } from "@/dev/debugPositionStore";
 
+import {
+  PANEL_BUTTON_CLASS,
+  PANEL_HINT_CLASS,
+  PANEL_INPUT_CLASS,
+  PANEL_LABEL_CLASS,
+  PANEL_SECTION_CLASS,
+  PANEL_SECTION_TITLE_CLASS,
+} from "./panelChrome";
+
+// Severity tints for the banner preview. Dark-only (no light variants): the
+// god-mode box is a fixed zinc surface regardless of the app's theme.
 const SEVERITY_COLORS: Record<BannerSeverity, string> = {
-  red: "border-red-500 bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-200",
-  yellow:
-    "border-yellow-500 bg-yellow-50 text-yellow-900 dark:bg-yellow-950/30 dark:text-yellow-200",
-  soft: "border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
-  green:
-    "border-green-500 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200",
-  hidden:
-    "border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-600 dark:bg-gray-800/30 dark:text-gray-400",
+  red: "border-red-500 bg-red-500/15 text-red-200",
+  yellow: "border-yellow-500 bg-yellow-500/15 text-yellow-200",
+  soft: "border-zinc-600 bg-zinc-800/60 text-zinc-400",
+  green: "border-green-500 bg-green-500/15 text-green-200",
+  hidden: "border-zinc-700 bg-zinc-800/40 text-zinc-500",
 };
 
 const WARNING_TYPE_COLORS: Record<WarningType, string> = {
   urgent: "bg-red-600 text-white",
   cliff: "bg-orange-600 text-white",
   reorder: "bg-yellow-500 text-black",
-  dust: "bg-gray-500 text-white",
+  dust: "bg-zinc-600 text-white",
   "weird-params": "bg-blue-500 text-white",
-  "too-many-vaults": "bg-purple-500 text-white",
+  "too-many-vaults": "bg-teal-600 text-white",
 };
 
 const STATUS_MESSAGES: Record<
@@ -69,12 +77,8 @@ const STATUS_MESSAGES: Record<
 // The panel lives inside the ~420px god-mode box, so every layout here is
 // container-sized: full-width inputs in a fixed 2-column grid. Viewport `md:`
 // breakpoints would fire on a wide window and overflow the narrow box.
-const INPUT_CLASS =
-  "w-full min-w-0 rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
-const LABEL_CLASS = "truncate text-xs text-gray-600 dark:text-gray-400";
 const FIELD_GRID_CLASS = "grid grid-cols-2 gap-x-3 gap-y-2";
-const PRESET_BUTTON_CLASS =
-  "rounded bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-800/50";
+const PRESET_BUTTON_CLASS = `${PANEL_BUTTON_CLASS} text-zinc-200 hover:bg-zinc-800`;
 
 /** Initial counter for generated vault IDs (avoids collision with default vaults) */
 const INITIAL_VAULT_ID_COUNTER = 100;
@@ -91,16 +95,14 @@ function WarningBadge({ type }: { type: WarningType }) {
 
 function WarningCard({ warning }: { warning: Warning }) {
   return (
-    <div className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded border border-zinc-700 bg-zinc-800/60 p-3">
       <div className="mb-1 flex items-center gap-2">
         <WarningBadge type={warning.type} />
         <span className="font-medium">{warning.title}</span>
       </div>
-      <p className="text-sm text-gray-700 dark:text-gray-300">
-        {warning.detail}
-      </p>
+      <p className="text-sm text-zinc-300">{warning.detail}</p>
       {warning.suggestion && (
-        <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-400">
+        <p className="mt-1 text-sm font-medium text-sky-300">
           {warning.suggestion}
         </p>
       )}
@@ -110,9 +112,7 @@ function WarningCard({ warning }: { warning: Warning }) {
 
 function GroupRow({ group }: { group: LiquidationGroup }) {
   return (
-    <tr
-      className={group.isFullLiquidation ? "bg-red-50 dark:bg-red-950/30" : ""}
-    >
+    <tr className={group.isFullLiquidation ? "bg-red-950/40" : ""}>
       <td className="px-2 py-1 text-center">{group.index}</td>
       <td className="px-2 py-1">
         {group.vaults.map((v) => v.name).join(", ")}
@@ -200,7 +200,7 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
           <div className="mt-2 overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-gray-200 text-left dark:border-gray-700">
+                <tr className="border-b border-zinc-700 text-left">
                   <th className="px-2 py-1">#</th>
                   <th className="px-2 py-1">Vaults</th>
                   <th className="px-2 py-1 text-right">BTC</th>
@@ -305,15 +305,15 @@ function ManualInputPanel({
   );
 
   return (
-    <div className="space-y-3 rounded border border-purple-200 bg-white p-3 dark:border-purple-800 dark:bg-gray-800/50">
+    <div className="space-y-3 rounded border border-zinc-700 bg-zinc-800/40 p-3">
       {/* Market & Debt */}
       <div className={FIELD_GRID_CLASS}>
         <div>
-          <div className={LABEL_CLASS}>BTC Price ($)</div>
+          <div className={PANEL_LABEL_CLASS}>BTC Price ($)</div>
           <input
             type="number"
             step="100"
-            className={INPUT_CLASS}
+            className={PANEL_INPUT_CLASS}
             value={params.btcPrice}
             onChange={(e) =>
               updateField("btcPrice", parseFloat(e.target.value) || 0)
@@ -321,11 +321,11 @@ function ManualInputPanel({
           />
         </div>
         <div>
-          <div className={LABEL_CLASS}>Total Debt ($)</div>
+          <div className={PANEL_LABEL_CLASS}>Total Debt ($)</div>
           <input
             type="number"
             step="1000"
-            className={INPUT_CLASS}
+            className={PANEL_INPUT_CLASS}
             value={params.totalDebtUsd}
             onChange={(e) =>
               updateField("totalDebtUsd", parseFloat(e.target.value) || 0)
@@ -333,13 +333,13 @@ function ManualInputPanel({
           />
         </div>
         <div>
-          <div className={LABEL_CLASS}>CF</div>
+          <div className={PANEL_LABEL_CLASS}>CF</div>
           <input
             type="number"
             step="0.05"
             min="0.1"
             max="0.99"
-            className={INPUT_CLASS}
+            className={PANEL_INPUT_CLASS}
             value={params.CF}
             onChange={(e) =>
               updateField("CF", parseFloat(e.target.value) || DEBUG_DEFAULT_CF)
@@ -347,13 +347,13 @@ function ManualInputPanel({
           />
         </div>
         <div>
-          <div className={LABEL_CLASS}>THF</div>
+          <div className={PANEL_LABEL_CLASS}>THF</div>
           <input
             type="number"
             step="0.01"
             min="1.01"
             max="2.0"
-            className={INPUT_CLASS}
+            className={PANEL_INPUT_CLASS}
             value={params.THF}
             onChange={(e) =>
               updateField(
@@ -366,13 +366,13 @@ function ManualInputPanel({
       </div>
       <div className={FIELD_GRID_CLASS}>
         <div>
-          <div className={LABEL_CLASS}>LB (maxLB)</div>
+          <div className={PANEL_LABEL_CLASS}>LB (maxLB)</div>
           <input
             type="number"
             step="0.01"
             min="1.0"
             max="1.5"
-            className={INPUT_CLASS}
+            className={PANEL_INPUT_CLASS}
             value={params.maxLB}
             onChange={(e) =>
               updateField(
@@ -383,13 +383,13 @@ function ManualInputPanel({
           />
         </div>
         <div>
-          <div className={LABEL_CLASS}>Expected HF</div>
+          <div className={PANEL_LABEL_CLASS}>Expected HF</div>
           <input
             type="number"
             step="0.01"
             min="0.5"
             max="1.0"
-            className={INPUT_CLASS}
+            className={PANEL_INPUT_CLASS}
             value={params.expectedHF}
             onChange={(e) =>
               updateField(
@@ -404,13 +404,13 @@ function ManualInputPanel({
       {/* Vaults */}
       <div>
         <div className="mb-1 flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-xs font-medium text-zinc-300">
             Vaults ({params.vaults.length})
           </span>
           <button
             type="button"
             onClick={addVault}
-            className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-800/50"
+            className={PRESET_BUTTON_CLASS}
           >
             + Add
           </button>
@@ -418,27 +418,23 @@ function ManualInputPanel({
         <div className="space-y-1">
           {params.vaults.map((vault, i) => (
             <div key={vault.id} className="flex items-center gap-2">
-              <span className="w-16 text-xs text-gray-500 dark:text-gray-400">
-                {vault.name}
-              </span>
+              <span className="w-16 text-xs text-zinc-400">{vault.name}</span>
               <input
                 type="number"
                 step="0.01"
                 min="0.001"
-                className="w-24 rounded border border-gray-300 px-2 py-1 font-mono text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                className={`w-24 ${PANEL_INPUT_CLASS}`}
                 value={vault.btc}
                 onChange={(e) =>
                   updateVaultBtc(i, parseFloat(e.target.value) || 0.01)
                 }
               />
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                BTC
-              </span>
+              <span className="text-xs text-zinc-400">BTC</span>
               {params.vaults.length > 1 && (
                 <button
                   type="button"
                   onClick={() => removeVault(i)}
-                  className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                  className="text-xs text-red-400 hover:text-red-300"
                 >
                   remove
                 </button>
@@ -488,8 +484,8 @@ export function PositionNotificationsDebugPanel() {
   useEffect(() => () => setDebugPositionOverride(null, null), []);
 
   return (
-    <details className="rounded-lg border border-dashed border-purple-400 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-950/30">
-      <summary className="cursor-pointer text-sm font-semibold text-purple-700 dark:text-purple-300">
+    <details className={PANEL_SECTION_CLASS}>
+      <summary className={PANEL_SECTION_TITLE_CLASS}>
         Position Notifications Debug Panel
         {!manualMode && status === "loading" && " (loading...)"}
         {manualMode && " (manual)"}
@@ -534,7 +530,7 @@ export function PositionNotificationsDebugPanel() {
             <button
               type="button"
               onClick={() => resetDebugManualParams()}
-              className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              className={PANEL_BUTTON_CLASS}
             >
               Reset defaults
             </button>
@@ -551,9 +547,7 @@ export function PositionNotificationsDebugPanel() {
 
         {/* Status message (live mode only) */}
         {!manualMode && status !== "ready" && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {STATUS_MESSAGES[status]}
-          </p>
+          <p className={PANEL_HINT_CLASS}>{STATUS_MESSAGES[status]}</p>
         )}
 
         {/* Results */}

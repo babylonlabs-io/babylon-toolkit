@@ -7,8 +7,9 @@
  * app — no cross-window plumbing).
  *
  * It is a controller only: it never renders the cards itself. It manages a list
- * of mock items (each a deposit / withdrawal / collateral at some state) that
- * render inside the REAL dashboard sections (see demoDeposit.ts).
+ * of mock items (each a deposit / withdrawal / collateral / loan at some state)
+ * that render inside the REAL dashboard, vaults and loans sections (see
+ * demoDeposit.ts). It is mounted once for those routes (see dev/GodModeMount).
  *
  * Chrome is intentionally theme-independent (fixed zinc colors) and inline, not
  * routed through copy.ts — none of it is shown to depositors.
@@ -28,8 +29,14 @@ import type { ProtocolStatus } from "@/components/shared/protocolStatus";
 
 import {
   DEBUG_FORCED_MAX_VAULTS,
+  DEBUG_HEALTH_FACTORS,
+  type DebugBorrowCapacityState,
+  setDebugBorrowCapacityStateOverride,
+  setDebugHealthFactorOverride,
   setDebugMaxVaultsOverride,
   setDebugProtocolStatusOverride,
+  useDebugBorrowCapacityStateOverride,
+  useDebugHealthFactorOverride,
   useDebugMaxVaultsOverride,
   useDebugProtocolStatusOverride,
 } from "./debugPositionStore";
@@ -58,12 +65,26 @@ import {
   useDemoHideReal,
   useDemoItems,
 } from "./demoDeposit";
+import {
+  PANEL_BUTTON_CLASS,
+  PANEL_SECTION_CLASS,
+  PANEL_SECTION_TITLE_CLASS,
+  panelSegmentClass,
+} from "./panelChrome";
 
 const TYPE_LABELS: Record<DemoType, string> = {
   deposit: "Deposit",
   withdrawal: "Withdrawal",
   collateral: "Collateral",
+  loan: "Loan",
+  activity: "Activity",
 };
+
+/** Unit a mock item's amount is denominated in: BTC everywhere except loans,
+ *  whose amount is the borrowed stablecoin. */
+function amountUnit(type: DemoType): string {
+  return type === "loan" ? "USDC" : "BTC";
+}
 
 const CTA_BADGE: Record<DemoCta, { label: string; className: string }> = {
   primary: { label: "Orange CTA", className: "bg-orange-500 text-white" },
@@ -73,9 +94,6 @@ const CTA_BADGE: Record<DemoCta, { label: string; className: string }> = {
   },
   none: { label: "No CTA", className: "bg-zinc-700 text-zinc-300" },
 };
-
-const CONTROL_BUTTON_CLASS =
-  "rounded border border-zinc-600 px-2 py-1 text-xs disabled:opacity-40";
 
 /**
  * Deposit "mode" segments over the flat DEPOSIT_SCENARIOS list. The mode select
@@ -130,7 +148,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
   const clampLocal = (next: number) => Math.min(count - 1, Math.max(0, next));
 
   return (
-    <div className="space-y-2 rounded-lg border border-zinc-700/60 p-2">
+    <div className={`space-y-2 ${PANEL_SECTION_CLASS}`}>
       <div className="flex items-center justify-between gap-2">
         <select
           value={item.type}
@@ -158,7 +176,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
           <button
             type="button"
             onClick={() => removeDemoItem(item.key)}
-            className={CONTROL_BUTTON_CLASS}
+            className={PANEL_BUTTON_CLASS}
             aria-label={`Remove mock ${position}`}
           >
             ✕
@@ -200,7 +218,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
             setDemoItemState(item.key, offset + clampLocal(localIndex - 1))
           }
           disabled={localIndex === 0}
-          className={CONTROL_BUTTON_CLASS}
+          className={PANEL_BUTTON_CLASS}
         >
           Prev
         </button>
@@ -222,7 +240,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
             setDemoItemState(item.key, offset + clampLocal(localIndex + 1))
           }
           disabled={localIndex === count - 1}
-          className={CONTROL_BUTTON_CLASS}
+          className={PANEL_BUTTON_CLASS}
         >
           Next
         </button>
@@ -239,7 +257,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
       </div>
 
       <label className="flex items-center justify-between gap-2 text-xs">
-        <span>Amount (BTC)</span>
+        <span>Amount ({amountUnit(item.type)})</span>
         <input
           type="number"
           min="0"
@@ -247,7 +265,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
           value={item.amount}
           onChange={(e) => setDemoItemAmount(item.key, e.target.value)}
           className="w-28 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs"
-          aria-label={`Mock ${position} amount (BTC)`}
+          aria-label={`Mock ${position} amount (${amountUnit(item.type)})`}
         />
       </label>
 
@@ -334,20 +352,14 @@ function ThemeControls() {
   const { theme, setTheme } = useTheme();
   return (
     <div className="space-y-2">
-      <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
-        Theme
-      </div>
+      <div className={PANEL_SECTION_TITLE_CLASS}>Theme</div>
       <div className="flex gap-2">
         {THEME_OPTIONS.map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => setTheme(option)}
-            className={`flex-1 rounded border px-2 py-1 text-xs capitalize ${
-              theme === option
-                ? "border-orange-500 bg-orange-500/20 text-white"
-                : "border-zinc-600 text-zinc-300"
-            }`}
+            className={`${panelSegmentClass(theme === option)} capitalize`}
           >
             {option}
           </button>
@@ -387,11 +399,7 @@ function SegmentButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 rounded border px-2 py-1 text-xs ${
-        active
-          ? "border-orange-500 bg-orange-500/20 text-white"
-          : "border-zinc-600 text-zinc-300"
-      }`}
+      className={panelSegmentClass(active)}
     >
       {label}
     </button>
@@ -404,9 +412,7 @@ function NotificationOverrideControls() {
 
   return (
     <div className="space-y-2">
-      <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
-        Notifications
-      </div>
+      <div className={PANEL_SECTION_TITLE_CLASS}>Notifications</div>
 
       <label className="flex cursor-pointer items-center justify-between gap-2 text-sm">
         <span>Maximum vaults reached</span>
@@ -445,15 +451,76 @@ function NotificationOverrideControls() {
   );
 }
 
+/**
+ * Loans-summary overrides (v3 /loans). The row list is driven by "Loan" mocks
+ * in the Mocks section; these two cover the summary states a real position
+ * can't be talked into on demand — a health factor in each band, and the
+ * borrow-capacity cards while their read is loading or has failed.
+ */
+const BORROW_CAPACITY_LABELS: Record<DebugBorrowCapacityState, string> = {
+  loading: "Loading",
+  error: "Error",
+};
+
+function LoansOverrideControls() {
+  const healthFactorOverride = useDebugHealthFactorOverride();
+  const borrowCapacityOverride = useDebugBorrowCapacityStateOverride();
+
+  return (
+    <div className="space-y-2">
+      <div className={PANEL_SECTION_TITLE_CLASS}>Loans summary</div>
+
+      <div className="space-y-1">
+        <div className="text-xs text-zinc-400">Health factor</div>
+        <div className="flex gap-2">
+          <SegmentButton
+            label="Live"
+            active={healthFactorOverride === null}
+            onClick={() => setDebugHealthFactorOverride(null)}
+          />
+          {DEBUG_HEALTH_FACTORS.map(({ value, label }) => (
+            <SegmentButton
+              key={label}
+              label={`${label} (${value})`}
+              active={healthFactorOverride === value}
+              onClick={() => setDebugHealthFactorOverride(value)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-xs text-zinc-400">Borrow capacity</div>
+        <div className="flex gap-2">
+          <SegmentButton
+            label="Live"
+            active={borrowCapacityOverride === null}
+            onClick={() => setDebugBorrowCapacityStateOverride(null)}
+          />
+          {(
+            Object.keys(BORROW_CAPACITY_LABELS) as DebugBorrowCapacityState[]
+          ).map((state) => (
+            <SegmentButton
+              key={state}
+              label={BORROW_CAPACITY_LABELS[state]}
+              active={borrowCapacityOverride === state}
+              onClick={() => setDebugBorrowCapacityStateOverride(state)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PanelBody({ children }: { children?: ReactNode }) {
   return (
     <div className="space-y-4">
       <ThemeControls />
       <NotificationOverrideControls />
+      <LoansOverrideControls />
       <div className="space-y-2">
-        <div className="tracking-wide text-xs font-semibold uppercase text-zinc-400">
-          Mocks
-        </div>
+        <div className={PANEL_SECTION_TITLE_CLASS}>Mocks</div>
         <DemoControls />
       </div>
       {children}
@@ -551,7 +618,7 @@ export function GodModePanel({ children }: { children?: ReactNode }) {
           <button
             type="button"
             onClick={closePopup}
-            className={CONTROL_BUTTON_CLASS}
+            className={PANEL_BUTTON_CLASS}
           >
             Return ↙
           </button>
@@ -601,14 +668,14 @@ export function GodModePanel({ children }: { children?: ReactNode }) {
           <button
             type="button"
             onClick={openPopup}
-            className={CONTROL_BUTTON_CLASS}
+            className={PANEL_BUTTON_CLASS}
           >
             Pop out ↗
           </button>
           <button
             type="button"
             onClick={() => setCollapsed(true)}
-            className={CONTROL_BUTTON_CLASS}
+            className={PANEL_BUTTON_CLASS}
           >
             Hide
           </button>

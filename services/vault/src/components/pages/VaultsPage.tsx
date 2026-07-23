@@ -10,7 +10,7 @@
 
 import { Container, Loader, Notification } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 import type { Address } from "viem";
 
@@ -41,15 +41,6 @@ import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
 
 const EMPTY_ILLUSTRATION_SRC = "/images/vaults-empty.svg";
-
-// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
-// code is dropped from production builds entirely (same pattern as
-// DashboardPage).
-const GodModePanel = import.meta.env.DEV
-  ? lazy(() =>
-      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
-    )
-  : null;
 
 export default function VaultsPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -110,6 +101,8 @@ export default function VaultsPage() {
     }
   }, [address, queryClient]);
 
+  // The god-mode panel itself is mounted once by the route layout (see
+  // dev/GodModeMount); this only gates the demo-driven body below.
   const isDevToolingEnabled =
     import.meta.env.DEV && FeatureFlags.isGodModePanelEnabled;
 
@@ -213,19 +206,9 @@ export default function VaultsPage() {
     );
   };
 
-  // Dev/QA god-mode panel (same gate and pattern as DashboardPage) so demo
-  // items can be injected from this page without navigating to Overview.
-  const godModePanel =
-    isDevToolingEnabled && GodModePanel ? (
-      <Suspense fallback={null}>
-        <GodModePanel />
-      </Suspense>
-    ) : null;
-
   return (
     <Container as="main" className={`${PAGE_CONTENT_CLASS} pb-6`}>
       {renderBody()}
-      {godModePanel}
 
       <WithdrawFlow
         open={withdrawVaultIds !== null}

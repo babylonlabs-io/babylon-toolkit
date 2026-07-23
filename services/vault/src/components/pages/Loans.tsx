@@ -6,32 +6,29 @@
  */
 
 import { Container, Loader } from "@babylonlabs-io/core-ui";
-import { lazy, Suspense } from "react";
+import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { LOAN_TAB } from "@/applications/aave/constants";
 import { useActiveLoans } from "@/applications/aave/hooks";
+import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState, EmptyStateIcon } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import {
+  useDebugBorrowCapacity,
+  useDebugHealthFactorOverride,
+} from "@/dev/debugPositionStore";
+import { useDemoLoan } from "@/dev/demoDeposit";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
 import { formatUsdValue } from "@/utils/formatting";
 
 import { ActiveLoansList } from "../simple/ActiveLoansList";
 import { LoansSummary } from "../simple/LoansSummary";
-
-// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
-// code is dropped from production builds entirely (same pattern as VaultsPage).
-const GodModePanel = import.meta.env.DEV
-  ? lazy(() =>
-      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
-    )
-  : null;
 
 export default function Loans() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -59,42 +56,63 @@ export default function Loans() {
 
   const activeLoans = useActiveLoans(borrowedAssets);
 
-  const isDevToolingEnabled =
-    import.meta.env.DEV && FeatureFlags.isGodModePanelEnabled;
+  // God-mode demo loans (dev only; null unless the panel's "Inject demo" toggle
+  // is on). Merged into the rendered rows — real rows dropped when `hideReal`
+  // is set — so the Loans page can be exercised without a borrow position, or
+  // a wallet. Every mock row is `displayOnly`, so ActiveLoansList disables its
+  // actions and the real borrow/repay flows never see one. Inert in production.
+  const demoLoans = useDemoLoan();
+  const displayLoans = useMemo(() => {
+    if (!demoLoans) return activeLoans;
+    return [...demoLoans.rows, ...(demoLoans.hideReal ? [] : activeLoans)];
+  }, [activeLoans, demoLoans]);
+  const demoAffectsLoans =
+    demoLoans !== null && (demoLoans.rows.length > 0 || demoLoans.hideReal);
 
-  // Dev/QA god-mode panel (same gate and pattern as VaultsPage). Rendered in
-  // every return branch below so it stays reachable while the position loads or
-  // when the page is in its disconnected/empty state.
-  const godModePanel =
-    isDevToolingEnabled && GodModePanel ? (
-      <Suspense fallback={null}>
-        <GodModePanel />
-      </Suspense>
-    ) : null;
+  // God-mode summary overrides (dev only; null unless the panel forces them).
+  // The health-factor STATUS is derived from the forced value with the real
+  // banding function, so a forced card can't drift from production. Both are
+  // compile-time null in production builds.
+  const healthFactorOverride = useDebugHealthFactorOverride();
+  const borrowCapacityOverride = useDebugBorrowCapacity();
+  const shownHealthFactor = healthFactorOverride ?? healthFactor;
+  const shownHealthFactorStatus =
+    healthFactorOverride !== null
+      ? getHealthFactorStatusFromValue(healthFactorOverride)
+      : healthFactorStatus;
+  const shownCapacityLoading =
+    borrowCapacityOverride?.loading || isBorrowCapacityLoading;
+  const shownCapacityError =
+    borrowCapacityOverride?.error ?? borrowCapacityError;
+  // A forced summary state is as much a reason to render the page as a mock
+  // row is — otherwise setting one on an empty position shows nothing.
+  const godModeAffectsPage =
+    demoAffectsLoans ||
+    healthFactorOverride !== null ||
+    borrowCapacityOverride !== null;
 
   // A borrow position exists once there is collateral to borrow against (or an
   // active loan). With collateral but no debt yet, the summary still renders so
   // the depositor can borrow via its Borrow action — mirroring the v2 Loans
   // section, whose Borrow button was enabled whenever collateral was present.
-  const hasPosition = hasCollateral || hasLoans;
+  const hasPosition = hasCollateral || hasLoans || godModeAffectsPage;
 
   // Position is still loading for a connected wallet: hold on a spinner rather
   // than flashing the full-page "deposit" empty state before the summary lands
   // (hasCollateral/hasLoans are false until the position resolves).
-  if (isConnected && isLoading) {
+  if (isConnected && isLoading && !godModeAffectsPage) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <div className="flex items-center justify-center py-12">
           <Loader />
         </div>
-        {godModePanel}
       </Container>
     );
   }
 
   // Nothing to borrow against yet: prompt to deposit collateral first (or to
   // connect a wallet when disconnected).
-  if (!isConnected || !hasPosition) {
+  if (!hasPosition || (!isConnected && !godModeAffectsPage)) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <EmptyState
@@ -106,15 +124,24 @@ export default function Loans() {
           onAction={() => openDeposit()}
           withCard
         />
-        {godModePanel}
       </Container>
     );
   }
 
+  // Display-only totals: when the demo changes the rendered rows, the summary
+  // must total what is on screen — otherwise it reads "$0 borrowed" above a mock
+  // row. With no real borrow capacity to scale against (the usual demo case:
+  // no position at all), the mock debt itself becomes the meter's denominator,
+  // so the bar reads fully-borrowed rather than empty. The values passed to the
+  // borrow/repay actions stay demo-unaware.
+  const shownDebtUsd = demoAffectsLoans
+    ? (demoLoans?.debtUsd ?? 0) + (demoLoans?.hideReal ? 0 : debtValueUsd)
+    : debtValueUsd;
+  const meterBaseUsd = maxTotalDebtUsd > 0 ? maxTotalDebtUsd : shownDebtUsd;
   const availableMeterPercent =
-    maxTotalDebtUsd > 0 ? availableToBorrowUsd / maxTotalDebtUsd : 0;
+    meterBaseUsd > 0 ? availableToBorrowUsd / meterBaseUsd : 0;
   const borrowedMeterPercent =
-    maxTotalDebtUsd > 0 ? debtValueUsd / maxTotalDebtUsd : 0;
+    meterBaseUsd > 0 ? shownDebtUsd / meterBaseUsd : 0;
 
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
@@ -122,21 +149,25 @@ export default function Loans() {
         <LoansSummary
           availableToBorrow={formatUsdValue(availableToBorrowUsd)}
           availableMeterPercent={availableMeterPercent}
-          totalBorrowed={formatUsdValue(debtValueUsd)}
+          totalBorrowed={formatUsdValue(shownDebtUsd)}
           borrowedMeterPercent={borrowedMeterPercent}
-          borrowCapacityLoading={isBorrowCapacityLoading}
-          borrowCapacityError={borrowCapacityError}
-          healthFactor={healthFactor}
-          healthFactorStatus={healthFactorStatus}
+          borrowCapacityLoading={shownCapacityLoading}
+          borrowCapacityError={shownCapacityError}
+          healthFactor={shownHealthFactor}
+          healthFactorStatus={shownHealthFactorStatus}
           onBorrow={openBorrowPicker}
           onRepay={openRepay}
           canBorrow={canBorrow}
           canRepay={hasLoans}
         />
 
-        {hasLoans ? (
+        {/* `hasLoans` (debt in USD), not `displayLoans.length`: the two can
+            disagree — dust debt, or a reserve with a debt position whose USD
+            value reads 0 — and the real page's choice here must not shift. The
+            demo only ever adds a reason to render the list. */}
+        {hasLoans || demoAffectsLoans ? (
           <ActiveLoansList
-            rows={activeLoans}
+            rows={displayLoans}
             canBorrow={canBorrow}
             onBorrow={(symbol) => goToReserve(symbol, LOAN_TAB.BORROW)}
             onRepay={(symbol) => goToReserve(symbol, LOAN_TAB.REPAY)}
@@ -155,7 +186,6 @@ export default function Loans() {
       </div>
 
       <AssetSelectionModal {...assetModalProps} />
-      {godModePanel}
     </Container>
   );
 }
