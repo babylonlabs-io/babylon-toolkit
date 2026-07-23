@@ -43,7 +43,9 @@ const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
  * Applications for which the all-providers-disabled event has already been
  * emitted this session. Module-scoped (not per hook instance): the hook mounts
  * in several components at once, and the systemic "picker is empty" condition
- * must be reported once, keyed to the application — not once per mount.
+ * must be reported once, keyed to the application — not once per mount. Keys
+ * are lowercased addresses so checksummed and lowercase mounts of the same
+ * application share one entry.
  */
 const emittedAllDisabledFor = new Set<string>();
 
@@ -138,14 +140,15 @@ export function useVaultProviders(
     if (allProvidersWithLogos.length === 0 || listableProviders.length > 0) {
       return;
     }
-    if (emittedAllDisabledFor.has(entryPoint)) return;
-    emittedAllDisabledFor.add(entryPoint);
+    const appKey = entryPoint.toLowerCase();
+    if (emittedAllDisabledFor.has(appKey)) return;
+    emittedAllDisabledFor.add(appKey);
     logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
       level: "warning",
       category: "onboarding",
       reason: "all_disabled",
       total: allProvidersWithLogos.length,
-      applicationId: shortId(entryPoint),
+      applicationId: shortId(appKey),
     });
   }, [entryPoint, allProvidersWithLogos, listableProviders]);
 

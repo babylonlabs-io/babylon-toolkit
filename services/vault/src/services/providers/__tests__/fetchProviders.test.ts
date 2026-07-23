@@ -62,6 +62,63 @@ describe("fetchProviders", () => {
       expect(name).toBe("onboarding.providers.empty");
       expect(ctx.reason).toBe("all_rows_invalid");
       expect(ctx.total).toBe(2);
+      expect(ctx.applicationId).toBe("0xcc...cccc");
+    });
+
+    it("does not re-emit onboarding.providers.empty on repeated fetches for the same application", async () => {
+      mockLoggerEvent.mockClear();
+      // Fresh address: the once-per-application gate is module-scoped and
+      // survives across tests in this file.
+      const appAddress = "0x" + "1".repeat(40);
+      const allInvalidResponse = {
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      };
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+
+      await fetchAppProviders(appAddress);
+      await fetchAppProviders(appAddress);
+
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats checksummed and lowercase forms of one application as the same for the emit gate", async () => {
+      mockLoggerEvent.mockClear();
+      const appAddress = "0x" + "Ab".repeat(20);
+      const allInvalidResponse = {
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      };
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+
+      await fetchAppProviders(appAddress);
+      await fetchAppProviders(appAddress.toLowerCase());
+
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
     });
 
     it("does not emit onboarding.providers.empty when a provider survives filtering", async () => {

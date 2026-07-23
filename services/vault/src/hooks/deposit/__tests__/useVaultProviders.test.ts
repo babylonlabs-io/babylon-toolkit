@@ -175,6 +175,16 @@ describe("useVaultProviders — all-providers-disabled telemetry", () => {
     expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
   });
 
+  it("emits once when the same application mounts with checksummed and lowercase addresses", () => {
+    mockProvidersQuery();
+    disabledRef.current = new Set([provider.id.toLowerCase()]);
+
+    renderHook(() => useVaultProviders("0xAPP-CASING"));
+    renderHook(() => useVaultProviders("0xapp-casing"));
+
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+  });
+
   it("does not emit while at least one provider remains listable", () => {
     mockProvidersQuery();
 
