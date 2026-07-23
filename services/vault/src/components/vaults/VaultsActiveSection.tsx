@@ -10,6 +10,7 @@
  */
 
 import { Heading, Loader } from "@babylonlabs-io/core-ui";
+import type { ReactNode } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
@@ -23,6 +24,9 @@ interface VaultsActiveSectionProps {
   vaults: CollateralVaultEntry[];
   onWithdraw: (vaultId: string) => void;
   isWithdrawDisabled: boolean;
+  /** Shown under a plain "Vaults" heading while no vault is active yet —
+   *  the page reaches this section with pending deposits only. */
+  emptyState?: ReactNode;
 }
 
 function ActiveVaultRow({
@@ -128,8 +132,23 @@ export function VaultsActiveSection({
   vaults,
   onWithdraw,
   isWithdrawDisabled,
+  emptyState,
 }: VaultsActiveSectionProps) {
-  if (vaults.length === 0) return null;
+  if (vaults.length === 0) {
+    if (!emptyState) return null;
+    return (
+      <section className="w-full space-y-3">
+        <Heading
+          variant="h6"
+          as="h2"
+          className="font-normal text-accent-primary"
+        >
+          {COPY.vaults.sections.vaultsTitle}
+        </Heading>
+        {emptyState}
+      </section>
+    );
+  }
 
   return (
     <section className="w-full space-y-3">
