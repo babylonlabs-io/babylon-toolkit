@@ -125,14 +125,19 @@ export function VaultProviderSelectorV3({
             <span className="flex flex-col">
               <span className="text-sm text-accent-secondary">
                 {FORM_COPY.providerSelectDescriptionV3}
-                <a
-                  href={VAULT_PROVIDER_DOCS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-secondary-main underline"
-                >
-                  {FORM_COPY.providerSelectDescriptionLink}
-                </a>
+                {VAULT_PROVIDER_DOCS_URL && (
+                  <>
+                    {FORM_COPY.providerSelectDescriptionDocs}
+                    <a
+                      href={VAULT_PROVIDER_DOCS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-secondary-main underline"
+                    >
+                      {FORM_COPY.providerSelectDescriptionLink}
+                    </a>
+                  </>
+                )}
               </span>
               <span className="text-xs text-accent-secondary">
                 {FORM_COPY.providerSortNote}

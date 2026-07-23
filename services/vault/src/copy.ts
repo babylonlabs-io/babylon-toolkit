@@ -520,11 +520,13 @@ export const COPY = {
       doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a vault provider to secure your BTC",
-      // v3 picker intro: the sentence above renders as a lead-in to
-      // `providerSelectDescriptionLink`, which links out to the vault
-      // provider docs.
+      // v3 picker intro. The docs clause + link is appended only when a vault
+      // provider docs URL is configured (see VAULT_PROVIDER_DOCS_URL); the
+      // lead-in sentence stands alone otherwise.
       providerSelectDescriptionV3:
-        "Choose a vault provider to assist with your vault maintenance. For more information about vault provider or to create your own, ",
+        "Choose a vault provider to assist with your vault maintenance.",
+      providerSelectDescriptionDocs:
+        " For more information about vault provider or to create your own, ",
       providerSelectDescriptionLink: "please go here.",
       // Sub-line under the v3 intro, describing the picker's ordering.
       providerSortNote: "Sorted by most recent deposit",
@@ -798,9 +800,8 @@ export const COPY = {
     // Separator between a metric's current and projected value (before → after).
     valueTransitionArrow: "→",
     loading: "Loading...",
-    // Accessible labels for the shared v3 modal header controls.
+    // Accessible label for the shared v3 modal header close control.
     close: "Close",
-    back: "Back",
     confirming: "Confirming...",
     applying: "Applying...",
     checking: "Checking...",
@@ -1439,6 +1440,8 @@ export const COPY = {
   reorder: {
     confirmButton: "Confirm",
     doneButton: "Done",
+    successTitle: "BTC Vault order updated",
+    successText: "The liquidation order of your BTC Vaults has been updated.",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",
