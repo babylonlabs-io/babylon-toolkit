@@ -15,8 +15,8 @@ import {
   buildWithdrawCollateralsTx,
   // Query functions
   getPosition,
+  getPositionReserveTotalDebt,
   getUserAccountData,
-  getUserTotalDebt,
   hasDebt,
   // Utilities
   selectVaultsForAmount,
@@ -121,17 +121,21 @@ const position = await getPosition(publicClient, ADAPTER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
-// 2. Get exact current debt (queried live from contract)
-const totalDebt = await getUserTotalDebt(
+// 2. Get the FEE-INCLUSIVE current debt from the position proxy (queried
+// live). Do not size a full repayment from the Spoke's getUserTotalDebt —
+// it excludes the adapter's interest fee, and repaying a plain amount can
+// leave residual debt shares (dust).
+const totalDebt = await getPositionReserveTotalDebt(
   publicClient,
-  SPOKE,
-  USDC_RESERVE_ID,
   proxyAddress,
+  USDC_RESERVE_ID,
 );
 
-// For full repayment, add buffer to cover interest that accrues
-// between this query and transaction execution.
-const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_DIVISOR;
+// Approval headroom for interest that accrues between this query and
+// transaction execution; the adapter only pulls what's actually owed.
+// Ceiling division keeps ≥ 1 base unit of headroom even for dust-scale debts.
+const approvalCap =
+  totalDebt + (totalDebt + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
 
 // 3. Approve token spending (required!)
 const USDC_ADDRESS: Address = "0x..."; // USDC token contract
@@ -149,13 +153,15 @@ const approveHash = await walletClient.writeContract({
     },
   ],
   functionName: "approve",
-  args: [ADAPTER, repayAmount],
+  args: [ADAPTER, approvalCap],
 });
 await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-// 4. Build transaction
+// 4. Build transaction with the repay-all sentinel: the adapter resolves it
+// to the fee-inclusive debt inside the tx and pulls exactly that, hitting
+// the contract's exact full-repay branch (no rounding dust possible).
 const borrower: Address = "0x..."; // Borrower's address
-const tx = buildRepayTx(ADAPTER, borrower, USDC_RESERVE_ID, repayAmount);
+const tx = buildRepayTx(ADAPTER, borrower, USDC_RESERVE_ID, 2n ** 256n - 1n);
 
 // 5. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
@@ -168,7 +174,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 - Debt zeroed out in the borrower's Aave position
 - Health factor improves
 
-**Partial repayment:** Pass specific amount instead of `totalDebt`.
+**Partial repayment:** Pass the specific amount (and approve that amount) instead of the sentinel.
 
 ---
 
@@ -246,16 +252,20 @@ console.log("Debt:", aaveRayValueToUsd(accountData.totalDebtValueRay), "USD");
 console.log("Health Factor:", Number(accountData.healthFactor) / 1e18);
 ```
 
-### Full Repayment with Buffer
+### Full Repayment (repay-all sentinel)
 
 ```typescript
-const debt = await getUserTotalDebt(
+// Quote the fee-inclusive debt from the position proxy to size the approval;
+// send type(uint256).max as the repay amount — the adapter resolves it to the
+// exact fee-inclusive debt in the same transaction and pulls only that.
+const quote = await getPositionReserveTotalDebt(
   publicClient,
-  SPOKE,
-  reserveId,
   proxyAddress,
+  reserveId,
 );
-const withBuffer = debt + debt / FULL_REPAY_BUFFER_DIVISOR; // Covers interest accrual
+const approvalCap =
+  quote + (quote + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR; // ceil: interest headroom
+const tx = buildRepayTx(ADAPTER, borrower, reserveId, 2n ** 256n - 1n);
 ```
 
 ---

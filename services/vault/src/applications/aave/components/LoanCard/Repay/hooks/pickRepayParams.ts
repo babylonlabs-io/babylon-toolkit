@@ -3,15 +3,19 @@
  *
  * Called by the Repay submit path when the user has signaled Max intent.
  * Refetches debt + balance on-chain (synchronously, awaiting the network),
- * then picks the cheapest repay path that actually clears the debt:
+ * then picks the repay path that actually clears the debt:
  *
- *   - balance ≥ debt × (1 + buffer)   → `"full"`     (repayFull adds buffer)
- *   - debt ≤ balance < debt × (1+buf) → `"max-capped"` (approve full balance,
- *                                       send repay-all sentinel; clears debt)
- *   - balance < debt                  → `"partial"`  (send full balance)
+ *   - balance ≥ debt → `"max"`     (repayAll: repay-all sentinel, approval
+ *                                    capped at min(fee-inclusive quote +
+ *                                    buffer, balance); clears the debt.
+ *                                    Edge: this compares the fee-EXCLUSIVE
+ *                                    Spoke debt — if the balance can't also
+ *                                    cover the adapter fee, repayAll
+ *                                    pre-throws an actionable error)
+ *   - balance < debt → `"partial"` (send full balance)
  *
  * Doing this at submit (not at Max-button click) avoids the stale-snapshot
- * window between click and submit — the bigint we feed into `repayMaxCapped`
+ * window between click and submit — the bigint we feed into `repayAll`
  * is read from chain in the same tick we ask the wallet to sign.
  */
 import type { QueryObserverResult } from "@tanstack/react-query";
@@ -20,7 +24,6 @@ import { formatUnits } from "viem";
 import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
-import { FULL_REPAY_BUFFER_FRACTION } from "../../../../constants";
 import type { RepayMode } from "../../../../hooks/useRepayTransaction";
 import type { AavePositionWithLiveData } from "../../../../services";
 
@@ -48,7 +51,7 @@ export type PickRepayParamsResult =
       kind: "ok";
       mode: RepayMode;
       amount: number;
-      /** Exact bigint balance — required by `repayMaxCapped`, null otherwise. */
+      /** Exact bigint balance — required by `repayAll`, null otherwise. */
       amountRaw: bigint | null;
     }
   | {
@@ -103,24 +106,16 @@ export async function pickRepayParams({
     };
   }
 
-  const fullRepayThreshold = freshDebtAmount * (1 + FULL_REPAY_BUFFER_FRACTION);
-
-  if (freshBalanceAmount >= fullRepayThreshold) {
-    return {
-      kind: "ok",
-      mode: "full",
-      amount: freshDebtAmount,
-      amountRaw: null,
-    };
-  }
   // Compare raw bigints, not the rounded JS numbers: at 18 decimals a balance
-  // one base unit below the debt rounds equal, and max-capped's sentinel repays
-  // the full debt while approving only the balance — which would revert.
+  // one base unit below the debt rounds equal, and the sentinel repays the
+  // full debt while the approval is balance-capped — which would revert.
+  // Reported `amount` is the debt (what actually gets cleared — feeds the
+  // success toast); `amountRaw` is the balance (caps the approval).
   if (freshBalanceRaw >= freshDebtRaw) {
     return {
       kind: "ok",
-      mode: "max-capped",
-      amount: freshBalanceAmount,
+      mode: "max",
+      amount: freshDebtAmount,
       amountRaw: freshBalanceRaw,
     };
   }

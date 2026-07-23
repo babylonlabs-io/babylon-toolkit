@@ -2,7 +2,7 @@
  * Repay state management hook
  *
  * Tracks the current repay amount and whether the user invoked it via the
- * Max button. The repay *mode* (`full` / `max-capped` / `partial`) is
+ * Max button. The repay *mode* (`max` / `partial`) is
  * resolved at submit time from a fresh on-chain read — not here — to avoid
  * snapshotting stale balance/debt at click time and consuming it seconds
  * (or minutes) later at submit.

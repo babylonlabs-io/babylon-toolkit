@@ -9,7 +9,6 @@
 export {
   BPS_SCALE,
   FULL_REPAY_BUFFER_DIVISOR,
-  FULL_REPAY_BUFFER_FRACTION,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 

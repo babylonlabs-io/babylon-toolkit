@@ -25,8 +25,7 @@ export {
 export {
   borrow,
   reorderVaultOrder,
-  repayFull,
-  repayMaxCapped,
+  repayAll,
   repayPartial,
   withdrawSelectedCollateral,
 } from "./positionTransactions";

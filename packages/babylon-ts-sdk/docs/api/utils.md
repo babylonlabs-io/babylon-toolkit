@@ -1621,6 +1621,23 @@ catching catastrophic wallet-side overpayment.
 
 ***
 
+### MAX\_REASONABLE\_PEGIN\_VBYTES
+
+```ts
+const MAX_REASONABLE_PEGIN_VBYTES: 100000n = 100_000n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L109)
+
+Binary-independent cap on the implied per-HTLC reserve
+(`htlcValue - peginAmount - depositorClaimValue`): the exact identity in
+`assertWasmPeginSizing` is WASM-vs-WASM, so this pure-JS bound is what
+limits a doctored binary. 100,000 vbytes = Bitcoin Core's relay ceiling
+(MAX_STANDARD_TX_WEIGHT / 4) — ~19× the protocol-max PegIn (~5,150 vbytes
+at 99 VKs + 99 UCs), so it can never false-positive.
+
+***
+
 ### HEX\_RE
 
 ```ts

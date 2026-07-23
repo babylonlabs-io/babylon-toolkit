@@ -16,7 +16,11 @@ import { executeWrite, type TransactionResult } from "../transactionFactory";
 import { getERC20Allowance } from "./query";
 
 /**
- * Standard ERC20 ABI for approve function
+ * ERC20 approve ABI with NO declared output: mainnet USDT's approve returns
+ * no data, and a bool-declaring ABI makes viem's pre-flight simulation throw
+ * AbiDecodingZeroDataError before the zero-first fallback could ever run.
+ * Empty outputs skip result decoding for void- and bool-returning tokens
+ * alike (the bool was never checked; reverts still throw regardless).
  */
 const ERC20_APPROVE_ABI = [
   {
@@ -26,7 +30,7 @@ const ERC20_APPROVE_ABI = [
       { name: "spender", type: "address" },
       { name: "amount", type: "uint256" },
     ],
-    outputs: [{ name: "", type: "bool" }],
+    outputs: [],
     stateMutability: "nonpayable",
   },
 ] as const;

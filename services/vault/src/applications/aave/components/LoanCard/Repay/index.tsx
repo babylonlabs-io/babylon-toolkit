@@ -205,7 +205,7 @@ export function Repay() {
   // Pure UI action: pre-fill the input with the cached max so the user sees
   // a number, and flag Max intent. The actual refetch + mode selection
   // happens at submit time (see `handleRepay`) so the bigint we feed into
-  // `repayMaxCapped` is read from chain in the same tick we ask the wallet
+  // `repayAll` is read from chain in the same tick we ask the wallet
   // to sign — eliminating the click→submit stale-snapshot window.
   const handleMaxClick = useCallback(() => {
     setRefetchError(null);

@@ -19,6 +19,9 @@ export {
   hasDebt,
 } from "./spoke.js";
 
+// Position-proxy operations
+export { getPositionReserveTotalDebt } from "./positionProxy.js";
+
 // Oracle operations
 export {
   getOracleAddress,
