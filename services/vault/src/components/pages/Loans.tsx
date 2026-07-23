@@ -80,10 +80,15 @@ export default function Loans() {
     healthFactorOverride !== null
       ? getHealthFactorStatusFromValue(healthFactorOverride)
       : healthFactorStatus;
-  const shownCapacityLoading =
-    borrowCapacityOverride?.loading || isBorrowCapacityLoading;
-  const shownCapacityError =
-    borrowCapacityOverride?.error ?? borrowCapacityError;
+  // A forced state REPLACES the live one wholesale — combining them field by
+  // field would leave "Error" showing the live loader (or "Loading" showing a
+  // live error), i.e. never actually render the state that was forced.
+  const shownCapacityLoading = borrowCapacityOverride
+    ? borrowCapacityOverride.loading
+    : isBorrowCapacityLoading;
+  const shownCapacityError = borrowCapacityOverride
+    ? borrowCapacityOverride.error
+    : borrowCapacityError;
   // A forced summary state is as much a reason to render the page as a mock
   // row is — otherwise setting one on an empty position shows nothing.
   const godModeAffectsPage =

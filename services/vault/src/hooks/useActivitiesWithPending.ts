@@ -102,10 +102,12 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
 
   return {
     data: allActivities,
-    // With mocks injected there is something to render immediately, so the
-    // page must not sit on its spinner waiting for a query that, disconnected,
-    // will never resolve.
-    isLoading: demo && demo.rows.length > 0 ? false : isLoading,
+    // Whenever the demo governs the feed there is a final answer to render
+    // right now, so the page must not sit on its spinner waiting for a query
+    // that, disconnected, will never resolve. `hideReal` counts even with zero
+    // mocks: the feed is then a deliberate empty demo-only list.
+    isLoading:
+      demo && (demo.hideReal || demo.rows.length > 0) ? false : isLoading,
     ...queryResult,
   };
 }

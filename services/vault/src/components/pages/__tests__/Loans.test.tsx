@@ -18,6 +18,8 @@ const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
 const useDashboardStateMock = vi.fn();
 const useDemoLoanMock = vi.fn();
+const useDebugHealthFactorOverrideMock = vi.fn();
+const useDebugBorrowCapacityMock = vi.fn();
 
 vi.mock("@/context/wallet", () => ({
   useConnection: () => useConnectionMock(),
@@ -51,6 +53,11 @@ vi.mock("@/dev/demoDeposit", () => ({
   useDemoLoan: () => useDemoLoanMock(),
 }));
 
+vi.mock("@/dev/debugPositionStore", () => ({
+  useDebugHealthFactorOverride: () => useDebugHealthFactorOverrideMock(),
+  useDebugBorrowCapacity: () => useDebugBorrowCapacityMock(),
+}));
+
 vi.mock("react-router", () => ({
   useOutletContext: () => ({ openDeposit: vi.fn() }),
 }));
@@ -70,7 +77,25 @@ vi.mock("@/components/shared", () => ({
 }));
 
 vi.mock("../../simple/LoansSummary", () => ({
-  LoansSummary: () => <div data-testid="loans-summary" />,
+  LoansSummary: ({
+    borrowCapacityLoading,
+    borrowCapacityError,
+    healthFactor,
+    healthFactorStatus,
+  }: {
+    borrowCapacityLoading: boolean;
+    borrowCapacityError: Error | null;
+    healthFactor: number | null;
+    healthFactorStatus: string;
+  }) => (
+    <div
+      data-testid="loans-summary"
+      data-capacity-loading={String(borrowCapacityLoading)}
+      data-capacity-error={String(Boolean(borrowCapacityError))}
+      data-health-factor={String(healthFactor)}
+      data-health-factor-status={healthFactorStatus}
+    />
+  ),
 }));
 
 vi.mock("../../simple/ActiveLoansList", () => ({
@@ -112,6 +137,8 @@ describe("Loans page — loading gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useDemoLoanMock.mockReturnValue(null);
+    useDebugHealthFactorOverrideMock.mockReturnValue(null);
+    useDebugBorrowCapacityMock.mockReturnValue(null);
   });
 
   it("shows a spinner (not the deposit CTA) while a connected depositor's position loads", () => {
@@ -191,5 +218,83 @@ describe("Loans page — loading gate", () => {
     render(<Loans />);
 
     expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
+  });
+});
+
+describe("Loans page — god-mode summary overrides", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useDemoLoanMock.mockReturnValue(null);
+    useDebugHealthFactorOverrideMock.mockReturnValue(null);
+    useDebugBorrowCapacityMock.mockReturnValue(null);
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+  });
+
+  // A forced state must REPLACE the live one: merging them field by field left
+  // "Error" rendering the live loader, so the forced state never showed.
+  it("shows the forced capacity error even while the live read is loading", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      isBorrowCapacityLoading: true,
+    });
+    useDebugBorrowCapacityMock.mockReturnValue({
+      loading: false,
+      error: new Error("forced"),
+    });
+
+    render(<Loans />);
+
+    const summary = screen.getByTestId("loans-summary");
+    expect(summary).toHaveAttribute("data-capacity-loading", "false");
+    expect(summary).toHaveAttribute("data-capacity-error", "true");
+  });
+
+  it("shows the forced loading state even while the live read has failed", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      borrowCapacityError: new Error("live failure"),
+    });
+    useDebugBorrowCapacityMock.mockReturnValue({ loading: true, error: null });
+
+    render(<Loans />);
+
+    const summary = screen.getByTestId("loans-summary");
+    expect(summary).toHaveAttribute("data-capacity-loading", "true");
+    expect(summary).toHaveAttribute("data-capacity-error", "false");
+  });
+
+  it("bands the forced health factor with the production rule", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      healthFactor: 5,
+      healthFactorStatus: "safe",
+    });
+    useDebugHealthFactorOverrideMock.mockReturnValue(0.95);
+
+    render(<Loans />);
+
+    const summary = screen.getByTestId("loans-summary");
+    expect(summary).toHaveAttribute("data-health-factor", "0.95");
+    expect(summary).toHaveAttribute("data-health-factor-status", "danger");
+  });
+
+  it("renders the summary from an override alone, with no position and no mocks", () => {
+    useConnectionMock.mockReturnValue({ isConnected: false });
+    useETHWalletMock.mockReturnValue({ address: undefined });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      hasCollateral: false,
+    });
+    useDebugHealthFactorOverrideMock.mockReturnValue(1.25);
+
+    render(<Loans />);
+
+    // The summary only exists in the populated layout, so its presence is what
+    // proves the override routed past the full-page empty state. (The inner
+    // "no active loans" placeholder still renders below it — there are no rows
+    // — and shares the same stub, so it can't be asserted on separately here.)
+    expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
+    expect(screen.queryByTestId("active-loans-list")).not.toBeInTheDocument();
   });
 });

@@ -132,6 +132,13 @@ const ActivityWithProviders = () => (
         is in-memory-only state, so a second instance here is inert for the
         page. Without it the panel would throw on /activity.
 
+        The panel's full context dependency set is AaveConfig (mounted here),
+        ReorderOverride (mounted here) and ActivatingVaults (RootLayout).
+        Notably NOT PendingVaults: that context is reached only through
+        `useAaveVaults` and `useWithdrawCollateralTransaction`, neither of
+        which this subtree mounts — so the Aave layout's PendingVaultsProvider
+        is deliberately not duplicated here.
+
         The page reads the indexer's activity list directly and does not
         consume the demo store, so the panel drives theme, the protocol-status
         / max-vaults overrides and the shared mock list here — no mock rows
