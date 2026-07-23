@@ -15,7 +15,11 @@ import { useOutletContext } from "react-router";
 import type { Address } from "viem";
 
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
-import { DepositButton, EmptyState } from "@/components/shared";
+import {
+  ACTION_WIDTH_CLASS,
+  DepositButton,
+  EmptyState,
+} from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
   isDepositBlocked,
@@ -195,7 +199,7 @@ export default function VaultsPage() {
             variant="contained"
             color="secondary"
             size="large"
-            className="min-w-[120px]"
+            className={ACTION_WIDTH_CLASS}
             onClick={() => openDeposit()}
             disabled={isDepositBlocked(gate)}
           >

@@ -10,6 +10,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
 const useDashboardStateMock = vi.fn();
@@ -131,9 +133,7 @@ describe("Loans page — loading gate", () => {
     );
     // Disconnected prompts for a wallet — it must not claim the depositor has
     // no loans when we haven't looked at an address yet.
-    expect(
-      screen.getByText("Connect your wallet to view your loans"),
-    ).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
     expect(container.querySelector("svg")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });

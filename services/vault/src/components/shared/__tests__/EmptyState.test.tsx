@@ -68,6 +68,23 @@ describe("EmptyState", () => {
     expect(container.querySelector("svg")).not.toBeInTheDocument();
   });
 
+  it("renders no illustration for the compact variant", () => {
+    // The compact surfaces (reserve-detail prompt, overview liquidation panel)
+    // sit inside their own chrome and predate the v3 illustration — the v3
+    // default must not leak into them.
+    const { container } = render(
+      <EmptyState
+        variant="compact"
+        title="No collateral"
+        description="Deposit first"
+        isConnected
+      />,
+    );
+
+    expect(container.querySelector("svg")).not.toBeInTheDocument();
+    expect(screen.getByText("Deposit first").className).toContain("text-sm");
+  });
+
   it("renders the connect prompt instead of the action button when disconnected", () => {
     const onAction = vi.fn();
 

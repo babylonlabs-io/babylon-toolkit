@@ -133,6 +133,7 @@ export function LiquidationAnalysisSection({
     body = (
       <EmptyState
         title={COPY.liquidations.empty.noDepositTitle}
+        variant="compact"
         description={COPY.liquidations.empty.noDepositDescription}
         actionLabel={COPY.liquidations.position.deposit}
         onAction={onDeposit}
@@ -143,6 +144,7 @@ export function LiquidationAnalysisSection({
     body = (
       <EmptyState
         title={COPY.liquidations.empty.noLoanTitle}
+        variant="compact"
         description={COPY.liquidations.empty.noLoanDescription}
         actionLabel={COPY.liquidations.empty.borrow}
         onAction={onBorrow}

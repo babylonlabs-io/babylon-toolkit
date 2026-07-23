@@ -3,14 +3,12 @@
  * Document-with-magnifier illustration shared by every v3 empty state
  * (Vaults / Loans / Activity — Figma 10049:6109, 10049:6115, 11716:54555).
  * Geometry is the Figma export; strokes use `currentColor` so the icon picks up
- * `text/secondary` in both themes (#666666 light, #B0B0B0 dark).
+ * `text/secondary` in both themes (#666666 light, #B0B0B0 dark). The export
+ * carries no `stroke-width`, so strokes render at the SVG default of 1 — that
+ * hairline weight is the design, not an omission.
  */
 
-interface EmptyStateIconProps {
-  className?: string;
-}
-
-export function EmptyStateIcon({ className = "" }: EmptyStateIconProps) {
+export function EmptyStateIcon() {
   return (
     <svg
       width="94"
@@ -18,7 +16,7 @@ export function EmptyStateIcon({ className = "" }: EmptyStateIconProps) {
       viewBox="0 0 93.9047 101.367"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`text-accent-secondary ${className}`}
+      className="text-accent-secondary"
       aria-hidden="true"
     >
       <path
