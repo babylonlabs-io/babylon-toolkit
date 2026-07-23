@@ -7,6 +7,7 @@ import {
 import { IoCheckmarkCircle, IoChevronUp, IoWarning } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
+import { ExplorerLink } from "@/components/shared";
 import { VAULT_PROVIDER_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
@@ -170,69 +171,79 @@ export function VaultProviderSelectorV3({
                   {index === firstProblematicIndex && index > 0 && (
                     <div className="h-px w-full bg-secondary-strokeLight" />
                   )}
-                  {/* The whole row is the selection control; the metrics are
-                      fixed columns on the right. Rows carry no selected
-                      styling — picking one collapses the panel and the
-                      collapsed header names the chosen provider. */}
-                  <button
-                    type="button"
-                    disabled={isDisabled}
-                    onClick={handleSelect}
-                    aria-pressed={isSelected}
-                    className={`-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-4 rounded-md px-2 py-2 text-left ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {/* Avatar carries a status badge: a check for a healthy
+                  {/* Row is a flex container holding two SIBLING controls: the
+                      selection button and (when configured) the explorer link,
+                      so the link isn't nested inside another interactive
+                      element. Rows carry no selected styling — picking one
+                      collapses the panel and the collapsed header names the
+                      chosen provider. */}
+                  <div className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 py-2">
+                    <button
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={handleSelect}
+                      aria-pressed={isSelected}
+                      className={`flex flex-1 items-center justify-between gap-4 text-left ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {/* Avatar carries a status badge: a check for a healthy
                           provider, a warning for an unreachable / rejected
                           one. The badge sits on the card background so it
                           punches out of the avatar edge. */}
-                      <span className="relative shrink-0">
-                        <ApplicationLogo
-                          logoUrl={provider.iconUrl ?? null}
-                          name={provider.name}
-                          size="sm"
-                        />
-                        <span className="absolute -bottom-0.5 -right-0.5 flex size-3 items-center justify-center rounded-full bg-primary-contrast">
-                          {problematic ? (
-                            <IoWarning
-                              className="text-error-main"
-                              size={10}
-                              title={statusLabel(provider)}
-                            />
-                          ) : (
-                            <IoCheckmarkCircle
-                              className="text-success-bright"
-                              size={12}
-                            />
-                          )}
+                        <span className="relative shrink-0">
+                          <ApplicationLogo
+                            logoUrl={provider.iconUrl ?? null}
+                            name={provider.name}
+                            size="sm"
+                          />
+                          <span className="absolute -bottom-0.5 -right-0.5 flex size-3 items-center justify-center rounded-full bg-primary-contrast">
+                            {problematic ? (
+                              <IoWarning
+                                className="text-error-main"
+                                size={10}
+                                title={statusLabel(provider)}
+                              />
+                            ) : (
+                              <IoCheckmarkCircle
+                                className="text-success-bright"
+                                size={12}
+                              />
+                            )}
+                          </span>
+                        </span>
+                        <span className="flex flex-col justify-center">
+                          <span className="text-sm text-accent-primary">
+                            {provider.name}
+                          </span>
+                          <span
+                            className={`text-[10px] ${problematic ? "text-error-main" : "text-success-bright"}`}
+                          >
+                            {statusLabel(provider)}
+                          </span>
                         </span>
                       </span>
-                      <span className="flex flex-col justify-center">
-                        <span className="text-sm text-accent-primary">
-                          {provider.name}
-                        </span>
-                        <span
-                          className={`text-[10px] ${problematic ? "text-error-main" : "text-success-bright"}`}
-                        >
-                          {statusLabel(provider)}
-                        </span>
+                      <span className="flex items-center gap-4">
+                        {metricColumn(
+                          commissionValue(provider),
+                          FORM_COPY.providerCommissionLabel,
+                        )}
+                        {metricColumn(
+                          activeBtcValue(provider),
+                          FORM_COPY.providerActiveBtcLabel,
+                        )}
+                        {metricColumn(
+                          lastDepositValue(provider),
+                          FORM_COPY.providerLastDepositLabel,
+                        )}
                       </span>
-                    </span>
-                    <span className="flex items-center gap-4">
-                      {metricColumn(
-                        commissionValue(provider),
-                        FORM_COPY.providerCommissionLabel,
-                      )}
-                      {metricColumn(
-                        activeBtcValue(provider),
-                        FORM_COPY.providerActiveBtcLabel,
-                      )}
-                      {metricColumn(
-                        lastDepositValue(provider),
-                        FORM_COPY.providerLastDepositLabel,
-                      )}
-                    </span>
-                  </button>
+                    </button>
+                    {provider.explorerUrl && (
+                      <ExplorerLink
+                        href={provider.explorerUrl}
+                        label={FORM_COPY.providerExplorerLinkLabel}
+                      />
+                    )}
+                  </div>
                 </div>
               );
             })
