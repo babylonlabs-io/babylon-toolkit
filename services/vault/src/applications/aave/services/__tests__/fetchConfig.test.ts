@@ -9,6 +9,7 @@ vi.mock("../../../../clients/graphql", () => ({
 
 vi.mock("../../clients/transaction", () => ({
   getCoreSpokeAddress: vi.fn(),
+  getVaultBtcReserveId: vi.fn(),
 }));
 
 vi.mock("../../config", () => ({
@@ -16,12 +17,16 @@ vi.mock("../../config", () => ({
 }));
 
 import { graphqlClient } from "../../../../clients/graphql";
-import { getCoreSpokeAddress } from "../../clients/transaction";
+import {
+  getCoreSpokeAddress,
+  getVaultBtcReserveId,
+} from "../../clients/transaction";
 import { getAaveAdapterAddress } from "../../config";
 import { fetchAaveAppConfig } from "../fetchConfig";
 
 const mockRequest = vi.mocked(graphqlClient.request);
 const mockGetCoreSpokeAddress = vi.mocked(getCoreSpokeAddress);
+const mockGetVaultBtcReserveId = vi.mocked(getVaultBtcReserveId);
 const mockGetAaveAdapterAddress = vi.mocked(getAaveAdapterAddress);
 
 const ENV_ADAPTER = "0x1111111111111111111111111111111111111111" as Address;
@@ -32,14 +37,17 @@ const BTC_VAULT_REGISTRY = "0x5555555555555555555555555555555555555555";
 const VBTC_TOKEN = "0x6666666666666666666666666666666666666666";
 const USDC_TOKEN = "0x7777777777777777777777777777777777777777";
 
-function makeResponse(adapterAddress: Address = ENV_ADAPTER) {
+function makeResponse(
+  adapterAddress: Address = ENV_ADAPTER,
+  vaultBtcReserveId = "1",
+) {
   return {
     aaveConfig: {
       id: 1,
       adapterAddress,
       vaultBtcAddress: VAULT_BTC,
       btcVaultRegistryAddress: BTC_VAULT_REGISTRY,
-      vaultBtcReserveId: "1",
+      vaultBtcReserveId,
     },
     aaveReserves: {
       items: [
@@ -91,6 +99,7 @@ describe("fetchAaveAppConfig", () => {
     vi.clearAllMocks();
     mockGetAaveAdapterAddress.mockReturnValue(ENV_ADAPTER);
     mockGetCoreSpokeAddress.mockResolvedValue(CORE_SPOKE);
+    mockGetVaultBtcReserveId.mockResolvedValue(1n);
   });
 
   it("resolves the Core Spoke from the env-pinned adapter when the indexer agrees", async () => {
@@ -129,6 +138,7 @@ describe("fetchAaveAppConfig", () => {
     );
 
     expect(mockGetCoreSpokeAddress).not.toHaveBeenCalled();
+    expect(mockGetVaultBtcReserveId).not.toHaveBeenCalled();
   });
 
   it("returns null when the indexer has no Aave config", async () => {
@@ -139,5 +149,34 @@ describe("fetchAaveAppConfig", () => {
 
     await expect(fetchAaveAppConfig()).resolves.toBeNull();
     expect(mockGetCoreSpokeAddress).not.toHaveBeenCalled();
+  });
+
+  it("resolves the vBTC reserve ID on-chain when the indexer agrees", async () => {
+    mockGetVaultBtcReserveId.mockResolvedValue(1n);
+    mockRequest.mockResolvedValueOnce(makeResponse(ENV_ADAPTER, "1"));
+
+    const result = await fetchAaveAppConfig();
+
+    expect(mockGetVaultBtcReserveId).toHaveBeenCalledWith(ENV_ADAPTER);
+    expect(result?.config.vaultBtcReserveId).toBe(1n);
+    expect(result?.vbtcReserve?.reserveId).toBe(1n);
+  });
+
+  it("fails closed when the indexer reserve ID differs from the on-chain adapter", async () => {
+    mockGetVaultBtcReserveId.mockResolvedValue(1n);
+    mockRequest.mockResolvedValueOnce(makeResponse(ENV_ADAPTER, "2"));
+
+    await expect(fetchAaveAppConfig()).rejects.toThrow(
+      "Aave vBTC reserve ID mismatch: indexer returned 2, expected 1",
+    );
+  });
+
+  it("fails closed when the on-chain reserve ID read fails", async () => {
+    mockGetVaultBtcReserveId.mockRejectedValueOnce(new Error("rpc down"));
+    mockRequest.mockResolvedValueOnce(makeResponse());
+
+    await expect(fetchAaveAppConfig()).rejects.toThrow(
+      `Failed to resolve vBTC reserve ID from adapter ${ENV_ADAPTER}`,
+    );
   });
 });

@@ -48,6 +48,30 @@ export async function getCoreSpokeAddress(
 }
 
 /**
+ * Read the vBTC reserve ID from the controller contract.
+ *
+ * BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID is an immutable property on the
+ * AaveIntegrationAdapter. Reading it on-chain from the trusted adapter
+ * guarantees the reserve ID is not influenced by untrusted external sources
+ * (e.g. GraphQL indexer), which would otherwise be able to point collateral
+ * and liquidation math at the wrong reserve.
+ *
+ * @param controllerAddress - Trusted AaveIntegrationAdapter address
+ * @returns vBTC reserve ID on the Core Spoke
+ */
+export async function getVaultBtcReserveId(
+  controllerAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+  return publicClient.readContract({
+    address: controllerAddress,
+    abi: AaveIntegrationAdapterABI,
+    functionName: "BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID",
+    args: [],
+  }) as Promise<bigint>;
+}
+
+/**
  * Simulate a transaction to catch errors before sending
  *
  * Uses eth_call to simulate the transaction against current blockchain state.
