@@ -7,4 +7,4 @@ export {
   HealthFactorGauge,
   type HealthFactorGaugeStat,
 } from "./HealthFactorGauge";
-export { EmptyStateIcon, HeartIcon } from "./icons";
+export { HeartIcon } from "./icons";

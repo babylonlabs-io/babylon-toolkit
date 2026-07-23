@@ -57,7 +57,6 @@ vi.mock("@/components/shared", () => ({
       data-connected={String(Boolean(isConnected))}
     />
   ),
-  EmptyStateIcon: () => null,
 }));
 
 vi.mock("../../simple/LoansSummary", () => ({

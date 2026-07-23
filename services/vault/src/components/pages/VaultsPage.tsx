@@ -40,8 +40,6 @@ import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
 
-const EMPTY_ILLUSTRATION_SRC = "/images/vaults-empty.svg";
-
 // Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
 // code is dropped from production builds entirely (same pattern as
 // DashboardPage).
@@ -175,13 +173,6 @@ export default function VaultsPage() {
     if (!isEmpty) return populatedBody;
     return (
       <EmptyState
-        icon={
-          <img
-            src={EMPTY_ILLUSTRATION_SRC}
-            alt=""
-            className="h-[100px] w-[94px]"
-          />
-        }
         title={
           isDepositsPaused
             ? COPY.deposit.disabled.title
@@ -192,8 +183,8 @@ export default function VaultsPage() {
             ? COPY.deposit.disabled.description
             : COPY.vaults.empty.description
         }
-        descriptionVariant="wide"
         isConnected={isConnected}
+        withCard
         action={
           <DepositButton
             // This control's data-testid is a real-wallet E2E hook
@@ -202,7 +193,8 @@ export default function VaultsPage() {
             data-testid="deposit-button"
             variant="contained"
             color="secondary"
-            size="medium"
+            size="large"
+            className="min-w-[120px]"
             onClick={() => openDeposit()}
             disabled={isDepositBlocked(gate)}
           >
