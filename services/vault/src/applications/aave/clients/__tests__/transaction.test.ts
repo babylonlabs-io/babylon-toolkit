@@ -10,7 +10,6 @@ import {
 const { mockPublicClient } = vi.hoisted(() => ({
   mockPublicClient: {
     call: vi.fn(),
-    getTransaction: vi.fn(),
   },
 }));
 

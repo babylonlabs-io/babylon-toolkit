@@ -57,6 +57,8 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
 }));
 
+import { logger } from "@/infrastructure";
+
 import {
   ContractError,
   ErrorCode,
@@ -721,10 +723,11 @@ describe("positionTransactions", () => {
       const amount = 1000000n;
       const FOREIGN_TOKEN = "0x9000000000000000000000000000000000000009";
       const OTHER_SPENDER = "0x4000000000000000000000000000000000000004";
-      // A Safe-style batched receipt: a foreign token's Approval, an
-      // ERC-721-shaped Approval (3 indexed topics, empty data), a
-      // wrong-spender Approval, then two matching logs where only the LAST
-      // reflects the final state.
+      const OTHER_OWNER = "0x5000000000000000000000000000000000000005";
+      // A Safe-style batched receipt. Hostile sufficient-value logs sit both
+      // BEFORE and AFTER the matching pair: dropping any filter predicate
+      // (token, owner, spender) makes a trailing hostile log the last match
+      // and flips this test's outcome — each predicate is load-bearing.
       const erc721StyleLog = {
         address: TOKEN,
         topics: [
@@ -755,6 +758,25 @@ describe("positionTransactions", () => {
             },
             approvalLog(amount),
             approvalLog(amount - 1n),
+            { ...approvalLog(amount * 10n), address: FOREIGN_TOKEN },
+            {
+              address: TOKEN,
+              topics: encodeEventTopics({
+                abi: APPROVAL_EVENT_ABI,
+                eventName: "Approval",
+                args: { owner: OWNER, spender: OTHER_SPENDER },
+              }),
+              data: numberToHex(amount * 10n, { size: 32 }),
+            },
+            {
+              address: TOKEN,
+              topics: encodeEventTopics({
+                abi: APPROVAL_EVENT_ABI,
+                eventName: "Approval",
+                args: { owner: OTHER_OWNER, spender: ADAPTER },
+              }),
+              data: numberToHex(amount * 10n, { size: 32 }),
+            },
           ],
         },
       });
@@ -856,6 +878,8 @@ describe("positionTransactions", () => {
 
         expect(mockRepayToCorePosition).toHaveBeenCalledTimes(2);
         expect(mockApproveERC20).not.toHaveBeenCalled();
+        // Each absorbed retry is observable — the rescue must not be silent.
+        expect(logger.warn).toHaveBeenCalledTimes(1);
       } finally {
         vi.useRealTimers();
       }
