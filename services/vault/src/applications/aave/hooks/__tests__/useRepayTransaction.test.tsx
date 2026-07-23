@@ -2,14 +2,12 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockAssertReserve = vi.fn();
-const mockRepayFull = vi.fn();
+const mockRepayAll = vi.fn();
 const mockRepayPartial = vi.fn();
-const mockRepayMaxCapped = vi.fn();
 vi.mock("../../services", () => ({
   assertReserveMatchesOnChain: (...a: unknown[]) => mockAssertReserve(...a),
-  repayFull: (...a: unknown[]) => mockRepayFull(...a),
+  repayAll: (...a: unknown[]) => mockRepayAll(...a),
   repayPartial: (...a: unknown[]) => mockRepayPartial(...a),
-  repayMaxCapped: (...a: unknown[]) => mockRepayMaxCapped(...a),
   ReserveMismatchError: class ReserveMismatchError extends Error {},
 }));
 
@@ -70,7 +68,7 @@ describe("useRepayTransaction — pause gating (aave-scope only)", () => {
 
     expect(resolved).toBe(false);
     expect(mockAssertReserve).not.toHaveBeenCalled();
-    expect(mockRepayFull).not.toHaveBeenCalled();
+    expect(mockRepayAll).not.toHaveBeenCalled();
   });
 
   it("PROCEEDS under a protocol-only pause — repay must stay available so a near-liquidation user can de-risk", async () => {
@@ -86,5 +84,61 @@ describe("useRepayTransaction — pause gating (aave-scope only)", () => {
     });
 
     expect(mockAssertReserve).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useRepayTransaction — max mode wiring", () => {
+  it("fails without calling repayAll when proxyContract is missing", async () => {
+    const { result } = renderHook(() =>
+      useRepayTransaction({ proxyContract: undefined }),
+    );
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe(false);
+    expect(result.current.error).toContain("position data not available");
+    expect(mockRepayAll).not.toHaveBeenCalled();
+  });
+
+  it("refuses max mode without the exact bigint balance", async () => {
+    const { result } = setup();
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max");
+    });
+
+    expect(resolved).toBe(false);
+    expect(result.current.error).toContain("requires repayAmountRaw");
+    expect(mockRepayAll).not.toHaveBeenCalled();
+  });
+
+  it("passes the proxy, exact balance bigint, and token through to repayAll", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockRepayAll.mockResolvedValue({ transactionHash: "0xhash" });
+    const { result } = setup();
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe(true);
+    expect(mockRepayAll).toHaveBeenCalledWith(
+      expect.anything(), // wallet client
+      expect.anything(), // chain
+      "r1",
+      "0xtoken",
+      "0xproxy",
+      123n,
+      RESERVE.token,
+    );
   });
 });

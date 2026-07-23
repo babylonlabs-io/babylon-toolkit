@@ -259,7 +259,7 @@ export async function hasCollateral(
  *
  * @example
  * ```typescript
- * import { getUserTotalDebt, FULL_REPAY_BUFFER_DIVISOR } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { getUserTotalDebt } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
  * import { formatUnits } from "viem";
  *
  * const totalDebt = await getUserTotalDebt(
@@ -269,17 +269,17 @@ export async function hasCollateral(
  *   proxyAddress
  * );
  *
- * // For full repayment, add buffer to account for interest accrual
- * const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_DIVISOR);
- *
  * console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
  * ```
  *
  * @remarks
- * **Important for full repayment:**
- * - Add `FULL_REPAY_BUFFER_DIVISOR` buffer to account for interest between fetch and tx execution
- * - Contract only takes what's owed; excess stays in wallet
- * - For partial repayment, use any amount less than total debt
+ * **Important for full repayment:** do NOT repay a plain amount derived from
+ * this quote — it excludes the adapter's interest fee, and rounding can leave
+ * residual debt shares (dust). Send the repay-all sentinel
+ * (`type(uint256).max`) with an approval sized from the position proxy's
+ * fee-inclusive `getPositionReserveTotalDebt` plus
+ * `FULL_REPAY_BUFFER_DIVISOR` headroom; the adapter pulls only what's owed.
+ * For partial repayment, use any amount less than total debt.
  */
 export async function getUserTotalDebt(
   publicClient: PublicClient,
