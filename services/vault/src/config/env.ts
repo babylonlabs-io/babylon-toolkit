@@ -227,7 +227,7 @@ function validateEnvVars(): EnvValidationResult {
   // the blocking error modal.
   const FALLBACK_ETH_CHAIN_ID: EthChainId = ETH_SEPOLIA_CHAIN_ID;
   const FALLBACK_BTC_NETWORK: BtcNetworkName = "signet";
-  const FALLBACK_RPC_URL = "http://invalid.local";
+  const FALLBACK_RPC_URL = "https://invalid.local";
   try {
     configureBabylonConfig({
       ethChainId,
