@@ -42,6 +42,37 @@ vi.mock("@/components/Wallet", () => ({
   Connect: () => <button type="button">Connect</button>,
 }));
 
+// The expired-deposit Withdraw reuses the Vaults page's refund machinery,
+// whose graph reaches the WASM package and cannot be transformed here. Stub
+// the hook, its polling/params providers and the modals — the refund flow has
+// its own coverage; these tests are about wallet gating.
+vi.mock("@/hooks/usePendingDeposits", () => ({
+  usePendingDeposits: () => ({
+    expiredActivities: [],
+    allActivities: [],
+    pendingPegins: [],
+    btcPublicKey: undefined,
+    ethAddress: undefined,
+    broadcastModal: {},
+    refundModal: { handleRefundClick: vi.fn() },
+  }),
+}));
+
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  ProtocolParamsProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
+
+vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  PeginPollingProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+  useDepositPollingResult: () => undefined,
+}));
+
+vi.mock("@/components/simple/PendingDepositModals", () => ({
+  PendingDepositModals: () => null,
+}));
+
 import Activity from "../Activity";
 
 function renderActivity() {

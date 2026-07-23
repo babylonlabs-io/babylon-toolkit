@@ -1426,6 +1426,9 @@ export const COPY = {
     } satisfies Record<ActivityType, string>,
     hashPending: "Pending…",
     expiredTooltip: "Deposit expired",
+    // Accessible name for the v3 row's hash link, which opens the explorer.
+    viewTransaction: (chain: string, hash: string) =>
+      `View ${chain} transaction ${hash} in explorer`,
     // Labels for the two child rows nested inside a LiquidationGroupRow.
     liquidation: {
       collateralLabel: "Collateral Liquidated",

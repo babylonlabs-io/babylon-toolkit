@@ -22,3 +22,12 @@ export const PAGE_CONTENT_CLASS = featureFlags.isV3UiEnabled
 
 /** Width + vertical padding for the dashboard section summary cards. */
 export const SUMMARY_CARD_CLASS = "w-full border-0 !py-[34px]";
+
+/**
+ * Chrome of a v3 list card — border, radius, surface — with no padding or
+ * layout of its own. For a single row prefer `ListRowCard`, which adds that
+ * row's padding and flex; this is for a card holding several
+ * divider-separated rows, where the padding belongs to the card.
+ */
+export const CARD_SHELL_CLASS =
+  "w-full overflow-hidden rounded-lg border border-secondary-strokeLight bg-secondary-highlight dark:bg-[#202020]";

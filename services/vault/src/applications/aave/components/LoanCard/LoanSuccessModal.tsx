@@ -1,11 +1,6 @@
-import {
-  Avatar,
-  Button,
-  FullScreenDialog,
-  Heading,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { COPY } from "@/copy";
 import { formatAmount } from "@/utils/formatting";
 
@@ -29,9 +24,9 @@ const COPY_BY_VARIANT = {
 /**
  * Full-screen success screen shown after a successful borrow or repay. The
  * layout is identical for both operations; only the copy differs, selected by
- * `variant`. Confirms the amount and dismisses via the "Done" CTA — the sole
- * control. `onClose` is intentionally withheld from the dialog so there is no
- * close (X), backdrop, or escape dismissal competing with the single button.
+ * `variant`. Confirms the amount and dismisses via the "Done" CTA, the close
+ * (X), the backdrop, or escape — all four land on the same `onDone`, since
+ * there is nothing left to cancel once the transaction has settled.
  */
 export function LoanSuccessModal({
   open,
@@ -46,7 +41,7 @@ export function LoanSuccessModal({
   const formattedAmount = formatAmount(amount, decimals);
 
   return (
-    <FullScreenDialog open={open} className="items-center justify-center p-6">
+    <V3ModalShell open={open} onClose={onDone}>
       <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight px-6 pb-6 pt-[72px] text-center text-accent-primary">
         <div className="flex flex-col items-center gap-6">
           <Avatar
@@ -84,6 +79,6 @@ export function LoanSuccessModal({
           {copy.doneButton}
         </Button>
       </div>
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }

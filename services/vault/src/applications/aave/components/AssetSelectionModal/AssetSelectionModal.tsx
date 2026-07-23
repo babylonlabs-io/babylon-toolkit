@@ -8,9 +8,10 @@
  * repaying). Selecting a row routes into the reserve detail.
  */
 
-import { Avatar, FullScreenDialog } from "@babylonlabs-io/core-ui";
+import { Avatar } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { COPY } from "@/copy";
 import {
   getCurrencyIconWithFallback,
@@ -239,11 +240,7 @@ export function AssetSelectionModal({
   };
 
   return (
-    <FullScreenDialog
-      open={isOpen}
-      onClose={onClose}
-      className="items-center justify-center p-6"
-    >
+    <V3ModalShell open={isOpen} onClose={onClose}>
       <div className="mx-auto w-full max-w-[612px] rounded-2xl border border-secondary-strokeLight">
         <div className="border-b border-secondary-strokeLight p-6">
           <h3 className="text-2xl text-accent-primary">
@@ -252,6 +249,6 @@ export function AssetSelectionModal({
         </div>
         <div className="flex flex-col gap-4 px-6 pb-6 pt-4">{renderBody()}</div>
       </div>
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }

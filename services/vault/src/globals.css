@@ -28,6 +28,10 @@ html {
   --risk-amber: 247 147 26;
   --risk-green: 21 183 104;
   --risk-muted: 176 176 176;
+  /* Liquidation status (Figma warning/dark) — the activity feed's partially /
+   * fully liquidated dot. Distinct from --risk-amber, which reads as caution
+   * rather than a liquidation that already happened. */
+  --risk-orange: 248 97 42;
   /* Motion spec — Modals (Figma 7831:25100 §1) */
   --motion-duration-modal: 220ms;
   --motion-duration-modal-out: 180ms;

@@ -143,16 +143,6 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the Aave logo next to the dropdown when connected", () => {
-    renderList({ activities: [], isConnected: true });
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
-  });
-
-  it("hides the Aave logo when disconnected", () => {
-    renderList({ activities: [], isConnected: false });
-    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
-  });
-
   it("resets an active filter on disconnect so the disconnected empty state shows", () => {
     const rows = [
       makeRow({ id: "a", type: "Deposit" }),
@@ -191,14 +181,13 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("v3 UI + disconnected: renders no in-page heading and no avatar/filter row", () => {
+  it("v3 UI + disconnected: renders no in-page heading and no filter row", () => {
     featureFlagsMock.isV3UiEnabled = true;
     renderList({ activities: [], isConnected: false });
 
     expect(
       screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /show all/i }),
     ).not.toBeInTheDocument();
@@ -223,7 +212,7 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("v3 UI + connected: renders no in-page heading but keeps the avatar and filter dropdown", () => {
+  it("v3 UI + connected: renders no in-page heading but keeps the filter dropdown", () => {
     featureFlagsMock.isV3UiEnabled = true;
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
@@ -231,7 +220,6 @@ describe("ActivityList", () => {
     expect(
       screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
     ).not.toBeInTheDocument();
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /show all/i }),
     ).toBeInTheDocument();

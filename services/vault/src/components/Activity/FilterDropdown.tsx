@@ -52,7 +52,7 @@ export function FilterDropdown<V extends string>({
       <Popover
         open={open}
         anchorEl={anchorRef.current}
-        placement="bottom-end"
+        placement="bottom-start"
         offset={[0, 8]}
         onClickOutside={() => setOpen(false)}
         className="w-[200px] rounded-lg border border-secondary-strokeLight bg-neutral-200 p-4 shadow-[0px_8px_8px_rgba(0,0,0,0.12)]"

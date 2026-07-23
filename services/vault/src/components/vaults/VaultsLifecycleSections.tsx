@@ -15,19 +15,15 @@
  * is instantiated once.
  */
 
-import {
-  FullScreenDialog,
-  Heading,
-  Hint,
-  InfoIcon,
-  Loader,
-} from "@babylonlabs-io/core-ui";
+import { Heading, Hint, InfoIcon, Loader } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { getActionStatus } from "@/components/deposit/actionStatus";
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ListRowCard } from "@/components/shared/ListRow";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import {
   NEUTRAL_ROW_BUTTON_CLASS,
   PRIMARY_ROW_BUTTON_CLASS,
@@ -295,7 +291,7 @@ function InactiveRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4 dark:bg-[#202020]">
+    <ListRowCard>
       {/* Amount + refund maturity */}
       <div className="flex w-[180px] shrink-0 items-center gap-2">
         <ApplicationLogo
@@ -374,7 +370,7 @@ function InactiveRow({
           </button>
         </Hint>
       )}
-    </div>
+    </ListRowCard>
   );
 }
 
@@ -534,11 +530,7 @@ export function VaultsLifecycleSections({
         />
 
         {viewingBatch && ethAddress && (
-          <FullScreenDialog
-            open
-            onClose={handleViewingClose}
-            className="items-center justify-center p-6"
-          >
+          <V3ModalShell open onClose={handleViewingClose}>
             <div className="mx-auto w-full max-w-[520px]">
               <PostDepositContinuationContent
                 vaultIds={viewingBatch}
@@ -546,7 +538,7 @@ export function VaultsLifecycleSections({
                 onClose={handleViewingClose}
               />
             </div>
-          </FullScreenDialog>
+          </V3ModalShell>
         )}
       </PeginPollingProvider>
     </ProtocolParamsProvider>

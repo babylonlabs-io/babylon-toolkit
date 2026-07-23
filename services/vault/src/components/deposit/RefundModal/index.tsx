@@ -1,6 +1,7 @@
-import { FullScreenDialog, Loader } from "@babylonlabs-io/core-ui";
+import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
@@ -53,13 +54,9 @@ export function RefundModal({
       onClose();
     };
     return (
-      <FullScreenDialog
-        open={open}
-        onClose={handleDone}
-        className="items-center justify-center p-6"
-      >
+      <V3ModalShell open={open} onClose={handleDone}>
         <RefundSuccessContent refundTxId={refundTxId} onDone={handleDone} />
-      </FullScreenDialog>
+      </V3ModalShell>
     );
   }
 
@@ -69,13 +66,9 @@ export function RefundModal({
   // the wrong screen.
   if (previewQuery.isLoading) {
     return (
-      <FullScreenDialog
-        open={open}
-        onClose={onClose}
-        className="items-center justify-center p-6"
-      >
+      <V3ModalShell open={open} onClose={onClose}>
         <Loader />
-      </FullScreenDialog>
+      </V3ModalShell>
     );
   }
 
@@ -84,24 +77,16 @@ export function RefundModal({
   // letting the user sign a doomed transaction.
   if (previewQuery.data?.prePeginOnChain === false) {
     return (
-      <FullScreenDialog
-        open={open}
-        onClose={onClose}
-        className="items-center justify-center p-6"
-      >
+      <V3ModalShell open={open} onClose={onClose}>
         <RefundNotBroadcastContent onClose={onClose} />
-      </FullScreenDialog>
+      </V3ModalShell>
     );
   }
 
   // Block close while a broadcast is in flight to avoid dismissing the dialog
   // mid-signing.
   return (
-    <FullScreenDialog
-      open={open}
-      onClose={refunding ? undefined : onClose}
-      className="items-center justify-center p-6"
-    >
+    <V3ModalShell open={open} onClose={refunding ? undefined : onClose}>
       <RefundReviewContent
         amountSats={previewQuery.data?.amountSats ?? null}
         feeCapBasisSats={previewQuery.data?.feeCapBasisSats ?? null}
@@ -111,6 +96,6 @@ export function RefundModal({
         error={error}
         onConfirm={handleRefund}
       />
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }
