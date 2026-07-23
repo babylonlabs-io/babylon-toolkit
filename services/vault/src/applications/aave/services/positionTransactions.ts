@@ -263,8 +263,9 @@ function isStaleAllowanceSimulationError(err: unknown): boolean {
  * auto-retrying a broadcast tx would re-prompt the wallet.
  * Note: repayMaxCapped can revert here legitimately (accrued interest pushed
  * debt past the approved balance cap); indistinguishable from staleness, so
- * the retries delay that error and the short-circuit branch spends one no-op
- * forceApprove prompt (plus its gas) before it surfaces — consciously accepted.
+ * the retries delay that error and the short-circuit branch spends a no-op
+ * forceApprove — one prompt plus gas, two for USDT-style tokens — before it
+ * surfaces. Consciously accepted.
  */
 async function repayWithStaleSimulationRetry(params: {
   execute: () => Promise<RepayResult>;
