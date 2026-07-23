@@ -228,18 +228,25 @@ describe("demoDeposit builders", () => {
     );
   });
 
+  // Fake timers, not a tolerance around a real clock: the builder reads
+  // `Date.now()` itself, so comparing against a timestamp captured in the test
+  // is a race — it went fractionally negative on CI.
   it("dates activity mocks relative to now so the date-group headers apply", () => {
-    const now = Date.now();
-    const rows = ACTIVITY_SCENARIOS.map((_, i) =>
-      buildActivitiesDemo([activityItem(i + 1, i)], false),
-    ).flatMap((demo) => demo.rows);
-
-    // Every row is in the past and within the scenarios' daysAgo span.
-    const maxDaysAgo = Math.max(...ACTIVITY_SCENARIOS.map((s) => s.daysAgo));
-    for (const row of rows) {
-      const daysAgo = (now - row.date.getTime()) / (24 * 60 * 60 * 1000);
-      expect(daysAgo).toBeGreaterThanOrEqual(0);
-      expect(daysAgo).toBeLessThanOrEqual(maxDaysAgo + 1);
+    const fixedNow = new Date("2026-03-15T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(fixedNow);
+    try {
+      for (const [index, scenario] of ACTIVITY_SCENARIOS.entries()) {
+        const [row] = buildActivitiesDemo(
+          [activityItem(index + 1, index)],
+          false,
+        ).rows;
+        expect(row.date.getTime()).toBe(
+          fixedNow.getTime() - scenario.daysAgo * 24 * 60 * 60 * 1000,
+        );
+      }
+    } finally {
+      vi.useRealTimers();
     }
   });
 
