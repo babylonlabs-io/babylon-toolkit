@@ -6,6 +6,7 @@
  */
 
 import { Container, Loader } from "@babylonlabs-io/core-ui";
+import { lazy, Suspense } from "react";
 import { useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -14,6 +15,7 @@ import { useActiveLoans } from "@/applications/aave/hooks";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState, EmptyStateIcon } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
@@ -22,6 +24,14 @@ import { formatUsdValue } from "@/utils/formatting";
 
 import { ActiveLoansList } from "../simple/ActiveLoansList";
 import { LoansSummary } from "../simple/LoansSummary";
+
+// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
+// code is dropped from production builds entirely (same pattern as VaultsPage).
+const GodModePanel = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
+    )
+  : null;
 
 export default function Loans() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -49,6 +59,19 @@ export default function Loans() {
 
   const activeLoans = useActiveLoans(borrowedAssets);
 
+  const isDevToolingEnabled =
+    import.meta.env.DEV && FeatureFlags.isGodModePanelEnabled;
+
+  // Dev/QA god-mode panel (same gate and pattern as VaultsPage). Rendered in
+  // every return branch below so it stays reachable while the position loads or
+  // when the page is in its disconnected/empty state.
+  const godModePanel =
+    isDevToolingEnabled && GodModePanel ? (
+      <Suspense fallback={null}>
+        <GodModePanel />
+      </Suspense>
+    ) : null;
+
   // A borrow position exists once there is collateral to borrow against (or an
   // active loan). With collateral but no debt yet, the summary still renders so
   // the depositor can borrow via its Borrow action — mirroring the v2 Loans
@@ -64,6 +87,7 @@ export default function Loans() {
         <div className="flex items-center justify-center py-12">
           <Loader />
         </div>
+        {godModePanel}
       </Container>
     );
   }
@@ -82,6 +106,7 @@ export default function Loans() {
           onAction={() => openDeposit()}
           withCard
         />
+        {godModePanel}
       </Container>
     );
   }
@@ -130,6 +155,7 @@ export default function Loans() {
       </div>
 
       <AssetSelectionModal {...assetModalProps} />
+      {godModePanel}
     </Container>
   );
 }
