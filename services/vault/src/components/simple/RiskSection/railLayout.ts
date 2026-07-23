@@ -43,8 +43,10 @@ export interface RailLayout {
 
 const MARKER_EDGE_MARGIN_PCT = 1.5;
 const MAX_TICKS = 8;
-const GRADIENT_AMBER_OFFSET = 22;
-const GRADIENT_GREEN_OFFSET = 45;
+// Over the rail, red ends at the current-price marker, amber peaks ~21
+// points later, green runs to the end.
+const GRADIENT_AMBER_OFFSET = 21;
+const GRADIENT_GREEN_STOP = 100;
 
 function isUsablePrice(price: number | null): price is number {
   return price !== null && isFinite(price) && price > 0;
@@ -110,14 +112,16 @@ export function computeRailLayout(
   const currentPct = toPct(currentPriceUsd);
   const liquidationPct = hasLiquidation ? toPct(liquidationPriceUsd) : null;
 
+  // The red→amber hand-off sits ON the current-price marker, so the colour
+  // under the dot is the colour the dot's ring reports. Anchoring on the
+  // midpoint instead left the marker sitting in the red band while it was
+  // rendered green.
   let gradient: string | null = null;
   if (liquidationPct !== null) {
-    const midpoint = (liquidationPct + currentPct) / 2;
-    const amber = Math.min(midpoint + GRADIENT_AMBER_OFFSET, 100);
-    const green = Math.min(midpoint + GRADIENT_GREEN_OFFSET, 100);
+    const amber = Math.min(currentPct + GRADIENT_AMBER_OFFSET, 100);
     gradient =
-      `linear-gradient(90deg, rgb(var(--risk-red)) ${midpoint}%, ` +
-      `rgb(var(--risk-amber)) ${amber}%, rgb(var(--risk-green)) ${green}%)`;
+      `linear-gradient(90deg, rgb(var(--risk-red)) ${currentPct}%, ` +
+      `rgb(var(--risk-amber)) ${amber}%, rgb(var(--risk-green)) ${GRADIENT_GREEN_STOP}%)`;
   }
 
   return { lo, hi, ticks, currentPct, liquidationPct, gradient };

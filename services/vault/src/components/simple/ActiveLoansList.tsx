@@ -8,6 +8,8 @@
 import { Avatar, Heading } from "@babylonlabs-io/core-ui";
 
 import type { ActiveLoanRow } from "@/applications/aave/hooks";
+import { ListRowCard, ListRowMetric } from "@/components/shared/ListRow";
+import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { COPY } from "@/copy";
 import {
   formatBasisPointsAsPercent,
@@ -22,43 +24,6 @@ interface ActiveLoansListProps {
   onRepay: (symbol: string) => void;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex min-w-[120px] flex-col gap-1">
-      <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-        {label}
-      </span>
-      <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// Filled action button matching the summary's Borrow/Repay (see
-// PositionStatCards' StatSection button) so both button groups look identical,
-// per the v3 design.
-function RowActionButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex h-10 items-center justify-center rounded-lg bg-secondary-strokeLight px-6 text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled"
-    >
-      {label}
-    </button>
-  );
-}
-
 export function ActiveLoansList({
   rows,
   canBorrow,
@@ -71,8 +36,8 @@ export function ActiveLoansList({
         {COPY.loans.activeLoansHeading(rows.length)}
       </Heading>
 
-      <div className="overflow-hidden rounded-lg bg-secondary-highlight">
-        {rows.map((row, index) => {
+      <div className="flex flex-col gap-2">
+        {rows.map((row) => {
           const availableLiquidity =
             row.availableLiquidity !== null
               ? `${formatCompactTokenAmount(row.availableLiquidity)} ${row.symbol}`
@@ -83,48 +48,45 @@ export function ActiveLoansList({
               : COPY.common.emptyValue;
 
           return (
-            <div
-              key={row.reserveId}
-              className={`flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between ${
-                index > 0
-                  ? "border-t border-secondary-strokeLight dark:border-secondary-strokeDark"
-                  : ""
-              }`}
-            >
-              <div className="flex shrink-0 items-center gap-2 lg:min-w-[200px]">
+            <ListRowCard key={row.reserveId}>
+              <div className="flex w-[200px] shrink-0 items-center gap-2">
                 <Avatar url={row.icon} alt={row.symbol} size="medium" />
-                <span className="whitespace-nowrap text-xl text-accent-primary">
+                <span className="truncate text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
                   {row.amount} {row.symbol}
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-6 lg:flex-1 lg:justify-start">
-                <Metric
-                  label={COPY.loans.borrowRateLabel}
-                  value={row.borrowRate ?? COPY.common.emptyValue}
-                />
-                <Metric
-                  label={COPY.loans.availableLiquidityLabel}
-                  value={availableLiquidity}
-                />
-                <Metric
-                  label={COPY.loans.utilizationLabel}
-                  value={utilization}
-                />
-              </div>
+              <ListRowMetric
+                label={COPY.loans.borrowRateLabel}
+                value={row.borrowRate ?? COPY.common.emptyValue}
+              />
+              <ListRowMetric
+                label={COPY.loans.availableLiquidityLabel}
+                value={availableLiquidity}
+              />
+              <ListRowMetric
+                label={COPY.loans.utilizationLabel}
+                value={utilization}
+              />
 
-              <div className="flex flex-shrink-0 gap-3">
-                <RowActionButton
-                  label={COPY.loans.borrowButton}
+              <div className="ml-auto flex shrink-0 gap-2">
+                <button
+                  type="button"
                   onClick={() => onBorrow(row.symbol)}
                   disabled={!canBorrow || !row.isBorrowable}
-                />
-                <RowActionButton
-                  label={COPY.loans.repayButton}
+                  className={NEUTRAL_ROW_BUTTON_CLASS}
+                >
+                  {COPY.loans.borrowButton}
+                </button>
+                <button
+                  type="button"
                   onClick={() => onRepay(row.symbol)}
-                />
+                  className={NEUTRAL_ROW_BUTTON_CLASS}
+                >
+                  {COPY.loans.repayButton}
+                </button>
               </div>
-            </div>
+            </ListRowCard>
           );
         })}
       </div>

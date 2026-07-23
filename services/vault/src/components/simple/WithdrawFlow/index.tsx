@@ -1,4 +1,3 @@
-import { FullScreenDialog } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
@@ -7,6 +6,7 @@ import {
   getEffectiveVaultSelection,
   getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import {
   ProtocolParamsProvider,
   useProtocolParamsContext,
@@ -137,11 +137,7 @@ function WithdrawFlowContent({
   ]);
 
   return (
-    <FullScreenDialog
-      open={open}
-      onClose={onClose}
-      className="items-center justify-center p-6"
-    >
+    <V3ModalShell open={open} onClose={onClose}>
       <FadeTransition stepKey={renderedStep}>
         {renderedStep === WithdrawStep.REVIEW && (
           <div className="mx-auto w-full max-w-[612px]">
@@ -168,7 +164,7 @@ function WithdrawFlowContent({
           </div>
         )}
       </FadeTransition>
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }
 

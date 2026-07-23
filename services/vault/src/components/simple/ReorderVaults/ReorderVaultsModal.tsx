@@ -1,10 +1,4 @@
-import {
-  Button,
-  Callout,
-  FullScreenDialog,
-  Heading,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Callout, Heading, Text } from "@babylonlabs-io/core-ui";
 import {
   closestCenter,
   DndContext,
@@ -25,6 +19,7 @@ import {
 import type { Hex } from "viem";
 
 import { useReorderOverride } from "@/applications/aave/context";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
@@ -89,12 +84,12 @@ export function ReorderVaultsModal({
   };
 
   return (
-    <FullScreenDialog
+    <V3ModalShell
       open={isOpen}
       onClose={handleClose}
-      className="items-center justify-center p-6"
+      contentClassName="max-w-[564px]"
     >
-      <div className="mx-auto flex w-full max-w-[564px] flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Heading
             variant="h5"
@@ -171,6 +166,6 @@ export function ReorderVaultsModal({
           </div>
         </div>
       </div>
-    </FullScreenDialog>
+    </V3ModalShell>
   );
 }

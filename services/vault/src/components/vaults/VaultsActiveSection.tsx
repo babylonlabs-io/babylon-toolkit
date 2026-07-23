@@ -14,6 +14,7 @@ import { Heading, Loader } from "@babylonlabs-io/core-ui";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { ListRowCard } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -39,7 +40,7 @@ function ActiveVaultRow({
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4 dark:bg-[#202020]">
+    <ListRowCard>
       {/* Amount + liquidation ordinal */}
       <div className="flex w-[180px] shrink-0 items-center gap-2">
         <ApplicationLogo
@@ -120,7 +121,7 @@ function ActiveVaultRow({
       >
         {COPY.vaults.actions.withdraw}
       </button>
-    </div>
+    </ListRowCard>
   );
 }
 
