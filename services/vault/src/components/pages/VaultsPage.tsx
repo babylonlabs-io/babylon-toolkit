@@ -15,7 +15,6 @@ import { useOutletContext } from "react-router";
 import type { Address } from "viem";
 
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
-import { DepositButton, EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
   isDepositBlocked,
@@ -28,6 +27,7 @@ import {
 } from "@/components/simple/ReorderVaults";
 import WithdrawFlow from "@/components/simple/WithdrawFlow";
 import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
+import { VaultsEmptyState } from "@/components/vaults/VaultsEmptyState";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { VaultsSummaryCard } from "@/components/vaults/VaultsSummaryCard";
 import { FeatureFlags } from "@/config";
@@ -39,8 +39,6 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
-
-const EMPTY_ILLUSTRATION_SRC = "/images/vaults-empty.svg";
 
 // Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
 // code is dropped from production builds entirely (same pattern as
@@ -86,6 +84,16 @@ export default function VaultsPage() {
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
 
   const isDepositsPaused = FeatureFlags.isDepositDisabled;
+
+  const renderEmptyState = (withCard: boolean) => (
+    <VaultsEmptyState
+      isConnected={isConnected}
+      isDepositsPaused={isDepositsPaused}
+      isDepositDisabled={isDepositBlocked(gate)}
+      onDeposit={() => openDeposit()}
+      withCard={withCard}
+    />
+  );
 
   const reorderableVaults = useMemo(
     () => rawCollateralVaults.filter((vault) => !vault.isActivating),
@@ -147,6 +155,10 @@ export default function VaultsPage() {
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}
           isWithdrawDisabled={isWithdrawBlocked(gate)}
+          // Pending deposits keep the page populated while the vault list is
+          // still empty — the section shows the empty state until the deposit
+          // confirms and activates.
+          emptyState={renderEmptyState(true)}
         />
       </VaultsLifecycleSections>
     </div>
@@ -173,44 +185,7 @@ export default function VaultsPage() {
       );
     }
     if (!isEmpty) return populatedBody;
-    return (
-      <EmptyState
-        icon={
-          <img
-            src={EMPTY_ILLUSTRATION_SRC}
-            alt=""
-            className="h-[100px] w-[94px]"
-          />
-        }
-        title={
-          isDepositsPaused
-            ? COPY.deposit.disabled.title
-            : COPY.vaults.empty.title
-        }
-        description={
-          isDepositsPaused
-            ? COPY.deposit.disabled.description
-            : COPY.vaults.empty.description
-        }
-        descriptionVariant="wide"
-        isConnected={isConnected}
-        action={
-          <DepositButton
-            // This control's data-testid is a real-wallet E2E hook
-            // (e2e/real/actions/walletConnect.ts, e2e/real/actions/pegin.ts)
-            // — carry it over if you move or rename the element.
-            data-testid="deposit-button"
-            variant="contained"
-            color="secondary"
-            size="medium"
-            onClick={() => openDeposit()}
-            disabled={isDepositBlocked(gate)}
-          >
-            {COPY.vaults.empty.depositAction}
-          </DepositButton>
-        }
-      />
-    );
+    return renderEmptyState(false);
   };
 
   // Dev/QA god-mode panel (same gate and pattern as DashboardPage) so demo
