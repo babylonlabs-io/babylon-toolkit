@@ -568,8 +568,8 @@ describe("useArtifactDownload — funnel telemetry", () => {
     const [err, ctx] = mockLoggerError.mock.calls[0];
     expect(err).toBeInstanceOf(Error);
     expect(ctx.tags.funnelStage).toBe("activation.artifacts");
-    expect(ctx.data.vaultId).toBe("0xde...beef");
-    expect(ctx.data.site).toBe("download");
+    expect(ctx.tags.vaultId).toBe("0xde...beef");
+    expect(ctx.tags.site).toBe("download");
     expect(result.current.error).toContain("401");
   });
 
@@ -585,7 +585,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     });
 
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
-    expect(mockLoggerError.mock.calls[0][1].data.site).toBe("prime");
+    expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("prime");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -599,7 +599,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     });
 
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
-    expect(mockLoggerError.mock.calls[0][1].data.site).toBe("cold_registry");
+    expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("cold_registry");
   });
 
   it("does not capture a user-cancelled download", async () => {
@@ -633,7 +633,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
     const [name, ctx] = mockLoggerEvent.mock.calls[0];
     expect(name).toBe("activation.artifacts.downloaded");
-    expect(ctx.vaultId).toBe("0xde...beef");
+    expect(ctx.tags.vaultId).toBe("0xde...beef");
 
     // Re-download with the gate already satisfied: no second milestone.
     hasDownloadedMock.mockReturnValue(true);
@@ -673,7 +673,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
       const [name, ctx] = mockLoggerEvent.mock.calls[0];
       expect(name).toBe("activation.artifacts.stalled");
       expect(ctx.level).toBe("warning");
-      expect(ctx.vaultId).toBe("0xde...beef");
+      expect(ctx.tags.vaultId).toBe("0xde...beef");
 
       // More retries past the threshold do not re-emit.
       for (let i = 0; i < 5; i++) {

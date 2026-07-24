@@ -72,18 +72,28 @@ export type TelemetryStage =
  *
  * `vaultId` is shortened here and promoted to a tag so the per-vault join key
  * back to the success milestones — which carry `vaultId` as a tag too — is
- * queryable on both sides and cannot be forgotten at a call site. Pass any
- * further identifiers in `extra` already shortened via `shortId`.
+ * queryable on both sides and cannot be forgotten at a call site.
+ *
+ * Split the remaining context the way Sentry queries it: anything an alert
+ * filters or breaks down by goes in `tags` (only those are indexed), and
+ * descriptive detail that is read after a capture is already open goes in
+ * `extra`. Shorten any further identifiers with `shortId` on either side.
  */
 export function captureFunnelFailure(
   stage: TelemetryStage,
   err: unknown,
   vaultId: string,
-  extra: Record<string, string | number | boolean> = {},
+  {
+    tags = {},
+    extra = {},
+  }: {
+    tags?: Record<string, string>;
+    extra?: Record<string, string | number | boolean>;
+  } = {},
 ): void {
   if (classifyError(err) === "user-rejection") return;
   logger.error(err instanceof Error ? err : new Error(String(err)), {
-    tags: { funnelStage: stage, vaultId: shortId(vaultId) },
+    tags: { ...tags, funnelStage: stage, vaultId: shortId(vaultId) },
     data: extra,
   });
 }

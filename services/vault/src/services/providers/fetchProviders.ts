@@ -225,7 +225,7 @@ export async function fetchAppProviders(
     logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
       level: "warning",
       category: "onboarding",
-      reason: "all_rows_invalid",
+      tags: { reason: "all_rows_invalid" },
       total: rawProviders.length,
       applicationId: shortId(appKey),
     });

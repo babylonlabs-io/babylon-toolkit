@@ -167,7 +167,7 @@ describe("useVaultProviders — all-providers-disabled telemetry", () => {
     expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
     const [name, ctx] = mockLoggerEvent.mock.calls[0];
     expect(name).toBe("onboarding.providers.empty");
-    expect(ctx.reason).toBe("all_disabled");
+    expect(ctx.tags.reason).toBe("all_disabled");
     expect(ctx.total).toBe(1);
 
     // Re-renders (poll refreshes) do not re-emit.

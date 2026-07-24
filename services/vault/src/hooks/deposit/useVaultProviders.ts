@@ -146,7 +146,7 @@ export function useVaultProviders(
     logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
       level: "warning",
       category: "onboarding",
-      reason: "all_disabled",
+      tags: { reason: "all_disabled" },
       total: allProvidersWithLogos.length,
       applicationId: shortId(appKey),
     });

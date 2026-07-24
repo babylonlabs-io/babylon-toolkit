@@ -60,7 +60,7 @@ describe("fetchProviders", () => {
       expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
       const [name, ctx] = mockLoggerEvent.mock.calls[0];
       expect(name).toBe("onboarding.providers.empty");
-      expect(ctx.reason).toBe("all_rows_invalid");
+      expect(ctx.tags.reason).toBe("all_rows_invalid");
       expect(ctx.total).toBe(2);
       expect(ctx.applicationId).toBe("0xcc...cccc");
     });

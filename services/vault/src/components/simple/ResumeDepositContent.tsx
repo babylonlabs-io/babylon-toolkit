@@ -430,7 +430,7 @@ export function ResumeWotsContent({
       // even if the user has already closed the modal. Only the UI update below
       // is mount-gated. A mismatch is flagged for faceting.
       captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_WOTS, err, activity.id, {
-        wotsMismatch: isWotsMismatchError(err),
+        extra: { wotsMismatch: isWotsMismatchError(err) },
       });
       if (mountedRef.current) {
         const msg =
