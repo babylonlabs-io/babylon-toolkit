@@ -50,7 +50,7 @@ const INSUFFICIENT_GAS_FUNDS_PATTERN =
 // don't collapse the sats info the user needs.
 const BTC_FUNDS_GUARD_PATTERN = /\bsats\b|\bpegin\b/i;
 
-function matchesInsufficientGasFundsMessage(msg: string): boolean {
+export function matchesInsufficientGasFundsMessage(msg: string): boolean {
   if (BTC_FUNDS_GUARD_PATTERN.test(msg)) return false;
   return INSUFFICIENT_GAS_FUNDS_PATTERN.test(msg);
 }

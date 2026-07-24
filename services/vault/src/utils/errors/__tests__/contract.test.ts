@@ -74,6 +74,28 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_INSUFFICIENT_GAS);
     });
 
+    it("maps an insufficient-ETH-for-gas send failure to friendly copy, not the raw node dump", () => {
+      const error = new Error(
+        "borrow from Aave Core position failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account. insufficient funds for gas * price + value: balance 451223622186226",
+      );
+      const result = mapViemErrorToContractError(error, "Borrow");
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_INSUFFICIENT_GAS);
+      expect(result.message).toBe(
+        COPY.common.classifiedErrors.insufficientFunds,
+      );
+    });
+
+    it("matches the insufficient-funds message case-insensitively", () => {
+      const error = new Error("Insufficient Funds for gas * price + value");
+      const result = mapViemErrorToContractError(error, "Borrow");
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_INSUFFICIENT_GAS);
+      expect(result.message).toBe(
+        COPY.common.classifiedErrors.insufficientFunds,
+      );
+    });
+
     it("should detect nonce errors from message", () => {
       const error = new Error("nonce too low");
       const result = mapViemErrorToContractError(error, "test operation");
@@ -170,6 +192,22 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("DebtMustBeRepaidFirst");
       expect(result.message).toContain("repay all debt");
+    });
+
+    it("keeps a decoded revert even when its wrapper message says 'insufficient funds'", () => {
+      // A real contract revert whose wrapper text happens to contain
+      // "insufficient funds" must not be relabeled as an ETH-gas shortfall.
+      const error = {
+        message: "insufficient funds",
+        data: DEBT_MUST_BE_REPAID_ERROR_DATA,
+      };
+      const result = mapViemErrorToContractError(error, "withdraw", [TEST_ABI]);
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.message).not.toBe(
+        COPY.common.classifiedErrors.insufficientFunds,
+      );
     });
 
     it("should decode error from nested cause.data", () => {
