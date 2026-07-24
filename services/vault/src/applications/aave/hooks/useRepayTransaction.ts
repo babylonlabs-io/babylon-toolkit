@@ -14,6 +14,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import { ERC20 } from "@/clients/eth-contract";
 import { isRepayBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -25,6 +26,7 @@ import {
 import { getAaveAdapterAddress } from "../config";
 import { SAFE_TOFIXED_PRECISION } from "../constants";
 import {
+  ProxyMismatchError,
   ReserveMismatchError,
   assertReserveMatchesOnChain,
   repayAll,
@@ -235,16 +237,19 @@ export function useRepayTransaction({
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         data: { context: "Repay failed" },
       });
-      // Surface the on-chain reserve-mismatch as its own user-facing error so
-      // the user sees an integrity warning, not a generic repay failure.
+      // Surface the on-chain integrity checks (reserve + proxy) as their own
+      // user-facing errors so the user sees an integrity warning, not a generic
+      // repay failure.
       const mappedError =
         error instanceof ReserveMismatchError
           ? new Error(
               "Asset integrity check failed: the debt asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
             )
-          : error instanceof Error
-            ? mapViemErrorToContractError(error, "Repay")
-            : new Error("An unexpected error occurred while repaying");
+          : error instanceof ProxyMismatchError
+            ? new Error(COPY.loans.repay.integrityError)
+            : error instanceof Error
+              ? mapViemErrorToContractError(error, "Repay")
+              : new Error("An unexpected error occurred while repaying");
 
       setError(mappedError.message);
 

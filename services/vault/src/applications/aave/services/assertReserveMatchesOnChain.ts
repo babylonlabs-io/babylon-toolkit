@@ -7,12 +7,14 @@
  * one (e.g. user thinks USDC, contract executes against WBTC). This guard
  * resolves the reserve on-chain and fails closed if `underlying` doesn't match.
  *
- * Resolves the Core Spoke from the env-pinned adapter the tx path uses
- * (NOT the indexer-supplied `aaveConfig.coreSpokeAddress`). Otherwise an
- * attacker-controlled adapter+spoke pair could craft a matching
- * `reserveId -> underlying` mapping that passes the check while the real
- * tx executes against the env-pinned adapter where the same id may mean a
- * different asset.
+ * Resolves the Core Spoke on-chain from the env-pinned adapter the tx path
+ * uses, independently of any spoke passed in by the caller. (`config.coreSpokeAddress`
+ * is itself resolved on-chain from this same pinned adapter in `fetchConfig`, so it
+ * is already trusted; re-resolving here just keeps the guard self-contained and
+ * free of any dependency on how the caller obtained the spoke.) Reading the spoke
+ * from an untrusted adapter instead could let an attacker-controlled adapter+spoke
+ * pair craft a matching `reserveId -> underlying` mapping that passes the check
+ * while the real tx executes against the env-pinned adapter.
  */
 
 import type { Address } from "viem";

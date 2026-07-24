@@ -22,6 +22,7 @@ import { AaveAdapterTx, AaveProxy } from "../clients";
 import { getAaveAdapterAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
 
+import { assertProxyMatchesOnChain } from "./assertProxyMatchesOnChain";
 import {
   approveAndVerify,
   ensureAllowance,
@@ -206,8 +207,19 @@ export async function repayAll(
     throw new Error("Wallet address not available");
   }
 
-  const quote = await AaveProxy.getPositionReserveTotalDebt(
+  const adapterAddress = getAaveAdapterAddress();
+
+  // Independent, value-site verification of the proxy against the env-pinned
+  // adapter — this repay sizes a signed tx from the proxy's debt, so re-check
+  // here and fail closed on a spoofed proxy.
+  const verifiedProxy = await assertProxyMatchesOnChain(
+    adapterAddress,
+    userAddress,
     proxyContract,
+  );
+
+  const quote = await AaveProxy.getPositionReserveTotalDebt(
+    verifiedProxy,
     debtReserveId,
   );
   if (quote === 0n) {
@@ -233,8 +245,6 @@ export async function repayAll(
     (quote + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
   const buffered = quote + bufferDelta;
   const cap = buffered < balanceRaw ? buffered : balanceRaw;
-
-  const adapterAddress = getAaveAdapterAddress();
 
   const { approveSent } = await ensureAllowance(
     walletClient,
