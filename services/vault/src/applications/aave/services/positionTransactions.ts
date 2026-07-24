@@ -136,7 +136,10 @@ export async function repayPartial(
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
   if (userBalance < amount) {
     throw new Error(
-      "insufficient balance to repay: not enough token balance for the requested amount",
+      COPY.loans.repay.balanceBelowRepayAmount(
+        formatTokenAmount(amount, token),
+        formatTokenAmount(userBalance, token),
+      ),
     );
   }
 

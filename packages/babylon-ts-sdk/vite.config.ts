@@ -42,6 +42,10 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/contracts/index.ts",
         ),
+        "tbv/core/vault-secrets/index": path.resolve(
+          __dirname,
+          "src/tbv/core/vault-secrets/index.ts",
+        ),
         "tbv/integrations/aave/index": path.resolve(
           __dirname,
           "src/tbv/integrations/aave/index.ts",

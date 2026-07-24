@@ -1164,6 +1164,10 @@ export const COPY = {
       // it can exceed the displayed debt. Wording avoids the rewrite substrings.
       balanceBelowFullRepay: (required: string, balance: string) =>
         `Repaying in full needs ${required} (including accrued interest and fees), but your balance is ${balance}. Acquire a little more and try again.`,
+      // Submit-time backstop for a partial repay: the form blocks this, so it
+      // only fires when the balance drops between render and submit.
+      balanceBelowRepayAmount: (required: string, balance: string) =>
+        `Repaying ${required} needs more than your balance of ${balance}. Lower the amount or acquire more and try again.`,
       // Submit-time (Max intent) balance/debt refetch failure.
       refetchError: "Couldn't refresh balance/debt — please try again.",
     },
