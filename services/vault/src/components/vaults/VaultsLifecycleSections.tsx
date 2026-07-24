@@ -43,11 +43,11 @@ import {
 } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { getDemoStepperBatch } from "@/dev/demoDeposit";
+import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import {
   canPerformAction,
   getPeginDisplayStep,
-  isRefundInFlightOrSettled,
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
@@ -268,23 +268,11 @@ function InactiveRow({
     provider?.name ?? truncateHash(activity.providers[0]?.id ?? "");
 
   const peginState = result?.peginState;
-  const actionStatus: ReturnType<typeof getActionStatus> = result
-    ? getActionStatus(result)
-    : { type: "noAction" };
   // Product decision (#2041): the inactive vault's Withdraw performs the HTLC
-  // refund. Only the refund action surfaces here — a refund already in flight
-  // (or settled) leaves the row without an action.
-  const isRefundAvailable =
-    actionStatus.type === "available" &&
-    actionStatus.action.action === PeginAction.REFUND_HTLC;
-  // The narrowed disabled status, kept whole so the JSX below can read its
-  // tooltip without re-checking the discriminant.
-  const blockedRefundStatus =
-    actionStatus.type === "disabled" &&
-    actionStatus.action?.action === PeginAction.REFUND_HTLC &&
-    !(peginState ? isRefundInFlightOrSettled(peginState) : false)
-      ? actionStatus
-      : null;
+  // refund, on the same terms the Activity feed's expired row offers it.
+  const { available: isRefundAvailable, blockedTooltip } = useRefundRowAction(
+    activity.id,
+  );
 
   // Pre-PegIn first: an expired deposit never activated, so the Pre-PegIn tx
   // is the one that exists (active rows prefer the opposite).
@@ -363,8 +351,8 @@ function InactiveRow({
           {COPY.vaults.actions.withdraw}
         </button>
       )}
-      {blockedRefundStatus && (
-        <Hint tooltip={blockedRefundStatus.tooltip} attachToChildren>
+      {blockedTooltip && (
+        <Hint tooltip={blockedTooltip} attachToChildren>
           <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
             {COPY.vaults.actions.withdraw}
           </button>

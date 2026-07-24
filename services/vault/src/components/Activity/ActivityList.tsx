@@ -125,6 +125,9 @@ export function ActivityList({
                 placeholder={COPY.activity.filterAll}
                 options={FILTER_OPTIONS}
                 onChange={setFilter}
+                // v3 moves the trigger to the left of the row, so the menu
+                // opens rightward from it; v2 keeps it right-aligned.
+                align={isV3 ? "start" : "end"}
               />
             </div>
           )}

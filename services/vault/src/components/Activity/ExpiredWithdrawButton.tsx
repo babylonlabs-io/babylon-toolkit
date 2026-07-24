@@ -1,25 +1,19 @@
 /**
  * ExpiredWithdrawButton
  * The Withdraw action on an expired deposit's activity row. Performs the HTLC
- * refund, gated exactly as the Vaults page's inactive-vault row is (#2041): the
- * button only surfaces while the refund is actually available, and renders
- * disabled-with-tooltip while it is blocked but not yet in flight. Must be
- * rendered inside a PeginPollingProvider — it reads that deposit's poll result.
+ * refund, offered on exactly the terms the Vaults page's inactive-vault row
+ * uses — both read `useRefundRowAction`, so the two cannot drift. Must be
+ * rendered inside a PeginPollingProvider, which that hook requires.
  */
 
 import { Hint } from "@babylonlabs-io/core-ui";
 
-import { getActionStatus } from "@/components/deposit/actionStatus";
 import {
   ERROR_ROW_BUTTON_CLASS,
   NEUTRAL_ROW_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
-import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
-import {
-  isRefundInFlightOrSettled,
-  PeginAction,
-} from "@/models/peginStateMachine";
+import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 
 interface ExpiredWithdrawButtonProps {
   /** Vault id of the expired deposit — the refund modal's lookup key. */
@@ -31,15 +25,9 @@ export function ExpiredWithdrawButton({
   vaultId,
   onWithdraw,
 }: ExpiredWithdrawButtonProps) {
-  const result = useDepositPollingResult(vaultId);
-  const actionStatus: ReturnType<typeof getActionStatus> = result
-    ? getActionStatus(result)
-    : { type: "noAction" };
+  const { available, blockedTooltip } = useRefundRowAction(vaultId);
 
-  if (
-    actionStatus.type === "available" &&
-    actionStatus.action.action === PeginAction.REFUND_HTLC
-  ) {
+  if (available) {
     return (
       <button
         type="button"
@@ -51,17 +39,10 @@ export function ExpiredWithdrawButton({
     );
   }
 
-  const isBlocked =
-    actionStatus.type === "disabled" &&
-    actionStatus.action?.action === PeginAction.REFUND_HTLC &&
-    !(result?.peginState
-      ? isRefundInFlightOrSettled(result.peginState)
-      : false);
-
-  if (!isBlocked) return null;
+  if (!blockedTooltip) return null;
 
   return (
-    <Hint tooltip={actionStatus.tooltip} attachToChildren>
+    <Hint tooltip={blockedTooltip} attachToChildren>
       <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
         {COPY.vaults.actions.withdraw}
       </button>

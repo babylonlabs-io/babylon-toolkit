@@ -41,13 +41,15 @@ export function ActivityHashLink({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={COPY.activity.viewTransaction(chain, truncated)}
-      className="flex items-center gap-2 text-sm leading-[1.43] tracking-[0.17px] text-accent-primary underline transition-colors hover:text-accent-secondary"
+      className="flex items-center gap-2 text-sm leading-[1.43] tracking-[0.17px] text-accent-primary transition-colors hover:text-accent-secondary"
     >
-      {truncated}
+      {/* The underline sits on the text alone: on the anchor it propagates to
+          the arrow, and a descendant `no-underline` does not lift it. */}
+      <span className="underline">{truncated}</span>
       <RiArrowRightUpLine
         size={EXTERNAL_ICON_SIZE}
         aria-hidden
-        className="shrink-0 no-underline"
+        className="shrink-0"
       />
     </a>
   );
