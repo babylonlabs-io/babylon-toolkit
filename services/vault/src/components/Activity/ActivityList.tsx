@@ -1,4 +1,4 @@
-import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
+import { Avatar, Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
@@ -46,6 +46,10 @@ function groupByDate(
   }
   return ordered;
 }
+
+// Single-app surface today. When multi-app ships this becomes an app picker
+// fed from the applications registry. v3 drops it from the header entirely.
+const AAVE_LOGO_URL = "/images/aave.svg";
 
 // Only the ActivityTypes that appear as filter options in the Figma menu.
 // `Redeem` and `Pending Deposit` rows still render in the list but are not
@@ -113,12 +117,16 @@ export function ActivityList({
             </Heading>
           )}
           {isConnected && (
-            <FilterDropdown
-              value={filter}
-              placeholder={COPY.activity.filterAll}
-              options={FILTER_OPTIONS}
-              onChange={setFilter}
-            />
+            <div className="flex items-center gap-4">
+              {/* v3 drops the app logo from the header; v2 keeps it. */}
+              {!isV3 && <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />}
+              <FilterDropdown
+                value={filter}
+                placeholder={COPY.activity.filterAll}
+                options={FILTER_OPTIONS}
+                onChange={setFilter}
+              />
+            </div>
           )}
         </div>
       )}

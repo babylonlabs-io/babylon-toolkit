@@ -46,16 +46,21 @@ vi.mock("@/components/Wallet", () => ({
 // whose graph reaches the WASM package and cannot be transformed here. Stub
 // the hook, its polling/params providers and the modals — the refund flow has
 // its own coverage; these tests are about wallet gating.
+const usePendingDepositsMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/hooks/usePendingDeposits", () => ({
-  usePendingDeposits: () => ({
-    expiredActivities: [],
-    allActivities: [],
-    pendingPegins: [],
-    btcPublicKey: undefined,
-    ethAddress: undefined,
-    broadcastModal: {},
-    refundModal: { handleRefundClick: vi.fn() },
-  }),
+  usePendingDeposits: () => {
+    usePendingDepositsMock();
+    return {
+      expiredActivities: [],
+      allActivities: [],
+      pendingPegins: [],
+      btcPublicKey: undefined,
+      ethAddress: undefined,
+      broadcastModal: {},
+      refundModal: { handleRefundClick: vi.fn() },
+    };
+  },
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -244,5 +249,39 @@ describe("Activity page — wallet gating", () => {
     expect(
       screen.queryByTestId("activity-empty-state"),
     ).not.toBeInTheDocument();
+  });
+
+  it("v2: does not mount the deposit lifecycle behind the expired-deposit refund", () => {
+    featureFlagsMock.isV3UiEnabled = false;
+    useConnectionMock.mockReturnValue({
+      isConnected: true,
+      btcConnected: true,
+      ethConnected: true,
+    });
+    useETHWalletMock.mockReturnValue({
+      address: "0xabc0000000000000000000000000000000000001",
+      connected: true,
+    });
+
+    renderActivity();
+
+    expect(usePendingDepositsMock).not.toHaveBeenCalled();
+  });
+
+  it("v3: mounts the deposit lifecycle so an expired deposit can offer its refund", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    useConnectionMock.mockReturnValue({
+      isConnected: true,
+      btcConnected: true,
+      ethConnected: true,
+    });
+    useETHWalletMock.mockReturnValue({
+      address: "0xabc0000000000000000000000000000000000001",
+      connected: true,
+    });
+
+    renderActivity();
+
+    expect(usePendingDepositsMock).toHaveBeenCalled();
   });
 });
