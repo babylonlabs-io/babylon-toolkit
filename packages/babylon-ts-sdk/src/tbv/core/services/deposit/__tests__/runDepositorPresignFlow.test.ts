@@ -8,6 +8,7 @@ import {
   type GetPeginStatusResponse,
   type RequestDepositorPresignTransactionsResponse,
 } from "../../../clients/vault-provider/types";
+import type { VaultIntent, VaultIntentSigner } from "../../../intent";
 import type { PeginStatusReader, PresignClient } from "../interfaces";
 import { runDepositorPresignFlow, type PayoutSigningContext } from "../runDepositorPresignFlow";
 
@@ -142,6 +143,41 @@ function createMockWallet(): BitcoinWallet {
     ),
   } as unknown as BitcoinWallet;
 }
+
+/** Capability-stub wallet: has `approveVaultIntent`, so `supportsVaultIntent` is true. */
+function createCapabilityWallet(
+  onApprove?: (intent: VaultIntent) => void,
+): BitcoinWallet & VaultIntentSigner {
+  return {
+    ...createMockWallet(),
+    approveVaultIntent: vi.fn(async (intent: VaultIntent) => {
+      onApprove?.(intent);
+    }),
+  } as unknown as BitcoinWallet & VaultIntentSigner;
+}
+
+const VAULT_INTENT: VaultIntent = {
+  version: 1,
+  coinType: 1,
+  baseFeeRate: 2n,
+  peginCsvTimelock: 144,
+  payoutTimelock: 144,
+  htlcRefundTimelock: 4320,
+  prepeginTxid: "1".repeat(64),
+  prepeginMaxFee: 1500n,
+  keeperPks: [VK_PUBKEY],
+  challengerPks: [CHALLENGER_PK],
+  vaults: [
+    {
+      htlcVout: 0,
+      vaultProviderPk: VP_PUBKEY,
+      vaultAmount: 500_000n,
+      commissionFee: 12_500n,
+      depositorClaimValue: 20_000n,
+      peginMaxFee: 800n,
+    },
+  ],
+};
 
 function createSigningContext(): PayoutSigningContext {
   return {
@@ -541,6 +577,97 @@ describe("runDepositorPresignFlow", () => {
       await expect(promise).rejects.toThrow(/duplicate/i);
       expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
       expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("vault intent approval", () => {
+    it("approves the vault intent before fetching presign transactions", async () => {
+      const callLog: string[] = [];
+      const wallet = createCapabilityWallet(() => callLog.push("approve"));
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const basePresignClient = createMockPresignClient();
+      const presignClient: PresignClient = {
+        ...basePresignClient,
+        requestDepositorPresignTransactions: vi.fn(async (request, signal) => {
+          callLog.push("presign");
+          return basePresignClient.requestDepositorPresignTransactions(
+            request,
+            signal,
+          );
+        }),
+      };
+
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+        vaultIntent: VAULT_INTENT,
+      });
+
+      expect(callLog).toEqual(["approve", "presign"]);
+      expect(wallet.approveVaultIntent).toHaveBeenCalledOnce();
+      expect(wallet.approveVaultIntent).toHaveBeenCalledWith(VAULT_INTENT);
+    });
+
+    it("throws for capability wallets when no vaultIntent is provided", async () => {
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: createSigningContext(),
+        }),
+      ).rejects.toThrow(/vault ?intent/i);
+
+      expect(wallet.approveVaultIntent).not.toHaveBeenCalled();
+      expect(
+        presignClient.requestDepositorPresignTransactions,
+      ).not.toHaveBeenCalled();
+      expect(
+        presignClient.submitDepositorPresignatures,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("ignores vaultIntent for non-capability wallets", async () => {
+      const wallet = createMockWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+        vaultIntent: VAULT_INTENT,
+      });
+
+      // This confirms the wallet is capability-less; it doesn't by itself prove
+      // the flow skipped it. The proof is the flow completing above without a
+      // TypeError, which it would throw if src tried to call the absent method.
+      expect(
+        (wallet as unknown as { approveVaultIntent?: unknown })
+          .approveVaultIntent,
+      ).toBeUndefined();
+      expect(
+        presignClient.submitDepositorPresignatures,
+      ).toHaveBeenCalledOnce();
     });
   });
 });

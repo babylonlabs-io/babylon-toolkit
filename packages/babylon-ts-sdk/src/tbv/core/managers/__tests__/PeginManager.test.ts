@@ -16,9 +16,11 @@ import {
 } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { SignPsbtOptions } from "../../../../shared/wallets";
 import { MockBitcoinWallet, MockEthereumWallet } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { BTCVaultRegistryABI } from "../../contracts";
+import type { VaultIntent } from "../../intent";
 import {
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
@@ -196,6 +198,7 @@ const BASE_PREPARE_PEGIN_PARAMS = {
   councilSize: 3,
   availableUTXOs: TEST_UTXOS,
   changeAddress: TEST_CHANGE_ADDRESS,
+  commissionBps: 250,
 } as const;
 
 describe("PeginManager", () => {
@@ -649,6 +652,102 @@ describe("PeginManager", () => {
           universalChallengerBtcPubkeys: [],
         }),
       ).rejects.toThrow();
+    });
+
+    it("approves the vault intent after derive and before PegIn signing for capable wallets", async () => {
+      const callOrder: string[] = [];
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const originalDeriveContextHash =
+        btcWallet.deriveContextHash.bind(btcWallet);
+      const originalSignPsbts = btcWallet.signPsbts.bind(btcWallet);
+      let approvedIntent: VaultIntent | undefined;
+
+      // Own-property overrides (class-field semantics) — mirrors how a real
+      // intent-capable wallet (e.g. Ledger provider, #2109) exposes approveVaultIntent.
+      const capableWallet = Object.assign(btcWallet, {
+        deriveContextHash: async (appName: string, context: string) => {
+          callOrder.push("deriveContextHash");
+          return originalDeriveContextHash(appName, context);
+        },
+        signPsbts: async (
+          psbtsHexes: string[],
+          options?: SignPsbtOptions[],
+        ) => {
+          callOrder.push("signPsbts");
+          return originalSignPsbts(psbtsHexes, options);
+        },
+        approveVaultIntent: async (intent: VaultIntent) => {
+          callOrder.push("approveVaultIntent");
+          approvedIntent = intent;
+        },
+      });
+
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: capableWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const result = await manager.preparePegin({
+        // 2 vaults so the batch path calls wallet.signPsbts (not signPsbt),
+        // matching the "signPsbts" label asserted below.
+        amounts: [TEST_AMOUNTS.PEGIN, TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      expect(callOrder.filter((c) => c === "approveVaultIntent")).toHaveLength(
+        1,
+      );
+      const deriveIdx = callOrder.indexOf("deriveContextHash");
+      const approveIdx = callOrder.indexOf("approveVaultIntent");
+      const signIdx = callOrder.indexOf("signPsbts");
+      expect(deriveIdx).toBeGreaterThanOrEqual(0);
+      expect(approveIdx).toBeGreaterThan(deriveIdx);
+      expect(signIdx).toBeGreaterThan(approveIdx);
+
+      expect(approvedIntent).toBeDefined();
+      expect(approvedIntent?.prepeginTxid).toBe(
+        result.transaction.prePeginTxid.replace(/^0x/i, "").toLowerCase(),
+      );
+      expect(approvedIntent?.vaults).toHaveLength(2);
+      expect(result.vaultIntent).toBe(approvedIntent);
+    });
+
+    it("is a no-op for wallets without approveVaultIntent", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const result = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      expect(result.vaultIntent).toBeDefined();
+      expect(result.vaultIntent.vaults).toHaveLength(1);
+      // The mock wallet never gained approveVaultIntent — proves preparePegin
+      // doesn't call it unconditionally (that would throw: not a function).
+      expect(
+        (btcWallet as unknown as { approveVaultIntent?: unknown })
+          .approveVaultIntent,
+      ).toBeUndefined();
     });
   });
 

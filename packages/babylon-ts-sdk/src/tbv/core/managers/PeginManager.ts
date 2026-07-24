@@ -23,6 +23,7 @@ import * as bitcoin from "bitcoinjs-lib";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import { computeMinPeginFee } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import {
   encodeFunctionData,
   isAddressEqual,
@@ -50,6 +51,11 @@ import { ViemVaultRegistryReader } from "../clients/eth";
 import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
+import {
+  buildVaultIntent,
+  supportsVaultIntent,
+  type VaultIntent,
+} from "../intent";
 import {
   assertPsbtUnsignedTxMatches,
   assertScriptPathSchnorrSignature,
@@ -203,6 +209,11 @@ export interface PreparePeginParams {
   vaultProviderBtcPubkey: string;
 
   /**
+   * VP commission in basis points; feeds the intent's per-vault commissionFee.
+   */
+  commissionBps: number;
+
+  /**
    * Vault keeper BTC public keys (x-only, 64-char hex).
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
@@ -345,6 +356,13 @@ export interface PreparePeginResult {
   depositorBtcPubkey: string;
   /** Sensitive derived material — see {@link PreparePeginDerivedSecrets}. */
   derivedSecrets: PreparePeginDerivedSecrets;
+  /**
+   * Intent-based signing artifact for this Pre-PegIn (#2109). Always built,
+   * regardless of wallet capability — {@link supportsVaultIntent} wallets
+   * get it via `approveVaultIntent` before PegIn signing; others just get
+   * it back for reference.
+   */
+  vaultIntent: VaultIntent;
 }
 
 /**
@@ -738,9 +756,11 @@ export class PeginManager {
       authAnchorHash,
     );
 
+    const { vaultIntent, ...commitTransaction } = commit;
+
     return {
       transaction: {
-        ...commit,
+        ...commitTransaction,
         selectedUTXOs: sizing.selectedUTXOs,
         fee: sizing.fee,
         changeAmount: sizing.changeAmount,
@@ -752,6 +772,7 @@ export class PeginManager {
         htlcSecretHexes,
         authAnchorHex,
       },
+      vaultIntent,
     };
   }
 
@@ -825,6 +846,7 @@ export class PeginManager {
     fundedPrePeginTxHex: string;
     prePeginTxid: string;
     perVault: PerVaultPeginData[];
+    vaultIntent: VaultIntent;
   }> {
     const {
       depositorBtcPubkeyRaw,
@@ -898,6 +920,34 @@ export class PeginManager {
     const prePeginTxid = stripHexPrefix(
       calculateBtcTxHash(fundedPrePeginTxHex),
     );
+
+    // #2109: always build the intent so callers get it back regardless of
+    // wallet capability; only intent-capable wallets need the approval below.
+    const peginMaxFee = await computeMinPeginFee(
+      params.vaultCoreVersion,
+      vaultKeeperBtcPubkeys.length,
+      universalChallengerBtcPubkeys.length,
+      params.minPeginFeeRate,
+    );
+    const vaultIntent = buildVaultIntent({
+      network: this.config.btcNetwork,
+      protocolFeeRate: params.protocolFeeRate,
+      timelockPegin: params.timelockPegin,
+      timelockRefund: params.timelockRefund,
+      prepeginTxid: prePeginTxid,
+      prepeginMaxFee: sizing.fee,
+      depositorPk: depositorBtcPubkey,
+      vaultProviderPk: vaultProviderBtcPubkey,
+      keeperPks: vaultKeeperBtcPubkeys,
+      challengerPks: universalChallengerBtcPubkeys,
+      commissionBps: params.commissionBps,
+      vaultAmounts: params.amounts,
+      depositorClaimValue: prePeginResult.depositorClaimValue,
+      peginMaxFee,
+    });
+    if (supportsVaultIntent(this.config.btcWallet)) {
+      await this.config.btcWallet.approveVaultIntent(vaultIntent);
+    }
 
     const peginTxResults: Array<{
       txHex: string;
@@ -978,6 +1028,7 @@ export class PeginManager {
       fundedPrePeginTxHex,
       prePeginTxid,
       perVault,
+      vaultIntent,
     };
   }
 

@@ -16,6 +16,7 @@ import type {
   ClaimerSignatures,
   ClaimerTransactions,
 } from "../../clients/vault-provider/types";
+import { supportsVaultIntent, type VaultIntent } from "../../intent";
 import { PayoutManager } from "../../managers/PayoutManager";
 import {
   processPublicKeyToXOnly,
@@ -95,6 +96,11 @@ export interface RunDepositorPresignFlowParams {
   depositorPk: string;
   /** Signing context built from on-chain data */
   signingContext: PayoutSigningContext;
+  /**
+   * Required for intent-signing wallets; fresh flows thread
+   * PreparePeginResult.vaultIntent, resume rebuild lands with #2110.
+   */
+  vaultIntent?: VaultIntent;
   /** Maximum polling timeout in milliseconds (default: 20 min) */
   timeoutMs?: number;
   /** AbortSignal for cancellation */
@@ -311,6 +317,7 @@ export async function runDepositorPresignFlow(
     peginTxid,
     depositorPk,
     signingContext,
+    vaultIntent,
     timeoutMs = MAX_POLLING_TIMEOUT_MS,
     signal,
     onProgress,
@@ -331,6 +338,19 @@ export async function runDepositorPresignFlow(
   }
 
   signal?.throwIfAborted();
+
+  // Intent-signing wallets must approve the intent before any signing call
+  // it authorizes, including the Phase 3/4 payout and depositor-graph signing below.
+  if (supportsVaultIntent(btcWallet)) {
+    if (!vaultIntent) {
+      throw new Error(
+        "runDepositorPresignFlow: this wallet signs via vault intents but no VaultIntent was " +
+          "provided. Fresh deposits must pass PreparePeginResult.vaultIntent; resume-path " +
+          "rebuild is not wired yet (issue #2110).",
+      );
+    }
+    await btcWallet.approveVaultIntent(vaultIntent);
+  }
 
   // Phase 2: Fetch presign transactions
   const response = await presignClient.requestDepositorPresignTransactions(

@@ -523,6 +523,7 @@ export function useDepositFlow(
             mempoolFeeRate,
             changeAddress: confirmedBtcAddress,
             vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
+            commissionBps: quotedCommissionBps,
             vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
             universalChallengerBtcPubkeys:
               validatedKeys.universalChallengerBtcPubkeysSorted,
@@ -1142,6 +1143,7 @@ export function useDepositFlow(
               btcWallet: postBroadcastBtcWallet,
               depositorEthAddress: confirmedEthAddress,
               unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
+              vaultIntent: batchResult.vaultIntent,
               signal,
               onProgress: (p) => {
                 if (!p) return;
