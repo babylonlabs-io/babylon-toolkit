@@ -13,7 +13,7 @@ import { AssetSelectionModal } from "@/applications/aave/components/AssetSelecti
 import { LOAN_TAB } from "@/applications/aave/constants";
 import { useActiveLoans } from "@/applications/aave/hooks";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
-import { EmptyState, EmptyStateIcon } from "@/components/shared";
+import { EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
@@ -98,9 +98,12 @@ export default function Loans() {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <EmptyState
-          icon={<EmptyStateIcon />}
-          title={COPY.loans.noActiveLoans.title}
-          description={COPY.loans.noActiveLoans.body}
+          title={
+            isConnected
+              ? COPY.loans.noActiveLoans.title
+              : COPY.loans.emptyDisconnected
+          }
+          description={isConnected ? COPY.loans.noActiveLoans.body : undefined}
           isConnected={isConnected}
           actionLabel={COPY.overview.depositAction}
           onAction={() => openDeposit()}
@@ -145,7 +148,6 @@ export default function Loans() {
           // Has collateral but no borrows yet: the Borrow action lives in the
           // summary above; this just labels the empty active-loans area.
           <EmptyState
-            icon={<EmptyStateIcon />}
             title={COPY.loans.noActiveLoans.title}
             description={COPY.loans.noActiveLoans.body}
             isConnected

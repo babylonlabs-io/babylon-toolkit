@@ -85,13 +85,16 @@ export default function VaultsPage() {
 
   const isDepositsPaused = FeatureFlags.isDepositDisabled;
 
-  const renderEmptyState = (withCard: boolean) => (
+  // `sectionPlacement` = rendered inline in the Vaults section beneath a pending
+  // deposit, where it sits on the same bordered surface as the sibling cards.
+  // The whole-page state (false) sits on the standalone v3 empty-state card.
+  const renderEmptyState = (sectionPlacement: boolean) => (
     <VaultsEmptyState
       isConnected={isConnected}
       isDepositsPaused={isDepositsPaused}
       isDepositDisabled={isDepositBlocked(gate)}
       onDeposit={() => openDeposit()}
-      withCard={withCard}
+      sectionPlacement={sectionPlacement}
     />
   );
 
@@ -157,7 +160,8 @@ export default function VaultsPage() {
           isWithdrawDisabled={isWithdrawBlocked(gate)}
           // Pending deposits keep the page populated while the vault list is
           // still empty — the section shows the empty state until the deposit
-          // confirms and activates.
+          // confirms and activates. Section placement sits on the sibling-card
+          // surface, not the standalone empty-state card.
           emptyState={renderEmptyState(true)}
         />
       </VaultsLifecycleSections>

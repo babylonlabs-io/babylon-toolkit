@@ -10,6 +10,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
 const useDashboardStateMock = vi.fn();
@@ -51,13 +53,20 @@ vi.mock("@/applications/aave/components/AssetSelectionModal", () => ({
 }));
 
 vi.mock("@/components/shared", () => ({
-  EmptyState: ({ isConnected }: { isConnected?: boolean }) => (
+  EmptyState: ({
+    isConnected,
+    title,
+  }: {
+    isConnected?: boolean;
+    title?: string;
+  }) => (
     <div
       data-testid="loans-empty-state"
       data-connected={String(Boolean(isConnected))}
-    />
+    >
+      {title}
+    </div>
   ),
-  EmptyStateIcon: () => null,
 }));
 
 vi.mock("../../simple/LoansSummary", () => ({
@@ -122,6 +131,9 @@ describe("Loans page — loading gate", () => {
       "data-connected",
       "false",
     );
+    // Disconnected prompts for a wallet — it must not claim the depositor has
+    // no loans when we haven't looked at an address yet.
+    expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
     expect(container.querySelector("svg")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });
