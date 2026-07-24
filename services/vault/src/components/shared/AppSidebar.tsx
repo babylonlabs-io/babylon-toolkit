@@ -13,6 +13,7 @@ import {
 import type { ComponentType } from "react";
 import { NavLink } from "react-router";
 
+import featureFlags from "@/config/featureFlags";
 import { V3_NAV_GROUPS, type V3NavItemId } from "@/config/v3Navigation";
 
 import { SidebarFooter } from "./SidebarFooter";
@@ -53,10 +54,25 @@ const V3_NAV_ICONS: Record<
   explore: ExploreIcon,
 };
 
+// Both sections of the second nav group belong to the liquidation-analysis
+// feature and have no page yet (/liquidations is an empty placeholder,
+// /explore has no route at all), so they hide with the same flag that gates
+// the analysis chart rather than advertising dead ends.
+const LIQUIDATION_ANALYSIS_NAV_IDS = new Set<V3NavItemId>([
+  "liquidations",
+  "explore",
+]);
+
 function V3NavLinks() {
+  const groups = featureFlags.isLiquidationAnalysisChartEnabled
+    ? V3_NAV_GROUPS
+    : V3_NAV_GROUPS.map((group) =>
+        group.filter((item) => !LIQUIDATION_ANALYSIS_NAV_IDS.has(item.id)),
+      ).filter((group) => group.length > 0);
+
   return (
     <>
-      {V3_NAV_GROUPS.map((group, i) => (
+      {groups.map((group, i) => (
         <div key={i} className="flex w-full flex-col">
           {group.map(({ id, path, label }) => {
             const Icon = V3_NAV_ICONS[id];
