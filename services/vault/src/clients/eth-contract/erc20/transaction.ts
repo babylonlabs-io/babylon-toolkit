@@ -4,12 +4,23 @@
 
 import { type Address, type Chain, type WalletClient } from "viem";
 
+import { logger } from "@/infrastructure";
+
+import {
+  classifyError,
+  ErrorCode,
+  isSimulationPhaseError,
+} from "../../../utils/errors";
 import { executeWrite, type TransactionResult } from "../transactionFactory";
 
 import { getERC20Allowance } from "./query";
 
 /**
- * Standard ERC20 ABI for approve function
+ * ERC20 approve ABI with NO declared output: mainnet USDT's approve returns
+ * no data, and a bool-declaring ABI makes viem's pre-flight simulation throw
+ * AbiDecodingZeroDataError before the zero-first fallback could ever run.
+ * Empty outputs skip result decoding for void- and bool-returning tokens
+ * alike (the bool was never checked; reverts still throw regardless).
  */
 const ERC20_APPROVE_ABI = [
   {
@@ -19,7 +30,7 @@ const ERC20_APPROVE_ABI = [
       { name: "spender", type: "address" },
       { name: "amount", type: "uint256" },
     ],
-    outputs: [{ name: "", type: "bool" }],
+    outputs: [],
     stateMutability: "nonpayable",
   },
 ] as const;
@@ -27,9 +38,14 @@ const ERC20_APPROVE_ABI = [
 /**
  * Approve ERC20 token spending.
  *
- * USDT-like tokens revert if approve is called with a non-zero amount when the
- * current allowance is also non-zero. This function resets the allowance to zero
- * first when necessary, making it safe for all ERC-20 tokens.
+ * Attempts the target approval directly, falling back to reset-to-zero +
+ * approve only when the failure is consistent with the USDT zero-first quirk
+ * (a non-zero approve over a non-zero allowance reverts): the revert must be
+ * raised at pre-flight simulation (nothing signed, no gas burned) and the
+ * current allowance must be non-zero. Standard tokens get a single prompt and
+ * never see the reset (which wallets label "revoke approval"); every other
+ * failure — user rejection, network error, mined revert, zero-allowance
+ * revert — surfaces unchanged.
  */
 export async function approveERC20(
   walletClient: WalletClient,
@@ -38,38 +54,60 @@ export async function approveERC20(
   spenderAddress: Address,
   amount: bigint,
 ): Promise<TransactionResult> {
-  const ownerAddress = walletClient.account?.address;
-  if (!ownerAddress) {
-    throw new Error("Wallet account not available for ERC20 approval");
-  }
-
-  const currentAllowance = await getERC20Allowance(
-    tokenAddress,
-    ownerAddress,
-    spenderAddress,
-  );
-
-  // USDT-like tokens revert if approve is called with a non-zero amount
-  // when the current allowance is also non-zero. Reset to zero first.
-  if (currentAllowance !== 0n && amount !== 0n) {
-    await executeWrite({
-      walletClient,
-      chain,
-      address: tokenAddress,
-      abi: ERC20_APPROVE_ABI,
-      functionName: "approve",
-      args: [spenderAddress, 0n],
-      errorContext: "reset ERC20 approval to zero",
-    });
-  }
-
-  return executeWrite({
+  const approveArgs = {
     walletClient,
     chain,
     address: tokenAddress,
     abi: ERC20_APPROVE_ABI,
-    functionName: "approve",
-    args: [spenderAddress, amount],
+    functionName: "approve" as const,
     errorContext: "approve ERC20",
+  };
+
+  try {
+    return await executeWrite({
+      ...approveArgs,
+      args: [spenderAddress, amount],
+    });
+  } catch (error) {
+    // A user rejection is final — never follow it with more prompts.
+    if (classifyError(error) === "user-rejection") {
+      throw error;
+    }
+    // Only a pre-broadcast simulation revert can indicate the zero-first
+    // quirk; a mined revert already cost gas and must surface as-is, and
+    // non-revert failures (network, timeout) are not token quirks.
+    if (
+      !isSimulationPhaseError(error) ||
+      error.code !== ErrorCode.CONTRACT_REVERT
+    ) {
+      throw error;
+    }
+    // The quirk only exists for non-zero → non-zero approvals: with a zero
+    // allowance the revert has some other cause — surface the original error
+    // instead of firing a pointless reset prompt. Failure-path-only read; if
+    // the read itself fails the condition is unproven, so the original revert
+    // (not the read error) surfaces.
+    const ownerAddress = walletClient.account?.address;
+    if (!ownerAddress) throw error;
+    const currentAllowance = await getERC20Allowance(
+      tokenAddress,
+      ownerAddress,
+      spenderAddress,
+    ).catch(() => null);
+    if (currentAllowance === null || currentAllowance === 0n) throw error;
+    logger.warn("Direct ERC20 approve reverted; using zero-first fallback", {
+      data: { tokenAddress },
+    });
+  }
+
+  await executeWrite({
+    ...approveArgs,
+    args: [spenderAddress, 0n],
+    errorContext: "reset ERC20 approval to zero",
+  });
+
+  return executeWrite({
+    ...approveArgs,
+    args: [spenderAddress, amount],
   });
 }

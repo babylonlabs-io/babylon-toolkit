@@ -15,10 +15,20 @@ import type {
 } from "viem";
 import { maxUint256 } from "viem";
 
+import { COPY } from "@/copy";
+
 import { ERC20 } from "../../../clients/eth-contract";
-import { AaveAdapterTx, AaveSpoke } from "../clients";
+import { AaveAdapterTx, AaveProxy } from "../clients";
 import { getAaveAdapterAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
+
+import {
+  approveAndVerify,
+  ensureAllowance,
+  formatTokenAmount,
+  type TokenDisplay,
+} from "./ensureAllowance";
+import { repayWithStaleSimulationRetry } from "./repayStaleSimulationRetry";
 
 /**
  * Borrow from a Core Spoke position
@@ -96,49 +106,6 @@ export async function repay(
 }
 
 /**
- * Approve if needed, then verify the approval landed on-chain.
- *
- * We've seen the subsequent repay tx revert with `ERC20InsufficientAllowance`
- * after the approve receipt returned cleanly — the public RPC can briefly
- * serve pre-block state, so the next tx executes against a stale allowance.
- * Re-reading turns a revert-after-signing into a pre-broadcast error.
- */
-async function ensureAllowance(
-  walletClient: WalletClient,
-  chain: Chain,
-  tokenAddress: Address,
-  ownerAddress: Address,
-  spenderAddress: Address,
-  requiredAmount: bigint,
-): Promise<void> {
-  const currentAllowance = await ERC20.getERC20Allowance(
-    tokenAddress,
-    ownerAddress,
-    spenderAddress,
-  );
-  if (currentAllowance >= requiredAmount) return;
-
-  await ERC20.approveERC20(
-    walletClient,
-    chain,
-    tokenAddress,
-    spenderAddress,
-    requiredAmount,
-  );
-
-  const verifiedAllowance = await ERC20.getERC20Allowance(
-    tokenAddress,
-    ownerAddress,
-    spenderAddress,
-  );
-  if (verifiedAllowance < requiredAmount) {
-    throw new Error(
-      `Approval did not take effect on-chain (expected at least ${requiredAmount}, got ${verifiedAllowance}). This is usually a transient RPC lag — please refresh the page and try again.`,
-    );
-  }
-}
-
-/**
  * Repay a partial amount of debt
  *
  * Handles approval if needed, then executes repay.
@@ -157,6 +124,7 @@ export async function repayPartial(
   debtReserveId: bigint,
   tokenAddress: Address,
   amount: bigint,
+  token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
@@ -172,123 +140,127 @@ export async function repayPartial(
     );
   }
 
-  await ensureAllowance(
+  const { approveSent } = await ensureAllowance(
     walletClient,
     chain,
     tokenAddress,
     userAddress,
     adapterAddress,
     amount,
+    token,
   );
 
-  return repay(walletClient, chain, userAddress, debtReserveId, amount);
+  return repayWithStaleSimulationRetry({
+    execute: () =>
+      repay(walletClient, chain, userAddress, debtReserveId, amount),
+    approveSent,
+    forceApprove: () =>
+      approveAndVerify(
+        walletClient,
+        chain,
+        tokenAddress,
+        userAddress,
+        adapterAddress,
+        amount,
+        token,
+      ),
+  });
 }
 
 /**
- * Clear the full debt for the `debt ≤ balance < debt × (1 + buffer)` case
- * (`pickRepayParams` only routes here when `balance ≥ debt`). Sends `maxUint256`
- * (Aave's repay-all sentinel) so the adapter clears the current debt incl.
- * interest accrued before broadcast, but caps the approval at `balanceAmount` —
- * if accrual pushes debt past the balance the tx reverts cleanly, not silent dust.
+ * Clear the FULL debt for a reserve via the adapter's repay-all sentinel.
  *
- * @param balanceAmount - User's full balance; approved as the cap (amount sent is `maxUint256`)
+ * Quotes the position's fee-inclusive total debt from its proxy (the Spoke
+ * quote excludes the adapter's interest fee), approves
+ * `min(quote + buffer, balanceRaw)`, and sends `maxUint256`: the adapter
+ * re-resolves the fee-inclusive debt inside the repay tx and pulls exactly
+ * that, hitting the contract's exact full-repay branch — every debt share is
+ * burned, so no rounding dust can survive. The proxy quote is a hard
+ * dependency: a failed read blocks with a retryable error rather than
+ * degrading to a fee-blind amount.
+ *
+ * Approval semantics (all consciously accepted):
+ * - Success leaves `cap − pulled` allowance standing (≈ the buffer for funded
+ *   users); a failure after approval leaves the whole cap. The spender is the
+ *   env-pinned adapter, and the adapter derives the position from `borrower`
+ *   on-chain, so an allowance can only ever clear the user's own debt.
+ * - A standing allowance from a prior session short-circuits the approve, so
+ *   the pull is bounded by that OLD allowance with no popup this session (and
+ *   an unlimited standing allowance survives undecremented per ERC-20).
+ * - forceApprove re-asserts the same cap (no re-quote): it only fires on the
+ *   stale-HIGH-allowance-read path, where re-assertion is the fix.
+ *
+ * @param balanceRaw - User's exact raw token balance (caps the approval)
  */
-export async function repayMaxCapped(
-  walletClient: WalletClient,
-  chain: Chain,
-  debtReserveId: bigint,
-  tokenAddress: Address,
-  balanceAmount: bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const userAddress = walletClient.account?.address;
-  if (!userAddress) {
-    throw new Error("Wallet address not available");
-  }
-
-  if (balanceAmount <= 0n) {
-    throw new Error("Repay amount must be greater than 0");
-  }
-
-  const adapterAddress = getAaveAdapterAddress();
-
-  await ensureAllowance(
-    walletClient,
-    chain,
-    tokenAddress,
-    userAddress,
-    adapterAddress,
-    balanceAmount,
-  );
-
-  return repay(walletClient, chain, userAddress, debtReserveId, maxUint256);
-}
-
-/**
- * Repay all debt for a reserve
- *
- * Fetches exact debt from contract, handles approval, then repays.
- * Uses pinned adapter and spoke addresses from trusted environment config.
- *
- * Approval/refund: the adapter pulls the full `currentDebt × (1 + buffer)`,
- * routes the actual debt, and refunds the unused buffer in the same tx.
- * Residual allowance after the tx = 0; no `approve(0)` cleanup needed.
- *
- * @param walletClient - Connected wallet client
- * @param chain - Chain configuration
- * @param debtReserveId - Reserve ID for the debt token
- * @param tokenAddress - Token address for the debt
- * @param proxyContract - User's proxy contract address
- * @returns Transaction result
- */
-export async function repayFull(
+export async function repayAll(
   walletClient: WalletClient,
   chain: Chain,
   debtReserveId: bigint,
   tokenAddress: Address,
   proxyContract: Address,
+  balanceRaw: bigint,
+  token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
 
-  const adapterAddress = getAaveAdapterAddress();
-  const spokeAddress = await AaveAdapterTx.getCoreSpokeAddress(adapterAddress);
-
-  // Fetch current debt from the contract
-  const currentDebt = await AaveSpoke.getUserTotalDebt(
-    spokeAddress,
-    debtReserveId,
+  const quote = await AaveProxy.getPositionReserveTotalDebt(
     proxyContract,
+    debtReserveId,
   );
-
-  if (currentDebt === 0n) {
+  if (quote === 0n) {
     throw new Error("No debt to repay");
+  }
+  // Pre-throw instead of letting the sentinel hit ERC20InsufficientAllowance
+  // on-chain: that revert is the stale-simulation retry's trigger, so an
+  // underfunded repay would burn the retry budget before erroring. The quote
+  // is fee-inclusive, so this can fire while the DISPLAYED debt looks covered
+  // — the copy names the real requirement.
+  if (balanceRaw < quote) {
+    throw new Error(
+      COPY.loans.repay.balanceBelowFullRepay(
+        formatTokenAmount(quote, token),
+        formatTokenAmount(balanceRaw, token),
+      ),
+    );
   }
 
   // Ceiling division guarantees ≥ 1 base unit of buffer even for dust-scale
   // debts where the percentage math would floor to 0.
   const bufferDelta =
-    (currentDebt + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
-  const amountToRepay = currentDebt + bufferDelta;
+    (quote + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
+  const buffered = quote + bufferDelta;
+  const cap = buffered < balanceRaw ? buffered : balanceRaw;
 
-  const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
-  if (userBalance < amountToRepay) {
-    throw new Error(
-      "insufficient balance to fully repay: not enough stablecoin to cover the debt plus interest",
-    );
-  }
+  const adapterAddress = getAaveAdapterAddress();
 
-  await ensureAllowance(
+  const { approveSent } = await ensureAllowance(
     walletClient,
     chain,
     tokenAddress,
     userAddress,
     adapterAddress,
-    amountToRepay,
+    cap,
+    token,
   );
 
-  return repay(walletClient, chain, userAddress, debtReserveId, amountToRepay);
+  return repayWithStaleSimulationRetry({
+    execute: () =>
+      repay(walletClient, chain, userAddress, debtReserveId, maxUint256),
+    approveSent,
+    forceApprove: () =>
+      approveAndVerify(
+        walletClient,
+        chain,
+        tokenAddress,
+        userAddress,
+        adapterAddress,
+        cap,
+        token,
+      ),
+  });
 }
 
 /**

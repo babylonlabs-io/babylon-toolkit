@@ -27,8 +27,7 @@ import { SAFE_TOFIXED_PRECISION } from "../constants";
 import {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
-  repayFull,
-  repayMaxCapped,
+  repayAll,
   repayPartial,
 } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
@@ -37,14 +36,13 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
  * Which repay path the user is invoking.
  *
  * - `"partial"` — user typed a specific amount; send it verbatim, no buffer.
- * - `"full"` — user wants to clear the debt and balance covers debt × (1 + buffer);
- *   service refetches debt at broadcast time and adds the buffer.
- * - `"max-capped"` — balance is between `debt` and `debt × (1 + buffer)`;
- *   approve the full balance as the cap and send the repay-all sentinel
+ * - `"max"` — user wants to clear the debt and balance covers it; the service
+ *   quotes the fee-inclusive debt from the position proxy, approves
+ *   `min(quote + buffer, balance)`, and sends the repay-all sentinel
  *   (`maxUint256`). Adapter clears the full debt; reverts cleanly if accrued
- *   interest exceeds the balance.
+ *   interest exceeds the cap.
  */
-export type RepayMode = "partial" | "full" | "max-capped";
+export type RepayMode = "partial" | "max";
 
 export interface UseRepayTransactionProps {
   /** User's proxy contract address (for debt queries) */
@@ -64,12 +62,12 @@ export interface ExecuteRepayOptions {
    */
   preSignValidation?: () => Promise<void>;
   /**
-   * Exact bigint amount (in the token's smallest unit) to use instead of
-   * deriving it from `repayAmount` via `parseUnits`. In `"max-capped"` mode
-   * the float `repayAmount` is just a display value, and the float round-trip
+   * Exact bigint balance (in the token's smallest unit) to use instead of
+   * deriving it from `repayAmount` via `parseUnits`. In `"max"` mode the
+   * float `repayAmount` is just a display value, and the float round-trip
    * can round up by 1 ULP for high-precision raw values — which would produce
-   * an approval larger than the user's actual balance and revert. When
-   * provided in `"max-capped"` mode this bigint is used verbatim. Ignored in
+   * an approval cap larger than the user's actual balance and revert. When
+   * provided in `"max"` mode this bigint is used verbatim. Ignored in
    * other modes.
    */
   repayAmountRaw?: bigint | null;
@@ -79,7 +77,8 @@ export interface UseRepayTransactionResult {
   /**
    * Execute the repay transaction (handles approval if needed)
    * @param repayAmount - Amount to repay in token units (e.g., 100 for 100 USDC).
-   *   In `"max-capped"` mode this is the user's full balance, which becomes the cap.
+   *   In `"max"` mode this is display-only (the debt being cleared); the cap
+   *   comes from `repayAmountRaw`.
    * @param reserve - Reserve config for the debt token
    * @param mode - Which repay path to take. Defaults to `"partial"`.
    * @param options - Optional pre-sign hook and exact bigint amount.
@@ -169,46 +168,39 @@ export function useRepayTransaction({
 
       // Call appropriate service based on repayment type
       // The borrower address is resolved from the connected wallet (self-repay)
-      // Adapter and spoke addresses are pinned from trusted environment config
-      if (mode === "full") {
+      // Adapter and proxy addresses come from pinned config / position data
+      if (mode === "max") {
         if (!proxyContract) {
           throw new Error(
             "Cannot perform full repayment: position data not available",
           );
         }
+        // max requires the caller-supplied exact bigint. The float round-trip
+        // via `parseUnits` can round up by 1 ULP for ≥16-significant-digit raw
+        // values (any 18-decimal token with > ~10 tokens in the wallet),
+        // producing an approval cap strictly greater than the user's balance
+        // and reverting the tx. Refuse to proceed without the raw bigint
+        // instead of silently degrading.
+        if (repayAmountRaw == null || repayAmountRaw <= 0n) {
+          throw new Error(
+            "max mode requires repayAmountRaw (the exact bigint balance). Caller must pass it from a fresh on-chain read.",
+          );
+        }
 
-        await repayFull(
+        await repayAll(
           walletClient,
           chain,
           reserve.reserveId,
           reserve.token.address,
           proxyContract as Address,
-        );
-      } else if (mode === "max-capped") {
-        // max-capped requires the caller-supplied exact bigint. The float
-        // round-trip via `parseUnits` can round up by 1 ULP for ≥16-significant
-        // -digit raw values (any 18-decimal token with > ~10 tokens in the
-        // wallet), producing an approval strictly greater than the user's
-        // balance and reverting the tx. Refuse to proceed without the raw
-        // bigint instead of silently degrading.
-        if (repayAmountRaw == null || repayAmountRaw <= 0n) {
-          throw new Error(
-            "max-capped mode requires repayAmountRaw (the exact bigint balance). Caller must pass it from a fresh on-chain read.",
-          );
-        }
-
-        await repayMaxCapped(
-          walletClient,
-          chain,
-          reserve.reserveId,
-          reserve.token.address,
           repayAmountRaw,
+          reserve.token,
         );
       } else {
         // partial path: convert the user-typed float to bigint. Float rounding
         // is bounded by the input value itself (the user typed it), so a 1-ULP
         // overshoot here can't exceed the user's balance the way it can for
-        // max-capped where the input *is* the balance.
+        // max mode where the input *is* the balance.
         const onChainDecimals = await ERC20.getERC20Decimals(
           reserve.token.address,
         ).catch(() => {
@@ -229,6 +221,7 @@ export function useRepayTransaction({
           reserve.reserveId,
           reserve.token.address,
           amountBigInt,
+          reserve.token,
         );
       }
 

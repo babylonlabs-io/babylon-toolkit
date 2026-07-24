@@ -144,7 +144,12 @@ export function buildBorrowTx(
  * @param contractAddress - AaveIntegrationAdapter contract address
  * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - AAVE reserve ID for the debt asset
- * @param amount - Amount to repay in token units. Can repay partial or full debt. For full repay, use `getUserTotalDebt()` to get exact amount.
+ * @param amount - Amount to repay in token units for a partial repay. For a
+ *   FULL repay, pass `type(uint256).max` (the repay-all sentinel): the adapter
+ *   resolves it to the position's fee-inclusive debt in the same transaction
+ *   and pulls exactly that. Size the prior approval from
+ *   `getPositionReserveTotalDebt()` plus ceiling-divided
+ *   `FULL_REPAY_BUFFER_DIVISOR` headroom.
  * @returns Unsigned transaction parameters for execution with viem wallet
  *
  * @example

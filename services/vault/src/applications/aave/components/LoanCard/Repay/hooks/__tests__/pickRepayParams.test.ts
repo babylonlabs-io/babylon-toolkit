@@ -41,26 +41,29 @@ function positionWithDebt(debtRaw: bigint) {
 }
 
 describe("pickRepayParams", () => {
-  it("returns 'full' when balance covers debt × (1 + buffer)", async () => {
-    // 100 USDC debt, balance 102 USDC — well above the 0.5% buffer threshold.
+  it("returns 'max' with the debt as display amount and the balance bigint when balance covers debt", async () => {
+    // 100 USDC debt, balance 102 USDC. `amount` reports the debt (what gets
+    // cleared — feeds the success toast); `amountRaw` carries the balance
+    // (caps the approval in the service).
+    const balanceRaw = 102_000_000n;
     const result = await pickRepayParams({
       refetchPosition: () => Promise.resolve(positionWithDebt(100_000_000n)),
-      refetchUserBalance: () => Promise.resolve(balanceResultOk(102_000_000n)),
+      refetchUserBalance: () => Promise.resolve(balanceResultOk(balanceRaw)),
       reserveId: RESERVE_ID,
       tokenDecimals: DECIMALS,
     });
 
     expect(result).toEqual({
       kind: "ok",
-      mode: "full",
+      mode: "max",
       amount: 100,
-      amountRaw: null,
+      amountRaw: balanceRaw,
     });
   });
 
-  it("returns 'max-capped' with the exact bigint when balance is between debt and debt × (1+buffer)", async () => {
-    // 100 USDC debt, balance 100.1 USDC — covers debt but not the 0.5% buffer.
-    // The 0.1 USDC sits inside the buffer band.
+  it("returns 'max' when balance barely covers debt (inside the old buffer band)", async () => {
+    // 100 USDC debt, balance 100.1 USDC — the service caps the approval at
+    // the balance; accrual past it reverts cleanly instead of leaving dust.
     const balanceRaw = 100_100_000n;
     const result = await pickRepayParams({
       refetchPosition: () => Promise.resolve(positionWithDebt(100_000_000n)),
@@ -71,8 +74,8 @@ describe("pickRepayParams", () => {
 
     expect(result).toEqual({
       kind: "ok",
-      mode: "max-capped",
-      amount: 100.1,
+      mode: "max",
+      amount: 100,
       amountRaw: balanceRaw,
     });
   });
@@ -80,7 +83,7 @@ describe("pickRepayParams", () => {
   it("returns 'partial' for an 18-decimal balance one base unit below debt (raw comparison, not rounded)", async () => {
     // debt = 1e18 + 1, balance = 1e18. Both format to "1"/"1.000…001" and
     // collapse to the JS number 1, so a rounded comparison would pick
-    // max-capped — whose sentinel repays the full debt while approving only the
+    // max — whose sentinel repays the full debt while approving only the
     // balance, reverting. The raw bigints differ, so this must be partial.
     const result = await pickRepayParams({
       refetchPosition: () =>
@@ -98,8 +101,8 @@ describe("pickRepayParams", () => {
     }
   });
 
-  it("returns 'max-capped' when an 18-decimal balance exactly equals debt", async () => {
-    // Raw balance == raw debt: max-capped is correct (approval covers the debt
+  it("returns 'max' when an 18-decimal balance exactly equals debt", async () => {
+    // Raw balance == raw debt: max is correct (approval covers the debt
     // exactly, sentinel clears it in full).
     const equalRaw = 1_000_000_000_000_000_000n;
     const result = await pickRepayParams({
@@ -111,7 +114,7 @@ describe("pickRepayParams", () => {
 
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
-      expect(result.mode).toBe("max-capped");
+      expect(result.mode).toBe("max");
       expect(result.amountRaw).toBe(equalRaw);
     }
   });

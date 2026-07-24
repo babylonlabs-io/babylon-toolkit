@@ -2,16 +2,15 @@
  * Tests for Aave position transactions.
  */
 
-import { maxUint256 } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { encodeEventTopics, maxUint256, numberToHex } from "viem";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 // Hoist mock functions so they can be used in vi.mock factories
 const {
   mockApproveERC20,
   mockGetERC20Allowance,
   mockGetERC20Balance,
-  mockGetUserTotalDebt,
-  mockGetCoreSpokeAddress,
+  mockGetPositionReserveTotalDebt,
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
   mockWithdrawCollaterals,
@@ -19,8 +18,7 @@ const {
   mockApproveERC20: vi.fn(),
   mockGetERC20Allowance: vi.fn(),
   mockGetERC20Balance: vi.fn(),
-  mockGetUserTotalDebt: vi.fn(),
-  mockGetCoreSpokeAddress: vi.fn(),
+  mockGetPositionReserveTotalDebt: vi.fn(),
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
   mockWithdrawCollaterals: vi.fn(),
@@ -41,10 +39,9 @@ vi.mock("../../clients", () => ({
     borrowFromCorePosition: mockBorrowFromCorePosition,
     repayToCorePosition: mockRepayToCorePosition,
     withdrawCollaterals: mockWithdrawCollaterals,
-    getCoreSpokeAddress: mockGetCoreSpokeAddress,
   },
-  AaveSpoke: {
-    getUserTotalDebt: mockGetUserTotalDebt,
+  AaveProxy: {
+    getPositionReserveTotalDebt: mockGetPositionReserveTotalDebt,
   },
 }));
 
@@ -53,12 +50,22 @@ vi.mock("../../config", () => ({
   getAaveAdapterAddress: vi.fn(() => "0xadapter"),
 }));
 
-import { FULL_REPAY_BUFFER_DIVISOR } from "../../constants";
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
+}));
+
+import { logger } from "@/infrastructure";
+
+import {
+  ContractError,
+  ErrorCode,
+  tagSimulationPhase,
+} from "../../../../utils/errors";
+import { getAaveAdapterAddress } from "../../config";
 import {
   borrow,
   repay,
-  repayFull,
-  repayMaxCapped,
+  repayAll,
   repayPartial,
   withdrawSelectedCollateral,
 } from "../positionTransactions";
@@ -70,15 +77,21 @@ describe("positionTransactions", () => {
 
   const mockChain = { id: 1 } as any;
 
+  const mockToken = { symbol: "USDC", decimals: 6 };
+
+  // `logs: []` routes ensureAllowance's verification to the fallback
+  // allowance re-read (no Approval event to parse); event-path behavior is
+  // covered by the dedicated approval-verification tests below.
   const mockTxResult = {
     transactionHash: "0xhash",
-    receipt: { status: "success" },
+    receipt: { status: "success", logs: [] },
   };
 
   // Shared mutable allowance state — simulates the on-chain allowance moving
-  // from its starting value to the just-approved amount. `ensureAllowance`
-  // verifies the post-approve allowance, so the mock must reflect that
-  // transition or every test would throw "Approval did not take effect".
+  // from its starting value to the just-approved amount. The fallback
+  // verification re-reads it (the shared mock receipt has no Approval event),
+  // so the mock must reflect that transition or every test would throw the
+  // approval-not-confirmed error.
   let simulatedAllowance: bigint;
 
   /**
@@ -109,7 +122,9 @@ describe("positionTransactions", () => {
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
-    mockGetCoreSpokeAddress.mockResolvedValue("0xspoke");
+    // vi.clearAllMocks does not clear mockReturnValue overrides; pin the
+    // default so per-describe overrides can't leak into later suites.
+    (getAaveAdapterAddress as Mock).mockReturnValue("0xadapter");
   });
 
   // ============================================================================
@@ -207,6 +222,7 @@ describe("positionTransactions", () => {
         1n,
         "0xtoken" as any,
         amount,
+        mockToken,
       );
 
       // Should check allowance against the pinned adapter address
@@ -239,6 +255,7 @@ describe("positionTransactions", () => {
         1n,
         "0xtoken" as any,
         amount,
+        mockToken,
       );
 
       expect(mockApproveERC20).not.toHaveBeenCalled();
@@ -249,40 +266,42 @@ describe("positionTransactions", () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        repayPartial(noAccountWallet, mockChain, 1n, "0xtoken" as any, 1000n),
+        repayPartial(
+          noAccountWallet,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1000n,
+          mockToken,
+        ),
       ).rejects.toThrow("Wallet address not available");
     });
   });
 
   // ============================================================================
-  // repayMaxCapped
+  // repayAll
   // ============================================================================
-  describe("repayMaxCapped", () => {
-    // Global default already starts simulatedAllowance at 0; no per-block
-    // setup needed.
+  describe("repayAll", () => {
+    const PROXY = "0xproxy" as any;
 
-    it("should approve the full balance as the cap and send the repay-all sentinel", async () => {
-      const balanceAmount = 200_000_000n;
+    beforeEach(() => {
+      mockGetPositionReserveTotalDebt.mockResolvedValue(1000000n);
+    });
 
-      await repayMaxCapped(
+    it("quotes the fee-inclusive debt from the position proxy and sends the repay-all sentinel", async () => {
+      const balance = 2000000n;
+
+      await repayAll(
         mockWalletClient,
         mockChain,
         1n,
         "0xtoken" as any,
-        balanceAmount,
+        PROXY,
+        balance,
+        mockToken,
       );
 
-      // Approve exactly the cap (the user's balance), not cap × (1+buffer).
-      expect(mockApproveERC20).toHaveBeenCalledWith(
-        mockWalletClient,
-        mockChain,
-        "0xtoken",
-        "0xadapter",
-        balanceAmount,
-      );
-
-      // Send maxUint256 so the adapter clears the full current debt (including
-      // interest accrued during broadcast), capped by the approved balance.
+      expect(mockGetPositionReserveTotalDebt).toHaveBeenCalledWith(PROXY, 1n);
       expect(mockRepayToCorePosition).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
@@ -293,272 +312,175 @@ describe("positionTransactions", () => {
       );
     });
 
-    it("should skip approval when allowance is sufficient", async () => {
-      const balanceAmount = 200_000_000n;
-      setSimulatedAllowance(balanceAmount + 1n);
-
-      await repayMaxCapped(
+    it("caps the approval at quote + buffer when the balance has headroom", async () => {
+      // quote 1000000n → ceil(1000000/200) = 5000n buffer.
+      await repayAll(
         mockWalletClient,
         mockChain,
         1n,
         "0xtoken" as any,
-        balanceAmount,
+        PROXY,
+        2000000n,
+        mockToken,
+      );
+
+      expect(mockApproveERC20).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xtoken",
+        "0xadapter",
+        1005000n,
+      );
+    });
+
+    it("caps the approval at the balance when it is below quote + buffer", async () => {
+      const balance = 1002000n; // quote ≤ balance < quote + buffer
+
+      await repayAll(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        PROXY,
+        balance,
+        mockToken,
+      );
+
+      expect(mockApproveERC20).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xtoken",
+        "0xadapter",
+        balance,
+      );
+    });
+
+    it("never approves the sentinel value itself", async () => {
+      // The wire amount is maxUint256; the APPROVAL must stay finite.
+      await repayAll(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        PROXY,
+        2000000n,
+        mockToken,
+      );
+
+      const approvedAmount = mockApproveERC20.mock.calls[0][4] as bigint;
+      expect(approvedAmount).toBeLessThan(maxUint256);
+      expect(approvedAmount).toBe(1005000n);
+    });
+
+    it("skips approval when the standing allowance already covers the cap", async () => {
+      setSimulatedAllowance(2000000n);
+
+      await repayAll(
+        mockWalletClient,
+        mockChain,
+        1n,
+        "0xtoken" as any,
+        PROXY,
+        2000000n,
+        mockToken,
       );
 
       expect(mockApproveERC20).not.toHaveBeenCalled();
       expect(mockRepayToCorePosition).toHaveBeenCalled();
     });
 
-    it("should not refetch debt — the cap is the user's balance, period", async () => {
-      // If this path fetched debt, an interest-accrual race could push the
-      // approval above the user's balance and break the failure-mode-A fix.
-      await repayMaxCapped(
-        mockWalletClient,
-        mockChain,
-        1n,
-        "0xtoken" as any,
-        1_000_000n,
-      );
-
-      expect(mockGetUserTotalDebt).not.toHaveBeenCalled();
-    });
-
-    it("should throw error when balanceAmount is 0", async () => {
-      await expect(
-        repayMaxCapped(mockWalletClient, mockChain, 1n, "0xtoken" as any, 0n),
-      ).rejects.toThrow("Repay amount must be greater than 0");
-    });
-
-    it("should throw error when wallet has no account", async () => {
-      const noAccountWallet = { account: undefined } as any;
+    it("throws before any popup when there is no debt to repay", async () => {
+      mockGetPositionReserveTotalDebt.mockResolvedValue(0n);
 
       await expect(
-        repayMaxCapped(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          1_000n,
-        ),
-      ).rejects.toThrow("Wallet address not available");
-    });
-  });
-
-  // ============================================================================
-  // repayFull - Token Approval Security
-  // ============================================================================
-  describe("repayFull", () => {
-    const defaultDebt = 1000000n;
-    const amountToRepay = defaultDebt + defaultDebt / FULL_REPAY_BUFFER_DIVISOR;
-
-    beforeEach(() => {
-      // Global default already starts simulatedAllowance at 0.
-      mockGetUserTotalDebt.mockResolvedValue(defaultDebt);
-      mockGetERC20Balance.mockResolvedValue(amountToRepay + 1000n);
-    });
-
-    it("should approve exact debt amount plus buffer to the pinned adapter address (not MAX_UINT256)", async () => {
-      const currentDebt = 1000000n;
-      const expectedRepayAmount =
-        currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
-
-      await repayFull(
-        mockWalletClient,
-        mockChain,
-        1n,
-        "0xtoken" as any,
-        "0xproxy" as any,
-      );
-
-      // Verify approval is for exact amount, not MAX_UINT256, to the pinned adapter address
-      expect(mockApproveERC20).toHaveBeenCalledWith(
-        mockWalletClient,
-        mockChain,
-        "0xtoken",
-        "0xadapter",
-        expectedRepayAmount,
-      );
-    });
-
-    it("should fetch current debt from the pinned spoke address", async () => {
-      await repayFull(
-        mockWalletClient,
-        mockChain,
-        1n,
-        "0xtoken" as any,
-        "0xproxy" as any,
-      );
-
-      expect(mockGetUserTotalDebt).toHaveBeenCalledWith(
-        "0xspoke",
-        1n,
-        "0xproxy",
-      );
-    });
-
-    it("should skip approval if allowance is sufficient", async () => {
-      const currentDebt = 1000000n;
-      const amountToRepay =
-        currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
-      setSimulatedAllowance(amountToRepay + 1000n);
-
-      await repayFull(
-        mockWalletClient,
-        mockChain,
-        1n,
-        "0xtoken" as any,
-        "0xproxy" as any,
-      );
-
-      expect(mockApproveERC20).not.toHaveBeenCalled();
-    });
-
-    it("should throw error when there is no debt to repay", async () => {
-      mockGetUserTotalDebt.mockResolvedValue(0n);
-
-      await expect(
-        repayFull(
+        repayAll(
           mockWalletClient,
           mockChain,
           1n,
           "0xtoken" as any,
-          "0xproxy" as any,
+          PROXY,
+          2000000n,
+          mockToken,
         ),
       ).rejects.toThrow("No debt to repay");
-    });
 
-    it("should throw error when user balance is insufficient to cover debt plus buffer", async () => {
-      mockGetERC20Balance.mockResolvedValue(amountToRepay - 1n);
-
-      await expect(
-        repayFull(
-          mockWalletClient,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          "0xproxy" as any,
-        ),
-      ).rejects.toThrow(
-        "insufficient balance to fully repay: not enough stablecoin to cover the debt plus interest",
-      );
-    });
-
-    it("throws when post-approve allowance verification fails (RPC lag defense)", async () => {
-      // Override the global simulation: approveERC20 succeeds but the
-      // on-chain allowance state doesn't update — this is what a stale RPC
-      // response (the bug we're defending against) looks like to the caller.
-      // ensureAllowance should catch it pre-broadcast and surface a clear
-      // error instead of letting the user sign a doomed repay tx.
-      mockApproveERC20.mockReset();
-      mockApproveERC20.mockResolvedValue(mockTxResult);
-
-      await expect(
-        repayFull(
-          mockWalletClient,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          "0xproxy" as any,
-        ),
-      ).rejects.toThrow(/Approval did not take effect/);
-
-      // Crucially, the repay was never broadcast — the user would have signed
-      // a doomed tx if we'd skipped the verification.
+      expect(mockApproveERC20).not.toHaveBeenCalled();
       expect(mockRepayToCorePosition).not.toHaveBeenCalled();
     });
 
-    it("should throw error when wallet has no account", async () => {
+    it("throws before any popup when the balance cannot cover the fee-inclusive quote", async () => {
+      // Letting this through would trip ERC20InsufficientAllowance on-chain —
+      // the stale-simulation retry's trigger — and burn the retry budget.
+      await expect(
+        repayAll(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          PROXY,
+          999999n,
+          mockToken,
+        ),
+      ).rejects.toThrow(/repaying in full needs/i);
+
+      expect(mockApproveERC20).not.toHaveBeenCalled();
+      expect(mockRepayToCorePosition).not.toHaveBeenCalled();
+    });
+
+    it("throws error when wallet has no account", async () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        repayFull(
+        repayAll(
           noAccountWallet,
           mockChain,
           1n,
           "0xtoken" as any,
-          "0xproxy" as any,
+          PROXY,
+          2000000n,
+          mockToken,
         ),
       ).rejects.toThrow("Wallet address not available");
     });
 
-    // The buffer uses ceiling division so dust-scale debts (currentDebt <
-    // FULL_REPAY_BUFFER_DIVISOR, where percentage math floors to zero) still
-    // get at least 1 base unit of buffer. Without this, micro-cent residuals
-    // can persist forever because each repay sends the exact debt and the
-    // next block re-introduces a unit of interest.
-    describe("ceiling-division buffer for dust-scale debts", () => {
-      const runWithDebt = async (debt: bigint) => {
-        mockGetUserTotalDebt.mockResolvedValue(debt);
-        mockGetERC20Balance.mockResolvedValue(1_000_000_000n); // plenty of headroom
-        await repayFull(
+    describe("ceiling-division buffer for dust-scale quotes", () => {
+      const capFor = async (quote: bigint) => {
+        mockGetPositionReserveTotalDebt.mockResolvedValue(quote);
+        mockApproveERC20.mockClear();
+        await repayAll(
           mockWalletClient,
           mockChain,
           1n,
           "0xtoken" as any,
-          "0xproxy" as any,
+          PROXY,
+          10_000_000n,
+          mockToken,
         );
+        return mockApproveERC20.mock.calls[0][4] as bigint;
       };
 
-      it("currentDebt = 1n → approves 2n (1 base unit of buffer, not 0)", async () => {
-        await runWithDebt(1n);
-        expect(mockApproveERC20).toHaveBeenCalledWith(
-          mockWalletClient,
-          mockChain,
-          "0xtoken",
-          "0xadapter",
-          2n,
-        );
+      it("quote = 1n → approves 2n (1 base unit of buffer, not 0)", async () => {
+        expect(await capFor(1n)).toBe(2n);
       });
 
-      it("currentDebt = 3n (the reported 3 µUSDC case) → approves 4n", async () => {
-        await runWithDebt(3n);
-        expect(mockApproveERC20).toHaveBeenCalledWith(
-          mockWalletClient,
-          mockChain,
-          "0xtoken",
-          "0xadapter",
-          4n,
-        );
+      it("quote = 3n (the reported dust case) → approves 4n", async () => {
+        expect(await capFor(3n)).toBe(4n);
       });
 
-      it("currentDebt = 199n (just below divisor) → approves 200n", async () => {
-        await runWithDebt(199n);
-        expect(mockApproveERC20).toHaveBeenCalledWith(
-          mockWalletClient,
-          mockChain,
-          "0xtoken",
-          "0xadapter",
-          200n,
-        );
+      it("quote = 199n (just below divisor) → approves 200n", async () => {
+        expect(await capFor(199n)).toBe(200n);
       });
 
-      it("currentDebt = 200n (exact divisor) → approves 201n", async () => {
-        await runWithDebt(200n);
-        expect(mockApproveERC20).toHaveBeenCalledWith(
-          mockWalletClient,
-          mockChain,
-          "0xtoken",
-          "0xadapter",
-          201n,
-        );
+      it("quote = 200n (exact divisor) → approves 201n", async () => {
+        expect(await capFor(200n)).toBe(201n);
       });
 
-      it("currentDebt = 201n (just above divisor) → approves 203n (ceiling rounds up)", async () => {
-        await runWithDebt(201n);
-        expect(mockApproveERC20).toHaveBeenCalledWith(
-          mockWalletClient,
-          mockChain,
-          "0xtoken",
-          "0xadapter",
-          203n,
-        );
+      it("quote = 201n (just above divisor) → approves 203n, not floor's 202n", async () => {
+        expect(await capFor(201n)).toBe(203n);
       });
     });
   });
 
-  // ============================================================================
-  // withdrawSelectedCollateral
-  // ============================================================================
   describe("withdrawSelectedCollateral", () => {
     it("should withdraw selected vaults", async () => {
       const vaultIds = ["0xvault1", "0xvault2"] as any;
@@ -576,6 +498,428 @@ describe("positionTransactions", () => {
         vaultIds,
       );
       expect(result.transactionHash).toBe("0xhash");
+    });
+  });
+
+  // ============================================================================
+  // approval verification from the approve receipt's Approval event
+  // ============================================================================
+  describe("receipt-event approval verification", () => {
+    const TOKEN = "0x1000000000000000000000000000000000000001";
+    const OWNER = "0x2000000000000000000000000000000000000002";
+    const ADAPTER = "0x3000000000000000000000000000000000000003";
+
+    const APPROVAL_EVENT_ABI = [
+      {
+        type: "event",
+        name: "Approval",
+        inputs: [
+          { indexed: true, name: "owner", type: "address" },
+          { indexed: true, name: "spender", type: "address" },
+          { indexed: false, name: "value", type: "uint256" },
+        ],
+      },
+    ] as const;
+
+    const approvalLog = (value: bigint) => ({
+      address: TOKEN,
+      topics: encodeEventTopics({
+        abi: APPROVAL_EVENT_ABI,
+        eventName: "Approval",
+        args: { owner: OWNER, spender: ADAPTER },
+      }),
+      data: numberToHex(value, { size: 32 }),
+    });
+
+    const ownerWallet = { account: { address: OWNER } } as any;
+
+    beforeEach(() => {
+      (getAaveAdapterAddress as Mock).mockReturnValue(ADAPTER);
+      mockGetERC20Balance.mockResolvedValue(2000000n);
+    });
+
+    it("verifies from the receipt's Approval event without re-reading allowance", async () => {
+      const amount = 1000000n;
+      mockApproveERC20.mockResolvedValue({
+        transactionHash: "0xhash",
+        receipt: { status: "success", logs: [approvalLog(amount)] },
+      });
+
+      await repayPartial(
+        ownerWallet,
+        mockChain,
+        1n,
+        TOKEN as any,
+        amount,
+        mockToken,
+      );
+
+      // Exactly one allowance read: the pre-approve short-circuit check.
+      // The verification came from the receipt, immune to stale RPC reads.
+      expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
+      expect(mockRepayToCorePosition).toHaveBeenCalled();
+    });
+
+    it("rejects without retries when the approved value is below the requirement", async () => {
+      // e.g. the user edited the wallet's spending cap below the repay amount.
+      const amount = 1000000n;
+      mockApproveERC20.mockResolvedValue({
+        transactionHash: "0xhash",
+        receipt: { status: "success", logs: [approvalLog(amount - 1n)] },
+      });
+
+      await expect(
+        repayPartial(
+          ownerWallet,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+        ),
+      ).rejects.toThrow(/approved a lower amount than required/i);
+
+      expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
+      expect(mockRepayToCorePosition).not.toHaveBeenCalled();
+    });
+
+    it("ignores foreign and mismatched logs and verifies from the LAST matching Approval", async () => {
+      const amount = 1000000n;
+      const FOREIGN_TOKEN = "0x9000000000000000000000000000000000000009";
+      const OTHER_SPENDER = "0x4000000000000000000000000000000000000004";
+      const OTHER_OWNER = "0x5000000000000000000000000000000000000005";
+      // A Safe-style batched receipt. Hostile sufficient-value logs sit both
+      // BEFORE and AFTER the matching pair: dropping any filter predicate
+      // (token, owner, spender) makes a trailing hostile log the last match
+      // and flips this test's outcome — each predicate is load-bearing.
+      const erc721StyleLog = {
+        address: TOKEN,
+        topics: [
+          ...encodeEventTopics({
+            abi: APPROVAL_EVENT_ABI,
+            eventName: "Approval",
+            args: { owner: OWNER, spender: ADAPTER },
+          }),
+          numberToHex(7n, { size: 32 }),
+        ],
+        data: "0x",
+      };
+      mockApproveERC20.mockResolvedValue({
+        transactionHash: "0xhash",
+        receipt: {
+          status: "success",
+          logs: [
+            { ...approvalLog(amount * 10n), address: FOREIGN_TOKEN },
+            erc721StyleLog,
+            {
+              address: TOKEN,
+              topics: encodeEventTopics({
+                abi: APPROVAL_EVENT_ABI,
+                eventName: "Approval",
+                args: { owner: OWNER, spender: OTHER_SPENDER },
+              }),
+              data: numberToHex(amount * 10n, { size: 32 }),
+            },
+            approvalLog(amount),
+            approvalLog(amount - 1n),
+            { ...approvalLog(amount * 10n), address: FOREIGN_TOKEN },
+            {
+              address: TOKEN,
+              topics: encodeEventTopics({
+                abi: APPROVAL_EVENT_ABI,
+                eventName: "Approval",
+                args: { owner: OWNER, spender: OTHER_SPENDER },
+              }),
+              data: numberToHex(amount * 10n, { size: 32 }),
+            },
+            {
+              address: TOKEN,
+              topics: encodeEventTopics({
+                abi: APPROVAL_EVENT_ABI,
+                eventName: "Approval",
+                args: { owner: OTHER_OWNER, spender: ADAPTER },
+              }),
+              data: numberToHex(amount * 10n, { size: 32 }),
+            },
+          ],
+        },
+      });
+
+      await expect(
+        repayPartial(
+          ownerWallet,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+        ),
+      ).rejects.toThrow(/approved a lower amount than required/i);
+
+      // Verified from the last MATCHING log (amount - 1n), not the foreign,
+      // ERC-721-shaped, wrong-spender, or earlier sufficient logs.
+      expect(mockRepayToCorePosition).not.toHaveBeenCalled();
+      expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
+    });
+
+    it("recovers when the fallback allowance re-read succeeds on a later attempt", async () => {
+      vi.useFakeTimers();
+      try {
+        const amount = 1000000n;
+        // No Approval event in the receipt (e.g. wallet-replaced tx) and the
+        // first verification read is still stale; the second sees the value.
+        mockApproveERC20.mockResolvedValue({
+          transactionHash: "0xhash",
+          receipt: { status: "success", logs: [] },
+        });
+        mockGetERC20Allowance.mockReset();
+        mockGetERC20Allowance
+          .mockResolvedValueOnce(0n) // pre-approve short-circuit check
+          .mockResolvedValueOnce(0n) // verification attempt 1 (stale)
+          .mockResolvedValue(amount); // verification attempt 2
+
+        const result = repayPartial(
+          ownerWallet,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+        );
+        const assertion = expect(result).resolves.toMatchObject({
+          transactionHash: "0xhash",
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockGetERC20Allowance).toHaveBeenCalledTimes(3);
+        expect(mockRepayToCorePosition).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("throws when the fallback allowance verification exhausts its retries", async () => {
+      // approveERC20 succeeds but its receipt carries no Approval event and
+      // every allowance read keeps returning the stale pre-approve value —
+      // bounded retries, then a clear error, and the repay never broadcasts.
+      vi.useFakeTimers();
+      try {
+        mockGetPositionReserveTotalDebt.mockResolvedValue(1000000n);
+        mockApproveERC20.mockReset();
+        mockApproveERC20.mockResolvedValue({
+          transactionHash: "0xhash",
+          receipt: { status: "success", logs: [] },
+        });
+
+        const result = repayAll(
+          ownerWallet,
+          mockChain,
+          1n,
+          TOKEN as any,
+          "0xproxy" as any,
+          2000000n,
+          mockToken,
+        );
+        const assertion = expect(result).rejects.toThrow(
+          /approval could not be confirmed/i,
+        );
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        // Bounded budget: 1 short-circuit read + exactly 3 verification reads.
+        expect(mockGetERC20Allowance).toHaveBeenCalledTimes(4);
+        expect(mockRepayToCorePosition).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  // ============================================================================
+  // stale-simulation repay retry
+  // ============================================================================
+  describe("stale-simulation repay retry", () => {
+    const staleSimulationError = () =>
+      tagSimulationPhase(
+        new ContractError(
+          "execution reverted",
+          ErrorCode.CONTRACT_REVERT,
+          undefined,
+          "ERC20InsufficientAllowance",
+        ),
+      );
+
+    beforeEach(() => {
+      mockGetERC20Balance.mockResolvedValue(2000000n);
+    });
+
+    it("retries once after a stale simulation revert when the approve was short-circuited", async () => {
+      vi.useFakeTimers();
+      try {
+        setSimulatedAllowance(2000000n);
+        mockRepayToCorePosition
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockResolvedValue(mockTxResult);
+
+        const result = repayPartial(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1000000n,
+          mockToken,
+        );
+        const assertion = expect(result).resolves.toMatchObject({
+          transactionHash: "0xhash",
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(2);
+        expect(mockApproveERC20).not.toHaveBeenCalled();
+        // Each absorbed retry is observable — the rescue must not be silent.
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("forces an approve after a second stale failure on the short-circuit path", async () => {
+      vi.useFakeTimers();
+      try {
+        // The stale-HIGH read scenario: the short-circuit saw enough
+        // allowance, but the chain disagrees on every simulation.
+        setSimulatedAllowance(2000000n);
+        mockRepayToCorePosition
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockResolvedValue(mockTxResult);
+
+        const result = repayPartial(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1000000n,
+          mockToken,
+        );
+        const assertion = expect(result).resolves.toMatchObject({
+          transactionHash: "0xhash",
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(3);
+        expect(mockApproveERC20).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not retry a mined allowance revert", async () => {
+      setSimulatedAllowance(2000000n);
+      // Same decoded reason but NOT simulation-tagged: the tx was broadcast
+      // and reverted on-chain. Auto-retrying would re-prompt the wallet.
+      mockRepayToCorePosition.mockRejectedValue(
+        new ContractError(
+          "execution reverted",
+          ErrorCode.CONTRACT_REVERT,
+          undefined,
+          "ERC20InsufficientAllowance",
+        ),
+      );
+
+      await expect(
+        repayPartial(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1000000n,
+          mockToken,
+        ),
+      ).rejects.toThrow("execution reverted");
+
+      expect(mockRepayToCorePosition).toHaveBeenCalledTimes(1);
+    });
+
+    it("gives up after three attempts when the approve was already sent", async () => {
+      vi.useFakeTimers();
+      try {
+        // Allowance starts short, so ensureAllowance sends the approve; a
+        // forced re-approve could not change anything, so the third attempt
+        // is a plain re-simulation and then the error propagates.
+        mockRepayToCorePosition.mockRejectedValue(staleSimulationError());
+
+        const result = repayPartial(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1000000n,
+          mockToken,
+        );
+        const assertion = expect(result).rejects.toThrow("execution reverted");
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(3);
+        expect(mockApproveERC20).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("forces the cap amount for repayAll on the short-circuit path", async () => {
+      vi.useFakeTimers();
+      try {
+        const quote = 1000000n;
+        const balance = 1002000n; // below quote + buffer → cap = balance
+        mockGetPositionReserveTotalDebt.mockResolvedValue(quote);
+        setSimulatedAllowance(balance);
+        mockRepayToCorePosition
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockRejectedValueOnce(staleSimulationError())
+          .mockResolvedValue(mockTxResult);
+
+        const result = repayAll(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          "0xproxy" as any,
+          balance,
+          mockToken,
+        );
+        const assertion = expect(result).resolves.toMatchObject({
+          transactionHash: "0xhash",
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        // The forced approve re-approves the cap, not maxUint256.
+        expect(mockApproveERC20).toHaveBeenCalledTimes(1);
+        expect(mockApproveERC20).toHaveBeenCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xtoken",
+          "0xadapter",
+          balance,
+        );
+        expect(mockRepayToCorePosition).toHaveBeenCalledTimes(3);
+        // Every attempt sends the repay-all sentinel.
+        expect(mockRepayToCorePosition).toHaveBeenLastCalledWith(
+          mockWalletClient,
+          mockChain,
+          "0xadapter",
+          "0xuser",
+          1n,
+          maxUint256,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

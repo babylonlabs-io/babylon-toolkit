@@ -223,12 +223,13 @@ Manager configuration including wallets and contract addresses
 preparePegin(params): Promise<PreparePeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:635](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L635)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:636](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L636)
 
 Prepare a peg-in: sizing pass → vault-root derivation (one wallet
 popup) → per-vault WOTS / hashlock derivation → commit pass with
-batch PSBT signing (one popup). Returns broadcast-ready txs, the
-pubkey snapshot, and the sensitive derived material.
+PSBT signing (signPsbt for a single vault, one batch popup for a
+split). Returns broadcast-ready txs, the pubkey snapshot, and the
+sensitive derived material.
 
 ###### Parameters
 
@@ -251,7 +252,7 @@ If the wallet rejects, insufficient funds, or an internal
 signAndBroadcast(params): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:998](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L998)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:999](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L999)
 
 Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
 
@@ -287,7 +288,7 @@ Error if signing or broadcasting fails
 registerPeginOnChain(params): Promise<RegisterPeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1149](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1150](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1150)
 
 Registers a peg-in on Ethereum by calling the BTCVaultRegistry contract.
 
@@ -338,7 +339,7 @@ Error if contract simulation fails (e.g., invalid signature,
 registerPeginBatchOnChain(params): Promise<RegisterPeginBatchResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1335](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1335)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1336](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1336)
 
 Register multiple pegins on Ethereum in a single transaction.
 
@@ -366,7 +367,7 @@ Batch result with per-vault IDs and single ETH tx hash
 signProofOfPossession(): Promise<PopSignature>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1647](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1647)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1648](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1648)
 
 Sign a BIP-322 BTC Proof-of-Possession binding the connected BTC
 wallet to the connected ETH account for this chain and vault
@@ -383,7 +384,7 @@ every register call in the same session.
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1703](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1703)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1704](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1704)
 
 Gets the configured Bitcoin network.
 
@@ -399,7 +400,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1712](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1712)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1713](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1713)
 
 Gets the configured BTCVaultRegistry contract address.
 
@@ -1952,7 +1953,7 @@ Per-vault results (same order as input requests)
 
 ### EstimateSubmitPeginRequestBatchGasParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1782](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1782)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1783](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1783)
 
 #### Properties
 
@@ -1962,7 +1963,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1782]
 publicClient: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1783](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1783)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1784](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1784)
 
 ##### btcVaultRegistry
 
@@ -1970,7 +1971,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1783]
 btcVaultRegistry: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1784](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1784)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1785](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1785)
 
 ##### depositorEthAddress
 
@@ -1978,7 +1979,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1784]
 depositorEthAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1785](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1785)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1786](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1786)
 
 ##### vaultProvider
 
@@ -1986,7 +1987,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1785]
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1786](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1786)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1787](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1787)
 
 ##### batchSize
 
@@ -1994,7 +1995,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1786]
 batchSize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1787](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1787)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1788](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1788)
 
 ## Type Aliases
 
@@ -2017,7 +2018,7 @@ Using string literal union for maximum compatibility with wallet providers.
 function estimateSubmitPeginRequestBatchGas(params): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1807](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1807)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1808](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1808)
 
 Estimate gas for a `submitPeginRequestBatch` call before the depositor has
 signed anything. Synthesizes calldata using representative dummy bytes for

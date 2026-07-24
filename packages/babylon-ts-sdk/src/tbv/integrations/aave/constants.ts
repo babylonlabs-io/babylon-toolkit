@@ -91,24 +91,14 @@ export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
 export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.05;
 
 /**
- * Buffer for full repayment to account for interest accrual
- * between fetching debt and transaction execution.
+ * Approval headroom for repay-all, sized against interest accrual between
+ * quoting the debt and transaction execution.
  *
  * 0.5% buffer (50 basis points). Sized to absorb hours of execution delay
- * (e.g. Safe-multisig quorum collection) without leaving residual dust.
- * The adapter only pulls what's actually owed; excess approval/balance
- * stays with the user.
- *
- * Users whose wallet balance covers the debt but not the full buffer are
- * routed through the "max-capped" repay path instead of `repayFull`, so
- * a larger buffer never blocks a legitimate max-repay.
+ * (e.g. Safe-multisig quorum collection). The repay itself sends the
+ * repay-all sentinel and the adapter pulls only what's actually owed; the
+ * buffer only pads the approval cap, and the cap is additionally bounded by
+ * the user's balance, so a larger buffer never blocks a legitimate repay.
  */
 export const FULL_REPAY_BUFFER_DIVISOR = 200n; // 1/200 = 0.5% buffer
-
-/**
- * Same buffer as `FULL_REPAY_BUFFER_DIVISOR`, expressed as a float fraction
- * for UI-side comparisons that operate in `number` rather than `bigint`.
- */
-export const FULL_REPAY_BUFFER_FRACTION =
-  1 / Number(FULL_REPAY_BUFFER_DIVISOR);
 

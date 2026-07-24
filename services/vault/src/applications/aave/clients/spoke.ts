@@ -11,7 +11,6 @@ import {
   getTargetHealthFactor as sdkGetTargetHealthFactor,
   getUserPositionAndAccountData as sdkGetUserPositionAndAccountData,
   getUserPositions as sdkGetUserPositions,
-  getUserTotalDebt as sdkGetUserTotalDebt,
   getUserTotalDebts as sdkGetUserTotalDebts,
   type AaveSpokeUserAccountData,
   type AaveSpokeUserPosition,
@@ -75,31 +74,6 @@ export async function getUserTotalDebtsBatch(
     publicClient,
     spokeAddress,
     reserveIds,
-    userAddress,
-  );
-}
-
-/**
- * Get user's total debt in a reserve (in token units, not shares)
- *
- * This returns the exact amount of tokens owed, including accrued interest.
- * Use this for full repayment to get the precise amount needed.
- *
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
- * @param userAddress - User's proxy contract address
- * @returns Total debt amount in token units (with token decimals)
- */
-export async function getUserTotalDebt(
-  spokeAddress: Address,
-  reserveId: bigint,
-  userAddress: Address,
-): Promise<bigint> {
-  const publicClient = ethClient.getPublicClient();
-  return sdkGetUserTotalDebt(
-    publicClient,
-    spokeAddress,
-    reserveId,
     userAddress,
   );
 }

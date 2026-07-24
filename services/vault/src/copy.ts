@@ -1147,6 +1147,16 @@ export const COPY = {
       // Shown when the wallet balance query fails so the user isn't left with a
       // disabled repay button and no explanation.
       balanceLoadError: "Couldn't load your balance. Please try again.",
+      // Post-approve verification failures. Wording must avoid the substrings
+      // getEnhancedErrorMessage rewrites (see utils/errors/contract.ts).
+      approvalNotConfirmed: (required: string, observed: string) =>
+        `Token approval could not be confirmed on-chain (required ${required}, last read ${observed}). The network may be briefly out of sync — please try again.`,
+      approvalBelowRequired: (required: string, approved: string) =>
+        `The wallet approved a lower amount than required (required ${required}, approved ${approved}). Please retry and approve the full amount.`,
+      // The full-repay quote includes accrued interest + the adapter fee, so
+      // it can exceed the displayed debt. Wording avoids the rewrite substrings.
+      balanceBelowFullRepay: (required: string, balance: string) =>
+        `Repaying in full needs ${required} (including accrued interest and fees), but your balance is ${balance}. Acquire a little more and try again.`,
       // Submit-time (Max intent) balance/debt refetch failure.
       refetchError: "Couldn't refresh balance/debt — please try again.",
     },

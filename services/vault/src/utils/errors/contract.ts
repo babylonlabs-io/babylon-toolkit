@@ -212,9 +212,6 @@ function getEnhancedErrorMessage(
   if (lowerMessage.includes("frozen") || lowerMessage.includes("isfrozen")) {
     return `${operationName} failed: This market is frozen and not accepting operations.`;
   }
-  if (lowerMessage.includes("insufficient balance to fully repay")) {
-    return `${operationName} failed: Not enough balance to cover the repay. Please add more funds to your wallet.`;
-  }
   if (
     lowerMessage.includes("insufficient liquidity") ||
     lowerMessage.includes("not enough")
@@ -338,6 +335,34 @@ export function mapViemErrorToContractError(
   return new ContractError(finalMessage, code, transactionHash, reason, {
     cause: error,
   });
+}
+
+/** Context marker for errors raised during pre-flight simulation. */
+const SIMULATION_PHASE = "simulation";
+
+/**
+ * Mark a mapped error as raised during pre-flight simulation — nothing was
+ * signed or broadcast. Retry logic must only auto-retry these: the same error
+ * from a mined revert means the chain itself rejected the call.
+ */
+export function tagSimulationPhase(err: ContractError): ContractError {
+  return new ContractError(
+    err.message,
+    err.code,
+    err.transactionHash,
+    err.reason,
+    {
+      cause: err.cause,
+      context: { ...err.context, phase: SIMULATION_PHASE },
+    },
+  );
+}
+
+/** True when the error was raised at simulation time (see tagSimulationPhase). */
+export function isSimulationPhaseError(err: unknown): err is ContractError {
+  return (
+    err instanceof ContractError && err.context?.phase === SIMULATION_PHASE
+  );
 }
 
 /**

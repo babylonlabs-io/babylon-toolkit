@@ -1108,6 +1108,39 @@ multicall failure marks every reserve failed rather than throwing — callers
 
 ***
 
+### getPositionReserveTotalDebt()
+
+```ts
+function getPositionReserveTotalDebt(
+   publicClient, 
+   proxyContract, 
+reserveId): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/positionProxy.ts:22](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/positionProxy.ts#L22)
+
+Fee-inclusive total debt of the position held by `proxyContract` for
+`reserveId`: Spoke debt plus the adapter's uncollected interest fee
+(rounded up), computed lazily at the current block.
+
+#### Parameters
+
+##### publicClient
+
+##### proxyContract
+
+`` `0x${string}` ``
+
+##### reserveId
+
+`bigint`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+***
+
 ### getPosition()
 
 ```ts
@@ -1463,12 +1496,13 @@ function getUserTotalDebt(
 userAddress): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:284](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L284)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:285](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L285)
 
 Get user's exact total debt in a reserve (token units, not shares).
 
-Returns the precise amount owed including accrued interest. Essential for full repayment.
-Debt accrues interest every block, so this must be fetched live from the contract.
+Returns the Spoke-side amount owed including accrued interest — but NOT the
+adapter's uncollected interest fee. Display/routing only; for full repayment
+see the remarks below. Debt accrues interest every block, so fetch it live.
 
 #### Parameters
 
@@ -1503,7 +1537,7 @@ Total debt amount in token units (e.g., for USDC: `100000000n` = 100 USDC)
 #### Example
 
 ```typescript
-import { getUserTotalDebt, FULL_REPAY_BUFFER_DIVISOR } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { getUserTotalDebt } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { formatUnits } from "viem";
 
 const totalDebt = await getUserTotalDebt(
@@ -1513,18 +1547,18 @@ const totalDebt = await getUserTotalDebt(
   proxyAddress
 );
 
-// For full repayment, add buffer to account for interest accrual
-const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_DIVISOR);
-
 console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
 ```
 
 #### Remarks
 
-**Important for full repayment:**
-- Add `FULL_REPAY_BUFFER_DIVISOR` buffer to account for interest between fetch and tx execution
-- Contract only takes what's owed; excess stays in wallet
-- For partial repayment, use any amount less than total debt
+**Important for full repayment:** do NOT repay a plain amount derived from
+this quote — it excludes the adapter's interest fee, and rounding can leave
+residual debt shares (dust). Send the repay-all sentinel
+(`type(uint256).max`) with an approval sized from the position proxy's
+fee-inclusive `getPositionReserveTotalDebt` plus
+`FULL_REPAY_BUFFER_DIVISOR` headroom; the adapter pulls only what's owed.
+For partial repayment, use any amount less than total debt.
 
 ***
 
@@ -1538,7 +1572,7 @@ function getUserPositions(
 userAddress): Promise<(AaveSpokeUserPosition | null)[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:308](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L308)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:309](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L309)
 
 Probe `getUserPosition` for many reserves in a single multicall.
 
@@ -1579,7 +1613,7 @@ function getUserTotalDebts(
 userAddress): Promise<bigint[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:338](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L338)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:339](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L339)
 
 Read `getUserTotalDebt` for many reserves in a single multicall.
 
@@ -1618,7 +1652,7 @@ function getReserve(
 reserveId): Promise<ReserveResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:398](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L398)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:399](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L399)
 
 Get reserve data from the Core Spoke contract via the `getReserve` selector.
 
@@ -1661,7 +1695,7 @@ Reserve data including `dynamicConfigKey`
 function getTargetHealthFactor(publicClient, spokeAddress): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:436](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L436)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:437](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L437)
 
 Get the target health factor (THF) from the Core Spoke contract.
 
@@ -1698,7 +1732,7 @@ function getDynamicReserveConfig(
 dynamicConfigKey): Promise<DynamicReserveConfigResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:461](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L461)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts:462](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts#L462)
 
 Get the dynamic reserve config from the Core Spoke contract.
 
@@ -1909,7 +1943,7 @@ function buildRepayTx(
    amount): TransactionParams;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/transaction.ts:182](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/transaction.ts#L182)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/transaction.ts:187](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/transaction.ts#L187)
 
 Build transaction to repay debt on AAVE position.
 
@@ -1940,7 +1974,12 @@ AAVE reserve ID for the debt asset
 
 `bigint`
 
-Amount to repay in token units. Can repay partial or full debt. For full repay, use `getUserTotalDebt()` to get exact amount.
+Amount to repay in token units for a partial repay. For a
+  FULL repay, pass `type(uint256).max` (the repay-all sentinel): the adapter
+  resolves it to the position's fee-inclusive debt in the same transaction
+  and pulls exactly that. Size the prior approval from
+  `getPositionReserveTotalDebt()` plus ceiling-divided
+  `FULL_REPAY_BUFFER_DIVISOR` headroom.
 
 #### Returns
 
@@ -3108,32 +3147,16 @@ liquidation threshold here, so this floor is the only borrow→liquidation cushi
 const FULL_REPAY_BUFFER_DIVISOR: 200n = 200n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:106](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:103](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L103)
 
-Buffer for full repayment to account for interest accrual
-between fetching debt and transaction execution.
+Approval headroom for repay-all, sized against interest accrual between
+quoting the debt and transaction execution.
 
 0.5% buffer (50 basis points). Sized to absorb hours of execution delay
-(e.g. Safe-multisig quorum collection) without leaving residual dust.
-The adapter only pulls what's actually owed; excess approval/balance
-stays with the user.
-
-Users whose wallet balance covers the debt but not the full buffer are
-routed through the "max-capped" repay path instead of `repayFull`, so
-a larger buffer never blocks a legitimate max-repay.
-
-***
-
-### FULL\_REPAY\_BUFFER\_FRACTION
-
-```ts
-const FULL_REPAY_BUFFER_FRACTION: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:112](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L112)
-
-Same buffer as `FULL_REPAY_BUFFER_DIVISOR`, expressed as a float fraction
-for UI-side comparisons that operate in `number` rather than `bigint`.
+(e.g. Safe-multisig quorum collection). The repay itself sends the
+repay-all sentinel and the adapter pulls only what's actually owed; the
+buffer only pads the approval cap, and the cap is additionally bounded by
+the user's balance, so a larger buffer never blocks a legitimate repay.
 
 ***
 

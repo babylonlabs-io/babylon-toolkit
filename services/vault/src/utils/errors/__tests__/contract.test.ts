@@ -6,6 +6,8 @@ import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integratio
 import { type Abi, encodeErrorResult } from "viem";
 import { describe, expect, it } from "vitest";
 
+import { COPY } from "@/copy";
+
 import {
   ACTIVATION_DEADLINE_EXPIRED_REASON,
   isActivationDeadlineExpiredError,
@@ -536,6 +538,26 @@ describe("Contract Error Mapping", () => {
         isTerminalActivationError(new Error("Cannot activate: ... PENDING")),
       ).toBe(false);
       expect(isTerminalActivationError(null)).toBe(false);
+    });
+  });
+
+  describe("repay approval copy survives message rewriting", () => {
+    // getEnhancedErrorMessage substring-rewrites messages containing e.g.
+    // "not enough" / "insufficient liquidity" / "paused"; the approval copy
+    // is worded to dodge those rules — pin that property here.
+    it("preserves the approval-not-confirmed copy under the Repay mapping", () => {
+      const body = COPY.loans.repay.approvalNotConfirmed(
+        "3 USDC",
+        "0.000002 USDC",
+      );
+      const mapped = mapViemErrorToContractError(new Error(body), "Repay");
+      expect(mapped.message).toBe(`Repay failed: ${body}`);
+    });
+
+    it("preserves the approval-below-required copy under the Repay mapping", () => {
+      const body = COPY.loans.repay.approvalBelowRequired("3 USDC", "2 USDC");
+      const mapped = mapViemErrorToContractError(new Error(body), "Repay");
+      expect(mapped.message).toBe(`Repay failed: ${body}`);
     });
   });
 });
