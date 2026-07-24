@@ -323,10 +323,12 @@ export function usePegoutPolling({
       logger.event(event.event, {
         level: event.level,
         category: "exit",
-        vaultId: shortId(event.vaultId),
-        ...(event.timeoutReason !== undefined
-          ? { timeoutReason: event.timeoutReason }
-          : {}),
+        tags: {
+          vaultId: shortId(event.vaultId),
+          ...(event.timeoutReason !== undefined
+            ? { timeoutReason: event.timeoutReason }
+            : {}),
+        },
       });
     }
   }, [data]);

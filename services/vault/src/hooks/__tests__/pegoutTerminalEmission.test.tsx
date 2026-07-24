@@ -153,16 +153,16 @@ describe("pegout terminal emission through usePegoutPolling", () => {
     await pollAgain();
 
     expect(mockEvent).toHaveBeenCalledTimes(1);
-    // Pins level/category and the shortened vaultId.
+    // Pins level/category and the shortened vaultId tag.
     expect(mockEvent).toHaveBeenCalledWith("exit.redeem.payout_broadcast", {
       level: "info",
       category: "exit",
-      vaultId: "0x22...9999",
+      tags: { vaultId: "0x22...9999" },
     });
     // toEqual-style matching treats `{ timeoutReason: undefined }` as equal to
-    // the object above, so pin the key's ABSENCE separately — this is what
-    // fails if the conditional spread regresses to an unconditional one.
-    expect(mockEvent.mock.calls[0][1]).not.toHaveProperty("timeoutReason");
+    // the tags above, so pin the key's ABSENCE separately — this is what fails
+    // if the conditional spread inside `tags` regresses to an unconditional one.
+    expect(mockEvent.mock.calls[0][1].tags).not.toHaveProperty("timeoutReason");
 
     // Sticky terminal re-observed — the shared store suppresses a re-emit.
     await pollAgain();
@@ -196,8 +196,10 @@ describe("pegout terminal emission through usePegoutPolling", () => {
     expect(mockEvent).toHaveBeenCalledWith("exit.redeem.pegout_timeout", {
       level: "warning",
       category: "exit",
-      vaultId: "0x22...9999",
-      timeoutReason: "consecutive_failures",
+      tags: {
+        vaultId: "0x22...9999",
+        timeoutReason: "consecutive_failures",
+      },
     });
   });
 });

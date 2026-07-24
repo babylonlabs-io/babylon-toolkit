@@ -63,9 +63,10 @@ export type TelemetryStage =
  * cancellations would inflate the very rate these tags alert on. The caller
  * still renders its own rejection copy; only the Sentry capture is suppressed.
  *
- * `vaultId` is shortened here so the per-vault join key back to the success
- * milestones cannot be forgotten at a call site. Pass any further identifiers in
- * `extra` already shortened via `shortId`.
+ * `vaultId` is shortened here and promoted to a tag so the per-vault join key
+ * back to the success milestones — which carry `vaultId` as a tag too — is
+ * queryable on both sides and cannot be forgotten at a call site. Pass any
+ * further identifiers in `extra` already shortened via `shortId`.
  */
 export function captureFunnelFailure(
   stage: TelemetryStage,
@@ -75,8 +76,8 @@ export function captureFunnelFailure(
 ): void {
   if (classifyError(err) === "user-rejection") return;
   logger.error(err instanceof Error ? err : new Error(String(err)), {
-    tags: { funnelStage: stage },
-    data: { vaultId: shortId(vaultId), ...extra },
+    tags: { funnelStage: stage, vaultId: shortId(vaultId) },
+    data: extra,
   });
 }
 

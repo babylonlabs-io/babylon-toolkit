@@ -123,5 +123,24 @@ describe("logger", () => {
         }),
       );
     });
+
+    it("forwards tags to captureMessage and keeps them out of extra", () => {
+      logger.event("deposit.registered", {
+        level: "info",
+        tags: { vaultId: "0x11...2222", providerId: "0xab...cdef" },
+        batchId: "batch-1",
+      });
+
+      expect(captureMessage).toHaveBeenCalledWith(
+        "deposit.registered",
+        expect.objectContaining({
+          tags: { vaultId: "0x11...2222", providerId: "0xab...cdef" },
+          extra: expect.objectContaining({ batchId: "batch-1" }),
+        }),
+      );
+      expect(vi.mocked(captureMessage).mock.calls[0][1]).not.toHaveProperty(
+        "extra.tags",
+      );
+    });
   });
 });

@@ -230,6 +230,13 @@ export function useDepositFlow(
   const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
     DepositFlowStep.DERIVE_VAULT_SECRET,
   );
+  // Mirror of `currentStep` for the flow callback's outer catch: the callback
+  // closes over a `currentStep` that is stale by the time it throws, so the
+  // failure telemetry reads the ref to tag which step the flow was on.
+  const currentStepRef = useRef(currentStep);
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+  }, [currentStep]);
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
   );
@@ -403,8 +410,8 @@ export function useDepositFlow(
         logger.event(TELEMETRY_EVENT.DEPOSIT_STARTED, {
           level: "info",
           category: "deposit",
+          tags: { providerId: shortId(primaryProvider) },
           batchId,
-          providerId: shortId(primaryProvider),
           vaultCount: vaultAmounts.length,
           amountBucket: amountBucket(
             satoshiToBtcNumber(vaultAmounts.reduce((sum, a) => sum + a, 0n)),
@@ -608,9 +615,11 @@ export function useDepositFlow(
           logger.event(TELEMETRY_EVENT.DEPOSIT_REGISTERED, {
             level: "info",
             category: "deposit",
+            tags: {
+              vaultId: shortId(peginResult.vaultId),
+              providerId: shortId(primaryProvider),
+            },
             batchId,
-            vaultId: shortId(peginResult.vaultId),
-            providerId: shortId(primaryProvider),
             ethTxHash: shortId(batchRegistration.ethTxHash),
             vaultCount: peginResults.length,
           });
@@ -776,9 +785,9 @@ export function useDepositFlow(
           logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
             level: "info",
             category: "deposit",
+            tags: { vaultId: shortId(peginResult.vaultId) },
             batchId,
             prePeginTxid: shortId(prePeginBroadcastTxid),
-            vaultId: shortId(peginResult.vaultId),
             vaultCount: peginResults.length,
           });
         }
@@ -1223,6 +1232,7 @@ export function useDepositFlow(
         if (!signal.aborted) {
           setError(mapDepositError(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
+            tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {
               context: "Multi-vault deposit flow error",
               ...(err instanceof VpResponseValidationError && {

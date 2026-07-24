@@ -93,7 +93,7 @@ export function useBroadcastState({
             logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
               level: "info",
               category: "deposit",
-              vaultId: shortId(id),
+              tags: { vaultId: shortId(id) },
               vaultCount: batchVaultIds.length,
             });
           }

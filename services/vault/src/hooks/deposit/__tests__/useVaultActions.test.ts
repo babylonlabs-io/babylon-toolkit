@@ -1006,7 +1006,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     const [err, ctx] = mockLoggerError.mock.calls[0];
     expect(err).toBeInstanceOf(Error);
     expect(ctx.tags.funnelStage).toBe("activation.reveal");
-    expect(ctx.data.vaultId).toBe("0xva...ltId");
+    expect(ctx.tags.vaultId).toBe("0xva...ltId");
     expect(result.current.activationError).toContain("execution reverted");
   });
 

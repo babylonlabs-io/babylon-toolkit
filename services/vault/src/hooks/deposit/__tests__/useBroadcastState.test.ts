@@ -117,7 +117,7 @@ describe("useBroadcastState — batched broadcast", () => {
       ([name]) => name === TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED,
     );
     expect(broadcastEmits).toHaveLength(2);
-    expect(broadcastEmits.map(([, ctx]) => ctx.vaultId)).toEqual([
+    expect(broadcastEmits.map(([, ctx]) => ctx.tags.vaultId)).toEqual([
       "0xa",
       "0xb",
     ]);

@@ -213,7 +213,7 @@ describe("usePayoutSigningState", () => {
       const [err, ctx] = mockLoggerError.mock.calls[0];
       expect(err).toBeInstanceOf(Error);
       expect(ctx.tags.funnelStage).toBe("activation.payouts");
-      expect(ctx.data.vaultId).toBe("0xvault");
+      expect(ctx.tags.vaultId).toBe("0xvault");
       expect(result.current.error?.title).toBe("Sign Error");
     });
 

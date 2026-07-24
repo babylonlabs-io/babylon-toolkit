@@ -56,11 +56,16 @@ export default {
     {
       level = "warning",
       category,
+      tags,
       ...data
-    }: { level?: SeverityLevel } & Context = {},
+    }: {
+      level?: SeverityLevel;
+      tags?: Record<string, string>;
+    } & Context = {},
   ) =>
     captureMessage(scrubString(message), {
       level,
+      tags,
       extra: redactData({ category, ...data }),
     }),
 };
