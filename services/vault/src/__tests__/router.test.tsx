@@ -33,7 +33,10 @@ import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
 import { Router } from "../router";
 import { getReserveDetailRoute } from "../routes";
 
-const featureFlagsState = vi.hoisted(() => ({ isV3UiEnabled: false }));
+const featureFlagsState = vi.hoisted(() => ({
+  isV3UiEnabled: false,
+  isLiquidationAnalysisChartEnabled: true,
+}));
 
 vi.mock("@/config/featureFlags", () => ({
   default: featureFlagsState,
@@ -169,6 +172,7 @@ function setV3Flag(value?: string) {
 afterEach(() => {
   vi.restoreAllMocks();
   featureFlagsState.isV3UiEnabled = false;
+  featureFlagsState.isLiquidationAnalysisChartEnabled = true;
 });
 
 describe("Router — /activity regression for AaveConfigProvider wiring", () => {
@@ -274,6 +278,17 @@ describe("Router — new v3 placeholder routes", () => {
       ).not.toBeInTheDocument();
     },
   );
+
+  it("redirects /liquidations to / when the liquidation-analysis flag is off, even with v3 on", async () => {
+    setV3Flag("true");
+    featureFlagsState.isLiquidationAnalysisChartEnabled = false;
+    renderAt("/liquidations");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
+  });
 
   it("renders the vaults page at /vaults when the flag is on, not the dashboard", async () => {
     setV3Flag("true");

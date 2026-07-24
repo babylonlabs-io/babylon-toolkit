@@ -150,8 +150,11 @@ const ActivityWithProviders = () => (
   </AaveConfigProvider>
 );
 
+// /liquidations: v3 shell + the liquidation-analysis flag, so the section is
+// unreachable by deep link while its sidebar entry is hidden.
 const V3Placeholder = () =>
-  featureFlags.isV3UiEnabled ? (
+  featureFlags.isV3UiEnabled &&
+  featureFlags.isLiquidationAnalysisChartEnabled ? (
     <div data-testid="v3-placeholder" />
   ) : (
     <Navigate to={ROUTES.OVERVIEW} replace />
