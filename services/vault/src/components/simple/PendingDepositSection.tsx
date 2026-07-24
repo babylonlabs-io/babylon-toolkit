@@ -8,17 +8,13 @@
  *  - When expanded, shows individual deposit sub-cards
  */
 
-import {
-  Avatar,
-  Card,
-  FullScreenDialog,
-  Heading,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
@@ -225,11 +221,7 @@ export function PendingDepositSection() {
 
         {/* Multistepper view — opened by clicking a pending deposit card. */}
         {viewingBatch && ethAddress && (
-          <FullScreenDialog
-            open
-            onClose={handleViewingClose}
-            className="items-center justify-center p-6"
-          >
+          <V3ModalShell open onClose={handleViewingClose}>
             <div className="mx-auto w-full max-w-[520px]">
               <PostDepositContinuationContent
                 vaultIds={viewingBatch}
@@ -237,7 +229,7 @@ export function PendingDepositSection() {
                 onClose={handleViewingClose}
               />
             </div>
-          </FullScreenDialog>
+          </V3ModalShell>
         )}
       </PeginPollingProvider>
     </ProtocolParamsProvider>

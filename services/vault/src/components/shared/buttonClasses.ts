@@ -14,6 +14,13 @@ export const PRIMARY_BUTTON_CLASS =
 export const NEUTRAL_ROW_BUTTON_CLASS =
   "ml-auto flex h-9 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-strokeLight px-4 text-sm leading-[1.43] tracking-[0.17px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled";
 
+/** 36px-tall destructive (red) action button — the expired deposit's Withdraw
+ *  (Figma 10176:27509 puts this one row action on #C62828, unlike the Vaults
+ *  page's orange). Only ever rendered enabled: a blocked refund falls back to
+ *  the disabled NEUTRAL_ROW_BUTTON_CLASS, so this carries no disabled styles. */
+export const ERROR_ROW_BUTTON_CLASS =
+  "ml-auto flex h-9 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-error-dark px-4 text-sm leading-[1.43] tracking-[0.17px] text-accent-contrast transition-[filter] hover:brightness-110";
+
 /** 36px-tall primary (orange) action button. */
 export const PRIMARY_ROW_BUTTON_CLASS =
   "ml-auto flex h-9 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-main px-4 text-sm leading-[1.43] tracking-[0.17px] text-accent-contrast transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-30";

@@ -151,6 +151,34 @@ vi.mock("../services/activity/claimTxResolver", () => ({
   resolveRedeemClaimTxids: vi.fn(async () => new Map()),
 }));
 
+// The Activity page reuses the deposit lifecycle to offer the expired
+// deposit's refund; that graph reaches the built wallet-connector bundle,
+// which vitest cannot evaluate. Routing is what this suite checks.
+vi.mock("@/hooks/usePendingDeposits", () => ({
+  usePendingDeposits: () => ({
+    expiredActivities: [],
+    allActivities: [],
+    pendingPegins: [],
+    btcPublicKey: undefined,
+    ethAddress: undefined,
+    broadcastModal: {},
+    refundModal: { handleRefundClick: vi.fn() },
+  }),
+}));
+
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  ProtocolParamsProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
+vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  PeginPollingProvider: ({ children }: { children: ReactNode }) => children,
+  useDepositPollingResult: () => undefined,
+}));
+
+vi.mock("@/components/simple/PendingDepositModals", () => ({
+  PendingDepositModals: () => null,
+}));
+
 function renderAt(path: string): RenderResult {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },

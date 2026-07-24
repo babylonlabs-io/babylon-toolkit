@@ -23,6 +23,23 @@ vi.mock("@/components/Wallet", () => ({
   Connect: () => <button type="button">Connect</button>,
 }));
 
+// The real button reads the deposit-polling context to decide whether the
+// refund is available — that gating is the Vaults page's, covered there. These
+// tests are about which row the list hands the action to, and with which id.
+vi.mock("../ExpiredWithdrawButton", () => ({
+  ExpiredWithdrawButton: ({
+    vaultId,
+    onWithdraw,
+  }: {
+    vaultId: string;
+    onWithdraw: (vaultId: string) => void;
+  }) => (
+    <button type="button" onClick={() => onWithdraw(vaultId)}>
+      Withdraw
+    </button>
+  ),
+}));
+
 import { ActivityList } from "../ActivityList";
 
 beforeEach(() => {
@@ -42,6 +59,7 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   chain: overrides.chain ?? "BTC",
   transactionHash: overrides.transactionHash ?? "abc",
   tokenIcon: overrides.tokenIcon ?? "test://btc.svg",
+  vaultId: overrides.vaultId,
   isPending: overrides.isPending,
   isExpired: overrides.isExpired,
 });
@@ -49,6 +67,8 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
 function renderList(props: {
   activities: ActivityLog[];
   isConnected: boolean;
+  refundableVaultIds?: ReadonlySet<string>;
+  onWithdraw?: (vaultId: string) => void;
 }) {
   return render(
     <MemoryRouter initialEntries={["/activity"]}>
@@ -191,7 +211,7 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("v3 UI + disconnected: renders no in-page heading and no avatar/filter row", () => {
+  it("v3 UI + disconnected: renders no in-page heading and no filter row", () => {
     featureFlagsMock.isV3UiEnabled = true;
     renderList({ activities: [], isConnected: false });
 
@@ -223,7 +243,7 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("v3 UI + connected: renders no in-page heading but keeps the avatar and filter dropdown", () => {
+  it("v3 UI + connected: keeps the filter dropdown but drops the Aave logo the v2 header shows", () => {
     featureFlagsMock.isV3UiEnabled = true;
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
@@ -231,7 +251,7 @@ describe("ActivityList", () => {
     expect(
       screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
     ).not.toBeInTheDocument();
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
+    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /show all/i }),
     ).toBeInTheDocument();
@@ -275,5 +295,58 @@ describe("ActivityList", () => {
 
     expect(screen.getByText(COPY.activity.emptyFiltered)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /deposit/i })).toBeNull();
+  });
+  it("v3 UI: offers Withdraw on the row whose vaultId is refundable, matching on vaultId not the row id", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    const onWithdraw = vi.fn();
+    // An indexed row: its id is the event (txHash-logIndex-type), NOT the
+    // vault. Matching on `id` would never fire here.
+    const rows = [
+      makeRow({
+        id: "0xabc-3-deposit",
+        vaultId: "0xvault1",
+        isPending: true,
+      }),
+    ];
+
+    renderList({
+      activities: rows,
+      isConnected: true,
+      refundableVaultIds: new Set(["0xvault1"]),
+      onWithdraw,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /withdraw/i }));
+    expect(onWithdraw).toHaveBeenCalledWith("0xvault1");
+  });
+
+  it("v3 UI: leaves a row alone when its vaultId is not refundable", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    const rows = [makeRow({ id: "0xabc-3-deposit", vaultId: "0xvault2" })];
+
+    renderList({
+      activities: rows,
+      isConnected: true,
+      refundableVaultIds: new Set(["0xvault1"]),
+      onWithdraw: vi.fn(),
+    });
+
+    expect(screen.queryByRole("button", { name: /withdraw/i })).toBeNull();
+  });
+
+  it("v3 UI: never matches a refundable vault id against a row id that happens to equal it", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    // Row carries no vaultId (the indexer does not scope borrows to a vault),
+    // but its event id collides with a refundable vault id.
+    const rows = [makeRow({ id: "0xvault1", type: "Borrow" })];
+
+    renderList({
+      activities: rows,
+      isConnected: true,
+      refundableVaultIds: new Set(["0xvault1"]),
+      onWithdraw: vi.fn(),
+    });
+
+    expect(screen.queryByRole("button", { name: /withdraw/i })).toBeNull();
   });
 });

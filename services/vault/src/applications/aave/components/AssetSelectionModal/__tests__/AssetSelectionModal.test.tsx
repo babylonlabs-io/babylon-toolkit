@@ -15,14 +15,15 @@ import { LOAN_TAB } from "../../../constants";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  FullScreenDialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: ReactNode;
-  }) => (open ? <div>{children}</div> : null),
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
+}));
+
+// The shared v3 modal shell renders the app's top bar (network badge +
+// settings), whose graph reaches wallet-connector and can't be transformed
+// here. This suite is about the table inside it.
+vi.mock("@/components/shared/V3ModalShell", () => ({
+  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
+    open ? <div>{children}</div> : null,
 }));
 
 const borrowableReserves = [

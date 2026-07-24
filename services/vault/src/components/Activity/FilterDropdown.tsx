@@ -17,6 +17,9 @@ interface FilterDropdownProps<V extends string> {
   options: ReadonlyArray<FilterDropdownOption<V>>;
   /** Pass `null` to clear the filter (reset row or click the active option). */
   onChange: (value: V | null) => void;
+  /** Which edge the menu aligns to. Follows the trigger's own position: v3
+   *  puts it at the left of the row, v2 at the right. */
+  align?: "start" | "end";
 }
 
 export function FilterDropdown<V extends string>({
@@ -24,6 +27,7 @@ export function FilterDropdown<V extends string>({
   placeholder,
   options,
   onChange,
+  align = "end",
 }: FilterDropdownProps<V>) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -52,7 +56,7 @@ export function FilterDropdown<V extends string>({
       <Popover
         open={open}
         anchorEl={anchorRef.current}
-        placement="bottom-end"
+        placement={align === "start" ? "bottom-start" : "bottom-end"}
         offset={[0, 8]}
         onClickOutside={() => setOpen(false)}
         className="w-[200px] rounded-lg border border-secondary-strokeLight bg-neutral-200 p-4 shadow-[0px_8px_8px_rgba(0,0,0,0.12)]"

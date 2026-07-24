@@ -8,6 +8,14 @@ import type { VaultActivity } from "@/types/activity";
 
 import { RefundModal } from "../index";
 
+// The shared v3 modal shell renders the app's top bar (network badge +
+// settings), whose graph reaches wallet-connector and can't be transformed
+// here. This suite is about the refund content inside it.
+vi.mock("@/components/shared/V3ModalShell", () => ({
+  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
+    open ? <div>{children}</div> : null,
+}));
+
 vi.mock("@/services/vault/vaultRefundService", async (importOriginal) => {
   const actual =
     await importOriginal<

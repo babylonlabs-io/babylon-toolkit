@@ -23,6 +23,7 @@ const config: Config = {
         "risk-amber": "rgb(var(--risk-amber) / <alpha-value>)",
         "risk-green": "rgb(var(--risk-green) / <alpha-value>)",
         "risk-muted": "rgb(var(--risk-muted) / <alpha-value>)",
+        "risk-orange": "rgb(var(--risk-orange) / <alpha-value>)",
       },
     },
   },

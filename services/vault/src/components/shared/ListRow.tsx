@@ -10,6 +10,8 @@
 
 import type { ReactNode } from "react";
 
+import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
+
 /** Bordered row card shared by the vault and loan lists. */
 export function ListRowCard({
   children,
@@ -21,7 +23,7 @@ export function ListRowCard({
   return (
     <div
       data-testid={testId}
-      className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4 dark:bg-[#202020]"
+      className={`${CARD_SHELL_CLASS} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`}
     >
       {children}
     </div>

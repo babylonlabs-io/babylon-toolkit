@@ -2,6 +2,7 @@ import { Avatar, Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
+import { ListRowCard } from "@/components/shared/ListRow";
 import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 import { useMidnightTick } from "@/hooks/useMidnightTick";
@@ -11,8 +12,10 @@ import { formatActivityDateGroup } from "@/utils/formatting";
 import { ActivityCard } from "./ActivityCard";
 import { ActivityEmptyState } from "./ActivityEmptyState";
 import { ActivityRowV3 } from "./ActivityRowV3";
+import { ExpiredWithdrawButton } from "./ExpiredWithdrawButton";
 import { FilterDropdown } from "./FilterDropdown";
 import { LiquidationGroupCard } from "./LiquidationGroupCard";
+import { LiquidationGroupCardV3 } from "./LiquidationGroupCardV3";
 
 interface ActivityDateGroup {
   label: string;
@@ -44,16 +47,8 @@ function groupByDate(
   return ordered;
 }
 
-function ActivityRow({ row }: { row: ActivityRow }) {
-  return row.kind === "liquidationGroup" ? (
-    <LiquidationGroupCard row={row} />
-  ) : (
-    <ActivityRowV3 row={row} />
-  );
-}
-
 // Single-app surface today. When multi-app ships this becomes an app picker
-// fed from the applications registry.
+// fed from the applications registry. v3 drops it from the header entirely.
 const AAVE_LOGO_URL = "/images/aave.svg";
 
 // Only the ActivityTypes that appear as filter options in the Figma menu.
@@ -67,9 +62,19 @@ const FILTER_OPTIONS = (
 interface ActivityListProps {
   activities: ActivityRow[];
   isConnected: boolean;
+  /** Vault ids of expired deposits whose HTLC refund is still outstanding —
+   *  those rows get the Withdraw action. Matched against a row's `vaultId`,
+   *  never its `id` (see ActivityLog). Omitted by the v2 surface. */
+  refundableVaultIds?: ReadonlySet<string>;
+  onWithdraw?: (vaultId: string) => void;
 }
 
-export function ActivityList({ activities, isConnected }: ActivityListProps) {
+export function ActivityList({
+  activities,
+  isConnected,
+  refundableVaultIds,
+  onWithdraw,
+}: ActivityListProps) {
   const isMobile = useIsMobile();
   const isV3 = FeatureFlags.isV3UiEnabled;
   // v3 desktop replaces this in-page heading with the persistent header's
@@ -99,7 +104,7 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
         <div
           className={twJoin(
             "flex items-center gap-4",
-            hideHeading ? "justify-end" : "justify-between",
+            !hideHeading && "justify-between",
           )}
         >
           {!hideHeading && (
@@ -113,12 +118,16 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
           )}
           {isConnected && (
             <div className="flex items-center gap-4">
-              <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />
+              {/* v3 drops the app logo from the header; v2 keeps it. */}
+              {!isV3 && <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />}
               <FilterDropdown
                 value={filter}
                 placeholder={COPY.activity.filterAll}
                 options={FILTER_OPTIONS}
                 onChange={setFilter}
+                // v3 moves the trigger to the left of the row, so the menu
+                // opens rightward from it; v2 keeps it right-aligned.
+                align={isV3 ? "start" : "end"}
               />
             </div>
           )}
@@ -131,28 +140,37 @@ export function ActivityList({ activities, isConnected }: ActivityListProps) {
           isFiltered={filter !== null}
         />
       ) : isV3 ? (
-        // v3: rows grouped under date headers, each group a rounded card with
-        // divider-separated rows (matches the Figma "after deposit" frame).
+        // v3: rows grouped under date headers. Each row is its own card, the
+        // same one the Vaults tab uses — except a liquidation, whose child
+        // events share one card with divider-separated rows.
         <div className="flex flex-col gap-6">
           {groupByDate(visible, new Date()).map((group) => (
             <div key={group.label} className="flex flex-col gap-3">
               <p className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
                 {group.label}
               </p>
-              <ul
-                role="list"
-                className="overflow-hidden rounded-lg bg-secondary-highlight"
-              >
-                {group.rows.map((r, index) => (
-                  <li
-                    key={r.id}
-                    className={
-                      index > 0
-                        ? "border-t border-secondary-strokeLight dark:border-secondary-strokeDark"
-                        : ""
-                    }
-                  >
-                    <ActivityRow row={r} />
+              <ul role="list" className="flex flex-col gap-2">
+                {group.rows.map((r) => (
+                  <li key={r.id}>
+                    {r.kind === "liquidationGroup" ? (
+                      <LiquidationGroupCardV3 row={r} />
+                    ) : (
+                      <ListRowCard>
+                        <ActivityRowV3
+                          row={r}
+                          action={
+                            r.vaultId &&
+                            refundableVaultIds?.has(r.vaultId) &&
+                            onWithdraw ? (
+                              <ExpiredWithdrawButton
+                                vaultId={r.vaultId}
+                                onWithdraw={onWithdraw}
+                              />
+                            ) : undefined
+                          }
+                        />
+                      </ListRowCard>
+                    )}
                   </li>
                 ))}
               </ul>
