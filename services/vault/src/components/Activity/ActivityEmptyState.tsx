@@ -3,7 +3,6 @@ import { useOutletContext } from "react-router";
 
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { EmptyStateIcon } from "@/components/shared/icons";
 import { FeatureFlags, getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 
@@ -29,7 +28,6 @@ export function ActivityEmptyState({
       return (
         <div data-testid="activity-empty-state">
           <EmptyState
-            icon={<EmptyStateIcon />}
             title={COPY.activity.emptyFiltered}
             isConnected
             withCard
@@ -42,7 +40,6 @@ export function ActivityEmptyState({
       return (
         <div data-testid="activity-empty-state">
           <EmptyState
-            icon={<EmptyStateIcon />}
             title={COPY.activity.emptyDisconnected}
             isConnected={false}
             withCard
@@ -54,7 +51,6 @@ export function ActivityEmptyState({
     return (
       <div data-testid="activity-empty-state">
         <EmptyState
-          icon={<EmptyStateIcon />}
           title={COPY.activity.emptyV3Title}
           description={COPY.activity.emptyV3Body}
           isConnected

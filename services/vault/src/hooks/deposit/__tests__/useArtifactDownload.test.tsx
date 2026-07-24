@@ -23,6 +23,18 @@ vi.mock("@/services/artifacts", async () => {
 
 vi.mock("@/utils/artifactDownloadStorage", () => ({
   markArtifactsDownloaded: vi.fn(),
+  hasArtifactsDownloaded: vi.fn(() => false),
+}));
+
+const mockLoggerError = vi.hoisted(() => vi.fn());
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    error: mockLoggerError,
+    event: mockLoggerEvent,
+    warn: vi.fn(),
+    info: vi.fn(),
+  },
 }));
 
 vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
@@ -44,7 +56,10 @@ import {
   ArtifactDownloadCancelledError,
   fetchAndDownloadArtifacts,
 } from "@/services/artifacts";
-import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  markArtifactsDownloaded,
+} from "@/utils/artifactDownloadStorage";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
 import { useArtifactDownload } from "../useArtifactDownload";
@@ -54,6 +69,7 @@ const ensureAuthMock = vi.mocked(ensureAuthenticatedVpClient);
 const demoEnabledMock = vi.mocked(isArtifactDownloadDemoEnabled);
 const demoFetchMock = vi.mocked(demoFetchAndDownloadArtifacts);
 const markDownloadedMock = vi.mocked(markArtifactsDownloaded);
+const hasDownloadedMock = vi.mocked(hasArtifactsDownloaded);
 
 const PROVIDER_ADDRESS = "0x1234";
 const PEGIN_TXID =
@@ -520,5 +536,162 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
 
     expect(result.current.downloaded).toBe(true);
+  });
+});
+
+describe("useArtifactDownload — funnel telemetry", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    ensureAuthMock.mockReset();
+    demoEnabledMock.mockReturnValue(false);
+    markDownloadedMock.mockReset();
+    hasDownloadedMock.mockReset();
+    hasDownloadedMock.mockReturnValue(false);
+    mockLoggerError.mockReset();
+    mockLoggerEvent.mockReset();
+    (vpTokenRegistry as unknown as { clear?: () => void }).clear?.();
+  });
+
+  it("captures a terminal download failure with the activation.artifacts stage and scrubbed vaultId", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(new Error("HTTP error: 401 Unauthorized"));
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(ctx.tags.funnelStage).toBe("activation.artifacts");
+    expect(ctx.data.vaultId).toBe("0xde...beef");
+    expect(ctx.data.site).toBe("download");
+    expect(result.current.error).toContain("401");
+  });
+
+  it("captures a cold-cache prime failure with site prime", async () => {
+    ensureAuthMock.mockRejectedValueOnce(new Error("prime exploded"));
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0][1].data.site).toBe("prime");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("captures the cold-registry-without-prime-context flow bug", async () => {
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext: null }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0][1].data.site).toBe("cold_registry");
+  });
+
+  it("does not capture a user-cancelled download", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(new ArtifactDownloadCancelledError());
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(mockLoggerEvent).not.toHaveBeenCalled();
+  });
+
+  it("emits the downloaded milestone once, on the first real download only", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    const [name, ctx] = mockLoggerEvent.mock.calls[0];
+    expect(name).toBe("activation.artifacts.downloaded");
+    expect(ctx.vaultId).toBe("0xde...beef");
+
+    // Re-download with the gate already satisfied: no second milestone.
+    hasDownloadedMock.mockReturnValue(true);
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits the stall event once after the VP reports still-processing past the threshold", async () => {
+    vi.useFakeTimers();
+    try {
+      seedHotCache();
+      fetchMock.mockRejectedValue(new Error("Invalid state PendingIngestion"));
+
+      const { result } = renderHook(() =>
+        useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+      );
+
+      let downloadPromise: Promise<void> | undefined;
+      act(() => {
+        downloadPromise = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+
+      // 30 retries at the 10s interval reach the stall threshold.
+      for (let i = 0; i < 31; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000);
+        });
+      }
+
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+      const [name, ctx] = mockLoggerEvent.mock.calls[0];
+      expect(name).toBe("activation.artifacts.stalled");
+      expect(ctx.level).toBe("warning");
+      expect(ctx.vaultId).toBe("0xde...beef");
+
+      // More retries past the threshold do not re-emit.
+      for (let i = 0; i < 5; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000);
+        });
+      }
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        result.current.cancel();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+        await downloadPromise;
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

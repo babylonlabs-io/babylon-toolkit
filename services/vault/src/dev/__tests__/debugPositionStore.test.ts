@@ -6,6 +6,7 @@ import {
   deriveBannerState,
   type CalculatorResult,
 } from "@/applications/aave/positionNotifications";
+import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 
 // The two non-cascade overrides are read by production components, so the store
 // additionally gates them on the god-mode flag (see debugPositionStore).
@@ -15,15 +16,20 @@ vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 import {
   applyDebugPreset,
   DEBUG_FORCED_MAX_VAULTS,
+  DEBUG_HEALTH_FACTORS,
   DEBUG_PRESETS,
   makeDefaultDebugParams,
   resetDebugManualParams,
+  setDebugBorrowCapacityStateOverride,
+  setDebugHealthFactorOverride,
   setDebugManualMode,
   setDebugManualParams,
   setDebugMaxVaultsOverride,
   setDebugPositionOverride,
   setDebugProtocolStatusOverride,
   setDebugSimulateStalePrice,
+  useDebugBorrowCapacityStateOverride,
+  useDebugHealthFactorOverride,
   useDebugManualMode,
   useDebugManualParams,
   useDebugMaxVaultsOverride,
@@ -142,6 +148,61 @@ describe("non-cascade notification overrides", () => {
     const status = renderHook(() => useDebugProtocolStatusOverride());
     expect(cap.result.current).toBeNull();
     expect(status.result.current).toBeNull();
+  });
+});
+
+describe("loans summary overrides", () => {
+  afterEach(() => {
+    featureFlagsMock.isGodModePanelEnabled = true;
+    act(() => setDebugHealthFactorOverride(null));
+    act(() => setDebugBorrowCapacityStateOverride(null));
+  });
+
+  it("publishes the forced health factor and releases it", () => {
+    const { result } = renderHook(() => useDebugHealthFactorOverride());
+    expect(result.current).toBeNull();
+
+    act(() => setDebugHealthFactorOverride(1.02));
+    expect(result.current).toBe(1.02);
+
+    act(() => setDebugHealthFactorOverride(null));
+    expect(result.current).toBeNull();
+  });
+
+  it("publishes each borrow-capacity state and releases back to live", () => {
+    const { result } = renderHook(() => useDebugBorrowCapacityStateOverride());
+
+    act(() => setDebugBorrowCapacityStateOverride("loading"));
+    expect(result.current).toBe("loading");
+
+    act(() => setDebugBorrowCapacityStateOverride("error"));
+    expect(result.current).toBe("error");
+
+    act(() => setDebugBorrowCapacityStateOverride(null));
+    expect(result.current).toBeNull();
+  });
+
+  // These feed a PRODUCTION page (the v3 Loans summary), so the flag gate is
+  // what keeps a stale override out of a real build.
+  it("reports no override when god mode is off, whatever was written", () => {
+    act(() => setDebugHealthFactorOverride(1.02));
+    act(() => setDebugBorrowCapacityStateOverride("error"));
+
+    featureFlagsMock.isGodModePanelEnabled = false;
+
+    const hf = renderHook(() => useDebugHealthFactorOverride());
+    const capacity = renderHook(() => useDebugBorrowCapacityStateOverride());
+    expect(hf.result.current).toBeNull();
+    expect(capacity.result.current).toBeNull();
+  });
+
+  it("bands every offered health factor into a distinct status", () => {
+    // The panel offers one value per production band; if two collapsed to the
+    // same status the control would silently stop covering a state.
+    const statuses = DEBUG_HEALTH_FACTORS.map((hf) =>
+      getHealthFactorStatusFromValue(hf.value),
+    );
+    expect(new Set(statuses).size).toBe(DEBUG_HEALTH_FACTORS.length);
   });
 });
 

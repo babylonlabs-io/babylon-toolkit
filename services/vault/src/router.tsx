@@ -1,5 +1,5 @@
 import { Loader } from "@babylonlabs-io/core-ui";
-import { Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   Navigate,
   Outlet,
@@ -40,6 +40,15 @@ const DashboardPage = lazyWithRetry(() =>
   })),
 );
 
+// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so the
+// whole dev subtree is dropped from production builds (the dynamic import sits
+// in a dead branch the bundler eliminates).
+const GodModeMount = import.meta.env.DEV
+  ? lazy(() =>
+      import("./dev/GodModeMount").then((m) => ({ default: m.GodModeMount })),
+    )
+  : null;
+
 const importAaveReserveDetail = () =>
   import("./applications/aave/components/Detail");
 const AaveReserveDetail = lazyWithRetry(() =>
@@ -55,6 +64,16 @@ const RouteFallback = () => (
     <Loader />
   </div>
 );
+
+/** The dev/QA god-mode panel, or nothing outside a flagged dev build. Rendered
+ *  once per route subtree that mounts the Aave providers its debug sections
+ *  read (see the two call sites below). */
+const GodModePanelSlot = () =>
+  GodModeMount && featureFlags.isGodModePanelEnabled ? (
+    <Suspense fallback={null}>
+      <GodModeMount />
+    </Suspense>
+  ) : null;
 
 const AaveOverlayLayout = () => {
   const outletContext = useOutletContext<RootLayoutContext>();
@@ -93,6 +112,12 @@ const AaveOverlayLayout = () => {
                 <AaveReserveDetail reserveId={reserveId} tab={tab} />
               </Suspense>
             )}
+          {/* One god-mode panel for every tab under this layout (Overview,
+              Vaults, Loans) — mounted here, not per page, so it is present on
+              all three and keeps its open/position state across navigation.
+              This layout supplies the Aave providers its position-notifications
+              section reads. */}
+          <GodModePanelSlot />
         </ReorderOverrideProvider>
       </PendingVaultsProvider>
     </AaveConfigProvider>
@@ -101,12 +126,35 @@ const AaveOverlayLayout = () => {
 
 const ActivityWithProviders = () => (
   <AaveConfigProvider>
-    <Activity />
+    {/* Activity itself needs no reorder override — this is the one provider
+        the god-mode position-notifications section reads (through
+        `useDashboardState`) that this route does not otherwise mount, and it
+        is in-memory-only state, so a second instance here is inert for the
+        page. Without it the panel would throw on /activity.
+
+        The panel's full context dependency set is AaveConfig (mounted here),
+        ReorderOverride (mounted here) and ActivatingVaults (RootLayout).
+        Notably NOT PendingVaults: that context is reached only through
+        `useAaveVaults` and `useWithdrawCollateralTransaction`, neither of
+        which this subtree mounts — so the Aave layout's PendingVaultsProvider
+        is deliberately not duplicated here.
+
+        The feed itself is demo-aware: `useActivitiesWithPending` merges the
+        panel's activity mocks into the rows it returns (see dev/demoDeposit),
+        so mock rows DO render on this page — while disconnected too —
+        alongside the theme and protocol-status / max-vaults overrides. */}
+    <ReorderOverrideProvider>
+      <Activity />
+      <GodModePanelSlot />
+    </ReorderOverrideProvider>
   </AaveConfigProvider>
 );
 
+// /liquidations: v3 shell + the liquidation-analysis flag, so the section is
+// unreachable by deep link while its sidebar entry is hidden.
 const V3Placeholder = () =>
-  featureFlags.isV3UiEnabled ? (
+  featureFlags.isV3UiEnabled &&
+  featureFlags.isLiquidationAnalysisChartEnabled ? (
     <div data-testid="v3-placeholder" />
   ) : (
     <Navigate to={ROUTES.OVERVIEW} replace />

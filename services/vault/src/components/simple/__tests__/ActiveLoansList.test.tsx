@@ -60,4 +60,22 @@ describe("ActiveLoansList — per-row Borrow gating", () => {
 
     expect(screen.getByRole("button", { name: "Borrow" })).toBeDisabled();
   });
+
+  // A `displayOnly` row is a god-mode demo mock: its symbol resolves to no
+  // reserve, so neither action may reach the real borrow/repay overlay.
+  it("disables both actions for a display-only (god-mode demo) row", () => {
+    const onBorrow = vi.fn();
+    const onRepay = vi.fn();
+    render(
+      <ActiveLoansList
+        rows={[makeRow({ isBorrowable: true, displayOnly: true })]}
+        canBorrow
+        onBorrow={onBorrow}
+        onRepay={onRepay}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Borrow" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
+  });
 });

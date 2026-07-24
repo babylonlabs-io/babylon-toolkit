@@ -52,6 +52,38 @@ describe("EmptyState", () => {
     expect(button.className).not.toContain("bbn-btn-primary");
   });
 
+  it("renders the shared document illustration when no avatar is given", () => {
+    // Every v3 empty state (vaults / loans / activity) uses the same Figma
+    // illustration; only the v2 reserve-detail prompt passes an avatar.
+    const { container, rerender } = render(
+      <EmptyState title="No active loans" isConnected />,
+    );
+
+    expect(container.querySelector("svg")).toBeInTheDocument();
+
+    rerender(
+      <EmptyState avatarUrl="/images/btc.svg" title="Connect" isConnected />,
+    );
+
+    expect(container.querySelector("svg")).not.toBeInTheDocument();
+  });
+
+  it("renders no illustration for the compact variant", () => {
+    // The v2 reserve-detail prompt predates the v3 illustration — the v3
+    // default must not leak into it.
+    const { container } = render(
+      <EmptyState
+        variant="compact"
+        title="No collateral"
+        description="Deposit first"
+        isConnected
+      />,
+    );
+
+    expect(container.querySelector("svg")).not.toBeInTheDocument();
+    expect(screen.getByText("Deposit first").className).toContain("text-sm");
+  });
+
   it("renders the connect prompt instead of the action button when disconnected", () => {
     const onAction = vi.fn();
 

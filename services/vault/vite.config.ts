@@ -17,6 +17,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // injects, which has no 'unsafe-inline'/nonce and would white-screen `pnpm dev`. The meta CSP
 // does not govern that preamble because Vite injects it above the meta tag, and a meta policy
 // only applies to content that follows it.
+//
+// The meta CSP's connect-src carve-outs `http://localhost:*` and `ws://localhost:*` are
+// load-bearing for dev, not leftovers: ws://localhost is the Vite HMR websocket (a page's
+// 'self' does not reliably match the ws: scheme), and http://localhost:<port> covers the
+// cross-port Playwright mock servers (playwright.config.ts). Removing them breaks HMR and
+// the e2e suite with silent CSP blocks, not build errors.
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",

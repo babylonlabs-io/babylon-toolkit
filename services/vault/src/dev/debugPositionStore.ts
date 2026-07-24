@@ -173,6 +173,43 @@ const NO_OVERRIDE: DebugPositionOverride = { result: null, status: null };
  */
 export const DEBUG_FORCED_MAX_VAULTS = 10;
 
+/** Which non-live state to force on the Loans summary's borrow-capacity cards. */
+export type DebugBorrowCapacityState = "loading" | "error";
+
+/** Health-factor values the panel offers, one per production band — safe
+ *  (>= HEALTH_FACTOR_WARNING_THRESHOLD), warning (>= 1.0), danger (< 1.0, i.e.
+ *  liquidatable). See `getHealthFactorStatus`; a test asserts these three still
+ *  land in three distinct bands. */
+export const DEBUG_HEALTH_FACTORS = [
+  { value: 2.4, label: "Safe" },
+  { value: 1.25, label: "Warning" },
+  { value: 0.95, label: "Danger" },
+] as const;
+
+/** What the Loans summary should render for a forced borrow-capacity state.
+ *  Consumers get one of the two frozen snapshots below (never a fresh object,
+ *  which would break `useSyncExternalStore`'s snapshot identity). */
+export interface DebugBorrowCapacity {
+  loading: boolean;
+  error: Error | null;
+}
+
+// Behind `import.meta.env.DEV` so the simulated-failure Error — message string
+// included — is dead code a production build drops, even though the store
+// module itself is reachable from production components.
+const DEBUG_BORROW_CAPACITY_SNAPSHOTS: Record<
+  DebugBorrowCapacityState,
+  DebugBorrowCapacity
+> | null = import.meta.env.DEV
+  ? {
+      loading: { loading: true, error: null },
+      error: {
+        loading: false,
+        error: new Error("God mode: simulated borrow-capacity read failure"),
+      },
+    }
+  : null;
+
 let manualMode = false;
 let simulateStalePrice = false;
 let manualParams: CalculatorParams = makeDefaultDebugParams();
@@ -181,6 +218,12 @@ let override: DebugPositionOverride = NO_OVERRIDE;
 // override, i.e. the component uses live chain state.
 let maxVaultsOverride: number | null = null;
 let protocolStatusOverride: ProtocolStatus | null = null;
+// v3 Loans summary overrides. The health factor is stored as the VALUE, not a
+// status: the page derives the status with the real
+// `getHealthFactorStatusFromValue`, so the forced card can't drift from the
+// production banding. null = live.
+let healthFactorOverride: number | null = null;
+let borrowCapacityStateOverride: DebugBorrowCapacityState | null = null;
 
 const listeners = new Set<() => void>();
 
@@ -241,6 +284,20 @@ export function setDebugProtocolStatusOverride(status: ProtocolStatus | null) {
   emit();
 }
 
+/** Force (a value) or release (null) the Loans summary health factor. */
+export function setDebugHealthFactorOverride(healthFactor: number | null) {
+  healthFactorOverride = healthFactor;
+  emit();
+}
+
+/** Force (loading / error) or release (null) the borrow-capacity cards. */
+export function setDebugBorrowCapacityStateOverride(
+  state: DebugBorrowCapacityState | null,
+) {
+  borrowCapacityStateOverride = state;
+  emit();
+}
+
 function getManualMode() {
   return manualMode;
 }
@@ -287,6 +344,22 @@ function getProtocolStatusOverride(): ProtocolStatus | null {
   return featureFlags.isGodModePanelEnabled ? protocolStatusOverride : null;
 }
 
+function getHealthFactorOverride(): number | null {
+  return featureFlags.isGodModePanelEnabled ? healthFactorOverride : null;
+}
+
+function getBorrowCapacityStateOverride(): DebugBorrowCapacityState | null {
+  return featureFlags.isGodModePanelEnabled
+    ? borrowCapacityStateOverride
+    : null;
+}
+
+function getBorrowCapacity(): DebugBorrowCapacity | null {
+  const state = getBorrowCapacityStateOverride();
+  if (!state || !DEBUG_BORROW_CAPACITY_SNAPSHOTS) return null;
+  return DEBUG_BORROW_CAPACITY_SNAPSHOTS[state];
+}
+
 export function useDebugMaxVaultsOverride(): number | null {
   return useSyncExternalStore(
     subscribe,
@@ -301,4 +374,29 @@ export function useDebugProtocolStatusOverride(): ProtocolStatus | null {
     getProtocolStatusOverride,
     getProtocolStatusOverride,
   );
+}
+
+export function useDebugHealthFactorOverride(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    getHealthFactorOverride,
+    getHealthFactorOverride,
+  );
+}
+
+export function useDebugBorrowCapacityStateOverride(): DebugBorrowCapacityState | null {
+  return useSyncExternalStore(
+    subscribe,
+    getBorrowCapacityStateOverride,
+    getBorrowCapacityStateOverride,
+  );
+}
+
+/**
+ * The forced borrow-capacity rendering state for the v3 Loans summary, or null
+ * to use the live read. Production reads THIS (not the raw state or the Error
+ * constant) so the simulated-failure message never enters a production build.
+ */
+export function useDebugBorrowCapacity(): DebugBorrowCapacity | null {
+  return useSyncExternalStore(subscribe, getBorrowCapacity, getBorrowCapacity);
 }

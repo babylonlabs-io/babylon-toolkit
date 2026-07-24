@@ -9,7 +9,10 @@ import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
-import { getCoreSpokeAddress } from "../clients/transaction";
+import {
+  getCoreSpokeAddress,
+  getVaultBtcReserveId,
+} from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
 
 /**
@@ -208,8 +211,6 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     return null;
   }
 
-  const vbtcReserveId = BigInt(response.aaveConfig.vaultBtcReserveId);
-
   const adapterAddress = getAaveAdapterAddress();
   const indexedAdapterAddress = response.aaveConfig.adapterAddress as Address;
   if (indexedAdapterAddress.toLowerCase() !== adapterAddress.toLowerCase()) {
@@ -229,6 +230,27 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
       { cause: error },
     );
   }
+
+  // Resolve the vBTC reserve ID on-chain from the env-pinned adapter and treat
+  // the immutable getter as the source of truth. The GraphQL value is only a
+  // mirror to cross-check: a compromised indexer could otherwise point split /
+  // liquidation math at a different reserve while keeping the adapter address
+  // equal. Fail closed on disagreement or read failure.
+  let onChainReserveId: bigint;
+  try {
+    onChainReserveId = await getVaultBtcReserveId(adapterAddress);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve vBTC reserve ID from adapter ${adapterAddress}`,
+      { cause: error },
+    );
+  }
+  if (onChainReserveId !== BigInt(response.aaveConfig.vaultBtcReserveId)) {
+    throw new Error(
+      `Aave vBTC reserve ID mismatch: indexer returned ${response.aaveConfig.vaultBtcReserveId}, expected ${onChainReserveId}`,
+    );
+  }
+  const vbtcReserveId = onChainReserveId;
 
   const config: AaveConfig = {
     adapterAddress,

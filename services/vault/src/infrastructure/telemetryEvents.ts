@@ -33,6 +33,12 @@ export const TELEMETRY_EVENT = {
   EXIT_REDEEM_PAYOUT_BLOCKED: "exit.redeem.payout_blocked",
   /** Pegout polling gave up (consecutive failures / unknown status / provider not found). */
   EXIT_REDEEM_PEGOUT_TIMEOUT: "exit.redeem.pegout_timeout",
+  /** Recovery artifacts downloaded for the first time — the RETRIEVE_SECRET gate is passable. */
+  ACTIVATION_ARTIFACTS_DOWNLOADED: "activation.artifacts.downloaded",
+  /** The VP kept reporting "still processing" past the stall threshold — depositor is stuck waiting. */
+  ACTIVATION_ARTIFACTS_STALLED: "activation.artifacts.stalled",
+  /** Every vault provider was filtered out of the deposit picker — deposits blocked at the top of the funnel. */
+  ONBOARDING_PROVIDERS_EMPTY: "onboarding.providers.empty",
 } as const;
 
 export type TelemetryEvent =
@@ -48,6 +54,7 @@ export type TelemetryEvent =
 export const TELEMETRY_STAGE = {
   ACTIVATION_WOTS: "activation.wots",
   ACTIVATION_PAYOUTS: "activation.payouts",
+  ACTIVATION_ARTIFACTS: "activation.artifacts",
   ACTIVATION_SECRET: "activation.secret",
   ACTIVATION_REVEAL: "activation.reveal",
 } as const;

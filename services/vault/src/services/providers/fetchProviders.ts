@@ -1,6 +1,7 @@
 import { gql } from "graphql-request";
 
 import { logger } from "@/infrastructure";
+import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
 import { graphqlClient } from "../../clients/graphql";
 import type {
@@ -156,6 +157,15 @@ export function getLatestVersionKeepers(
 }
 
 /**
+ * Applications (lowercased addresses) for which the all-rows-invalid event has
+ * already been emitted this session. Module-scoped for the same reason as the
+ * all-disabled gate in useVaultProviders: React Query polling re-runs
+ * fetchAppProviders, and a persistent indexer regression must be reported
+ * once per application — not once per refetch.
+ */
+const emittedAllInvalidFor = new Set<string>();
+
+/**
  * Fetches vault providers and vault keepers for a specific application.
  *
  * Note: Universal challengers are system-wide and should be fetched from
@@ -170,16 +180,27 @@ export function getLatestVersionKeepers(
 export async function fetchAppProviders(
   applicationEntryPoint: string,
 ): Promise<AppProvidersResponse> {
+  const appKey = applicationEntryPoint.toLowerCase();
   const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
     GET_APP_PROVIDERS,
-    { appController: applicationEntryPoint.toLowerCase() },
+    { appController: appKey },
   );
 
-  const vaultProviders: VaultProvider[] = response.vaultProviders.items
-    .filter(
-      (provider): provider is typeof provider & { rpcUrl: string } =>
-        provider.rpcUrl !== null,
-    )
+  const rawProviders = response.vaultProviders.items;
+  const withRpcUrl = rawProviders.filter(
+    (
+      provider,
+    ): provider is (typeof rawProviders)[number] & { rpcUrl: string } =>
+      provider.rpcUrl !== null,
+  );
+  if (withRpcUrl.length < rawProviders.length) {
+    logger.warn("Dropped vault providers with null rpcUrl from indexer", {
+      dropped: rawProviders.length - withRpcUrl.length,
+      total: rawProviders.length,
+    });
+  }
+
+  const vaultProviders: VaultProvider[] = withRpcUrl
     .filter((provider) => validateAppProvider(provider) !== null)
     .map((provider) => ({
       id: provider.id,
@@ -189,6 +210,26 @@ export async function fetchAppProviders(
       metadataStatus: normalizeMetadataStatus(provider.metadataStatus),
       metadataRejectionReason: provider.metadataRejectionReason ?? undefined,
     }));
+
+  // The indexer knows providers but every row was dropped (null rpcUrl or
+  // failed validation): a systemic schema/data regression that blocks every
+  // deposit at the picker. Distinct from a legitimately empty application.
+  // Once per application per session — React Query refetches call this on
+  // every poll, and a persistent regression must not re-count itself.
+  if (
+    rawProviders.length > 0 &&
+    vaultProviders.length === 0 &&
+    !emittedAllInvalidFor.has(appKey)
+  ) {
+    emittedAllInvalidFor.add(appKey);
+    logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
+      level: "warning",
+      category: "onboarding",
+      reason: "all_rows_invalid",
+      total: rawProviders.length,
+      applicationId: shortId(appKey),
+    });
+  }
 
   const vaultKeeperItems: VaultKeeperItem[] =
     response.vaultKeeperApplications.items

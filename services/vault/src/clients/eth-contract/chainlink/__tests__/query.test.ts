@@ -36,7 +36,11 @@ vi.mock("@/config/network", () => ({
 }));
 
 import type { ChainlinkRoundData } from "../query";
-import { getTokenPrices, isPriceFresh } from "../query";
+import {
+  getTokenPrices,
+  isPriceFresh,
+  resetStaleFeedReporting,
+} from "../query";
 
 /** Simulated Chainlink round ID for test fixtures */
 const ROUND_ID = 100n;
@@ -117,6 +121,8 @@ describe("isPriceFresh", () => {
 describe("getTokenPrices", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The stale-feed dedup store is module-scoped and outlives a single test.
+    resetStaleFeedReporting();
   });
 
   /**
@@ -247,6 +253,65 @@ describe("getTokenPrices", () => {
     const result = await getTokenPrices(["BTC"]);
 
     expect(result.metadata["BTC"].isStale).toBe(true);
+  });
+
+  it("emits the stale event once per stale episode, not on every read", async () => {
+    const { logger } = await import("@/infrastructure");
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    const staleFeed = () =>
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - TWO_HOURS_SECONDS,
+      });
+
+    mockMulticall.mockResolvedValueOnce(staleFeed());
+    await getTokenPrices(["BTC"]);
+    mockMulticall.mockResolvedValueOnce(staleFeed());
+    await getTokenPrices(["BTC"]);
+
+    const staleEvents = vi
+      .mocked(logger.event)
+      .mock.calls.filter(([m]) => typeof m === "string" && m.includes("stale"));
+    expect(staleEvents).toHaveLength(1);
+  });
+
+  it("still marks metadata stale on a deduped read (only the event is suppressed)", async () => {
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    const staleFeed = () =>
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - TWO_HOURS_SECONDS,
+      });
+
+    mockMulticall.mockResolvedValueOnce(staleFeed());
+    await getTokenPrices(["BTC"]);
+    mockMulticall.mockResolvedValueOnce(staleFeed());
+    const second = await getTokenPrices(["BTC"]);
+
+    // The UI's stale badge reads metadata, which must still report stale even
+    // though the second read emitted no event.
+    expect(second.metadata["BTC"].isStale).toBe(true);
+  });
+
+  it("re-emits the stale event after the feed recovers then goes stale again", async () => {
+    const { logger } = await import("@/infrastructure");
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    const staleFeed = () =>
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - TWO_HOURS_SECONDS,
+      });
+
+    mockMulticall.mockResolvedValueOnce(staleFeed());
+    await getTokenPrices(["BTC"]); // stale → emit
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS),
+    );
+    await getTokenPrices(["BTC"]); // fresh → clears the dedup flag
+    mockMulticall.mockResolvedValueOnce(staleFeed());
+    await getTokenPrices(["BTC"]); // stale again → emit
+
+    const staleEvents = vi
+      .mocked(logger.event)
+      .mock.calls.filter(([m]) => typeof m === "string" && m.includes("stale"));
+    expect(staleEvents).toHaveLength(2);
   });
 
   it("stores error metadata when multicall fails", async () => {

@@ -168,6 +168,28 @@ describe("VaultsPage", () => {
 
     expect(screen.getByTestId("connect-button")).toBeInTheDocument();
     expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
+    // Disconnected prompts for a wallet rather than describing a position we
+    // haven't read yet.
+    expect(
+      screen.getByText(COPY.vaults.empty.disconnected),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.vaults.empty.description),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the deposits-paused notice visible while disconnected", () => {
+    // The pause is protocol-level: a depositor should learn deposits are off
+    // without having to connect a wallet first.
+    walletState.isConnected = false;
+    featureFlagsMock.isDepositDisabled = true;
+
+    renderVaultsPage();
+
+    expect(screen.getByText(COPY.deposit.disabled.title)).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.vaults.empty.disconnected),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a loader, not the empty state, while queries resolve", () => {

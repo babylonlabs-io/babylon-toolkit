@@ -78,7 +78,7 @@
   },
   {
     "type": "function",
-    "name": "BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID",
+    "name": "VAULT_BTC_RESERVE_ID",
     "inputs": [],
     "outputs": [
       {
@@ -91,7 +91,7 @@
   },
   {
     "type": "function",
-    "name": "BTC_VAULT_CORE_WBTC_RESERVE_ID",
+    "name": "WBTC_RESERVE_ID",
     "inputs": [],
     "outputs": [
       {

@@ -10,7 +10,7 @@
 
 import { Container, Loader, Notification } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 import type { Address } from "viem";
 
@@ -39,15 +39,6 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
-
-// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
-// code is dropped from production builds entirely (same pattern as
-// DashboardPage).
-const GodModePanel = import.meta.env.DEV
-  ? lazy(() =>
-      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
-    )
-  : null;
 
 export default function VaultsPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -85,13 +76,16 @@ export default function VaultsPage() {
 
   const isDepositsPaused = FeatureFlags.isDepositDisabled;
 
-  const renderEmptyState = (withCard: boolean) => (
+  // `sectionPlacement` = rendered inline in the Vaults section beneath a pending
+  // deposit, where it sits on the same bordered surface as the sibling cards.
+  // The whole-page state (false) sits on the standalone v3 empty-state card.
+  const renderEmptyState = (sectionPlacement: boolean) => (
     <VaultsEmptyState
       isConnected={isConnected}
       isDepositsPaused={isDepositsPaused}
       isDepositDisabled={isDepositBlocked(gate)}
       onDeposit={() => openDeposit()}
-      withCard={withCard}
+      sectionPlacement={sectionPlacement}
     />
   );
 
@@ -118,6 +112,8 @@ export default function VaultsPage() {
     }
   }, [address, queryClient]);
 
+  // The god-mode panel itself is mounted once by the route layout (see
+  // dev/GodModeMount); this only gates the demo-driven body below.
   const isDevToolingEnabled =
     import.meta.env.DEV && FeatureFlags.isGodModePanelEnabled;
 
@@ -157,7 +153,8 @@ export default function VaultsPage() {
           isWithdrawDisabled={isWithdrawBlocked(gate)}
           // Pending deposits keep the page populated while the vault list is
           // still empty — the section shows the empty state until the deposit
-          // confirms and activates.
+          // confirms and activates. Section placement sits on the sibling-card
+          // surface, not the standalone empty-state card.
           emptyState={renderEmptyState(true)}
         />
       </VaultsLifecycleSections>
@@ -188,19 +185,9 @@ export default function VaultsPage() {
     return renderEmptyState(false);
   };
 
-  // Dev/QA god-mode panel (same gate and pattern as DashboardPage) so demo
-  // items can be injected from this page without navigating to Overview.
-  const godModePanel =
-    isDevToolingEnabled && GodModePanel ? (
-      <Suspense fallback={null}>
-        <GodModePanel />
-      </Suspense>
-    ) : null;
-
   return (
     <Container as="main" className={`${PAGE_CONTENT_CLASS} pb-6`}>
       {renderBody()}
-      {godModePanel}
 
       <WithdrawFlow
         open={withdrawVaultIds !== null}

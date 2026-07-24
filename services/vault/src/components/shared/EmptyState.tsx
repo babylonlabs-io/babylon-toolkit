@@ -1,7 +1,14 @@
 /**
  * EmptyState Component
- * Generic empty state component for displaying connection prompts
- * or empty data states with customizable content
+ *
+ * Two presentations, one component:
+ * - `v3` (default) — the tab-level empty state shared by Vaults, Loans and
+ *   Activity (Figma "Home Screen Cards": 11716:54592, 10044:14068,
+ *   10044:13346). Document illustration, filled card, 24px gaps, a
+ *   600px-capped centered copy block with a 4px title/body gap, then the CTA.
+ * - `compact` — the v2 reserve-detail connect prompt, which predates this
+ *   design and must keep its old look: no illustration unless the caller
+ *   supplies an avatar, plain card chrome, 14px description.
  */
 
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
@@ -9,24 +16,19 @@ import type { ReactNode } from "react";
 
 import { Connect } from "@/components/Wallet";
 
+import { EmptyStateIcon } from "./icons/EmptyStateIcon";
+
 interface EmptyStateProps {
-  /** Avatar image URL. Ignored when `icon` is provided. */
+  /** Avatar image URL rendered instead of the default illustration. */
   avatarUrl?: string;
   /** Avatar alt text */
   avatarAlt?: string;
-  /** Custom illustration rendered instead of the circular avatar (e.g. a line
-   *  icon from the v3 designs). Takes precedence over `avatarUrl`. */
-  icon?: ReactNode;
   /** Primary text/title */
   title: string;
   /** Secondary text/description (optional) */
   description?: string;
-  /**
-   * Description presentation: "compact" keeps the original small text used by
-   * the v2 surfaces (e.g. the reserve-detail connect prompt); "wide" is the
-   * larger, centered, width-capped look of the v3 /vaults empty state.
-   */
-  descriptionVariant?: "compact" | "wide";
+  /** Presentation — see the file header. */
+  variant?: "v3" | "compact";
   /** Whether the user is connected */
   isConnected?: boolean;
   /**
@@ -44,27 +46,27 @@ interface EmptyStateProps {
   withCard?: boolean;
 }
 
-const DESCRIPTION_CLASS: Record<
-  NonNullable<EmptyStateProps["descriptionVariant"]>,
-  string
-> = {
-  compact: "text-sm text-accent-secondary",
-  wide: "max-w-[600px] text-center text-base text-accent-secondary",
-};
+/**
+ * Figma pins the v3 CTA at 120px wide; core-ui's `large` button (h-40, px-24,
+ * 16px label) is otherwise an exact match. Exported because the vaults tab
+ * supplies its own `DepositButton` (it carries an E2E testid) and has to match.
+ */
+export const ACTION_WIDTH_CLASS = "min-w-[120px]";
 
 export function EmptyState({
   avatarUrl,
   avatarAlt,
-  icon,
   title,
   description,
-  descriptionVariant = "compact",
+  variant = "v3",
   isConnected = false,
   action,
   actionLabel,
   onAction,
   withCard = false,
 }: EmptyStateProps) {
+  const isV3 = variant === "v3";
+
   const connectedAction =
     action ??
     (actionLabel && onAction && (
@@ -74,7 +76,8 @@ export function EmptyState({
         // `primary` (`bg-primary-light`) is the blue, not what we want here.
         variant="contained"
         color="secondary"
-        size="medium"
+        size={isV3 ? "large" : "medium"}
+        className={isV3 ? ACTION_WIDTH_CLASS : undefined}
         // Invoked with no arguments on purpose: callers pass handlers
         // that take optional parameters (e.g. `openDeposit(amountBtc?)`),
         // and forwarding the click event would land a MouseEvent in that
@@ -86,44 +89,61 @@ export function EmptyState({
       </Button>
     ));
 
-  // A single centered surface. When `withCard` is set, the `Card` below is the
-  // only surface — the content sits directly on it (no inner panel), matching
-  // the v3 empty-state design.
-  const content = (
-    <div className="flex w-full flex-col items-center justify-center gap-2 py-16">
-      {/* Illustration: custom icon node when provided, else the avatar image */}
-      {icon ? (
-        <div className="mb-2">{icon}</div>
-      ) : (
-        avatarUrl && (
-          <Avatar
-            url={avatarUrl}
-            alt={avatarAlt ?? ""}
-            size="xlarge"
-            className="mb-2 h-[100px] w-[100px]"
-          />
-        )
-      )}
+  const avatar = avatarUrl && (
+    <Avatar
+      url={avatarUrl}
+      alt={avatarAlt ?? ""}
+      size="xlarge"
+      className={isV3 ? "h-[100px] w-[100px]" : "mb-2 h-[100px] w-[100px]"}
+    />
+  );
 
-      {/* Primary Text */}
-      <p className="text-xl text-accent-primary">{title}</p>
+  const actionSlot = (!isConnected || connectedAction) && (
+    <div className={isV3 ? undefined : "mt-8"}>
+      {isConnected ? connectedAction : <Connect />}
+    </div>
+  );
 
-      {/* Secondary Text */}
-      {description && (
-        <p className={DESCRIPTION_CLASS[descriptionVariant]}>{description}</p>
-      )}
+  const content = isV3 ? (
+    <div className="flex w-full flex-col items-center justify-center gap-6">
+      {avatar || <EmptyStateIcon />}
 
-      {/* Action */}
-      {(!isConnected || connectedAction) && (
-        <div className="mt-8">
-          {isConnected ? connectedAction : <Connect />}
+      <div className="flex w-full max-w-[600px] flex-col items-center gap-6">
+        <div className="flex w-full flex-col gap-1 text-center tracking-[0.15px]">
+          <p className="text-xl leading-[1.6] text-accent-primary">{title}</p>
+          {description && (
+            <p className="text-base leading-[1.5] text-accent-secondary">
+              {description}
+            </p>
+          )}
         </div>
+
+        {actionSlot}
+      </div>
+    </div>
+  ) : (
+    <div className="flex w-full flex-col items-center justify-center gap-2 py-16">
+      {avatar}
+      <p className="text-xl text-accent-primary">{title}</p>
+      {description && (
+        <p className="text-sm text-accent-secondary">{description}</p>
       )}
+      {actionSlot}
     </div>
   );
 
   if (withCard) {
-    return <Card>{content}</Card>;
+    // v3 Figma: background/secondary fill, 16px radius, 24/40 padding, no
+    // border. `compact` keeps core-ui's default card chrome.
+    return (
+      <Card
+        className={
+          isV3 ? "border-0 bg-background-secondary px-6 py-10" : undefined
+        }
+      >
+        {content}
+      </Card>
+    );
   }
 
   return content;

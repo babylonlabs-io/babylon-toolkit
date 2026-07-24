@@ -24,6 +24,12 @@ export interface ActiveLoanRow extends BorrowedAsset {
    * Borrow action would dead-end in the reserve-detail form, so gate on this.
    */
   isBorrowable: boolean;
+  /**
+   * God-mode demo row (dev only, never set on a real row): renders like a real
+   * loan but its `reserveId`/`symbol` resolve to no reserve, so ActiveLoansList
+   * disables both of its actions. Keeps a mock out of the borrow/repay overlay.
+   */
+  displayOnly?: boolean;
 }
 
 export function useActiveLoans(

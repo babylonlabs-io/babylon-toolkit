@@ -202,6 +202,21 @@ function emitForSymbol(
 }
 
 /**
+ * Feeds already reported stale this session. A stale price feed is a legitimate
+ * signal (bad collateral valuation), but every component that reads the price
+ * re-runs this, so an undeduped event fires dozens of times per stale episode.
+ * Emit once when a feed goes stale and clear the flag when it reports fresh
+ * again, so a later stale episode re-alerts. Module-scoped — the signal is about
+ * the feed, not any caller.
+ */
+const reportedStaleFeeds = new Set<string>();
+
+/** Test-only: the dedup store outlives any single call. */
+export function resetStaleFeedReporting(): void {
+  reportedStaleFeeds.clear();
+}
+
+/**
  * Translate one feed's raw multicall results into a price + metadata, or an
  * error metadata entry if either call failed or the price is invalid.
  */
@@ -256,17 +271,25 @@ function readoutForFeed(
   const ageSeconds = Math.floor(Date.now() / 1000) - Number(updatedAt);
   const isStale = !isPriceFresh(roundData);
 
+  const feedKey = feedAddress.toLowerCase();
   if (isStale) {
-    if (answeredInRound < roundId) {
-      logger.event(
-        `Chainlink price data is stale: incomplete round (answeredInRound=${answeredInRound} < roundId=${roundId}). Using last known price.`,
-      );
-    } else {
-      const ageHours = (ageSeconds / SECONDS_PER_HOUR).toFixed(1);
-      logger.event(
-        `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
-      );
+    // One event per stale episode; subsequent reads while still stale are silent.
+    if (!reportedStaleFeeds.has(feedKey)) {
+      reportedStaleFeeds.add(feedKey);
+      if (answeredInRound < roundId) {
+        logger.event(
+          `Chainlink price data is stale: incomplete round (answeredInRound=${answeredInRound} < roundId=${roundId}). Using last known price.`,
+        );
+      } else {
+        const ageHours = (ageSeconds / SECONDS_PER_HOUR).toFixed(1);
+        logger.event(
+          `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
+        );
+      }
     }
+  } else {
+    // Recovered — allow the next stale episode for this feed to re-alert.
+    reportedStaleFeeds.delete(feedKey);
   }
 
   return {

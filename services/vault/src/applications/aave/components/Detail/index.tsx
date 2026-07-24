@@ -106,6 +106,7 @@ export function AaveReserveDetail({
         <EmptyState
           avatarUrl={btcConfig.icon}
           avatarAlt={btcConfig.name}
+          variant="compact"
           title="Connect to manage position"
           description="Please connect your wallet to manage your position."
           isConnected={false}
