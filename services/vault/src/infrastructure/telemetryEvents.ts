@@ -41,9 +41,9 @@ export type TelemetryEvent =
 /**
  * Funnel-stage tags for failure captures. A failure is a `captureException`
  * (logger.error), not a named message, so tag it with the stage it failed in —
- * this groups failures by stage in Sentry and lets an alert facet on them. Pair
- * with a scrubbed `vaultId` in the error's data for the per-vault join back to
- * the success milestones.
+ * this groups failures by stage in Sentry and lets an alert facet on them.
+ * `captureFunnelFailure` pairs the stage with a scrubbed `vaultId` tag for the
+ * per-vault join back to the success milestones.
  */
 export const TELEMETRY_STAGE = {
   ACTIVATION_WOTS: "activation.wots",

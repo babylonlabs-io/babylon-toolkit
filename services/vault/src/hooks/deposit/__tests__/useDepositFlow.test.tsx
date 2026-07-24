@@ -1125,6 +1125,28 @@ describe("useDepositFlow", () => {
       // Error should not be shown (aborted flows are silent)
       expect(result.current.error).toBeNull();
     });
+
+    it("tags the failure capture with the step the flow was on when it threw", async () => {
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      // The flow enters SUBMIT_PEGIN immediately before this call, several
+      // steps past the initial DERIVE_VAULT_SECRET.
+      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
+        new Error("ETH registration reverted"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          tags: { depositStep: "SUBMIT_PEGIN" },
+        }),
+      );
+    });
   });
 
   describe("Single Vault", () => {

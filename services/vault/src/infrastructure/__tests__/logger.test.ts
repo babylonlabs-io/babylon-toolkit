@@ -131,15 +131,14 @@ describe("logger", () => {
         batchId: "batch-1",
       });
 
+      // `extra` is matched exactly (not `objectContaining`) so the absence of a
+      // `tags` key inside it is a real assertion, not a vacuous one.
       expect(captureMessage).toHaveBeenCalledWith(
         "deposit.registered",
         expect.objectContaining({
           tags: { vaultId: "0x11...2222", providerId: "0xab...cdef" },
-          extra: expect.objectContaining({ batchId: "batch-1" }),
+          extra: { batchId: "batch-1" },
         }),
-      );
-      expect(vi.mocked(captureMessage).mock.calls[0][1]).not.toHaveProperty(
-        "extra.tags",
       );
     });
   });
