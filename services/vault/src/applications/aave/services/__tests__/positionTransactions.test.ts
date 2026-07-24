@@ -341,7 +341,11 @@ describe("positionTransactions", () => {
         mockToken,
       );
 
-      expect(mockAssertProxy).toHaveBeenCalledWith("0xadapter", "0xuser", PROXY);
+      expect(mockAssertProxy).toHaveBeenCalledWith(
+        "0xadapter",
+        "0xuser",
+        PROXY,
+      );
     });
 
     it("throws before quoting debt and builds no tx when the proxy fails the on-chain check (F8)", async () => {
@@ -381,7 +385,10 @@ describe("positionTransactions", () => {
       );
 
       // Debt quote (which sizes the approval cap) keys off the verified proxy.
-      expect(mockGetPositionReserveTotalDebt).toHaveBeenCalledWith(VERIFIED, 1n);
+      expect(mockGetPositionReserveTotalDebt).toHaveBeenCalledWith(
+        VERIFIED,
+        1n,
+      );
     });
 
     it("caps the approval at quote + buffer when the balance has headroom", async () => {

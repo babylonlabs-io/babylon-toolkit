@@ -50,7 +50,7 @@ const proxyCache = new Map<Address, Promise<Address>>();
  * @throws {ProxyMismatchError} when no on-chain position exists (proxy not yet
  *   deployed) — fail closed rather than trust the indexer value.
  */
-export async function resolveTrustedProxyContract(
+async function resolveTrustedProxyContract(
   trustedAdapterAddress: Address,
   user: Address,
 ): Promise<Address> {

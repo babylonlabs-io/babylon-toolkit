@@ -151,7 +151,9 @@ describe("useRepayTransaction — max mode wiring", () => {
 describe("useRepayTransaction — proxy integrity (F8)", () => {
   it("maps a ProxyMismatchError to the integrity copy and returns false", async () => {
     mockAssertReserve.mockResolvedValueOnce(undefined);
-    mockRepayAll.mockRejectedValueOnce(new ProxyMismatchError("proxy mismatch"));
+    mockRepayAll.mockRejectedValueOnce(
+      new ProxyMismatchError("proxy mismatch"),
+    );
     const { result } = setup();
 
     let resolved: boolean | undefined;

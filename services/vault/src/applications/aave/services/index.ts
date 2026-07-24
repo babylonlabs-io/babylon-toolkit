@@ -34,7 +34,6 @@ export {
 export {
   ProxyMismatchError,
   assertProxyMatchesOnChain,
-  resolveTrustedProxyContract,
 } from "./assertProxyMatchesOnChain";
 export {
   PositionChangedError,
