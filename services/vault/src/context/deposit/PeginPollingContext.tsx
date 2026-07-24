@@ -18,6 +18,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { useDemoDeposit } from "@/dev/demoDeposit";
@@ -61,6 +62,11 @@ import {
   collectDaemonTerminalEvents,
   getSharedDaemonTerminalTracking,
 } from "./daemonTerminalEvents";
+import {
+  getOptimisticDepositState,
+  setOptimisticDepositStatus,
+  subscribeToOptimisticDepositState,
+} from "./optimisticDepositState";
 import {
   collectTerminalMilestones,
   getSharedTerminalMilestoneTracking,
@@ -133,14 +139,19 @@ export function PeginPollingProvider({
   // controlled results below instead of the live polling decision tree.
   const demo = useDemoDeposit();
 
-  // Optimistic status overrides (for immediate UI feedback after signing)
-  const [optimisticStatuses, setOptimisticStatuses] = useState<
-    Map<string, LocalStorageStatus>
-  >(new Map());
-  // Companion timestamp for REFUND_BROADCAST so the suppression TTL is honored
-  // immediately, before localStorage is read back.
-  const [optimisticRefundBroadcastAt, setOptimisticRefundBroadcastAt] =
-    useState<Map<string, number>>(new Map());
+  // Optimistic step completions (for immediate UI feedback after an action).
+  // App-scoped, not provider-scoped: the modal that drives an action mounts its
+  // own provider, so per-instance state never reached the dashboard row that
+  // offered the button. See `optimisticDepositState`.
+  const {
+    statuses: optimisticStatuses,
+    refundBroadcastAt: optimisticRefundBroadcastAt,
+    wotsSubmitted,
+  } = useSyncExternalStore(
+    subscribeToOptimisticDepositState,
+    getOptimisticDepositState,
+    getOptimisticDepositState,
+  );
 
   // Use the polling query hook
   const {
@@ -406,18 +417,7 @@ export function PeginPollingProvider({
       newStatus: LocalStorageStatus,
       refundBroadcastAt?: number,
     ) => {
-      setOptimisticStatuses((prev) => {
-        const next = new Map(prev);
-        next.set(depositId, newStatus);
-        return next;
-      });
-      if (refundBroadcastAt !== undefined) {
-        setOptimisticRefundBroadcastAt((prev) => {
-          const next = new Map(prev);
-          next.set(depositId, refundBroadcastAt);
-          return next;
-        });
-      }
+      setOptimisticDepositStatus(depositId, newStatus, refundBroadcastAt);
     },
     [],
   );
@@ -474,6 +474,7 @@ export function PeginPollingProvider({
         isLoading,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
+        wotsSubmitted,
         btcPublicKey,
       });
     },
@@ -496,6 +497,7 @@ export function PeginPollingProvider({
       isLoading,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
+      wotsSubmitted,
       btcPublicKey,
     ],
   );

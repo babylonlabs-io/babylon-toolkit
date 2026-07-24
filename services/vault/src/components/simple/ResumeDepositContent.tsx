@@ -32,6 +32,7 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import { markWotsSubmitted } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import {
   DepositFlowStep,
@@ -417,6 +418,11 @@ export function ResumeWotsContent({
         btcWallet: btcWalletProvider,
         unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
       });
+
+      // Recorded regardless of mount: the submission landed, so the dashboard
+      // row must stop offering "Submit WOTS Key" even if the user already
+      // closed this modal. The store is app-scoped, not tied to this tree.
+      markWotsSubmitted(activity.id);
 
       if (mountedRef.current) {
         setLoading(false);

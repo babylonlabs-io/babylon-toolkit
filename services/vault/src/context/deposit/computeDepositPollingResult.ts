@@ -21,7 +21,7 @@ import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 /** Optimistic override wins over persisted `pendingPegins` status. */
 function resolveLocalStatus(
   depositId: string,
-  optimisticStatuses: Map<string, LocalStorageStatus>,
+  optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>,
   pendingPegins: PendingPeginRequest[],
 ): LocalStorageStatus | undefined {
   const pendingPegin = pendingPegins.find((p) => p.id === depositId);
@@ -35,7 +35,7 @@ function resolveLocalStatus(
  */
 function resolveRefundBroadcastAt(
   depositId: string,
-  optimisticRefundBroadcastAt: Map<string, number>,
+  optimisticRefundBroadcastAt: ReadonlyMap<string, number>,
   pendingPegins: PendingPeginRequest[],
 ): number | undefined {
   return (
@@ -76,8 +76,15 @@ export interface DepositPollingInputs {
    */
   activationDeadlinePassed: boolean;
   isLoading: boolean;
-  optimisticStatuses: Map<string, LocalStorageStatus>;
-  optimisticRefundBroadcastAt: Map<string, number>;
+  optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
+  optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
+  /**
+   * Deposits whose WOTS submission resolved in this page session. The VP poll
+   * keeps reporting `needsWotsKey` until the daemon advances, so without this
+   * the row would re-offer "Submit WOTS Key" — and a second click re-runs the
+   * whole derivation, including a fresh wallet popup, for a no-op submission.
+   */
+  wotsSubmitted: ReadonlySet<string>;
   btcPublicKey: string | undefined;
 }
 
@@ -102,6 +109,7 @@ export function computeDepositPollingResult(
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
+    wotsSubmitted,
     btcPublicKey,
   } = inputs;
   const depositId = activity.id;
@@ -129,6 +137,13 @@ export function computeDepositPollingResult(
   const transactionsReady = justSignedPayoutsThisSession
     ? false
     : (pendingDepositorSignatures?.has(depositId) ?? false);
+
+  // Same shape as the payout suppression above: a step this session watched
+  // resolve outranks the poll snapshot that has not caught up yet.
+  const justSubmittedWotsThisSession = wotsSubmitted.has(depositId);
+  const stillNeedsWotsKey = justSubmittedWotsThisSession
+    ? false
+    : needsWotsKey?.has(depositId);
 
   // Cache is OR'd with live count: on refresh, cached txids are
   // filtered out of polling, so the live map is empty for them.
@@ -204,7 +219,7 @@ export function computeDepositPollingResult(
     localStatus,
     transactionsReady,
     isInUse: activity.isInUse,
-    needsWotsKey: needsWotsKey?.has(depositId),
+    needsWotsKey: stillNeedsWotsKey,
     pendingIngestion: pendingIngestion?.has(depositId),
     prePeginBroadcastConfirmed,
     prePeginBroadcastSeen,

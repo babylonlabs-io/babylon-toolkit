@@ -11,6 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import {
+  getOptimisticDepositState,
+  resetOptimisticDepositState,
+} from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { shortId } from "@/infrastructure/telemetryEvents";
@@ -352,6 +356,52 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
     await waitFor(() => {
       expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("ResumeWotsContent — submission marker", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSubmitWotsPublicKey.mockReset();
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+    resetOptimisticDepositState();
+  });
+
+  it("records the WOTS submission so the dashboard row stops offering the button", async () => {
+    render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        getOptimisticDepositState().wotsSubmitted.has(baseActivity.id),
+      ).toBe(true);
+    });
+  });
+
+  it("does not record a submission that failed", async () => {
+    mockSubmitWotsPublicKey.mockRejectedValue(new Error("VP rejected the key"));
+
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("error").textContent).toContain("VP rejected the key");
+    });
+    expect(getOptimisticDepositState().wotsSubmitted.has(baseActivity.id)).toBe(
+      false,
+    );
   });
 });
 
