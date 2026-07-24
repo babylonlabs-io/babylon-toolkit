@@ -69,11 +69,15 @@ export function ActiveLoansList({
                 value={utilization}
               />
 
+              {/* A god-mode demo row (`displayOnly`) is a preview of the row
+                  layout only — its symbol resolves to no reserve, so both
+                  actions stay disabled rather than dead-ending in (or worse,
+                  colliding with) the real borrow/repay overlay. */}
               <div className="ml-auto flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={() => onBorrow(row.symbol)}
-                  disabled={!canBorrow || !row.isBorrowable}
+                  disabled={!canBorrow || !row.isBorrowable || row.displayOnly}
                   className={NEUTRAL_ROW_BUTTON_CLASS}
                 >
                   {COPY.loans.borrowButton}
@@ -81,6 +85,7 @@ export function ActiveLoansList({
                 <button
                   type="button"
                   onClick={() => onRepay(row.symbol)}
+                  disabled={row.displayOnly}
                   className={NEUTRAL_ROW_BUTTON_CLASS}
                 >
                   {COPY.loans.repayButton}

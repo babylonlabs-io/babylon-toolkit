@@ -149,6 +149,9 @@ export default tseslint.config(
       "**/__tests__/**",
       "**/*.test.{ts,tsx}",
       // Sanctioned seams that legitimately mount / inject the dev tooling.
+      // The single god-mode mount: the route layout that wraps Overview /
+      // Vaults / Loans loads `dev/GodModeMount` behind `import.meta.env.DEV`.
+      "src/router.tsx",
       "src/components/simple/DashboardPage.tsx",
       // v3 /vaults (#2041): mounts the god-mode panel, routes to the populated
       // layout under demo injection, and merges demo collateral / routes demo
@@ -157,6 +160,13 @@ export default tseslint.config(
       "src/components/pages/VaultsPage.tsx",
       "src/components/vaults/VaultsLifecycleSections.tsx",
       "src/hooks/useVaultsPageData.ts",
+      // v3 /loans: merges demo loan rows into the Active Loans list, routes to
+      // the populated layout under demo injection, and applies the god-mode
+      // health-factor / borrow-capacity summary overrides. Mirrors VaultsPage.
+      "src/components/pages/Loans.tsx",
+      // v3 /activity: merges demo activity rows into the feed (display-only —
+      // never polled, never written to the pending-activity storage).
+      "src/hooks/useActivitiesWithPending.ts",
       "src/hooks/usePendingDeposits.ts",
       "src/context/deposit/PeginPollingContext.tsx",
       // God-mode simulated-activation walk: routes demo card clicks to the

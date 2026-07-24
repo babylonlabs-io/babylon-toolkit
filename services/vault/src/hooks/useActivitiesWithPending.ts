@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 
 import { STORAGE_UPDATE_EVENT } from "../constants";
+import { useDemoActivity } from "../dev/demoDeposit";
 import { getPendingActivities } from "../services/activity";
 import type { ActivityLog, ActivityRow } from "../types/activityLog";
 
@@ -31,6 +32,13 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
   } = useActivities(userAddress);
   const [pendingActivities, setPendingActivities] = useState<ActivityLog[]>([]);
   const [storageVersion, setStorageVersion] = useState(0);
+  // God-mode demo rows (dev only; null unless the panel's "Inject demo" toggle
+  // is on). Merged into the returned feed — real rows dropped when `hideReal`
+  // is set — so the Activity page can be exercised without a wallet or an
+  // indexed history. Read-only display rows: nothing here is ever polled,
+  // written to localStorage, or deduplicated against real ids. Inert in
+  // production.
+  const demo = useDemoActivity();
 
   // Load pending activities from localStorage
   const loadPendingActivities = useCallback(() => {
@@ -71,7 +79,10 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
 
   // Merge confirmed and pending activities, deduplicating by ID
   const allActivities = useMemo<ActivityRow[]>(() => {
-    if (!userAddress) return [];
+    // Demo rows lead the feed and are exempt from the wallet guard, so the
+    // page renders them while disconnected (mirrors VaultsPage / Loans).
+    const demoRows = demo?.rows ?? [];
+    if (!userAddress || demo?.hideReal) return demoRows;
 
     const confirmed = confirmedActivities ?? [];
 
@@ -84,14 +95,19 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
     );
 
     // Combine and sort by date (newest first)
-    return [...uniquePending, ...confirmed].sort(
+    return [...demoRows, ...uniquePending, ...confirmed].sort(
       (a, b) => b.date.getTime() - a.date.getTime(),
     );
-  }, [confirmedActivities, pendingActivities, userAddress]);
+  }, [confirmedActivities, pendingActivities, userAddress, demo]);
 
   return {
     data: allActivities,
-    isLoading,
+    // Whenever the demo governs the feed there is a final answer to render
+    // right now, so the page must not sit on its spinner waiting for a query
+    // that, disconnected, will never resolve. `hideReal` counts even with zero
+    // mocks: the feed is then a deliberate empty demo-only list.
+    isLoading:
+      demo && (demo.hideReal || demo.rows.length > 0) ? false : isLoading,
     ...queryResult,
   };
 }

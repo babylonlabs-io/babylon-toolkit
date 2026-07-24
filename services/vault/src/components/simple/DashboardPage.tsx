@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -17,8 +17,6 @@ import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { LiquidationAnalysisDebugPanel } from "@/dev/LiquidationAnalysisDebugPanel";
-import { PositionNotificationsDebugPanel } from "@/dev/PositionNotificationsDebugPanel";
 import {
   useDebugManualMode,
   useDebugManualParams,
@@ -56,15 +54,6 @@ import { PositionNotificationBanner } from "./PositionNotificationBanner";
 import { RiskSection } from "./RiskSection";
 import { SupplyCapSection } from "./SupplyCapSection";
 import WithdrawFlow from "./WithdrawFlow";
-
-// Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so its
-// code is dropped from production builds entirely (the dynamic import sits in a
-// dead branch that the bundler eliminates).
-const GodModePanel = import.meta.env.DEV
-  ? lazy(() =>
-      import("@/dev/GodModePanel").then((m) => ({ default: m.GodModePanel })),
-    )
-  : null;
 
 export function DashboardPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -308,27 +297,6 @@ export function DashboardPage() {
     />
   ) : null;
 
-  // Dev/QA god-mode admin panel (NEXT_PUBLIC_FF_GOD_MODE_PANEL). Floats over
-  // the page and drives the demo items rendered in the real sections below.
-  // Stripped from production builds and never active there (see GodModePanel).
-  // The position-notifications debug controls live inside the god-mode panel as
-  // a section (gated by their own flag), so there's one integrated debug
-  // surface rather than a separate panel on the page.
-  const godModePanel =
-    import.meta.env.DEV &&
-    GodModePanel &&
-    featureFlags.isGodModePanelEnabled ? (
-      <Suspense fallback={null}>
-        <GodModePanel>
-          {featureFlags.isV3UiEnabled && <LiquidationAnalysisDebugPanel />}
-          {liquidationNotificationsEnabled &&
-            featureFlags.isPositionDebugPanelEnabled && (
-              <PositionNotificationsDebugPanel />
-            )}
-        </GodModePanel>
-      </Suspense>
-    ) : null;
-
   if (!isConnected) {
     return (
       // `my-auto` completes the Container's built-in `mx-auto` to a full
@@ -336,7 +304,6 @@ export function DashboardPage() {
       // the remaining viewport height.
       <Container className={`${PAGE_CONTENT_CLASS} my-auto pb-6`}>
         <DisconnectedOverview capSnapshot={capSnapshot} />
-        {godModePanel}
       </Container>
     );
   }
@@ -473,8 +440,6 @@ export function DashboardPage() {
 
       {/* Asset Selection Modal for Borrow/Repay */}
       <AssetSelectionModal {...assetModalProps} />
-
-      {godModePanel}
     </Container>
   );
 }
