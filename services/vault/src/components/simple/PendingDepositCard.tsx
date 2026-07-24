@@ -55,9 +55,12 @@ const ASSET_BRAND_COLOR = getTokenBrandColor(getNetworkConfigBTC().coinSymbol);
 
 function formatBtcDepthSummary(
   confirmations: number | null,
-  requiredDepth: number,
+  requiredDepth: number | undefined,
 ): string | null {
-  if (confirmations === null) return null;
+  // No threshold yet (protocol params still loading or failed) → no countdown.
+  // Reporting one against a guessed depth would misstate how far along the
+  // deposit is.
+  if (confirmations === null || requiredDepth === undefined) return null;
   const minutes = computeRemainingEstimateMinutes(confirmations, requiredDepth);
   if (minutes === null) return COPY.deposit.btcConfirmation.finalizing;
   return COPY.deposit.btcConfirmation.cardSummaryProgressing(

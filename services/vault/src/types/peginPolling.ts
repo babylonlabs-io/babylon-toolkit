@@ -38,8 +38,12 @@ export interface DepositPollingResult {
    * `requiredPrePeginDepth` directly.
    */
   prePeginConfirmations: number | null;
-  /** Protocol-required confirmation depth (`minPrepeginDepth`) for this vault. */
-  requiredPrePeginDepth: number;
+  /**
+   * Protocol-required confirmation depth (`minPrepeginDepth`) for this vault.
+   * `undefined` while the protocol params are still loading or failed to load —
+   * consumers must withhold any depth conclusion rather than assume a default.
+   */
+  requiredPrePeginDepth: number | undefined;
   /**
    * Forces the card's displayed progress step instead of deriving it from
    * `peginState`. Undefined on every production path — used only by the dev

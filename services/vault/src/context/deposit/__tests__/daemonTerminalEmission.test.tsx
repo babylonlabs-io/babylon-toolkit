@@ -53,10 +53,15 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
   useActivationDeadlineGate: () => new Set<string>(),
 }));
 
-vi.mock("../../ProtocolParamsContext", () => ({
-  useProtocolParamsContext: () => ({
-    config: { offchainParams: { minPrepeginDepth: 6 } },
-    getOffchainParamsByVersion: () => undefined,
+// The provider reads params through the non-blocking hook, not the blocking
+// context — stub it so the provider renders in isolation.
+vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({
+  usePeginPollingProtocolParams: () => ({
+    ready: true,
+    error: null,
+    pegInActivationTimeout: undefined,
+    resolveRequiredPrePeginDepth: () => 6,
+    resolveRefundTimelock: () => undefined,
   }),
 }));
 

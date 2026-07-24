@@ -81,11 +81,23 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
 
 const mockVersionedParams = new Map<number, { tRefund: number }>();
 
-vi.mock("../../ProtocolParamsContext", () => ({
-  useProtocolParamsContext: () => ({
-    config: { offchainParams: { minPrepeginDepth: 6 } },
-    getOffchainParamsByVersion: (v: number) => mockVersionedParams.get(v),
-  }),
+// The provider reads params through the non-blocking hook (it mounts above the
+// routes owning the blocking ProtocolParamsProvider), so stub that hook rather
+// than the context. Function identities are module-stable, which matters: the
+// provider memoizes on them and churning refs would re-fire its effects.
+// `ready`/`error` are mutated by the unresolved-params tests below.
+const mockProtocolParams = {
+  ready: true,
+  error: null as Error | null,
+  pegInActivationTimeout: undefined as bigint | undefined,
+  resolveRequiredPrePeginDepth: (): number | undefined =>
+    mockProtocolParams.ready ? 6 : undefined,
+  resolveRefundTimelock: (v?: number): number | undefined =>
+    v !== undefined ? mockVersionedParams.get(v)?.tRefund : undefined,
+};
+
+vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({
+  usePeginPollingProtocolParams: () => mockProtocolParams,
 }));
 
 const ACTIVITY_ID = "0xpegin" as Hex;
@@ -137,6 +149,8 @@ describe("PeginPollingContext", () => {
       refundByDepositId: new Map(),
     });
     mockVersionedParams.clear();
+    mockProtocolParams.ready = true;
+    mockProtocolParams.error = null;
     // The persistent confirmed-txid cache leaks across tests otherwise.
     localStorage.clear();
     // Optimistic completions are app-scoped, so they outlive any single
@@ -904,5 +918,32 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.availableActions).toEqual([
       PeginAction.REFUND_HTLC,
     ]);
+  });
+
+  it("reports the deposit as loading while the protocol params are unresolved", () => {
+    // The provider now reads params non-blockingly, so an unresolved depth
+    // must present as "still loading" rather than a settled unknown — a card
+    // that renders a resolved state off missing params misreports progress.
+    mockProtocolParams.ready = false;
+
+    const { result } = renderProvider();
+
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+    expect(status?.loading).toBe(true);
+    expect(status?.requiredPrePeginDepth).toBeUndefined();
+  });
+
+  it("surfaces a protocol-params load failure on the deposit result", () => {
+    // Without this the params query could fail and every row would sit on
+    // "confirming" forever with nothing surfaced to the user.
+    const paramsError = new Error("protocol params unavailable");
+    mockProtocolParams.ready = false;
+    mockProtocolParams.error = paramsError;
+
+    const { result } = renderProvider();
+
+    expect(result.current.getPollingResult(ACTIVITY_ID)?.error).toBe(
+      paramsError,
+    );
   });
 });

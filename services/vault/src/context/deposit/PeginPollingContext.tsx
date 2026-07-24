@@ -25,8 +25,8 @@ import { useDemoDeposit } from "@/dev/demoDeposit";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
+import { usePeginPollingProtocolParams } from "../../hooks/deposit/usePeginPollingProtocolParams";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
-import { useRequiredPrePeginDepthResolver } from "../../hooks/deposit/useRequiredPrePeginDepth";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
 import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
@@ -55,7 +55,6 @@ import type {
 } from "../../types/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
-import { useProtocolParamsContext } from "../ProtocolParamsContext";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
 import {
@@ -172,12 +171,17 @@ export function PeginPollingProvider({
   // VP activation tx, absent during PENDING). PENDING gates on min-depth;
   // EXPIRED gates on `tRefund` for the Refund action. Each has its own
   // cache (depth/maturity never rewinds → drop cached txids from polling).
-  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  // Non-blocking: this provider is mounted above the routes that own the
+  // blocking ProtocolParamsProvider, so it reads the same queries directly
+  // rather than depending on a context that renders a spinner in place of its
+  // children. Params resolve to `undefined` until loaded — never a default.
+  const params = usePeginPollingProtocolParams();
   // Tiered (Tier-1 estimate → Tier-2 chain confirm) activation-deadline gate.
   // Lowercased ids of VERIFIED vaults confirmed past their activation window.
+  // Fails safe on an undefined timeout (gate stays closed until params land).
   const activationDeadlinePassedIds = useActivationDeadlineGate(
     activities,
-    config.pegInActivationTimeout,
+    params.pegInActivationTimeout,
   );
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
@@ -195,9 +199,9 @@ export function PeginPollingProvider({
     loadRefundedHtlcVaultIds,
   );
 
-  const resolveRequiredPrePeginDepth = useRequiredPrePeginDepthResolver();
+  const { resolveRequiredPrePeginDepth, resolveRefundTimelock } = params;
   const getRequiredPrePeginDepth = useCallback(
-    (activity: VaultActivity): number =>
+    (activity: VaultActivity): number | undefined =>
       resolveRequiredPrePeginDepth(activity.offchainParamsVersion),
     [resolveRequiredPrePeginDepth],
   );
@@ -322,10 +326,7 @@ export function PeginPollingProvider({
       prePeginConfirmationsByTxid,
       matureRefundTxids,
       (a) => (a.contractStatus ?? 0) === ContractStatus.EXPIRED,
-      (a) =>
-        a.offchainParamsVersion !== undefined
-          ? getOffchainParamsByVersion(a.offchainParamsVersion)?.tRefund
-          : undefined,
+      (a) => resolveRefundTimelock(a.offchainParamsVersion),
     );
     if (newlyMature.length === 0) return;
     newlyMature.forEach(addMatureRefundTxid);
@@ -338,7 +339,7 @@ export function PeginPollingProvider({
     prePeginConfirmationsByTxid,
     activities,
     matureRefundTxids,
-    getOffchainParamsByVersion,
+    resolveRefundTimelock,
   ]);
 
   // Persist vaults whose HTLC spend has confirmed and drop them from the next
@@ -452,10 +453,9 @@ export function PeginPollingProvider({
       if (!activity) return undefined;
       // Strict: a since-lowered latest `tRefund` could mark a vault
       // mature early → Bitcoin rejects with `non-BIP68-final`.
-      const refundTimelock =
-        activity.offchainParamsVersion !== undefined
-          ? getOffchainParamsByVersion(activity.offchainParamsVersion)?.tRefund
-          : undefined;
+      const refundTimelock = resolveRefundTimelock(
+        activity.offchainParamsVersion,
+      );
       return computeDepositPollingResult({
         activity,
         pendingPegins,
@@ -473,7 +473,10 @@ export function PeginPollingProvider({
         activationDeadlinePassed: activationDeadlinePassedIds.has(
           activity.id.toLowerCase(),
         ),
-        isLoading,
+        // Params still resolving is a loading state, not a resolved "depth
+        // unknown" — otherwise a cold load reads as a stalled deposit.
+        isLoading: isLoading || !params.ready,
+        protocolParamsError: params.error,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
         wotsSubmitted,
@@ -494,9 +497,11 @@ export function PeginPollingProvider({
       htlcRefundByDepositId,
       refundedHtlcVaultIds,
       getRequiredPrePeginDepth,
-      getOffchainParamsByVersion,
+      resolveRefundTimelock,
       activationDeadlinePassedIds,
       isLoading,
+      params.ready,
+      params.error,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
       wotsSubmitted,
