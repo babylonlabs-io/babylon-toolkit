@@ -230,6 +230,17 @@ export function useDepositFlow(
   const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
     DepositFlowStep.DERIVE_VAULT_SECRET,
   );
+  // Mirror of `currentStep` for the flow callback's outer catch: the callback
+  // closes over a `currentStep` that is stale by the time it throws, so the
+  // failure telemetry reads the ref to tag which step the flow was on. Written
+  // synchronously with the state update — a `useEffect` mirror only lands after
+  // the commit, which a throw in the first async tick after a transition would
+  // beat, tagging the step before the one that actually failed.
+  const currentStepRef = useRef(DepositFlowStep.DERIVE_VAULT_SECRET);
+  const advanceStep = useCallback((step: DepositFlowStep) => {
+    currentStepRef.current = step;
+    setCurrentStep(step);
+  }, []);
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
   );
@@ -303,7 +314,7 @@ export function useDepositFlow(
       setError(null);
       setLastWarnings([]);
       setPeginSigningProgress(null);
-      setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+      advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
       setPerVaultSteps(
         vaultAmounts.map(() => DepositFlowStep.DERIVE_VAULT_SECRET),
       );
@@ -403,8 +414,8 @@ export function useDepositFlow(
         logger.event(TELEMETRY_EVENT.DEPOSIT_STARTED, {
           level: "info",
           category: "deposit",
+          tags: { providerId: shortId(primaryProvider) },
           batchId,
-          providerId: shortId(primaryProvider),
           vaultCount: vaultAmounts.length,
           amountBucket: amountBucket(
             satoshiToBtcNumber(vaultAmounts.reduce((sum, a) => sum + a, 0n)),
@@ -422,7 +433,7 @@ export function useDepositFlow(
         // Step 2: Create Batch Pre-PegIn (all vaults in one BTC tx)
         // ========================================================================
 
-        setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+        advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
         // A single peg-in PSBT signs via signPsbt (the SDK's
         // signPsbtsWithFallback routes lone PSBTs there), ticking the counter
         // once. Multi-vault: one native batch popup when the wallet supports
@@ -432,7 +443,7 @@ export function useDepositFlow(
           psbtHex,
           opts,
         ) => {
-          setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+          advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
           const signed = await confirmedBtcWallet.signPsbt(psbtHex, opts);
           setPeginSigningProgress((prev) =>
             prev
@@ -446,7 +457,7 @@ export function useDepositFlow(
           psbtHexes,
           opts,
         ) => {
-          setCurrentStep(DepositFlowStep.SIGN_PEGIN_BTC);
+          advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
           setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
           const signed = await confirmedBtcWallet.signPsbts!(psbtHexes, opts);
           setPeginSigningProgress({
@@ -459,7 +470,7 @@ export function useDepositFlow(
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
           ...confirmedBtcWallet,
           deriveContextHash: (appName, context) => {
-            setCurrentStep(DepositFlowStep.DERIVE_VAULT_SECRET);
+            advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
             return confirmedBtcWallet.deriveContextHash(appName, context);
           },
           signPsbt: signOnePeginPsbt,
@@ -534,7 +545,7 @@ export function useDepositFlow(
 
         // 3b. Sign PoP during SIGN_POP so the wallet popup is associated
         // with this step, not the following SUBMIT_PEGIN.
-        setCurrentStep(DepositFlowStep.SIGN_POP);
+        advanceStep(DepositFlowStep.SIGN_POP);
         const popSignature = await signProofOfPossession(
           confirmedBtcWallet,
           walletClient,
@@ -575,7 +586,7 @@ export function useDepositFlow(
         );
 
         // 3e. Single batch ETH transaction for all vaults.
-        setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
+        advanceStep(DepositFlowStep.SUBMIT_PEGIN);
         const batchRegistration = await registerPeginBatchAndWait({
           btcWalletProvider: confirmedBtcWallet,
           walletClient,
@@ -608,9 +619,11 @@ export function useDepositFlow(
           logger.event(TELEMETRY_EVENT.DEPOSIT_REGISTERED, {
             level: "info",
             category: "deposit",
+            tags: {
+              vaultId: shortId(peginResult.vaultId),
+              providerId: shortId(primaryProvider),
+            },
             batchId,
-            vaultId: shortId(peginResult.vaultId),
-            providerId: shortId(primaryProvider),
             ethTxHash: shortId(batchRegistration.ethTxHash),
             vaultCount: peginResults.length,
           });
@@ -736,7 +749,7 @@ export function useDepositFlow(
         // Ethereum event.
         // ========================================================================
 
-        setCurrentStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
+        advanceStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
         setPerVaultSteps(
           vaultAmounts.map(() => DepositFlowStep.BROADCAST_PRE_PEGIN),
         );
@@ -776,9 +789,9 @@ export function useDepositFlow(
           logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
             level: "info",
             category: "deposit",
+            tags: { vaultId: shortId(peginResult.vaultId) },
             batchId,
             prePeginTxid: shortId(prePeginBroadcastTxid),
-            vaultId: shortId(peginResult.vaultId),
             vaultCount: peginResults.length,
           });
         }
@@ -833,7 +846,7 @@ export function useDepositFlow(
         // Step 5: WOTS + Payout signing
         // ========================================================================
 
-        setCurrentStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+        advanceStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
         setPerVaultSteps(
           broadcastedResults.map(() => DepositFlowStep.AWAIT_BTC_CONFIRMATION),
         );
@@ -862,9 +875,9 @@ export function useDepositFlow(
           deriveContextHash: async (appName, context) => {
             const returnStep = baseStep;
             if (baseStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS) {
-              setCurrentStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
+              advanceStep(DepositFlowStep.SIGN_AUTH_ANCHOR);
             } else if (baseStep === DepositFlowStep.SUBMIT_WOTS_KEYS) {
-              setCurrentStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
+              advanceStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
             }
             setIsWaiting(false);
             try {
@@ -874,12 +887,12 @@ export function useDepositFlow(
               );
             } finally {
               setIsWaiting(true);
-              setCurrentStep(returnStep);
+              advanceStep(returnStep);
             }
           },
           signPsbt: async (psbtHex, opts) => {
             if (payoutClaimersDoneRef.current) {
-              setCurrentStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
+              advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
               setPayoutSigningProgress({
                 phase: "graph",
                 completed: 0,
@@ -904,7 +917,7 @@ export function useDepositFlow(
             ? {
                 signPsbts: async (psbtHexes, opts) => {
                   if (payoutClaimersDoneRef.current) {
-                    setCurrentStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
+                    advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
                     setPayoutSigningProgress({
                       phase: "graph",
                       completed: 0,
@@ -968,7 +981,7 @@ export function useDepositFlow(
           // Mark the current vault being processed so the split-deposit UI
           // can show per-vault progression for the WOTS phase.
           setCurrentVaultIndex(result.vaultIndex);
-          setCurrentStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
+          advanceStep(DepositFlowStep.SUBMIT_WOTS_KEYS);
           setPerVaultSteps((prev) =>
             prev.map((step, index) =>
               index === result.vaultIndex
@@ -1048,7 +1061,7 @@ export function useDepositFlow(
         // ========================================================================
 
         baseStep = DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS;
-        setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+        advanceStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
         setCurrentVaultIndex(null);
 
         const payoutCandidateResults = broadcastedResults.filter(
@@ -1105,7 +1118,7 @@ export function useDepositFlow(
 
           try {
             setCurrentVaultIndex(vi);
-            setCurrentStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
+            advanceStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS);
             setPerVaultSteps((prev) =>
               prev.map((step, index) =>
                 index === vi ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS : step,
@@ -1129,7 +1142,7 @@ export function useDepositFlow(
                 if (!p) return;
                 setPayoutSigningProgress(p);
                 const nextStep = payoutSigningStep(p.phase);
-                setCurrentStep(nextStep);
+                advanceStep(nextStep);
                 setPerVaultSteps((prev) =>
                   prev.map((step, index) => (index === vi ? nextStep : step)),
                 );
@@ -1138,7 +1151,7 @@ export function useDepositFlow(
               },
             });
 
-            setCurrentStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
+            advanceStep(DepositFlowStep.AWAIT_VP_VERIFICATION);
             setPerVaultSteps((prev) =>
               prev.map((step, index) =>
                 index === vi ? DepositFlowStep.AWAIT_VP_VERIFICATION : step,
@@ -1223,6 +1236,7 @@ export function useDepositFlow(
         if (!signal.aborted) {
           setError(mapDepositError(err));
           logger.error(err instanceof Error ? err : new Error(String(err)), {
+            tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {
               context: "Multi-vault deposit flow error",
               ...(err instanceof VpResponseValidationError && {
@@ -1246,6 +1260,7 @@ export function useDepositFlow(
         abortControllerRef.current = null;
       }
     }, [
+      advanceStep,
       gate,
       vaultAmounts,
       mempoolFeeRate,

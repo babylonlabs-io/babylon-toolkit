@@ -213,7 +213,10 @@ describe("usePayoutSigningState", () => {
       const [err, ctx] = mockLoggerError.mock.calls[0];
       expect(err).toBeInstanceOf(Error);
       expect(ctx.tags.funnelStage).toBe("activation.payouts");
-      expect(ctx.data.vaultId).toBe("0xvault");
+      expect(ctx.tags.vaultId).toBe("0xvault");
+      // Tagged, not in extra: the per-VP alert has to facet presign failures
+      // by provider to tell one bad VP from a protocol-wide break.
+      expect(ctx.tags.providerId).toBe("0xpr...ider");
       expect(result.current.error?.title).toBe("Sign Error");
     });
 

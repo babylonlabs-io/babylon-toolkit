@@ -367,7 +367,7 @@ export function PeginPollingProvider({
       logger.event(milestone.event, {
         level: "info",
         category: milestone.category,
-        vaultId: shortId(milestone.vaultId),
+        tags: { vaultId: shortId(milestone.vaultId) },
       });
     }
   }, [activities]);
@@ -393,8 +393,10 @@ export function PeginPollingProvider({
       logger.event(TELEMETRY_EVENT.ACTIVATION_DAEMON_TERMINAL, {
         level: "warning",
         category: "activation",
-        vaultId: shortId(terminal.vaultId),
-        daemonStatus: terminal.daemonStatus,
+        tags: {
+          vaultId: shortId(terminal.vaultId),
+          daemonStatus: terminal.daemonStatus,
+        },
       });
     }
   }, [polledIds, errors]);

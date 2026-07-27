@@ -177,7 +177,7 @@ export function useArtifactDownload(options?: {
               "Artifact download attempted with a cold token registry and no prime context",
             ),
             telemetryVaultId,
-            { site: "cold_registry" },
+            { tags: { site: "cold_registry" } },
           );
           setError(COPY.deposit.recoveryArtifacts.cannotAuthenticate);
           return false;
@@ -206,7 +206,7 @@ export function useArtifactDownload(options?: {
             TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
             primeErr,
             telemetryVaultId,
-            { site: "prime" },
+            { tags: { site: "prime" } },
           );
           setError(
             primeErr instanceof Error
@@ -295,7 +295,7 @@ export function useArtifactDownload(options?: {
               logger.event(TELEMETRY_EVENT.ACTIVATION_ARTIFACTS_DOWNLOADED, {
                 level: "info",
                 category: "activation",
-                vaultId: shortId(vaultId),
+                tags: { vaultId: shortId(vaultId) },
               });
             }
           }
@@ -318,7 +318,7 @@ export function useArtifactDownload(options?: {
               logger.event(TELEMETRY_EVENT.ACTIVATION_ARTIFACTS_STALLED, {
                 level: "warning",
                 category: "activation",
-                vaultId: shortId(telemetryVaultId),
+                tags: { vaultId: shortId(telemetryVaultId) },
                 attempts: stillProcessingAttempts,
               });
             }
@@ -351,7 +351,7 @@ export function useArtifactDownload(options?: {
                 TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
                 primeErr,
                 telemetryVaultId,
-                { site: "reprime" },
+                { tags: { site: "reprime" } },
               );
               setError(
                 primeErr instanceof Error
@@ -370,7 +370,7 @@ export function useArtifactDownload(options?: {
             TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
             err,
             telemetryVaultId,
-            { site: "download" },
+            { tags: { site: "download" } },
           );
           setError(
             err instanceof Error

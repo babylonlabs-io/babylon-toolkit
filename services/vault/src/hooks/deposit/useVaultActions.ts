@@ -524,7 +524,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       logger.event(TELEMETRY_EVENT.ACTIVATION_ACTIVATED, {
         level: "info",
         category: "activation",
-        vaultId: shortId(vaultId),
+        tags: { vaultId: shortId(vaultId) },
       });
 
       // Show success and refetch

@@ -316,7 +316,7 @@ export function usePayoutSigningState({
           err,
           activity.id,
           {
-            providerId: shortId(vaultProviderAddress),
+            tags: { providerId: shortId(vaultProviderAddress) },
           },
         );
         setError(formatPayoutSignatureError(err));

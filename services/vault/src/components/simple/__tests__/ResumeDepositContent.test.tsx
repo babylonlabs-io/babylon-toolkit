@@ -310,7 +310,7 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
     const [err, ctx] = mockLoggerError.mock.calls[0];
     expect(err).toBeInstanceOf(Error);
     expect(ctx.tags.funnelStage).toBe("activation.wots");
-    expect(ctx.data.vaultId).toBe(shortId(baseActivity.id));
+    expect(ctx.tags.vaultId).toBe(shortId(baseActivity.id));
   });
 
   it("proceeds to deriveVaultRoot when the indexer tx hash matches on-chain", async () => {
@@ -491,7 +491,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     const [err, ctx] = mockLoggerError.mock.calls[0];
     expect(err).toBeInstanceOf(Error);
     expect(ctx.tags.funnelStage).toBe("activation.secret");
-    expect(ctx.data.vaultId).toBe(shortId(baseActivity.id));
+    expect(ctx.tags.vaultId).toBe(shortId(baseActivity.id));
   });
 
   it("proceeds to deriveVaultRoot when the indexer tx hash matches on-chain", async () => {

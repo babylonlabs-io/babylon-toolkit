@@ -47,9 +47,9 @@ export type TelemetryEvent =
 /**
  * Funnel-stage tags for failure captures. A failure is a `captureException`
  * (logger.error), not a named message, so tag it with the stage it failed in —
- * this groups failures by stage in Sentry and lets an alert facet on them. Pair
- * with a scrubbed `vaultId` in the error's data for the per-vault join back to
- * the success milestones.
+ * this groups failures by stage in Sentry and lets an alert facet on them.
+ * `captureFunnelFailure` pairs the stage with a scrubbed `vaultId` tag for the
+ * per-vault join back to the success milestones.
  */
 export const TELEMETRY_STAGE = {
   ACTIVATION_WOTS: "activation.wots",
@@ -70,20 +70,31 @@ export type TelemetryStage =
  * cancellations would inflate the very rate these tags alert on. The caller
  * still renders its own rejection copy; only the Sentry capture is suppressed.
  *
- * `vaultId` is shortened here so the per-vault join key back to the success
- * milestones cannot be forgotten at a call site. Pass any further identifiers in
- * `extra` already shortened via `shortId`.
+ * `vaultId` is shortened here and promoted to a tag so the per-vault join key
+ * back to the success milestones — which carry `vaultId` as a tag too — is
+ * queryable on both sides and cannot be forgotten at a call site.
+ *
+ * Split the remaining context the way Sentry queries it: anything an alert
+ * filters or breaks down by goes in `tags` (only those are indexed), and
+ * descriptive detail that is read after a capture is already open goes in
+ * `extra`. Shorten any further identifiers with `shortId` on either side.
  */
 export function captureFunnelFailure(
   stage: TelemetryStage,
   err: unknown,
   vaultId: string,
-  extra: Record<string, string | number | boolean> = {},
+  {
+    tags = {},
+    extra = {},
+  }: {
+    tags?: Record<string, string>;
+    extra?: Record<string, string | number | boolean>;
+  } = {},
 ): void {
   if (classifyError(err) === "user-rejection") return;
   logger.error(err instanceof Error ? err : new Error(String(err)), {
-    tags: { funnelStage: stage },
-    data: { vaultId: shortId(vaultId), ...extra },
+    tags: { ...tags, funnelStage: stage, vaultId: shortId(vaultId) },
+    data: extra,
   });
 }
 

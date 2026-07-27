@@ -123,5 +123,23 @@ describe("logger", () => {
         }),
       );
     });
+
+    it("forwards tags to captureMessage and keeps them out of extra", () => {
+      logger.event("deposit.registered", {
+        level: "info",
+        tags: { vaultId: "0x11...2222", providerId: "0xab...cdef" },
+        batchId: "batch-1",
+      });
+
+      // `extra` is matched exactly (not `objectContaining`) so the absence of a
+      // `tags` key inside it is a real assertion, not a vacuous one.
+      expect(captureMessage).toHaveBeenCalledWith(
+        "deposit.registered",
+        expect.objectContaining({
+          tags: { vaultId: "0x11...2222", providerId: "0xab...cdef" },
+          extra: { batchId: "batch-1" },
+        }),
+      );
+    });
   });
 });

@@ -125,8 +125,10 @@ describe("daemon terminal emission through the polling provider", () => {
     expect(mockEvent).toHaveBeenCalledWith("activation.daemon.terminal", {
       level: "warning",
       category: "activation",
-      vaultId: "0x11...2222",
-      daemonStatus: DaemonStatus.AML_REJECTED,
+      tags: {
+        vaultId: "0x11...2222",
+        daemonStatus: DaemonStatus.AML_REJECTED,
+      },
     });
 
     // The sticky terminal re-observed on the next poll — no re-emit, because
@@ -152,7 +154,9 @@ describe("daemon terminal emission through the polling provider", () => {
     expect(mockEvent).toHaveBeenCalledWith(
       "activation.daemon.terminal",
       expect.objectContaining({
-        daemonStatus: DaemonStatus.EXPIRED_CLEANED_UP,
+        tags: expect.objectContaining({
+          daemonStatus: DaemonStatus.EXPIRED_CLEANED_UP,
+        }),
       }),
     );
   });
