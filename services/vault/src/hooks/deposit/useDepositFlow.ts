@@ -39,6 +39,7 @@ import {
 } from "@/clients/eth-contract/sdk-readers";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { markWotsSubmitted } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
@@ -1005,6 +1006,10 @@ export function useDepositFlow(
                 signal,
               });
               wotsSuccess = true;
+              // Mirrors the resume path: the dashboard row polls the VP for
+              // `needsWotsKey` and would keep offering "Submit WOTS Key" until
+              // the daemon advances. App-scoped, so it survives this modal.
+              markWotsSubmitted(result.vaultId);
               setPerVaultSteps((prev) =>
                 prev.map((step, index) =>
                   index === result.vaultIndex

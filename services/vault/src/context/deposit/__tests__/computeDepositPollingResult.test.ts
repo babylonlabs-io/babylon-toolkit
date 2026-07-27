@@ -55,6 +55,7 @@ function makeInputs(
     isLoading: false,
     optimisticStatuses: new Map(),
     optimisticRefundBroadcastAt: new Map(),
+    wotsSubmitted: new Set(),
     btcPublicKey: PUBKEY,
     ...overrides,
   };

@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,12 @@ import {
   PeginAction,
 } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
+import type { PeginPollingContextValue } from "../../../types/peginPolling";
 import { PeginPollingProvider, usePeginPolling } from "../PeginPollingContext";
+import {
+  markWotsSubmitted,
+  resetOptimisticDepositState,
+} from "../optimisticDepositState";
 
 const mockQueryResult = {
   polledIds: undefined as string[] | undefined,
@@ -134,6 +139,9 @@ describe("PeginPollingContext", () => {
     mockVersionedParams.clear();
     // The persistent confirmed-txid cache leaks across tests otherwise.
     localStorage.clear();
+    // Optimistic completions are app-scoped, so they outlive any single
+    // provider — and therefore any single test.
+    resetOptimisticDepositState();
   });
 
   it("trusts an in-memory PAYOUT_SIGNED over a stale-cached transactionsReady so the Sign button hides immediately after signing", () => {
@@ -200,6 +208,126 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.availableActions).toContain(
       PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     );
+  });
+
+  it("hides Sign Payouts on the dashboard when the signing modal's own nested provider records the completion", () => {
+    // The reported bug. The dashboard mounts a provider over every activity;
+    // the continuation modal mounts a second one, nested, scoped to the viewed
+    // batch — and the payout signing hook runs under THAT one. While the
+    // optimistic status was per-provider state, the dashboard row that offered
+    // the button never learned the signing had succeeded, so "Sign Payouts"
+    // stayed live for the rest of the session (the VP poll halts once every
+    // deposit reports PendingDepositorSignatures, so nothing else corrected it).
+    const OTHER_ID = "0xpeginOther" as Hex;
+    const OTHER_ACTIVITY: VaultActivity = { ...ACTIVITY, id: OTHER_ID };
+    mockQueryResult.pendingDepositorSignatures = new Set([
+      ACTIVITY_ID,
+      OTHER_ID,
+    ]);
+
+    // Captured per render: `getPollingResult` is memoized on the provider's
+    // inputs, so an assertion holding the pre-action context object would read
+    // the pre-action snapshot and pass regardless of the fix.
+    const captured: {
+      outer?: PeginPollingContextValue;
+      nested?: PeginPollingContextValue;
+    } = {};
+    function CaptureOuter() {
+      captured.outer = usePeginPolling();
+      return null;
+    }
+    function CaptureNested() {
+      captured.nested = usePeginPolling();
+      return null;
+    }
+    const outerActions = (id: string) =>
+      captured.outer?.getPollingResult(id)?.peginState.availableActions;
+
+    render(
+      <PeginPollingProvider
+        activities={[ACTIVITY, OTHER_ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <CaptureOuter />
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <CaptureNested />
+        </PeginPollingProvider>
+      </PeginPollingProvider>,
+    );
+
+    expect(outerActions(ACTIVITY_ID)).toContain(
+      PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+    );
+
+    act(() => {
+      captured.nested?.setOptimisticStatus(
+        ACTIVITY_ID,
+        LocalStorageStatus.PAYOUT_SIGNED,
+      );
+    });
+
+    expect(outerActions(ACTIVITY_ID)).toEqual([PeginAction.NONE]);
+    // The sibling the user has not signed keeps its button.
+    expect(outerActions(OTHER_ID)).toContain(
+      PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+    );
+  });
+
+  it("hides Submit WOTS Key once the submission resolves, before the poll clears needsWotsKey", () => {
+    // The VP keeps reporting PENDING_DEPOSITOR_WOTS_PK until its daemon
+    // advances, so for up to a full poll interval the row re-offered the
+    // button — and clicking it re-runs the whole derivation, wallet popup
+    // included, for a submission that already landed.
+    mockQueryResult.needsWotsKey = new Set([ACTIVITY_ID]);
+    // Real poll shape: the sets are rebuilt each cycle, so a deposit awaiting
+    // its WOTS key is absent from `pendingIngestion` rather than unobserved.
+    mockQueryResult.pendingIngestion = new Set();
+
+    const { result } = renderProvider();
+    expect(
+      result.current.getPollingResult(ACTIVITY_ID)?.peginState.availableActions,
+    ).toContain(PeginAction.SUBMIT_WOTS_KEY);
+
+    act(() => {
+      markWotsSubmitted(ACTIVITY_ID);
+    });
+
+    // Exactly NONE — suppressing the WOTS action must not fall through to
+    // re-offering the Pre-PegIn broadcast the depositor already completed.
+    expect(
+      result.current.getPollingResult(ACTIVITY_ID)?.peginState.availableActions,
+    ).toEqual([PeginAction.NONE]);
+  });
+
+  it("keeps Submit WOTS Key available for a deposit whose submission was never recorded", () => {
+    // Negative control for the suppression above: the marker is per-deposit,
+    // so a sibling still awaiting its key must be unaffected.
+    const OTHER_ID = "0xpeginOther" as Hex;
+    mockQueryResult.needsWotsKey = new Set([ACTIVITY_ID, OTHER_ID]);
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[ACTIVITY, { ...ACTIVITY, id: OTHER_ID }]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    const { result } = renderHook(() => usePeginPolling(), { wrapper });
+
+    act(() => {
+      markWotsSubmitted(ACTIVITY_ID);
+    });
+
+    expect(
+      result.current.getPollingResult(OTHER_ID)?.peginState.availableActions,
+    ).toContain(PeginAction.SUBMIT_WOTS_KEY);
   });
 
   it("polls mempool using prePeginTxHash, not peginTxHash", () => {
