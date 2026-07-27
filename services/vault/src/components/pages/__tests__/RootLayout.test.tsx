@@ -54,9 +54,10 @@ vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => ({ isGeoBlocked: false, isLoading: true }),
 }));
 
+const walletMock = vi.hoisted(() => ({ connected: false }));
 vi.mock("@/context/wallet", () => ({
-  useBTCWallet: () => ({ connected: false }),
-  useETHWallet: () => ({ connected: false }),
+  useBTCWallet: () => ({ connected: walletMock.connected }),
+  useETHWallet: () => ({ connected: walletMock.connected }),
 }));
 
 vi.mock("@/components/Wallet", () => ({
@@ -112,6 +113,7 @@ beforeEach(() => {
   featureFlagsMock.isDepositDisabled = false;
   networkMock.value = "mainnet";
   mobileMock.value = false;
+  walletMock.connected = false;
 });
 
 describe("RootLayout — header wiring", () => {
@@ -184,5 +186,42 @@ describe("RootLayout — header wiring", () => {
 
     expect(footer).toHaveTextContent(COPY.nav.termsOfUse);
     expect(footer).toHaveTextContent(COPY.nav.privacyPolicy);
+  });
+});
+
+describe("RootLayout — operator message banner", () => {
+  const OPERATOR_MESSAGE = "Deposits resume at 15:00 UTC.";
+
+  it("shows the operator message as a standalone notice when nothing is disabled", () => {
+    featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
+
+    renderRootLayout();
+
+    // No deposit-disabled / status banner is active, so the message renders
+    // once, as the standalone top-of-app notice.
+    expect(screen.getAllByText(OPERATOR_MESSAGE)).toHaveLength(1);
+  });
+
+  it("hides the standalone notice when no operator message is set", () => {
+    renderRootLayout();
+
+    expect(screen.queryByText(OPERATOR_MESSAGE)).not.toBeInTheDocument();
+  });
+
+  it("suppresses the standalone notice while the deposit-disabled banner is active", () => {
+    walletMock.connected = true;
+    featureFlagsMock.isDepositDisabled = true;
+    featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
+
+    renderRootLayout();
+
+    // The deposit-disabled banner is the active banner and carries the message,
+    // so the standalone notice is suppressed — the operator text must not appear
+    // a second time as its own top-of-app strip. (The deposit-disabled banner's
+    // own text-override is covered in DepositDisabledBanner.test.tsx.)
+    expect(screen.queryByText(OPERATOR_MESSAGE)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.disabled.bannerMessage),
+    ).toBeInTheDocument();
   });
 });

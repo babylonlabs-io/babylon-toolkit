@@ -95,9 +95,9 @@ Create a `.env` file with the following variables:
   - Default: `false` (banner hidden unless explicitly set to `"true"`)
   - Takes precedence over `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` when both are set
 
-- `NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE` - Optional override for the frozen/paused banner body text (non-boolean config)
-  - Default: empty (the default per-status copy is shown)
-  - When set, replaces the active banner's body with this text
+- `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE` - The single operator message shown to depositors, placed by context (non-boolean config)
+  - Default: empty (the default per-context copy is shown; standalone notice hidden)
+  - When set: fills the frozen/paused status-card body if a status is active, else fills the deposit-disabled banner text if deposits are off, else shows as a standalone top-of-app notice
 
 ## Available Scripts
 

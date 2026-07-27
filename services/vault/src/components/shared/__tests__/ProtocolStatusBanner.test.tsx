@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  protocolStatusMessage: undefined as string | undefined,
+  noticeBannerMessage: undefined as string | undefined,
   isV3UiEnabled: false,
   // The god-mode override the banner reads is itself gated on this flag.
   isGodModePanelEnabled: true,
@@ -28,7 +28,7 @@ import { setDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { ProtocolStatusBanner } from "../ProtocolStatusBanner";
 
 beforeEach(() => {
-  featureFlagsMock.protocolStatusMessage = undefined;
+  featureFlagsMock.noticeBannerMessage = undefined;
   featureFlagsMock.isV3UiEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = true;
   gateMock.value = { protocol: null, aave: null };
@@ -76,9 +76,9 @@ describe("ProtocolStatusBanner", () => {
     expect(screen.queryByText("Protocol is frozen")).not.toBeInTheDocument();
   });
 
-  it("overrides the body with NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE when set", () => {
+  it("overrides the body with NEXT_PUBLIC_NOTICE_BANNER_MESSAGE when set", () => {
     gateMock.value = { protocol: "frozen", aave: null };
-    featureFlagsMock.protocolStatusMessage = "Maintenance until 14:00 UTC.";
+    featureFlagsMock.noticeBannerMessage = "Maintenance until 14:00 UTC.";
 
     render(<ProtocolStatusBanner />);
 
@@ -139,9 +139,9 @@ describe("ProtocolStatusBanner v3", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lets NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE override the v3 body", () => {
+  it("lets NEXT_PUBLIC_NOTICE_BANNER_MESSAGE override the v3 body", () => {
     gateMock.value = { protocol: "frozen", aave: null };
-    featureFlagsMock.protocolStatusMessage = "Maintenance until 14:00 UTC.";
+    featureFlagsMock.noticeBannerMessage = "Maintenance until 14:00 UTC.";
 
     render(<ProtocolStatusBanner />);
 

@@ -68,22 +68,6 @@ export default {
   },
 
   /**
-   * PROTOCOL_STATUS_MESSAGE override
-   *
-   * Purpose: Lets DevOps override the frozen/paused banner's body text per
-   * incident without a code change. When set, it replaces the active banner's
-   * body; when empty/unset, the default per-status copy from `copy.ts` is shown.
-   * Why needed: Incident messaging often needs wording the default copy can't
-   * anticipate. Non-boolean config, so it uses a plain NEXT_PUBLIC_ env (per
-   * rule 5) rather than the boolean FF prefix.
-   * Default: undefined (default copy is used).
-   */
-  get protocolStatusMessage(): string | undefined {
-    const raw = process.env.NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE?.trim();
-    return raw ? raw : undefined;
-  },
-
-  /**
    * FORCE_PARTIAL_LIQUIDATION feature flag
    *
    * Purpose: Forces partial liquidation split to always be suggested,
@@ -195,17 +179,23 @@ export default {
   /**
    * NOTICE_BANNER_MESSAGE config
    *
-   * Purpose: Operator-controlled freeform banner shown at the top of the app
-   * for situations like intermittent peg-in errors or service degradation.
-   * Why needed: Lets DevOps surface an ad-hoc notice via env var without a
-   * code change. Intentionally decoupled from DISABLE_DEPOSIT so a notice can
-   * be shown while deposits remain enabled.
-   * Default: empty (banner hidden unless a non-empty message is set).
+   * Purpose: The single operator-controlled message shown to depositors. Its
+   * placement is context-aware, so one env var covers every incident case:
+   * - frozen/paused active  → replaces the status-card body (frozen/paused).
+   * - deposit-disabled active (no pause/freeze) → replaces the deposit-disabled
+   *   banner text.
+   * - nothing active → renders as a standalone notice at the top of the app
+   *   (e.g. intermittent peg-in errors while deposits remain enabled).
+   * Why needed: Lets DevOps surface an ad-hoc message via env var without a
+   * code change, and avoids the earlier two-flag confusion (a separate
+   * status-only override that silently did nothing with DISABLE_DEPOSIT).
+   * Default: undefined (default per-context copy is shown; standalone hidden).
    *
    * Non-boolean gating config, so it uses the NEXT_PUBLIC_ prefix without _FF_.
    */
-  get noticeBannerMessage() {
-    return (process.env.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE ?? "").trim();
+  get noticeBannerMessage(): string | undefined {
+    const raw = process.env.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE?.trim();
+    return raw ? raw : undefined;
   },
 
   /**

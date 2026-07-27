@@ -36,7 +36,7 @@ const STATUS_TONE: Record<ProtocolStatus, NotificationCardTone> = {
 /**
  * Protocol governance-status banner (frozen / paused). Renders nothing unless a
  * status flag is set. DevOps can override the body text per incident via
- * NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE; otherwise the default per-status copy
+ * NEXT_PUBLIC_NOTICE_BANNER_MESSAGE; otherwise the default per-status copy
  * shows.
  */
 export function ProtocolStatusBanner() {
@@ -52,7 +52,7 @@ export function ProtocolStatusBanner() {
 
   if (featureFlags.isV3UiEnabled) {
     const v3 = COPY.protocolStatusV3[status];
-    const body = featureFlags.protocolStatusMessage ?? v3.body;
+    const body = featureFlags.noticeBannerMessage ?? v3.body;
     return (
       <Container className={`${PAGE_CONTENT_CLASS} py-6`}>
         <NotificationCard
@@ -67,7 +67,7 @@ export function ProtocolStatusBanner() {
   }
 
   const copy = COPY.protocolStatus[status];
-  const body = featureFlags.protocolStatusMessage ?? copy.body;
+  const body = featureFlags.noticeBannerMessage ?? copy.body;
 
   // Same Container the page sections use, so the card aligns to the content
   // column width instead of overshooting it.
