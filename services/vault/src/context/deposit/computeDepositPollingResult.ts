@@ -18,6 +18,8 @@ import { isTerminalPollingError } from "../../utils/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
+import { isWotsSubmissionWithinTtl } from "./optimisticDepositState";
+
 /** Optimistic override wins over persisted `pendingPegins` status. */
 function resolveLocalStatus(
   depositId: string,
@@ -79,12 +81,13 @@ export interface DepositPollingInputs {
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
   /**
-   * Deposits whose WOTS submission resolved in this page session. The VP poll
-   * keeps reporting `needsWotsKey` until the daemon advances, so without this
-   * the row would re-offer "Submit WOTS Key" — and a second click re-runs the
-   * whole derivation, including a fresh wallet popup, for a no-op submission.
+   * When each deposit's WOTS submission resolved in this page session. The VP
+   * poll keeps reporting `needsWotsKey` until the daemon advances, so without
+   * this the row would re-offer "Submit WOTS Key" — and a second click re-runs
+   * the whole derivation, including a fresh wallet popup, for a no-op
+   * submission. The suppression expires; see `isWotsSubmissionWithinTtl`.
    */
-  wotsSubmitted: ReadonlySet<string>;
+  wotsSubmittedAt: ReadonlyMap<string, number>;
   btcPublicKey: string | undefined;
 }
 
@@ -109,7 +112,7 @@ export function computeDepositPollingResult(
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
-    wotsSubmitted,
+    wotsSubmittedAt,
     btcPublicKey,
   } = inputs;
   const depositId = activity.id;
@@ -139,8 +142,12 @@ export function computeDepositPollingResult(
     : (pendingDepositorSignatures?.has(depositId) ?? false);
 
   // Same shape as the payout suppression above: a step this session watched
-  // resolve outranks the poll snapshot that has not caught up yet.
-  const justSubmittedWotsThisSession = wotsSubmitted.has(depositId);
+  // resolve outranks the poll snapshot that has not caught up yet — but only
+  // for as long as daemon lag is the plausible explanation. Past the TTL a VP
+  // still asking is taken at its word, so the action comes back.
+  const justSubmittedWotsThisSession = isWotsSubmissionWithinTtl(
+    wotsSubmittedAt.get(depositId),
+  );
   const stillNeedsWotsKey = justSubmittedWotsThisSession
     ? false
     : needsWotsKey?.has(depositId);

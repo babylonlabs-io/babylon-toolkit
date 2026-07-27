@@ -9,6 +9,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  getOptimisticDepositState,
+  resetOptimisticDepositState,
+} from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 
 import { DepositFlowStep } from "../depositFlowSteps";
@@ -378,6 +382,9 @@ describe("useDepositFlow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     depositGateMock.value = { protocol: null, aave: null };
+    // The optimistic store is module-scoped, so WOTS markers recorded by one
+    // flow outlive the test that wrote them.
+    resetOptimisticDepositState();
     await setupDefaultMocks();
   });
 
@@ -874,6 +881,41 @@ describe("useDepositFlow", () => {
         DepositFlowStep.SUBMIT_WOTS_KEYS,
         DepositFlowStep.AWAIT_VP_VERIFICATION,
       ]);
+    });
+
+    it("records a WOTS completion marker for every vault whose submission resolved", async () => {
+      // The dashboard row suppresses "Submit WOTS Key" off these markers. The
+      // resume path is covered separately; this pins the first-run path, whose
+      // marker is written per vault inside the retry loop.
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      const { wotsSubmittedAt } = getOptimisticDepositState();
+      expect(wotsSubmittedAt.has("0xVault0Id")).toBe(true);
+      expect(wotsSubmittedAt.has("0xVault1Id")).toBe(true);
+    });
+
+    it("records no WOTS completion marker for a vault whose submission failed", async () => {
+      const { submitWotsPublicKey } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      // First vault fails both attempts (retry exhausted); second succeeds.
+      vi.mocked(submitWotsPublicKey)
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
+        .mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      // Suppressing the button for a submission that never landed would strand
+      // the deposit with no way to retry.
+      const { wotsSubmittedAt } = getOptimisticDepositState();
+      expect(wotsSubmittedAt.has("0xVault0Id")).toBe(false);
+      expect(wotsSubmittedAt.has("0xVault1Id")).toBe(true);
     });
 
     it("waits for shared WOTS readiness before submitting any WOTS key", async () => {

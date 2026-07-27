@@ -26,18 +26,36 @@ export interface OptimisticDepositState {
   /** Companion `Date.now()` for REFUND_BROADCAST, anchoring its suppression TTL. */
   refundBroadcastAt: ReadonlyMap<string, number>;
   /**
-   * Deposits whose WOTS public key submission resolved. WOTS has no
-   * `OffChainTrackingStatus` of its own — it is not a status the deposit rests
-   * in — so the completion is recorded as its own set rather than by widening
-   * the status enum.
+   * `Date.now()` per deposit whose WOTS public key submission resolved,
+   * anchoring the suppression TTL below. WOTS has no `OffChainTrackingStatus`
+   * of its own — it is not a status the deposit rests in — so the completion is
+   * recorded separately rather than by widening the status enum.
    */
-  wotsSubmitted: ReadonlySet<string>;
+  wotsSubmittedAt: ReadonlyMap<string, number>;
 }
+
+/**
+ * How long a resolved WOTS submission keeps suppressing "Submit WOTS Key".
+ *
+ * The marker exists to bridge one gap: our submission has resolved but the VP
+ * daemon has not advanced yet, so the poll still reports
+ * `PENDING_DEPOSITOR_WOTS_PK`. That lag is seconds to minutes. Past this bound
+ * the likelier reading of a VP still asking is that it genuinely wants a key —
+ * rejected, rotated, or a write we lost behind a 200 — and an indefinite marker
+ * would leave the row with no action at all and no route back short of a
+ * reload. So the suppression lapses and the user can retry.
+ *
+ * Same reasoning as `REFUND_BROADCAST_SUPPRESSION_MS` in `peginStateMachine`,
+ * which documents why a suppression marker must never be sticky. Generous
+ * against real daemon lag, short enough that a stuck deposit recovers on its
+ * own within one sitting.
+ */
+const WOTS_SUBMISSION_SUPPRESSION_MS = 10 * 60 * 1000;
 
 const EMPTY_STATE: OptimisticDepositState = {
   statuses: new Map(),
   refundBroadcastAt: new Map(),
-  wotsSubmitted: new Set(),
+  wotsSubmittedAt: new Map(),
 };
 
 let currentState: OptimisticDepositState = EMPTY_STATE;
@@ -74,6 +92,18 @@ export function setOptimisticDepositStatus(
   status: LocalStorageStatus,
   refundBroadcastAt?: number,
 ): void {
+  // A repeat write carrying nothing new must not publish: every mounted
+  // provider would re-render and re-memoize `getPollingResult` for a snapshot
+  // that compares equal. Same discipline as `markWotsSubmitted` below. An
+  // omitted `refundBroadcastAt` adds nothing by definition — the publish path
+  // preserves the stored value rather than clearing it.
+  if (
+    currentState.statuses.get(depositId) === status &&
+    (refundBroadcastAt === undefined ||
+      currentState.refundBroadcastAt.get(depositId) === refundBroadcastAt)
+  ) {
+    return;
+  }
   publish({
     statuses: new Map(currentState.statuses).set(depositId, status),
     refundBroadcastAt:
@@ -83,17 +113,42 @@ export function setOptimisticDepositStatus(
             depositId,
             refundBroadcastAt,
           ),
-    wotsSubmitted: currentState.wotsSubmitted,
+    wotsSubmittedAt: currentState.wotsSubmittedAt,
   });
 }
 
 export function markWotsSubmitted(depositId: string): void {
-  if (currentState.wotsSubmitted.has(depositId)) return;
+  // First write wins: a repeat call must not slide the TTL forward, or a retry
+  // loop could keep the action suppressed indefinitely.
+  if (currentState.wotsSubmittedAt.has(depositId)) return;
   publish({
     statuses: currentState.statuses,
     refundBroadcastAt: currentState.refundBroadcastAt,
-    wotsSubmitted: new Set(currentState.wotsSubmitted).add(depositId),
+    wotsSubmittedAt: new Map(currentState.wotsSubmittedAt).set(
+      depositId,
+      Date.now(),
+    ),
   });
+}
+
+/**
+ * Whether a recorded submission is still recent enough to suppress the action.
+ * A deposit with no recorded submission is never suppressed.
+ *
+ * Deliberately time-based rather than driven by an observed poll transition.
+ * Retiring the marker when a poll stops reporting `needsWotsKey` looks tighter
+ * but is not sound: absence is not an affirmative observation — a deposit whose
+ * VP call errored, or that the provider has not polled, is absent too — and
+ * because the store is app-scoped, the first of the two nested providers to
+ * retire it would un-suppress the other's row while that one still holds a
+ * pre-advance snapshot. A clock is read identically everywhere and cannot
+ * disagree between providers.
+ */
+export function isWotsSubmissionWithinTtl(
+  submittedAt: number | undefined,
+): boolean {
+  if (submittedAt === undefined) return false;
+  return Date.now() - submittedAt < WOTS_SUBMISSION_SUPPRESSION_MS;
 }
 
 /**

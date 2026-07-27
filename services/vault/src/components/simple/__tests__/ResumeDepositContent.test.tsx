@@ -380,7 +380,7 @@ describe("ResumeWotsContent — submission marker", () => {
 
     await waitFor(() => {
       expect(
-        getOptimisticDepositState().wotsSubmitted.has(baseActivity.id),
+        getOptimisticDepositState().wotsSubmittedAt.has(baseActivity.id),
       ).toBe(true);
     });
   });
@@ -399,9 +399,9 @@ describe("ResumeWotsContent — submission marker", () => {
     await waitFor(() => {
       expect(getByTestId("error").textContent).toContain("VP rejected the key");
     });
-    expect(getOptimisticDepositState().wotsSubmitted.has(baseActivity.id)).toBe(
-      false,
-    );
+    expect(
+      getOptimisticDepositState().wotsSubmittedAt.has(baseActivity.id),
+    ).toBe(false);
   });
 });
 
