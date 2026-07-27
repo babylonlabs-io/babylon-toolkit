@@ -60,6 +60,21 @@ vi.mock("@/context/wallet", () => ({
   useETHWallet: () => ({ connected: walletMock.connected }),
 }));
 
+// The god-mode status override is compile-time null in production (gated on
+// `import.meta.env.DEV` + the god-mode flag), so the real store never emits one
+// in tests. Override just this hook to drive RootLayout's status derivation.
+const debugStatusMock = vi.hoisted(
+  () => ({ value: null }) as { value: "frozen" | "paused" | null },
+);
+vi.mock("@/dev/debugPositionStore", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/dev/debugPositionStore")>();
+  return {
+    ...actual,
+    useDebugProtocolStatusOverride: () => debugStatusMock.value,
+  };
+});
+
 vi.mock("@/components/Wallet", () => ({
   Connect: () => <div data-testid="connect-stub" />,
 }));
@@ -114,6 +129,7 @@ beforeEach(() => {
   networkMock.value = "mainnet";
   mobileMock.value = false;
   walletMock.connected = false;
+  debugStatusMock.value = null;
 });
 
 describe("RootLayout — header wiring", () => {
@@ -223,5 +239,23 @@ describe("RootLayout — operator message banner", () => {
     expect(
       screen.getByText(COPY.deposit.disabled.bannerMessage),
     ).toBeInTheDocument();
+  });
+
+  it("suppresses the deposit-disabled and standalone banners under a god-mode status override", () => {
+    // A forced frozen/paused preview means the protocol status banner owns the
+    // message, so RootLayout must suppress the other two even though the gate is
+    // healthy — the deposit-disabled default copy must not leak through, and the
+    // operator message must not appear as a standalone strip.
+    debugStatusMock.value = "frozen";
+    walletMock.connected = true;
+    featureFlagsMock.isDepositDisabled = true;
+    featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
+
+    renderRootLayout();
+
+    expect(screen.queryByText(OPERATOR_MESSAGE)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.disabled.bannerMessage),
+    ).not.toBeInTheDocument();
   });
 });

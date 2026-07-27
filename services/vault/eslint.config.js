@@ -179,10 +179,13 @@ export default tseslint.config(
       "src/components/simple/CollateralSection.tsx",
       // God-mode overrides for the notifications that are driven by live chain
       // reads rather than the cascade calculation, so they can be exercised
-      // without the on-chain conditions. Both read a store getter that is
+      // without the on-chain conditions. Each reads a store getter that is
       // compile-time `null` in production (gated on isGodModePanelEnabled).
+      // RootLayout reads the protocol-status override so its banner-suppression
+      // derivation matches ProtocolStatusBanner under a forced god-mode preview.
       "src/components/simple/MaxVaultsNotification.tsx",
       "src/components/shared/ProtocolStatusBanner.tsx",
+      "src/components/pages/RootLayout.tsx",
     ],
     rules: {
       "no-restricted-imports": [
