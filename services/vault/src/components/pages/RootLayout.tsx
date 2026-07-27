@@ -43,6 +43,7 @@ import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
@@ -186,13 +187,28 @@ export default function RootLayout() {
 
   const isWalletConnected = btcConnected && ethConnected;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
+  // override (compile-time null in production) wins over the live gate, so a
+  // forced frozen/paused preview drives banner suppression here too and can't
+  // leave a second banner visible.
+  const statusOverride = useDebugProtocolStatusOverride();
+  const hasProtocolStatus =
+    (statusOverride ?? resolveBannerStatus(gate)) !== null;
   // Deposit kill-switch banner. Suppressed when a frozen/paused status banner is
   // active, since that banner already explains the disabled state.
   const showDepositDisabledBanner =
     !isGeoBlocked &&
     isWalletConnected &&
     FeatureFlags.isDepositDisabled &&
-    resolveBannerStatus(gate) === null;
+    !hasProtocolStatus;
+  // The operator message (NEXT_PUBLIC_NOTICE_BANNER_MESSAGE) is context-aware:
+  // when a status or deposit-disabled banner is showing it fills that banner's
+  // text, so the standalone notice renders only when neither is — otherwise the
+  // same message would appear twice.
+  const showStandaloneNotice =
+    Boolean(FeatureFlags.noticeBannerMessage) &&
+    !hasProtocolStatus &&
+    !showDepositDisabledBanner;
   // The deposit-disabled banner (Figma node 10084:28515) and the critical
   // near-liquidation banner (node 10204-45613) both render full-width above the
   // sidebar. Measure the wrapper's combined height and expose it as a CSS
@@ -266,8 +282,8 @@ export default function RootLayout() {
           stack (above the geo-block screen), so geo-blocked sessions must
           see it too. */}
       <NoticeBanner
-        visible={Boolean(FeatureFlags.noticeBannerMessage)}
-        message={FeatureFlags.noticeBannerMessage}
+        visible={showStandaloneNotice}
+        message={FeatureFlags.noticeBannerMessage ?? ""}
       />
       <AddressScreeningBanner
         visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}

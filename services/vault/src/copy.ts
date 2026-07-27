@@ -1499,7 +1499,7 @@ export const COPY = {
     },
   },
   // Operator-controlled protocol governance-status banners (Freeze / Pause). The
-  // body may be overridden per incident via NEXT_PUBLIC_PROTOCOL_STATUS_MESSAGE;
+  // body may be overridden per incident via NEXT_PUBLIC_NOTICE_BANNER_MESSAGE;
   // these are the defaults.
   //
   // INTERIM copy: states only what the dApp currently *enforces* (new deposits
