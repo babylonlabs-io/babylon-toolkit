@@ -34,6 +34,7 @@ import { lazyWithRetry } from "./utils/lazyWithRetry";
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
 const VaultsPage = lazyWithRetry(() => import("./components/pages/VaultsPage"));
 const LoansPage = lazyWithRetry(() => import("./components/pages/Loans"));
+const ExplorePage = lazyWithRetry(() => import("./components/pages/Explore"));
 const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -187,6 +188,22 @@ export const Router = () => (
         />
       </Route>
       <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
+      {/* Explore is a v3-only static page with no Aave providers or reserve
+          overlay, so it sits directly under RootLayout (like /activity), not
+          under AaveOverlayLayout. Gated like /loans; the flag-off subtree
+          guard below also covers /explore/* via V3_GUARDED_ROUTE_PATHS. */}
+      <Route
+        path={ROUTES.EXPLORE}
+        element={
+          featureFlags.isV3UiEnabled ? (
+            <Suspense fallback={<RouteFallback />}>
+              <ExplorePage />
+            </Suspense>
+          ) : (
+            <Navigate to={ROUTES.OVERVIEW} replace />
+          )
+        }
+      />
       <Route
         path={ROUTES.ACTIVITY}
         element={

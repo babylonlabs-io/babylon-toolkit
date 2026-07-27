@@ -54,14 +54,11 @@ const V3_NAV_ICONS: Record<
   explore: ExploreIcon,
 };
 
-// Both sections of the second nav group belong to the liquidation-analysis
-// feature and have no page yet (/liquidations is an empty placeholder,
-// /explore has no route at all), so they hide with the same flag that gates
-// the analysis chart rather than advertising dead ends.
-const LIQUIDATION_ANALYSIS_NAV_IDS = new Set<V3NavItemId>([
-  "liquidations",
-  "explore",
-]);
+// /liquidations is still an empty placeholder with no page, so it hides
+// behind the same flag that gates the analysis chart rather than advertising
+// a dead end. /explore now has a real page, so it shows for all v3 users
+// (the sidebar itself only renders under v3 — see RootLayout).
+const LIQUIDATION_ANALYSIS_NAV_IDS = new Set<V3NavItemId>(["liquidations"]);
 
 function V3NavLinks() {
   const groups = featureFlags.isLiquidationAnalysisChartEnabled

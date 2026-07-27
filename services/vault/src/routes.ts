@@ -6,6 +6,7 @@ export const ROUTES = {
   LOANS: "/loans",
   ACTIVITY: "/activity",
   LIQUIDATIONS: "/liquidations",
+  EXPLORE: "/explore",
 } as const;
 
 export const RESERVE_QUERY_KEYS = {

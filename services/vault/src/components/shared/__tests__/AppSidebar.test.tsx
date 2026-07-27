@@ -34,7 +34,7 @@ describe("AppSidebar", () => {
     }
   });
 
-  it("hides Liquidations and Explore when the liquidation-analysis flag is off", () => {
+  it("hides only Liquidations when the liquidation-analysis flag is off, keeping Explore", () => {
     featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
 
     render(
@@ -44,8 +44,13 @@ describe("AppSidebar", () => {
     );
 
     expect(screen.queryByText("Liquidations")).not.toBeInTheDocument();
-    expect(screen.queryByText("Explore")).not.toBeInTheDocument();
-    for (const label of ["Overview", "Vaults", "Loans", "Activity"]) {
+    for (const label of [
+      "Overview",
+      "Vaults",
+      "Loans",
+      "Activity",
+      "Explore",
+    ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });

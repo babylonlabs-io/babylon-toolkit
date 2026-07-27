@@ -1188,6 +1188,18 @@ export const COPY = {
     // components/shared/NetworkBadge.tsx).
     networkBadge: "Testnet",
   },
+  // v3 Explore page (components/pages/Explore.tsx). Per-app names/descriptions
+  // are dataset content and live in config/exploreApps.ts, not here.
+  explore: {
+    subtitle:
+      "Explore apps and integrations built around Bitcoin-backed liquidity.",
+    goToApp: "Go to App",
+    empty: {
+      title: "No apps to explore yet",
+      description:
+        "Check back soon for apps and integrations built around Bitcoin-backed liquidity.",
+    },
+  },
   // v3 Liquidation Dashboard (components/pages/Liquidations).
   liquidations: {
     heading: "Liquidation Analysis",
