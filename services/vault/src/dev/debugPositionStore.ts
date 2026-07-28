@@ -21,6 +21,10 @@ import type {
   CalculatorParams,
   CalculatorResult,
 } from "@/applications/aave/positionNotifications";
+import {
+  getHealthFactorStatusFromValue,
+  type HealthFactorStatus,
+} from "@/applications/aave/utils";
 import type { ProtocolStatus } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
 
@@ -399,4 +403,22 @@ export function useDebugBorrowCapacityStateOverride(): DebugBorrowCapacityState 
  */
 export function useDebugBorrowCapacity(): DebugBorrowCapacity | null {
   return useSyncExternalStore(subscribe, getBorrowCapacity, getBorrowCapacity);
+}
+
+/**
+ * What a page should render for the health factor given a forced value. Shared
+ * by every god-mode consumer so they can't drift on how a forced value maps to
+ * a status: the status is always re-derived with the production banding
+ * function, never carried over from the live read.
+ */
+export function resolveShownHealthFactor(
+  override: number | null,
+  healthFactor: number | null,
+  healthFactorStatus: HealthFactorStatus,
+): { healthFactor: number | null; healthFactorStatus: HealthFactorStatus } {
+  if (override === null) return { healthFactor, healthFactorStatus };
+  return {
+    healthFactor: override,
+    healthFactorStatus: getHealthFactorStatusFromValue(override),
+  };
 }

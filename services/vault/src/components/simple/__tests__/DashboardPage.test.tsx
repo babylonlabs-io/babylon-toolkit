@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { setDebugHealthFactorOverride } from "@/dev/debugPositionStore";
 
 import { DashboardPage } from "../DashboardPage";
 
@@ -55,8 +56,13 @@ vi.mock("@/hooks/usePegoutPolling", () => ({
   usePegoutPolling: () => ({ pegoutStatuses: new Map() }),
 }));
 
+const pricesMock = vi.hoisted(() => ({
+  prices: {} as Record<string, number>,
+  metadata: {} as Record<string, { isStale: boolean; fetchFailed: boolean }>,
+}));
+
 vi.mock("@/hooks/usePrices", () => ({
-  usePrices: () => ({ prices: {}, metadata: {} }),
+  usePrices: () => pricesMock,
 }));
 
 vi.mock("@/dev/debugPositionStore", async (importOriginal) => ({
@@ -125,6 +131,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   featureFlagsMock.isV3UiEnabled = false;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
+  featureFlagsMock.isGodModePanelEnabled = false;
+  pricesMock.prices = {};
+  pricesMock.metadata = {};
+  setDebugHealthFactorOverride(null);
 });
 
 describe("DashboardPage v3 composition", () => {
@@ -155,5 +165,46 @@ describe("DashboardPage v3 composition", () => {
     expect(screen.queryByTestId("supply-cap")).not.toBeInTheDocument();
     expect(screen.queryByTestId("pending-deposits")).not.toBeInTheDocument();
     expect(screen.queryByTestId("pending-withdrawals")).not.toBeInTheDocument();
+  });
+});
+
+describe("DashboardPage risk card under a forced health factor", () => {
+  beforeEach(() => {
+    featureFlagsMock.isV3UiEnabled = true;
+    featureFlagsMock.isGodModePanelEnabled = true;
+    pricesMock.prices = { BTC: 63488 };
+    pricesMock.metadata = { BTC: { isStale: false, fetchFailed: false } };
+  });
+
+  it("charts the liquidation price and distance implied by the forced value", () => {
+    setDebugHealthFactorOverride(2.4);
+
+    render(<DashboardPage />);
+
+    // 63,488 / 2.4, in both the stat cell and the rail's marker label, plus
+    // the distance it implies: 100 * (1 - 1 / 2.4).
+    expect(screen.getAllByText("$26,453")).toHaveLength(2);
+    expect(screen.getByText("58.3%")).toBeInTheDocument();
+  });
+
+  it("clamps the distance to zero when the forced value is below 1", () => {
+    setDebugHealthFactorOverride(0.95);
+
+    render(<DashboardPage />);
+
+    expect(screen.getAllByText("$66,829")).toHaveLength(2);
+    expect(screen.getByText("0.0%")).toBeInTheDocument();
+  });
+
+  it("shows placeholders rather than live stats when no usable BTC price backs the forced value", () => {
+    pricesMock.metadata = { BTC: { isStale: true, fetchFailed: false } };
+    setDebugHealthFactorOverride(2.4);
+
+    render(<DashboardPage />);
+
+    expect(
+      screen.getAllByText(COPY.common.emptyValue).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("58.3%")).not.toBeInTheDocument();
   });
 });

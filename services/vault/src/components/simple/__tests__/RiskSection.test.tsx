@@ -162,6 +162,22 @@ describe("RiskSection rendering", () => {
     expect(currentLeft).toBeLessThan(liquidationLeft);
   });
 
+  it("rings the current marker amber in the moderate state and green when safe", () => {
+    const { unmount } = renderSection({
+      healthFactorStatus: "warning",
+      healthFactor: 1.14,
+    });
+    expect(screen.getByTestId("risk-marker-current").className).toContain(
+      "border-risk-amber",
+    );
+    unmount();
+
+    renderSection();
+    expect(screen.getByTestId("risk-marker-current").className).toContain(
+      "border-risk-green",
+    );
+  });
+
   it("renders the three stat labels, their values, and the collateral-factor tooltip label", () => {
     renderSection();
 

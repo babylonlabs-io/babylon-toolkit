@@ -55,7 +55,8 @@ vi.mock("@/dev/demoDeposit", () => ({
   useDemoLoan: () => useDemoLoanMock(),
 }));
 
-vi.mock("@/dev/debugPositionStore", () => ({
+vi.mock("@/dev/debugPositionStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/dev/debugPositionStore")>()),
   useDebugHealthFactorOverride: () => useDebugHealthFactorOverrideMock(),
   useDebugBorrowCapacity: () => useDebugBorrowCapacityMock(),
 }));
