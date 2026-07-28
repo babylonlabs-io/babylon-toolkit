@@ -118,9 +118,17 @@ export async function verifyReserveIdentity(
   // Unknown address (typically a testnet deployment). The address is proven and
   // is what drives value, so a misleading `symbol()` here is a display concern
   // only — but it is still bound to the address, unlike the indexer's string.
+  //
+  // `symbol()` and `name()` are both optional in ERC-20, so a read that fails
+  // here is almost certainly an absent method rather than a dead RPC: the
+  // `getERC20Decimals` call above is uncaught and already completed a
+  // successful read against this same address, so the transport is known good.
+  // Treat a failure as "the token doesn't provide it" — a missing name falls
+  // back to the symbol below, and a missing symbol leaves nothing trustworthy
+  // to label with, which is a hard block rather than a retryable fault.
   const [symbol, name] = await Promise.all([
-    getERC20Symbol(underlying),
-    getERC20Name(underlying),
+    getERC20Symbol(underlying).catch(() => null),
+    getERC20Name(underlying).catch(() => null),
   ]);
 
   if (!symbol) {
