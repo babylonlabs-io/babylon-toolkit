@@ -14,7 +14,6 @@ import type {
   AaveSpokeUserAccountData,
   AaveSpokeUserPosition,
 } from "../types.js";
-import { hasDebtFromPosition } from "../utils/debtUtils.js";
 import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
 
 /** Account data result type from contract */
@@ -195,54 +194,6 @@ export async function getUserPosition(
   });
 
   return mapPositionResult(result as PositionResult);
-}
-
-/**
- * Check if a user has any debt in a reserve
- *
- * @param publicClient - Viem public client for reading contracts
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
- * @param userAddress - User's proxy contract address
- * @returns true if user has debt
- */
-export async function hasDebt(
-  publicClient: PublicClient,
-  spokeAddress: Address,
-  reserveId: bigint,
-  userAddress: Address,
-): Promise<boolean> {
-  const position = await getUserPosition(
-    publicClient,
-    spokeAddress,
-    reserveId,
-    userAddress,
-  );
-  return hasDebtFromPosition(position);
-}
-
-/**
- * Check if a user has supplied collateral in a reserve
- *
- * @param publicClient - Viem public client for reading contracts
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
- * @param userAddress - User's proxy contract address
- * @returns true if user has supplied collateral
- */
-export async function hasCollateral(
-  publicClient: PublicClient,
-  spokeAddress: Address,
-  reserveId: bigint,
-  userAddress: Address,
-): Promise<boolean> {
-  const position = await getUserPosition(
-    publicClient,
-    spokeAddress,
-    reserveId,
-    userAddress,
-  );
-  return position.suppliedShares > 0n;
 }
 
 /**

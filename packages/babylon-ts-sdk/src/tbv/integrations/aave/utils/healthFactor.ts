@@ -34,19 +34,6 @@ export function getHealthFactorStatus(
 }
 
 /**
- * Checks if a health factor value represents a healthy position.
- *
- * @param healthFactor - The health factor as a number
- * @returns true if the health factor is >= 1.0 (healthy), false otherwise
- */
-export function isHealthFactorHealthy(healthFactor: number | null): boolean {
-  if (healthFactor === null) {
-    return true; // No debt = healthy
-  }
-  return healthFactor >= 1.0;
-}
-
-/**
  * Get health factor status from a numeric value.
  * Used for UI components that work with Infinity for no-debt scenarios.
  *

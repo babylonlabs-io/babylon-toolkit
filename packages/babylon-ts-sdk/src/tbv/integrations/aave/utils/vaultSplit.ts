@@ -30,7 +30,7 @@ const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
  */
 const HTLC_EFFECTIVE_DUST_THRESHOLD = 2000n;
 
-export function assertSafePrecision(value: bigint, name: string): void {
+function assertSafePrecision(value: bigint, name: string): void {
   if (value > MAX_SAFE_BIGINT) {
     throw new RangeError(
       `${name} (${value}) exceeds Number.MAX_SAFE_INTEGER; precision would be lost`,
@@ -83,38 +83,6 @@ export interface MinDepositForSplitParams {
 }
 
 /**
- * Parameters for checking if a vault rebalance is needed.
- */
-export interface RebalanceCheckParams {
-  /** Ordered vault amounts in satoshis (index 0 is sacrificial) */
-  vaultAmounts: bigint[];
-  /** Collateral factor (e.g. 0.75) */
-  CF: number;
-  /** Liquidation bonus (e.g. 1.05) */
-  LB: number;
-  /** Target health factor (e.g. 1.10) */
-  THF: number;
-  /** Expected health factor at liquidation (e.g. 0.95) */
-  expectedHF: number;
-  /** Safety margin multiplier (e.g. 1.05) */
-  safetyMargin: number;
-}
-
-/**
- * Result of a vault rebalance check.
- */
-export interface RebalanceCheckResult {
-  /** Whether the sacrificial vault needs to be increased */
-  needsRebalance: boolean;
-  /** How much more the sacrificial vault needs in satoshis (0n if no rebalance needed) */
-  deficit: bigint;
-  /** Current sacrificial vault coverage in satoshis */
-  currentCoverage: bigint;
-  /** Required sacrificial vault coverage in satoshis */
-  targetCoverage: bigint;
-}
-
-/**
  * Compute the fraction of collateral that would be seized during liquidation,
  * returning both the raw (unclamped) and clamped values.
  *
@@ -152,7 +120,7 @@ export function computeSeizedFractionDetailed(
   }
 
   // Floating-point errors here are ~1e-15, negligible relative to the 5%
-  // safety margin applied by callers (computeOptimalSplit, checkRebalanceNeeded).
+  // safety margin applied by callers (computeOptimalSplit).
   const seizedFractionRaw =
     ((CF * (THF - expectedHF)) / (THF - liqPenalty)) * (LB / expectedHF);
 
@@ -309,72 +277,4 @@ export function computeMinDepositForSplit(
   const minFromSacrificial = Math.ceil(Number(minPegin) / sacrificialShare);
 
   return BigInt(Math.max(minFromProtected, minFromSacrificial));
-}
-
-/**
- * Check if the sacrificial vault (index 0) needs to be increased to cover
- * the current target seizure amount.
- *
- * **Scope:** This function only checks whether the sacrificial vault's sizing
- * is adequate. It does NOT detect whether a split exists — a single vault that
- * exceeds the target coverage returns `needsRebalance: false`. Callers should
- * check `vaultAmounts.length < 2` separately to detect unsplit positions.
- *
- * Used on position page load to detect when parameter changes (THF, CF, LB)
- * have made the current split insufficient.
- *
- * @param params - Current vault amounts and risk parameters
- * @returns Whether rebalance is needed, with deficit details
- *
- * @example
- * ```typescript
- * import { checkRebalanceNeeded } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
- *
- * const result = checkRebalanceNeeded({
- *   vaultAmounts: [300_000_000n, 700_000_000n], // 3 BTC sacrificial, 7 BTC protected
- *   CF: 0.75,
- *   LB: 1.05,
- *   THF: 1.10,
- *   expectedHF: 0.95,
- *   safetyMargin: 1.05,
- * });
- *
- * if (result.needsRebalance) {
- *   console.log(`Sacrificial vault needs ${result.deficit} more sats`);
- * }
- * ```
- */
-export function checkRebalanceNeeded(
-  params: RebalanceCheckParams,
-): RebalanceCheckResult {
-  const { vaultAmounts, CF, LB, THF, expectedHF, safetyMargin } = params;
-
-  if (vaultAmounts.length === 0) {
-    return {
-      needsRebalance: false,
-      deficit: 0n,
-      currentCoverage: 0n,
-      targetCoverage: 0n,
-    };
-  }
-
-  const totalBtc = vaultAmounts.reduce((sum, v) => sum + v, 0n);
-  assertSafePrecision(totalBtc, "totalBtc");
-
-  const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
-
-  const targetCoverage = BigInt(
-    Math.ceil(Number(totalBtc) * seizedFraction * safetyMargin),
-  );
-  const currentCoverage = vaultAmounts[0];
-
-  const deficit =
-    targetCoverage > currentCoverage ? targetCoverage - currentCoverage : 0n;
-
-  return {
-    needsRebalance: deficit > 0n,
-    deficit,
-    currentCoverage,
-    targetCoverage,
-  };
 }

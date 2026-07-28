@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  checkRebalanceNeeded,
   computeMinDepositForSplit,
   computeOptimalSplit,
   computeSeizedFraction,
@@ -327,77 +326,4 @@ describe("vaultSplit", () => {
     });
   });
 
-  describe("checkRebalanceNeeded", () => {
-    it("should report no rebalance when sacrificial vault covers target", () => {
-      // 10 BTC total, sacrificial ≈ 4.18 BTC is sufficient
-      const result = checkRebalanceNeeded({
-        vaultAmounts: [500_000_000n, 500_000_000n], // 5 BTC each
-        ...DEFAULT_PARAMS,
-      });
-
-      // target ≈ 10 * 0.398 * 1.05 ≈ 4.18 BTC = 418M sats
-      // current = 500M sats > 418M sats
-      expect(result.needsRebalance).toBe(false);
-      expect(result.deficit).toBe(0n);
-    });
-
-    it("should report rebalance needed when sacrificial vault is too small", () => {
-      // 10 BTC total, sacrificial = 3 BTC (below ~4.18 BTC target)
-      const result = checkRebalanceNeeded({
-        vaultAmounts: [300_000_000n, 700_000_000n],
-        ...DEFAULT_PARAMS,
-      });
-
-      expect(result.needsRebalance).toBe(true);
-      expect(result.deficit).toBeGreaterThan(0n);
-      expect(result.currentCoverage).toBe(300_000_000n);
-      // target ≈ 418M sats
-      expect(Number(result.targetCoverage)).toBeCloseTo(418_000_000, -6);
-    });
-
-    it("should compute correct deficit amount", () => {
-      const result = checkRebalanceNeeded({
-        vaultAmounts: [300_000_000n, 700_000_000n],
-        ...DEFAULT_PARAMS,
-      });
-
-      expect(result.deficit).toBe(
-        result.targetCoverage - result.currentCoverage,
-      );
-    });
-
-    it("should return false for single vault whose total exceeds target coverage", () => {
-      const result = checkRebalanceNeeded({
-        vaultAmounts: [1_000_000_000n],
-        ...DEFAULT_PARAMS,
-      });
-
-      // Single vault of 10 BTC. Target coverage ≈ 4.18 BTC.
-      // Current coverage = 10 BTC > 4.18 BTC, so actually no rebalance needed.
-      expect(result.needsRebalance).toBe(false);
-    });
-
-    it("should handle empty vault array", () => {
-      const result = checkRebalanceNeeded({
-        vaultAmounts: [],
-        ...DEFAULT_PARAMS,
-      });
-
-      expect(result.needsRebalance).toBe(false);
-      expect(result.deficit).toBe(0n);
-      expect(result.currentCoverage).toBe(0n);
-      expect(result.targetCoverage).toBe(0n);
-    });
-
-    it("should handle 3+ vaults (uses only first vault as sacrificial)", () => {
-      const result = checkRebalanceNeeded({
-        vaultAmounts: [200_000_000n, 300_000_000n, 500_000_000n],
-        ...DEFAULT_PARAMS,
-      });
-
-      // Total = 10 BTC, target ≈ 4.18 BTC, current = 2 BTC → deficit
-      expect(result.needsRebalance).toBe(true);
-      expect(result.currentCoverage).toBe(200_000_000n);
-    });
-  });
 });

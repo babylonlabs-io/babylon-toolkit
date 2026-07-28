@@ -7,14 +7,6 @@
 import type { Address, Hex } from "viem";
 
 /**
- * Depositor structure from contract
- */
-export interface DepositorStruct {
-  ethAddress: Address;
-  btcPubKey: Hex;
-}
-
-/**
  * Aave position structure from the contract.
  * The adapter resolves the user's proxy and vaults from their address.
  */

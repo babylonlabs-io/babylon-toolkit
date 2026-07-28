@@ -17,12 +17,13 @@ import {
   getPosition,
   getPositionReserveTotalDebt,
   getUserAccountData,
-  hasDebt,
+  getUserPosition,
+  getUserTotalDebt,
   // Utilities
-  selectVaultsForAmount,
   aaveValueToUsd,
   aaveRayValueToUsd,
   getHealthFactorStatus,
+  hasDebtFromPosition,
   FULL_REPAY_BUFFER_DIVISOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
@@ -197,15 +198,16 @@ const position = await getPosition(publicClient, ADAPTER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
-// 2. Verify zero debt
-const userHasDebt = await hasDebt(
+// 2. Verify zero debt — check shares, not token units. Rounding can leave
+// residual debt shares that getUserTotalDebt reports as 0.
+const debtPosition = await getUserPosition(
   publicClient,
   SPOKE,
   USDC_RESERVE_ID,
   proxyAddress,
 );
 
-if (userHasDebt) {
+if (hasDebtFromPosition(debtPosition)) {
   throw new Error("Repay all debt before withdrawing");
 }
 

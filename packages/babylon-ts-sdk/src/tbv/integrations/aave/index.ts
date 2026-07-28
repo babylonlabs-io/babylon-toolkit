@@ -50,13 +50,9 @@ export {
   AAVE_BASE_CURRENCY_RAY_DECIMALS,
   AAVE_FUNCTION_NAMES,
   BPS_SCALE,
-  BPS_TO_PERCENT_DIVISOR,
-  BTC_DECIMALS,
   FULL_REPAY_BUFFER_DIVISOR,
   HEALTH_FACTOR_WARNING_THRESHOLD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
-  USDC_DECIMALS,
-  WAD_DECIMALS,
 } from "./constants.js";
 
 // Types
@@ -64,7 +60,6 @@ export type {
   AaveMarketPosition,
   AaveSpokeUserAccountData,
   AaveSpokeUserPosition,
-  DepositorStruct,
   PositionSizeParams,
   TransactionParams,
 } from "./types.js";
@@ -91,8 +86,6 @@ export {
   getUserPositions,
   getUserTotalDebt,
   getUserTotalDebts,
-  hasCollateral,
-  hasDebt,
   type AssetDrawnRateRequest,
   type AssetDrawnRateResult,
   type ReservePriceResult,
@@ -105,25 +98,18 @@ export {
   SEIZURE_TOL,
   aaveRayValueToUsd,
   aaveValueToUsd,
-  calculateBorrowRatio,
   calculateHealthFactor,
-  calculateTotalVaultAmount,
-  checkRebalanceNeeded,
   computeMinDepositForSplit,
   computeOptimalOrder,
   computeOptimalSplit,
   computeSeizedFraction,
   computeSeizedFractionDetailed,
-  computeTargetSeizureSats,
   getGroup1FromOrder,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
-  isHealthFactorHealthy,
   MAX_DP_N,
-  selectVaultsForAmount,
   simulateCascade,
-  simulatePrefixSeizure,
   wadToNumber,
 } from "./utils/index.js";
 
@@ -133,16 +119,7 @@ export type {
   MinDepositForSplitParams,
   OptimalSplitParams,
   OptimalSplitResult,
-  OrderedVault,
-  PrefixSeizureParams,
-  PrefixSeizureResult,
-  RebalanceCheckParams,
-  RebalanceCheckResult,
-  SelectableVault,
-  TargetSeizureParams,
-  VaultSelectionResult,
 } from "./utils/index.js";
 
 // Export ABIs for application registration
 export { default as AaveIntegrationAdapterABI } from "./clients/abis/AaveIntegrationAdapter.abi.json";
-export { default as AaveSpokeABI } from "./clients/abis/AaveSpoke.abi.json";
