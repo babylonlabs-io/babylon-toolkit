@@ -129,6 +129,12 @@ export interface PrePeginPsbtResult {
    * Always equals `htlcValues.length` when present.
    */
   authAnchorVout: number | null;
+  /**
+   * Minimum PegIn fee (sats), independently computed and asserted against
+   * `htlcValues`' implied reserve by {@link assertWasmPeginSizing}. Reuse
+   * this instead of recomputing — it is already the cross-checked value.
+   */
+  minPeginFee: bigint;
 }
 
 /**
@@ -201,7 +207,7 @@ export async function buildPrePeginPsbt(
   // validation. Cross-check every value-bearing field against the request
   // and the protocol formula before it can feed a signed tx or the on-chain
   // PegIn registration. Both the sizing and commit passes route through here.
-  await assertWasmPeginSizing(result, params);
+  const minPeginFee = await assertWasmPeginSizing(result, params);
 
   // Parse the unfunded tx to sum all output values
   // (HTLCs + optional OP_RETURN + CPFP anchor). This is the amount
@@ -237,6 +243,7 @@ export async function buildPrePeginPsbt(
     peginAmounts: result.peginAmounts,
     depositorClaimValue: result.depositorClaimValue,
     authAnchorVout,
+    minPeginFee,
   };
 }
 

@@ -72,6 +72,14 @@ describe("buildDepositTerms", () => {
     // Closes the drift vs payout.ts, which already rejects >= MAX_VP_COMMISSION_BPS_EXCLUSIVE.
     expect(() => buildDepositTerms({ ...BASE, commissionBps: 10_000 })).toThrow(/integer/i);
   });
+
+  it("omits commissionFee when commissionBps is not provided", () => {
+    const terms = buildDepositTerms({ ...BASE, commissionBps: undefined });
+    expect(terms.vaults).toHaveLength(2);
+    for (const vault of terms.vaults) {
+      expect(vault).not.toHaveProperty("commissionFee");
+    }
+  });
 });
 
 describe("supportsDepositApproval", () => {

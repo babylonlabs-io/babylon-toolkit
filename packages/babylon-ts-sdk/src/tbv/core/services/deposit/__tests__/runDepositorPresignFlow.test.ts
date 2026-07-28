@@ -659,13 +659,8 @@ describe("runDepositorPresignFlow", () => {
         depositTerms: DEPOSIT_TERMS,
       });
 
-      // This confirms the wallet is capability-less; it doesn't by itself prove
-      // the flow skipped it. The proof is the flow completing above without a
-      // TypeError, which it would throw if src tried to call the absent method.
-      expect(
-        (wallet as unknown as { approveDepositTerms?: unknown })
-          .approveDepositTerms,
-      ).toBeUndefined();
+      // The proof is the flow completing above without throwing — it would
+      // throw a TypeError if src tried to call the absent method.
       expect(
         presignClient.submitDepositorPresignatures,
       ).toHaveBeenCalledOnce();

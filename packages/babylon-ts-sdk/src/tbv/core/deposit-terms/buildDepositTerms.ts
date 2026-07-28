@@ -21,15 +21,17 @@ export function buildDepositTerms(inputs: BuildDepositTermsInputs): DepositTerms
   if (inputs.vaultAmounts.length === 0) {
     throw new Error("buildDepositTerms: at least one vault amount is required");
   }
+  // TODO(#2106): device-range validation
   if (inputs.timelockPegin <= 0 || inputs.timelockRefund <= 0) {
     throw new Error("buildDepositTerms: timelocks must be positive");
   }
   // Same bound payout.ts enforces before broadcast; catching drift here keeps
   // the projected commissionFee meaningful.
   if (
-    !Number.isInteger(inputs.commissionBps) ||
-    inputs.commissionBps < 0 ||
-    inputs.commissionBps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
+    inputs.commissionBps !== undefined &&
+    (!Number.isInteger(inputs.commissionBps) ||
+      inputs.commissionBps < 0 ||
+      inputs.commissionBps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE)
   ) {
     throw new Error(
       `buildDepositTerms: commissionBps must be an integer in ` +
@@ -37,17 +39,22 @@ export function buildDepositTerms(inputs: BuildDepositTermsInputs): DepositTerms
     );
   }
 
-  const commissionBps = BigInt(inputs.commissionBps);
   const bpsDenominator = BigInt(MAX_VP_COMMISSION_BPS_EXCLUSIVE);
-  const vaults: DepositTermsVaultGroup[] = inputs.vaultAmounts.map((vaultAmount, index) => ({
-    htlcVout: index,
-    vaultProviderPk: inputs.vaultProviderPk,
-    vaultAmount,
+  const vaults: DepositTermsVaultGroup[] = inputs.vaultAmounts.map((vaultAmount, index) => {
     // floor(vaultAmount * bps / 10_000) — matches the vault provider's commission math.
-    commissionFee: (vaultAmount * commissionBps) / bpsDenominator,
-    depositorClaimValue: inputs.depositorClaimValue,
-    peginMaxFee: inputs.peginMaxFee,
-  }));
+    const commissionFee =
+      inputs.commissionBps === undefined
+        ? undefined
+        : (vaultAmount * BigInt(inputs.commissionBps)) / bpsDenominator;
+    return {
+      htlcVout: index,
+      vaultProviderPk: inputs.vaultProviderPk,
+      vaultAmount,
+      ...(commissionFee !== undefined ? { commissionFee } : {}),
+      depositorClaimValue: inputs.depositorClaimValue,
+      peginMaxFee: inputs.peginMaxFee,
+    };
+  });
 
   return {
     baseFeeRate: inputs.protocolFeeRate,

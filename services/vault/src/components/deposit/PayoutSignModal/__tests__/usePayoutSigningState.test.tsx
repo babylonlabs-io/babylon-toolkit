@@ -664,4 +664,45 @@ describe("usePayoutSigningState", () => {
       await waitFor(() => expect(observedSignal?.aborted).toBe(true));
     });
   });
+
+  describe("deposit-terms approval capability forwarding (F2 regression)", () => {
+    // A real depositor-approval wallet (e.g. Ledger) implements
+    // approveDepositTerms as a class-prototype method, not an own/instance
+    // property — `{...wallet}` silently drops it, so the wrapper built here
+    // must forward it explicitly instead of relying on spread.
+    class PrototypeApprovalBtcWallet {
+      signPsbt(): Promise<string> {
+        return Promise.resolve("signed");
+      }
+      deriveContextHash(): Promise<string> {
+        return Promise.resolve("cc".repeat(32));
+      }
+      approveDepositTerms(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+
+    it("forwards a prototype-method approveDepositTerms through the payout wallet wrapper", async () => {
+      const { supportsDepositApproval } = await import(
+        "@babylonlabs-io/ts-sdk/tbv/core"
+      );
+
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: new PrototypeApprovalBtcWallet(),
+        },
+      };
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+      const call = mockSignAndSubmitPayouts.mock.calls[0][0];
+      expect(supportsDepositApproval(call.btcWallet)).toBe(true);
+    });
+  });
 });

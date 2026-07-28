@@ -63,6 +63,7 @@ describe("buildPrePeginPsbt", () => {
       expect(result).toHaveProperty("htlcAddresses");
       expect(result).toHaveProperty("peginAmounts");
       expect(result).toHaveProperty("depositorClaimValue");
+      expect(result).toHaveProperty("minPeginFee");
 
       expect(typeof result.psbtHex).toBe("string");
       expect(typeof result.htlcValues[0]).toBe("bigint");
@@ -70,6 +71,7 @@ describe("buildPrePeginPsbt", () => {
       expect(typeof result.htlcAddresses[0]).toBe("string");
       expect(typeof result.peginAmounts[0]).toBe("bigint");
       expect(typeof result.depositorClaimValue).toBe("bigint");
+      expect(typeof result.minPeginFee).toBe("bigint");
 
       expect(result.psbtHex.length).toBeGreaterThan(0);
       expect(result.htlcValues[0]).toBeGreaterThan(0n);
@@ -77,6 +79,7 @@ describe("buildPrePeginPsbt", () => {
       expect(result.htlcAddresses[0].length).toBeGreaterThan(0);
       expect(result.peginAmounts[0]).toBe(TEST_AMOUNTS.PEGIN);
       expect(result.depositorClaimValue).toBeGreaterThan(0n);
+      expect(result.minPeginFee).toBeGreaterThan(0n);
     });
 
     it("should set htlcValue >= pegInAmount + depositorClaimValue", async () => {
@@ -108,6 +111,11 @@ describe("buildPrePeginPsbt", () => {
       const highFee =
         high.htlcValues[0] - high.peginAmounts[0] - high.depositorClaimValue;
       expect(highFee).toBeGreaterThan(lowFee);
+
+      // minPeginFee (the value F4 threads to callers instead of a second
+      // recompute) must equal the same implied reserve, v1 having no anchor.
+      expect(low.minPeginFee).toBe(lowFee);
+      expect(high.minPeginFee).toBe(highFee);
     });
 
     it("should handle different networks", async () => {

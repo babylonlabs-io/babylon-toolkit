@@ -5,6 +5,8 @@
  * transaction with multiple HTLC outputs (one per vault).
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -207,6 +209,32 @@ const MOCK_BTC_WALLET = {
   getAddress: vi.fn().mockResolvedValue("bc1qtest"),
   getNetwork: vi.fn().mockResolvedValue("testnet"),
 };
+
+// F2 regression: a real depositor-approval wallet (e.g. Ledger) implements
+// approveDepositTerms as a class-prototype method, not an own/instance
+// property — `{...wallet}` silently drops it, so the vault-app wrapper must
+// forward it explicitly instead of relying on spread.
+class PrototypeApprovalBtcWallet {
+  getPublicKeyHex(): Promise<string> {
+    return Promise.resolve("02" + "ab".repeat(32));
+  }
+  getAddress(): Promise<string> {
+    return Promise.resolve("bc1qtest");
+  }
+  getNetwork(): Promise<"testnet"> {
+    return Promise.resolve("testnet");
+  }
+  deriveContextHash(): Promise<string> {
+    return Promise.resolve("cc".repeat(32));
+  }
+  signPsbt(): Promise<string> {
+    return Promise.resolve("mockSignedPsbtHex");
+  }
+  approveDepositTerms(terms: DepositTerms): Promise<void> {
+    void terms;
+    return Promise.resolve();
+  }
+}
 
 const MOCK_ETH_WALLET = {
   account: { address: "0xEthAddress123" as Address },
@@ -1421,6 +1449,47 @@ describe("useDepositFlow", () => {
       });
       // The guard fires before any BTC is committed.
       expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Deposit-terms approval capability forwarding (F2 regression)", () => {
+    it("forwards a prototype-method approveDepositTerms through both wallet wrapper sites", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { submitWotsPublicKey } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { supportsDepositApproval } = await import(
+        "@babylonlabs-io/ts-sdk/tbv/core"
+      );
+
+      let peginWallet: BitcoinWallet | undefined;
+      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
+        peginWallet = wallet;
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      let postBroadcastWallet: BitcoinWallet | undefined;
+      vi.mocked(submitWotsPublicKey).mockImplementation(async (params) => {
+        postBroadcastWallet = params.btcWallet;
+      });
+
+      const approvalWallet = new PrototypeApprovalBtcWallet();
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          btcWalletProvider: approvalWallet as any,
+        }),
+      );
+      await executeDepositFlow(result);
+
+      expect(peginWallet).toBeDefined();
+      expect(supportsDepositApproval(peginWallet!)).toBe(true);
+
+      expect(postBroadcastWallet).toBeDefined();
+      expect(supportsDepositApproval(postBroadcastWallet!)).toBe(true);
     });
   });
 });

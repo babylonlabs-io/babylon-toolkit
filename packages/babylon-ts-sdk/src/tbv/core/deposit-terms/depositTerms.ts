@@ -4,7 +4,9 @@ export interface DepositTermsVaultGroup {
   htlcVout: number; // 0-based; equals the group's position (groups are ascending by vout)
   vaultProviderPk: string; // x-only lowercase hex (64 chars)
   vaultAmount: bigint; // sats
-  commissionFee: bigint; // sats; floor(vaultAmount * commissionBps / 10_000)
+  // sats; floor(vaultAmount * commissionBps / 10_000). Omitted when the
+  // builder wasn't given a commissionBps (see BuildDepositTermsInputs).
+  commissionFee?: bigint;
   depositorClaimValue: bigint; // sats; the same value for every vault
   peginMaxFee: bigint; // sats; the minimum PegIn fee for this graph version
 }
@@ -22,7 +24,10 @@ export interface DepositTerms {
   prepeginTxid: string;
   prepeginMaxFee: bigint; // sats; the funded Pre-PegIn fee (an approving wallet caps the signed fee at this)
   keeperPks: string[]; // x-only hex, sorted ascending
-  challengerPks: string[]; // x-only hex, sorted ascending independently of keeperPks
+  // x-only hex, sorted ascending independently of keeperPks. Universal challengers
+  // only — the full graph challenger set is keeperPks ∪ challengerPks (vault
+  // keepers are the local challengers).
+  challengerPks: string[];
   vaults: DepositTermsVaultGroup[]; // per-vault groups, ordered by ascending htlcVout
 }
 
@@ -34,6 +39,8 @@ export interface DepositTermsApprover {
 
 // Seam invariant: never call deriveContextHash between approveDepositTerms and the
 // last terms-bound signature of a connection — deriving mid-approval nullifies it.
+// Design: mirrors the SDK's existing deriveContextHash/signPsbts orchestration —
+// the SDK owns approval by design; provider-internal and app-driven placements were rejected.
 export function supportsDepositApproval(
   wallet: BitcoinWallet,
 ): wallet is BitcoinWallet & DepositTermsApprover {
@@ -49,7 +56,8 @@ export interface BuildDepositTermsInputs {
   vaultProviderPk: string;
   keeperPks: readonly string[];
   challengerPks: readonly string[];
-  commissionBps: number;
+  // Omitted -> built terms carry no per-vault commissionFee (see DepositTermsVaultGroup).
+  commissionBps?: number;
   vaultAmounts: readonly bigint[];
   depositorClaimValue: bigint;
   peginMaxFee: bigint;

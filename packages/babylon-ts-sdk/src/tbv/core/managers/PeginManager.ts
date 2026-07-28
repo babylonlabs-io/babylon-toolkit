@@ -23,7 +23,6 @@ import * as bitcoin from "bitcoinjs-lib";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-import { computeMinPeginFee } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import {
   encodeFunctionData,
   isAddressEqual,
@@ -208,8 +207,12 @@ export interface PreparePeginParams {
    */
   vaultProviderBtcPubkey: string;
 
-  /** VP commission in basis points; feeds the deposit terms' per-vault commissionFee. */
-  commissionBps: number;
+  /**
+   * VP commission in basis points; feeds the deposit terms' per-vault
+   * commissionFee. Optional: when omitted, deposit terms carry no
+   * commissionFee (see DepositTermsVaultGroup.commissionFee).
+   */
+  commissionBps?: number;
 
   /**
    * Vault keeper BTC public keys (x-only, 64-char hex).
@@ -919,32 +922,9 @@ export class PeginManager {
       calculateBtcTxHash(fundedPrePeginTxHex),
     );
 
-    // Always build the deposit terms so callers get them back regardless of
-    // wallet capability; only approval-capable wallets need the call below.
-    const peginMaxFee = await computeMinPeginFee(
-      params.vaultCoreVersion,
-      vaultKeeperBtcPubkeys.length,
-      universalChallengerBtcPubkeys.length,
-      params.minPeginFeeRate,
-    );
-    const depositTerms = buildDepositTerms({
-      protocolFeeRate: params.protocolFeeRate,
-      timelockPegin: params.timelockPegin,
-      timelockRefund: params.timelockRefund,
-      prepeginTxid: prePeginTxid,
-      prepeginMaxFee: sizing.fee,
-      vaultProviderPk: vaultProviderBtcPubkey,
-      keeperPks: vaultKeeperBtcPubkeys,
-      challengerPks: universalChallengerBtcPubkeys,
-      commissionBps: params.commissionBps,
-      vaultAmounts: params.amounts,
-      depositorClaimValue: prePeginResult.depositorClaimValue,
-      peginMaxFee,
-    });
-    if (supportsDepositApproval(this.config.btcWallet)) {
-      await this.config.btcWallet.approveDepositTerms(depositTerms);
-    }
-
+    // Build the per-vault PegIn txs before deposit-terms approval so the real
+    // htlcVout bind-check inside buildPeginTxFromFundedPrePegin runs before
+    // the depositor approves on a hardware wallet, not after.
     const peginTxResults: Array<{
       txHex: string;
       txid: string;
@@ -979,6 +959,28 @@ export class PeginManager {
       signOptions.push(
         createTaprootScriptPathSignOptions(depositorBtcPubkeyRaw, 1),
       );
+    }
+
+    // Always build the deposit terms so callers get them back regardless of
+    // wallet capability; only approval-capable wallets need the call below.
+    // peginMaxFee reuses assertWasmPeginSizing's already-asserted minPeginFee
+    // (via prePeginResult) instead of recomputing it.
+    const depositTerms = buildDepositTerms({
+      protocolFeeRate: params.protocolFeeRate,
+      timelockPegin: params.timelockPegin,
+      timelockRefund: params.timelockRefund,
+      prepeginTxid: prePeginTxid,
+      prepeginMaxFee: sizing.fee,
+      vaultProviderPk: vaultProviderBtcPubkey,
+      keeperPks: vaultKeeperBtcPubkeys,
+      challengerPks: universalChallengerBtcPubkeys,
+      commissionBps: params.commissionBps,
+      vaultAmounts: params.amounts,
+      depositorClaimValue: prePeginResult.depositorClaimValue,
+      peginMaxFee: prePeginResult.minPeginFee,
+    });
+    if (supportsDepositApproval(this.config.btcWallet)) {
+      await this.config.btcWallet.approveDepositTerms(depositTerms);
     }
 
     const signedPsbts = await signPsbtsWithFallback(

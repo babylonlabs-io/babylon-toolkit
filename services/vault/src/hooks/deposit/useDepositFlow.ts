@@ -17,8 +17,10 @@ import {
   ensureHexPrefix,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
+  supportsDepositApproval,
   validateOnChainParticipantKeys,
   verifyRegisteredVaultVersions,
+  type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   primeVpTokenRegistry,
@@ -468,7 +470,8 @@ export function useDepositFlow(
           return signed;
         };
 
-        const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
+        const phaseTrackingBtcWallet: typeof confirmedBtcWallet &
+          Partial<DepositTermsApprover> = {
           ...confirmedBtcWallet,
           deriveContextHash: (appName, context) => {
             advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
@@ -477,6 +480,14 @@ export function useDepositFlow(
           signPsbt: signOnePeginPsbt,
           ...(typeof confirmedBtcWallet.signPsbts === "function"
             ? { signPsbts: signPeginBatch }
+            : {}),
+          // Object spread drops prototype methods (class-instance wallets), so
+          // approveDepositTerms must be forwarded explicitly like signPsbts above.
+          ...(supportsDepositApproval(confirmedBtcWallet)
+            ? {
+                approveDepositTerms: (terms) =>
+                  confirmedBtcWallet.approveDepositTerms(terms),
+              }
             : {}),
         };
 
@@ -869,7 +880,8 @@ export function useDepositFlow(
         setIsWaiting(true);
 
         let baseStep: DepositFlowStep = DepositFlowStep.AWAIT_BTC_CONFIRMATION;
-        const postBroadcastBtcWallet: typeof confirmedBtcWallet = {
+        const postBroadcastBtcWallet: typeof confirmedBtcWallet &
+          Partial<DepositTermsApprover> = {
           ...confirmedBtcWallet,
           // `isWaiting` flips to `false` while a popup is open and back
           // to `true` after it closes, so the SDK polling that follows
@@ -940,6 +952,14 @@ export function useDepositFlow(
                     }
                   }
                 },
+              }
+            : {}),
+          // Object spread drops prototype methods (class-instance wallets), so
+          // approveDepositTerms must be forwarded explicitly like signPsbts above.
+          ...(supportsDepositApproval(confirmedBtcWallet)
+            ? {
+                approveDepositTerms: (terms) =>
+                  confirmedBtcWallet.approveDepositTerms(terms),
               }
             : {}),
         };
