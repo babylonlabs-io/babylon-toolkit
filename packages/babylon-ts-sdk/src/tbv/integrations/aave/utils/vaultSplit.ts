@@ -30,7 +30,7 @@ const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
  */
 const HTLC_EFFECTIVE_DUST_THRESHOLD = 2000n;
 
-export function assertSafePrecision(value: bigint, name: string): void {
+function assertSafePrecision(value: bigint, name: string): void {
   if (value > MAX_SAFE_BIGINT) {
     throw new RangeError(
       `${name} (${value}) exceeds Number.MAX_SAFE_INTEGER; precision would be lost`,

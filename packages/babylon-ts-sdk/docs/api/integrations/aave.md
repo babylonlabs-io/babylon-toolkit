@@ -2266,26 +2266,13 @@ Reorder vault prefix ordering for liquidation priority
 
 ***
 
-### BTC\_DECIMALS
-
-```ts
-const BTC_DECIMALS: 8 = 8;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:27](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L27)
-
-BTC token decimals (satoshis)
-1 BTC = 100,000,000 satoshis
-
-***
-
 ### BPS\_SCALE
 
 ```ts
 const BPS_SCALE: 10000 = 10000;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:35](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:29](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L29)
 
 Full basis points scale (10000 BPS = 100%)
 
@@ -2300,7 +2287,7 @@ Example: 8000 BPS / 10000 = 0.80
 const AAVE_BASE_CURRENCY_DECIMALS: 26 = 26;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:43](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:37](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L37)
 
 Aave base currency decimals
 Account data values (collateral, debt) use 1e26 = $1 USD
@@ -2315,7 +2302,7 @@ Reference: ISpoke.sol UserAccountData
 const AAVE_BASE_CURRENCY_RAY_DECIMALS: 53 = 53;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:52](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:46](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L46)
 
 Aave RAY-scaled base currency decimals
 Debt values (totalDebtValueRay) use 1e53 = $1 USD
@@ -2331,7 +2318,7 @@ Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
 const HEALTH_FACTOR_WARNING_THRESHOLD: 1.5 = 1.5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:66](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:60](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L60)
 
 Health factor warning threshold
 Positions below this are considered at risk of liquidation
@@ -2344,7 +2331,7 @@ Positions below this are considered at risk of liquidation
 const MIN_HEALTH_FACTOR_FOR_BORROW: 1.05 = 1.05;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:72](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:66](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L66)
 
 Minimum health factor allowed for borrowing. Collateral factor doubles as the
 liquidation threshold here, so this floor is the only borrow→liquidation cushion.
@@ -2357,7 +2344,7 @@ liquidation threshold here, so this floor is the only borrow→liquidation cushi
 const FULL_REPAY_BUFFER_DIVISOR: 200n = 200n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:84](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:78](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L78)
 
 Approval headroom for repay-all, sized against interest accrual between
 quoting the debt and transaction execution.

@@ -21,12 +21,6 @@ export const AAVE_FUNCTION_NAMES = {
 } as const;
 
 /**
- * BTC token decimals (satoshis)
- * 1 BTC = 100,000,000 satoshis
- */
-export const BTC_DECIMALS = 8;
-
-/**
  * Full basis points scale (10000 BPS = 100%)
  *
  * Use this when converting BPS directly to decimal:

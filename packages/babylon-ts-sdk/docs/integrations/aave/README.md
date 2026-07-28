@@ -87,7 +87,7 @@ Pure calculations and helpers.
 | Check if safe to borrow    | `getUserAccountData()` → check health factor |
 | Get exact debt amount      | `getUserTotalDebt()`                         |
 | Repay debt                 | `buildRepayTx()`                             |
-| Check if can withdraw      | `getUserTotalDebt()` → must be 0             |
+| Check if can withdraw      | `getUserPosition()` → `hasDebtFromPosition()` |
 | Withdraw collateral        | `buildWithdrawCollateralsTx()`               |
 
 ---
