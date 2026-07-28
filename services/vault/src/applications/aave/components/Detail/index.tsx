@@ -18,10 +18,10 @@ import { getReserveDetailBaseRoute, getReserveDetailRoute } from "@/routes";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveBorrowedAssets, useAaveUserPosition } from "../../hooks";
-import type { Asset } from "../../types";
 import {
   AssetSelectionPanel,
   getAssetPickerWidthClass,
+  type SelectableAsset,
 } from "../AssetSelectionPanel";
 import {
   LOAN_SUCCESS_WIDTH_CLASS,
@@ -63,9 +63,16 @@ export function LoanFlowOverlay({
     isLoading: isPositionLoading,
   } = useAaveUserPosition(isConnected ? address : undefined);
   const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
+  // The reserve id rides along so selecting a repay row routes by id rather
+  // than by the indexer's symbol (audit F7).
   const repayAssets = useMemo(
-    (): Asset[] =>
-      borrowedAssets.map(({ symbol, name, icon }) => ({ symbol, name, icon })),
+    (): SelectableAsset[] =>
+      borrowedAssets.map(({ reserveId: id, symbol, name, icon }) => ({
+        reserveId: BigInt(id),
+        symbol,
+        name,
+        icon,
+      })),
     [borrowedAssets],
   );
 
@@ -131,8 +138,10 @@ export function LoanFlowOverlay({
         // `replace` so the picker leaves no entry behind the form: browser Back
         // from the form returns to the page, and Back after closing can't drop
         // the user into the flow again.
-        onSelectAsset={(symbol) =>
-          navigate(getReserveDetailRoute(symbol, mode, isV3), { replace: true })
+        onSelectAsset={(selectedReserveId) =>
+          navigate(getReserveDetailRoute(selectedReserveId, mode, isV3), {
+            replace: true,
+          })
         }
       />
     );

@@ -49,10 +49,13 @@ export function AssetPill({
     return () => cancelAnimationFrame(frame);
   }, [isOpen]);
 
-  const handleSelect = (assetSymbol: string) => {
+  // Navigate by the reserve's on-chain id, never by its symbol: the symbol is
+  // indexer-supplied, so routing on it lets a compromised indexer decide which
+  // reserve the click opens (audit F7).
+  const handleSelect = (reserveId: bigint) => {
     setIsOpen(false);
     navigate(
-      getReserveDetailRoute(assetSymbol, mode, FeatureFlags.isV3UiEnabled),
+      getReserveDetailRoute(reserveId, mode, FeatureFlags.isV3UiEnabled),
     );
   };
 
@@ -92,7 +95,7 @@ export function AssetPill({
               name={reserve.token.name}
               icon={getTokenByAddress(reserve.token.address)?.icon}
               selected={reserve.token.symbol === symbol}
-              onClick={() => handleSelect(reserve.token.symbol)}
+              onClick={() => handleSelect(reserve.reserveId)}
             />
           ))}
         </div>

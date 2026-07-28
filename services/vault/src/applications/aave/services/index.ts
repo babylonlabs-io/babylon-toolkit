@@ -46,3 +46,9 @@ export {
   ReserveMismatchError,
   assertReserveMatchesOnChain,
 } from "./assertReserveMatchesOnChain";
+export {
+  UnknownReserveTokenError,
+  isIntegrityFailure,
+  verifyReserveIdentity,
+  type VerifiedReserveIdentity,
+} from "./verifyReserveIdentity";

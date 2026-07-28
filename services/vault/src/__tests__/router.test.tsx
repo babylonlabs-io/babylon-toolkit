@@ -403,14 +403,14 @@ describe("Router — reserve detail stays over the dashboard", () => {
   });
 
   it("renders the reserve detail as an overlay over the dashboard", async () => {
-    renderAt(getReserveDetailRoute("USDC", "borrow", false));
+    renderAt(getReserveDetailRoute(5n, "borrow", false));
 
     await waitFor(() => {
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
     });
     expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
       "data-reserve-id",
-      "usdc",
+      "5",
     );
     expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
       "data-tab",
@@ -420,7 +420,7 @@ describe("Router — reserve detail stays over the dashboard", () => {
   });
 
   it("defaults to borrow when the tab is omitted", async () => {
-    renderAt("/?reserve=usdc");
+    renderAt("/?reserve=5");
 
     await waitFor(() => {
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
@@ -442,19 +442,19 @@ describe("Router — flag-aware reserve-detail routing", () => {
     });
 
     it("generates v2 reserve-detail URL (/ base)", () => {
-      const route = getReserveDetailRoute("USDC", "borrow", false);
-      expect(route).toBe("/?reserve=usdc&tab=borrow");
+      const route = getReserveDetailRoute(5n, "borrow", false);
+      expect(route).toBe("/?reserve=5&tab=borrow");
     });
 
     it("renders reserve detail overlay over dashboard at / with query params", async () => {
-      renderAt("/?reserve=usdc&tab=repay");
+      renderAt("/?reserve=5&tab=repay");
 
       await waitFor(() => {
         expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
       });
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
         "data-reserve-id",
-        "usdc",
+        "5",
       );
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
         "data-tab",
@@ -470,19 +470,19 @@ describe("Router — flag-aware reserve-detail routing", () => {
     });
 
     it("generates v3 reserve-detail URL (/loans base)", () => {
-      const route = getReserveDetailRoute("USDC", "borrow", true);
-      expect(route).toBe("/loans?reserve=usdc&tab=borrow");
+      const route = getReserveDetailRoute(5n, "borrow", true);
+      expect(route).toBe("/loans?reserve=5&tab=borrow");
     });
 
     it("renders reserve detail overlay when /loans has reserve query params", async () => {
-      renderAt("/loans?reserve=usdc&tab=repay");
+      renderAt("/loans?reserve=5&tab=repay");
 
       await waitFor(() => {
         expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
       });
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
         "data-reserve-id",
-        "usdc",
+        "5",
       );
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
         "data-tab",
@@ -496,7 +496,7 @@ describe("Router — flag-aware reserve-detail routing", () => {
     });
 
     it("does NOT open reserve detail overlay on /loans when flag is off", async () => {
-      renderAt("/loans?reserve=usdc&tab=repay");
+      renderAt("/loans?reserve=5&tab=repay");
 
       await waitFor(() => {
         expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
@@ -513,7 +513,7 @@ describe("Router — flag-aware reserve-detail routing", () => {
     });
 
     it("does NOT open reserve detail overlay on / when flag is on", async () => {
-      renderAt("/?reserve=usdc&tab=repay");
+      renderAt("/?reserve=5&tab=repay");
 
       await waitFor(() => {
         expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
@@ -530,7 +530,7 @@ describe("Router — flag-aware reserve-detail routing", () => {
     });
 
     it("does NOT open reserve detail overlay on /vaults when flag is on", async () => {
-      renderAt("/vaults?reserve=usdc&tab=repay");
+      renderAt("/vaults?reserve=5&tab=repay");
 
       await waitFor(() => {
         expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();

@@ -9,7 +9,10 @@ import { createContext, useContext } from "react";
 import type { Address } from "viem";
 
 import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
-import type { AavePositionWithLiveData } from "../../services";
+import type {
+  AavePositionWithLiveData,
+  VerifiedReserveIdentity,
+} from "../../services";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import type { Asset } from "../../types";
 
@@ -24,9 +27,20 @@ export interface LoanContextValue {
   healthFactor: number | null;
   /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
   liquidationThresholdBps: number;
-  /** Selected reserve to borrow from */
+  /**
+   * Selected reserve to borrow from.
+   *
+   * Its `token` sub-object is indexer-supplied and MUST NOT be read — use
+   * `tokenIdentity` for the address, symbol, name and decimals (audit F7).
+   */
   selectedReserve: AaveReserveConfig;
-  /** Asset display config (icon, name, symbol) */
+  /**
+   * On-chain-proven identity for `selectedReserve`. Non-optional: the detail
+   * screen hard-blocks rather than mounting this provider without it, so
+   * consumers get proven values with no null handling and no `?? 18` fallback.
+   */
+  tokenIdentity: VerifiedReserveIdentity;
+  /** Asset display config (icon, name, symbol), derived from `tokenIdentity` */
   assetConfig: Asset;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;

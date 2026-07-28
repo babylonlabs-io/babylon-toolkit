@@ -39,15 +39,24 @@ import {
 } from "../../hooks";
 import type { Asset } from "../../types";
 
+/**
+ * An asset the picker can route to. The reserve id is what selection emits —
+ * the symbol is a label only, so a compromised indexer can't steer the click
+ * to a different reserve (audit F7).
+ */
+export interface SelectableAsset extends Asset {
+  reserveId: bigint;
+}
+
 interface AssetSelectionPanelProps {
-  onSelectAsset: (assetSymbol: string) => void;
+  onSelectAsset: (reserveId: bigint) => void;
   /** Mode determines which columns render and the empty-state copy. */
   mode?: LoanTab;
   /**
    * Optional list of assets to display.
    * When provided, these assets are shown instead of the default borrowable reserves.
    */
-  assets?: Asset[];
+  assets?: SelectableAsset[];
   /** Whether `assets` is still resolving; repay rows come from a query the
    *  panel does not own, so it can't infer this from an empty list. */
   assetsLoading?: boolean;
@@ -56,6 +65,7 @@ interface AssetSelectionPanelProps {
 /** Normalized row, mode-agnostic, so the table render stays declarative. */
 interface AssetRow {
   key: string;
+  reserveId: bigint;
   symbol: string;
   name: string;
   icon?: string;
@@ -126,27 +136,20 @@ export function AssetSelectionPanel({
     reserves: isRepay ? [] : borrowableReserves,
   });
 
-  // Oracle prices are keyed by reserve id; repay rows arrive as plain assets
-  // (no reserve id), so index the fetched prices by symbol to show them too.
-  const priceBySymbol = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const reserve of pricedReserves) {
-      const price = pricesByReserveId[reserve.reserveId.toString()];
-      if (price != null) map.set(reserve.token.symbol, price);
-    }
-    return map;
-  }, [pricedReserves, pricesByReserveId]);
-
-  const handleMarketInfoClick = (assetSymbol: string) => {
-    navigate(getMarketDataRoute(assetSymbol));
+  const handleMarketInfoClick = (reserveId: bigint) => {
+    navigate(getMarketDataRoute(reserveId));
   };
 
   const rows: AssetRow[] = useMemo(() => {
     if (assets) {
       return assets.map((asset) => {
-        const price = priceBySymbol.get(asset.symbol) ?? asset.priceUsd;
+        // Repay rows carry their own reserve id, so the oracle prices fetched
+        // for the borrowable set index cleanly by id here too.
+        const reserveKey = asset.reserveId.toString();
+        const price = pricesByReserveId[reserveKey] ?? asset.priceUsd;
         return {
-          key: asset.symbol,
+          key: reserveKey,
+          reserveId: asset.reserveId,
           symbol: asset.symbol,
           name: asset.name,
           icon: asset.icon,
@@ -163,6 +166,7 @@ export function AssetSelectionPanel({
       const liquidity = liquidityByReserveId[reserveKey];
       return {
         key: reserveKey,
+        reserveId: reserve.reserveId,
         symbol: reserve.token.symbol,
         name: reserve.token.name,
         icon: getTokenByAddress(reserve.token.address)?.icon,
@@ -184,7 +188,6 @@ export function AssetSelectionPanel({
     pricesByReserveId,
     aprPercentByReserveId,
     liquidityByReserveId,
-    priceBySymbol,
   ]);
 
   const renderBody = () => {
@@ -243,7 +246,7 @@ export function AssetSelectionPanel({
               className="flex w-full items-center gap-4 rounded-xl bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
             >
               <button
-                onClick={() => onSelectAsset(row.symbol)}
+                onClick={() => onSelectAsset(row.reserveId)}
                 className="flex min-w-0 flex-1 cursor-pointer items-center text-left"
                 data-testid={`asset-select-row-${row.symbol.toLowerCase()}`}
               >
@@ -279,7 +282,7 @@ export function AssetSelectionPanel({
               {showMarketInfo && (
                 <button
                   type="button"
-                  onClick={() => handleMarketInfoClick(row.symbol)}
+                  onClick={() => handleMarketInfoClick(row.reserveId)}
                   aria-label={COPY.loans.assetSelection.marketInfoAriaLabel(
                     row.symbol,
                   )}

@@ -20,8 +20,9 @@ interface ActiveLoansListProps {
   rows: ActiveLoanRow[];
   /** Whether there is remaining borrow capacity (disables per-row Borrow at 0). */
   canBorrow: boolean;
-  onBorrow: (symbol: string) => void;
-  onRepay: (symbol: string) => void;
+  /** Receives the row's reserve id — the overlay routes by id, not by symbol. */
+  onBorrow: (reserveId: string) => void;
+  onRepay: (reserveId: string) => void;
 }
 
 export function ActiveLoansList({
@@ -70,13 +71,13 @@ export function ActiveLoansList({
               />
 
               {/* A god-mode demo row (`displayOnly`) is a preview of the row
-                  layout only — its symbol resolves to no reserve, so both
+                  layout only — its reserve id resolves to no reserve, so both
                   actions stay disabled rather than dead-ending in (or worse,
                   colliding with) the real borrow/repay overlay. */}
               <div className="ml-auto flex shrink-0 gap-2">
                 <button
                   type="button"
-                  onClick={() => onBorrow(row.symbol)}
+                  onClick={() => onBorrow(row.reserveId)}
                   disabled={!canBorrow || !row.isBorrowable || row.displayOnly}
                   className={NEUTRAL_ROW_BUTTON_CLASS}
                 >
@@ -84,7 +85,7 @@ export function ActiveLoansList({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onRepay(row.symbol)}
+                  onClick={() => onRepay(row.reserveId)}
                   disabled={row.displayOnly}
                   className={NEUTRAL_ROW_BUTTON_CLASS}
                 >

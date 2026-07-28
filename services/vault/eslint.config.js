@@ -137,6 +137,26 @@ export default tseslint.config(
       "@typescript-eslint/ban-ts-comment": "error",
     },
   },
+  // Indexer metadata boundary on the loan screens. `selectedReserve.token` is
+  // symbol/name/decimals copied verbatim from the GraphQL indexer; the borrow
+  // and repay surfaces must read `LoanContext.tokenIdentity` instead, which is
+  // proven on-chain before the screen renders. Reading the indexer's copy here
+  // is how a mislabelled asset or a wrong "Max" gets in front of a signature.
+  {
+    files: ["src/applications/aave/components/**/*.{ts,tsx}"],
+    ignores: ["**/__tests__/**", "**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[object.object.name='selectedReserve'][object.property.name='token']",
+          message:
+            "Indexer-supplied metadata. Use LoanContext.tokenIdentity (proven on-chain) for the address, symbol, name and decimals.",
+        },
+      ],
+    },
+  },
   // Dev-only tooling boundary — production code must not import `src/dev` (the
   // god-mode / demo / debug tooling), so it stays an evident, self-contained
   // subtree that never leaks into the app except at the sanctioned mount seams

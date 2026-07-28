@@ -70,6 +70,7 @@ export function Borrow() {
     healthFactor,
     liquidationThresholdBps,
     selectedReserve,
+    tokenIdentity,
     assetConfig,
     oracleAddress,
     tokenPriceUsd,
@@ -94,7 +95,7 @@ export function Borrow() {
       currentDebtUsd: totalDebtValueUsd,
       liquidationThresholdBps,
       tokenPriceUsd,
-      tokenDecimals: selectedReserve.token.decimals,
+      tokenDecimals: tokenIdentity.decimals,
     });
 
   // Live available liquidity for the selected reserve (Aave Hub reserve totals);
@@ -157,7 +158,7 @@ export function Borrow() {
     borrowAmount,
     metrics.healthFactorValue,
     effectiveMaxBorrowAmount,
-    selectedReserve.token.decimals,
+    tokenIdentity.decimals,
     assetConfig.symbol,
     isPositionDataStale,
     limitedByLiquidity,
@@ -171,7 +172,7 @@ export function Borrow() {
   const sliderTrackMax =
     effectiveMaxBorrowAmount > 0 ? effectiveMaxBorrowAmount : MIN_SLIDER_MAX;
   const displayDecimals = Math.min(
-    selectedReserve.token.decimals,
+    tokenIdentity.decimals,
     SAFE_TOFIXED_PRECISION,
   );
 

@@ -59,4 +59,8 @@ export {
   type UseVaultSplitParamsResult,
   type VaultSplitParams,
 } from "./useVaultSplitParams";
+export {
+  useVerifiedReserveIdentity,
+  type UseVerifiedReserveIdentityResult,
+} from "./useVerifiedReserveIdentity";
 export { type UseWithdrawCollateralTransactionResult } from "./useWithdrawCollateralTransaction";
