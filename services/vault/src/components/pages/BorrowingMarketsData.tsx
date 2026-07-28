@@ -7,16 +7,18 @@
 import { Avatar, Container, Heading, Text } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { IoChevronBack } from "react-icons/io5";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
+import { LOAN_TAB } from "@/applications/aave/constants";
 import { useAaveConfig } from "@/applications/aave/context";
 import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import {
   CARD_SHELL_CLASS,
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
+import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
-import { MARKET_SYMBOL_PARAM } from "@/routes";
+import { getAssetPickerRoute, MARKET_SYMBOL_PARAM } from "@/routes";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
@@ -61,6 +63,7 @@ function Section({
 
 export default function BorrowingMarketsData() {
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams();
   const { borrowableReserves } = useAaveConfig();
   const symbol = (params[MARKET_SYMBOL_PARAM] ?? "").toUpperCase();
@@ -85,7 +88,18 @@ export default function BorrowingMarketsData() {
       <div className="space-y-5">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() =>
+            // This URL is shareable: opened directly there is no in-app entry
+            // to go back to, and history back would leave the app.
+            location.key === "default"
+              ? navigate(
+                  getAssetPickerRoute(
+                    LOAN_TAB.BORROW,
+                    featureFlags.isV3UiEnabled,
+                  ),
+                )
+              : navigate(-1)
+          }
           className="flex w-fit cursor-pointer items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary transition-colors hover:text-accent-primary"
         >
           <IoChevronBack size={16} aria-hidden />

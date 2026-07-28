@@ -15,6 +15,11 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
 }));
 
+// The markets data route is v3-only, so Market Info only renders under v3.
+vi.mock("@/config/featureFlags", () => ({
+  default: { isV3UiEnabled: true },
+}));
+
 const borrowableReserves = [
   {
     reserveId: 1n,
@@ -177,5 +182,20 @@ describe("AssetSelectionPanel", () => {
     );
 
     expect(screen.getByText("$0.99")).toBeInTheDocument();
+  });
+
+  it("holds the loading state while repay assets are still resolving", () => {
+    renderPanel(
+      <AssetSelectionPanel
+        onSelectAsset={vi.fn()}
+        mode={LOAN_TAB.REPAY}
+        assets={[]}
+        assetsLoading
+      />,
+    );
+
+    // A cold load of the repay picker must not claim the user has no debt.
+    expect(screen.getByText("Loading assets...")).toBeInTheDocument();
+    expect(screen.queryByText("No assets available")).not.toBeInTheDocument();
   });
 });

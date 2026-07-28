@@ -64,10 +64,6 @@ vi.mock("react-router", () => ({
   useOutletContext: () => ({ openDeposit: vi.fn() }),
 }));
 
-vi.mock("@/applications/aave/components/AssetSelectionModal", () => ({
-  AssetSelectionModal: () => null,
-}));
-
 vi.mock("@/components/shared", () => ({
   EmptyState: ({
     isConnected,

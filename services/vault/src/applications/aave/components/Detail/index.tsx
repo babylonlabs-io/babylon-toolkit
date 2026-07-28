@@ -57,9 +57,11 @@ export function LoanFlowOverlay({
   const [success, setSuccess] = useState<LoanSuccessState | null>(null);
 
   // Same source the dashboard reads, so React Query serves both from one entry.
-  const { position, debtValueUsd } = useAaveUserPosition(
-    isConnected ? address : undefined,
-  );
+  const {
+    position,
+    debtValueUsd,
+    isLoading: isPositionLoading,
+  } = useAaveUserPosition(isConnected ? address : undefined);
   const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
   const repayAssets = useMemo(
     (): Asset[] =>
@@ -110,7 +112,13 @@ export function LoanFlowOverlay({
           reserveId={reserveId}
           tab={tab}
           onProcessingChange={setIsTxInFlight}
-          onSuccess={setSuccess}
+          // The panel unmounts in the same commit that flips to success, so
+          // its `onProcessingChange(false)` effect never runs — clear the lock
+          // here or the success step keeps every dismiss path disabled.
+          onSuccess={(settled) => {
+            setIsTxInFlight(false);
+            setSuccess(settled);
+          }}
         />
       );
     }
@@ -119,8 +127,12 @@ export function LoanFlowOverlay({
       <AssetSelectionPanel
         mode={mode}
         assets={mode === LOAN_TAB.REPAY ? repayAssets : undefined}
+        assetsLoading={isPositionLoading}
+        // `replace` so the picker leaves no entry behind the form: browser Back
+        // from the form returns to the page, and Back after closing can't drop
+        // the user into the flow again.
         onSelectAsset={(symbol) =>
-          navigate(getReserveDetailRoute(symbol, mode, isV3))
+          navigate(getReserveDetailRoute(symbol, mode, isV3), { replace: true })
         }
       />
     );

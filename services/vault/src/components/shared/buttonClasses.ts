@@ -9,6 +9,11 @@ export const NEUTRAL_BUTTON_CLASS =
 export const PRIMARY_BUTTON_CLASS =
   "flex h-10 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-main px-6 text-base leading-[1.5] tracking-[0.15px] text-accent-contrast transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-30";
 
+/** Minimum width of every 36px row action button, in px. Exported so layouts
+ *  that must reserve the same space (e.g. a table header spacer) derive it
+ *  rather than repeating the literal. */
+export const ROW_BUTTON_MIN_WIDTH_PX = 120;
+
 /** 36px-tall neutral action button. `ml-auto` keeps it flush right when the
  *  row wraps. */
 export const NEUTRAL_ROW_BUTTON_CLASS =

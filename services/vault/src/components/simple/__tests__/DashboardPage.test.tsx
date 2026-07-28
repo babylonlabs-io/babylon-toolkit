@@ -81,10 +81,6 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   usePositionNotifications: () => ({ result: null }),
 }));
 
-vi.mock("@/applications/aave/components/AssetSelectionModal", () => ({
-  AssetSelectionModal: () => null,
-}));
-
 vi.mock("../OverviewSection", () => ({
   OverviewSection: () => <div data-testid="overview-section" />,
 }));

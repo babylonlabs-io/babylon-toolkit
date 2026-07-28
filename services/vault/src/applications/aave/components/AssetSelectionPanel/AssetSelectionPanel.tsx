@@ -13,7 +13,11 @@ import { Avatar } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
-import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
+import {
+  NEUTRAL_ROW_BUTTON_CLASS,
+  ROW_BUTTON_MIN_WIDTH_PX,
+} from "@/components/shared/buttonClasses";
+import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { getMarketDataRoute } from "@/routes";
 import {
@@ -44,6 +48,9 @@ interface AssetSelectionPanelProps {
    * When provided, these assets are shown instead of the default borrowable reserves.
    */
   assets?: Asset[];
+  /** Whether `assets` is still resolving; repay rows come from a query the
+   *  panel does not own, so it can't infer this from an empty list. */
+  assetsLoading?: boolean;
 }
 
 /** Normalized row, mode-agnostic, so the table render stays declarative. */
@@ -63,20 +70,28 @@ interface AssetRow {
 /** Width of the leading Asset column; the stats share the remaining row. */
 const ASSET_COL_CLASS = "flex w-[220px] shrink-0 items-center gap-4";
 
-/** Header spacer for the Market Info column: the button's 120px minimum plus
- *  the row's 16px gap, so the stat columns line up with the rows below. */
-const MARKET_INFO_COL_CLASS = "w-[136px] shrink-0";
+/** Gap between the select control and the Market Info button, in px. */
+const MARKET_INFO_GAP_PX = 16;
+
+/** Header spacer for the Market Info column, derived from the shared row
+ *  button so a change to its min-width can't silently misalign the header. */
+const MARKET_INFO_COL_STYLE = {
+  width: ROW_BUTTON_MIN_WIDTH_PX + MARKET_INFO_GAP_PX,
+};
 
 /** Borrow is wider than repay to fit the Market Info column without squeezing
  *  the stat columns (Figma 6058-44070 measures it at ~700px). */
 export function getAssetPickerWidthClass(mode: LoanTab) {
-  return mode === LOAN_TAB.REPAY ? "max-w-[612px]" : "max-w-[700px]";
+  return mode === LOAN_TAB.REPAY || !featureFlags.isV3UiEnabled
+    ? "max-w-[612px]"
+    : "max-w-[700px]";
 }
 
 export function AssetSelectionPanel({
   onSelectAsset,
   mode = LOAN_TAB.BORROW,
   assets,
+  assetsLoading = false,
 }: AssetSelectionPanelProps) {
   const navigate = useNavigate();
   const {
@@ -85,6 +100,9 @@ export function AssetSelectionPanel({
     allBorrowReserves,
   } = useAaveConfig();
   const isRepay = mode === LOAN_TAB.REPAY;
+  // The markets data route is v3-only and redirects to the dashboard when the
+  // flag is off, so in v2 the button would silently close the overlay.
+  const showMarketInfo = !isRepay && featureFlags.isV3UiEnabled;
 
   // Debt can sit in a reserve that is no longer borrowable (frozen or paused),
   // and repay must still price it — so repay prices the full reserve set.
@@ -170,8 +188,9 @@ export function AssetSelectionPanel({
   ]);
 
   const renderBody = () => {
-    // Repay assets arrive ready; borrow rows wait on the oracle price read.
-    if (!isRepay && pricesLoading) {
+    // Borrow rows wait on the oracle price read; repay rows wait on the
+    // position query that produced them, which a cold load has not resolved.
+    if (isRepay ? assetsLoading : pricesLoading) {
       return (
         <p className="py-4 text-center text-accent-secondary">
           {COPY.loans.assetSelection.loading}
@@ -207,8 +226,9 @@ export function AssetSelectionPanel({
                 <span className="flex-1 py-4">
                   {COPY.loans.assetSelection.columnBorrowApr}
                 </span>
-                {/* Spacer for the unlabelled Market Info column. */}
-                <span className={MARKET_INFO_COL_CLASS} />
+                {showMarketInfo && (
+                  <span className="shrink-0" style={MARKET_INFO_COL_STYLE} />
+                )}
               </>
             )}
           </div>
@@ -256,14 +276,14 @@ export function AssetSelectionPanel({
                   )}
                 </div>
               </button>
-              {!isRepay && (
+              {showMarketInfo && (
                 <button
                   type="button"
                   onClick={() => handleMarketInfoClick(row.symbol)}
                   aria-label={COPY.loans.assetSelection.marketInfoAriaLabel(
                     row.symbol,
                   )}
-                  className={`${NEUTRAL_ROW_BUTTON_CLASS} cursor-pointer`}
+                  className={NEUTRAL_ROW_BUTTON_CLASS}
                   data-testid={`asset-market-info-${row.symbol.toLowerCase()}`}
                 >
                   {COPY.loans.assetSelection.marketInfo}

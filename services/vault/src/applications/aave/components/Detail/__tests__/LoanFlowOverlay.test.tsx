@@ -55,18 +55,25 @@ vi.mock("../../AssetSelectionPanel", () => ({
 vi.mock("../ReserveDetailPanel", () => ({
   ReserveDetailPanel: ({
     reserveId,
+    onProcessingChange,
     onSuccess,
   }: {
     reserveId: string;
+    onProcessingChange: (isProcessing: boolean) => void;
     onSuccess: (state: { reserveId: string; variant: string }) => void;
   }) => (
-    <button
-      data-testid="form"
-      data-reserve-id={reserveId}
-      onClick={() => onSuccess({ reserveId, variant: "borrow" })}
-    >
-      settle
-    </button>
+    <>
+      <button data-testid="sign" onClick={() => onProcessingChange(true)}>
+        sign
+      </button>
+      <button
+        data-testid="form"
+        data-reserve-id={reserveId}
+        onClick={() => onSuccess({ reserveId, variant: "borrow" })}
+      >
+        settle
+      </button>
+    </>
   ),
 }));
 
@@ -81,7 +88,11 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 vi.mock("../../../hooks", () => ({
-  useAaveUserPosition: () => ({ position: undefined, debtValueUsd: 0 }),
+  useAaveUserPosition: () => ({
+    position: undefined,
+    debtValueUsd: 0,
+    isLoading: false,
+  }),
   useAaveBorrowedAssets: () => ({ borrowedAssets: [] }),
 }));
 
@@ -196,5 +207,29 @@ describe("LoanFlowOverlay", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/loans");
     expect(screen.getByTestId("location")).not.toHaveTextContent("reserve=");
+  });
+
+  it("locks every dismiss path while a transaction is in flight", () => {
+    renderOverlay(
+      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+    );
+
+    fireEvent.click(screen.getByTestId("sign"));
+
+    expect(screen.queryByText("close")).not.toBeInTheDocument();
+  });
+
+  it("restores the close control on the success step after a tx settles", () => {
+    renderOverlay(
+      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+    );
+
+    // The form reports processing, then settles in the same interaction the
+    // real Borrow/Repay forms do — its unmount must not strand the lock on.
+    fireEvent.click(screen.getByTestId("sign"));
+    fireEvent.click(screen.getByTestId("form"));
+
+    expect(screen.getByTestId("success")).toBeInTheDocument();
+    expect(screen.getByText("close")).toBeInTheDocument();
   });
 });

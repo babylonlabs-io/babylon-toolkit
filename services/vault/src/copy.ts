@@ -1188,7 +1188,7 @@ export const COPY = {
   // Borrowing markets data page (Figma node 10088-60956).
   marketData: {
     pageTitle: "Borrowing markets data",
-    backToAssets: "Back to Assets",
+    backToAssets: "Back to assets",
     subtitle: (symbol: string) =>
       `Learn more about the ${symbol} borrow market`,
     borrowAction: "Borrow",
@@ -1198,7 +1198,7 @@ export const COPY = {
         "The more liquidity is borrowed, the higher the rate — this keeps the market balanced.",
     },
     borrowMarkets: {
-      title: "Borrow Markets",
+      title: "Borrow markets",
       description: (symbol: string) =>
         `Understand market conditions, rates, and risk before borrowing ${symbol}`,
     },
