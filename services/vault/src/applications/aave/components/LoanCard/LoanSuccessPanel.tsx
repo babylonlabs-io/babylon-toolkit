@@ -14,7 +14,6 @@ interface LoanSuccessPanelProps {
   assetIcon: string;
 }
 
-/** Card width of the success step, applied by the overlay that owns the shell. */
 export const LOAN_SUCCESS_WIDTH_CLASS = "max-w-[564px]";
 
 const COPY_BY_VARIANT = {
@@ -28,9 +27,6 @@ const COPY_BY_VARIANT = {
  * Confirms the amount and dismisses via the "Done" CTA, the close (X), the
  * backdrop, or escape — all four land on the same `onDone`, since there is
  * nothing left to cancel once the transaction has settled.
- *
- * Panel, not a dialog: `LoanFlowOverlay` owns the one full-screen shell every
- * step of the flow renders into.
  */
 export function LoanSuccessPanel({
   onDone,

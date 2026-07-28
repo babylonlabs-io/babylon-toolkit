@@ -1,11 +1,7 @@
 /**
- * LoanFlowOverlay — step selection and the back navigation between steps.
- *
- * The point of this component is that picker, form and success are steps of ONE
- * dialog: two dialogs handing off would cross-fade two opaque `bg-surface`
- * panels and show the page through the gap. These tests lock in that exactly
- * one shell renders, and that selecting an asset advances the step inside it
- * rather than opening a second dialog.
+ * LoanFlowOverlay — step selection inside the single dialog. Two dialogs
+ * handing off would cross-fade two opaque panels and show the page through the
+ * gap, so these lock in that exactly one shell renders per step.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -18,7 +14,6 @@ import { LoanFlowOverlay } from "../index";
 
 const SHELL_TESTID = "modal-shell";
 
-// v3 puts the flow's base route at /loans; the steps below assert against it.
 vi.mock("@/config", () => ({ FeatureFlags: { isV3UiEnabled: true } }));
 
 vi.mock("@/components/shared/V3ModalShell", () => ({
@@ -104,7 +99,6 @@ describe("LoanFlowOverlay", () => {
 
     expect(screen.getByTestId("picker-borrow")).toBeInTheDocument();
     expect(screen.queryByTestId("form")).not.toBeInTheDocument();
-    // One dialog, always — the leak this component exists to prevent.
     expect(screen.getAllByTestId(SHELL_TESTID)).toHaveLength(1);
   });
 

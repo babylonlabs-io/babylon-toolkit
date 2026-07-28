@@ -5,10 +5,8 @@
  * single-borrowed-asset direct-navigation shortcut) and direct navigation to a
  * reserve's borrow/repay form.
  *
- * Every step is route state (`?picker=<borrow|repay>`, `?reserve=&tab=`) so the
- * whole flow renders into one dialog — see
- * `applications/aave/components/Detail` (`LoanFlowOverlay`), mounted by
- * `AaveOverlayLayout`.
+ * Every step is route state so the whole flow renders into one dialog — see
+ * `applications/aave/components/Detail` (`LoanFlowOverlay`).
  */
 
 import { useCallback } from "react";

@@ -201,11 +201,6 @@ export const Router = () => (
             )
           }
         />
-        {/* Borrowing markets data, reached from the borrow asset picker's
-            per-asset Market Info button. Registered unconditionally with a
-            flag-off redirect (the LOANS pattern above) rather than via
-            `V3_GUARDED_ROUTE_PATHS`, which is derived from the sidebar's nav
-            items and this page is not one of them. */}
         <Route
           path={`${ROUTES.MARKETS}/:${MARKET_SYMBOL_PARAM}`}
           element={

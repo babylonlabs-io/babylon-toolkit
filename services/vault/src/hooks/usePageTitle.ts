@@ -4,8 +4,8 @@ import { V3_NAV_ITEMS } from "@/config/v3Navigation";
 import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 
-// Routed v3 pages that the sidebar does not list, so they have no nav item to
-// derive a title from. Appended after the nav-derived entries below.
+// Routed v3 pages the sidebar does not list, so they have no nav item to
+// derive a title from.
 const OFF_NAV_ROUTE_TITLES: readonly (readonly [
   path: string,
   title: string,

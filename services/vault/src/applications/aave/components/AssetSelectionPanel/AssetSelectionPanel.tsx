@@ -7,9 +7,6 @@
  * borrowing markets data page; repay mode lists the user's borrowed assets with
  * only Asset · Price (APR/liquidity and market data don't apply to repaying).
  * Selecting a row advances the overlay to the borrow/repay form.
- *
- * Panel, not a dialog: `LoanFlowOverlay` owns the one full-screen shell every
- * step of the flow renders into.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
@@ -66,17 +63,12 @@ interface AssetRow {
 /** Width of the leading Asset column; the stats share the remaining row. */
 const ASSET_COL_CLASS = "flex w-[220px] shrink-0 items-center gap-4";
 
-/** Header spacer for the trailing, unlabelled Market Info column (borrow mode
- *  only): `NEUTRAL_ROW_BUTTON_CLASS`'s 120px minimum plus the row's 16px gap,
- *  so the stat columns line up with the rows below. */
+/** Header spacer for the Market Info column: the button's 120px minimum plus
+ *  the row's 16px gap, so the stat columns line up with the rows below. */
 const MARKET_INFO_COL_CLASS = "w-[136px] shrink-0";
 
-/**
- * Card width for each picker mode, applied by the overlay that owns the shell.
- * Borrow is wider than repay's 612px to fit the trailing Market Info column
- * without squeezing the three stat columns (Figma 6058-44070 measures the
- * borrow picker at ~700px).
- */
+/** Borrow is wider than repay to fit the Market Info column without squeezing
+ *  the stat columns (Figma 6058-44070 measures it at ~700px). */
 export function getAssetPickerWidthClass(mode: LoanTab) {
   return mode === LOAN_TAB.REPAY ? "max-w-[612px]" : "max-w-[700px]";
 }
@@ -120,8 +112,6 @@ export function AssetSelectionPanel({
     return map;
   }, [borrowableReserves, pricesByReserveId]);
 
-  // Leaves the overlay entirely — the markets data page is a route, not a step,
-  // so this navigation drops the picker's query params rather than advancing.
   const handleMarketInfoClick = (assetSymbol: string) => {
     navigate(getMarketDataRoute(assetSymbol));
   };
@@ -219,12 +209,8 @@ export function AssetSelectionPanel({
 
         <div className="flex flex-col gap-2">
           {rows.map((row) => (
-            // Wrapper, not one big button: borrow rows carry their own Market
-            // Info button and a button cannot nest inside a button. The card's
-            // padding and hover move here so the row still highlights as a
-            // unit; the select control keeps the E2E testid and spans the rest
-            // of the row via `flex-1`. Repay renders the wrapper's single child,
-            // so its padding is unchanged from the pre-split single button.
+            // Wrapper, not one big button: a button cannot nest inside a
+            // button, so the card's padding and hover move here.
             <div
               key={row.key}
               className="flex w-full items-center gap-4 rounded-xl bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"

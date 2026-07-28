@@ -1,15 +1,7 @@
 /**
- * Borrowing markets data page (v3, Figma node 10088-60956).
- *
- * Shell only: the route, the "Back to Assets" control, the asset header, and
- * one empty card per section of the design. Section bodies are placeholders —
- * the metrics, the two charts and the markets table land in a follow-up, so
- * this file deliberately reads no Aave data.
- *
- * Section ids mirror the Figma layer names under `Market Info` so the two can
- * be lined up when the bodies are filled in. Only "Interest rate model" and
- * "Borrow Markets" carry a visible title in the design; the first three blocks
- * are labelled by the asset header above them.
+ * Borrowing markets data page (v3, Figma node 10088-60956). Shell only —
+ * section bodies are empty cards until the metrics, charts and markets table
+ * land. Section ids mirror the Figma layer names under `Market Info`.
  */
 
 import { Avatar, Container, Heading, Text } from "@babylonlabs-io/core-ui";
@@ -30,9 +22,7 @@ import {
   getTokenByAddress,
 } from "@/services/token/tokenService";
 
-/** Placeholder height of a section body until its content lands. */
 const SECTION_BODY_CLASS = "min-h-[120px]";
-/** Placeholder height of the two chart sections, taller than a plain card. */
 const CHART_BODY_CLASS = "min-h-[240px]";
 
 function Section({
@@ -41,7 +31,6 @@ function Section({
   description,
   bodyClassName = SECTION_BODY_CLASS,
 }: {
-  /** Figma layer name of this block, also the section's `data-testid`. */
   id: string;
   title?: string;
   description?: string;
@@ -76,10 +65,8 @@ export default function BorrowingMarketsData() {
   const { borrowableReserves } = useAaveConfig();
   const symbol = (params[MARKET_SYMBOL_PARAM] ?? "").toUpperCase();
 
-  // Identity only — name and logo for the header. The market figures this page
-  // shows come later; this reads the already-loaded reserve config, no fetch.
-  // The icon resolves from the symbol alone, so it still renders while the
-  // config is loading or for a symbol that matches no reserve.
+  // Icon resolves from the symbol alone, so the header still renders while the
+  // config loads or for a symbol matching no reserve.
   const { name, icon } = useMemo(() => {
     const reserve = borrowableReserves.find(
       (r) => r.token.symbol.toUpperCase() === symbol,
@@ -96,9 +83,6 @@ export default function BorrowingMarketsData() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-5">
-        {/* History back rather than a fixed route: this page is reached from
-            the borrow asset picker, whose open state is component-local, so
-            navigating to `/loans` would land there with the picker shut. */}
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -135,7 +119,6 @@ export default function BorrowingMarketsData() {
               </Text>
             </div>
           </div>
-          {/* Disabled until the follow-up wires it to the borrow overlay. */}
           <button type="button" className={NEUTRAL_BUTTON_CLASS} disabled>
             {COPY.marketData.borrowAction}
           </button>

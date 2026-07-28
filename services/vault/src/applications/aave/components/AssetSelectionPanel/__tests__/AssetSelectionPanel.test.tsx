@@ -1,12 +1,6 @@
 /**
- * AssetSelectionPanel — picker-step table behavior.
- *
- * Locks in the column logic that differs by mode: borrow lists borrowable
- * reserves with Price + Available + Borrow APR plus a per-row Market Info
- * button; repay reuses the same surface with only Asset + Price (APR/liquidity
- * and market data don't apply to repaying). Also guards that selecting a row
- * reports the symbol and closes, and that Market Info routes to that asset's
- * borrowing markets data page instead of selecting it.
+ * AssetSelectionPanel — the column logic that differs by mode, and that Market
+ * Info routes to the markets data page instead of selecting the asset.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -19,14 +13,6 @@ import { AssetSelectionPanel } from "../AssetSelectionPanel";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
-}));
-
-// The shared v3 modal shell renders the app's top bar (network badge +
-// settings), whose graph reaches wallet-connector and can't be transformed
-// here. This suite is about the table inside it.
-vi.mock("@/components/shared/V3ModalShell", () => ({
-  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div>{children}</div> : null,
 }));
 
 const borrowableReserves = [
@@ -77,7 +63,6 @@ vi.mock("@/services/token/tokenService", () => ({
   getTokenByAddress: () => ({ icon: "icon.png" }),
 }));
 
-// Shows the router's current path so navigation assertions read off the DOM.
 function LocationDisplay() {
   const { pathname } = useLocation();
   return <div data-testid="location">{pathname}</div>;
@@ -162,12 +147,9 @@ describe("AssetSelectionPanel", () => {
       />,
     );
 
-    // fireEvent (not a raw .click()) so React flushes the router state update
-    // this triggers before the location is read back.
     fireEvent.click(screen.getByTestId("asset-market-info-wbtc"));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/markets/wbtc");
-    // Market Info leaves the flow — it must not select the asset.
     expect(onSelectAsset).not.toHaveBeenCalled();
   });
 });

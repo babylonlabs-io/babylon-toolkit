@@ -1096,7 +1096,6 @@ export const COPY = {
       healthFactorTooLow: (min: number) =>
         `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },
-    // Reserve detail step, shown before the borrow/repay form can render.
     connectToManage: {
       title: "Connect to manage position",
       body: "Please connect your wallet to manage your position.",
@@ -1186,8 +1185,7 @@ export const COPY = {
         "Position integrity check failed: your position details returned by the indexer don't match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
     },
   },
-  // Borrowing markets data page (Figma node 10088-60956). Shell only for now:
-  // section titles and descriptions, no values — the data lands in a follow-up.
+  // Borrowing markets data page (Figma node 10088-60956).
   marketData: {
     pageTitle: "Borrowing markets data",
     backToAssets: "Back to Assets",

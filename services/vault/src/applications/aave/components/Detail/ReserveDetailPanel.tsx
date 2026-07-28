@@ -1,9 +1,6 @@
 /**
- * Borrow / repay form step of the loan overlay.
- *
- * Panel, not a dialog: `LoanFlowOverlay` owns the one full-screen shell every
- * step renders into, so this reports transaction progress and completion
- * upwards instead of opening dialogs of its own.
+ * Borrow / repay form step of the loan overlay. Reports progress and completion
+ * upwards — `LoanFlowOverlay` owns the shell every step renders into.
  */
 
 import { EmptyState } from "@/components/shared";
@@ -22,7 +19,6 @@ import { PositionGate } from "./PositionGate";
 
 const btcConfig = getNetworkConfigBTC();
 
-/** What the success step needs to render, reported when a tx settles. */
 export interface LoanSuccessState {
   variant: "borrow" | "repay";
   amount: number;
@@ -34,7 +30,6 @@ export interface LoanSuccessState {
 interface ReserveDetailPanelProps {
   reserveId: string;
   tab: LoanTab;
-  /** True while a borrow/repay tx is signing or submitting. */
   onProcessingChange: (isProcessing: boolean) => void;
   onSuccess: (state: LoanSuccessState) => void;
 }
@@ -128,8 +123,6 @@ export function ReserveDetailPanel({
         decimals: selectedReserve.token.decimals,
         assetIcon: assetConfig.icon,
       }),
-    // The second argument is the withdraw amount, which the success step does
-    // not show — the Repay form always passes 0 today.
     onRepaySuccess: (repayAmount: number) =>
       onSuccess({
         variant: "repay",
