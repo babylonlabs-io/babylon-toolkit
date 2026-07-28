@@ -827,13 +827,15 @@ export const COPY = {
     },
     // Friendly copy for known viem / EIP-1193 / wallet-connector failure
     // categories. Consumed by `sanitizeErrorMessage` in
-    // `src/utils/errors/formatting.ts`. Cross-feature surface (deposit,
-    // refund, activation) so lives under `common` rather than `deposit`.
+    // `src/utils/errors/formatting.ts` and by `mapViemErrorToContractError`
+    // in `src/utils/errors/contract.ts`. Cross-feature surface (deposit,
+    // refund, activation, Aave borrow/repay/withdraw) so lives under
+    // `common` rather than `deposit`.
     classifiedErrors: {
       userRejection:
         "Transaction rejected in your wallet. No changes were made — try again when you're ready.",
       insufficientFunds:
-        "Not enough ETH to cover the deposit fee and gas. Add ETH to your wallet and try again.",
+        "Not enough ETH to cover the network gas fee. Add ETH to your wallet and try again.",
       walletDisconnected:
         "Your wallet was disconnected. Reconnect it and try again.",
       unauthorized:

@@ -7,8 +7,11 @@
 
 import { type Abi, type Hash, decodeErrorResult } from "viem";
 
+import { COPY } from "@/copy";
+
 import { COMMON_ERROR_ABI } from "./commonErrorAbi";
 import { CONTRACT_ERROR_MESSAGES } from "./errorMessages";
+import { matchesInsufficientGasFundsMessage } from "./formatting";
 import { ActivationNotPossibleError, ContractError, ErrorCode } from "./types";
 
 /** Minimum length of a revert hex payload: `0x` + a 4-byte (8 hex char) selector. */
@@ -288,11 +291,18 @@ export function mapViemErrorToContractError(
       ) {
         code = ErrorCode.CONTRACT_REVERT;
         reason = reason || message;
-      } else if (
-        message.includes("gas") ||
-        message.includes("insufficient funds for gas") ||
-        message.includes("out of gas")
-      ) {
+      } else if (!decoded && matchesInsufficientGasFundsMessage(message)) {
+        // Wallet can't cover gas * price + value. This fails at send time
+        // (not simulation), so surface friendly copy instead of the raw node
+        // diagnostics dump. Shares the ETH-side matcher with `formatting.ts`
+        // (case-insensitive, one vocabulary). Guarded on `!decoded` so a
+        // genuine contract revert whose wrapper message happens to contain
+        // "insufficient funds" keeps its decoded reason and message rather
+        // than being relabeled as gas.
+        code = ErrorCode.CONTRACT_INSUFFICIENT_GAS;
+        reason = reason || message;
+        enhancedMessage = COPY.common.classifiedErrors.insufficientFunds;
+      } else if (message.includes("gas")) {
         code = ErrorCode.CONTRACT_INSUFFICIENT_GAS;
         reason = reason || message;
       } else if (
