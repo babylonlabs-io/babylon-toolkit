@@ -181,11 +181,17 @@ export interface UseDepositPageFormResult {
   appVersionUnsupported: boolean;
 
   /**
-   * True when the ordinals check is still in flight AND the user has
-   * inscription-exclusion enabled. Consumers should block submission until
-   * the check resolves.
+   * True while the inscription check is in flight. Consumers should block
+   * submission until it resolves.
    */
   ordinalsCheckPending: boolean;
+
+  /**
+   * True when the inscription check errored, so we could not tell which UTXOs
+   * hold inscriptions. Drives an informational notice — deposits still proceed,
+   * using only UTXOs above the classifier's coverage floor.
+   */
+  inscriptionCheckFailed: boolean;
 
   // Two-vault split (multi-vault) intent
   isTwoVaultSplit: boolean;
@@ -337,21 +343,21 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isWalletConnected ? ethAddress : undefined,
   );
-  // Display balance uses `availableUTXOs` so the user sees their real funds
-  // even while the ordinals classifier is loading or has errored. Actual
-  // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
-  // gate inside `useDepositFlow`, which refuses to submit while classification
-  // is unavailable.
+  // The depositable balance is the spendable set — the same UTXOs that feed fee
+  // estimation and signing — so the amount offered is always an amount that can
+  // actually be funded. `confirmedBalance` below keeps the raw total (including
+  // inscription and sub-floor UTXOs) so the form can tell a zero depositable
+  // balance apart from a genuinely empty wallet.
   const {
-    availableUTXOs,
     spendableMempoolUTXOs,
     ordinalsCheckPending,
+    inscriptionCheckFailed,
     confirmedBalance,
     unconfirmedBalance,
   } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
-    return BigInt(calculateBalance(availableUTXOs || []));
-  }, [availableUTXOs]);
+    return BigInt(calculateBalance(spendableMempoolUTXOs));
+  }, [spendableMempoolUTXOs]);
 
   // True when the address has no confirmed funds at all but does have
   // unconfirmed (in-mempool) funds. The deposit form uses this to explain why
@@ -769,6 +775,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     appVersionUnsupported,
     p2aAnchorValueSats: p2aAnchorValueSats ?? null,
     ordinalsCheckPending,
+    inscriptionCheckFailed,
     isTwoVaultSplit,
     setIsTwoVaultSplit,
     canSplit,

@@ -53,6 +53,12 @@ export interface DepositAmountState {
    * form reads zero while their wallet shows a balance.
    */
   hasUnconfirmedBalanceOnly: boolean;
+  /**
+   * True when the inscription check errored. Shows an inline notice that we
+   * could not verify which UTXOs hold inscriptions. Informational only — the
+   * deposit is not blocked, and sub-floor UTXOs are never spent regardless.
+   */
+  inscriptionCheckFailed?: boolean;
   minDeposit: bigint;
   maxDeposit?: bigint;
   /**
@@ -220,6 +226,7 @@ export function DepositForm({
     btcBalance,
     unconfirmedBalance,
     hasUnconfirmedBalanceOnly,
+    inscriptionCheckFailed = false,
     minDeposit,
     maxDeposit,
     maxDepositSats,
@@ -521,6 +528,24 @@ export function DepositForm({
                 vaultCapUsage.used,
                 vaultCapUsage.cap,
               )}
+            </span>
+          </div>
+        )}
+        {/* The inscription check errored, so we can't say which UTXOs hold
+            inscriptions. Informational: the deposit still proceeds, and the
+            spendable set already excludes the small UTXOs inscriptions sit on. */}
+        {inscriptionCheckFailed && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center"
+          >
+            <IoInformationCircle
+              size={18}
+              className="mt-px shrink-0 text-accent-primary"
+            />
+            <span className="min-w-0 text-sm text-accent-secondary">
+              {COPY.deposit.warnings.inscriptionCheckFailed}
             </span>
           </div>
         )}

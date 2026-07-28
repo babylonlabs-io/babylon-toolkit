@@ -33,9 +33,10 @@ const shouldRetry = (failureCount: number, error: Error): boolean => {
  */
 const EXPECTED_QUERY_ERROR_NAMES = new Set<string>([
   // The wallet-connector ordinals hook throws this when inscription filtering
-  // has no data source (no ordinalsApiUrl configured). The vault already treats
-  // missing ordinals data as non-fatal (every UTXO available, see useUTXOs), so
-  // it is an expected environment condition, not a captured error.
+  // has no data source (no ordinalsApiUrl configured) — an environment
+  // condition that repeats on every refetch, so it stays a breadcrumb. Deposits
+  // are not blocked by it: `useUTXOs` keeps spending capped to UTXOs above the
+  // classifier's coverage floor and the form shows an "unverified" notice.
   "OrdinalsClassifierUnavailableError",
 ]);
 

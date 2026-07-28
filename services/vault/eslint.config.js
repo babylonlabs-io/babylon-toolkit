@@ -186,6 +186,18 @@ export default tseslint.config(
       "src/components/simple/MaxVaultsNotification.tsx",
       "src/components/shared/ProtocolStatusBanner.tsx",
       "src/components/pages/RootLayout.tsx",
+      // God-mode inscription-check scenarios. The only seam that touches the
+      // spendable set, so it is the one to scrutinise: it substitutes a
+      // synthetic UTXO set + classifier result to make the check's states
+      // reviewable (they need a wallet holding inscriptions on both a dust and
+      // a large output, plus a failing classifier, to reach for real). Reads a
+      // store hook gated on isGodModePanelEnabled, itself hard-gated on
+      // `import.meta.env.DEV`, so a production build folds the gate to false and
+      // the override is always null — the live wallet and classifier pass
+      // through untouched. As with debugPositionStore / liquidationDebugStore
+      // the store module itself still ships (inert); only the panel that writes
+      // to it is dropped, via the dev-gated dynamic import in router.tsx.
+      "src/hooks/useUTXOs.ts",
     ],
     rules: {
       "no-restricted-imports": [

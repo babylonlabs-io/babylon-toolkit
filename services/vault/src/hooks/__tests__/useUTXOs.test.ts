@@ -17,6 +17,8 @@ vi.mock("@babylonlabs-io/ts-sdk", () => ({
 
 // Mock wallet-connector
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  // Mirrors the package's real value; the spendable-set floor is keyed to it.
+  LOW_VALUE_UTXO_THRESHOLD: 10_000,
   filterInscriptionUtxos: vi.fn((utxos, inscriptions) => {
     const inscriptionSet = new Set(
       inscriptions.map(
@@ -121,9 +123,146 @@ describe("useUTXOs", () => {
       const { result } = renderHook(() => useUTXOs(testAddress));
 
       // txid2 should be filtered out as inscription
-      expect(result.current.availableUTXOs).toHaveLength(2);
+      expect(result.current.spendableUTXOs.map((u) => u.txid)).toEqual([
+        "txid1",
+        "txid3",
+      ]);
+      expect(result.current.spendableMempoolUTXOs.map((u) => u.txid)).toEqual([
+        "txid1",
+        "txid3",
+      ]);
       expect(result.current.inscriptionUTXOs).toHaveLength(1);
       expect(result.current.inscriptionUTXOs[0].txid).toBe("txid2");
+    });
+
+    it("spends inscription UTXOs when the user opted into including them", () => {
+      mockUseAppState.mockReturnValue({ ordinalsExcluded: false });
+      mockUseQuery.mockReturnValue({
+        data: confirmedUtxos,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [{ txid: "txid2", vout: 1, satRanges: [] }],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.spendableUTXOs).toHaveLength(3);
+    });
+
+    it("flags a pending check regardless of the inscription preference", () => {
+      // The preference is persisted, client-tamperable UI state — it must not
+      // decide whether the pending-check gate is honored.
+      mockUseAppState.mockReturnValue({ ordinalsExcluded: false });
+      mockUseQuery.mockReturnValue({
+        data: confirmedUtxos,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: true,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.ordinalsCheckPending).toBe(true);
+    });
+  });
+
+  describe("dust floor on the spendable set", () => {
+    // A 546-sat inscription output, a sub-floor plain output, one exactly at
+    // the threshold, and one above it.
+    const mixedUtxos: MempoolUTXO[] = [
+      createMempoolUtxo("inscription", 0, 546),
+      createMempoolUtxo("smallPlain", 0, 5000),
+      createMempoolUtxo("atThreshold", 0, 10000),
+      createMempoolUtxo("largePlain", 0, 100000),
+    ];
+
+    beforeEach(() => {
+      mockUseQuery.mockReturnValue({
+        data: mixedUtxos,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+    });
+
+    it("excludes UTXOs at or below the classifier's coverage floor", () => {
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [{ txid: "inscription", vout: 0, satRanges: [] }],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.spendableUTXOs.map((u) => u.txid)).toEqual([
+        "largePlain",
+      ]);
+      expect(result.current.spendableMempoolUTXOs.map((u) => u.txid)).toEqual([
+        "largePlain",
+      ]);
+    });
+
+    it("still excludes sub-floor UTXOs when the ordinals check fails", () => {
+      // This is what keeps an unclassified 546-sat inscription out of a deposit.
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: false,
+        error: new Error("Network error"),
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.spendableUTXOs.map((u) => u.txid)).toEqual([
+        "largePlain",
+      ]);
+      expect(result.current.spendableMempoolUTXOs.map((u) => u.txid)).toEqual([
+        "largePlain",
+      ]);
+    });
+
+    it("still excludes sub-floor UTXOs when the user opted into inscriptions", () => {
+      mockUseAppState.mockReturnValue({ ordinalsExcluded: false });
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [{ txid: "inscription", vout: 0, satRanges: [] }],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.spendableUTXOs.map((u) => u.txid)).toEqual([
+        "largePlain",
+      ]);
+    });
+
+    it("still reports a sub-floor inscription so the wallet toggle can show", () => {
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [{ txid: "inscription", vout: 0, satRanges: [] }],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.inscriptionUTXOs.map((u) => u.txid)).toEqual([
+        "inscription",
+      ]);
     });
   });
 
@@ -150,7 +289,10 @@ describe("useUTXOs", () => {
       expect(result.current.confirmedUTXOs).toHaveLength(0);
     });
 
-    it("should expose ordinalsError for UI to handle", () => {
+    it("keeps above-floor UTXOs spendable when the ordinals check fails, and flags it", () => {
+      // Deliberate: a failed check degrades to a notice rather than blocking
+      // deposits. Sub-floor UTXOs — where inscriptions live — stay excluded
+      // (covered in the dust-floor suite).
       const testError = new Error("Network error");
 
       mockUseQuery.mockReturnValue({
@@ -172,8 +314,29 @@ describe("useUTXOs", () => {
       const { result } = renderHook(() => useUTXOs(testAddress));
 
       expect(result.current.ordinalsError).toBe(testError);
-      // UTXOs should still be available despite error
-      expect(result.current.availableUTXOs).toHaveLength(1);
+      expect(result.current.inscriptionCheckFailed).toBe(true);
+      expect(result.current.spendableUTXOs).toHaveLength(1);
+    });
+
+    it("does not flag a failed check when there is nothing to classify", () => {
+      mockUseQuery.mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: false,
+        error: new Error("Network error"),
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.inscriptionCheckFailed).toBe(false);
+      expect(result.current.ordinalsCheckPending).toBe(false);
     });
   });
 

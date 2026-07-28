@@ -21,11 +21,13 @@ import featureFlags from "@/config/featureFlags";
 
 import { GodModePanel } from "./GodModePanel";
 import { LiquidationAnalysisDebugPanel } from "./LiquidationAnalysisDebugPanel";
+import { OrdinalsCheckDebugPanel } from "./OrdinalsCheckDebugPanel";
 import { PositionNotificationsDebugPanel } from "./PositionNotificationsDebugPanel";
 
 export function GodModeMount() {
   return (
     <GodModePanel>
+      <OrdinalsCheckDebugPanel />
       {featureFlags.isV3UiEnabled && <LiquidationAnalysisDebugPanel />}
       {featureFlags.isLiquidationNotificationsEnabled &&
         featureFlags.isPositionDebugPanelEnabled && (

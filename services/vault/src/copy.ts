@@ -632,6 +632,11 @@ export const COPY = {
       payoutSigningFailed: (vaultNumber: number, error: string) =>
         `Vault ${vaultNumber}: Payout signing failed - ${error}`,
       dismissReusesReservedUtxos: "Dismiss",
+      // Shown when the inscription check errored. Says what we could not do and
+      // what still holds — it must not imply the deposit is unprotected, nor
+      // that it is fully verified.
+      inscriptionCheckFailed:
+        "We couldn't check which of your UTXOs hold inscriptions. Small UTXOs are never used for deposits, so an Ordinal on one is safe — but if you hold one on a larger UTXO, wait for the check to recover before depositing.",
     },
     errors: {
       invalidSecret:

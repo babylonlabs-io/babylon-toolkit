@@ -177,10 +177,6 @@ vi.mock("../../useUTXOs", () => ({
         confirmed: true,
       },
     ],
-    availableUTXOs: [
-      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
-      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
-    ],
     inscriptionUTXOs: [],
     spendableUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
@@ -209,6 +205,7 @@ vi.mock("../../useUTXOs", () => ({
     error: null,
     ordinalsError: null,
     ordinalsCheckPending: false,
+    inscriptionCheckFailed: false,
     refetch: vi.fn(),
   })),
   calculateBalance: vi.fn((utxos) => {
@@ -455,10 +452,6 @@ describe("useDepositPageForm", () => {
     // unconfirmed) so per-test overrides for the unconfirmed-balance cases
     // don't leak — clearAllMocks keeps mockReturnValue overrides in place.
     vi.mocked(useUTXOs).mockReturnValue({
-      availableUTXOs: [
-        { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
-        { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
-      ],
       spendableMempoolUTXOs: [
         {
           txid: "0x123",
@@ -556,7 +549,6 @@ describe("useDepositPageForm", () => {
 
     it("flags hasUnconfirmedBalanceOnly when confirmed balance is zero but unconfirmed funds exist", () => {
       vi.mocked(useUTXOs).mockReturnValue({
-        availableUTXOs: [],
         spendableMempoolUTXOs: [],
         ordinalsCheckPending: false,
         confirmedBalance: 0n,
@@ -572,10 +564,15 @@ describe("useDepositPageForm", () => {
 
     it("does not flag hasUnconfirmedBalanceOnly when confirmed balance is non-zero", () => {
       vi.mocked(useUTXOs).mockReturnValue({
-        availableUTXOs: [
-          { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        spendableMempoolUTXOs: [
+          {
+            txid: "0x123",
+            vout: 0,
+            value: 500000,
+            scriptPubKey: "0xabc",
+            confirmed: true,
+          },
         ],
-        spendableMempoolUTXOs: [],
         ordinalsCheckPending: false,
         confirmedBalance: 500000n,
         unconfirmedBalance: 50000n,
@@ -587,13 +584,11 @@ describe("useDepositPageForm", () => {
       expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
     });
 
-    it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
-      // Spendable balance is zero because the only confirmed UTXO is an
-      // inscription (excluded from availableUTXOs), yet confirmed funds exist.
-      // The notice must stay hidden — the zero spendable balance is not a
-      // pending-confirmation situation.
+    it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but none are spendable", () => {
+      // The depositable balance is zero because the confirmed UTXOs are all
+      // inscriptions or below the spend floor, yet confirmed funds exist. The
+      // notice must stay hidden — this is not a pending-confirmation situation.
       vi.mocked(useUTXOs).mockReturnValue({
-        availableUTXOs: [],
         spendableMempoolUTXOs: [],
         ordinalsCheckPending: false,
         confirmedBalance: 300000n,
