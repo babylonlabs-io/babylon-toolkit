@@ -8,7 +8,7 @@
  * layers and the page shows through the gap.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
@@ -67,6 +67,18 @@ export function LoanFlowOverlay({
     [borrowedAssets],
   );
 
+  // Success is local state while the step is URL-driven, so browser Back off
+  // the completed form would otherwise keep showing it. It belongs to the
+  // reserve that produced it: drop it as soon as the route leaves that reserve,
+  // and don't render it for any other one.
+  const successReserveId = success?.reserveId ?? null;
+  const showSuccess = success !== null && successReserveId === reserveId;
+  useEffect(() => {
+    if (successReserveId !== null && successReserveId !== reserveId) {
+      setSuccess(null);
+    }
+  }, [successReserveId, reserveId]);
+
   const isV3 = FeatureFlags.isV3UiEnabled;
   const baseRoute = getReserveDetailBaseRoute(isV3);
 
@@ -77,11 +89,20 @@ export function LoanFlowOverlay({
     navigate(baseRoute, { replace: true });
   };
 
-  const showForm = Boolean(reserveId) && !success;
+  const showForm = Boolean(reserveId) && !showSuccess;
 
   const renderStep = () => {
-    if (success) {
-      return <LoanSuccessPanel {...success} onDone={close} />;
+    if (showSuccess) {
+      return (
+        <LoanSuccessPanel
+          variant={success.variant}
+          amount={success.amount}
+          symbol={success.symbol}
+          decimals={success.decimals}
+          assetIcon={success.assetIcon}
+          onDone={close}
+        />
+      );
     }
     if (reserveId) {
       return (
@@ -105,7 +126,7 @@ export function LoanFlowOverlay({
     );
   };
 
-  const contentClassName = success
+  const contentClassName = showSuccess
     ? LOAN_SUCCESS_WIDTH_CLASS
     : showForm
       ? FORM_WIDTH_CLASS

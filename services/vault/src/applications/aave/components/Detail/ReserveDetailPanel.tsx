@@ -20,6 +20,9 @@ import { PositionGate } from "./PositionGate";
 const btcConfig = getNetworkConfigBTC();
 
 export interface LoanSuccessState {
+  /** Reserve the transaction settled on; the overlay drops the success step
+   *  once the route leaves it. */
+  reserveId: string;
   variant: "borrow" | "repay";
   amount: number;
   symbol: string;
@@ -117,6 +120,7 @@ export function ReserveDetailPanel({
     refetchSplitParams,
     onBorrowSuccess: (amount: number) =>
       onSuccess({
+        reserveId,
         variant: "borrow",
         amount,
         symbol: assetConfig.symbol,
@@ -125,6 +129,7 @@ export function ReserveDetailPanel({
       }),
     onRepaySuccess: (repayAmount: number) =>
       onSuccess({
+        reserveId,
         variant: "repay",
         amount: repayAmount,
         symbol: assetConfig.symbol,

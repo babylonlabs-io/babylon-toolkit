@@ -33,16 +33,30 @@ const borrowableReserves = [
   },
 ];
 
+// Frozen reserve: carries debt so it stays repayable, but is no longer
+// borrowable, so it appears only in allBorrowReserves.
+const frozenReserve = {
+  reserveId: 3n,
+  token: { symbol: "DAI", name: "Dai", address: "0xdai", decimals: 18 },
+  reserve: { hub: "0xhub", assetId: 3 },
+};
+
 vi.mock("../../../context", () => ({
   useAaveConfig: () => ({
     config: { coreSpokeAddress: "0xspoke" },
     borrowableReserves,
+    allBorrowReserves: [...borrowableReserves, frozenReserve],
   }),
 }));
 
 vi.mock("../../../hooks", () => ({
-  useAaveReservesPrices: () => ({
-    pricesByReserveId: { "1": 1, "2": 88000 },
+  useAaveReservesPrices: ({ reserveIds }: { reserveIds: bigint[] }) => ({
+    pricesByReserveId: Object.fromEntries(
+      reserveIds.map((id) => [
+        id.toString(),
+        { "1": 1, "2": 88000, "3": 0.99 }[id.toString()],
+      ]),
+    ),
     isLoading: false,
   }),
   useAaveBorrowAprs: () => ({
@@ -151,5 +165,17 @@ describe("AssetSelectionPanel", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/markets/wbtc");
     expect(onSelectAsset).not.toHaveBeenCalled();
+  });
+
+  it("prices a repay row whose reserve is frozen and no longer borrowable", () => {
+    renderPanel(
+      <AssetSelectionPanel
+        onSelectAsset={vi.fn()}
+        mode={LOAN_TAB.REPAY}
+        assets={[{ symbol: "DAI", name: "Dai", icon: "i" }]}
+      />,
+    );
+
+    expect(screen.getByText("$0.99")).toBeInTheDocument();
   });
 });

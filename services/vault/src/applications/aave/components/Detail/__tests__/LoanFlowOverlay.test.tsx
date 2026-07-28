@@ -53,8 +53,20 @@ vi.mock("../../AssetSelectionPanel", () => ({
 }));
 
 vi.mock("../ReserveDetailPanel", () => ({
-  ReserveDetailPanel: ({ reserveId }: { reserveId: string }) => (
-    <div data-testid="form" data-reserve-id={reserveId} />
+  ReserveDetailPanel: ({
+    reserveId,
+    onSuccess,
+  }: {
+    reserveId: string;
+    onSuccess: (state: { reserveId: string; variant: string }) => void;
+  }) => (
+    <button
+      data-testid="form"
+      data-reserve-id={reserveId}
+      onClick={() => onSuccess({ reserveId, variant: "borrow" })}
+    >
+      settle
+    </button>
   ),
 }));
 
@@ -133,6 +145,41 @@ describe("LoanFlowOverlay", () => {
     );
     expect(screen.queryByTestId("picker-borrow")).not.toBeInTheDocument();
     expect(screen.getAllByTestId(SHELL_TESTID)).toHaveLength(1);
+  });
+
+  it("shows the success step once the transaction settles on that reserve", () => {
+    renderOverlay(
+      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+    );
+
+    fireEvent.click(screen.getByTestId("form"));
+
+    expect(screen.getByTestId("success")).toBeInTheDocument();
+  });
+
+  it("drops a settled success when the step navigates back to the picker", () => {
+    const { rerender } = renderOverlay(
+      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+    );
+
+    fireEvent.click(screen.getByTestId("form"));
+    expect(screen.getByTestId("success")).toBeInTheDocument();
+
+    // Browser Back to the picker: the overlay stays mounted, so the settled
+    // success must not survive the step change.
+    rerender(
+      <MemoryRouter initialEntries={["/loans"]}>
+        <LoanFlowOverlay
+          picker={LOAN_TAB.BORROW}
+          reserveId={null}
+          tab={LOAN_TAB.BORROW}
+        />
+        <LocationDisplay />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("success")).not.toBeInTheDocument();
+    expect(screen.getByTestId("picker-borrow")).toBeInTheDocument();
   });
 
   it("closes back to the base route, dropping the flow's query params", () => {

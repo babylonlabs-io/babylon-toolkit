@@ -79,12 +79,19 @@ export function AssetSelectionPanel({
   assets,
 }: AssetSelectionPanelProps) {
   const navigate = useNavigate();
-  const { config: aaveConfig, borrowableReserves } = useAaveConfig();
+  const {
+    config: aaveConfig,
+    borrowableReserves,
+    allBorrowReserves,
+  } = useAaveConfig();
   const isRepay = mode === LOAN_TAB.REPAY;
 
+  // Debt can sit in a reserve that is no longer borrowable (frozen or paused),
+  // and repay must still price it — so repay prices the full reserve set.
+  const pricedReserves = isRepay ? allBorrowReserves : borrowableReserves;
   const reserveIds = useMemo(
-    () => borrowableReserves.map((r) => r.reserveId),
-    [borrowableReserves],
+    () => pricedReserves.map((r) => r.reserveId),
+    [pricedReserves],
   );
   const { pricesByReserveId, isLoading: pricesLoading } = useAaveReservesPrices(
     {
@@ -105,12 +112,12 @@ export function AssetSelectionPanel({
   // (no reserve id), so index the fetched prices by symbol to show them too.
   const priceBySymbol = useMemo(() => {
     const map = new Map<string, number>();
-    for (const reserve of borrowableReserves) {
+    for (const reserve of pricedReserves) {
       const price = pricesByReserveId[reserve.reserveId.toString()];
       if (price != null) map.set(reserve.token.symbol, price);
     }
     return map;
-  }, [borrowableReserves, pricesByReserveId]);
+  }, [pricedReserves, pricesByReserveId]);
 
   const handleMarketInfoClick = (assetSymbol: string) => {
     navigate(getMarketDataRoute(assetSymbol));
