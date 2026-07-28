@@ -8,7 +8,10 @@ import {
   type GetPeginStatusResponse,
   type RequestDepositorPresignTransactionsResponse,
 } from "../../../clients/vault-provider/types";
-import type { VaultIntent, VaultIntentSigner } from "../../../intent";
+import type {
+  DepositTerms,
+  DepositTermsApprover,
+} from "../../../deposit-terms";
 import type { PeginStatusReader, PresignClient } from "../interfaces";
 import { runDepositorPresignFlow, type PayoutSigningContext } from "../runDepositorPresignFlow";
 
@@ -144,21 +147,19 @@ function createMockWallet(): BitcoinWallet {
   } as unknown as BitcoinWallet;
 }
 
-/** Capability-stub wallet: has `approveVaultIntent`, so `supportsVaultIntent` is true. */
+/** Capability-stub wallet: has `approveDepositTerms`, so `supportsDepositApproval` is true. */
 function createCapabilityWallet(
-  onApprove?: (intent: VaultIntent) => void,
-): BitcoinWallet & VaultIntentSigner {
+  onApprove?: (terms: DepositTerms) => void,
+): BitcoinWallet & DepositTermsApprover {
   return {
     ...createMockWallet(),
-    approveVaultIntent: vi.fn(async (intent: VaultIntent) => {
-      onApprove?.(intent);
+    approveDepositTerms: vi.fn(async (terms: DepositTerms) => {
+      onApprove?.(terms);
     }),
-  } as unknown as BitcoinWallet & VaultIntentSigner;
+  } as unknown as BitcoinWallet & DepositTermsApprover;
 }
 
-const VAULT_INTENT: VaultIntent = {
-  version: 1,
-  coinType: 1,
+const DEPOSIT_TERMS: DepositTerms = {
   baseFeeRate: 2n,
   peginCsvTimelock: 144,
   payoutTimelock: 144,
@@ -580,8 +581,8 @@ describe("runDepositorPresignFlow", () => {
     });
   });
 
-  describe("vault intent approval", () => {
-    it("approves the vault intent before fetching presign transactions", async () => {
+  describe("deposit terms approval", () => {
+    it("approves the deposit terms before fetching presign transactions", async () => {
       const callLog: string[] = [];
       const wallet = createCapabilityWallet(() => callLog.push("approve"));
       const reader = createMockStatusReader([
@@ -606,15 +607,15 @@ describe("runDepositorPresignFlow", () => {
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
-        vaultIntent: VAULT_INTENT,
+        depositTerms: DEPOSIT_TERMS,
       });
 
       expect(callLog).toEqual(["approve", "presign"]);
-      expect(wallet.approveVaultIntent).toHaveBeenCalledOnce();
-      expect(wallet.approveVaultIntent).toHaveBeenCalledWith(VAULT_INTENT);
+      expect(wallet.approveDepositTerms).toHaveBeenCalledOnce();
+      expect(wallet.approveDepositTerms).toHaveBeenCalledWith(DEPOSIT_TERMS);
     });
 
-    it("throws for capability wallets when no vaultIntent is provided", async () => {
+    it("throws for capability wallets when no depositTerms is provided", async () => {
       const wallet = createCapabilityWallet();
       const reader = createMockStatusReader([
         DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
@@ -630,9 +631,9 @@ describe("runDepositorPresignFlow", () => {
           depositorPk: DEPOSITOR_PK,
           signingContext: createSigningContext(),
         }),
-      ).rejects.toThrow(/vault ?intent/i);
+      ).rejects.toThrow(/deposit terms/i);
 
-      expect(wallet.approveVaultIntent).not.toHaveBeenCalled();
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
       expect(
         presignClient.requestDepositorPresignTransactions,
       ).not.toHaveBeenCalled();
@@ -641,7 +642,7 @@ describe("runDepositorPresignFlow", () => {
       ).not.toHaveBeenCalled();
     });
 
-    it("ignores vaultIntent for non-capability wallets", async () => {
+    it("ignores depositTerms for non-capability wallets", async () => {
       const wallet = createMockWallet();
       const reader = createMockStatusReader([
         DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
@@ -655,15 +656,15 @@ describe("runDepositorPresignFlow", () => {
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
-        vaultIntent: VAULT_INTENT,
+        depositTerms: DEPOSIT_TERMS,
       });
 
       // This confirms the wallet is capability-less; it doesn't by itself prove
       // the flow skipped it. The proof is the flow completing above without a
       // TypeError, which it would throw if src tried to call the absent method.
       expect(
-        (wallet as unknown as { approveVaultIntent?: unknown })
-          .approveVaultIntent,
+        (wallet as unknown as { approveDepositTerms?: unknown })
+          .approveDepositTerms,
       ).toBeUndefined();
       expect(
         presignClient.submitDepositorPresignatures,

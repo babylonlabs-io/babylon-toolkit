@@ -20,7 +20,7 @@ import type { SignPsbtOptions } from "../../../../shared/wallets";
 import { MockBitcoinWallet, MockEthereumWallet } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { BTCVaultRegistryABI } from "../../contracts";
-import type { VaultIntent } from "../../intent";
+import type { DepositTerms } from "../../deposit-terms";
 import {
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
@@ -654,7 +654,7 @@ describe("PeginManager", () => {
       ).rejects.toThrow();
     });
 
-    it("approves the vault intent after derive and before PegIn signing for capable wallets", async () => {
+    it("approves the deposit terms after derive and before PegIn signing for capable wallets", async () => {
       const callOrder: string[] = [];
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
@@ -662,10 +662,10 @@ describe("PeginManager", () => {
       const originalDeriveContextHash =
         btcWallet.deriveContextHash.bind(btcWallet);
       const originalSignPsbts = btcWallet.signPsbts.bind(btcWallet);
-      let approvedIntent: VaultIntent | undefined;
+      let approvedTerms: DepositTerms | undefined;
 
       // Own-property overrides (class-field semantics) — mirrors how a real
-      // intent-capable wallet (e.g. Ledger provider, #2109) exposes approveVaultIntent.
+      // approval-capable wallet exposes approveDepositTerms.
       const capableWallet = Object.assign(btcWallet, {
         deriveContextHash: async (appName: string, context: string) => {
           callOrder.push("deriveContextHash");
@@ -678,9 +678,9 @@ describe("PeginManager", () => {
           callOrder.push("signPsbts");
           return originalSignPsbts(psbtsHexes, options);
         },
-        approveVaultIntent: async (intent: VaultIntent) => {
-          callOrder.push("approveVaultIntent");
-          approvedIntent = intent;
+        approveDepositTerms: async (terms: DepositTerms) => {
+          callOrder.push("approveDepositTerms");
+          approvedTerms = terms;
         },
       });
 
@@ -702,25 +702,25 @@ describe("PeginManager", () => {
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
-      expect(callOrder.filter((c) => c === "approveVaultIntent")).toHaveLength(
-        1,
-      );
+      expect(
+        callOrder.filter((c) => c === "approveDepositTerms"),
+      ).toHaveLength(1);
       const deriveIdx = callOrder.indexOf("deriveContextHash");
-      const approveIdx = callOrder.indexOf("approveVaultIntent");
+      const approveIdx = callOrder.indexOf("approveDepositTerms");
       const signIdx = callOrder.indexOf("signPsbts");
       expect(deriveIdx).toBeGreaterThanOrEqual(0);
       expect(approveIdx).toBeGreaterThan(deriveIdx);
       expect(signIdx).toBeGreaterThan(approveIdx);
 
-      expect(approvedIntent).toBeDefined();
-      expect(approvedIntent?.prepeginTxid).toBe(
+      expect(approvedTerms).toBeDefined();
+      expect(approvedTerms?.prepeginTxid).toBe(
         result.transaction.prePeginTxid.replace(/^0x/i, "").toLowerCase(),
       );
-      expect(approvedIntent?.vaults).toHaveLength(2);
-      expect(result.vaultIntent).toBe(approvedIntent);
+      expect(approvedTerms?.vaults).toHaveLength(2);
+      expect(result.depositTerms).toBe(approvedTerms);
     });
 
-    it("is a no-op for wallets without approveVaultIntent", async () => {
+    it("is a no-op for wallets without approveDepositTerms", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -740,13 +740,13 @@ describe("PeginManager", () => {
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
-      expect(result.vaultIntent).toBeDefined();
-      expect(result.vaultIntent.vaults).toHaveLength(1);
-      // The mock wallet never gained approveVaultIntent — proves preparePegin
+      expect(result.depositTerms).toBeDefined();
+      expect(result.depositTerms.vaults).toHaveLength(1);
+      // The mock wallet never gained approveDepositTerms — proves preparePegin
       // doesn't call it unconditionally (that would throw: not a function).
       expect(
-        (btcWallet as unknown as { approveVaultIntent?: unknown })
-          .approveVaultIntent,
+        (btcWallet as unknown as { approveDepositTerms?: unknown })
+          .approveDepositTerms,
       ).toBeUndefined();
     });
   });

@@ -1143,7 +1143,7 @@ export function useDepositFlow(
               btcWallet: postBroadcastBtcWallet,
               depositorEthAddress: confirmedEthAddress,
               unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
-              vaultIntent: batchResult.vaultIntent,
+              depositTerms: batchResult.depositTerms,
               signal,
               onProgress: (p) => {
                 if (!p) return;

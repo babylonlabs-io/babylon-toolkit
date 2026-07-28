@@ -1,0 +1,56 @@
+import type { BitcoinWallet } from "../../../shared/wallets/interfaces";
+
+export interface DepositTermsVaultGroup {
+  htlcVout: number; // 0-based; equals the group's position (groups are ascending by vout)
+  vaultProviderPk: string; // x-only lowercase hex (64 chars)
+  vaultAmount: bigint; // sats
+  commissionFee: bigint; // sats; floor(vaultAmount * commissionBps / 10_000)
+  depositorClaimValue: bigint; // sats; the same value for every vault
+  peginMaxFee: bigint; // sats; the minimum PegIn fee for this graph version
+}
+
+export interface DepositTerms {
+  // The tx-graph fee rate (protocolFeeRate), NOT the mempool funding rate. A
+  // depositor-approval wallet checks each payout's fee against this exact value.
+  baseFeeRate: bigint; // sat/vB
+  peginCsvTimelock: number; // vault-UTXO CSV timelock (blocks)
+  // Assert:0 payout timelock; comes from the same protocol param as peginCsvTimelock.
+  payoutTimelock: number;
+  htlcRefundTimelock: number; // HTLC refund CSV timelock (blocks)
+  // 64-char hex in display order. A device-wire encoder must byte-reverse it to the
+  // little-endian form the device recomputes and compares against.
+  prepeginTxid: string;
+  prepeginMaxFee: bigint; // sats; the funded Pre-PegIn fee (an approving wallet caps the signed fee at this)
+  keeperPks: string[]; // x-only hex, sorted ascending
+  challengerPks: string[]; // x-only hex, sorted ascending independently of keeperPks
+  vaults: DepositTermsVaultGroup[]; // per-vault groups, ordered by ascending htlcVout
+}
+
+// Implemented only by depositor-approval wallets (e.g. a Ledger vault provider). The
+// provider must be a class field (the deposit flow spreads the wallet object).
+export interface DepositTermsApprover {
+  approveDepositTerms(terms: DepositTerms): Promise<void>;
+}
+
+// Seam invariant: never call deriveContextHash between approveDepositTerms and the
+// last terms-bound signature of a connection — deriving mid-approval nullifies it.
+export function supportsDepositApproval(
+  wallet: BitcoinWallet,
+): wallet is BitcoinWallet & DepositTermsApprover {
+  return typeof (wallet as Partial<DepositTermsApprover>).approveDepositTerms === "function";
+}
+
+export interface BuildDepositTermsInputs {
+  protocolFeeRate: bigint;
+  timelockPegin: number;
+  timelockRefund: number;
+  prepeginTxid: string;
+  prepeginMaxFee: bigint;
+  vaultProviderPk: string;
+  keeperPks: readonly string[];
+  challengerPks: readonly string[];
+  commissionBps: number;
+  vaultAmounts: readonly bigint[];
+  depositorClaimValue: bigint;
+  peginMaxFee: bigint;
+}

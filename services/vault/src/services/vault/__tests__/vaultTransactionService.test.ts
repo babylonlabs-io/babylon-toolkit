@@ -1,6 +1,6 @@
 /** Tests for vaultTransactionService. */
 
-import type { VaultIntent } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import {
@@ -102,9 +102,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     availableUTXOs: mockUTXOs,
   };
 
-  const mockVaultIntent: VaultIntent = {
-    version: 1,
-    coinType: 0,
+  const mockDepositTerms: DepositTerms = {
     baseFeeRate: 10n,
     peginCsvTimelock: 100,
     payoutTimelock: 100,
@@ -139,7 +137,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
         wotsPkHashes: ["0x" + "00".repeat(32)],
         htlcSecretHexes: ["00".repeat(32)],
       },
-      vaultIntent: mockVaultIntent,
+      depositTerms: mockDepositTerms,
     });
 
     mockBtcWallet = {
@@ -191,7 +189,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
       expect(result.perVault[0].peginTxHash).toBe("0xtxhash123");
       expect(result.perVault[0].peginTxHex).toBe("0xpeginHex");
       expect(result.fundedPrePeginTxHex).toBe("0x123abc");
-      expect(result.vaultIntent).toBe(mockVaultIntent);
+      expect(result.depositTerms).toBe(mockDepositTerms);
     });
 
     it("should handle multi-vault params", async () => {
