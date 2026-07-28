@@ -97,7 +97,6 @@ export function RiskPriceRail({
   const isSolidGreen =
     !isNeutral && (state === "verySafe" || state === "noPosition");
   const showGradient = !isNeutral && !isSolidGreen && liquidationPct !== null;
-  const showLiquidationMarker = showGradient;
   const showGapArrow =
     showGradient &&
     liquidationPct !== null &&
@@ -107,7 +106,9 @@ export function RiskPriceRail({
   const currentRingCss =
     state === "liquidatable"
       ? "rgb(var(--risk-red))"
-      : "rgb(var(--risk-green))";
+      : state === "moderate"
+        ? "rgb(var(--risk-amber))"
+        : "rgb(var(--risk-green))";
 
   const markerHalf = MARKER_LABEL_WIDTH_PX / 2;
   const labelCenters =
@@ -184,7 +185,7 @@ export function RiskPriceRail({
           leftPx={currentLabelPx}
         />
       )}
-      {showLiquidationMarker && labelCenters && (
+      {showGradient && labelCenters && (
         <MarkerLabel
           label={COPY.risk.chart.liquidationPriceLabel}
           value={liquidationPriceText}
@@ -203,7 +204,7 @@ export function RiskPriceRail({
           }}
         />
       )}
-      {showLiquidationMarker && liquidationPct !== null && (
+      {showGradient && liquidationPct !== null && (
         <div
           data-testid="risk-marker-liquidation"
           className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"

@@ -1,5 +1,6 @@
 import {
   HEALTH_FACTOR_HEALTHY_THRESHOLD,
+  HEALTH_FACTOR_WARNING_THRESHOLD,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 
@@ -43,10 +44,10 @@ export interface RailLayout {
 
 const MARKER_EDGE_MARGIN_PCT = 1.5;
 const MAX_TICKS = 8;
-// Over the rail, red ends at the current-price marker, amber peaks ~21
-// points later, green runs to the end.
-const GRADIENT_AMBER_OFFSET = 21;
-const GRADIENT_GREEN_STOP = 100;
+// On this axis the health factor is price / liquidationPrice, so red sits at
+// the liquidation price and green at the price clearing the safe threshold.
+// Far from liquidation that ramp collapses to a hairline, hence the minimum.
+const GRADIENT_MIN_RAMP_PCT = 45;
 
 function isUsablePrice(price: number | null): price is number {
   return price !== null && isFinite(price) && price > 0;
@@ -103,25 +104,27 @@ export function computeRailLayout(
 
   const ticks = computeTicks(lo, hi);
 
+  const pct = (price: number) => ((price - lo) / (hi - lo)) * 100;
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
   const toPct = (price: number) =>
-    Math.min(
-      100 - MARKER_EDGE_MARGIN_PCT,
-      Math.max(MARKER_EDGE_MARGIN_PCT, ((price - lo) / (hi - lo)) * 100),
-    );
+    clamp(pct(price), MARKER_EDGE_MARGIN_PCT, 100 - MARKER_EDGE_MARGIN_PCT);
 
   const currentPct = toPct(currentPriceUsd);
   const liquidationPct = hasLiquidation ? toPct(liquidationPriceUsd) : null;
 
-  // The red→amber hand-off sits ON the current-price marker, so the colour
-  // under the dot is the colour the dot's ring reports. Anchoring on the
-  // midpoint instead left the marker sitting in the red band while it was
-  // rendered green.
   let gradient: string | null = null;
-  if (liquidationPct !== null) {
-    const amber = Math.min(currentPct + GRADIENT_AMBER_OFFSET, 100);
+  if (hasLiquidation) {
+    const stopPct = (price: number) => clamp(pct(price), 0, 100);
+    const red = stopPct(liquidationPriceUsd);
+    const green = Math.max(
+      stopPct(liquidationPriceUsd * HEALTH_FACTOR_WARNING_THRESHOLD),
+      Math.min(100, red + GRADIENT_MIN_RAMP_PCT),
+    );
+    const amber = (red + green) / 2;
     gradient =
-      `linear-gradient(90deg, rgb(var(--risk-red)) ${currentPct}%, ` +
-      `rgb(var(--risk-amber)) ${amber}%, rgb(var(--risk-green)) ${GRADIENT_GREEN_STOP}%)`;
+      `linear-gradient(90deg, rgb(var(--risk-red)) ${red}%, ` +
+      `rgb(var(--risk-amber)) ${amber}%, rgb(var(--risk-green)) ${green}%)`;
   }
 
   return { lo, hi, ticks, currentPct, liquidationPct, gradient };

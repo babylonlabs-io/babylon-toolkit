@@ -12,12 +12,14 @@ import { AssetSelectionModal } from "@/applications/aave/components/AssetSelecti
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
+import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import {
+  useDebugHealthFactorOverride,
   useDebugManualMode,
   useDebugManualParams,
   useDebugPositionOverride,
@@ -252,9 +254,6 @@ export function DashboardPage() {
     btcMetadata !== undefined &&
     !btcMetadata.isStale &&
     !btcMetadata.fetchFailed;
-  const liquidationPrice = firstLiquidationGroup
-    ? formatUsdPrice(firstLiquidationGroup.liquidationPrice)
-    : COPY.common.emptyValue;
   const usableBtcPriceUsd =
     isBtcPriceUsable && btcPriceUsd !== undefined && btcPriceUsd > 0
       ? btcPriceUsd
@@ -263,10 +262,29 @@ export function DashboardPage() {
     usableBtcPriceUsd !== null
       ? formatUsdPrice(usableBtcPriceUsd)
       : COPY.common.emptyValue;
-  const liquidationPriceUsd = firstLiquidationGroup?.liquidationPrice ?? null;
-  const pctToLiquidation = firstLiquidationGroup
-    ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
-    : COPY.common.emptyValue;
+  // God-mode override (dev only; null in production). Health factor is
+  // btcPrice / liquidationPrice, so a forced value implies the liquidation
+  // price that produces it — the rail is charted from that price, not the HF.
+  const healthFactorOverride = useDebugHealthFactorOverride();
+  const shownHealthFactor = healthFactorOverride ?? healthFactor;
+  const shownHealthFactorStatus =
+    healthFactorOverride !== null
+      ? getHealthFactorStatusFromValue(healthFactorOverride)
+      : healthFactorStatus;
+  const liquidationPriceUsd =
+    healthFactorOverride !== null && usableBtcPriceUsd !== null
+      ? usableBtcPriceUsd / healthFactorOverride
+      : (firstLiquidationGroup?.liquidationPrice ?? null);
+  const liquidationPrice =
+    liquidationPriceUsd !== null
+      ? formatUsdPrice(liquidationPriceUsd)
+      : COPY.common.emptyValue;
+  const pctToLiquidation =
+    healthFactorOverride !== null
+      ? formatLiquidationDistancePercent(100 * (1 - 1 / healthFactorOverride))
+      : firstLiquidationGroup
+        ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
+        : COPY.common.emptyValue;
   const collateralFactorText =
     collateralFactorBps !== null
       ? formatBasisPointsAsPercent(collateralFactorBps)
@@ -332,8 +350,8 @@ export function DashboardPage() {
 
         {showOverview && (
           <OverviewSection
-            healthFactor={healthFactor}
-            healthFactorStatus={healthFactorStatus}
+            healthFactor={shownHealthFactor}
+            healthFactorStatus={shownHealthFactorStatus}
             totalCollateralValue={totalCollateralValue}
             totalBorrowed={totalBorrowed}
             liquidationPrice={liquidationPrice}
@@ -357,8 +375,8 @@ export function DashboardPage() {
 
         {featureFlags.isV3UiEnabled && (
           <RiskSection
-            healthFactor={healthFactor}
-            healthFactorStatus={healthFactorStatus}
+            healthFactor={shownHealthFactor}
+            healthFactorStatus={shownHealthFactorStatus}
             hasPosition={hasOverviewData}
             liquidationPriceText={liquidationPrice}
             btcPriceText={btcPrice}
