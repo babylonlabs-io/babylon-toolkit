@@ -126,16 +126,19 @@ vi.mock("../components/pages/Loans", () => ({
 }));
 
 vi.mock("../applications/aave/components/Detail", () => ({
-  AaveReserveDetail: ({
+  LoanFlowOverlay: ({
+    picker,
     reserveId,
     tab,
   }: {
-    reserveId: string;
+    picker: string | null;
+    reserveId: string | null;
     tab: string;
   }) => (
     <div
       data-testid={RESERVE_DETAIL_TESTID}
-      data-reserve-id={reserveId}
+      data-reserve-id={reserveId ?? ""}
+      data-picker={picker ?? ""}
       data-tab={tab}
     />
   ),
@@ -219,9 +222,15 @@ describe("Router — /activity regression for AaveConfigProvider wiring", () => 
   it("renders the Activity page heading without throwing the provider error", async () => {
     renderAt("/activity");
 
-    await waitFor(() => {
-      expect(screen.getByText("Activity")).toBeInTheDocument();
-    });
+    // Explicit timeout: the Activity page is lazily imported, and resolving
+    // that chunk exceeds waitFor's 1s default once the full suite runs its
+    // files in parallel. This assertion is about provider wiring, not speed.
+    await waitFor(
+      () => {
+        expect(screen.getByText("Activity")).toBeInTheDocument();
+      },
+      { timeout: 10_000 },
+    );
 
     const PROVIDER_ERROR =
       "useAaveConfig must be used within an AaveConfigProvider";

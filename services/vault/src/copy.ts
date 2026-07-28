@@ -1096,6 +1096,12 @@ export const COPY = {
       healthFactorTooLow: (min: number) =>
         `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },
+    // Reserve detail step, shown before the borrow/repay form can render.
+    connectToManage: {
+      title: "Connect to manage position",
+      body: "Please connect your wallet to manage your position.",
+    },
+    reserveNotFound: "Reserve not found",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
@@ -1105,6 +1111,8 @@ export const COPY = {
       loading: "Loading assets...",
       emptyBorrow: "No borrowable assets available",
       emptyRepay: "No assets available",
+      marketInfo: "Market Info",
+      marketInfoAriaLabel: (symbol: string) => `${symbol} market info`,
     },
     borrowSuccess: {
       title: "Borrow successful",
@@ -1176,6 +1184,25 @@ export const COPY = {
       // on-chain proxy resolved from the env-pinned adapter (fail closed).
       integrityError:
         "Position integrity check failed: your position details returned by the indexer don't match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+    },
+  },
+  // Borrowing markets data page (Figma node 10088-60956). Shell only for now:
+  // section titles and descriptions, no values — the data lands in a follow-up.
+  marketData: {
+    pageTitle: "Borrowing markets data",
+    backToAssets: "Back to Assets",
+    subtitle: (symbol: string) =>
+      `Learn more about the ${symbol} borrow market`,
+    borrowAction: "Borrow",
+    interestRateModel: {
+      title: "Interest rate model",
+      description:
+        "The more liquidity is borrowed, the higher the rate — this keeps the market balanced.",
+    },
+    borrowMarkets: {
+      title: "Borrow Markets",
+      description: (symbol: string) =>
+        `Understand market conditions, rates, and risk before borrowing ${symbol}`,
     },
   },
   nav: {

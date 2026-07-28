@@ -42,7 +42,6 @@ vi.mock("@/hooks/useDashboardState", () => ({
     hasCollateral: true,
     hasDisplayCollateral: true,
     collateralVaults: [],
-    selectableBorrowedAssets: [],
     isLoading: false,
   }),
 }));

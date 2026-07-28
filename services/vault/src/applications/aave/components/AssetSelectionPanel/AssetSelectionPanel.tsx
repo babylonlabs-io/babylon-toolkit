@@ -1,18 +1,24 @@
 /**
- * AssetSelectionModal
+ * AssetSelectionPanel
  *
- * Full-screen asset picker opened from the dashboard Borrow / Repay buttons.
- * Borrow mode shows a table of borrowable reserves (Asset · Price · Available ·
- * Borrow APR); repay mode reuses the same full-screen surface but lists the
- * user's borrowed assets with only Asset · Price (APR/liquidity don't apply to
- * repaying). Selecting a row routes into the reserve detail.
+ * Asset picker step of the loan overlay, opened from the Borrow / Repay
+ * buttons. Borrow mode shows a table of borrowable reserves (Asset · Price ·
+ * Available · Borrow APR) plus a per-row Market Info button into that asset's
+ * borrowing markets data page; repay mode lists the user's borrowed assets with
+ * only Asset · Price (APR/liquidity and market data don't apply to repaying).
+ * Selecting a row advances the overlay to the borrow/repay form.
+ *
+ * Panel, not a dialog: `LoanFlowOverlay` owns the one full-screen shell every
+ * step of the flow renders into.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
+import { useNavigate } from "react-router";
 
-import { V3ModalShell } from "@/components/shared/V3ModalShell";
+import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { COPY } from "@/copy";
+import { getMarketDataRoute } from "@/routes";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
@@ -32,9 +38,7 @@ import {
 } from "../../hooks";
 import type { Asset } from "../../types";
 
-interface AssetSelectionModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface AssetSelectionPanelProps {
   onSelectAsset: (assetSymbol: string) => void;
   /** Mode determines which columns render and the empty-state copy. */
   mode?: LoanTab;
@@ -62,13 +66,27 @@ interface AssetRow {
 /** Width of the leading Asset column; the stats share the remaining row. */
 const ASSET_COL_CLASS = "flex w-[220px] shrink-0 items-center gap-4";
 
-export function AssetSelectionModal({
-  isOpen,
-  onClose,
+/** Header spacer for the trailing, unlabelled Market Info column (borrow mode
+ *  only): `NEUTRAL_ROW_BUTTON_CLASS`'s 120px minimum plus the row's 16px gap,
+ *  so the stat columns line up with the rows below. */
+const MARKET_INFO_COL_CLASS = "w-[136px] shrink-0";
+
+/**
+ * Card width for each picker mode, applied by the overlay that owns the shell.
+ * Borrow is wider than repay's 612px to fit the trailing Market Info column
+ * without squeezing the three stat columns (Figma 6058-44070 measures the
+ * borrow picker at ~700px).
+ */
+export function getAssetPickerWidthClass(mode: LoanTab) {
+  return mode === LOAN_TAB.REPAY ? "max-w-[612px]" : "max-w-[700px]";
+}
+
+export function AssetSelectionPanel({
   onSelectAsset,
   mode = LOAN_TAB.BORROW,
   assets,
-}: AssetSelectionModalProps) {
+}: AssetSelectionPanelProps) {
+  const navigate = useNavigate();
   const { config: aaveConfig, borrowableReserves } = useAaveConfig();
   const isRepay = mode === LOAN_TAB.REPAY;
 
@@ -102,9 +120,10 @@ export function AssetSelectionModal({
     return map;
   }, [borrowableReserves, pricesByReserveId]);
 
-  const handleAssetClick = (assetSymbol: string) => {
-    onSelectAsset(assetSymbol);
-    onClose();
+  // Leaves the overlay entirely — the markets data page is a route, not a step,
+  // so this navigation drops the picker's query params rather than advancing.
+  const handleMarketInfoClick = (assetSymbol: string) => {
+    navigate(getMarketDataRoute(assetSymbol));
   };
 
   const rows: AssetRow[] = useMemo(() => {
@@ -191,6 +210,8 @@ export function AssetSelectionModal({
                 <span className="flex-1 py-4">
                   {COPY.loans.assetSelection.columnBorrowApr}
                 </span>
+                {/* Spacer for the unlabelled Market Info column. */}
+                <span className={MARKET_INFO_COL_CLASS} />
               </>
             )}
           </div>
@@ -198,41 +219,64 @@ export function AssetSelectionModal({
 
         <div className="flex flex-col gap-2">
           {rows.map((row) => (
-            <button
+            // Wrapper, not one big button: borrow rows carry their own Market
+            // Info button and a button cannot nest inside a button. The card's
+            // padding and hover move here so the row still highlights as a
+            // unit; the select control keeps the E2E testid and spans the rest
+            // of the row via `flex-1`. Repay renders the wrapper's single child,
+            // so its padding is unchanged from the pre-split single button.
+            <div
               key={row.key}
-              onClick={() => handleAssetClick(row.symbol)}
-              className="flex w-full cursor-pointer items-center rounded-xl bg-secondary-highlight p-4 text-left transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
-              data-testid={`asset-select-row-${row.symbol.toLowerCase()}`}
+              className="flex w-full items-center gap-4 rounded-xl bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
             >
-              <div className={ASSET_COL_CLASS}>
-                <Avatar
-                  url={getCurrencyIconWithFallback(row.icon, row.symbol)}
-                  alt={row.name}
-                  size="large"
-                  variant="circular"
-                  className="h-12 w-12 rounded-full bg-white"
-                />
-                <div className="flex flex-col items-start">
-                  <span className="text-base text-accent-primary">
-                    {row.name}
-                  </span>
-                  <span className="text-sm text-accent-secondary">
-                    {row.symbol}
-                  </span>
+              <button
+                onClick={() => onSelectAsset(row.symbol)}
+                className="flex min-w-0 flex-1 cursor-pointer items-center text-left"
+                data-testid={`asset-select-row-${row.symbol.toLowerCase()}`}
+              >
+                <div className={ASSET_COL_CLASS}>
+                  <Avatar
+                    url={getCurrencyIconWithFallback(row.icon, row.symbol)}
+                    alt={row.name}
+                    size="large"
+                    variant="circular"
+                    className="h-12 w-12 rounded-full bg-white"
+                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-base text-accent-primary">
+                      {row.name}
+                    </span>
+                    <span className="text-sm text-accent-secondary">
+                      {row.symbol}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-1 items-center text-base text-accent-primary">
-                <span className={`flex-1 ${isRepay ? "text-right" : ""}`}>
-                  {row.priceLabel}
-                </span>
-                {!isRepay && (
-                  <>
-                    <span className="flex-1">{row.availableLabel}</span>
-                    <span className="flex-1">{row.aprLabel}</span>
-                  </>
-                )}
-              </div>
-            </button>
+                <div className="flex flex-1 items-center text-base text-accent-primary">
+                  <span className={`flex-1 ${isRepay ? "text-right" : ""}`}>
+                    {row.priceLabel}
+                  </span>
+                  {!isRepay && (
+                    <>
+                      <span className="flex-1">{row.availableLabel}</span>
+                      <span className="flex-1">{row.aprLabel}</span>
+                    </>
+                  )}
+                </div>
+              </button>
+              {!isRepay && (
+                <button
+                  type="button"
+                  onClick={() => handleMarketInfoClick(row.symbol)}
+                  aria-label={COPY.loans.assetSelection.marketInfoAriaLabel(
+                    row.symbol,
+                  )}
+                  className={`${NEUTRAL_ROW_BUTTON_CLASS} cursor-pointer`}
+                  data-testid={`asset-market-info-${row.symbol.toLowerCase()}`}
+                >
+                  {COPY.loans.assetSelection.marketInfo}
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </>
@@ -240,15 +284,13 @@ export function AssetSelectionModal({
   };
 
   return (
-    <V3ModalShell open={isOpen} onClose={onClose}>
-      <div className="mx-auto w-full max-w-[612px] rounded-2xl border border-secondary-strokeLight">
-        <div className="border-b border-secondary-strokeLight p-6">
-          <h3 className="text-2xl text-accent-primary">
-            {COPY.loans.assetSelection.title}
-          </h3>
-        </div>
-        <div className="flex flex-col gap-4 px-6 pb-6 pt-4">{renderBody()}</div>
+    <div className="mx-auto w-full rounded-2xl border border-secondary-strokeLight">
+      <div className="border-b border-secondary-strokeLight p-6">
+        <h3 className="text-2xl text-accent-primary">
+          {COPY.loans.assetSelection.title}
+        </h3>
       </div>
-    </V3ModalShell>
+      <div className="flex flex-col gap-4 px-6 pb-6 pt-4">{renderBody()}</div>
+    </div>
   );
 }

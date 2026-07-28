@@ -123,7 +123,6 @@ const CONNECTED_LOADED = {
   borrowedAssets: [],
   hasLoans: false,
   hasCollateral: true,
-  selectableBorrowedAssets: [],
   isBorrowCapacityLoading: false,
   borrowCapacityError: null,
   isLoading: false,

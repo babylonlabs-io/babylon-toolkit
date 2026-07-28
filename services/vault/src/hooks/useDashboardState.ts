@@ -16,7 +16,6 @@ import {
   useAaveUserPosition,
   useVaultSplitParams,
 } from "@/applications/aave/hooks";
-import type { Asset } from "@/applications/aave/types";
 import { calculateBorrowCapacityUsd } from "@/applications/aave/utils";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -169,17 +168,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const hasDisplayCollateral =
     collateralBtc > 0 || activatingEntries.length > 0;
 
-  // Transform borrowed assets for the asset selection modal
-  const selectableBorrowedAssets = useMemo(
-    (): Asset[] =>
-      borrowedAssets.map((asset) => ({
-        symbol: asset.symbol,
-        name: asset.name,
-        icon: asset.icon,
-      })),
-    [borrowedAssets],
-  );
-
   return {
     collateralBtc,
     displayCollateralBtc,
@@ -198,7 +186,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     hasCollateral,
     hasDisplayCollateral,
     collateralVaults,
-    selectableBorrowedAssets,
     isLoading,
     positionError,
   };

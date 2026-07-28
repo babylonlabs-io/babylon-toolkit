@@ -1,18 +1,21 @@
 /**
- * AssetSelectionModal — full-screen table behavior.
+ * AssetSelectionPanel — picker-step table behavior.
  *
  * Locks in the column logic that differs by mode: borrow lists borrowable
- * reserves with Price + Available + Borrow APR; repay reuses the same surface
- * with only Asset + Price (APR/liquidity don't apply to repaying). Also guards
- * that selecting a row reports the symbol and closes.
+ * reserves with Price + Available + Borrow APR plus a per-row Market Info
+ * button; repay reuses the same surface with only Asset + Price (APR/liquidity
+ * and market data don't apply to repaying). Also guards that selecting a row
+ * reports the symbol and closes, and that Market Info routes to that asset's
+ * borrowing markets data page instead of selecting it.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { LOAN_TAB } from "../../../constants";
-import { AssetSelectionModal } from "../AssetSelectionModal";
+import { AssetSelectionPanel } from "../AssetSelectionPanel";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
@@ -74,15 +77,25 @@ vi.mock("@/services/token/tokenService", () => ({
   getTokenByAddress: () => ({ icon: "icon.png" }),
 }));
 
-describe("AssetSelectionModal", () => {
+// Shows the router's current path so navigation assertions read off the DOM.
+function LocationDisplay() {
+  const { pathname } = useLocation();
+  return <div data-testid="location">{pathname}</div>;
+}
+
+function renderPanel(ui: ReactNode) {
+  return render(
+    <MemoryRouter initialEntries={["/loans"]}>
+      {ui}
+      <LocationDisplay />
+    </MemoryRouter>,
+  );
+}
+
+describe("AssetSelectionPanel", () => {
   it("renders the full borrow table with live price and borrow APR per reserve", () => {
-    render(
-      <AssetSelectionModal
-        isOpen
-        onClose={vi.fn()}
-        onSelectAsset={vi.fn()}
-        mode={LOAN_TAB.BORROW}
-      />,
+    renderPanel(
+      <AssetSelectionPanel onSelectAsset={vi.fn()} mode={LOAN_TAB.BORROW} />,
     );
 
     expect(screen.getByText("Select asset")).toBeInTheDocument();
@@ -100,10 +113,8 @@ describe("AssetSelectionModal", () => {
   });
 
   it("hides the Available and Borrow APR columns in repay mode", () => {
-    render(
-      <AssetSelectionModal
-        isOpen
-        onClose={vi.fn()}
+    renderPanel(
+      <AssetSelectionPanel
         onSelectAsset={vi.fn()}
         mode={LOAN_TAB.REPAY}
         assets={[{ symbol: "USDC", name: "USD Coin", icon: "i", priceUsd: 1 }]}
@@ -116,13 +127,22 @@ describe("AssetSelectionModal", () => {
     expect(screen.queryByText("Available")).not.toBeInTheDocument();
   });
 
-  it("reports the selected symbol and closes when a row is clicked", () => {
+  it("omits the Market Info button in repay mode, which has no market data", () => {
+    renderPanel(
+      <AssetSelectionPanel
+        onSelectAsset={vi.fn()}
+        mode={LOAN_TAB.REPAY}
+        assets={[{ symbol: "USDC", name: "USD Coin", icon: "i", priceUsd: 1 }]}
+      />,
+    );
+
+    expect(screen.queryByText("Market Info")).not.toBeInTheDocument();
+  });
+
+  it("reports the selected symbol when a row is clicked", () => {
     const onSelectAsset = vi.fn();
-    const onClose = vi.fn();
-    render(
-      <AssetSelectionModal
-        isOpen
-        onClose={onClose}
+    renderPanel(
+      <AssetSelectionPanel
         onSelectAsset={onSelectAsset}
         mode={LOAN_TAB.BORROW}
       />,
@@ -131,6 +151,23 @@ describe("AssetSelectionModal", () => {
     screen.getByText("Wrapped BTC").click();
 
     expect(onSelectAsset).toHaveBeenCalledWith("WBTC");
-    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes to the asset's markets data page when Market Info is clicked", () => {
+    const onSelectAsset = vi.fn();
+    renderPanel(
+      <AssetSelectionPanel
+        onSelectAsset={onSelectAsset}
+        mode={LOAN_TAB.BORROW}
+      />,
+    );
+
+    // fireEvent (not a raw .click()) so React flushes the router state update
+    // this triggers before the location is read back.
+    fireEvent.click(screen.getByTestId("asset-market-info-wbtc"));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/markets/wbtc");
+    // Market Info leaves the flow — it must not select the asset.
+    expect(onSelectAsset).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,6 @@ import { Container, Loader } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
-import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { LOAN_TAB } from "@/applications/aave/constants";
 import { useActiveLoans } from "@/applications/aave/hooks";
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
@@ -45,14 +44,14 @@ export default function Loans() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
-    selectableBorrowedAssets,
     isBorrowCapacityLoading,
     borrowCapacityError,
     isLoading,
   } = useDashboardState(isConnected ? address : undefined);
 
-  const { openBorrowPicker, openRepay, goToReserve, assetModalProps } =
-    useLoanActions({ borrowedAssets, selectableBorrowedAssets });
+  const { openBorrowPicker, openRepay, goToReserve } = useLoanActions({
+    borrowedAssets,
+  });
 
   const activeLoans = useActiveLoans(borrowedAssets);
 
@@ -191,8 +190,6 @@ export default function Loans() {
           />
         )}
       </div>
-
-      <AssetSelectionModal {...assetModalProps} />
     </Container>
   );
 }

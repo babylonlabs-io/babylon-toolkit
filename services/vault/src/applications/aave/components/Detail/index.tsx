@@ -1,73 +1,62 @@
-import { useState } from "react";
+/**
+ * LoanFlowOverlay
+ *
+ * The borrow / repay flow as ONE full-screen dialog with three steps: the asset
+ * picker, the borrow/repay form, and the success screen. Which step shows is
+ * driven by the query string (`?picker=`, `?reserve=&tab=`) plus local success
+ * state, so a deep link lands on the right step.
+ *
+ * One dialog on purpose. `.bbn-dialog-fullscreen` is an opaque `bg-surface`
+ * panel, so handing off between two dialogs cross-fades two opaque full-viewport
+ * layers — their combined coverage bottoms out at 75%, showing the page through
+ * the gap. Keeping every step inside one shell means there is nothing to
+ * cross-fade.
+ */
+
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { EmptyState } from "@/components/shared";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
-import { FeatureFlags, getNetworkConfigBTC } from "@/config";
+import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import { getReserveDetailBaseRoute } from "@/routes";
+import { getReserveDetailBaseRoute, getReserveDetailRoute } from "@/routes";
 
-import type { LoanTab } from "../../constants";
-import { useAaveConfig } from "../../context";
-import { useAaveOracleAddress } from "../../hooks";
-import { LoanProvider } from "../context/LoanContext";
-import { LoanCard } from "../LoanCard";
-import { LoanSuccessModal } from "../LoanCard/LoanSuccessModal";
+import { LOAN_TAB, type LoanTab } from "../../constants";
+import { useAaveBorrowedAssets, useAaveUserPosition } from "../../hooks";
+import type { Asset } from "../../types";
+import {
+  AssetSelectionPanel,
+  getAssetPickerWidthClass,
+} from "../AssetSelectionPanel";
+import {
+  LOAN_SUCCESS_WIDTH_CLASS,
+  LoanSuccessPanel,
+} from "../LoanCard/LoanSuccessPanel";
 
-import { useAaveReserveDetail, useBorrowRepayModals } from "./hooks";
-import { PositionGate } from "./PositionGate";
+import {
+  type LoanSuccessState,
+  ReserveDetailPanel,
+} from "./ReserveDetailPanel";
 
-const btcConfig = getNetworkConfigBTC();
+/** Card width of the borrow/repay form step. */
+const FORM_WIDTH_CLASS = "max-w-[520px]";
 
-export function AaveReserveDetail({
+interface LoanFlowOverlayProps {
+  /** Picker step to show; ignored once a reserve is selected. */
+  picker: LoanTab | null;
+  /** Reserve whose borrow/repay form to show; null keeps the picker step. */
+  reserveId: string | null;
+  tab: LoanTab;
+}
+
+export function LoanFlowOverlay({
+  picker,
   reserveId,
   tab,
-}: {
-  reserveId: string;
-  tab: LoanTab;
-}) {
+}: LoanFlowOverlayProps) {
   const navigate = useNavigate();
-
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
-  const { config } = useAaveConfig();
-  // Loading/error surfaces via useAaveReservePrice (shared cache key).
-  const { oracleAddress } = useAaveOracleAddress({
-    spokeAddress: config?.coreSpokeAddress,
-  });
-
-  // Fetch reserve and position data
-  const {
-    isLoading,
-    selectedReserve,
-    assetConfig,
-    vbtcReserve,
-    liquidationThresholdBps,
-    proxyContract,
-    collateralValueUsd,
-    currentDebtAmount,
-    totalDebtValueUsd,
-    healthFactor,
-    tokenPriceUsd,
-    isPriceStale,
-    positionError,
-    ancillaryError,
-    isPositionDataStale,
-    refetchPosition,
-    refetchSplitParams,
-  } = useAaveReserveDetail({ reserveId, address });
-
-  // Modal state management
-  const {
-    showBorrowSuccess,
-    borrowSuccessData,
-    openBorrowSuccess,
-    closeBorrowSuccess,
-    showRepaySuccess,
-    repaySuccessData,
-    openRepaySuccess,
-    closeRepaySuccess,
-  } = useBorrowRepayModals();
 
   // True while a borrow/repay tx is signing or submitting. Lifted from the
   // Borrow/Repay forms (via LoanContext.onProcessingChange) so the dialog can
@@ -75,128 +64,75 @@ export function AaveReserveDetail({
   // unmounts the flow and the success screen never shows even though the tx
   // completes on-chain.
   const [isTxInFlight, setIsTxInFlight] = useState(false);
+  const [success, setSuccess] = useState<LoanSuccessState | null>(null);
+
+  // Repay picker rows. Same source the dashboard reads, so React Query serves
+  // both from one cache entry rather than refetching for the overlay.
+  const { position, debtValueUsd } = useAaveUserPosition(
+    isConnected ? address : undefined,
+  );
+  const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
+  const repayAssets = useMemo(
+    (): Asset[] =>
+      borrowedAssets.map(({ symbol, name, icon }) => ({ symbol, name, icon })),
+    [borrowedAssets],
+  );
+
+  const isV3 = FeatureFlags.isV3UiEnabled;
+  const baseRoute = getReserveDetailBaseRoute(isV3);
 
   // Use `replace` so dismissing the overlay doesn't leave a history entry that
   // browser Back would use to reopen the just-closed flow.
-  const detailBaseRoute = getReserveDetailBaseRoute(FeatureFlags.isV3UiEnabled);
-
-  const handleClose = () => navigate(detailBaseRoute, { replace: true });
-
-  const handleCloseBorrowSuccess = () => {
-    closeBorrowSuccess();
-    navigate(detailBaseRoute, { replace: true });
+  const close = () => {
+    setSuccess(null);
+    navigate(baseRoute, { replace: true });
   };
 
-  const handleCloseRepaySuccess = () => {
-    closeRepaySuccess();
-    navigate(detailBaseRoute, { replace: true });
-  };
+  const showForm = Boolean(reserveId) && !success;
 
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-accent-secondary">Loading...</p>
-        </div>
-      );
+  const renderStep = () => {
+    if (success) {
+      return <LoanSuccessPanel {...success} onDone={close} />;
     }
-
-    if (!isConnected) {
+    if (reserveId) {
       return (
-        <EmptyState
-          avatarUrl={btcConfig.icon}
-          avatarAlt={btcConfig.name}
-          variant="compact"
-          title="Connect to manage position"
-          description="Please connect your wallet to manage your position."
-          isConnected={false}
-          withCard
+        <ReserveDetailPanel
+          reserveId={reserveId}
+          tab={tab}
+          onProcessingChange={setIsTxInFlight}
+          onSuccess={setSuccess}
         />
       );
     }
-
-    // Don't gate on oracleAddress — repay doesn't need it; lookup failure
-    // surfaces via ancillaryError on Borrow.
-    if (!selectedReserve || !assetConfig || !vbtcReserve) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-accent-secondary">Reserve not found</p>
-        </div>
-      );
-    }
-
-    const loanContextValue = {
-      collateralValueUsd,
-      currentDebtAmount,
-      totalDebtValueUsd,
-      healthFactor,
-      liquidationThresholdBps,
-      selectedReserve,
-      assetConfig,
-      proxyContract,
-      oracleAddress,
-      tokenPriceUsd,
-      isPriceStale,
-      isPositionDataStale,
-      refetchPosition,
-      refetchSplitParams,
-      onBorrowSuccess: openBorrowSuccess,
-      onRepaySuccess: openRepaySuccess,
-      onProcessingChange: setIsTxInFlight,
-    };
-
+    const mode = picker ?? tab;
     return (
-      <LoanProvider value={loanContextValue}>
-        <PositionGate
-          positionError={positionError}
-          ancillaryError={ancillaryError}
-          refetchPosition={refetchPosition}
-        >
-          <LoanCard defaultTab={tab} />
-        </PositionGate>
-      </LoanProvider>
+      <AssetSelectionPanel
+        mode={mode}
+        assets={mode === LOAN_TAB.REPAY ? repayAssets : undefined}
+        onSelectAsset={(symbol) =>
+          navigate(getReserveDetailRoute(symbol, mode, isV3))
+        }
+      />
     );
   };
 
-  const showSuccess = showBorrowSuccess || showRepaySuccess;
+  const contentClassName = success
+    ? LOAN_SUCCESS_WIDTH_CLASS
+    : showForm
+      ? FORM_WIDTH_CLASS
+      : getAssetPickerWidthClass(picker ?? tab);
 
   return (
-    <>
-      <V3ModalShell
-        open={!showSuccess}
-        // Withholding `onClose` hides the close button and no-ops the backdrop
-        // click; `disableEscapeClose` covers the ESC key — together they lock
-        // all three dismiss paths while a tx is in flight.
-        onClose={isTxInFlight ? undefined : handleClose}
-        disableEscapeClose={isTxInFlight}
-        contentClassName="max-w-[520px]"
-      >
-        {renderContent()}
-      </V3ModalShell>
-
-      {selectedReserve && assetConfig && (
-        <>
-          <LoanSuccessModal
-            variant="borrow"
-            open={showBorrowSuccess}
-            onDone={handleCloseBorrowSuccess}
-            amount={borrowSuccessData.amount}
-            symbol={assetConfig.symbol}
-            decimals={selectedReserve.token.decimals}
-            assetIcon={assetConfig.icon}
-          />
-
-          <LoanSuccessModal
-            variant="repay"
-            open={showRepaySuccess}
-            onDone={handleCloseRepaySuccess}
-            amount={repaySuccessData.repayAmount}
-            symbol={assetConfig.symbol}
-            decimals={selectedReserve.token.decimals}
-            assetIcon={assetConfig.icon}
-          />
-        </>
-      )}
-    </>
+    <V3ModalShell
+      open
+      // Withholding `onClose` hides the close button and no-ops the backdrop
+      // click; `disableEscapeClose` covers the ESC key — together they lock
+      // all three dismiss paths while a tx is in flight.
+      onClose={isTxInFlight ? undefined : close}
+      disableEscapeClose={isTxInFlight}
+      contentClassName={contentClassName}
+    >
+      {renderStep()}
+    </V3ModalShell>
   );
 }
