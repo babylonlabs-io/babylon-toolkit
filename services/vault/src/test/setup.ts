@@ -3,7 +3,13 @@
  */
 
 import "@testing-library/jest-dom";
+import { configure } from "@testing-library/react";
 import { afterAll, beforeAll, vi } from "vitest";
+
+// Cold async-gated page renders (e.g. /activity behind AaveConfigProvider)
+// exceed the 1000ms waitFor default under CI load; a passing assertion still
+// returns immediately, so raising the ceiling only helps flakes.
+configure({ asyncUtilTimeout: 4000 });
 
 // Mock the local `@/config` adapter so tests don't pull in env.ts (which
 // reads NEXT_PUBLIC_* and triggers the live network runtime).
