@@ -597,5 +597,17 @@ describe("Contract Error Mapping", () => {
       const mapped = mapViemErrorToContractError(new Error(body), "Repay");
       expect(mapped.message).toBe(`Repay failed: ${body}`);
     });
+
+    it("preserves the balance-below-full-repay copy under the Repay mapping", () => {
+      const body = COPY.loans.repay.balanceBelowFullRepay("3 USDC", "2 USDC");
+      const mapped = mapViemErrorToContractError(new Error(body), "Repay");
+      expect(mapped.message).toBe(`Repay failed: ${body}`);
+    });
+
+    it("preserves the balance-below-repay-amount copy under the Repay mapping", () => {
+      const body = COPY.loans.repay.balanceBelowRepayAmount("3 USDC", "2 USDC");
+      const mapped = mapViemErrorToContractError(new Error(body), "Repay");
+      expect(mapped.message).toBe(`Repay failed: ${body}`);
+    });
   });
 });

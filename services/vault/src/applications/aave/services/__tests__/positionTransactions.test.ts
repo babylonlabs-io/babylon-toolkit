@@ -294,6 +294,24 @@ describe("positionTransactions", () => {
         ),
       ).rejects.toThrow("Wallet address not available");
     });
+
+    it("names the wallet balance when it is below the requested amount", async () => {
+      mockGetERC20Balance.mockResolvedValue(999999n);
+
+      await expect(
+        repayPartial(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken" as any,
+          1000000n,
+          mockToken,
+        ),
+      ).rejects.toThrow(
+        "Repaying 1 USDC needs more than your balance of 0.999999 USDC. Lower the amount or acquire more and try again.",
+      );
+      expect(mockApproveERC20).not.toHaveBeenCalled();
+    });
   });
 
   // ============================================================================
