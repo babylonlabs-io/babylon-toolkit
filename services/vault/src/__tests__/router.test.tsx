@@ -95,9 +95,14 @@ const DASHBOARD_TESTID = "dashboard";
 const RESERVE_DETAIL_TESTID = "reserve-detail";
 const VAULTS_PAGE_TESTID = "vaults-page";
 const LOANS_TESTID = "loans-page";
+const EXPLORE_TESTID = "explore-page";
 
 vi.mock("../components/pages/VaultsPage", () => ({
   default: () => <div data-testid={VAULTS_PAGE_TESTID} />,
+}));
+
+vi.mock("../components/pages/Explore", () => ({
+  default: () => <div data-testid={EXPLORE_TESTID} />,
 }));
 
 vi.mock("../components/simple/DashboardPage", () => ({
@@ -338,6 +343,17 @@ describe("Router — new v3 placeholder routes", () => {
     });
     expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
     expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
+  });
+
+  it("renders the Explore page at /explore when the flag is on, not the dashboard", async () => {
+    setV3Flag("true");
+    renderAt("/explore");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(EXPLORE_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
   });
 
   it.each(["/app/aave/reserve/usdc/borrow", "/vaults/details"])(
