@@ -65,20 +65,17 @@ Read live on-chain state via RPC.
 | `getPosition()`        | Get position data (vaults, collateral, proxy)      |
 | `getUserAccountData()` | Get health factor, collateral value, debt value    |
 | `getUserTotalDebt()`   | Get exact current debt (includes accrued interest) |
-| `hasDebt()`            | Check if user has debt in a reserve                |
-| `hasCollateral()`      | Check if user has collateral                       |
 
 ### Utilities
 
 Pure calculations and helpers.
 
-| Function                  | Purpose                                 |
-| ------------------------- | --------------------------------------- |
-| `selectVaultsForAmount()` | Choose optimal BTC vaults for target amount |
-| `calculateHealthFactor()` | Calculate HF from values                |
-| `getHealthFactorStatus()` | Get status (safe/warning/danger)        |
-| `isHealthFactorHealthy()` | Check if HF >= 1.0                      |
-| `aaveValueToUsd()`        | Convert Aave base currency to USD       |
+| Function                   | Purpose                                    |
+| -------------------------- | ------------------------------------------ |
+| `hasDebtFromPosition()`    | Check if a fetched position carries debt   |
+| `calculateHealthFactor()`  | Calculate HF from values                   |
+| `getHealthFactorStatus()`  | Get status (safe/warning/danger)           |
+| `aaveValueToUsd()`         | Convert Aave base currency to USD          |
 
 ---
 
@@ -90,7 +87,7 @@ Pure calculations and helpers.
 | Check if safe to borrow    | `getUserAccountData()` → check health factor |
 | Get exact debt amount      | `getUserTotalDebt()`                         |
 | Repay debt                 | `buildRepayTx()`                             |
-| Check if can withdraw      | `hasDebt()` → must be false                  |
+| Check if can withdraw      | `getUserTotalDebt()` → must be 0             |
 | Withdraw collateral        | `buildWithdrawCollateralsTx()`               |
 
 ---

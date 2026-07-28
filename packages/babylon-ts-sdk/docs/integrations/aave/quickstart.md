@@ -17,9 +17,8 @@ import {
   getPosition,
   getPositionReserveTotalDebt,
   getUserAccountData,
-  hasDebt,
+  getUserTotalDebt,
   // Utilities
-  selectVaultsForAmount,
   aaveValueToUsd,
   aaveRayValueToUsd,
   getHealthFactorStatus,
@@ -198,14 +197,14 @@ if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
 // 2. Verify zero debt
-const userHasDebt = await hasDebt(
+const remainingDebt = await getUserTotalDebt(
   publicClient,
   SPOKE,
   USDC_RESERVE_ID,
   proxyAddress,
 );
 
-if (userHasDebt) {
+if (remainingDebt > 0n) {
   throw new Error("Repay all debt before withdrawing");
 }
 

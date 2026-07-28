@@ -15,8 +15,6 @@ export {
   getUserPositions,
   getUserTotalDebt,
   getUserTotalDebts,
-  hasCollateral,
-  hasDebt,
 } from "./spoke.js";
 
 // Position-proxy operations

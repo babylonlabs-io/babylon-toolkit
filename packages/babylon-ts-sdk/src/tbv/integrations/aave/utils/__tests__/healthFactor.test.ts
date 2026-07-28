@@ -8,32 +8,9 @@ import {
   calculateHealthFactor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
-  isHealthFactorHealthy,
 } from "../healthFactor.js";
 
 describe("healthFactor", () => {
-  describe("isHealthFactorHealthy", () => {
-    it("should return true for health factor >= 1.0", () => {
-      expect(isHealthFactorHealthy(1.0)).toBe(true);
-      expect(isHealthFactorHealthy(1.5)).toBe(true);
-      expect(isHealthFactorHealthy(2.0)).toBe(true);
-    });
-
-    it("should return false for health factor < 1.0", () => {
-      expect(isHealthFactorHealthy(0.99)).toBe(false);
-      expect(isHealthFactorHealthy(0.5)).toBe(false);
-      expect(isHealthFactorHealthy(0)).toBe(false);
-    });
-
-    it("should return true for null (no debt = healthy)", () => {
-      expect(isHealthFactorHealthy(null)).toBe(true);
-    });
-
-    it("should return true for exactly 1.0", () => {
-      expect(isHealthFactorHealthy(1.0)).toBe(true);
-    });
-  });
-
   describe("calculateHealthFactor", () => {
     it("should calculate health factor correctly", () => {
       // HF = (Collateral * LT) / Debt

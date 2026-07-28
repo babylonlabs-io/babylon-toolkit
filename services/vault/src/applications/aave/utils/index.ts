@@ -2,7 +2,6 @@
 export {
   aaveRayValueToUsd,
   aaveValueToUsd,
-  calculateBorrowRatio,
   calculateHealthFactor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
@@ -10,11 +9,7 @@ export {
   wadToNumber,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
-export type {
-  HealthFactorStatus,
-  SelectableVault,
-  VaultSelectionResult,
-} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+export type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 // Display utilities (frontend-only, not in SDK)
 export {

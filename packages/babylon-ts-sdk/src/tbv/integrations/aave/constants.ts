@@ -27,25 +27,6 @@ export const AAVE_FUNCTION_NAMES = {
 export const BTC_DECIMALS = 8;
 
 /**
- * USDC token decimals
- * Used for debt calculations
- */
-export const USDC_DECIMALS = 6;
-
-/**
- * Divisor to convert basis points (BPS) to percentage
- *
- * In Aave v4, risk parameters like collateralRisk are stored in BPS
- * where 10000 BPS = 100%.
- *
- * Example: 8000 BPS / 100 = 80%
- *
- * Reference: ISpoke.sol - "collateralRisk The risk associated with a
- * collateral asset, expressed in BPS"
- */
-export const BPS_TO_PERCENT_DIVISOR = 100;
-
-/**
  * Full basis points scale (10000 BPS = 100%)
  *
  * Use this when converting BPS directly to decimal:
