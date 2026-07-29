@@ -54,6 +54,13 @@ export enum PeginAction {
   SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
   /** Reveal HTLC secret on Ethereum to activate vault */
   ACTIVATE_VAULT = "ACTIVATE_VAULT",
+  /**
+   * Escape hatch: reveal the HTLC secret and immediately redeem the vault for
+   * the depositor (`activateVaultWithSecretAndRedeem`), skipping application
+   * activation. Recovery path when the peg-in was swept on Bitcoin but the
+   * vault could not be activated (application paused / activation revert).
+   */
+  ACTIVATE_AND_REDEEM = "ACTIVATE_AND_REDEEM",
   /** Sign and broadcast HTLC refund transaction for an expired vault */
   REFUND_HTLC = "REFUND_HTLC",
 }
@@ -86,6 +93,15 @@ export interface GetPeginProtocolStateOptions {
   canRefund?: boolean;
   /** Whether the vault provider reported a terminal failure */
   hasProviderTerminalFailure?: boolean;
+  /**
+   * VERIFIED only: the Pre-PegIn HTLC outpoint has been spent on Bitcoin
+   * while the vault is still Verified on Ethereum. The secret was revealed
+   * (e.g. in the calldata of a reverted activation) and the peg-in swept
+   * without the vault activating, so the normal activation no longer returns
+   * value to the depositor and the CSV refund can never broadcast. The
+   * remaining recovery is the activate-and-redeem escape hatch.
+   */
+  htlcSpent?: boolean;
 }
 
 // ============================================================================
@@ -115,6 +131,7 @@ export function getPeginProtocolState(
     pendingIngestion,
     canRefund,
     hasProviderTerminalFailure,
+    htlcSpent,
   } = options;
 
   if (contractStatus === ContractStatus.PENDING) {
@@ -151,6 +168,16 @@ export function getPeginProtocolState(
   }
 
   if (contractStatus === ContractStatus.VERIFIED) {
+    // A spent HTLC while still Verified means the peg-in was swept without
+    // activation: activating normally would hand the collateral to an
+    // application flow that already failed once, and refunding is impossible
+    // (the outpoint is gone). Surface only the escape hatch.
+    if (htlcSpent) {
+      return {
+        contractStatus,
+        availableActions: [PeginAction.ACTIVATE_AND_REDEEM],
+      };
+    }
     return {
       contractStatus,
       availableActions: [PeginAction.ACTIVATE_VAULT],

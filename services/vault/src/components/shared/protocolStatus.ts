@@ -99,6 +99,17 @@ export function isActivationBlocked(gate: ProtocolGateState): boolean {
   return gate.protocol === "paused" || gate.aave === "paused";
 }
 
+/**
+ * The activate-and-redeem escape hatch is an EXIT blocked ONLY by a
+ * protocol-scope pause: `activateVaultWithSecretAndRedeem` never touches the
+ * application adapter, and an aave-scope pause is precisely the situation the
+ * hatch exists to escape — blocking on it would disable the recovery when it
+ * is most needed.
+ */
+export function isActivateAndRedeemBlocked(gate: ProtocolGateState): boolean {
+  return gate.protocol === "paused";
+}
+
 /** Repay is an aave-scope EXIT blocked ONLY by an aave pause (not protocol). */
 export function isRepayBlocked(gate: ProtocolGateState): boolean {
   return gate.aave === "paused";

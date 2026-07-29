@@ -140,4 +140,37 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
       PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
     );
   });
+
+  it("flags the stuck state when the HTLC is spent while still VERIFIED", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        htlcRefundByDepositId: new Map([
+          [VAULT_ID.toLowerCase(), { spent: true, confirmed: false }],
+        ]),
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.ACTIVATE_AND_REDEEM,
+    ]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+  });
+
+  it("does not flag the stuck state from the refunded cache alone (live probe only)", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        htlcRefundByDepositId: new Map(),
+        refundedHtlcVaultIds: new Set([VAULT_ID.toLowerCase()]),
+      }),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.ACTIVATE_VAULT,
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+    );
+  });
 });

@@ -7,6 +7,15 @@ import { ActivateConfirmationModal } from "./ActivateConfirmationModal";
 interface ActivationGateProps {
   activity: VaultActivity;
   onClose: () => void;
+  /**
+   * Advanced escape-hatch entry: routes to the activate-and-redeem withdraw
+   * flow instead of activating. Rendered as a muted link in the confirmation
+   * modal so it is always reachable on a Verified BTC Vault without
+   * competing with the primary activation path. Omitted by the god-mode demo
+   * branch, which must never route into the real withdraw flow — no handler,
+   * no link.
+   */
+  onAdvancedWithdraw?: () => void;
   /** The activation step, rendered only once the user confirms. */
   children: ReactNode;
 }
@@ -20,6 +29,7 @@ interface ActivationGateProps {
 export function ActivationGate({
   activity,
   onClose,
+  onAdvancedWithdraw,
   children,
 }: ActivationGateProps) {
   const [confirmed, setConfirmed] = useState(false);
@@ -41,6 +51,7 @@ export function ActivationGate({
       unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
       onClose={onClose}
       onConfirm={() => setConfirmed(true)}
+      onAdvancedWithdraw={onAdvancedWithdraw}
     />
   );
 }

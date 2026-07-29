@@ -24,9 +24,12 @@ import {
   type BtcConfirmationDetailData,
   DepositProgressView,
 } from "./DepositProgressView";
+import { EmergencyWithdrawGate } from "./EmergencyWithdrawGate";
+import { EmergencyWithdrawSubmittedView } from "./EmergencyWithdrawSubmittedView";
 import {
   ResumeActivationContent,
   ResumeBroadcastContent,
+  ResumeEmergencyWithdrawContent,
   ResumeSignContent,
   ResumeWotsContent,
 } from "./ResumeDepositContent";
@@ -168,6 +171,21 @@ export function PostDepositContinuationView({
   useEffect(() => {
     setStickyVaultId(actionableVaultId);
   }, [actionableVaultId]);
+
+  // Activate-and-redeem escape hatch state. `advancedWithdraw` routes the
+  // activation branch into the withdraw flow when the user opts in via the
+  // confirmation modal's advanced link (reset whenever the driven vault
+  // changes so a sibling switch never inherits the opt-in).
+  // `emergencyWithdrawSubmitted` pins the terminal success screen: the
+  // optimistic CONFIRMED status makes the vault non-actionable on the next
+  // polling tick, which would otherwise re-select into the activation
+  // success copy ("ready for borrowing") — wrong for a redeemed vault.
+  const [advancedWithdraw, setAdvancedWithdraw] = useState(false);
+  const [emergencyWithdrawSubmitted, setEmergencyWithdrawSubmitted] =
+    useState(false);
+  useEffect(() => {
+    setAdvancedWithdraw(false);
+  }, [currentVaultId]);
   const pollingResult = currentVaultId
     ? getPollingResult(currentVaultId)
     : undefined;
@@ -195,6 +213,12 @@ export function PostDepositContinuationView({
   // Cheap copy (not a readonly-laundering cast) so callers can't mutate the prop.
   const siblingVaultIds: string[] = [...vaultIds];
   const vaultCount = siblingVaultIds.length || 1;
+
+  // Terminal escape-hatch success — checked before every selection-driven
+  // branch so a polling tick can never swap it for another surface.
+  if (emergencyWithdrawSubmitted) {
+    return <EmergencyWithdrawSubmittedView onDone={onClose} />;
+  }
 
   if (!currentVaultId) {
     if (vaultIds.length === 0) {
@@ -389,12 +413,40 @@ export function PostDepositContinuationView({
     );
   }
 
+  // Escape hatch branch: entered either because the stuck state was detected
+  // (ACTIVATE_AND_REDEEM is the vault's protocol action) or because the user
+  // opted in via the activation confirmation's advanced link. Cancelling an
+  // advanced opt-in returns to the activation gate instead of closing.
+  const stuckStateDetected = actions.includes(PeginAction.ACTIVATE_AND_REDEEM);
+  if (
+    activity &&
+    (stuckStateDetected ||
+      (advancedWithdraw && actions.includes(PeginAction.ACTIVATE_VAULT)))
+  ) {
+    return (
+      <EmergencyWithdrawGate
+        key={`emergency-gate-${currentVaultId}`}
+        stuckStateDetected={stuckStateDetected}
+        onClose={advancedWithdraw ? () => setAdvancedWithdraw(false) : onClose}
+      >
+        <ResumeEmergencyWithdrawContent
+          activity={activity}
+          depositorEthAddress={depositorEthAddress}
+          siblingVaultIds={siblingVaultIds}
+          onClose={onClose}
+          onSubmitted={() => setEmergencyWithdrawSubmitted(true)}
+        />
+      </EmergencyWithdrawGate>
+    );
+  }
+
   if (activity && actions.includes(PeginAction.ACTIVATE_VAULT)) {
     return (
       <ActivationGate
         key={`gate-${currentVaultId}`}
         activity={activity}
         onClose={onClose}
+        onAdvancedWithdraw={() => setAdvancedWithdraw(true)}
       >
         <ResumeActivationContent
           activity={activity}

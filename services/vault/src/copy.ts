@@ -62,6 +62,7 @@ const KEY_REQUIRED_LABEL = "Key required";
 const SIGNING_REQUIRED_LABEL = "Signing required";
 const BROADCAST_REQUIRED_LABEL = "Broadcast required";
 const ACTIVATION_REQUIRED_LABEL = "Activation required";
+const WITHDRAW_REQUIRED_LABEL = "Withdraw required";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
@@ -97,6 +98,7 @@ export const COPY = {
       AWAITING_KEY: "Awaiting key",
       PROCESSING: "Processing",
       READY_TO_ACTIVATE: "Ready to activate",
+      ACTIVATION_INCOMPLETE: "Activation incomplete",
       AVAILABLE: "Available",
       IN_USE: "In use",
       REDEEM_IN_PROGRESS: "Redeem in progress",
@@ -126,6 +128,10 @@ export const COPY = {
     // it's a governance pause (not a failed secret). Activation resumes on unpause.
     activationPaused:
       "Activation is paused by a protocol governance action. Your BTC Vault stays safe — activation will resume once the pause is lifted.",
+    // Same shape for the activate-and-redeem escape hatch, which is gated only
+    // by a protocol-scope pause (an application pause never blocks it).
+    activateAndRedeemPaused:
+      "Withdrawal is paused by a protocol governance action. Your BTC Vault stays safe — withdrawal will resume once the pause is lifted.",
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
@@ -146,6 +152,8 @@ export const COPY = {
         "BTC Vault activation submitted. Waiting for on-chain confirmation...",
       readyToActivate:
         "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTC Vault.",
+      activationIncomplete:
+        "The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Click 'Withdraw' to have the vault provider send your BTC to your payout address.",
       inUseCannotRedeem:
         "BTC Vault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
@@ -181,6 +189,7 @@ export const COPY = {
       SIGN_PAYOUT_TRANSACTIONS: "Sign Payouts",
       SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast Pre-Pegin",
       ACTIVATE_VAULT: "Activate",
+      ACTIVATE_AND_REDEEM: "Withdraw",
       REFUND_HTLC: "Refund",
     },
     actionRequiredBadges: {
@@ -188,6 +197,7 @@ export const COPY = {
       SIGN_PAYOUT_TRANSACTIONS: SIGNING_REQUIRED_LABEL,
       SIGN_AND_BROADCAST_TO_BITCOIN: BROADCAST_REQUIRED_LABEL,
       ACTIVATE_VAULT: ACTIVATION_REQUIRED_LABEL,
+      ACTIVATE_AND_REDEEM: WITHDRAW_REQUIRED_LABEL,
       REFUND_HTLC: "Refund available",
     },
     expiration: {
@@ -285,6 +295,10 @@ export const COPY = {
       activateVault: {
         title: ACTIVATION_REQUIRED_LABEL,
         body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
+      },
+      activateAndRedeem: {
+        title: WITHDRAW_REQUIRED_LABEL,
+        body: "Your BTC Vault could not be activated - withdraw to recover your BTC.",
       },
       // In-flow prompt nudging the depositor to allow browser notifications so
       // we can ping them when a deposit needs a signature.
@@ -446,6 +460,33 @@ export const COPY = {
       activateButton: "Activate vault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
+      // Advanced entry into the activate-and-redeem escape hatch, rendered as
+      // a muted link under the activation confirmation so it is always
+      // reachable on a Verified BTC Vault without competing with the primary
+      // activation path.
+      advancedWithdrawLink: "Unable to activate? Withdraw without activating",
+    },
+    // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
+    // the BTC Vault in one transaction, skipping application activation. Two
+    // body variants: `bodyStuck` when the stuck state was detected on-chain
+    // (peg-in swept while the vault is still Verified), `bodyAdvanced` when
+    // the user reached it via the advanced link and waiting for expiry +
+    // refund is still the safe default.
+    emergencyWithdraw: {
+      title: "Withdraw without activating",
+      bodyStuck:
+        "The peg-in was completed on Bitcoin, but the BTC Vault was never activated, so you did not receive collateral. Withdrawing redeems the BTC Vault: the vault provider will send your BTC to your payout address.",
+      bodyAdvanced:
+        "This reveals your HTLC secret and redeems the BTC Vault without activating it. The vault provider will send your BTC to your payout address. If you are unsure, cancel and wait — letting the BTC Vault expire and refunding is the safe default.",
+      riskAcknowledgement:
+        "I understand this permanently reveals my HTLC secret and cannot be undone.",
+      confirmButton: "Withdraw without activating",
+      cancelButton: "Cancel",
+      success: {
+        heading: "Withdrawal submitted",
+        body: "Your BTC Vault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
+        doneButton: "Done",
+      },
     },
     artifactDownload: {
       title: "Download BTC Vault artifacts",

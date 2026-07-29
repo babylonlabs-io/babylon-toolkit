@@ -551,6 +551,87 @@ export function ResumeWotsContent({
 // Activate Vault Content
 // ---------------------------------------------------------------------------
 
+/**
+ * Derive the vault's HTLC secret from the connected BTC wallet. Shared by the
+ * normal activation and the activate-and-redeem escape hatch so the two flows
+ * can never drift on the signing-critical input handling:
+ *
+ * - depositor pubkey / htlcVout are read from the on-chain registry (indexer
+ *   data is untrusted for derivation domain separators);
+ * - the indexer-supplied Pre-PegIn tx is verified against the on-chain
+ *   `prePeginTxHash` before `deriveVaultRoot` fires the wallet popup;
+ * - intermediate secret buffers are zero-wiped before this resolves (the
+ *   `finally` runs before the return value is handed to the caller).
+ *
+ * The returned hex string goes to the activation state machine, which
+ * re-validates `sha256(secret) === hashlock` against the on-chain registry
+ * before any calldata is assembled.
+ */
+async function deriveHtlcSecretHex(params: {
+  activity: VaultActivity;
+  btcWalletProvider: BitcoinWallet;
+  connectedBtcAddress: string;
+  walletId: string | undefined;
+}): Promise<string> {
+  const { activity, btcWalletProvider, connectedBtcAddress, walletId } = params;
+  if (!activity.unsignedPrePeginTx) {
+    throw new Error(
+      "Missing Pre-Pegin transaction; cannot recover HTLC secret",
+    );
+  }
+
+  let root: Uint8Array | null = null;
+  let secretBytes: Uint8Array | null = null;
+  try {
+    // Read signing-critical inputs (depositor pubkey, htlcVout) directly
+    // from the registry. Indexer data is untrusted for derivation domain
+    // separators.
+    const reader = getVaultRegistryReader();
+    const { basic, protocol } = await reader.getVaultData(activity.id as Hex);
+    const depositorBtcPubkey = basic.depositorBtcPubKey;
+    const htlcVout = protocol.htlcVout;
+    const onChainPrePeginTxHash = protocol.prePeginTxHash;
+
+    // Indexer-supplied tx is untrusted. Verify against on-chain
+    // prePeginTxHash before deriveVaultRoot fires the wallet popup.
+    const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
+    if (computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()) {
+      throw new Error(
+        `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+          `but on-chain contract has ${onChainPrePeginTxHash}. ` +
+          `Aborting to prevent potential attack.`,
+      );
+    }
+
+    const fundingOutpoints = parseFundingOutpointsFromTx(
+      activity.unsignedPrePeginTx,
+    );
+
+    // Probe the wallet before deriveVaultRoot fires the signing popup. A
+    // wallet that locked since the modal opened fails fast here with an
+    // actionable error instead of a silent no-op (no popup appears).
+    await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
+      probeConnection: shouldProbeWalletLiveness(walletId),
+    });
+
+    root = await deriveVaultRoot(btcWalletProvider, {
+      depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
+      fundingOutpoints,
+    });
+
+    secretBytes = await expandHashlockSecret(root, htlcVout);
+    return uint8ArrayToHex(secretBytes);
+  } finally {
+    // Memory wipes run on every path — success, thrown error, or a caller
+    // that abandoned the await. Neither buffer is needed past the hex
+    // extraction, and `finally` runs before the return value is delivered,
+    // so no live secret material lingers while the caller's on-chain calls
+    // run.
+    root?.fill(0);
+    secretBytes?.fill(0);
+  }
+}
+
 export interface ResumeActivationContentProps {
   activity: VaultActivity;
   depositorEthAddress: string;
@@ -618,59 +699,13 @@ export function ResumeActivationContent({
     setLoading(true);
     setLocalError(null);
 
-    let root: Uint8Array | null = null;
-    let secretBytes: Uint8Array | null = null;
     try {
-      // Read signing-critical inputs (depositor pubkey, htlcVout) directly
-      // from the registry. Indexer data is untrusted for derivation domain
-      // separators.
-      const reader = getVaultRegistryReader();
-      const { basic, protocol } = await reader.getVaultData(activity.id as Hex);
-      const depositorBtcPubkey = basic.depositorBtcPubKey;
-      const htlcVout = protocol.htlcVout;
-      const onChainPrePeginTxHash = protocol.prePeginTxHash;
-
-      // Indexer-supplied tx is untrusted. Verify against on-chain
-      // prePeginTxHash before deriveVaultRoot fires the wallet popup.
-      const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
-      if (
-        computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
-      ) {
-        throw new Error(
-          `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
-            `but on-chain contract has ${onChainPrePeginTxHash}. ` +
-            `Aborting to prevent potential attack.`,
-        );
-      }
-
-      const fundingOutpoints = parseFundingOutpointsFromTx(
-        activity.unsignedPrePeginTx,
-      );
-
-      // Probe the wallet before deriveVaultRoot fires the signing popup. A
-      // wallet that locked since the modal opened fails fast here with an
-      // actionable error instead of a silent no-op (no popup appears).
-      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
-        probeConnection: shouldProbeWalletLiveness(
-          btcConnector?.connectedWallet?.id,
-        ),
+      const secretHex = await deriveHtlcSecretHex({
+        activity,
+        btcWalletProvider,
+        connectedBtcAddress,
+        walletId: btcConnector?.connectedWallet?.id,
       });
-
-      root = await deriveVaultRoot(btcWalletProvider, {
-        depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
-        fundingOutpoints,
-      });
-
-      secretBytes = await expandHashlockSecret(root, htlcVout);
-      const secretHex = uint8ArrayToHex(secretBytes);
-
-      // Wipe before the unrelated `handleActivation` await — neither buffer
-      // is needed past secretHex extraction. Keeps live secret material out
-      // of memory while the activation state machine runs its on-chain calls.
-      secretBytes.fill(0);
-      secretBytes = null;
-      root.fill(0);
-      root = null;
 
       // Hand off to the existing activation state machine. It fetches
       // the canonical hashlock from the on-chain registry and rejects
@@ -688,10 +723,6 @@ export function ResumeActivationContent({
         setLocalError(msg);
       }
     } finally {
-      // Memory wipes run regardless of mount: secret material must not
-      // linger if the user closed the modal mid-flight.
-      root?.fill(0);
-      secretBytes?.fill(0);
       if (mountedRef.current) setLoading(false);
     }
   }, [
@@ -740,6 +771,177 @@ export function ResumeActivationContent({
   if (activated || active) {
     return <VaultActivatedView onGoToDashboard={onGoToDashboard} />;
   }
+
+  return (
+    <DepositProgressView
+      currentStep={renderStep}
+      error={
+        error
+          ? isTerminal
+            ? COPY.deposit.errors.activationDeadlinePassed
+            : mapDepositError(error)
+          : null
+      }
+      isComplete={derived.isComplete}
+      isProcessing={derived.isProcessing}
+      canClose={derived.canClose}
+      canContinueInBackground={derived.canContinueInBackground}
+      payoutSigningProgress={null}
+      peginSigningProgress={null}
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
+      onClose={onClose}
+      onRetry={error && !isTerminal ? handleSubmit : undefined}
+      offchainParamsVersion={activity.offchainParamsVersion}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Emergency Withdraw Content (activate-and-redeem escape hatch)
+// ---------------------------------------------------------------------------
+
+export interface ResumeEmergencyWithdrawContentProps {
+  activity: VaultActivity;
+  depositorEthAddress: string;
+  /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
+  siblingVaultIds?: string[];
+  onClose: () => void;
+  /**
+   * Fired once the reveal-and-redeem transaction has been submitted. The
+   * parent owns the terminal success screen: the optimistic CONFIRMED status
+   * makes this vault non-actionable on the next polling tick, which would
+   * unmount this branch and otherwise land on the activation success copy.
+   */
+  onSubmitted: () => void;
+}
+
+/**
+ * Same derivation flow as ResumeActivationContent, but the reveal goes
+ * through `activateVaultWithSecretAndRedeem`: the vault is redeemed for the
+ * depositor in the same transaction and never becomes collateral. Only
+ * rendered behind EmergencyWithdrawGate — the derivation auto-runs on mount,
+ * so mounting is itself the post-confirmation step.
+ */
+export function ResumeEmergencyWithdrawContent({
+  activity,
+  depositorEthAddress,
+  siblingVaultIds,
+  onClose,
+  onSubmitted,
+}: ResumeEmergencyWithdrawContentProps) {
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
+  const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
+
+  // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
+  // first render must show processing.
+  const [loading, setLoading] = useState(true);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  // Track mount for setState guards after the long async chain below —
+  // the hosting modal can be closed mid-flight.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const {
+    activating,
+    activated,
+    error: activationError,
+    errorTerminal,
+    handleActivation,
+  } = useActivationState({
+    activity,
+    depositorEthAddress,
+    redeemImmediately: true,
+  });
+
+  const handleSubmit = useCallback(async () => {
+    if (!btcWalletProvider || !connectedBtcAddress) {
+      setLocalError("BTC wallet is not connected");
+      setLoading(false);
+      return;
+    }
+    if (!activity.unsignedPrePeginTx) {
+      setLocalError(
+        "Missing Pre-Pegin transaction; cannot recover HTLC secret",
+      );
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLocalError(null);
+
+    try {
+      const secretHex = await deriveHtlcSecretHex({
+        activity,
+        btcWalletProvider,
+        connectedBtcAddress,
+        walletId: btcConnector?.connectedWallet?.id,
+      });
+
+      // Hand off to the activation state machine in escape-hatch mode. It
+      // fetches the canonical hashlock from the on-chain registry and
+      // rejects any mismatch — wrong-wallet derivation surfaces as a
+      // structured error there, not a silent submission.
+      await handleActivation(secretHex);
+    } catch (err) {
+      // Capture regardless of mount (no abort signal on this flow). The error
+      // message carries only tx hashes (regex-scrubbed) and derivation errors,
+      // never secret bytes. Only the UI update below is mount-gated.
+      captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_SECRET, err, activity.id);
+      if (mountedRef.current) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to withdraw BTC Vault";
+        setLocalError(msg);
+      }
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [
+    activity,
+    btcWalletProvider,
+    connectedBtcAddress,
+    btcConnector?.connectedWallet?.id,
+    handleActivation,
+  ]);
+
+  // Defensive auto-run gate (effectively always-enabled today) — see the note
+  // in ResumeWotsContent. Fires when no provider is present so the genuine
+  // "not connected" error surfaces.
+  useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
+
+  // Hand the terminal screen to the parent BEFORE polling makes this vault
+  // non-actionable and unmounts this branch.
+  useEffect(() => {
+    if (activated) onSubmitted();
+  }, [activated, onSubmitted]);
+
+  const error = localError ?? activationError;
+  // Terminal only applies to the on-chain failure (deadline passed), never a
+  // local pre-flight error — which localError would override via `??` above.
+  const isTerminal = localError == null && errorTerminal;
+
+  const renderStep = activating
+    ? DepositFlowStep.ACTIVATE_VAULT
+    : DepositFlowStep.RETRIEVE_SECRET;
+  const derived = computeDepositDerivedState(
+    renderStep,
+    activating || loading,
+    false,
+    error != null,
+  );
+
+  const { vaultCount, currentVaultIndex, perVaultSteps } =
+    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
   return (
     <DepositProgressView

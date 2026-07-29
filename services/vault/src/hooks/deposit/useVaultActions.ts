@@ -27,6 +27,7 @@ import { getWalletClient, switchChain } from "wagmi/actions";
 
 import {
   composeGateState,
+  isActivateAndRedeemBlocked,
   isActivationBlocked,
 } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
@@ -59,7 +60,10 @@ import {
   broadcastPrePeginTransaction,
   fetchVaultById,
 } from "../../services/vault";
-import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
+import {
+  activateVaultWithSecret,
+  activateVaultWithSecretAndRedeem,
+} from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import {
@@ -92,6 +96,14 @@ export interface ActivateVaultParams {
   secretHex: string;
   /** Depositor's ETH address */
   depositorEthAddress: string;
+  /**
+   * Escape hatch mode: call `activateVaultWithSecretAndRedeem` instead of
+   * `activateVaultWithSecret`, revealing the secret and immediately redeeming
+   * the vault for the depositor without application activation. Shares every
+   * pre-reveal gate with the normal flow except the pause gate, which checks
+   * only the protocol scope — an aave-scope pause is what this mode escapes.
+   */
+  redeemImmediately?: boolean;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -377,26 +389,38 @@ export function useVaultActions(): UseVaultActionsReturn {
    * Handle vault activation — reveal HTLC secret on Ethereum
    */
   const handleActivation = async (params: ActivateVaultParams) => {
-    // Activation is an EXIT blocked under Pause (either scope); preserved under
-    // Freeze (time-critical — a depositor with BTC locked must still activate).
-    // Guard the chokepoint behind the disabled Activate button; never reveal the
-    // secret on-chain while paused. Surface a paused error (rather than a silent
-    // return) so the caller's spinner clears via `!activationError` and the user
-    // gets feedback. A fresh on-chain re-check below closes the stale-gate window.
-    if (isActivationBlocked(gate)) {
-      setActivationError(COPY.pegin.activationPaused);
-      return;
-    }
-
     const {
       vaultId,
       secretHex,
       depositorEthAddress,
+      redeemImmediately,
       pendingPegin,
       updatePendingPeginStatus,
       onRefetchActivities,
       onShowSuccessModal,
     } = params;
+
+    // Both modes reveal the secret, so both are EXITs guarded before the
+    // reveal — but with different scopes: normal activation delegates into the
+    // Aave adapter and blocks when EITHER scope is paused, while the
+    // activate-and-redeem escape hatch never touches the adapter and blocks
+    // only on a protocol-scope pause (an aave pause is what it escapes). Both
+    // are preserved under Freeze (time-critical — a depositor with BTC locked
+    // must still be able to exit). Guard the chokepoint behind the disabled
+    // button; never reveal the secret on-chain while paused. Surface a paused
+    // error (rather than a silent return) so the caller's spinner clears via
+    // `!activationError` and the user gets feedback. A fresh on-chain re-check
+    // below closes the stale-gate window.
+    const isRevealBlocked = redeemImmediately
+      ? isActivateAndRedeemBlocked
+      : isActivationBlocked;
+    const pausedMessage = redeemImmediately
+      ? COPY.pegin.activateAndRedeemPaused
+      : COPY.pegin.activationPaused;
+    if (isRevealBlocked(gate)) {
+      setActivationError(pausedMessage);
+      return;
+    }
 
     setActivating(true);
     setActivationError(null);
@@ -435,12 +459,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       const effectiveGate = freshPauseState
         ? composeGateState(freshPauseState)
         : gate;
-      if (isActivationBlocked(effectiveGate)) {
+      if (isRevealBlocked(effectiveGate)) {
         // Same user-visible outcome as the cached-gate early return above —
         // operator action, not a depositor failure, so telemetry stays quiet
         // on both paths.
         expectedInterruption = true;
-        throw new Error(COPY.pegin.activationPaused);
+        throw new Error(pausedMessage);
       }
 
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
@@ -495,10 +519,14 @@ export function useVaultActions(): UseVaultActionsReturn {
         account: depositorEthAddress as Hex,
       });
 
-      // Call activateVaultWithSecret on the contract. Hashlock is forwarded
-      // so the SDK re-checks `sha256(secret) === hashlock` as the last gate
-      // before calldata is assembled.
-      await activateVaultWithSecret({
+      // Reveal the secret on the contract — the normal activation or, in
+      // escape-hatch mode, activate-and-redeem. Hashlock is forwarded so the
+      // SDK re-checks `sha256(secret) === hashlock` as the last gate before
+      // calldata is assembled.
+      const revealSecretOnChain = redeemImmediately
+        ? activateVaultWithSecretAndRedeem
+        : activateVaultWithSecret;
+      await revealSecretOnChain({
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
@@ -516,7 +544,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       vpTokenRegistry.release(peginTxidForRelease);
 
       // Update localStorage status
-      const nextStatus = getNextLocalStatus(PeginAction.ACTIVATE_VAULT);
+      const nextStatus = getNextLocalStatus(
+        redeemImmediately
+          ? PeginAction.ACTIVATE_AND_REDEEM
+          : PeginAction.ACTIVATE_VAULT,
+      );
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
         updatePendingPeginStatus(vaultId, nextStatus);
       }
@@ -524,7 +556,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       logger.event(TELEMETRY_EVENT.ACTIVATION_ACTIVATED, {
         level: "info",
         category: "activation",
-        tags: { vaultId: shortId(vaultId) },
+        tags: {
+          vaultId: shortId(vaultId),
+          // Present only on the escape hatch so existing activation events
+          // keep their exact shape.
+          ...(redeemImmediately ? { redeem: "true" } : {}),
+        },
       });
 
       // Show success and refetch

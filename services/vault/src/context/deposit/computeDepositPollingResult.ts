@@ -215,6 +215,14 @@ export function computeDepositPollingResult(
     refundMaturityState === "mature" &&
     refundSettlement === undefined;
 
+  // Stuck-state signal (VERIFIED only): the HTLC outpoint is spent — mempool
+  // or block — while the vault has not activated, meaning the secret was
+  // revealed and the peg-in swept without the depositor receiving collateral.
+  // Live probe only: confirmed spends of VERIFIED vaults are deliberately
+  // never added to the refunded cache (see PeginPollingContext).
+  const htlcSpent =
+    contractStatus === ContractStatus.VERIFIED && liveRefund?.spent === true;
+
   const peginState = getPeginState(contractStatus, {
     localStatus,
     transactionsReady,
@@ -226,6 +234,7 @@ export function computeDepositPollingResult(
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
     activationDeadlinePassed,
+    htlcSpent,
     canRefund,
     refundMaturityState,
     refundMaturesInBlocks,

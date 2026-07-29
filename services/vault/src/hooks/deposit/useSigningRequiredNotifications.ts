@@ -33,6 +33,8 @@ const ACTION_NOTIFICATION_COPY: Partial<
   [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]:
     COPY.deposit.notifications.signAndBroadcast,
   [PeginAction.ACTIVATE_VAULT]: COPY.deposit.notifications.activateVault,
+  [PeginAction.ACTIVATE_AND_REDEEM]:
+    COPY.deposit.notifications.activateAndRedeem,
 };
 
 export function useSigningRequiredNotifications(

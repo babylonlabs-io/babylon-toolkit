@@ -14,6 +14,7 @@
 
 import {
   activateVault,
+  activateVaultAndRedeem,
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -75,6 +76,44 @@ export async function activateVaultWithSecret(
     // contract's "empty bytes" sentinel explicitly rather than relying on
     // an SDK-side default, per the no-fallback rule on tx-creation paths.
     activationMetadata: "0x",
+    writeContract: writer,
+  });
+}
+
+/**
+ * Depositor escape hatch — calls activateVaultWithSecretAndRedeem on the
+ * contract: reveals the HTLC secret and immediately redeems the vault for
+ * the depositor without any application activation. The registry never
+ * delegates into the application adapter on this path, so it stays usable
+ * while the adapter is paused or its activation reverts; the vault provider
+ * then pays the BTC out to the depositor's committed payout address.
+ */
+export async function activateVaultWithSecretAndRedeem(
+  params: ActivateVaultParams,
+): Promise<TransactionResult> {
+  const { vaultId, secret, hashlock, walletClient, signal } = params;
+
+  signal?.throwIfAborted();
+
+  const writer: EthContractWriter<TransactionResult> = (call) =>
+    executeWrite({
+      walletClient,
+      chain: getETHChain(),
+      address: call.address,
+      abi: call.abi,
+      functionName: call.functionName,
+      args: call.args,
+      errorContext: "vault activate-and-redeem",
+      // No errorAbis: unlike activateVaultWithSecret, this path never
+      // delegates into the Aave adapter, so every possible revert is
+      // already decodable from the registry ABI on the call itself.
+    });
+
+  return activateVaultAndRedeem<TransactionResult>({
+    btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
+    vaultId,
+    secret,
+    hashlock,
     writeContract: writer,
   });
 }

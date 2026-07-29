@@ -10,6 +10,7 @@ import {
   getPeginDisplayStep,
   getPeginState,
   getPrimaryActionButton,
+  isCandidateVault,
   isRefundInFlightOrSettled,
   isVaultActivated,
   LocalStorageStatus,
@@ -285,6 +286,38 @@ describe("peginStateMachine", () => {
       });
       expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
+    });
+
+    it("shows activation incomplete with the withdraw escape hatch when the HTLC is spent", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        htlcSpent: true,
+      });
+      expect(state.displayLabel).toBe(
+        PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+      );
+      expect(state.displayVariant).toBe("warning");
+      expect(state.availableActions).toEqual([PeginAction.ACTIVATE_AND_REDEEM]);
+      expect(state.message).toContain("never activated");
+      // warning variant → no progress step
+      expect(getPeginDisplayStep(state)).toBeNull();
+    });
+
+    it("shows processing after the escape-hatch reveal was submitted (CONFIRMED wins over htlcSpent)", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        htlcSpent: true,
+        localStatus: LocalStorageStatus.CONFIRMED,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("strips the escape hatch too once the activation deadline passed on-chain", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        htlcSpent: true,
+        activationDeadlinePassed: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
     });
   });
 
@@ -651,6 +684,17 @@ describe("peginStateMachine", () => {
       expect(getPrimaryActionButton(state)).toBeNull();
     });
 
+    it("returns Withdraw for the stuck state (VERIFIED with spent HTLC)", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        htlcSpent: true,
+      });
+      const button = getPrimaryActionButton(state);
+      expect(button).toEqual({
+        label: "Withdraw",
+        action: PeginAction.ACTIVATE_AND_REDEEM,
+      });
+    });
+
     it("returns Refund for expired vault with canRefund", () => {
       const state = getPeginState(ContractStatus.EXPIRED, { canRefund: true });
       const button = getPrimaryActionButton(state);
@@ -679,8 +723,32 @@ describe("peginStateMachine", () => {
       ).toBe(LocalStorageStatus.CONFIRMING);
     });
 
+    it("returns CONFIRMED after the activate-and-redeem reveal", () => {
+      expect(getNextLocalStatus(PeginAction.ACTIVATE_AND_REDEEM)).toBe(
+        LocalStorageStatus.CONFIRMED,
+      );
+    });
+
     it("returns null for other actions", () => {
       expect(getNextLocalStatus(PeginAction.NONE)).toBeNull();
+    });
+  });
+
+  describe("isCandidateVault", () => {
+    it("keeps the stuck state a continuation candidate despite its warning variant", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        htlcSpent: true,
+      });
+      expect(state.displayVariant).toBe("warning");
+      expect(isCandidateVault(state)).toBe(true);
+    });
+
+    it("still excludes warning states without the escape hatch", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        activationDeadlinePassed: true,
+      });
+      expect(state.displayVariant).toBe("warning");
+      expect(isCandidateVault(state)).toBe(false);
     });
   });
 

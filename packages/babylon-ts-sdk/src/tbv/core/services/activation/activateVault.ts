@@ -116,6 +116,37 @@ export interface ActivateVaultInput<
 }
 
 /**
+ * Shared pre-write validation for both activation entry points: address and
+ * bytes32 shapes, plus the optional `sha256(secret) == hashlock` pre-check —
+ * the last gate before the secret would enter calldata.
+ *
+ * @returns the 0x-normalised secret to place in calldata
+ */
+function validateActivationInputs(input: {
+  btcVaultRegistryAddress: Address;
+  vaultId: Hex;
+  secret: string;
+  hashlock?: Hex;
+}): Hex {
+  assertAddress(input.btcVaultRegistryAddress, "btcVaultRegistryAddress");
+  assertBytes32(input.vaultId, "vaultId");
+
+  const normalizedSecret = ensureHexPrefix(input.secret);
+  assertBytes32(normalizedSecret, "secret");
+
+  if (input.hashlock !== undefined) {
+    assertBytes32(input.hashlock, "hashlock");
+    if (!validateSecretAgainstHashlock(normalizedSecret, input.hashlock)) {
+      throw new Error(
+        "Invalid secret: SHA256(secret) does not match the provided hashlock",
+      );
+    }
+  }
+
+  return normalizedSecret;
+}
+
+/**
  * Reveal the HTLC secret on Ethereum and activate the vault.
  *
  * Validates inputs, optionally pre-checks the secret against the expected
@@ -147,20 +178,12 @@ export async function activateVault<
 
   signal?.throwIfAborted();
 
-  assertAddress(btcVaultRegistryAddress, "btcVaultRegistryAddress");
-  assertBytes32(vaultId, "vaultId");
-
-  const normalizedSecret = ensureHexPrefix(input.secret);
-  assertBytes32(normalizedSecret, "secret");
-
-  if (hashlock !== undefined) {
-    assertBytes32(hashlock, "hashlock");
-    if (!validateSecretAgainstHashlock(normalizedSecret, hashlock)) {
-      throw new Error(
-        "Invalid secret: SHA256(secret) does not match the provided hashlock",
-      );
-    }
-  }
+  const normalizedSecret = validateActivationInputs({
+    btcVaultRegistryAddress,
+    vaultId,
+    secret: input.secret,
+    hashlock,
+  });
 
   assertHexBytes(activationMetadata, "activationMetadata");
 
@@ -169,5 +192,75 @@ export async function activateVault<
     abi: BTCVaultRegistryABI,
     functionName: "activateVaultWithSecret",
     args: [vaultId, normalizedSecret, activationMetadata],
+  });
+}
+
+export interface ActivateVaultAndRedeemInput<
+  R extends EthContractWriteResult = EthContractWriteResult,
+> {
+  /** BTCVaultRegistry contract address (env-specific). */
+  btcVaultRegistryAddress: Address;
+  /** Vault ID (bytes32, 0x-prefixed). */
+  vaultId: Hex;
+  /**
+   * HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
+   * `0X` prefix is normalised before validation.
+   */
+  secret: string;
+  /**
+   * Optional hashlock for client-side pre-validation. When provided, the SDK
+   * rejects before calling `writeContract` if `sha256(secret) != hashlock`.
+   */
+  hashlock?: Hex;
+  /** Caller-provided write callback — see {@link EthContractWriter}. */
+  writeContract: EthContractWriter<R>;
+  /**
+   * Optional abort signal. Checked before validation runs; since validation
+   * is fully synchronous, cancellation between validation and the write is
+   * not observable and callers should rely on the transport's own
+   * cancellation support for that window.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Depositor escape hatch: reveal the HTLC secret and immediately redeem the
+ * vault for the depositor, without any application activation. The contract
+ * (`activateVaultWithSecretAndRedeem`) runs the same activation preconditions
+ * (Verified status, activation deadline, `sha256(s) == hashlock`) and then
+ * marks the vault Redeemed so the vault provider pays the BTC out to the
+ * depositor's committed payout address. Used when the normal activation is
+ * unavailable (e.g. the application adapter is paused or its activation
+ * reverts) but the secret must still be revealed to recover the swept peg-in.
+ *
+ * Takes no activation metadata — the application entry point is never called.
+ *
+ * @throws `Error` if `btcVaultRegistryAddress` is not a valid 20-byte address
+ * @throws `Error` if `vaultId` or `secret` is not a valid 32-byte hex
+ * @throws `Error` if `hashlock` is provided and is not a valid 32-byte hex,
+ *         or if `sha256(secret) != hashlock`
+ * @throws whatever the injected `writeContract` throws
+ * @throws `AbortError` / caller-provided abort reason if `signal` aborts
+ */
+export async function activateVaultAndRedeem<
+  R extends EthContractWriteResult = EthContractWriteResult,
+>(input: ActivateVaultAndRedeemInput<R>): Promise<R> {
+  const { btcVaultRegistryAddress, vaultId, hashlock, writeContract, signal } =
+    input;
+
+  signal?.throwIfAborted();
+
+  const normalizedSecret = validateActivationInputs({
+    btcVaultRegistryAddress,
+    vaultId,
+    secret: input.secret,
+    hashlock,
+  });
+
+  return writeContract({
+    address: btcVaultRegistryAddress,
+    abi: BTCVaultRegistryABI,
+    functionName: "activateVaultWithSecretAndRedeem",
+    args: [vaultId, normalizedSecret],
   });
 }
