@@ -6,7 +6,10 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type {
+  DepositTerms,
+  DepositTermsApprover,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -230,8 +233,14 @@ class PrototypeApprovalBtcWallet {
   signPsbt(): Promise<string> {
     return Promise.resolve("mockSignedPsbtHex");
   }
+  // Private so a wrong-`this` forward (e.g. an unbound `wallet.approveDepositTerms`
+  // reference) throws instead of silently sharing spread-copied state.
+  #approvedWith: DepositTerms[] = [];
+  get approvedWith(): readonly DepositTerms[] {
+    return this.#approvedWith;
+  }
   approveDepositTerms(terms: DepositTerms): Promise<void> {
-    void terms;
+    this.#approvedWith.push(terms);
     return Promise.resolve();
   }
 }
@@ -242,6 +251,35 @@ const MOCK_ETH_WALLET = {
 };
 
 const MOCK_DEPOSITOR_PUBKEY = "ab".repeat(32);
+
+const MOCK_DEPOSIT_TERMS: DepositTerms = {
+  baseFeeRate: 10n,
+  peginCsvTimelock: 100,
+  payoutTimelock: 100,
+  htlcRefundTimelock: 50,
+  prepeginTxid: "1".repeat(64),
+  prepeginMaxFee: 2000n,
+  keeperPks: ["aa".repeat(32)],
+  challengerPks: ["bb".repeat(32)],
+  vaults: [
+    {
+      htlcVout: 0,
+      vaultProviderPk: "cc".repeat(32),
+      vaultAmount: 100000n,
+      commissionFee: 2500n,
+      depositorClaimValue: 20000n,
+      peginMaxFee: 800n,
+    },
+    {
+      htlcVout: 1,
+      vaultProviderPk: "cc".repeat(32),
+      vaultAmount: 100000n,
+      commissionFee: 2500n,
+      depositorClaimValue: 20000n,
+      peginMaxFee: 800n,
+    },
+  ],
+};
 
 const MOCK_BATCH_RESULT = {
   fundedPrePeginTxHex: "batchFundedPrePeginHex",
@@ -272,6 +310,7 @@ const MOCK_BATCH_RESULT = {
   ],
   htlcSecretHexes: ["11".repeat(32), "22".repeat(32)],
   authAnchorHex: "ee".repeat(32),
+  depositTerms: MOCK_DEPOSIT_TERMS,
 };
 
 const MOCK_PARAMS = {
@@ -1452,6 +1491,26 @@ describe("useDepositFlow", () => {
     });
   });
 
+  describe("Deposit-terms threading", () => {
+    it("forwards the SDK-built depositTerms into payout signing", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      // Per-call, not any-call: the production site is a per-vault loop, so a
+      // regression that forwards terms on only a subset of vaults must fail.
+      const calls = vi.mocked(signAndSubmitPayouts).mock.calls;
+      expect(calls).toHaveLength(2);
+      for (const [params] of calls) {
+        expect(params.depositTerms).toBe(MOCK_DEPOSIT_TERMS);
+      }
+    });
+  });
+
   describe("Deposit-terms approval capability forwarding (F2 regression)", () => {
     it("forwards a prototype-method approveDepositTerms through both wallet wrapper sites", async () => {
       const { preparePeginTransaction } = vi.mocked(
@@ -1490,6 +1549,19 @@ describe("useDepositFlow", () => {
 
       expect(postBroadcastWallet).toBeDefined();
       expect(supportsDepositApproval(postBroadcastWallet!)).toBe(true);
+
+      // Presence isn't enough: the forwarded method must actually delegate to
+      // the underlying wallet with the same terms object.
+      await (
+        peginWallet as BitcoinWallet & DepositTermsApprover
+      ).approveDepositTerms(MOCK_DEPOSIT_TERMS);
+      await (
+        postBroadcastWallet as BitcoinWallet & DepositTermsApprover
+      ).approveDepositTerms(MOCK_DEPOSIT_TERMS);
+      expect(approvalWallet.approvedWith).toEqual([
+        MOCK_DEPOSIT_TERMS,
+        MOCK_DEPOSIT_TERMS,
+      ]);
     });
   });
 });

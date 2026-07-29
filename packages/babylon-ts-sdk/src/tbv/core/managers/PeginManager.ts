@@ -209,10 +209,9 @@ export interface PreparePeginParams {
 
   /**
    * VP commission in basis points; feeds the deposit terms' per-vault
-   * commissionFee. Optional: when omitted, deposit terms carry no
-   * commissionFee (see DepositTermsVaultGroup.commissionFee).
+   * commissionFee (floor(vaultAmount * bps / 10_000)).
    */
-  commissionBps?: number;
+  commissionBps: number;
 
   /**
    * Vault keeper BTC public keys (x-only, 64-char hex).

@@ -21,17 +21,18 @@ export function buildDepositTerms(inputs: BuildDepositTermsInputs): DepositTerms
   if (inputs.vaultAmounts.length === 0) {
     throw new Error("buildDepositTerms: at least one vault amount is required");
   }
-  // TODO(#2106): device-range validation
+  // TODO(#2106): device-range validation — timelock ranges, participant caps,
+  // and the device's commission value-sanity floors (commissionFee >= 546 dust,
+  // vaultAmount > commissionFee + 2*546; vault_tlv.c on app-babylon-vault develop).
   if (inputs.timelockPegin <= 0 || inputs.timelockRefund <= 0) {
     throw new Error("buildDepositTerms: timelocks must be positive");
   }
   // Same bound payout.ts enforces before broadcast; catching drift here keeps
   // the projected commissionFee meaningful.
   if (
-    inputs.commissionBps !== undefined &&
-    (!Number.isInteger(inputs.commissionBps) ||
-      inputs.commissionBps < 0 ||
-      inputs.commissionBps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE)
+    !Number.isInteger(inputs.commissionBps) ||
+    inputs.commissionBps < 0 ||
+    inputs.commissionBps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
   ) {
     throw new Error(
       `buildDepositTerms: commissionBps must be an integer in ` +
@@ -40,21 +41,15 @@ export function buildDepositTerms(inputs: BuildDepositTermsInputs): DepositTerms
   }
 
   const bpsDenominator = BigInt(MAX_VP_COMMISSION_BPS_EXCLUSIVE);
-  const vaults: DepositTermsVaultGroup[] = inputs.vaultAmounts.map((vaultAmount, index) => {
+  const vaults: DepositTermsVaultGroup[] = inputs.vaultAmounts.map((vaultAmount, index) => ({
+    htlcVout: index,
+    vaultProviderPk: inputs.vaultProviderPk,
+    vaultAmount,
     // floor(vaultAmount * bps / 10_000) — matches the vault provider's commission math.
-    const commissionFee =
-      inputs.commissionBps === undefined
-        ? undefined
-        : (vaultAmount * BigInt(inputs.commissionBps)) / bpsDenominator;
-    return {
-      htlcVout: index,
-      vaultProviderPk: inputs.vaultProviderPk,
-      vaultAmount,
-      ...(commissionFee !== undefined ? { commissionFee } : {}),
-      depositorClaimValue: inputs.depositorClaimValue,
-      peginMaxFee: inputs.peginMaxFee,
-    };
-  });
+    commissionFee: (vaultAmount * BigInt(inputs.commissionBps)) / bpsDenominator,
+    depositorClaimValue: inputs.depositorClaimValue,
+    peginMaxFee: inputs.peginMaxFee,
+  }));
 
   return {
     baseFeeRate: inputs.protocolFeeRate,

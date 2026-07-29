@@ -52,6 +52,14 @@ describe("buildDepositTerms", () => {
 
   it("throws on malformed txid and empty vault amounts", () => {
     expect(() => buildDepositTerms({ ...BASE, prepeginTxid: "12" })).toThrow(/txid/i);
+    // Right length, wrong charset — pins the hex check, not just the length.
+    expect(() =>
+      buildDepositTerms({ ...BASE, prepeginTxid: "z".repeat(64) }),
+    ).toThrow(/txid/i);
+    // 0x-prefixed input is rejected, not stripped.
+    expect(() =>
+      buildDepositTerms({ ...BASE, prepeginTxid: "0x" + "a".repeat(62) }),
+    ).toThrow(/txid/i);
     expect(() => buildDepositTerms({ ...BASE, vaultAmounts: [] })).toThrow(/vault/i);
   });
 
@@ -73,13 +81,6 @@ describe("buildDepositTerms", () => {
     expect(() => buildDepositTerms({ ...BASE, commissionBps: 10_000 })).toThrow(/integer/i);
   });
 
-  it("omits commissionFee when commissionBps is not provided", () => {
-    const terms = buildDepositTerms({ ...BASE, commissionBps: undefined });
-    expect(terms.vaults).toHaveLength(2);
-    for (const vault of terms.vaults) {
-      expect(vault).not.toHaveProperty("commissionFee");
-    }
-  });
 });
 
 describe("supportsDepositApproval", () => {

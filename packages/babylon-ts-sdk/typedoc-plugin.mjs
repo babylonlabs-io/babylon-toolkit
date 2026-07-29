@@ -27,6 +27,7 @@ export function load(app) {
 | **[utils](utils.md)** | \`@babylonlabs-io/ts-sdk/tbv/core/utils\` | UTXO, fee, funding, BTC/script, signing helpers |
 | **[services](services.md)** | \`@babylonlabs-io/ts-sdk/tbv/core/services\` | Stateless orchestration (activation, refund, payout polling, protocol state) |
 | **[managers](managers.md)** | \`@babylonlabs-io/ts-sdk/tbv/core\` | Stateful wallet orchestration (PeginManager, PayoutManager) |
+| **[deposit-terms](deposit-terms.md)** | \`@babylonlabs-io/ts-sdk/tbv/core\` | Deposit terms + approval capability for intent-based signing wallets |
 | **[clients](clients.md)** | \`@babylonlabs-io/ts-sdk/tbv/core/clients\` | On-chain readers, mempool client, vault-provider RPC client |
 | **[wallets](wallets.md)** | \`@babylonlabs-io/ts-sdk/shared\` | \`BitcoinWallet\` interface + signing options |
 | **[integrations/aave](integrations/aave.md)** | \`@babylonlabs-io/ts-sdk/tbv/integrations/aave\` | Aave v4 integration (borrow, repay, position reads) |
