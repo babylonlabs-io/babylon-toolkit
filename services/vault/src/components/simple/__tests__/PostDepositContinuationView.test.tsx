@@ -194,6 +194,8 @@ vi.mock("@/copy", () => ({
         chainSwitchFailed: "Could not switch network.",
         receiptTimeout: "Confirmation timed out.",
         network: "Network error.",
+        rpcError: "Please wait a moment and try again.",
+        alreadySubmitted: "Already submitted.",
         staleDeploy: "Reload the page.",
       },
     },
