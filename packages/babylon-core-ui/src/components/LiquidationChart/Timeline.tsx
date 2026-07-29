@@ -189,7 +189,8 @@ export function Timeline({
     if (!windowed.length) return timeAxisLabels;
     const ticks = Math.min(7, windowed.length);
     return Array.from({ length: ticks }, (_, i) => {
-      const idx = Math.round((i / (ticks - 1)) * (windowed.length - 1));
+      // A single candle gets a single tick; the even spread needs ticks >= 2.
+      const idx = ticks < 2 ? 0 : Math.round((i / (ticks - 1)) * (windowed.length - 1));
       return formatTime(windowed[idx].time);
     });
   }, [compact, windowed, timeAxisLabels, formatTime]);

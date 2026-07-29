@@ -57,6 +57,12 @@ describe("Timeline", () => {
     expect(screen.getAllByTestId("liq-candle")).toHaveLength(12);
   });
 
+  it("renders a single candle with a single time tick", () => {
+    const { container } = renderTimeline({ candles: makeCandles(1) });
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(1);
+    expect(within(container).getByText("Jun 15")).toBeInTheDocument();
+  });
+
   it("shows the safe-zone detail lines when they fit above the first event", () => {
     // First band triggers at 77,682 on a 90k-40k axis: roughly the top quarter
     // of the plot is safe, which comfortably fits the title plus two lines.
