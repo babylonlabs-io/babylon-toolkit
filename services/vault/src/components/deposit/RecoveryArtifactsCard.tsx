@@ -1,4 +1,4 @@
-import { Loader } from "@babylonlabs-io/core-ui";
+import { Checkbox, Loader } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import {
@@ -14,6 +14,7 @@ import type { Hex } from "viem";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
 import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
+import { isFileSystemAccessSupported } from "@/services/artifacts";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 
 // Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
@@ -137,16 +138,24 @@ export const RecoveryArtifactsCard = forwardRef<
     progress,
     error,
     downloaded,
+    awaitingSaveConfirmation,
     receivedBytes,
     totalBytes,
     download,
     cancel,
+    confirmSaved,
   } = useArtifactDownload({ vaultId, primeContext });
 
   useImperativeHandle(ref, () => ({ cancel }), [cancel]);
 
-  const persisted = hasArtifactsDownloaded(vaultId);
+  // Bound to this pegin: a receipt stored for a different pegin (a stale
+  // record, or another vault's) must not read as downloaded here.
+  const persisted = hasArtifactsDownloaded(vaultId, peginTxid);
   const isDownloaded = downloaded || persisted;
+
+  // Browsers without the File System Access API cannot stream to a chosen
+  // file, so the user is warned before starting a multi-minute transfer.
+  const usesFallbackSave = !isFileSystemAccessSupported();
 
   const notifiedRef = useRef(false);
   useEffect(() => {
@@ -236,7 +245,21 @@ export const RecoveryArtifactsCard = forwardRef<
         </div>
       </div>
 
-      {!isDownloaded && (
+      {awaitingSaveConfirmation && (
+        <label className="flex w-full cursor-pointer items-start gap-3">
+          <Checkbox
+            checked={false}
+            onChange={confirmSaved}
+            variant="default"
+            showLabel={false}
+          />
+          <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
+            {COPY.deposit.recoveryArtifacts.saveConfirmation}
+          </span>
+        </label>
+      )}
+
+      {!isDownloaded && !awaitingSaveConfirmation && (
         <div className="flex flex-col items-stretch">
           <button
             type="button"
@@ -253,6 +276,11 @@ export const RecoveryArtifactsCard = forwardRef<
           {!error && (
             <span className="mt-2.5 text-center text-xs text-accent-secondary">
               {COPY.deposit.recoveryArtifacts.walletSignatureHint}
+            </span>
+          )}
+          {usesFallbackSave && (
+            <span className="mt-2.5 text-center text-xs text-accent-secondary">
+              {COPY.deposit.recoveryArtifacts.fallbackSaveHint}
             </span>
           )}
         </div>

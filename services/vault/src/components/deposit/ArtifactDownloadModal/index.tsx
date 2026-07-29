@@ -53,7 +53,7 @@ export function ArtifactDownloadModal({
   // its green "Downloaded" state via the same check). Re-seeded whenever the
   // modal opens against a different vault.
   const [downloaded, setDownloaded] = useState(() =>
-    hasArtifactsDownloaded(vaultId),
+    hasArtifactsDownloaded(vaultId, peginTxid),
   );
   // Mirrors RecoveryArtifactsCard's internal `loading` flag via onLoadingChange
   // so the whole modal (title, body, footer button) reads as a single
@@ -62,10 +62,10 @@ export function ArtifactDownloadModal({
 
   useEffect(() => {
     if (open) {
-      setDownloaded(hasArtifactsDownloaded(vaultId));
+      setDownloaded(hasArtifactsDownloaded(vaultId, peginTxid));
       setIsDownloading(false);
     }
-  }, [open, vaultId]);
+  }, [open, vaultId, peginTxid]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
 

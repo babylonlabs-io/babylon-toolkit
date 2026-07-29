@@ -501,6 +501,28 @@ export const COPY = {
       authenticationFailed: "Authentication failed",
       reauthenticationFailed: "Re-authentication failed",
       downloadFailed: "Download failed",
+      unknownRpcError: "Unknown RPC error",
+      // Shown while the browser's save-location dialog is open. The picker is
+      // opened before the wallet prompt, so this is the first status a user
+      // sees after pressing Download.
+      choosingSaveLocation: "Choose where to save your artifacts...",
+      savePickerDescription: "BTC Vault recovery artifacts",
+      // The browser refused the chosen location, or the write failed partway
+      // through (permission revoked, disk full).
+      fileAccessDenied:
+        "Could not write to the selected location. Choose a different folder and try again.",
+      // Browsers without the File System Access API must hold the whole file
+      // in memory, which a full-size bundle does not survive.
+      tooLargeForBrowser:
+        "This browser cannot save a file this large. Please use a Chromium-based browser, such as Chrome or Brave, to download your artifacts.",
+      // Rendered on those same browsers before the download starts, so the
+      // size ceiling is not a surprise partway through a long transfer.
+      fallbackSaveHint:
+        "This browser saves the file to your downloads folder and cannot confirm the save. For large artifacts, use a Chromium-based browser.",
+      // Attestation shown after the fallback download fires: without the File
+      // System Access API the browser gives no save/cancel signal, so the
+      // user confirming is the only evidence the file reached disk.
+      saveConfirmation: "I have saved the artifacts file to my device.",
     },
     form: {
       computingAllocation: "Computing allocation...",

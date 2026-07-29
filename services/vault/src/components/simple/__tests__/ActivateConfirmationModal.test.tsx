@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { forwardRef, useImperativeHandle, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  ARTIFACT_RECEIPT_VERSION,
+  normalizePeginTxid,
+  saveArtifactDownloadReceipt,
+} from "@/utils/artifactDownloadStorage";
 
 import { ActivateConfirmationModal } from "../ActivateConfirmationModal";
 
@@ -72,6 +76,19 @@ const COMMON_PROPS = {
   peginTxid: "0xpegin",
   depositorPk: "0xpk",
 } as const;
+
+/** A receipt bound to COMMON_PROPS.peginTxid, as a real download writes. */
+function seedReceipt(peginTxid: string = COMMON_PROPS.peginTxid) {
+  saveArtifactDownloadReceipt(VAULT_ID, {
+    version: ARTIFACT_RECEIPT_VERSION,
+    peginTxid: normalizePeginTxid(peginTxid),
+    filename: "babylon-vault-artifacts-pegin.json",
+    byteLength: 1024,
+    sha256: "9".repeat(64),
+    savedAt: 1_700_000_000_000,
+    method: "file-system-access",
+  });
+}
 
 describe("ActivateConfirmationModal", () => {
   beforeEach(() => {
@@ -163,7 +180,7 @@ describe("ActivateConfirmationModal", () => {
   });
 
   it("enables Activate vault, hides the checkbox, and shows the downloaded heading when artifacts were already downloaded", () => {
-    markArtifactsDownloaded(VAULT_ID);
+    seedReceipt();
     render(
       <ActivateConfirmationModal
         open
@@ -176,6 +193,23 @@ describe("ActivateConfirmationModal", () => {
     expect(screen.getByText("Artifacts downloaded")).toBeInTheDocument();
     expect(screen.getByText("Activate vault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
+  });
+
+  it("still requires the acknowledgement when the receipt is for a different pegin", () => {
+    // A stale receipt, or one belonging to another vault's deposit, is not
+    // evidence that this deposit's recovery bundle is on disk.
+    seedReceipt("0xsomeotherpegin");
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Activate vault")).toBeDisabled();
+    expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
 
   it("enables Activate vault and removes the checkbox once the card reports a download", () => {

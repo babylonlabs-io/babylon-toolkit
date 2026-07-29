@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { forwardRef, useImperativeHandle, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { markArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  ARTIFACT_RECEIPT_VERSION,
+  normalizePeginTxid,
+  saveArtifactDownloadReceipt,
+} from "@/utils/artifactDownloadStorage";
 
 import { ArtifactDownloadModal } from "..";
 
@@ -58,6 +62,19 @@ const COMMON_PROPS = {
   peginTxid: "0xpegin",
   depositorPk: "0xpk",
 } as const;
+
+/** A receipt bound to COMMON_PROPS.peginTxid, as a real download writes. */
+function seedReceipt(peginTxid: string = COMMON_PROPS.peginTxid) {
+  saveArtifactDownloadReceipt(VAULT_ID, {
+    version: ARTIFACT_RECEIPT_VERSION,
+    peginTxid: normalizePeginTxid(peginTxid),
+    filename: "babylon-vault-artifacts-pegin.json",
+    byteLength: 1024,
+    sha256: "9".repeat(64),
+    savedAt: 1_700_000_000_000,
+    method: "file-system-access",
+  });
+}
 
 describe("ArtifactDownloadModal", () => {
   beforeEach(() => {
@@ -122,7 +139,7 @@ describe("ArtifactDownloadModal", () => {
   });
 
   it("shows Cancel and Done in the downloaded state, with Done firing onComplete", () => {
-    markArtifactsDownloaded(VAULT_ID);
+    seedReceipt();
     const onClose = vi.fn();
     const onComplete = vi.fn();
     render(
@@ -139,5 +156,22 @@ describe("ArtifactDownloadModal", () => {
 
     fireEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show the downloaded state when the receipt is for a different pegin", () => {
+    // A stale receipt, or one belonging to another vault's deposit, is not
+    // evidence that this deposit's recovery bundle is on disk.
+    seedReceipt("0xsomeotherpegin");
+    render(
+      <ArtifactDownloadModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onComplete={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Artifacts downloaded")).toBeNull();
+    expect(screen.queryByText("Done")).toBeNull();
   });
 });
