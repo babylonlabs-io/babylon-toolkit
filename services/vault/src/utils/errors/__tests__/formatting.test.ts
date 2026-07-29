@@ -11,6 +11,7 @@ import { resolve } from "path";
 import {
   HttpRequestError,
   InsufficientFundsError,
+  RpcRequestError,
   UserRejectedRequestError,
 } from "viem";
 import { describe, expect, it } from "vitest";
@@ -278,26 +279,67 @@ describe("Error Formatting", () => {
         cause: revertWrap,
         walk: () => {},
       });
-      expect(sanitizeErrorMessage(outer)).not.toMatch(/Network error/i);
+      // Pin the fall-through: the `0x` guard sends the walker to
+      // `revertRpc.cause` (undefined) → classifyError returns null →
+      // sanitizeErrorMessage surfaces the outer message. Asserting the exact
+      // string keeps the guard protected (the `rpcError` copy also lacks
+      // "Network error", so a looser matcher would pass without it).
+      expect(sanitizeErrorMessage(outer)).toBe("execution reverted");
     });
 
-    it("still classifies RpcRequestError without revert data as network", () => {
-      // Pure transport failure — no `.data`, no revert. Should hit the
-      // network bucket.
+    it("falls through a data-less revert (code 3, no 0x data) to the real reason", () => {
+      // Some providers return a revert with no data. `code === 3` still marks
+      // it a revert, so it must surface the reason — not "wait and retry".
+      const revertRpc = Object.assign(new Error("RPC Request failed."), {
+        name: "RpcRequestError",
+        code: 3,
+        walk: () => {},
+      });
+      const outer = Object.assign(new Error("execution reverted: SomeReason"), {
+        name: "ContractFunctionExecutionError",
+        cause: revertRpc,
+        walk: () => {},
+      });
+      const msg = sanitizeErrorMessage(outer);
+      expect(msg).not.toMatch(/wait a moment and try again/i);
+      expect(msg).toBe("execution reverted: SomeReason");
+    });
+
+    it("classifies RpcRequestError without revert data as an rpc-error, not the user's connection", () => {
+      // A JSON-RPC error the node returned (here -32603 InternalRpcError).
+      // It's a provider/node failure, not transport, so it must NOT tell the
+      // user to check their connection.
       const err = Object.assign(new Error("RPC Request failed."), {
         name: "RpcRequestError",
         code: -32603,
         walk: () => {},
       });
-      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+      const msg = sanitizeErrorMessage(err);
+      expect(msg).not.toMatch(/check your connection/i);
+      expect(msg).toMatch(/wait a moment and try again/i);
     });
 
-    it("collapses HttpRequestError (RPC transport failure)", () => {
+    it("collapses a status-less HttpRequestError (fetch threw) as network", () => {
+      // No `status` = the request never got a response = a real transport
+      // failure, so "check your connection" is honest.
       const err = Object.assign(
         new Error("HTTP request failed.\nURL: https://eth-rpc.example/key"),
         { name: "HttpRequestError" },
       );
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("routes an HttpRequestError WITH a status (429/5xx) to rpc-error, not the connection", () => {
+      // viem sets `status` when the server answered (rate limit / outage) —
+      // a provider problem, so it must NOT tell the user to check their
+      // connection. This is the most likely RPC failure over `http()`.
+      const err = Object.assign(new Error("HTTP request failed."), {
+        name: "HttpRequestError",
+        status: 429,
+      });
+      const msg = sanitizeErrorMessage(err);
+      expect(msg).not.toMatch(/check your connection/i);
+      expect(msg).toMatch(/wait a moment and try again/i);
     });
 
     it("collapses TimeoutError (request timed out) — viem shape", () => {
@@ -325,8 +367,48 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
     });
 
+    it("classifies SocketClosedError as network (transport failure)", () => {
+      const err = Object.assign(new Error("The socket has been closed."), {
+        name: "SocketClosedError",
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("classifies a nonce-too-low / already-known chain as already-submitted, not a retry", () => {
+      // viem's chain for "already known" / nonce errors is
+      // TransactionExecutionError -> NonceTooLowError -> RpcRequestError. The
+      // NonceTooLowError frame (above the RpcRequestError frame) means the tx
+      // is already in the mempool, so the copy must send the user to their
+      // wallet / an explorer rather than invite a retry.
+      const inner = Object.assign(new Error("already known"), {
+        name: "RpcRequestError",
+        code: -32000,
+        walk: () => {},
+      });
+      const nonce = Object.assign(new Error("nonce too low"), {
+        name: "NonceTooLowError",
+        cause: inner,
+        walk: () => {},
+      });
+      const outer = Object.assign(new Error("nonce too low"), {
+        name: "TransactionExecutionError",
+        cause: nonce,
+        walk: () => {},
+      });
+      const msg = sanitizeErrorMessage(outer);
+      expect(msg).not.toMatch(/check your connection/i);
+      expect(msg).not.toMatch(/wait a moment and try again/i);
+      expect(msg).toMatch(/already submitted/i);
+    });
+
+    it("classifies a raw 'already known' provider message as already-submitted", () => {
+      // No viem class wrapping — just the geth mempool string.
+      const msg = sanitizeErrorMessage(new Error("already known"));
+      expect(msg).toMatch(/already submitted/i);
+    });
+
     // The rest of the suite builds synthetic errors via Object.assign so we
-    // can construct arbitrary cause chains. The three smoke tests below
+    // can construct arbitrary cause chains. The four smoke tests below
     // instead use real viem class constructors — if viem renames a class
     // in a future version (e.g. `InsufficientFundsError` →
     // `InsufficientFundsRpcError`), CI fails here loudly rather than
@@ -349,6 +431,18 @@ describe("Error Formatting", () => {
         url: "https://rpc.example/",
       });
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/);
+    });
+
+    it("matches a real viem RpcRequestError instance (node/provider error)", () => {
+      // A JSON-RPC error the node returned. `walk` comes from BaseError so
+      // `isViemShape` passes; `data` is undefined and code is not 3, so it
+      // lands in `rpc-error` — not "check your connection".
+      const err = new RpcRequestError({
+        body: { method: "eth_call" },
+        error: { code: -32603, message: "internal error" },
+        url: "https://rpc.example/",
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/wait a moment and try again/i);
     });
 
     it("collapses Vite chunk 404 (Chrome/Edge wording) wrapped in viem error", () => {

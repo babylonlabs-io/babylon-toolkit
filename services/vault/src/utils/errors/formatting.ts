@@ -38,6 +38,15 @@ const EIP1193 = {
   CHAIN_SWITCH_FAILED: 4902,
 } as const;
 
+/** viem `ExecutionRevertedError.code` — a node revert even without `0x` data. */
+const EXECUTION_REVERTED_RPC_CODE = 3;
+
+// viem `NonceTooLowError.nodeMessage`: the tx is already in the mempool (or
+// mined), so a retry just re-sends and reproduces it. Raw providers surface
+// this unwrapped, so match the message as well as the viem class name.
+const ALREADY_SUBMITTED_PATTERN =
+  /nonce too low|transaction already imported|already known/i;
+
 // ETH-side insufficient-funds wording. Mirrors viem's own
 // `InsufficientFundsError.nodeMessage` regex; callers must first filter out
 // the BTC selector's "Insufficient funds: need N sats" via the sats/pegin
@@ -84,7 +93,9 @@ type ErrorKind =
   | "unauthorized" // EIP-1193 4100 / UnauthorizedProviderError
   | "chain-switch-failed" // EIP-1193 4902 / viem SwitchChainError
   | "receipt-timeout" // viem WaitForTransactionReceiptTimeoutError
-  | "network" // HttpRequestError / WebSocketRequestError / TimeoutError / RpcRequestError
+  | "network" // transport failure: HttpRequestError / WebSocketRequestError / SocketClosedError / viem TimeoutError
+  | "rpc-error" // node/provider JSON-RPC failure via RpcRequestError — not the user's connection
+  | "already-submitted" // nonce-too-low / "already known" — the tx is already in the mempool
   | "stale-deploy"; // Vite dynamic-import 404 after redeploy
 
 const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
@@ -95,6 +106,8 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
   "chain-switch-failed": COPY.common.classifiedErrors.chainSwitchFailed,
   "receipt-timeout": COPY.common.classifiedErrors.receiptTimeout,
   network: COPY.common.classifiedErrors.network,
+  "rpc-error": COPY.common.classifiedErrors.rpcError,
+  "already-submitted": COPY.common.classifiedErrors.alreadySubmitted,
   "stale-deploy": COPY.common.classifiedErrors.staleDeploy,
 };
 
@@ -174,33 +187,69 @@ export function classifyError(err: unknown): ErrorKind | null {
       return "receipt-timeout";
     }
 
-    // RPC / network transport failures.
-    //
-    // `RpcRequestError` is a special case: viem also uses it to wrap
-    // node-level errors that carry contract-revert data (the node returns
-    // `{ code: 3, data: "0x..." }`, viem forwards it on the wrapper's
-    // `.data` field). Those aren't transport failures and should fall
-    // through so the underlying revert message bubbles up.
-    if (obj.name === "RpcRequestError" && isViemShape(obj)) {
-      const data = (obj as { data?: unknown }).data;
-      if (typeof data === "string" && data.startsWith("0x")) {
-        // Contract revert dressed as RPC error — don't classify as network.
-        cur = obj.cause;
-        continue;
-      }
-      return "network";
-    }
-    // `HttpRequestError` / `WebSocketRequestError` names are viem-specific
-    // enough not to collide; `TimeoutError` is generic (AbortSignal.timeout,
-    // `ky`, DOM APIs) and must be gated on viem shape.
+    // Nonce-too-low / "already known" — the tx is already in the mempool (or
+    // mined). "Retry" would re-send and reproduce it, so point the user at
+    // their wallet / an explorer. viem folds these into NonceTooLowError; raw
+    // providers surface the message unwrapped. (NonceTooHigh is a gap, not a
+    // duplicate, so it stays in the generic rpc-error retry bucket.)
     if (
-      obj.name === "HttpRequestError" ||
-      obj.name === "WebSocketRequestError"
+      obj.name === "NonceTooLowError" ||
+      (typeof obj.message === "string" &&
+        ALREADY_SUBMITTED_PATTERN.test(obj.message))
+    ) {
+      return "already-submitted";
+    }
+
+    // Transport failures — "check your connection" is only honest here.
+    //
+    // `HttpRequestError` covers TWO cases (viem `utils/rpc/http`): with a
+    // numeric `status` the server DID answer (429 rate limit, 5xx outage) —
+    // a provider problem, not the user's connection — so route those to
+    // `rpc-error`. A status-less HttpRequestError (fetch threw) is a real
+    // transport failure. Since the app wires `http()` exclusively, a
+    // provider 429/503 is the most likely RPC failure a depositor hits.
+    if (obj.name === "HttpRequestError") {
+      return typeof (obj as { status?: unknown }).status === "number"
+        ? "rpc-error"
+        : "network";
+    }
+    // `WebSocketRequestError` / `SocketClosedError` are genuine transport
+    // failures; the names are viem-specific enough not to collide.
+    // `SocketClosedError` is forward-looking — the app wires `http()` today,
+    // so it only becomes reachable if a WS transport lands later.
+    if (
+      obj.name === "WebSocketRequestError" ||
+      obj.name === "SocketClosedError"
     ) {
       return "network";
     }
+    // `TimeoutError` is generic (AbortSignal.timeout, `ky`, DOM APIs) — gate
+    // on viem shape.
     if (obj.name === "TimeoutError" && isViemShape(obj)) {
       return "network";
+    }
+
+    // `RpcRequestError` wraps a JSON-RPC error the node/provider returned:
+    // rate limit (-32005), resource unavailable (-32002), tx rejected
+    // (-32003), internal (-32603), and node-execution errors (nonce /
+    // "already known") whose inner frame is an RpcRequestError. None of
+    // these are the user's connection, so they get their own copy — never
+    // "check your connection".
+    //
+    // Exception: viem also reuses `RpcRequestError` to carry contract reverts.
+    // A `0x` payload is a revert; so is `code === 3` even when the provider
+    // returns no revert data (some don't). Either is a real revert, not an
+    // RPC failure — fall through so the underlying reason bubbles up.
+    if (obj.name === "RpcRequestError" && isViemShape(obj)) {
+      const data = (obj as { data?: unknown }).data;
+      if (
+        (typeof data === "string" && data.startsWith("0x")) ||
+        obj.code === EXECUTION_REVERTED_RPC_CODE
+      ) {
+        cur = obj.cause;
+        continue;
+      }
+      return "rpc-error";
     }
 
     // Vite chunk 404 after a redeploy — the underlying error is a browser
