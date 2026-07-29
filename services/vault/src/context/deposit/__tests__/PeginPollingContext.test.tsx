@@ -12,7 +12,11 @@ import {
 } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
-import { PeginPollingProvider, usePeginPolling } from "../PeginPollingContext";
+import {
+  PeginPollingProvider,
+  resetPeginPollingProviderCount,
+  usePeginPolling,
+} from "../PeginPollingContext";
 import {
   markWotsSubmitted,
   resetOptimisticDepositState,
@@ -156,6 +160,9 @@ describe("PeginPollingContext", () => {
     // Optimistic completions are app-scoped, so they outlive any single
     // provider — and therefore any single test.
     resetOptimisticDepositState();
+    // Same for the provider mount counter: a test that throws on a second
+    // mount leaves the count non-zero and would trip the next test.
+    resetPeginPollingProviderCount();
   });
 
   it("trusts an in-memory PAYOUT_SIGNED over a stale-cached transactionsReady so the Sign button hides immediately after signing", () => {
@@ -224,14 +231,13 @@ describe("PeginPollingContext", () => {
     );
   });
 
-  it("hides Sign Payouts on the dashboard when the signing modal's own nested provider records the completion", () => {
-    // The reported bug. The dashboard mounts a provider over every activity;
-    // the continuation modal mounts a second one, nested, scoped to the viewed
-    // batch — and the payout signing hook runs under THAT one. While the
-    // optimistic status was per-provider state, the dashboard row that offered
-    // the button never learned the signing had succeeded, so "Sign Payouts"
-    // stayed live for the rest of the session (the VP poll halts once every
-    // deposit reports PendingDepositorSignatures, so nothing else corrected it).
+  it("hides Sign Payouts on the dashboard row when the signing modal records the completion", () => {
+    // The reported bug, now structurally impossible: the modal and the row used
+    // to sit under two different providers, so a completion recorded by the
+    // modal never reached the row and "Sign Payouts" stayed live for the rest
+    // of the session. With one provider they share state — this pins that the
+    // row actually re-renders on the write rather than reading a stale
+    // memoized snapshot.
     const OTHER_ID = "0xpeginOther" as Hex;
     const OTHER_ACTIVITY: VaultActivity = { ...ACTIVITY, id: OTHER_ID };
     mockQueryResult.pendingDepositorSignatures = new Set([
@@ -241,21 +247,21 @@ describe("PeginPollingContext", () => {
 
     // Captured per render: `getPollingResult` is memoized on the provider's
     // inputs, so an assertion holding the pre-action context object would read
-    // the pre-action snapshot and pass regardless of the fix.
+    // the pre-action snapshot and pass regardless.
     const captured: {
-      outer?: PeginPollingContextValue;
-      nested?: PeginPollingContextValue;
+      row?: PeginPollingContextValue;
+      modal?: PeginPollingContextValue;
     } = {};
-    function CaptureOuter() {
-      captured.outer = usePeginPolling();
+    function DashboardRow() {
+      captured.row = usePeginPolling();
       return null;
     }
-    function CaptureNested() {
-      captured.nested = usePeginPolling();
+    function SigningModal() {
+      captured.modal = usePeginPolling();
       return null;
     }
-    const outerActions = (id: string) =>
-      captured.outer?.getPollingResult(id)?.peginState.availableActions;
+    const rowActions = (id: string) =>
+      captured.row?.getPollingResult(id)?.peginState.availableActions;
 
     render(
       <PeginPollingProvider
@@ -263,31 +269,25 @@ describe("PeginPollingContext", () => {
         pendingPegins={[]}
         btcPublicKey={BTC_PUBKEY}
       >
-        <CaptureOuter />
-        <PeginPollingProvider
-          activities={[ACTIVITY]}
-          pendingPegins={[]}
-          btcPublicKey={BTC_PUBKEY}
-        >
-          <CaptureNested />
-        </PeginPollingProvider>
+        <DashboardRow />
+        <SigningModal />
       </PeginPollingProvider>,
     );
 
-    expect(outerActions(ACTIVITY_ID)).toContain(
+    expect(rowActions(ACTIVITY_ID)).toContain(
       PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     );
 
     act(() => {
-      captured.nested?.setOptimisticStatus(
+      captured.modal?.setOptimisticStatus(
         ACTIVITY_ID,
         LocalStorageStatus.PAYOUT_SIGNED,
       );
     });
 
-    expect(outerActions(ACTIVITY_ID)).toEqual([PeginAction.NONE]);
+    expect(rowActions(ACTIVITY_ID)).toEqual([PeginAction.NONE]);
     // The sibling the user has not signed keeps its button.
-    expect(outerActions(OTHER_ID)).toContain(
+    expect(rowActions(OTHER_ID)).toContain(
       PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     );
   });
@@ -931,6 +931,53 @@ describe("PeginPollingContext", () => {
     const status = result.current.getPollingResult(ACTIVITY_ID);
     expect(status?.loading).toBe(true);
     expect(status?.requiredPrePeginDepth).toBeUndefined();
+  });
+
+  it("throws in dev when a second provider mounts alongside the first", () => {
+    // The guardrail. Two providers fork polling and optimistic-completion
+    // state, so an action completed under one stops hiding its button under
+    // the other — silent at runtime, and exactly the bug this tree was
+    // collapsed to remove. Siblings count, not just nesting.
+    const Tree = () => (
+      <>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+      </>
+    );
+
+    expect(() => render(<Tree />)).toThrow(
+      /PeginPollingProvider instances are mounted at once/,
+    );
+  });
+
+  it("allows a provider to remount after the previous one unmounts", () => {
+    // The counter must not leak across mounts — RootLayout swaps its whole
+    // content subtree for the geo-block branch, so a legitimate remount would
+    // otherwise trip the invariant on the second visit.
+    const Tree = () => (
+      <PeginPollingProvider
+        activities={[ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <div />
+      </PeginPollingProvider>
+    );
+
+    render(<Tree />).unmount();
+    expect(() => render(<Tree />)).not.toThrow();
   });
 
   it("surfaces a protocol-params load failure on the deposit result", () => {

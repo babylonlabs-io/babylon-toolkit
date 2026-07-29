@@ -361,6 +361,20 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("activate")).toBeNull();
   });
 
+  it("refetches the VP poll on open", () => {
+    // This used to come for free: the modal mounted its own provider whose
+    // query key was scoped to the viewed batch, so opening it always missed
+    // the cache and refetched. Sharing the app-wide provider means the key no
+    // longer changes — and the poll may already have halted — so without an
+    // explicit refetch the user opens onto a stale snapshot and never sees the
+    // action they came for.
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [PeginAction.NONE] }),
+    );
+    renderView();
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
   it("auto-mounts WOTS submission when the VP needs the WOTS key", () => {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.SUBMIT_WOTS_KEY] }),

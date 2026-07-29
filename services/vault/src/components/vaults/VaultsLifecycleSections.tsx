@@ -6,10 +6,10 @@
  * and "Inactive Vaults" (one row per refundable-expired deposit — inactive is
  * the v3 name for expired — whose Withdraw action performs the HTLC refund).
  * `children` (the Active Vaults section) renders between them, giving the
- * page's Pending → Active → Inactive order while both polling-backed lists
- * stay under the single ProtocolParamsProvider + PeginPollingProvider this
- * component mounts (exactly like the v2 PendingDepositSection) — row state
- * and CTAs derive from the polling result, so god-mode demo rows work
+ * page's Pending → Active → Inactive order. Polling state comes from the app's
+ * single AppPeginPollingProvider (mounted in RootLayout); this component mounts
+ * only the ProtocolParamsProvider its own children need — row state and CTAs
+ * derive from the polling result, so god-mode demo rows work
  * unchanged. `deposits` arrives from the page's single `usePendingDeposits`
  * call (shared with the emptiness hook) so the broadcast/refund modal state
  * is instantiated once.
@@ -37,10 +37,7 @@ import {
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
-import {
-  PeginPollingProvider,
-  useDepositPollingResult,
-} from "@/context/deposit/PeginPollingContext";
+import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { getDemoStepperBatch } from "@/dev/demoDeposit";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
@@ -378,9 +375,7 @@ export function VaultsLifecycleSections({
     pendingActivities,
     expiredActivities,
     allActivities,
-    pendingPegins,
     vaultProviders,
-    btcPublicKey,
     ethAddress,
     broadcastModal,
     refundModal,
@@ -449,11 +444,7 @@ export function VaultsLifecycleSections({
 
   return (
     <ProtocolParamsProvider>
-      <PeginPollingProvider
-        activities={allActivities}
-        pendingPegins={pendingPegins}
-        btcPublicKey={btcPublicKey}
-      >
+      <>
         {pendingActivities.length > 0 && (
           <section className="w-full space-y-2">
             <div className="flex items-center gap-3">
@@ -528,7 +519,7 @@ export function VaultsLifecycleSections({
             </div>
           </V3ModalShell>
         )}
-      </PeginPollingProvider>
+      </>
     </ProtocolParamsProvider>
   );
 }

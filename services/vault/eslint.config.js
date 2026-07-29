@@ -7,6 +7,40 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const USEHOOKS_BAN = {
+  name: "@uidotdev/usehooks",
+  message: "@uidotdev/usehooks is banned in this workspace.",
+};
+
+// The app must mount exactly ONE PeginPollingProvider. A second mount silently
+// forks polling and optimistic-completion state: an action completed under one
+// provider is invisible to a row rendered under the other, which is precisely
+// how a satisfied action kept offering its button. `AppPeginPollingProvider` is
+// the only sanctioned mount; everything else consumes the hooks.
+//
+// `no-restricted-imports` matches the literal specifier, not the resolved path,
+// so every spelling in use has to be listed — same caveat as the src/dev ban.
+const PEGIN_POLLING_PROVIDER_BANS = [
+  "@/context/deposit/PeginPollingContext",
+  "./PeginPollingContext",
+  "../PeginPollingContext",
+  "../../context/deposit/PeginPollingContext",
+  "../../../context/deposit/PeginPollingContext",
+].map((name) => ({
+  name,
+  importNames: ["PeginPollingProvider"],
+  message:
+    "Mount the peg-in polling provider only via AppPeginPollingProvider — the app must have exactly one. Read polling state through usePeginPolling / useDepositPollingResult instead.",
+}));
+
+// Files allowed to import the provider directly: the single composition point,
+// and tests, which mount it to exercise the provider in isolation.
+const PEGIN_POLLING_PROVIDER_MOUNT_FILES = [
+  "src/context/deposit/AppPeginPollingProvider.tsx",
+  "**/__tests__/**",
+  "**/*.test.{ts,tsx}",
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -63,14 +97,7 @@ export default tseslint.config(
       "import-x/no-unused-modules": "error",
       "no-restricted-imports": [
         "error",
-        {
-          paths: [
-            {
-              name: "@uidotdev/usehooks",
-              message: "@uidotdev/usehooks is banned in this workspace.",
-            },
-          ],
-        },
+        { paths: [USEHOOKS_BAN, ...PEGIN_POLLING_PROVIDER_BANS] },
       ],
       "import-x/no-unresolved": [
         "error",
@@ -211,12 +238,10 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            {
-              name: "@uidotdev/usehooks",
-              message: "@uidotdev/usehooks is banned in this workspace.",
-            },
-          ],
+          // Re-declares the bans from the base block: a file's
+          // `no-restricted-imports` is replaced wholesale, not merged, so
+          // omitting them here would silently un-ban them for this scope.
+          paths: [USEHOOKS_BAN, ...PEGIN_POLLING_PROVIDER_BANS],
           patterns: [
             {
               // Both the alias and relative spellings: no-restricted-imports
@@ -229,6 +254,17 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  // Single-polling-provider boundary: the sanctioned mount and the tests may
+  // import `PeginPollingProvider`. Placed last so it wins over both blocks
+  // above, and re-declares the usehooks ban for the same wholesale-replacement
+  // reason. The src/dev pattern ban is not re-declared because every file here
+  // is already exempt from it.
+  {
+    files: PEGIN_POLLING_PROVIDER_MOUNT_FILES,
+    rules: {
+      "no-restricted-imports": ["error", { paths: [USEHOOKS_BAN] }],
     },
   },
   {

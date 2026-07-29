@@ -122,6 +122,54 @@ const PeginPollingContext = createContext<PeginPollingContextValue | null>(
 );
 
 /**
+ * Live `PeginPollingProvider` mounts. Module-level so the invariant below
+ * catches siblings as well as nesting — a `useContext` check would only see a
+ * provider above it, and two providers mounted side by side fork state just as
+ * badly as two nested ones.
+ */
+let mountedProviderCount = 0;
+
+/** Only ever exceeded by a second mount; see {@link useSingleProviderInvariant}. */
+const MAX_CONCURRENT_PROVIDERS = 1;
+
+/**
+ * Fails loudly in development if a second provider mounts.
+ *
+ * Two providers fork both the VP poll and the optimistic-completion reads, so
+ * an action completed under one is invisible to a row rendered under the other.
+ * That is silent at runtime and produces a UI that keeps offering an action the
+ * user already performed — the bug this tree was collapsed to remove.
+ *
+ * Throws in dev so it cannot be ignored; logs in production, where crashing a
+ * depositor mid-flow over a structural invariant would be the worse outcome.
+ * StrictMode is safe: its setup → cleanup → setup for one component nets to 1.
+ */
+function useSingleProviderInvariant(): void {
+  useEffect(() => {
+    mountedProviderCount += 1;
+    if (mountedProviderCount > MAX_CONCURRENT_PROVIDERS) {
+      const message =
+        `${mountedProviderCount} PeginPollingProvider instances are mounted at once. ` +
+        "The app must mount exactly one, via AppPeginPollingProvider — a second " +
+        "instance forks polling and optimistic-completion state, so a completed " +
+        "action stops hiding its own button.";
+      if (import.meta.env.DEV) {
+        throw new Error(message);
+      }
+      logger.error(new Error(message), { tags: { area: "pegin-polling" } });
+    }
+    return () => {
+      mountedProviderCount -= 1;
+    };
+  }, []);
+}
+
+/** Test-only: reset the mount counter between renders. */
+export function resetPeginPollingProviderCount(): void {
+  mountedProviderCount = 0;
+}
+
+/**
  * Centralized Peg-In Polling Provider
  *
  * Manages a single polling loop for all pending deposits instead of
@@ -133,15 +181,17 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
 }: PeginPollingProviderProps) {
+  useSingleProviderInvariant();
+
   // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
   // is on and the panel toggle is enabled). When present, its ids resolve to
   // controlled results below instead of the live polling decision tree.
   const demo = useDemoDeposit();
 
   // Optimistic step completions (for immediate UI feedback after an action).
-  // App-scoped, not provider-scoped: the modal that drives an action mounts its
-  // own provider, so per-instance state never reached the dashboard row that
-  // offered the button. See `optimisticDepositState`.
+  // App-scoped, not provider-scoped: the writers run outside the context
+  // surface, and the provider itself still unmounts (geo-block branch, wallet
+  // churn). See `optimisticDepositState`.
   const {
     statuses: optimisticStatuses,
     refundBroadcastAt: optimisticRefundBroadcastAt,
@@ -553,16 +603,6 @@ export function usePeginPolling() {
 }
 
 /**
- * Non-throwing variant: returns the context if available, else `null`.
- * Use this when a component might render outside the dashboard's
- * PeginPollingProvider (e.g. the active deposit flow modal), so it can
- * gracefully fall back instead of crashing.
- */
-export function usePeginPollingOptional(): PeginPollingContextValue | null {
-  return useContext(PeginPollingContext) ?? null;
-}
-
-/**
  * Hook to get polling result for a specific deposit
  *
  * Convenience hook that wraps getPollingResult.
@@ -574,19 +614,20 @@ export function useDepositPollingResult(depositId: string) {
 
 /**
  * Returns the first deposit-polling result that is indexed for any of the
- * given deposit ids, or `undefined` if none are indexed (or the polling
- * context isn't mounted). Multi-vault batches share one broadcast txid so
- * any indexed sibling carries the same confirmation count — picking the
- * first indexed one avoids missing the data when one sibling is still
- * propagating through the indexer.
+ * given deposit ids, or `undefined` if none are indexed. Multi-vault batches
+ * share one broadcast txid so any indexed sibling carries the same
+ * confirmation count — picking the first indexed one avoids missing the data
+ * when one sibling is still propagating through the indexer.
+ *
+ * A deposit is unindexed in the moments right after broadcast, before the
+ * indexer has it; callers fall back to a direct mempool read there.
  */
 export function useOptionalDepositPollingResult(
   depositIds: readonly string[],
 ): DepositPollingResult | undefined {
-  const polling = usePeginPollingOptional();
-  if (!polling) return undefined;
+  const { getPollingResult } = usePeginPolling();
   for (const id of depositIds) {
-    const result = polling.getPollingResult(id);
+    const result = getPollingResult(id);
     if (result) return result;
   }
   return undefined;

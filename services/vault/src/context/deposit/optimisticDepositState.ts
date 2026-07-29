@@ -1,15 +1,14 @@
 /**
  * App-scoped store for "the user completed this step in this page session".
  *
- * Every mounted `PeginPollingProvider` reads the same snapshot. That scoping is
- * the whole point: the dashboard section mounts a provider over every activity,
- * while the continuation modal mounts its own provider scoped to the viewed
- * batch — nested inside that section. The hooks that drive an action
- * (`usePayoutSigningState`, `ResumeWotsContent`, …) run under the *modal's*
- * provider, so per-provider state meant the dashboard row that offered the
- * button never learned the action had succeeded and kept re-offering it. Same
- * reasoning, and same fix, as the tracking stores in `terminalMilestones.ts`
- * and `daemonTerminalEvents.ts`.
+ * Module-scoped rather than provider state for two reasons. The writers run
+ * outside the context surface — `markWotsSubmitted` is called directly from
+ * `useDepositFlow` and `ResumeDepositContent`, neither of which holds the
+ * context. And the single `AppPeginPollingProvider` still unmounts: RootLayout
+ * swaps its whole content subtree for the geo-block branch, and wallet churn
+ * remounts it, either of which would wipe provider-local state mid-flow. Same
+ * reasoning as the tracking stores in `terminalMilestones.ts` and
+ * `daemonTerminalEvents.ts`.
  *
  * This changes the SCOPE of the signal, not the trust model. It records only
  * outcomes this session watched resolve — it is never persisted, so a reload

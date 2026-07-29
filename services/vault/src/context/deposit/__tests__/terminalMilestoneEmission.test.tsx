@@ -86,56 +86,27 @@ describe("terminal milestone emission across co-mounted providers", () => {
     resetSharedTerminalMilestoneTracking();
   });
 
-  it("emits each terminal once when the continuation modal nests a second provider over the same vault", () => {
+  it("emits each terminal once across a provider remount", () => {
+    // Tracking is module-scoped rather than provider state because the single
+    // provider still unmounts — RootLayout swaps the whole content subtree for
+    // the geo-block branch, and wallet churn remounts it. Provider-local
+    // tracking would re-seed on remount and silently swallow the next terminal.
     const Tree = ({ status }: { status: ContractStatus }) => (
       <PeginPollingProvider
         activities={[activityAt(status)]}
         pendingPegins={[]}
         btcPublicKey={BTC_PUBKEY}
       >
-        <PeginPollingProvider
-          activities={[activityAt(status)]}
-          pendingPegins={[]}
-          btcPublicKey={BTC_PUBKEY}
-        >
-          <div />
-        </PeginPollingProvider>
+        <div />
       </PeginPollingProvider>
     );
 
-    const { rerender } = render(<Tree status={ContractStatus.PENDING} />);
-    rerender(<Tree status={ContractStatus.VERIFIED} />);
-    rerender(<Tree status={ContractStatus.ACTIVE} />);
+    const first = render(<Tree status={ContractStatus.PENDING} />);
+    first.rerender(<Tree status={ContractStatus.VERIFIED} />);
+    first.unmount();
 
-    expect(emittedEventNames()).toEqual([
-      "activation.verified",
-      "deposit.completed",
-    ]);
-  });
-
-  it("emits each terminal once when the dashboard and root-layout providers are siblings over the same vault", () => {
-    const Tree = ({ status }: { status: ContractStatus }) => (
-      <>
-        <PeginPollingProvider
-          activities={[activityAt(status)]}
-          pendingPegins={[]}
-          btcPublicKey={BTC_PUBKEY}
-        >
-          <div />
-        </PeginPollingProvider>
-        <PeginPollingProvider
-          activities={[activityAt(status)]}
-          pendingPegins={[]}
-          btcPublicKey={BTC_PUBKEY}
-        >
-          <div />
-        </PeginPollingProvider>
-      </>
-    );
-
-    const { rerender } = render(<Tree status={ContractStatus.PENDING} />);
-    rerender(<Tree status={ContractStatus.VERIFIED} />);
-    rerender(<Tree status={ContractStatus.ACTIVE} />);
+    const second = render(<Tree status={ContractStatus.VERIFIED} />);
+    second.rerender(<Tree status={ContractStatus.ACTIVE} />);
 
     expect(emittedEventNames()).toEqual([
       "activation.verified",

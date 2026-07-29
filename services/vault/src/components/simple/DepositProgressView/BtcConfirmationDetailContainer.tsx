@@ -1,11 +1,10 @@
 /**
  * Wires confirmation data into the presentational BtcConfirmationDetail
- * panel. Routes through the dashboard's polling cache so the modal and the
+ * panel. Routes through the shared polling cache so the modal and the
  * PendingDepositCard never disagree about depth — both consume the same
  * coalesced `prePeginConfirmations` value. Falls back to a direct mempool
- * poll only when the deposit isn't yet indexed (e.g. moments after
- * broadcast on the active flow, or when rendered outside the dashboard's
- * PeginPollingProvider).
+ * poll only while the deposit isn't yet indexed — the moments right after
+ * broadcast on the active flow, before the indexer has it.
  */
 
 import { useOptionalDepositPollingResult } from "@/context/deposit/PeginPollingContext";

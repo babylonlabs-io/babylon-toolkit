@@ -112,6 +112,17 @@ export function PostDepositContinuationView({
   const { refetch, getPollingResult } = usePeginPolling();
   const navigate = useNavigate();
 
+  // Refresh the VP poll on open. This used to happen for free: the modal
+  // mounted its own provider, whose query key was scoped to the viewed batch,
+  // so opening it always produced a cache miss and a fresh fetch. Sharing the
+  // app-wide provider means the key no longer changes — and the poll may
+  // already have halted (`refetchInterval` stops once every deposit reports
+  // PendingDepositorSignatures), so without this the user can open the modal
+  // onto a stale snapshot and never see the action they came for.
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
   const handleGoToDashboard = useCallback(() => {
     navigate("/", { replace: true });
     onClose();

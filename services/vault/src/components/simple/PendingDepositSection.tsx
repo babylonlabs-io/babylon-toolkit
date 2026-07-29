@@ -16,7 +16,6 @@ import { ExpandablePanel, ExpandMenuButton } from "@/components/shared";
 import { SUMMARY_CARD_CLASS } from "@/components/shared/layoutClasses";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { getNetworkConfigBTC } from "@/config";
-import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { getDemoStepperBatch } from "@/dev/demoDeposit";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
@@ -43,9 +42,7 @@ export function PendingDepositSection() {
     pendingActivities,
     expiredActivities,
     allActivities,
-    pendingPegins,
     vaultProviders,
-    btcPublicKey,
     ethAddress,
     hasPendingDeposits,
     hasExpiredDeposits,
@@ -100,8 +97,8 @@ export function PendingDepositSection() {
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
 
-  // A resume modal is rendered inside this section (under its
-  // PeginPollingProvider). When the last pending deposit advances to a terminal
+  // A resume modal is rendered inside this section. When the last pending
+  // deposit advances to a terminal
   // contract state (e.g. activation confirmed → ACTIVE), it drops out of
   // `pendingActivities`; without this guard the section — and the open modal —
   // would unmount before the modal could show its success terminal. Keep it
@@ -117,19 +114,15 @@ export function PendingDepositSection() {
 
   const count = pendingActivities.length;
 
-  // `PeginPollingProvider` resolves per-deposit `minPrepeginDepth` via
-  // `useProtocolParamsContext` to tell a Bitcoin-confirmation wait apart from
-  // a VP-ingestion wait on the confirming-deposit step — the dashboard doesn't
-  // otherwise mount `ProtocolParamsProvider`, so do it here. Only fires when
-  // there is something pending (the section early-returns above), so we don't
-  // pay the params load on an empty dashboard.
+  // Polling state comes from the app's single AppPeginPollingProvider. This
+  // section still mounts `ProtocolParamsProvider` for its own children — the
+  // resume modal's `useRequiredPrePeginDepth` throws without it, and the
+  // dashboard mounts it nowhere else. Only fires when there is something
+  // pending (the section early-returns above), so an empty dashboard doesn't
+  // pay the params load.
   return (
     <ProtocolParamsProvider>
-      <PeginPollingProvider
-        activities={allActivities}
-        pendingPegins={pendingPegins}
-        btcPublicKey={btcPublicKey}
-      >
+      <>
         <div className="w-full space-y-10">
           {hasPendingDeposits && (
             <div className="space-y-6">
@@ -231,7 +224,7 @@ export function PendingDepositSection() {
             </div>
           </V3ModalShell>
         )}
-      </PeginPollingProvider>
+      </>
     </ProtocolParamsProvider>
   );
 }

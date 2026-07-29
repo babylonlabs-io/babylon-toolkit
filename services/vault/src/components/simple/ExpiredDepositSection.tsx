@@ -6,8 +6,8 @@
  * summary card with total + expand toggle, expanded list of sub-cards) and
  * reuses PendingDepositCard for each row so the refund action stays consistent.
  *
- * Must be rendered inside a PeginPollingProvider so PendingDepositCard can
- * resolve its polling result.
+ * Resolves each card's polling result from the app's single polling provider
+ * (mounted in RootLayout).
  */
 
 import { Avatar, Card, Heading } from "@babylonlabs-io/core-ui";
