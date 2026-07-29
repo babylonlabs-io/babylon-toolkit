@@ -507,37 +507,35 @@ describe("Router — flag-aware reserve-detail routing", () => {
     });
   });
 
-  describe("wrong base route: flag-on + / query params", () => {
+  // The flow is no longer pinned to the base route: it opens over whichever
+  // page under the Aave layout the depositor is already on, so the entry
+  // points never navigate and no page flashes behind the dialog. The page
+  // under the overlay must still be the one that was routed to.
+  describe("flag-on: the flow opens over any page under the Aave layout", () => {
     beforeEach(() => {
       setV3Flag("true");
     });
 
-    it("does NOT open reserve detail overlay on / when flag is on", async () => {
+    it("opens the reserve detail overlay over Overview", async () => {
       renderAt("/?reserve=5&tab=repay");
 
       await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
       });
-      expect(
-        screen.queryByTestId(RESERVE_DETAIL_TESTID),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  describe("wrong base route: flag-on + /vaults query params", () => {
-    beforeEach(() => {
-      setV3Flag("true");
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-tab",
+        "repay",
+      );
     });
 
-    it("does NOT open reserve detail overlay on /vaults when flag is on", async () => {
+    it("opens the reserve detail overlay over Vaults", async () => {
       renderAt("/vaults?reserve=5&tab=repay");
 
       await waitFor(() => {
-        expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
+        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
       });
-      expect(
-        screen.queryByTestId(RESERVE_DETAIL_TESTID),
-      ).not.toBeInTheDocument();
+      expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
     });
   });
   it.each([

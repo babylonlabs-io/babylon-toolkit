@@ -5,7 +5,6 @@ import {
   Outlet,
   Route,
   Routes,
-  useLocation,
   useOutletContext,
   useSearchParams,
 } from "react-router";
@@ -24,12 +23,7 @@ import NotFound from "./components/pages/not-found";
 import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
-import {
-  getReserveDetailBaseRoute,
-  MARKET_RESERVE_PARAM,
-  RESERVE_QUERY_KEYS,
-  ROUTES,
-} from "./routes";
+import { MARKET_RESERVE_PARAM, RESERVE_QUERY_KEYS, ROUTES } from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -82,7 +76,6 @@ const GodModePanelSlot = () =>
 
 const AaveOverlayLayout = () => {
   const outletContext = useOutletContext<RootLayoutContext>();
-  const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const reserveId = searchParams.get(RESERVE_QUERY_KEYS.RESERVE_ID);
   const tab =
@@ -117,17 +110,21 @@ const AaveOverlayLayout = () => {
           <Suspense fallback={<RouteFallback />}>
             <Outlet context={outletContext} />
           </Suspense>
-          {(reserveId || picker) &&
-            pathname ===
-              getReserveDetailBaseRoute(featureFlags.isV3UiEnabled) && (
-              <Suspense fallback={null}>
-                <LoanFlowOverlay
-                  picker={picker}
-                  reserveId={reserveId}
-                  tab={tab}
-                />
-              </Suspense>
-            )}
+          {/* No pathname condition: the flow opens over whichever page under
+              this layout the depositor is on (Overview, Vaults, Loans, a
+              market page), so the entry points never have to navigate to a
+              fixed route and paint it behind the dialog first. This element
+              only exists inside the Aave layout, so the params cannot open it
+              from an unrelated route. */}
+          {(reserveId || picker) && (
+            <Suspense fallback={null}>
+              <LoanFlowOverlay
+                picker={picker}
+                reserveId={reserveId}
+                tab={tab}
+              />
+            </Suspense>
+          )}
           {/* One god-mode panel for every tab under this layout (Overview,
               Vaults, Loans) — mounted here, not per page, so it is present on
               all three and keeps its open/position state across navigation.
