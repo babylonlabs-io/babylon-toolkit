@@ -60,11 +60,18 @@ export function useSigningRequiredNotifications(
       const result = getPollingResult(activity.id);
       if (!result || result.loading || !result.isOwnedByCurrentWallet) continue;
       // Skip deposits the continuation UI won't offer an action for, so we
-      // never nudge an action the user can't actually take there.
+      // never nudge an action the user can't actually take there. Exception:
+      // the stuck-state withdraw (activate-and-redeem) renders as a warning —
+      // not a continuation candidate — and lives in its own modal, yet it is
+      // the most deadline-critical nudge of all (past the activation deadline
+      // both recovery paths die), so it bypasses both gates.
       const { peginState } = result;
-      if (!isCandidateVault(peginState)) continue;
+      const candidate = isCandidateVault(peginState);
       for (const action of peginState.availableActions ?? []) {
-        if (!isActionablePeginAction(action, btcPublicKey)) continue;
+        const isStuckRecovery = action === PeginAction.ACTIVATE_AND_REDEEM;
+        if (!isStuckRecovery && !candidate) continue;
+        if (!isStuckRecovery && !isActionablePeginAction(action, btcPublicKey))
+          continue;
         const copy = ACTION_NOTIFICATION_COPY[action];
         if (!copy) continue;
         out.push({ key: `signing:${activity.id}:${action}`, copy });

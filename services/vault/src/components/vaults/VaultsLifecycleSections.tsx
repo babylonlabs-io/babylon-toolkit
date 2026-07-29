@@ -106,12 +106,14 @@ function PendingRow({
   onOpenDetails,
   onBroadcast,
   onRefund,
+  onEmergencyWithdraw,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onOpenDetails: (depositId: string) => void;
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
+  onEmergencyWithdraw: (depositId: string) => void;
 }) {
   // Undefined until the polling tree indexes this deposit — the row renders
   // its static cells with a loading status meanwhile.
@@ -137,6 +139,10 @@ function PendingRow({
     }
     if (action === PeginAction.REFUND_HTLC) {
       onRefund(activity.id);
+      return;
+    }
+    if (action === PeginAction.ACTIVATE_AND_REDEEM) {
+      onEmergencyWithdraw(activity.id);
       return;
     }
     onOpenDetails(activity.id);
@@ -384,6 +390,7 @@ export function VaultsLifecycleSections({
     ethAddress,
     broadcastModal,
     refundModal,
+    emergencyWithdrawModal,
     demo,
   } = deposits;
 
@@ -431,6 +438,25 @@ export function VaultsLifecycleSections({
     },
     [allActivities, refundModal, handleOpenDetails],
   );
+  const handleEmergencyWithdraw = useCallback(
+    (depositId: string) => {
+      if (allActivities.some((a) => a.id === depositId)) {
+        emergencyWithdrawModal.handleWithdrawClick(depositId, "detected");
+        return;
+      }
+      handleOpenDetails(depositId);
+    },
+    [allActivities, emergencyWithdrawModal, handleOpenDetails],
+  );
+  // Advanced entry from the activation dialog inside the multistepper: swap
+  // the multistepper for the dedicated withdraw modal (the two never stack).
+  const handleAdvancedWithdraw = useCallback(
+    (depositId: string) => {
+      setViewingBatch(null);
+      emergencyWithdrawModal.handleWithdrawClick(depositId, "advanced");
+    },
+    [emergencyWithdrawModal],
+  );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
 
@@ -440,6 +466,7 @@ export function VaultsLifecycleSections({
     broadcastModal.broadcastingActivity ||
       broadcastModal.successOpen ||
       refundModal.refundingActivity ||
+      emergencyWithdrawModal.withdrawing ||
       viewingBatch,
   );
 
@@ -478,6 +505,7 @@ export function VaultsLifecycleSections({
                   onOpenDetails={handleOpenDetails}
                   onBroadcast={handleBroadcast}
                   onRefund={handleRefund}
+                  onEmergencyWithdraw={handleEmergencyWithdraw}
                 />
               ))}
             </div>
@@ -514,6 +542,7 @@ export function VaultsLifecycleSections({
         <PendingDepositModals
           broadcastModal={broadcastModal}
           refundModal={refundModal}
+          emergencyWithdrawModal={emergencyWithdrawModal}
           ethAddress={ethAddress}
         />
 
@@ -524,6 +553,7 @@ export function VaultsLifecycleSections({
                 vaultIds={viewingBatch}
                 depositorEthAddress={ethAddress as Address}
                 onClose={handleViewingClose}
+                onAdvancedWithdraw={handleAdvancedWithdraw}
               />
             </div>
           </V3ModalShell>

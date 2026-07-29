@@ -1,14 +1,17 @@
 /**
  * PendingDepositModals Component
  *
- * Renders the broadcast + refund + success modals used by the pending deposit
- * section. The shared Pre-PegIn broadcast keeps a dedicated modal (it's hoisted
- * to a batch-level button); every other per-vault action (WOTS, payout signing,
- * activation, artifact download) is owned by the deposit multistepper opened
- * from the card body, not a per-action modal here.
+ * Renders the broadcast + refund + emergency-withdraw + success modals used
+ * by the pending deposit section. The shared Pre-PegIn broadcast keeps a
+ * dedicated modal (it's hoisted to a batch-level button); the recovery escape
+ * hatches (HTLC refund, activate-and-redeem withdraw) each own a dedicated
+ * modal; every other per-vault action (WOTS, payout signing, activation,
+ * artifact download) is owned by the deposit multistepper opened from the
+ * card body.
  */
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import { EmergencyWithdrawModal } from "@/components/deposit/EmergencyWithdrawModal";
 import { RefundModal } from "@/components/deposit/RefundModal";
 import type { VaultActivity } from "@/types/activity";
 
@@ -31,15 +34,26 @@ interface RefundModalState {
   handleSuccess: () => void;
 }
 
+interface EmergencyWithdrawModalState {
+  withdrawing: {
+    activity: VaultActivity;
+    stuckStateDetected: boolean;
+  } | null;
+  handleClose: () => void;
+  handleSuccess: () => void;
+}
+
 interface PendingDepositModalsProps {
   broadcastModal: BroadcastModalState;
   refundModal: RefundModalState;
+  emergencyWithdrawModal: EmergencyWithdrawModalState;
   ethAddress: string | undefined;
 }
 
 export function PendingDepositModals({
   broadcastModal,
   refundModal,
+  emergencyWithdrawModal,
   ethAddress,
 }: PendingDepositModalsProps) {
   return (
@@ -64,6 +78,19 @@ export function PendingDepositModals({
           activity={refundModal.refundingActivity}
           onClose={refundModal.handleClose}
           onSuccess={refundModal.handleSuccess}
+        />
+      )}
+
+      {/* Emergency Withdraw Modal (activate-and-redeem escape hatch) */}
+      {emergencyWithdrawModal.withdrawing && (
+        <EmergencyWithdrawModal
+          open={!!emergencyWithdrawModal.withdrawing}
+          activity={emergencyWithdrawModal.withdrawing.activity}
+          stuckStateDetected={
+            emergencyWithdrawModal.withdrawing.stuckStateDetected
+          }
+          onClose={emergencyWithdrawModal.handleClose}
+          onSuccess={emergencyWithdrawModal.handleSuccess}
         />
       )}
 

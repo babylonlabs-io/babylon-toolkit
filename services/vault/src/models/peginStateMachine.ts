@@ -259,10 +259,6 @@ export function isRefundInFlightOrSettled(state: PeginState): boolean {
 /**
  * PegIn actions a depositor can drive inline from the deposit flow.
  *
- * Includes `ACTIVATE_AND_REDEEM`: the stuck-state escape hatch is driven
- * inline by the continuation flow (unlike the refund, which has its own
- * modal), so the continuation view must be able to select the stuck vault.
- *
  * Excludes:
  *  - `NONE` — sentinel for "no action."
  *  - `SIGN_AND_BROADCAST_TO_BITCOIN` — the shared Pre-PegIn broadcast. It's a
@@ -272,29 +268,28 @@ export function isRefundInFlightOrSettled(state: PeginState): boolean {
  *    a local actionable check), but selection there never needs to prefer one
  *    sibling over another for it.
  *  - `REFUND_HTLC` — a terminal escape hatch, not an in-flow next step.
+ *  - `ACTIVATE_AND_REDEEM` — like the refund, a recovery escape hatch with
+ *    its own dedicated modal (EmergencyWithdrawModal), not an in-flow step.
  */
 export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([
   PeginAction.SUBMIT_WOTS_KEY,
   PeginAction.SIGN_PAYOUT_TRANSACTIONS,
   PeginAction.ACTIVATE_VAULT,
-  PeginAction.ACTIVATE_AND_REDEEM,
 ]);
 
 /**
  * Whether a vault is still a candidate for an inline continuation action: it
  * exists, is not past activation, and is not in a warning/danger display state.
- * Exception: the stuck state (VERIFIED + HTLC spent) renders as a warning but
- * carries the activate-and-redeem recovery action, which the continuation flow
- * must still surface — a warning without it would dead-end the recovery.
  * Shared by the post-deposit continuation view (which sibling to surface) and
  * the signing-required notification observer (which deposits to nudge) so the
  * two never drift on "which deposits are actionable".
  */
 export function isCandidateVault(state: PeginState | undefined): boolean {
-  if (!state || isVaultPastActivation(state)) return false;
-  if (canPerformAction(state, PeginAction.ACTIVATE_AND_REDEEM)) return true;
   return (
-    state.displayVariant !== "warning" && state.displayVariant !== "danger"
+    !!state &&
+    !isVaultPastActivation(state) &&
+    state.displayVariant !== "warning" &&
+    state.displayVariant !== "danger"
   );
 }
 
@@ -636,12 +631,15 @@ function getDisplay(
     // activated (secret leaked via a reverted/foreign activation attempt).
     // "Ready to activate" would be wrong — activation returns no collateral
     // and the refund outpoint is gone. Explain what happened and surface the
-    // activate-and-redeem escape hatch instead.
+    // activate-and-redeem escape hatch instead. The tone is deliberately
+    // reassuring (amber warning, "not lost" copy, always-visible subtext):
+    // the state looks like lost funds but is fully recoverable.
     if (options.htlcSpent) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
         displayVariant: "warning",
         message: COPY.pegin.messages.activationIncomplete,
+        inlineSubtext: COPY.pegin.messages.activationIncompleteSubtext,
       };
     }
     return {

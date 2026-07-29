@@ -83,6 +83,13 @@ interface PendingDepositCardProps {
    * Clicks on per-row buttons/links are excluded by the underlying shell.
    */
   onCardClick?: (depositId: string) => void;
+  /**
+   * Optional handler for the activate-and-redeem escape hatch (stuck state:
+   * peg-in swept without activation). When the card's available action is
+   * ACTIVATE_AND_REDEEM, both the CTA and the card body route here — the
+   * dedicated withdraw modal — instead of the multistepper.
+   */
+  onEmergencyWithdraw?: (depositId: string) => void;
 }
 
 export function PendingDepositCard({
@@ -94,6 +101,7 @@ export function PendingDepositCard({
   providerId,
   vaultProviders,
   onCardClick,
+  onEmergencyWithdraw,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -114,12 +122,24 @@ export function PendingDepositCard({
   const isDanger = displayVariant === "danger";
   const dotColor = isDanger ? undefined : STATUS_DOT_COLORS[displayVariant];
 
-  // The card's click opens the refund modal. Keep it inert once a refund is in
-  // flight or settled (covers our own broadcast and one the mempool probe sees
-  // from another device) — there's nothing left to do.
+  // Stuck-state routing: when the available action is the activate-and-redeem
+  // escape hatch, the click goes to the dedicated withdraw modal instead of
+  // the parent's default target (multistepper / refund modal).
+  const routedClick =
+    status.type === "available" &&
+    status.action.action === PeginAction.ACTIVATE_AND_REDEEM &&
+    onEmergencyWithdraw
+      ? () => onEmergencyWithdraw(depositId)
+      : onCardClick
+        ? () => onCardClick(depositId)
+        : undefined;
+
+  // Keep the click inert once a refund is in flight or settled (covers our
+  // own broadcast and one the mempool probe sees from another device) —
+  // there's nothing left to do.
   const handleCardClick =
-    onCardClick && !isRefundInFlightOrSettled(peginState)
-      ? () => onCardClick(depositId)
+    routedClick && !isRefundInFlightOrSettled(peginState)
+      ? routedClick
       : undefined;
 
   // The Pre-PegIn tx is on Bitcoin only once the depositor has broadcast it.

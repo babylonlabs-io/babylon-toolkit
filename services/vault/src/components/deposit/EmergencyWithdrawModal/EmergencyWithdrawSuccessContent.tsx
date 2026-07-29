@@ -1,32 +1,22 @@
-/**
- * EmergencyWithdrawSubmittedView
- *
- * Terminal success screen for the activate-and-redeem escape hatch: the
- * reveal-and-redeem transaction landed, the BTC Vault is redeemed, and the
- * vault provider will pay the BTC out to the depositor's payout address.
- * Rendered as the sole content of the deposit dialog (not a nested modal),
- * owned by PostDepositContinuationView so a polling re-selection cannot swap
- * it for the activation success screen.
- */
-
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 
-import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./DepositProgressView/layout";
-
-interface EmergencyWithdrawSubmittedViewProps {
+interface EmergencyWithdrawSuccessContentProps {
   onDone: () => void;
 }
 
-export function EmergencyWithdrawSubmittedView({
+/**
+ * Terminal success content: the reveal-and-redeem transaction landed, the
+ * BTC Vault is redeemed, and the vault provider will pay the BTC out to the
+ * depositor's committed payout address.
+ */
+export function EmergencyWithdrawSuccessContent({
   onDone,
-}: EmergencyWithdrawSubmittedViewProps) {
+}: EmergencyWithdrawSuccessContentProps) {
   return (
-    <div
-      className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} overflow-hidden rounded-2xl border border-secondary-strokeLight bg-primary-contrast px-6 pb-6 pt-10`}
-    >
-      <div className="flex flex-col items-center gap-10 pb-10 text-center">
+    <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight bg-surface px-6 pb-6 pt-10 dark:border-secondary-strokeDark">
+      <div className="flex flex-col items-center gap-6">
         <svg
           width="92"
           height="92"
@@ -49,8 +39,8 @@ export function EmergencyWithdrawSubmittedView({
             strokeWidth="2"
           />
         </svg>
-        <div className="flex flex-col items-center gap-4">
-          <Heading variant="h4" className="text-black dark:text-white">
+        <div className="flex w-full flex-col items-center gap-4 text-center">
+          <Heading variant="h5" className="text-accent-primary">
             {COPY.deposit.emergencyWithdraw.success.heading}
           </Heading>
           <Text variant="body1" className="text-accent-secondary">

@@ -152,8 +152,14 @@ export const COPY = {
         "BTC Vault activation submitted. Waiting for on-chain confirmation...",
       readyToActivate:
         "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTC Vault.",
+      // Deliberately reassuring: this state looks alarming but the BTC is
+      // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
-        "The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Click 'Withdraw' to have the vault provider send your BTC to your payout address.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
+      // Always-visible one-liner under the amount (the message above is
+      // tooltip-only); same reassuring tone.
+      activationIncompleteSubtext:
+        "Your BTC is not lost — withdraw to receive it back.",
       inUseCannotRedeem:
         "BTC Vault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
@@ -474,13 +480,16 @@ export const COPY = {
     // refund is still the safe default.
     emergencyWithdraw: {
       title: "Withdraw without activating",
+      // Reassurance first: the stuck state looks like lost funds but is
+      // fully recoverable through this flow.
       bodyStuck:
-        "The peg-in was completed on Bitcoin, but the BTC Vault was never activated, so you did not receive collateral. Withdrawing redeems the BTC Vault: the vault provider will send your BTC to your payout address.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Withdrawing redeems the BTC Vault — the vault provider will send your BTC to your payout address.",
       bodyAdvanced:
         "This reveals your HTLC secret and redeems the BTC Vault without activating it. The vault provider will send your BTC to your payout address. If you are unsure, cancel and wait — letting the BTC Vault expire and refunding is the safe default.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       confirmButton: "Withdraw without activating",
+      retryButton: "Retry",
       cancelButton: "Cancel",
       success: {
         heading: "Withdrawal submitted",

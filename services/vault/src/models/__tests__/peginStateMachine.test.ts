@@ -297,7 +297,9 @@ describe("peginStateMachine", () => {
       );
       expect(state.displayVariant).toBe("warning");
       expect(state.availableActions).toEqual([PeginAction.ACTIVATE_AND_REDEEM]);
-      expect(state.message).toContain("never activated");
+      // Reassuring tone: the state looks like lost funds but is recoverable.
+      expect(state.message).toContain("not lost");
+      expect(state.inlineSubtext).toContain("not lost");
       // warning variant → no progress step
       expect(getPeginDisplayStep(state)).toBeNull();
     });
@@ -735,15 +737,15 @@ describe("peginStateMachine", () => {
   });
 
   describe("isCandidateVault", () => {
-    it("keeps the stuck state a continuation candidate despite its warning variant", () => {
+    it("excludes the stuck state (it recovers via a dedicated modal, not the continuation flow)", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
         htlcSpent: true,
       });
       expect(state.displayVariant).toBe("warning");
-      expect(isCandidateVault(state)).toBe(true);
+      expect(isCandidateVault(state)).toBe(false);
     });
 
-    it("still excludes warning states without the escape hatch", () => {
+    it("excludes other warning states", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
         activationDeadlinePassed: true,
       });

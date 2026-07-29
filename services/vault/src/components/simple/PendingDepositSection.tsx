@@ -51,6 +51,7 @@ export function PendingDepositSection() {
     hasExpiredDeposits,
     broadcastModal,
     refundModal,
+    emergencyWithdrawModal,
     demo,
   } = usePendingDeposits();
 
@@ -100,6 +101,25 @@ export function PendingDepositSection() {
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
 
+  // Stuck-state escape hatch: the card routes here when its available action
+  // is ACTIVATE_AND_REDEEM (detected on-chain), opening the dedicated
+  // withdraw modal instead of the multistepper.
+  const handleEmergencyWithdraw = useCallback(
+    (depositId: string) => {
+      emergencyWithdrawModal.handleWithdrawClick(depositId, "detected");
+    },
+    [emergencyWithdrawModal],
+  );
+  // Advanced entry from the activation dialog inside the multistepper: swap
+  // the multistepper for the dedicated withdraw modal (the two never stack).
+  const handleAdvancedWithdraw = useCallback(
+    (depositId: string) => {
+      setViewingBatch(null);
+      emergencyWithdrawModal.handleWithdrawClick(depositId, "advanced");
+    },
+    [emergencyWithdrawModal],
+  );
+
   // A resume modal is rendered inside this section (under its
   // PeginPollingProvider). When the last pending deposit advances to a terminal
   // contract state (e.g. activation confirmed → ACTIVE), it drops out of
@@ -110,6 +130,7 @@ export function PendingDepositSection() {
     broadcastModal.broadcastingActivity ||
       broadcastModal.successOpen ||
       refundModal.refundingActivity ||
+      emergencyWithdrawModal.withdrawing ||
       viewingBatch,
   );
 
@@ -195,6 +216,7 @@ export function PendingDepositSection() {
                           providerId={group[0].providers[0].id}
                           vaultProviders={vaultProviders}
                           onCardClick={handleCardClick}
+                          onEmergencyWithdraw={handleEmergencyWithdraw}
                         />
                       ),
                     )}
@@ -211,11 +233,13 @@ export function PendingDepositSection() {
           />
         </div>
 
-        {/* Broadcast / Refund / Success modals. Every other per-vault action
-            is owned by the deposit multistepper opened from the card body. */}
+        {/* Broadcast / Refund / Withdraw / Success modals. Every other
+            per-vault action is owned by the deposit multistepper opened from
+            the card body. */}
         <PendingDepositModals
           broadcastModal={broadcastModal}
           refundModal={refundModal}
+          emergencyWithdrawModal={emergencyWithdrawModal}
           ethAddress={ethAddress}
         />
 
@@ -227,6 +251,7 @@ export function PendingDepositSection() {
                 vaultIds={viewingBatch}
                 depositorEthAddress={ethAddress as Address}
                 onClose={handleViewingClose}
+                onAdvancedWithdraw={handleAdvancedWithdraw}
               />
             </div>
           </V3ModalShell>
