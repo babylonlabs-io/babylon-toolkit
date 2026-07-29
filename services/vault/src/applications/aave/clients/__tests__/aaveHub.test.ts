@@ -28,11 +28,13 @@ describe("getAssetLiquiditiesSafe", () => {
     vi.clearAllMocks();
   });
 
-  it("pairs liquidity + owed per asset into one result", async () => {
+  it("groups liquidity, owed and swept per asset into one result", async () => {
     multicall.mockResolvedValueOnce([
       { status: "success", result: 100n },
-      { status: "success", result: 30n },
+      { status: "success", result: [30n, 4n] },
+      { status: "success", result: 7n },
       { status: "success", result: 500n },
+      { status: "success", result: [0n, 0n] },
       { status: "success", result: 0n },
     ]);
 
@@ -46,29 +48,36 @@ describe("getAssetLiquiditiesSafe", () => {
         hub: HUB,
         assetId: 1,
         availableLiquidityRaw: 100n,
-        totalOwedRaw: 30n,
+        drawnRaw: 30n,
+        premiumRaw: 4n,
+        sweptRaw: 7n,
         error: null,
       },
       {
         hub: HUB,
         assetId: 2,
         availableLiquidityRaw: 500n,
-        totalOwedRaw: 0n,
+        drawnRaw: 0n,
+        premiumRaw: 0n,
+        sweptRaw: 0n,
         error: null,
       },
     ]);
   });
 
-  it("nulls an asset whole when either leg reverts (no half-read)", async () => {
+  it("nulls an asset whole when any leg reverts (no half-read)", async () => {
     multicall.mockResolvedValueOnce([
       { status: "success", result: 100n },
-      { status: "failure", error: new Error("owed reverted") },
+      { status: "success", result: [30n, 4n] },
+      { status: "failure", error: new Error("swept reverted") },
     ]);
 
     const [result] = await getAssetLiquiditiesSafe([{ hub: HUB, assetId: 1 }]);
 
     expect(result.availableLiquidityRaw).toBeNull();
-    expect(result.totalOwedRaw).toBeNull();
+    expect(result.drawnRaw).toBeNull();
+    expect(result.premiumRaw).toBeNull();
+    expect(result.sweptRaw).toBeNull();
     expect(result.error).toBeInstanceOf(Error);
   });
 
@@ -83,7 +92,8 @@ describe("getAssetLiquiditiesSafe", () => {
     expect(out).toHaveLength(2);
     for (const result of out) {
       expect(result.availableLiquidityRaw).toBeNull();
-      expect(result.totalOwedRaw).toBeNull();
+      expect(result.drawnRaw).toBeNull();
+      expect(result.sweptRaw).toBeNull();
       expect(result.error).toBeInstanceOf(Error);
     }
   });

@@ -82,14 +82,22 @@ function makeDemoReserve(fixture: DemoReserveFixture): AaveReserveConfig {
   };
 }
 
-// --- USDC — the reference row, matched to the Figma frame's figures --------
+// --- USDC — the reference row, sized to the Figma frame's figures ----------
+//
+// The four figures satisfy the production invariants, so the preview cannot
+// show a state the Hub could not produce:
+//   supplied      = available + drawn + swept   (11.4M + 24.1M + 3.0M)
+//   totalBorrowed = drawn + premium             (24.1M + 0.4M)
+//   utilization   = drawn / supplied            (24.1M / 38.5M)
+// Note the Figma mock's own numbers predate this and assume the older
+// `supplied = available + borrowed` relationship.
 
 const USDC_DECIMALS = 6;
 const USDC_PRICE_USD = 1;
 const USDC_AVAILABLE_LIQUIDITY = 11_400_000;
-const USDC_TOTAL_BORROWED = 24_100_000;
-const USDC_SUPPLIED_LIQUIDITY = 35_500_000;
-const USDC_UTILIZATION_BPS = 6800;
+const USDC_TOTAL_BORROWED = 24_500_000;
+const USDC_SUPPLIED_LIQUIDITY = 38_500_000;
+const USDC_UTILIZATION_BPS = 6259;
 const USDC_APR_PERCENT = 3.5;
 
 const DEMO_USDC_RESERVE = makeDemoReserve({
@@ -117,10 +125,12 @@ const DEMO_USDT_RESERVE = makeDemoReserve({
 // --- WBTC — the degraded row: oracle price read failed ---------------------
 
 const WBTC_DECIMALS = 8;
+// Same invariants as USDC: 120 available + 45 drawn + 10 swept = 175 supplied,
+// 45 drawn + 1 premium = 46 borrowed, 45 / 175 = 25.71% utilization.
 const WBTC_AVAILABLE_LIQUIDITY = 120;
-const WBTC_TOTAL_BORROWED = 45;
-const WBTC_SUPPLIED_LIQUIDITY = 165;
-const WBTC_UTILIZATION_BPS = 2727;
+const WBTC_TOTAL_BORROWED = 46;
+const WBTC_SUPPLIED_LIQUIDITY = 175;
+const WBTC_UTILIZATION_BPS = 2571;
 const WBTC_APR_PERCENT = 2.8;
 
 const DEMO_WBTC_RESERVE = makeDemoReserve({
