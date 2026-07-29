@@ -62,6 +62,7 @@ export function Repay() {
     healthFactor,
     liquidationThresholdBps,
     selectedReserve,
+    tokenIdentity,
     assetConfig,
     proxyContract,
     tokenPriceUsd,
@@ -86,17 +87,16 @@ export function Repay() {
     [allBorrowReserves, position],
   );
 
-  // Fetch user's token balance for repayment
+  // Fetch user's token balance for repayment. Read at the proven underlying,
+  // not the indexer's `token.address` — those are separate indexer fields, and
+  // a balance read against a token the user doesn't owe would produce a wrong
+  // Max.
   const {
     balance: userTokenBalance,
     error: balanceError,
     hasBalanceData,
     refetch: refetchUserBalance,
-  } = useERC20Balance(
-    selectedReserve.token.address,
-    address,
-    selectedReserve.token.decimals,
-  );
+  } = useERC20Balance(tokenIdentity.address, address, tokenIdentity.decimals);
 
   // "Known" = a balance has loaded at least once (`hasBalanceData`), NOT "the
   // latest fetch had no error". React Query keeps the last good balance across a
@@ -161,7 +161,7 @@ export function Repay() {
 
   // Token's own precision so dust (e.g. 0.00000003 WBTC) isn't rounded to "0.00".
   const displayDecimals = Math.min(
-    selectedReserve.token.decimals,
+    tokenIdentity.decimals,
     SAFE_TOFIXED_PRECISION,
   );
 
@@ -226,7 +226,7 @@ export function Repay() {
           refetchPosition,
           refetchUserBalance,
           reserveId: selectedReserve.reserveId,
-          tokenDecimals: selectedReserve.token.decimals,
+          tokenDecimals: tokenIdentity.decimals,
         });
         if (params.kind === "error") {
           setRefetchError(params.message);
@@ -314,6 +314,7 @@ export function Repay() {
                   assetConfig.icon,
                   assetConfig.symbol,
                 )}
+                selectedReserveId={selectedReserve.reserveId}
                 reserves={borrowedReserves}
                 mode={LOAN_TAB.REPAY}
                 disabled={isProcessing || isSubmitting}

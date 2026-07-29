@@ -61,48 +61,41 @@ vi.mock("@/clients/eth-contract/client", () => ({
 }));
 
 vi.mock("@/services/token/tokenService", () => ({
-  getTokenByAddress: vi.fn(() => ({ icon: "usdc-icon" })),
   getCurrencyIconWithFallback: vi.fn(
     (icon: string | undefined) => icon ?? "fallback-icon",
   ),
 }));
 
 // Mock useAaveConfig
-const mockUseAaveConfig = vi.fn(() => ({
-  config: {
-    coreSpokeAddress: "0xSpokeAddress",
-    vaultBtcReserveId: 1n,
+/** Reserve 2 = USDC. `token.*` is indexer-supplied; the hook must not read it. */
+const usdcReserve = {
+  reserveId: 2n,
+  reserve: { collateralFactor: 0, underlying: "0xUSDC" as Address },
+  token: {
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    address: "0xUSDC" as Address,
   },
-  vbtcReserve: {
-    reserveId: 1n,
-    reserve: { collateralFactor: 8000 },
-    token: { symbol: "vBTC", name: "vBTC", decimals: 8, address: "0xvBTC" },
-  },
-  borrowableReserves: [
-    {
-      reserveId: 2n,
-      reserve: { collateralFactor: 0 },
-      token: {
-        symbol: "USDC",
-        name: "USD Coin",
-        decimals: 6,
-        address: "0xUSDC" as Address,
-      },
+};
+
+function defaultAaveConfig() {
+  return {
+    config: {
+      coreSpokeAddress: "0xSpokeAddress",
+      vaultBtcReserveId: 1n,
     },
-  ],
-  allBorrowReserves: [
-    {
-      reserveId: 2n,
-      reserve: { collateralFactor: 0 },
-      token: {
-        symbol: "USDC",
-        name: "USD Coin",
-        decimals: 6,
-        address: "0xUSDC" as Address,
-      },
+    vbtcReserve: {
+      reserveId: 1n,
+      reserve: { collateralFactor: 8000 },
+      token: { symbol: "vBTC", name: "vBTC", decimals: 8, address: "0xvBTC" },
     },
-  ],
-}));
+    borrowableReserves: [usdcReserve],
+    allBorrowReserves: [usdcReserve],
+  };
+}
+
+const mockUseAaveConfig = vi.fn(defaultAaveConfig);
 
 vi.mock("../../../../context", () => ({
   useAaveConfig: () => mockUseAaveConfig(),
@@ -144,6 +137,40 @@ const mockUseAaveReservePrice = vi.fn<
   error: null,
 }));
 
+/**
+ * Identity of the selected reserve, proven on-chain. Defaults to a resolved
+ * USDC identity with 6 decimals; individual tests override it to exercise the
+ * spoofed-label, wrong-decimals and integrity-failure paths.
+ */
+const mockUseVerifiedReserveIdentity = vi.fn<
+  (args: {
+    reserveId: bigint | undefined;
+    underlying: Address | undefined;
+  }) => {
+    identity: {
+      address: Address;
+      symbol: string;
+      name: string;
+      decimals: number;
+      icon: string | undefined;
+      source: "registry" | "onchain";
+    } | null;
+    isLoading: boolean;
+    error: Error | null;
+    isIntegrityViolation: boolean;
+    retry: () => Promise<unknown>;
+  }
+>();
+
+const USDC_IDENTITY = {
+  address: "0xUSDC" as Address,
+  symbol: "USDC",
+  name: "USD Coin",
+  decimals: 6,
+  icon: "usdc-icon",
+  source: "registry" as const,
+};
+
 vi.mock("../../../../hooks", () => ({
   useAaveUserPosition: (addr?: string) => mockUseAaveUserPosition(addr),
   useVaultSplitParams: (addr?: string) => mockUseVaultSplitParams(addr),
@@ -151,6 +178,10 @@ vi.mock("../../../../hooks", () => ({
     spokeAddress: Address | undefined;
     reserveId: bigint | undefined;
   }) => mockUseAaveReservePrice(args),
+  useVerifiedReserveIdentity: (args: {
+    reserveId: bigint | undefined;
+    underlying: Address | undefined;
+  }) => mockUseVerifiedReserveIdentity(args),
 }));
 
 // Import after mocks
@@ -173,6 +204,14 @@ describe("useAaveReserveDetail", () => {
 
     mockGetBTCNetwork.mockReturnValue("signet");
 
+    mockUseAaveConfig.mockReturnValue(defaultAaveConfig());
+    mockUseVerifiedReserveIdentity.mockReturnValue({
+      identity: USDC_IDENTITY,
+      isLoading: false,
+      error: null,
+      isIntegrityViolation: false,
+      retry: vi.fn(),
+    });
     mockUseAaveReservePrice.mockReturnValue({
       priceUsd: null,
       isLoading: false,
@@ -207,7 +246,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -222,7 +261,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -237,7 +276,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -263,7 +302,7 @@ describe("useAaveReserveDetail", () => {
       borrowableReserves: [
         {
           reserveId: 3n,
-          reserve: { collateralFactor: 0 },
+          reserve: { collateralFactor: 0, underlying: "0xWBTC" as Address },
           token: {
             symbol: "WBTC",
             name: "Wrapped Bitcoin",
@@ -275,7 +314,7 @@ describe("useAaveReserveDetail", () => {
       allBorrowReserves: [
         {
           reserveId: 3n,
-          reserve: { collateralFactor: 0 },
+          reserve: { collateralFactor: 0, underlying: "0xWBTC" as Address },
           token: {
             symbol: "WBTC",
             name: "Wrapped Bitcoin",
@@ -292,7 +331,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "WBTC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "3", address: "0xUser" }),
       { wrapper },
     );
 
@@ -320,7 +359,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -335,7 +374,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -350,7 +389,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -367,7 +406,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -382,7 +421,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -414,7 +453,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -425,8 +464,7 @@ describe("useAaveReserveDetail", () => {
 
   it("passes user address to useVaultSplitParams for position-specific CF lookup", () => {
     renderHook(
-      () =>
-        useAaveReserveDetail({ reserveId: "USDC", address: "0xUserAddress" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUserAddress" }),
       { wrapper },
     );
 
@@ -450,7 +488,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -467,7 +505,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -484,7 +522,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -494,7 +532,7 @@ describe("useAaveReserveDetail", () => {
 
   it("returns null for both errors when no hooks have errors", () => {
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -518,7 +556,7 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
@@ -540,10 +578,287 @@ describe("useAaveReserveDetail", () => {
     });
 
     const { result } = renderHook(
-      () => useAaveReserveDetail({ reserveId: "USDC", address: "0xUser" }),
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
       { wrapper },
     );
 
     expect(result.current.refetchPosition).toBe(mockRefetch);
+  });
+
+  // --- Reserve resolution by on-chain id, not indexer symbol ---
+
+  it("resolves the reserve whose id matches, even when another shares its symbol", () => {
+    const duplicateSymbolReserve = {
+      reserveId: 9n,
+      reserve: { collateralFactor: 0, underlying: "0xIMPOSTOR" as Address },
+      token: {
+        symbol: "USDC",
+        name: "USD Coin",
+        decimals: 18,
+        address: "0xIMPOSTOR" as Address,
+      },
+    };
+    mockUseAaveConfig.mockReturnValue({
+      ...defaultAaveConfig(),
+      // Impostor listed first, so a symbol `.find` would return it.
+      borrowableReserves: [duplicateSymbolReserve, usdcReserve],
+      allBorrowReserves: [duplicateSymbolReserve, usdcReserve],
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.selectedReserve?.reserveId).toBe(2n);
+    expect(result.current.selectedReserve?.reserve.underlying).toBe("0xUSDC");
+  });
+
+  it("blocks when two reserves claim the same id", () => {
+    const collidingReserve = {
+      ...usdcReserve,
+      reserve: { collateralFactor: 0, underlying: "0xIMPOSTOR" as Address },
+    };
+    mockUseAaveConfig.mockReturnValue({
+      ...defaultAaveConfig(),
+      borrowableReserves: [usdcReserve, collidingReserve],
+      allBorrowReserves: [usdcReserve, collidingReserve],
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.selectedReserve).toBeNull();
+  });
+
+  it("blocks a legacy symbol link and flags it as outdated", () => {
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "usdc", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.selectedReserve).toBeNull();
+    expect(result.current.assetConfig).toBeNull();
+    expect(result.current.currentDebtAmount).toBeNull();
+    expect(result.current.isLegacyReserveParam).toBe(true);
+  });
+
+  it.each(["abc", "0x2", " 2 ", "-1", "2.0"])(
+    "blocks the non-numeric reserve param %j",
+    (param) => {
+      const { result } = renderHook(
+        () => useAaveReserveDetail({ reserveId: param, address: "0xUser" }),
+        { wrapper },
+      );
+
+      expect(result.current.selectedReserve).toBeNull();
+    },
+  );
+
+  it("does not flag a missing reserve param as an outdated link", () => {
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: undefined, address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.isLegacyReserveParam).toBe(false);
+  });
+
+  // --- Display metadata comes from the proven identity ---
+
+  it("labels the asset from the proven identity, not the indexer's spoofed symbol", () => {
+    const spoofedReserve = {
+      reserveId: 2n,
+      reserve: { collateralFactor: 0, underlying: "0xWETH" as Address },
+      token: {
+        // Indexer claims USDC for what is really WETH.
+        symbol: "USDC",
+        name: "USD Coin",
+        decimals: 6,
+        address: "0xWETH" as Address,
+      },
+    };
+    mockUseAaveConfig.mockReturnValue({
+      ...defaultAaveConfig(),
+      borrowableReserves: [spoofedReserve],
+      allBorrowReserves: [spoofedReserve],
+    });
+    mockUseVerifiedReserveIdentity.mockReturnValue({
+      identity: {
+        address: "0xWETH" as Address,
+        symbol: "WETH",
+        name: "Wrapped Ether",
+        decimals: 18,
+        icon: "weth-icon",
+        source: "registry",
+      },
+      isLoading: false,
+      error: null,
+      isIntegrityViolation: false,
+      retry: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.assetConfig).toEqual({
+      symbol: "WETH",
+      name: "Wrapped Ether",
+      icon: "weth-icon",
+    });
+  });
+
+  it("verifies the reserve against its on-chain underlying, not the indexer's token address", () => {
+    const divergentReserve = {
+      reserveId: 2n,
+      reserve: { collateralFactor: 0, underlying: "0xREAL" as Address },
+      token: {
+        symbol: "USDC",
+        name: "USD Coin",
+        decimals: 6,
+        address: "0xDECOY" as Address,
+      },
+    };
+    mockUseAaveConfig.mockReturnValue({
+      ...defaultAaveConfig(),
+      borrowableReserves: [divergentReserve],
+      allBorrowReserves: [divergentReserve],
+    });
+
+    renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(mockUseVerifiedReserveIdentity).toHaveBeenCalledWith({
+      reserveId: 2n,
+      underlying: "0xREAL",
+    });
+  });
+
+  it("formats debt with the proven decimals, not the indexer's", () => {
+    const wrongDecimalsReserve = {
+      ...usdcReserve,
+      // Indexer claims 18 for a token that really has 6.
+      token: { ...usdcReserve.token, decimals: 18 },
+    };
+    mockUseAaveConfig.mockReturnValue({
+      ...defaultAaveConfig(),
+      borrowableReserves: [wrongDecimalsReserve],
+      allBorrowReserves: [wrongDecimalsReserve],
+    });
+    mockUseAaveUserPosition.mockReturnValue({
+      position: {
+        debtPositions: new Map([[2n, { totalDebt: 1_500_000n }]]),
+      },
+      collateralValueUsd: 15000,
+      debtValueUsd: 1.5,
+      healthFactor: null,
+      healthFactorStatus: "healthy",
+      isPositionDataStale: false,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    // 1_500_000 at the proven 6 decimals is 1.5, not 0.0000000000015.
+    expect(result.current.currentDebtAmount).toBe(1.5);
+  });
+
+  it("reports zero debt only once the identity is proven", () => {
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.currentDebtAmount).toBe(0);
+  });
+
+  // --- Identity failure hard-blocks the screen ---
+
+  it("withholds the label and the debt figure while the identity is unproven", () => {
+    mockUseVerifiedReserveIdentity.mockReturnValue({
+      identity: null,
+      isLoading: true,
+      error: null,
+      isIntegrityViolation: false,
+      retry: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.assetConfig).toBeNull();
+    expect(result.current.currentDebtAmount).toBeNull();
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("surfaces a proven mismatch as identityError, separate from positionError", () => {
+    const mismatch = new Error("reserve resolves to a different token");
+    mockUseVerifiedReserveIdentity.mockReturnValue({
+      identity: null,
+      isLoading: false,
+      error: mismatch,
+      isIntegrityViolation: true,
+      retry: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.identityError).toBe(mismatch);
+    expect(result.current.isIdentityCompromised).toBe(true);
+    expect(result.current.positionError).toBeNull();
+    expect(result.current.ancillaryError).toBeNull();
+    expect(result.current.assetConfig).toBeNull();
+    expect(result.current.currentDebtAmount).toBeNull();
+  });
+
+  it("marks a transient verification failure as not compromised", () => {
+    mockUseVerifiedReserveIdentity.mockReturnValue({
+      identity: null,
+      isLoading: false,
+      error: new Error("rpc connection lost"),
+      isIntegrityViolation: false,
+      retry: vi.fn(),
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.isIdentityCompromised).toBe(false);
+  });
+
+  it("exposes the identity retry so a transient failure can be re-run", () => {
+    const retry = vi.fn();
+    mockUseVerifiedReserveIdentity.mockReturnValue({
+      identity: null,
+      isLoading: false,
+      error: new Error("rpc connection lost"),
+      isIntegrityViolation: false,
+      retry,
+    });
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.retryIdentity).toBe(retry);
   });
 });

@@ -1184,6 +1184,34 @@ export const COPY = {
       integrityError:
         "Position integrity check failed: your position details returned by the indexer don't match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
     },
+    // Reserve detail overlay (applications/aave/components/Detail).
+    // Reserve-identity states shared by the loan overlay's form step and the
+    // borrowing markets data page. Loading / connect / not-found copy is the
+    // flat `loans.*` set above; these are the audit-F7 additions.
+    detail: {
+      // Older links carried the token symbol (`?reserve=usdc`, `/markets/usdc`)
+      // rather than the reserve's on-chain id. Those are blocked, never
+      // resolved by symbol.
+      reserveLinkOutdated:
+        "This link uses an outdated format. Please select the asset again from Loans.",
+      // The reserve's asset could not be confirmed on-chain. Deliberately
+      // alarming, and offered without a retry: the result is deterministic, so
+      // a retry button would only invite the user to click past the warning.
+      identityBlockedTitle: "Asset could not be verified",
+      identityBlockedDescription:
+        "The asset shown for this market doesn't match what's registered on-chain. For your safety, this market can't be used here. Do not proceed — return to Loans and select the asset again.",
+      // Verification couldn't complete (network or RPC failure), as opposed to
+      // completing and failing. Neutral, and retryable.
+      identityUnavailableTitle: "Couldn't verify this asset",
+      identityUnavailableDescription:
+        "We couldn't confirm this market's asset on-chain. Check your connection and try again.",
+      retry: "Retry",
+      // Position load failure (hard-block) and the ancillary soft-warn, both in
+      // Detail/PositionGate.tsx.
+      positionLoadError: "Couldn't load your position. Please try again.",
+      ancillaryLoadWarning:
+        "Some data couldn't be loaded. Borrow may be unavailable; repay still works from your loaded debt.",
+    },
   },
   // Borrowing markets data page (Figma node 10088-60956).
   marketData: {

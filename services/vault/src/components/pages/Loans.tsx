@@ -2,14 +2,14 @@
  * Loans page (v3)
  * Dedicated `/loans` route: borrow-capacity + health-factor summary and the
  * list of active loans, reusing the existing Aave data hooks and the
- * reserve-detail borrow/repay overlay (route-driven via `?reserve=&tab=`).
+ * reserve-detail borrow/repay overlay (route-driven via `?reserve=<id>&tab=`).
  */
 
 import { Container, Loader } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
-import { LOAN_TAB } from "@/applications/aave/constants";
+import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useActiveLoans } from "@/applications/aave/hooks";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
@@ -24,6 +24,7 @@ import {
 import { useDemoLoan } from "@/dev/demoDeposit";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
+import { parseReserveId } from "@/routes";
 import { formatUsdValue } from "@/utils/formatting";
 
 import { ActiveLoansList } from "../simple/ActiveLoansList";
@@ -52,6 +53,14 @@ export default function Loans() {
   const { openBorrowPicker, openRepay, goToReserve } = useLoanActions({
     borrowedAssets,
   });
+
+  // Row actions carry the reserve id. A god-mode demo row's id doesn't parse,
+  // but `ActiveLoansList` already disables both of its buttons — this guard
+  // only makes that unreachable path explicit rather than throwing on BigInt().
+  const goToRowReserve = (reserveId: string, tab: LoanTab) => {
+    const parsed = parseReserveId(reserveId);
+    if (parsed != null) goToReserve(parsed, tab);
+  };
 
   const activeLoans = useActiveLoans(borrowedAssets);
 
@@ -177,8 +186,8 @@ export default function Loans() {
           <ActiveLoansList
             rows={displayLoans}
             canBorrow={canBorrow}
-            onBorrow={(symbol) => goToReserve(symbol, LOAN_TAB.BORROW)}
-            onRepay={(symbol) => goToReserve(symbol, LOAN_TAB.REPAY)}
+            onBorrow={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.BORROW)}
+            onRepay={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.REPAY)}
           />
         ) : (
           // Has collateral but no borrows yet: the Borrow action lives in the

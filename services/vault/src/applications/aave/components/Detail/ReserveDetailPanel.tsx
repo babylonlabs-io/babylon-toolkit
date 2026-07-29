@@ -13,6 +13,7 @@ import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
+import { ReserveIdentityBlock } from "../ReserveIdentityBlock";
 
 import { useAaveReserveDetail } from "./hooks";
 import { PositionGate } from "./PositionGate";
@@ -31,6 +32,7 @@ export interface LoanSuccessState {
 }
 
 interface ReserveDetailPanelProps {
+  /** Raw `?reserve=` value — the reserve's on-chain id as a decimal string. */
   reserveId: string;
   tab: LoanTab;
   onProcessingChange: (isProcessing: boolean) => void;
@@ -54,6 +56,7 @@ export function ReserveDetailPanel({
   const {
     isLoading,
     selectedReserve,
+    tokenIdentity,
     assetConfig,
     vbtcReserve,
     liquidationThresholdBps,
@@ -66,19 +69,35 @@ export function ReserveDetailPanel({
     isPriceStale,
     positionError,
     ancillaryError,
+    identityError,
+    isIdentityCompromised,
+    retryIdentity,
+    isLegacyReserveParam,
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
   } = useAaveReserveDetail({ reserveId, address });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-accent-secondary">{COPY.common.loading}</p>
-      </div>
-    );
-  }
+  // One narrowing point for everything that depends on a proven identity, so
+  // the context value below cannot be assembled from a half-verified reserve.
+  const verified =
+    selectedReserve &&
+    tokenIdentity &&
+    assetConfig &&
+    vbtcReserve &&
+    currentDebtAmount != null
+      ? {
+          selectedReserve,
+          tokenIdentity,
+          assetConfig,
+          vbtcReserve,
+          currentDebtAmount,
+        }
+      : null;
 
+  // First: this branch renders no reserve-derived label or number, and the
+  // identity query runs without a wallet — leaving it below the gate would park
+  // a disconnected user behind an RPC before telling them to connect.
   if (!isConnected) {
     return (
       <EmptyState
@@ -93,24 +112,60 @@ export function ReserveDetailPanel({
     );
   }
 
-  // Don't gate on oracleAddress — repay doesn't need it; lookup failure
-  // surfaces via ancillaryError on Borrow.
-  if (!selectedReserve || !assetConfig || !vbtcReserve) {
+  // Before `isLoading`: that flag ORs four sources, so a still-pending price
+  // query would otherwise pin a spinner over a resolved integrity failure.
+  if (identityError) {
+    return (
+      <ReserveIdentityBlock
+        compromised={isIdentityCompromised}
+        onRetry={() => void retryIdentity()}
+      />
+    );
+  }
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-accent-secondary">{COPY.loans.reserveNotFound}</p>
+        <p className="text-accent-secondary">{COPY.common.loading}</p>
       </div>
     );
   }
 
+  // Unresolvable: missing/legacy/non-numeric param, no id match, more than one
+  // id match, or a missing vBTC reserve. Don't gate on oracleAddress — repay
+  // doesn't need it; lookup failure surfaces via ancillaryError on Borrow.
+  if (!verified) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-accent-secondary">
+          {isLegacyReserveParam
+            ? COPY.loans.detail.reserveLinkOutdated
+            : COPY.loans.reserveNotFound}
+        </p>
+      </div>
+    );
+  }
+
+  const settled = (variant: "borrow" | "repay", amount: number) => ({
+    reserveId,
+    variant,
+    amount,
+    symbol: verified.assetConfig.symbol,
+    // Proven decimals, so the success screen can't report a different amount
+    // than the one that was signed.
+    decimals: verified.tokenIdentity.decimals,
+    assetIcon: verified.assetConfig.icon,
+  });
+
   const loanContextValue = {
     collateralValueUsd,
-    currentDebtAmount,
+    currentDebtAmount: verified.currentDebtAmount,
     totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
-    selectedReserve,
-    assetConfig,
+    selectedReserve: verified.selectedReserve,
+    tokenIdentity: verified.tokenIdentity,
+    assetConfig: verified.assetConfig,
     proxyContract,
     oracleAddress,
     tokenPriceUsd,
@@ -118,24 +173,9 @@ export function ReserveDetailPanel({
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
-    onBorrowSuccess: (amount: number) =>
-      onSuccess({
-        reserveId,
-        variant: "borrow",
-        amount,
-        symbol: assetConfig.symbol,
-        decimals: selectedReserve.token.decimals,
-        assetIcon: assetConfig.icon,
-      }),
+    onBorrowSuccess: (amount: number) => onSuccess(settled("borrow", amount)),
     onRepaySuccess: (repayAmount: number) =>
-      onSuccess({
-        reserveId,
-        variant: "repay",
-        amount: repayAmount,
-        symbol: assetConfig.symbol,
-        decimals: selectedReserve.token.decimals,
-        assetIcon: assetConfig.icon,
-      }),
+      onSuccess(settled("repay", repayAmount)),
     onProcessingChange,
   };
 

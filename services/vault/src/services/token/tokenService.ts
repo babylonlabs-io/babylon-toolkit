@@ -160,13 +160,17 @@ export function getTokenIconBySymbol(symbol: string): string | undefined {
 }
 
 /**
- * Get token metadata by address (sync version for immediate use)
- * Only checks cache and registry, doesn't fetch from blockchain
+ * Strict address-keyed metadata lookup: cache or registry hit only, never a
+ * placeholder. Use this wherever a wrong label is a security problem rather
+ * than a cosmetic one, so the caller can hard-block on a miss instead of
+ * rendering a fabricated symbol (audit F7).
  *
  * @param address - Token contract address
- * @returns Token metadata or null if not found
+ * @returns Token metadata, or null when the address is invalid or unknown
  */
-export function getTokenByAddress(address: string): TokenMetadata | null {
+export function getRegisteredTokenByAddress(
+  address: string,
+): TokenMetadata | null {
   if (!isAddress(address)) {
     logger.warn(`[TokenService] Invalid token address: ${address}`);
     return null;
@@ -174,18 +178,37 @@ export function getTokenByAddress(address: string): TokenMetadata | null {
 
   const checksumAddress = getAddress(address);
 
-  // Check cache first
-  if (tokenMetadataCache.has(checksumAddress)) {
-    return tokenMetadataCache.get(checksumAddress)!;
-  }
+  return (
+    tokenMetadataCache.get(checksumAddress) ??
+    TOKEN_REGISTRY[checksumAddress] ??
+    null
+  );
+}
 
-  // Check registry
-  const token = TOKEN_REGISTRY[checksumAddress];
-  if (token) {
-    return token;
+/**
+ * Get token metadata by address (sync version for immediate use)
+ * Only checks cache and registry, doesn't fetch from blockchain
+ *
+ * On a miss for a valid address this returns a *placeholder* (truncated
+ * address as the symbol, "Loading..." as the name, 18 decimals) so display
+ * surfaces have something to render. Callers that must not render a fabricated
+ * label — anything on a signing path — should use
+ * {@link getRegisteredTokenByAddress} and hard-block on null instead.
+ *
+ * @param address - Token contract address
+ * @returns Token metadata, a placeholder for unknown valid addresses, or null
+ */
+export function getTokenByAddress(address: string): TokenMetadata | null {
+  const registered = getRegisteredTokenByAddress(address);
+  if (registered) {
+    return registered;
+  }
+  if (!isAddress(address)) {
+    return null;
   }
 
   // Return a temporary placeholder
+  const checksumAddress = getAddress(address);
   const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
   return {
     address: checksumAddress as Address,

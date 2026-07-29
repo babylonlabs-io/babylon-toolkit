@@ -14,11 +14,19 @@ import { useNavigate } from "react-router";
 
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import featureFlags from "@/config/featureFlags";
-import { getAssetPickerRoute, getReserveDetailRoute } from "@/routes";
+import {
+  getAssetPickerRoute,
+  getReserveDetailRoute,
+  parseReserveId,
+} from "@/routes";
 
 interface UseLoanActionsProps {
-  /** Borrowed assets (used to resolve the single-asset repay shortcut). */
-  borrowedAssets: { symbol: string }[];
+  /**
+   * Borrowed assets (used to resolve the single-asset repay shortcut). Keyed by
+   * reserve id, so the shortcut can't be pointed at a different reserve by a
+   * spoofed symbol.
+   */
+  borrowedAssets: { reserveId: string }[];
 }
 
 export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
@@ -26,8 +34,8 @@ export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
   const isV3 = featureFlags.isV3UiEnabled;
 
   const goToReserve = useCallback(
-    (assetSymbol: string, tab: LoanTab) => {
-      navigate(getReserveDetailRoute(assetSymbol, tab, isV3));
+    (reserveId: bigint, tab: LoanTab) => {
+      navigate(getReserveDetailRoute(reserveId, tab, isV3));
     },
     [navigate, isV3],
   );
@@ -38,9 +46,14 @@ export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
 
   const openRepay = useCallback(() => {
     // A single borrowed asset has no choice to make — skip the picker and open
-    // its repay form directly.
-    if (borrowedAssets.length === 1) {
-      goToReserve(borrowedAssets[0].symbol, LOAN_TAB.REPAY);
+    // its repay form directly. Fall through to the picker if that one row's id
+    // doesn't parse (a god-mode demo row), rather than routing nowhere.
+    const soleReserveId =
+      borrowedAssets.length === 1
+        ? parseReserveId(borrowedAssets[0].reserveId)
+        : null;
+    if (soleReserveId != null) {
+      goToReserve(soleReserveId, LOAN_TAB.REPAY);
       return;
     }
     navigate(getAssetPickerRoute(LOAN_TAB.REPAY, isV3));

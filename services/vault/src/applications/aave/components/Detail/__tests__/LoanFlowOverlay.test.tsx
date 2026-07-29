@@ -40,12 +40,9 @@ vi.mock("../../AssetSelectionPanel", () => ({
     onSelectAsset,
   }: {
     mode: string;
-    onSelectAsset: (symbol: string) => void;
+    onSelectAsset: (reserveId: bigint) => void;
   }) => (
-    <button
-      data-testid={`picker-${mode}`}
-      onClick={() => onSelectAsset("WBTC")}
-    >
+    <button data-testid={`picker-${mode}`} onClick={() => onSelectAsset(2n)}>
       picker
     </button>
   ),
@@ -137,7 +134,7 @@ describe("LoanFlowOverlay", () => {
     fireEvent.click(screen.getByTestId("picker-borrow"));
 
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/loans?reserve=wbtc&tab=borrow",
+      "/loans?reserve=2&tab=borrow",
     );
   });
 
@@ -145,22 +142,19 @@ describe("LoanFlowOverlay", () => {
     renderOverlay(
       <LoanFlowOverlay
         picker={LOAN_TAB.BORROW}
-        reserveId="wbtc"
+        reserveId="2"
         tab={LOAN_TAB.BORROW}
       />,
     );
 
-    expect(screen.getByTestId("form")).toHaveAttribute(
-      "data-reserve-id",
-      "wbtc",
-    );
+    expect(screen.getByTestId("form")).toHaveAttribute("data-reserve-id", "2");
     expect(screen.queryByTestId("picker-borrow")).not.toBeInTheDocument();
     expect(screen.getAllByTestId(SHELL_TESTID)).toHaveLength(1);
   });
 
   it("shows the success step once the transaction settles on that reserve", () => {
     renderOverlay(
-      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+      <LoanFlowOverlay picker={null} reserveId="2" tab={LOAN_TAB.BORROW} />,
     );
 
     fireEvent.click(screen.getByTestId("form"));
@@ -170,7 +164,7 @@ describe("LoanFlowOverlay", () => {
 
   it("drops a settled success when the step navigates back to the picker", () => {
     const { rerender } = renderOverlay(
-      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+      <LoanFlowOverlay picker={null} reserveId="2" tab={LOAN_TAB.BORROW} />,
     );
 
     fireEvent.click(screen.getByTestId("form"));
@@ -197,10 +191,10 @@ describe("LoanFlowOverlay", () => {
     renderOverlay(
       <LoanFlowOverlay
         picker={LOAN_TAB.BORROW}
-        reserveId="wbtc"
+        reserveId="2"
         tab={LOAN_TAB.BORROW}
       />,
-      "/loans?reserve=wbtc&tab=borrow",
+      "/loans?reserve=2&tab=borrow",
     );
 
     fireEvent.click(screen.getByText("close"));
@@ -211,7 +205,7 @@ describe("LoanFlowOverlay", () => {
 
   it("locks every dismiss path while a transaction is in flight", () => {
     renderOverlay(
-      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+      <LoanFlowOverlay picker={null} reserveId="2" tab={LOAN_TAB.BORROW} />,
     );
 
     fireEvent.click(screen.getByTestId("sign"));
@@ -221,7 +215,7 @@ describe("LoanFlowOverlay", () => {
 
   it("restores the close control on the success step after a tx settles", () => {
     renderOverlay(
-      <LoanFlowOverlay picker={null} reserveId="wbtc" tab={LOAN_TAB.BORROW} />,
+      <LoanFlowOverlay picker={null} reserveId="2" tab={LOAN_TAB.BORROW} />,
     );
 
     // The form reports processing, then settles in the same interaction the

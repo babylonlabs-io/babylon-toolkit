@@ -9,8 +9,10 @@ import { useMemo } from "react";
 import { IoChevronBack } from "react-icons/io5";
 import { useLocation, useNavigate, useParams } from "react-router";
 
+import { ReserveIdentityBlock } from "@/applications/aave/components/ReserveIdentityBlock";
 import { LOAN_TAB } from "@/applications/aave/constants";
 import { useAaveConfig } from "@/applications/aave/context";
+import { useVerifiedReserveIdentity } from "@/applications/aave/hooks";
 import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import {
   CARD_SHELL_CLASS,
@@ -18,11 +20,12 @@ import {
 } from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
-import { getAssetPickerRoute, MARKET_SYMBOL_PARAM } from "@/routes";
 import {
-  getCurrencyIconWithFallback,
-  getTokenByAddress,
-} from "@/services/token/tokenService";
+  getAssetPickerRoute,
+  MARKET_RESERVE_PARAM,
+  parseReserveId,
+} from "@/routes";
+import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 
 const SECTION_BODY_CLASS = "min-h-[120px]";
 const CHART_BODY_CLASS = "min-h-[240px]";
@@ -66,40 +69,82 @@ export default function BorrowingMarketsData() {
   const location = useLocation();
   const params = useParams();
   const { borrowableReserves } = useAaveConfig();
-  const symbol = (params[MARKET_SYMBOL_PARAM] ?? "").toUpperCase();
 
-  // Icon resolves from the symbol alone, so the header still renders while the
-  // config loads or for a symbol matching no reserve.
-  const { name, icon } = useMemo(() => {
-    const reserve = borrowableReserves.find(
-      (r) => r.token.symbol.toUpperCase() === symbol,
+  // Resolve by the reserve's on-chain id, never by a token symbol from the URL:
+  // the symbol is indexer-supplied, so labelling this page from it lets a
+  // compromised indexer decide which market the user is reading (audit F7).
+  // Exactly one match or none — `.find` would take whichever duplicate the
+  // indexer ordered first.
+  const selectedReserve = useMemo(() => {
+    const target = parseReserveId(params[MARKET_RESERVE_PARAM]);
+    if (target === null) return null;
+    const matches = borrowableReserves.filter((r) => r.reserveId === target);
+    return matches.length === 1 ? matches[0] : null;
+  }, [borrowableReserves, params]);
+
+  const {
+    identity,
+    isLoading: identityLoading,
+    error: identityError,
+    isIntegrityViolation,
+    retry: retryIdentity,
+  } = useVerifiedReserveIdentity({
+    reserveId: selectedReserve?.reserveId,
+    underlying: selectedReserve?.reserve.underlying,
+  });
+
+  const symbol = identity?.symbol ?? "";
+  const name = identity?.name ?? symbol;
+  const icon = getCurrencyIconWithFallback(identity?.icon, symbol);
+
+  const backToAssets = () =>
+    // This URL is shareable: opened directly there is no in-app entry to go
+    // back to, and history back would leave the app.
+    location.key === "default"
+      ? navigate(
+          getAssetPickerRoute(LOAN_TAB.BORROW, featureFlags.isV3UiEnabled),
+        )
+      : navigate(-1);
+
+  if (identityError) {
+    return (
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+        <ReserveIdentityBlock
+          compromised={isIntegrityViolation}
+          onRetry={() => void retryIdentity()}
+        />
+      </Container>
     );
-    return {
-      name: reserve?.token.name ?? symbol,
-      icon: getCurrencyIconWithFallback(
-        reserve && getTokenByAddress(reserve.token.address)?.icon,
-        symbol,
-      ),
-    };
-  }, [borrowableReserves, symbol]);
+  }
+
+  // Nothing below may render before the asset is proven — the header is the
+  // whole point of the page, and an unverified one is the mislabeling F7 stops.
+  if (identityLoading) {
+    return (
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-accent-secondary">{COPY.common.loading}</p>
+        </div>
+      </Container>
+    );
+  }
+
+  if (!identity) {
+    return (
+      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-accent-secondary">{COPY.loans.reserveNotFound}</p>
+        </div>
+      </Container>
+    );
+  }
 
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-5">
         <button
           type="button"
-          onClick={() =>
-            // This URL is shareable: opened directly there is no in-app entry
-            // to go back to, and history back would leave the app.
-            location.key === "default"
-              ? navigate(
-                  getAssetPickerRoute(
-                    LOAN_TAB.BORROW,
-                    featureFlags.isV3UiEnabled,
-                  ),
-                )
-              : navigate(-1)
-          }
+          onClick={backToAssets}
           className="flex w-fit cursor-pointer items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary transition-colors hover:text-accent-primary"
         >
           <IoChevronBack size={16} aria-hidden />

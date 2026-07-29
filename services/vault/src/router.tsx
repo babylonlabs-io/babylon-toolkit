@@ -26,7 +26,7 @@ import RootLayout, {
 } from "./components/pages/RootLayout";
 import {
   getReserveDetailBaseRoute,
-  MARKET_SYMBOL_PARAM,
+  MARKET_RESERVE_PARAM,
   RESERVE_QUERY_KEYS,
   ROUTES,
 } from "./routes";
@@ -202,7 +202,7 @@ export const Router = () => (
           }
         />
         <Route
-          path={`${ROUTES.MARKETS}/:${MARKET_SYMBOL_PARAM}`}
+          path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
           element={
             featureFlags.isV3UiEnabled ? (
               <Suspense fallback={<RouteFallback />}>

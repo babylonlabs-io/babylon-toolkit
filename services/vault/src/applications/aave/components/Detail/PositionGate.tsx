@@ -10,6 +10,8 @@
 import { Button, Text } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
+import { COPY } from "@/copy";
+
 export interface PositionGateProps {
   positionError: Error | null;
   ancillaryError: Error | null;
@@ -27,9 +29,11 @@ export function PositionGate({
     return (
       <div className="flex flex-col items-center gap-3">
         <Text variant="body2" className="text-center text-warning-main">
-          Couldn&apos;t load your position. Please try again.
+          {COPY.loans.detail.positionLoadError}
         </Text>
-        <Button onClick={() => void refetchPosition()}>Retry</Button>
+        <Button onClick={() => void refetchPosition()}>
+          {COPY.loans.detail.retry}
+        </Button>
       </div>
     );
   }
@@ -38,8 +42,7 @@ export function PositionGate({
     <>
       {ancillaryError ? (
         <Text variant="body2" className="text-center text-warning-main">
-          Some data couldn&apos;t be loaded. Borrow may be unavailable; repay
-          still works from your loaded debt.
+          {COPY.loans.detail.ancillaryLoadWarning}
         </Text>
       ) : null}
       {children}
