@@ -5,17 +5,17 @@ import type { BitcoinWallet } from "../../../shared/wallets/interfaces";
 
 export interface DepositTermsVaultGroup {
   /** 0-based; equals the group's position (groups are ascending by vout). */
-  htlcVout: number;
-  /** x-only lowercase hex (64 chars). */
-  vaultProviderPk: string;
+  readonly htlcVout: number;
+  /** x-only hex (64 chars), as validated on-chain upstream. */
+  readonly vaultProviderPk: string;
   /** sats */
-  vaultAmount: bigint;
+  readonly vaultAmount: bigint;
   /** sats; floor(vaultAmount * commissionBps / 10_000). */
-  commissionFee: bigint;
+  readonly commissionFee: bigint;
   /** sats; the same value for every vault. */
-  depositorClaimValue: bigint;
+  readonly depositorClaimValue: bigint;
   /** sats; the minimum PegIn fee for this graph version. */
-  peginMaxFee: bigint;
+  readonly peginMaxFee: bigint;
 }
 
 export interface DepositTerms {
@@ -28,7 +28,10 @@ export interface DepositTerms {
   baseFeeRate: bigint;
   /** Vault-UTXO CSV timelock (blocks). */
   peginCsvTimelock: number;
-  /** Assert:0 payout timelock; comes from the same protocol param as peginCsvTimelock. */
+  /**
+   * Payout timelock on the Assert transaction's output 0; comes from the same
+   * protocol param (timelockAssert) as peginCsvTimelock.
+   */
   payoutTimelock: number;
   /** HTLC refund CSV timelock (blocks). */
   htlcRefundTimelock: number;
@@ -39,38 +42,56 @@ export interface DepositTerms {
   prepeginTxid: string;
   /** sats; the funded Pre-PegIn fee (an approving wallet caps the signed fee at this). */
   prepeginMaxFee: bigint;
-  /** x-only hex, sorted ascending. */
-  keeperPks: string[];
   /**
-   * x-only hex, sorted ascending independently of keeperPks. Universal
-   * challengers only — the full graph challenger set is keeperPks ∪
-   * challengerPks (vault keepers are the local challengers).
+   * x-only hex. Sorted ascending by the upstream on-chain validation
+   * (validateOnChainParticipantKeys); the builder passes them through
+   * unasserted — the device rejects unsorted lists at intent load.
    */
-  challengerPks: string[];
+  keeperPks: readonly string[];
+  /**
+   * x-only hex, sorted ascending upstream independently of keeperPks (same
+   * pass-through contract). Universal challengers only — the full graph
+   * challenger set is keeperPks ∪ challengerPks (vault keepers are the local
+   * challengers).
+   */
+  challengerPks: readonly string[];
   /** Per-vault groups, ordered by ascending htlcVout. */
-  vaults: DepositTermsVaultGroup[];
+  vaults: readonly DepositTermsVaultGroup[];
 }
 
 /**
  * Implemented only by depositor-approval wallets (e.g. a Ledger vault provider).
  * Either a class field or a prototype method works — the deposit flow spreads
  * the wallet object but forwards this method explicitly at every wrapper site.
+ *
+ * Seam invariant: never call deriveContextHash between approveDepositTerms and
+ * the last terms-bound signature of a connection — deriving while an intent is
+ * loaded nullifies it on-device. Design: the SDK owns approval (mirrors its
+ * deriveContextHash/signPsbts orchestration); provider-internal and app-driven
+ * placements were rejected.
  */
 export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;
 }
 
-/**
- * Seam invariant: never call deriveContextHash between approveDepositTerms and
- * the last terms-bound signature of a connection — deriving mid-approval
- * nullifies it. Design: mirrors the SDK's existing deriveContextHash/signPsbts
- * orchestration — the SDK owns approval by design; provider-internal and
- * app-driven placements were rejected.
- */
+/** True when the wallet implements {@link DepositTermsApprover.approveDepositTerms}. */
 export function supportsDepositApproval(
   wallet: BitcoinWallet,
 ): wallet is BitcoinWallet & DepositTermsApprover {
   return typeof (wallet as Partial<DepositTermsApprover>).approveDepositTerms === "function";
+}
+
+/**
+ * Spreadable forward of `approveDepositTerms` for wallet-wrapper objects.
+ * Object spread drops prototype methods, so every `{...wallet}` wrapper site
+ * must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
+ */
+export function forwardDepositApproval(
+  wallet: BitcoinWallet,
+): Partial<DepositTermsApprover> {
+  return supportsDepositApproval(wallet)
+    ? { approveDepositTerms: (terms) => wallet.approveDepositTerms(terms) }
+    : {};
 }
 
 export interface BuildDepositTermsInputs {

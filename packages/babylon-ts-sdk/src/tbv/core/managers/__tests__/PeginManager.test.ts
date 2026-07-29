@@ -76,8 +76,18 @@ vi.mock("../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
 }));
 
 // Passthrough observer: records each per-vault PegIn build so the seam test can
-// assert the htlcVout bind-checks run BEFORE deposit-terms approval (F6 hoist).
+// assert the htlcVout bind-checks run BEFORE deposit-terms approval. The
+// prePeginTamper hook lets one test corrupt the Pre-PegIn result to prove the
+// funded-fee cross-check fires; it must be reset to null afterwards.
 const peginBuildLog = vi.hoisted(() => [] as string[]);
+const prePeginTamper = vi.hoisted(
+  () =>
+    ({ fn: null }) as {
+      fn:
+        | ((r: import("../../primitives").PrePeginPsbtResult) => import("../../primitives").PrePeginPsbtResult)
+        | null;
+    },
+);
 vi.mock("../../primitives/psbt/pegin", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../../primitives/psbt/pegin")>();
@@ -87,9 +97,14 @@ vi.mock("../../primitives/psbt/pegin", async (importOriginal) => {
     peginBuildLog.push("buildPeginTx");
     return actual.buildPeginTxFromFundedPrePegin(...args);
   };
+  const wrappedPrePegin: typeof actual.buildPrePeginPsbt = async (...args) => {
+    const result = await actual.buildPrePeginPsbt(...args);
+    return prePeginTamper.fn ? prePeginTamper.fn(result) : result;
+  };
   return {
     ...actual,
     buildPeginTxFromFundedPrePegin: wrapped,
+    buildPrePeginPsbt: wrappedPrePegin,
   };
 });
 
@@ -742,14 +757,14 @@ describe("PeginManager", () => {
       expect(deriveIdx).toBeGreaterThanOrEqual(0);
       expect(approveIdx).toBeGreaterThan(deriveIdx);
       expect(signIdx).toBeGreaterThan(approveIdx);
-      // Seam invariant (design §6): NO derive between approval and the last
+      // Seam invariant (see DepositTermsApprover): NO derive between approval and the last
       // terms-bound signature — pin every derive before approval, not just
       // the first one.
       expect(callOrder.lastIndexOf("deriveContextHash")).toBeLessThan(
         approveIdx,
       );
-      // F6 hoist: both per-vault PegIn builds (and their htlcVout bind-checks)
-      // must have run before the depositor approved on the device.
+      // Both per-vault PegIn builds (and their htlcVout bind-checks) must have
+      // run before the depositor approved on the device.
       expect(peginBuildsAtApproval).toBe(2);
 
       expect(approvedTerms).toBeDefined();
@@ -840,6 +855,44 @@ describe("PeginManager", () => {
       // would raise "not a function" if it called the absent method.
       expect(result.depositTerms).toBeDefined();
       expect(result.depositTerms.vaults).toHaveLength(1);
+    });
+
+    it("throws when the funded Pre-PegIn fee diverges from the sizing-pass fee", async () => {
+      // depositTerms.prepeginMaxFee publishes sizing.fee as a hardware signing
+      // bound — a funded tx paying a different fee must be refused, not shipped.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Corrupt only the COMMIT pass (second buildPrePeginPsbt call) — the
+      // sizing pass must stay honest so sizing.fee is the real baseline.
+      let prePeginCalls = 0;
+      prePeginTamper.fn = (result) => {
+        prePeginCalls += 1;
+        return prePeginCalls === 2
+          ? { ...result, totalOutputValue: result.totalOutputValue + 1n }
+          : result;
+      };
+      try {
+        await expect(
+          manager.preparePegin({
+            amounts: [TEST_AMOUNTS.PEGIN],
+            ...BASE_PREPARE_PEGIN_PARAMS,
+          }),
+        ).rejects.toThrow(/funded fee/i);
+      } finally {
+        prePeginTamper.fn = null;
+      }
     });
   });
 

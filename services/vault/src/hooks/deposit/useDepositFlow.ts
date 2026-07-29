@@ -15,9 +15,9 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
+  forwardDepositApproval,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
-  supportsDepositApproval,
   validateOnChainParticipantKeys,
   verifyRegisteredVaultVersions,
   type DepositTermsApprover,
@@ -481,14 +481,8 @@ export function useDepositFlow(
           ...(typeof confirmedBtcWallet.signPsbts === "function"
             ? { signPsbts: signPeginBatch }
             : {}),
-          // Object spread drops prototype methods (class-instance wallets), so
-          // approveDepositTerms must be forwarded explicitly like signPsbts above.
-          ...(supportsDepositApproval(confirmedBtcWallet)
-            ? {
-                approveDepositTerms: (terms) =>
-                  confirmedBtcWallet.approveDepositTerms(terms),
-              }
-            : {}),
+          // Object spread drops prototype methods — see forwardDepositApproval.
+          ...forwardDepositApproval(confirmedBtcWallet),
         };
 
         // No hard pre-filter. `DuplicateHashlock` on `BTCVaultRegistry`
@@ -954,14 +948,8 @@ export function useDepositFlow(
                 },
               }
             : {}),
-          // Object spread drops prototype methods (class-instance wallets), so
-          // approveDepositTerms must be forwarded explicitly like signPsbts above.
-          ...(supportsDepositApproval(confirmedBtcWallet)
-            ? {
-                approveDepositTerms: (terms) =>
-                  confirmedBtcWallet.approveDepositTerms(terms),
-              }
-            : {}),
+          // Object spread drops prototype methods — see forwardDepositApproval.
+          ...forwardDepositApproval(confirmedBtcWallet),
         };
 
         // Track per-vault outcomes so failed lanes don't block healthy siblings

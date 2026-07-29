@@ -27,6 +27,7 @@ import {
 } from "../utils/bitcoin";
 import {
   ASSERT_PAYOUT_OUTPUT_INDEX,
+  BPS_DENOMINATOR,
   MAX_VP_COMMISSION_BPS_EXCLUSIVE,
   NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
   PAYOUT_ANCHOR_DUST_SATS,
@@ -460,7 +461,7 @@ function assertPayoutOutputLayout(args: {
       );
     }
     const maxCommissionSats = Math.floor(
-      (peginValueSats * commissionBps) / MAX_VP_COMMISSION_BPS_EXCLUSIVE,
+      (peginValueSats * commissionBps) / BPS_DENOMINATOR,
     );
     if (payoutTx.outs[1].value > maxCommissionSats) {
       throw new Error(

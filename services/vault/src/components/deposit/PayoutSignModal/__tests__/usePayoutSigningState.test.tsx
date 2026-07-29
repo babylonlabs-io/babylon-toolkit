@@ -665,7 +665,7 @@ describe("usePayoutSigningState", () => {
     });
   });
 
-  describe("deposit-terms approval capability forwarding (F2 regression)", () => {
+  describe("deposit-terms approval capability forwarding through wallet wrappers", () => {
     // A real depositor-approval wallet (e.g. Ledger) implements
     // approveDepositTerms as a class-prototype method, not an own/instance
     // property — `{...wallet}` silently drops it, so the wrapper built here

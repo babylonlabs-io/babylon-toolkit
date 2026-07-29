@@ -76,6 +76,16 @@ describe("buildDepositTerms", () => {
     expect(() => buildDepositTerms({ ...BASE, commissionBps: -1 })).toThrow(/integer/i);
   });
 
+  it("copies the key lists — mutating the inputs afterwards must not mutate built terms", () => {
+    const keeperPks = [KEY_A, KEY_B];
+    const challengerPks = [KEY_C, KEY_D];
+    const terms = buildDepositTerms({ ...BASE, keeperPks, challengerPks });
+    keeperPks.push(VP);
+    challengerPks[0] = VP;
+    expect(terms.keeperPks).toEqual([KEY_A, KEY_B]);
+    expect(terms.challengerPks).toEqual([KEY_C, KEY_D]);
+  });
+
   it("throws when commissionBps reaches the exclusive upper bound", () => {
     // Closes the drift vs payout.ts, which already rejects >= MAX_VP_COMMISSION_BPS_EXCLUSIVE.
     expect(() => buildDepositTerms({ ...BASE, commissionBps: 10_000 })).toThrow(/integer/i);

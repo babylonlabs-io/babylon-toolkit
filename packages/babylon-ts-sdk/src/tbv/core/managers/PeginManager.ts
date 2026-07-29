@@ -917,6 +917,21 @@ export class PeginManager {
       network,
     });
 
+    // sizing.fee ships in the deposit terms as a hardware signing bound
+    // (prepeginMaxFee) — assert the funded tx actually pays it before the
+    // bound leaves this method.
+    const fundedFee =
+      sizing.selectedUTXOs.reduce((sum, u) => sum + BigInt(u.value), 0n) -
+      prePeginResult.totalOutputValue -
+      sizing.changeAmount;
+    if (fundedFee !== sizing.fee) {
+      throw new Error(
+        `Pre-PegIn funded fee ${fundedFee} does not match the sizing-pass fee ` +
+          `${sizing.fee}; refusing to publish a deposit-terms fee bound the ` +
+          `funded transaction does not pay.`,
+      );
+    }
+
     const prePeginTxid = stripHexPrefix(
       calculateBtcTxHash(fundedPrePeginTxHex),
     );

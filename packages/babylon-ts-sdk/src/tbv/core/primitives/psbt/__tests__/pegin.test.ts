@@ -112,8 +112,8 @@ describe("buildPrePeginPsbt", () => {
         high.htlcValues[0] - high.peginAmounts[0] - high.depositorClaimValue;
       expect(highFee).toBeGreaterThan(lowFee);
 
-      // minPeginFee (the value F4 threads to callers instead of a second
-      // recompute) must equal the same implied reserve, v1 having no anchor.
+      // minPeginFee (threaded to callers instead of a second recompute) must
+      // equal the same implied reserve, v1 having no anchor.
       expect(low.minPeginFee).toBe(lowFee);
       expect(high.minPeginFee).toBe(highFee);
     });

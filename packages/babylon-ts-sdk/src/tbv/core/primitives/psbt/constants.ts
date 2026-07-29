@@ -45,9 +45,17 @@ export const NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 2;
 export const CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER = 2;
 
 /**
- * Exclusive upper bound on VP commission (bps), and the bps denominator for
- * `floor(peginValue * bps / 10_000)`. Matches `BTCVaultRegistry._validateCommission`
- * (`commissionBps >= 10000` reverts). The minimum is version-locked
- * (`minVpCommissionBps`) and enforced upstream, not here.
+ * Exclusive upper bound on VP commission (bps). Matches
+ * `BTCVaultRegistry._validateCommission` (`commissionBps >= 10000` reverts).
+ * The minimum is version-locked (`minVpCommissionBps`) and enforced upstream,
+ * not here.
  */
 export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
+
+/**
+ * Basis-points denominator for commission math:
+ * `floor(value * bps / BPS_DENOMINATOR)`. Numerically equal to
+ * {@link MAX_VP_COMMISSION_BPS_EXCLUSIVE} but a distinct concept — tightening
+ * the accepted bps range must never change the arithmetic.
+ */
+export const BPS_DENOMINATOR = 10_000;

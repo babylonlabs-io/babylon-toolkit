@@ -8,8 +8,8 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
+  forwardDepositApproval,
   stripHexPrefix,
-  supportsDepositApproval,
   type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
@@ -280,14 +280,8 @@ export function usePayoutSigningState({
                 },
               }
             : {}),
-          // Object spread drops prototype methods (class-instance wallets), so
-          // approveDepositTerms must be forwarded explicitly like signPsbts above.
-          ...(supportsDepositApproval(wallet)
-            ? {
-                approveDepositTerms: (terms) =>
-                  wallet.approveDepositTerms(terms),
-              }
-            : {}),
+          // Object spread drops prototype methods — see forwardDepositApproval.
+          ...forwardDepositApproval(wallet),
         };
 
       try {

@@ -1,4 +1,7 @@
-import { MAX_VP_COMMISSION_BPS_EXCLUSIVE } from "../primitives/psbt/constants";
+import {
+  BPS_DENOMINATOR,
+  MAX_VP_COMMISSION_BPS_EXCLUSIVE,
+} from "../primitives/psbt/constants";
 
 import type {
   BuildDepositTermsInputs,
@@ -40,7 +43,7 @@ export function buildDepositTerms(inputs: BuildDepositTermsInputs): DepositTerms
     );
   }
 
-  const bpsDenominator = BigInt(MAX_VP_COMMISSION_BPS_EXCLUSIVE);
+  const bpsDenominator = BigInt(BPS_DENOMINATOR);
   const vaults: DepositTermsVaultGroup[] = inputs.vaultAmounts.map((vaultAmount, index) => ({
     htlcVout: index,
     vaultProviderPk: inputs.vaultProviderPk,

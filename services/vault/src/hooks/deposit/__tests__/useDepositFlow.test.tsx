@@ -213,7 +213,7 @@ const MOCK_BTC_WALLET = {
   getNetwork: vi.fn().mockResolvedValue("testnet"),
 };
 
-// F2 regression: a real depositor-approval wallet (e.g. Ledger) implements
+// Wrapper regression: a real depositor-approval wallet (e.g. Ledger) implements
 // approveDepositTerms as a class-prototype method, not an own/instance
 // property — `{...wallet}` silently drops it, so the vault-app wrapper must
 // forward it explicitly instead of relying on spread.
@@ -1511,7 +1511,7 @@ describe("useDepositFlow", () => {
     });
   });
 
-  describe("Deposit-terms approval capability forwarding (F2 regression)", () => {
+  describe("Deposit-terms approval capability forwarding through wallet wrappers", () => {
     it("forwards a prototype-method approveDepositTerms through both wallet wrapper sites", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
