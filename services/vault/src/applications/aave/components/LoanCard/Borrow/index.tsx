@@ -300,6 +300,7 @@ export function Borrow() {
                   assetConfig.icon,
                   assetConfig.symbol,
                 )}
+                selectedReserveId={selectedReserve.reserveId}
                 reserves={borrowableReserves}
                 mode={LOAN_TAB.BORROW}
                 disabled={isProcessing}

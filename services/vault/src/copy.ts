@@ -1185,13 +1185,13 @@ export const COPY = {
         "Position integrity check failed: your position details returned by the indexer don't match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
     },
     // Reserve detail overlay (applications/aave/components/Detail).
+    // Reserve-identity states shared by the loan overlay's form step and the
+    // borrowing markets data page. Loading / connect / not-found copy is the
+    // flat `loans.*` set above; these are the audit-F7 additions.
     detail: {
-      loading: "Loading...",
-      connectTitle: "Connect to manage position",
-      connectDescription: "Please connect your wallet to manage your position.",
-      reserveNotFound: "Reserve not found",
-      // Older links carried the token symbol (`?reserve=usdc`) rather than the
-      // reserve's on-chain id. Those are blocked rather than resolved by symbol.
+      // Older links carried the token symbol (`?reserve=usdc`, `/markets/usdc`)
+      // rather than the reserve's on-chain id. Those are blocked, never
+      // resolved by symbol.
       reserveLinkOutdated:
         "This link uses an outdated format. Please select the asset again from Loans.",
       // The reserve's asset could not be confirmed on-chain. Deliberately
@@ -1199,7 +1199,7 @@ export const COPY = {
       // a retry button would only invite the user to click past the warning.
       identityBlockedTitle: "Asset could not be verified",
       identityBlockedDescription:
-        "The asset shown for this market doesn't match what's registered on-chain. For your safety, this position can't be managed here. Do not proceed — return to Loans and select the asset again.",
+        "The asset shown for this market doesn't match what's registered on-chain. For your safety, this market can't be used here. Do not proceed — return to Loans and select the asset again.",
       // Verification couldn't complete (network or RPC failure), as opposed to
       // completing and failing. Neutral, and retryable.
       identityUnavailableTitle: "Couldn't verify this asset",

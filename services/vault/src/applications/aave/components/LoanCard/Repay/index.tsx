@@ -314,6 +314,7 @@ export function Repay() {
                   assetConfig.icon,
                   assetConfig.symbol,
                 )}
+                selectedReserveId={selectedReserve.reserveId}
                 reserves={borrowedReserves}
                 mode={LOAN_TAB.REPAY}
                 disabled={isProcessing || isSubmitting}

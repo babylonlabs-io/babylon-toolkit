@@ -74,6 +74,7 @@ describe("AssetPill", () => {
       <AssetPill
         symbol="USDC"
         icon="icon.png"
+        selectedReserveId={2n}
         reserves={reserves}
         mode={LOAN_TAB.BORROW}
       />,
@@ -90,6 +91,7 @@ describe("AssetPill", () => {
       <AssetPill
         symbol="USDC"
         icon="icon.png"
+        selectedReserveId={2n}
         reserves={reserves}
         mode={LOAN_TAB.REPAY}
       />,

@@ -121,7 +121,15 @@ describe("AssetSelectionPanel", () => {
       <AssetSelectionPanel
         onSelectAsset={vi.fn()}
         mode={LOAN_TAB.REPAY}
-        assets={[{ symbol: "USDC", name: "USD Coin", icon: "i", priceUsd: 1 }]}
+        assets={[
+          {
+            reserveId: 1n,
+            symbol: "USDC",
+            name: "USD Coin",
+            icon: "i",
+            priceUsd: 1,
+          },
+        ]}
       />,
     );
 
@@ -136,7 +144,15 @@ describe("AssetSelectionPanel", () => {
       <AssetSelectionPanel
         onSelectAsset={vi.fn()}
         mode={LOAN_TAB.REPAY}
-        assets={[{ symbol: "USDC", name: "USD Coin", icon: "i", priceUsd: 1 }]}
+        assets={[
+          {
+            reserveId: 1n,
+            symbol: "USDC",
+            name: "USD Coin",
+            icon: "i",
+            priceUsd: 1,
+          },
+        ]}
       />,
     );
 
@@ -154,7 +170,7 @@ describe("AssetSelectionPanel", () => {
 
     screen.getByText("Wrapped BTC").click();
 
-    expect(onSelectAsset).toHaveBeenCalledWith("WBTC");
+    expect(onSelectAsset).toHaveBeenCalledWith(2n);
   });
 
   it("routes to the asset's markets data page when Market Info is clicked", () => {
@@ -168,7 +184,7 @@ describe("AssetSelectionPanel", () => {
 
     fireEvent.click(screen.getByTestId("asset-market-info-wbtc"));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/markets/wbtc");
+    expect(screen.getByTestId("location")).toHaveTextContent("/markets/2");
     expect(onSelectAsset).not.toHaveBeenCalled();
   });
 
@@ -177,7 +193,7 @@ describe("AssetSelectionPanel", () => {
       <AssetSelectionPanel
         onSelectAsset={vi.fn()}
         mode={LOAN_TAB.REPAY}
-        assets={[{ symbol: "DAI", name: "Dai", icon: "i" }]}
+        assets={[{ reserveId: 3n, symbol: "DAI", name: "Dai", icon: "i" }]}
       />,
     );
 

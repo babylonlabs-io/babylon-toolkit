@@ -14,6 +14,8 @@ import { AssetListItem } from "../AssetSelectionPanel/AssetListItem";
 interface AssetPillProps {
   symbol: string;
   icon: string;
+  /** Reserve currently open, so the list can mark its row. */
+  selectedReserveId: bigint;
   /**
    * Reserves to offer in the switcher. Borrow passes the borrowable reserves;
    * repay passes the user's borrowed reserves (the assets that can be repaid).
@@ -28,6 +30,7 @@ interface AssetPillProps {
 export function AssetPill({
   symbol,
   icon,
+  selectedReserveId,
   reserves,
   mode,
   disabled = false,
@@ -94,7 +97,10 @@ export function AssetPill({
               symbol={reserve.token.symbol}
               name={reserve.token.name}
               icon={getTokenByAddress(reserve.token.address)?.icon}
-              selected={reserve.token.symbol === symbol}
+              // By id, not by symbol: `symbol` is the proven label of the open
+              // reserve, while the rows carry indexer labels, so comparing the
+              // two could mark the wrong row (or none).
+              selected={reserve.reserveId === selectedReserveId}
               onClick={() => handleSelect(reserve.reserveId)}
             />
           ))}

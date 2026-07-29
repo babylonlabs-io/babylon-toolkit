@@ -1,8 +1,9 @@
 /**
  * ReserveIdentityBlock
  *
- * Shown in place of the entire reserve detail when the reserve's asset can't be
- * proven on-chain (audit F7). Two distinct cases, deliberately worded apart:
+ * Shown in place of a whole reserve surface — the loan overlay's form step, or
+ * the borrowing markets data page — when the reserve's asset can't be proven
+ * on-chain (audit F7). Two distinct cases, deliberately worded apart:
  *
  * - `compromised` — verification completed and *failed*: the on-chain reserve
  *   maps to a different token than the indexer claimed, or no trusted label

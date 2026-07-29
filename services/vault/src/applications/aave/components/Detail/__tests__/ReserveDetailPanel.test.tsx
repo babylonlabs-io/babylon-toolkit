@@ -1,5 +1,5 @@
 /**
- * AaveReserveDetail — branch order of the reserve-detail overlay.
+ * ReserveDetailPanel — branch order of the loan overlay's borrow/repay step.
  *
  * The ordering is load-bearing, not cosmetic: nothing derived from the reserve
  * may reach the DOM before its asset is proven on-chain (audit F7). In
@@ -15,8 +15,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
-import { AaveReserveDetail } from "..";
 import { LOAN_TAB } from "../../../constants";
+import { ReserveDetailPanel } from "../ReserveDetailPanel";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Button: ({
@@ -35,11 +35,6 @@ vi.mock("react-router", () => ({
 
 vi.mock("@/components/shared", () => ({
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
-}));
-
-vi.mock("@/components/shared/V3ModalShell", () => ({
-  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div>{children}</div> : null,
 }));
 
 vi.mock("@/config", () => ({
@@ -67,23 +62,9 @@ vi.mock("../../LoanCard", () => ({
   LoanCard: () => <div data-testid="loan-card" />,
 }));
 
-vi.mock("../../LoanCard/LoanSuccessModal", () => ({
-  LoanSuccessModal: () => null,
-}));
-
 const mockUseAaveReserveDetail = vi.fn();
 vi.mock("../hooks", () => ({
   useAaveReserveDetail: () => mockUseAaveReserveDetail(),
-  useBorrowRepayModals: () => ({
-    showBorrowSuccess: false,
-    borrowSuccessData: { amount: 0 },
-    openBorrowSuccess: vi.fn(),
-    closeBorrowSuccess: vi.fn(),
-    showRepaySuccess: false,
-    repaySuccessData: { repayAmount: 0, withdrawAmount: 0 },
-    openRepaySuccess: vi.fn(),
-    closeRepaySuccess: vi.fn(),
-  }),
 }));
 
 const RESERVE = {
@@ -134,7 +115,7 @@ function detailState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("AaveReserveDetail", () => {
+describe("ReserveDetailPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseConnection.mockReturnValue({ isConnected: true });
@@ -142,7 +123,14 @@ describe("AaveReserveDetail", () => {
   });
 
   it("renders the loan form once the reserve's identity is proven", () => {
-    render(<AaveReserveDetail reserveId="2" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId("loan-card")).toBeInTheDocument();
   });
@@ -158,7 +146,14 @@ describe("AaveReserveDetail", () => {
       }),
     );
 
-    render(<AaveReserveDetail reserveId="2" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(
       screen.getByText(COPY.loans.detail.identityBlockedTitle),
@@ -180,7 +175,14 @@ describe("AaveReserveDetail", () => {
       }),
     );
 
-    render(<AaveReserveDetail reserveId="2" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(
       screen.getByText(COPY.loans.detail.identityUnavailableTitle),
@@ -202,14 +204,19 @@ describe("AaveReserveDetail", () => {
       }),
     );
 
-    render(<AaveReserveDetail reserveId="2" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(
       screen.getByText(COPY.loans.detail.identityBlockedTitle),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(COPY.loans.detail.loading),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(COPY.common.loading)).not.toBeInTheDocument();
   });
 
   it("prompts to connect without waiting on the identity round-trip", () => {
@@ -223,10 +230,17 @@ describe("AaveReserveDetail", () => {
       }),
     );
 
-    render(<AaveReserveDetail reserveId="2" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(
-      screen.getByText(COPY.loans.detail.connectTitle),
+      screen.getByText(COPY.loans.connectToManage.title),
     ).toBeInTheDocument();
   });
 
@@ -241,7 +255,14 @@ describe("AaveReserveDetail", () => {
       }),
     );
 
-    render(<AaveReserveDetail reserveId="usdc" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="usdc"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(
       screen.getByText(COPY.loans.detail.reserveLinkOutdated),
@@ -259,11 +280,16 @@ describe("AaveReserveDetail", () => {
       }),
     );
 
-    render(<AaveReserveDetail reserveId="99999" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="99999"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
-    expect(
-      screen.getByText(COPY.loans.detail.reserveNotFound),
-    ).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
   });
 
   it("withholds the loan form while the debt figure is still unproven", () => {
@@ -271,11 +297,16 @@ describe("AaveReserveDetail", () => {
       detailState({ currentDebtAmount: null }),
     );
 
-    render(<AaveReserveDetail reserveId="2" tab={LOAN_TAB.BORROW} />);
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(COPY.loans.detail.reserveNotFound),
-    ).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
   });
 });
