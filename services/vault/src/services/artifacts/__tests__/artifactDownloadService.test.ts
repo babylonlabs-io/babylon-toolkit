@@ -642,6 +642,30 @@ describe("fetchAndDownloadArtifacts", () => {
       expect(discard).toHaveBeenCalledTimes(1);
     });
 
+    it("discards the writable when the final commit fails", async () => {
+      // A rejected close leaves the transaction open, so its temporary file
+      // would otherwise linger until the browser reclaims it.
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(validEnvelope()),
+      );
+      const { target, commit, discard } = fakeSaveTarget();
+      commit.mockRejectedValueOnce(
+        new ArtifactFileAccessError("close failed", {
+          cause: new Error("EIO"),
+        }),
+      );
+
+      await expect(
+        fetchAndDownloadArtifacts(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+          target,
+        ),
+      ).rejects.toBeInstanceOf(ArtifactFileAccessError);
+      expect(discard).toHaveBeenCalledTimes(1);
+    });
+
     it("surfaces a write failure and discards the partial file", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
         streamingResponse(validEnvelope()),

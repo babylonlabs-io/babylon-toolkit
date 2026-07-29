@@ -241,7 +241,15 @@ export async function downloadArtifactsFromResponse(
     reader.releaseLock();
   }
 
-  await stream.commit();
+  try {
+    await stream.commit();
+  } catch (err) {
+    // A rejected close leaves the writable un-aborted, so its temporary file
+    // can linger until the browser reclaims it. Abandon the transaction
+    // explicitly rather than relying on that.
+    await discardQuietly(stream);
+    throw err;
+  }
 
   return {
     filename: target.filename,
