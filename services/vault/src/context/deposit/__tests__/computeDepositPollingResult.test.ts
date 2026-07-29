@@ -186,6 +186,27 @@ describe("computeDepositPollingResult — unresolved protocol params", () => {
     expect(result.prePeginConfirmations).toBeNull();
   });
 
+  it("still reports a cached at-depth txid as confirmed while the required depth is unknown", () => {
+    // The deliberate other half of the case above, previously uncovered. The
+    // cache entry was only written while the threshold WAS known and depth
+    // never rewinds, so the boolean stays sound — only the count is
+    // unrecoverable. Pinned via the state machine's ingesting branch, which
+    // fires solely on `prePeginBroadcastConfirmed`.
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makePendingActivity(),
+        matureRefundTxids: new Set(),
+        confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+        requiredDepth: undefined,
+        pendingIngestion: new Set([VAULT_ID]),
+      }),
+    );
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.prePeginIngesting,
+    );
+    expect(result.prePeginConfirmations).toBeNull();
+  });
+
   it("surfaces a protocol-params failure as the deposit error", () => {
     const paramsError = new Error("protocol params unavailable");
     const result = computeDepositPollingResult(

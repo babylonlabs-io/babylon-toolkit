@@ -74,8 +74,16 @@ export interface DepositPollingInputs {
   requiredDepth: number | undefined;
   /**
    * Protocol-param load failure. Surfaced on every deposit's `error` when no
-   * more specific per-deposit error exists, so a params outage presents as a
-   * loud failure instead of rows frozen on "confirming".
+   * more specific per-deposit error exists, so a params outage is never
+   * silently swallowed.
+   *
+   * why this is suppression, not display: `error` is read only by
+   * `getActionStatus`, which collapses to `noAction` — so this withholds every
+   * CTA rather than rendering a message. That is the intended posture. Depth
+   * and `tRefund` maturity gate Broadcast and Refund, and offering an action
+   * derived from params we could not read is worse than offering none. The
+   * user-facing surface for a params outage is `ProtocolParamsProvider`'s own
+   * error panel, which gates on a superset of these same query keys.
    */
   protocolParamsError: Error | null;
   /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
@@ -169,6 +177,13 @@ export function computeDepositPollingResult(
   // An unknown `requiredDepth` can only withhold "confirmed", never assert it:
   // comparing against a defaulted threshold would claim protocol depth the
   // chain may not have reached.
+  //
+  // why `cachedAtDepth` short-circuits ahead of that guard, while the count
+  // below withholds on the same input: the two are not the same claim. A cache
+  // entry was only ever written while the threshold WAS known, and depth never
+  // rewinds — so the boolean stays sound without re-reading it. The number is
+  // not recoverable that way: reporting one would mean inventing the very
+  // threshold we are missing. Deliberate asymmetry, not an oversight.
   const prePeginBroadcastConfirmed =
     cachedAtDepth ||
     (confirmations !== undefined &&

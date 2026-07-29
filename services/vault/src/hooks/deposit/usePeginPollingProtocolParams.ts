@@ -9,10 +9,12 @@
  * children — depending on it there would gate the whole app on three contract
  * reads and blank it on failure.
  *
- * The resolvers return `undefined` until BOTH queries have landed, matching the
- * blocking provider's own gate. Callers must read that as "depth not yet known"
- * and withhold any confirmation conclusion — never substitute a default, which
- * would assert a Bitcoin depth the chain has not reached.
+ * The resolvers return `undefined` until BOTH queries have landed. (The
+ * blocking provider gates on a third, `universalChallengers`, which nothing
+ * here reads — so this is the same discipline, not the same gate.) Callers must
+ * read `undefined` as "depth not yet known" and withhold any confirmation
+ * conclusion — never substitute a default, which would assert a Bitcoin depth
+ * the chain has not reached.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +26,14 @@ import { offchainParamsQueryOptions } from "@/hooks/useOffchainParams";
 export interface PeginPollingProtocolParams {
   /** True once both queries resolved; every resolver below is live. */
   ready: boolean;
-  /** First query error, or null. Surfaced per-deposit rather than swallowed. */
+  /**
+   * First query error, or null — but only while {@link ready} is false.
+   * why: React Query retains `data` when a *refetch* fails, so once the
+   * stale time elapses an error can sit beside a cached value that is present
+   * and correct. Reporting it then would withhold conclusions over a depth the
+   * hook already knows. Same discipline as the resolvers below: withhold only
+   * when the value is genuinely unknown.
+   */
   error: Error | null;
   /** On-chain activation window. `undefined` until {@link ready}. */
   pegInActivationTimeout: bigint | undefined;
@@ -74,9 +83,11 @@ export function usePeginPollingProtocolParams(): PeginPollingProtocolParams {
     [offchainParams],
   );
 
+  const ready = config !== undefined && offchainParams !== undefined;
+
   return {
-    ready: config !== undefined && offchainParams !== undefined,
-    error: configError ?? offchainError,
+    ready,
+    error: ready ? null : (configError ?? offchainError),
     pegInActivationTimeout: config?.pegInActivationTimeout,
     resolveRequiredPrePeginDepth,
     resolveRefundTimelock,

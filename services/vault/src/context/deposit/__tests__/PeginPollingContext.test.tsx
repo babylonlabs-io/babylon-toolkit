@@ -993,4 +993,27 @@ describe("PeginPollingContext", () => {
       paramsError,
     );
   });
+
+  it("reports a protocol-params failure as failed, not as still loading", () => {
+    // The queries have exhausted their retries, so `ready` can never flip. A
+    // result asserting `loading` beside that error would park every consumer on
+    // the loading branch forever — the frozen row this seam exists to prevent.
+    mockProtocolParams.ready = false;
+    mockProtocolParams.error = new Error("protocol params unavailable");
+
+    const { result } = renderProvider();
+
+    expect(result.current.getPollingResult(ACTIVITY_ID)?.loading).toBe(false);
+  });
+
+  it("still reports loading while the params are merely resolving", () => {
+    // The other half of the same rule: unresolved is not failed, and a cold
+    // load must not read as a settled "depth unknown".
+    mockProtocolParams.ready = false;
+    mockProtocolParams.error = null;
+
+    const { result } = renderProvider();
+
+    expect(result.current.getPollingResult(ACTIVITY_ID)?.loading).toBe(true);
+  });
 });

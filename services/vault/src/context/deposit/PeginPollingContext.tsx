@@ -524,8 +524,11 @@ export function PeginPollingProvider({
           activity.id.toLowerCase(),
         ),
         // Params still resolving is a loading state, not a resolved "depth
-        // unknown" — otherwise a cold load reads as a stalled deposit.
-        isLoading: isLoading || !params.ready,
+        // unknown" — otherwise a cold load reads as a stalled deposit. A params
+        // *failure* is not: the queries have exhausted their retries and will
+        // not resolve, so latching `loading` beside the error would park every
+        // row on a spinner forever. Failed params present as failed.
+        isLoading: isLoading || (!params.ready && !params.error),
         protocolParamsError: params.error,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
