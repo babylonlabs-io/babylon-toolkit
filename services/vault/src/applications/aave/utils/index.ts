@@ -1,5 +1,6 @@
 // Re-export utilities from SDK
 export {
+  HEALTH_FACTOR_WARNING_THRESHOLD,
   aaveRayValueToUsd,
   aaveValueToUsd,
   calculateHealthFactor,

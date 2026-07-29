@@ -12,13 +12,13 @@ import { useOutletContext } from "react-router";
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { LOAN_TAB } from "@/applications/aave/constants";
 import { useActiveLoans } from "@/applications/aave/hooks";
-import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import {
+  resolveShownHealthFactor,
   useDebugBorrowCapacity,
   useDebugHealthFactorOverride,
 } from "@/dev/debugPositionStore";
@@ -69,17 +69,18 @@ export default function Loans() {
   const demoAffectsLoans =
     demoLoans !== null && (demoLoans.rows.length > 0 || demoLoans.hideReal);
 
-  // God-mode summary overrides (dev only; null unless the panel forces them).
-  // The health-factor STATUS is derived from the forced value with the real
-  // banding function, so a forced card can't drift from production. Both are
-  // compile-time null in production builds.
+  // God-mode summary overrides (dev only; null unless the panel forces them,
+  // compile-time null in production builds).
   const healthFactorOverride = useDebugHealthFactorOverride();
   const borrowCapacityOverride = useDebugBorrowCapacity();
-  const shownHealthFactor = healthFactorOverride ?? healthFactor;
-  const shownHealthFactorStatus =
-    healthFactorOverride !== null
-      ? getHealthFactorStatusFromValue(healthFactorOverride)
-      : healthFactorStatus;
+  const {
+    healthFactor: shownHealthFactor,
+    healthFactorStatus: shownHealthFactorStatus,
+  } = resolveShownHealthFactor(
+    healthFactorOverride,
+    healthFactor,
+    healthFactorStatus,
+  );
   // A forced state REPLACES the live one wholesale — combining them field by
   // field would leave "Error" showing the live loader (or "Loading" showing a
   // live error), i.e. never actually render the state that was forced.

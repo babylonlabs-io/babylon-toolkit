@@ -97,17 +97,18 @@ export function RiskPriceRail({
   const isSolidGreen =
     !isNeutral && (state === "verySafe" || state === "noPosition");
   const showGradient = !isNeutral && !isSolidGreen && liquidationPct !== null;
-  const showLiquidationMarker = showGradient;
   const showGapArrow =
     showGradient &&
     liquidationPct !== null &&
     currentPct !== null &&
     Math.abs(currentPct - liquidationPct) >= GAP_MIN_SEPARATION_PCT;
 
-  const currentRingCss =
+  const currentRingClass =
     state === "liquidatable"
-      ? "rgb(var(--risk-red))"
-      : "rgb(var(--risk-green))";
+      ? "border-risk-red"
+      : state === "moderate"
+        ? "border-risk-amber"
+        : "border-risk-green";
 
   const markerHalf = MARKER_LABEL_WIDTH_PX / 2;
   const labelCenters =
@@ -184,7 +185,7 @@ export function RiskPriceRail({
           leftPx={currentLabelPx}
         />
       )}
-      {showLiquidationMarker && labelCenters && (
+      {showGradient && labelCenters && (
         <MarkerLabel
           label={COPY.risk.chart.liquidationPriceLabel}
           value={liquidationPriceText}
@@ -195,23 +196,15 @@ export function RiskPriceRail({
       {currentPct !== null && (
         <div
           data-testid="risk-marker-current"
-          className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
-          style={{
-            left: `${currentPct}%`,
-            top: RAIL_CENTER_PX,
-            border: `3px solid ${currentRingCss}`,
-          }}
+          className={`absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] bg-white ${currentRingClass}`}
+          style={{ left: `${currentPct}%`, top: RAIL_CENTER_PX }}
         />
       )}
-      {showLiquidationMarker && liquidationPct !== null && (
+      {showGradient && liquidationPct !== null && (
         <div
           data-testid="risk-marker-liquidation"
-          className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
-          style={{
-            left: `${liquidationPct}%`,
-            top: RAIL_CENTER_PX,
-            border: "3px solid rgb(var(--risk-red))",
-          }}
+          className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-risk-red bg-white"
+          style={{ left: `${liquidationPct}%`, top: RAIL_CENTER_PX }}
         />
       )}
 

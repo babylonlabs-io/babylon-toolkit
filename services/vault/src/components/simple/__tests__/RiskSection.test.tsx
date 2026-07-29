@@ -162,6 +162,22 @@ describe("RiskSection rendering", () => {
     expect(currentLeft).toBeLessThan(liquidationLeft);
   });
 
+  it("rings the current marker amber in the moderate state and green when safe", () => {
+    const { unmount } = renderSection({
+      healthFactorStatus: "warning",
+      healthFactor: 1.14,
+    });
+    expect(screen.getByTestId("risk-marker-current").className).toContain(
+      "border-risk-amber",
+    );
+    unmount();
+
+    renderSection();
+    expect(screen.getByTestId("risk-marker-current").className).toContain(
+      "border-risk-green",
+    );
+  });
+
   it("renders the three stat labels, their values, and the collateral-factor tooltip label", () => {
     renderSection();
 
@@ -201,6 +217,27 @@ describe("computeRailLayout", () => {
     expect(layout.currentPct as number).toBeLessThan(
       layout.liquidationPct as number,
     );
+  });
+
+  it("anchors the red gradient stop on the liquidation price, not the current price", () => {
+    const layout = computeRailLayout(88400, 77600);
+    const redStop = Number(/risk-red\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
+    const liquidationStop =
+      ((77600 - layout.lo) / (layout.hi - layout.lo)) * 100;
+    expect(redStop).toBeCloseTo(liquidationStop, 2);
+    expect(redStop).toBeLessThan(layout.currentPct as number);
+  });
+
+  it("keeps a readable ramp, still green under the marker, when liquidation is far below", () => {
+    // Health factor ~9: $63,488 current vs a $6,962 liquidation price. The
+    // truthful safe-threshold stop lands under 6% — it gets stretched.
+    const layout = computeRailLayout(63488, 6962);
+    const redStop = Number(/risk-red\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
+    const greenStop = Number(
+      /risk-green\)\) ([\d.]+)%/.exec(layout.gradient!)![1],
+    );
+    expect(greenStop - redStop).toBeGreaterThanOrEqual(45);
+    expect(greenStop).toBeLessThan(layout.currentPct as number);
   });
 
   it("returns null positions when the current price is unavailable", () => {

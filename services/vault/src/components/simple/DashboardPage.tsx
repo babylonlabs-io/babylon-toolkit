@@ -18,6 +18,8 @@ import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import {
+  resolveShownHealthFactor,
+  useDebugHealthFactorOverride,
   useDebugManualMode,
   useDebugManualParams,
   useDebugPositionOverride,
@@ -252,9 +254,6 @@ export function DashboardPage() {
     btcMetadata !== undefined &&
     !btcMetadata.isStale &&
     !btcMetadata.fetchFailed;
-  const liquidationPrice = firstLiquidationGroup
-    ? formatUsdPrice(firstLiquidationGroup.liquidationPrice)
-    : COPY.common.emptyValue;
   const usableBtcPriceUsd =
     isBtcPriceUsable && btcPriceUsd !== undefined && btcPriceUsd > 0
       ? btcPriceUsd
@@ -263,10 +262,46 @@ export function DashboardPage() {
     usableBtcPriceUsd !== null
       ? formatUsdPrice(usableBtcPriceUsd)
       : COPY.common.emptyValue;
-  const liquidationPriceUsd = firstLiquidationGroup?.liquidationPrice ?? null;
-  const pctToLiquidation = firstLiquidationGroup
-    ? formatLiquidationDistancePercent(-firstLiquidationGroup.distancePct)
-    : COPY.common.emptyValue;
+  // God-mode override (dev only; null in production). Health factor is
+  // btcPrice / liquidationPrice, so a forced value implies the liquidation
+  // price that produces it — the rail is charted from that price, not the HF.
+  // A forced card is derived wholesale from the override: with no usable BTC
+  // price there is nothing to imply a liquidation price from, and the stats
+  // read as placeholders rather than mixing a forced HF with live liquidation
+  // numbers (the case you hit inspecting the stale-price path).
+  const healthFactorOverride = useDebugHealthFactorOverride();
+  const {
+    healthFactor: shownHealthFactor,
+    healthFactorStatus: shownHealthFactorStatus,
+  } = resolveShownHealthFactor(
+    healthFactorOverride,
+    healthFactor,
+    healthFactorStatus,
+  );
+  const forcedLiquidationPriceUsd =
+    healthFactorOverride !== null && usableBtcPriceUsd !== null
+      ? usableBtcPriceUsd / healthFactorOverride
+      : null;
+  const liquidationPriceUsd =
+    healthFactorOverride !== null
+      ? forcedLiquidationPriceUsd
+      : (firstLiquidationGroup?.liquidationPrice ?? null);
+  const liquidationPrice =
+    liquidationPriceUsd !== null
+      ? formatUsdPrice(liquidationPriceUsd)
+      : COPY.common.emptyValue;
+  const distanceToLiquidationPct =
+    healthFactorOverride !== null
+      ? forcedLiquidationPriceUsd !== null
+        ? 100 * (1 - 1 / healthFactorOverride)
+        : null
+      : firstLiquidationGroup !== null
+        ? -firstLiquidationGroup.distancePct
+        : null;
+  const pctToLiquidation =
+    distanceToLiquidationPct !== null
+      ? formatLiquidationDistancePercent(distanceToLiquidationPct)
+      : COPY.common.emptyValue;
   const collateralFactorText =
     collateralFactorBps !== null
       ? formatBasisPointsAsPercent(collateralFactorBps)
@@ -332,8 +367,8 @@ export function DashboardPage() {
 
         {showOverview && (
           <OverviewSection
-            healthFactor={healthFactor}
-            healthFactorStatus={healthFactorStatus}
+            healthFactor={shownHealthFactor}
+            healthFactorStatus={shownHealthFactorStatus}
             totalCollateralValue={totalCollateralValue}
             totalBorrowed={totalBorrowed}
             liquidationPrice={liquidationPrice}
@@ -357,9 +392,9 @@ export function DashboardPage() {
 
         {featureFlags.isV3UiEnabled && (
           <RiskSection
-            healthFactor={healthFactor}
-            healthFactorStatus={healthFactorStatus}
-            hasPosition={hasOverviewData}
+            healthFactor={shownHealthFactor}
+            healthFactorStatus={shownHealthFactorStatus}
+            hasPosition={hasOverviewData || healthFactorOverride !== null}
             liquidationPriceText={liquidationPrice}
             btcPriceText={btcPrice}
             pctToLiquidationText={pctToLiquidation}
