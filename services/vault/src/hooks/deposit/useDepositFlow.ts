@@ -15,10 +15,12 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
+  forwardDepositApproval,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   validateOnChainParticipantKeys,
   verifyRegisteredVaultVersions,
+  type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   primeVpTokenRegistry,
@@ -468,7 +470,8 @@ export function useDepositFlow(
           return signed;
         };
 
-        const phaseTrackingBtcWallet: typeof confirmedBtcWallet = {
+        const phaseTrackingBtcWallet: typeof confirmedBtcWallet &
+          Partial<DepositTermsApprover> = {
           ...confirmedBtcWallet,
           deriveContextHash: (appName, context) => {
             advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
@@ -478,6 +481,8 @@ export function useDepositFlow(
           ...(typeof confirmedBtcWallet.signPsbts === "function"
             ? { signPsbts: signPeginBatch }
             : {}),
+          // Object spread drops prototype methods — see forwardDepositApproval.
+          ...forwardDepositApproval(confirmedBtcWallet),
         };
 
         // No hard pre-filter. `DuplicateHashlock` on `BTCVaultRegistry`
@@ -523,6 +528,7 @@ export function useDepositFlow(
             mempoolFeeRate,
             changeAddress: confirmedBtcAddress,
             vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
+            commissionBps: quotedCommissionBps,
             vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
             universalChallengerBtcPubkeys:
               validatedKeys.universalChallengerBtcPubkeysSorted,
@@ -868,7 +874,8 @@ export function useDepositFlow(
         setIsWaiting(true);
 
         let baseStep: DepositFlowStep = DepositFlowStep.AWAIT_BTC_CONFIRMATION;
-        const postBroadcastBtcWallet: typeof confirmedBtcWallet = {
+        const postBroadcastBtcWallet: typeof confirmedBtcWallet &
+          Partial<DepositTermsApprover> = {
           ...confirmedBtcWallet,
           // `isWaiting` flips to `false` while a popup is open and back
           // to `true` after it closes, so the SDK polling that follows
@@ -941,6 +948,8 @@ export function useDepositFlow(
                 },
               }
             : {}),
+          // Object spread drops prototype methods — see forwardDepositApproval.
+          ...forwardDepositApproval(confirmedBtcWallet),
         };
 
         // Track per-vault outcomes so failed lanes don't block healthy siblings
@@ -1142,6 +1151,7 @@ export function useDepositFlow(
               btcWallet: postBroadcastBtcWallet,
               depositorEthAddress: confirmedEthAddress,
               unsignedPrePeginTxHex: batchResult.fundedPrePeginTxHex,
+              depositTerms: batchResult.depositTerms,
               signal,
               onProgress: (p) => {
                 if (!p) return;

@@ -44,13 +44,16 @@ import type { PrePeginParams } from "./pegin";
  *
  * @param result - The result returned by `createPrePeginTransaction`.
  * @param params - The parameters that were passed to build it.
+ * @returns The independently computed `minPeginFee` this function already
+ *   asserted against `result`'s implied reserve — callers that need the
+ *   value should reuse this instead of recomputing it.
  * @throws If any value is missing, non-positive, mismatched against the
  *   request, or outside the protocol formula.
  */
 export async function assertWasmPeginSizing(
   result: PrePeginResult,
   params: PrePeginParams,
-): Promise<void> {
+): Promise<bigint> {
   const expectedCount = params.pegInAmounts.length;
 
   // Count: every parallel array must carry exactly one entry per requested
@@ -198,6 +201,8 @@ export async function assertWasmPeginSizing(
       );
     }
   }
+
+  return expectedPeginFee;
 }
 
 /**

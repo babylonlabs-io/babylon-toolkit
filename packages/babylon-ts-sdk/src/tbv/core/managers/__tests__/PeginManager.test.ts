@@ -5,6 +5,10 @@
  * using primitives, utilities, and mock wallets.
  */
 
+import {
+  computeMinClaimValue,
+  computeMinPeginFee,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import {
@@ -16,9 +20,11 @@ import {
 } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { SignPsbtOptions } from "../../../../shared/wallets";
 import { MockBitcoinWallet, MockEthereumWallet } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { BTCVaultRegistryABI } from "../../contracts";
+import type { DepositTerms } from "../../deposit-terms";
 import {
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
@@ -68,6 +74,39 @@ vi.mock(
 vi.mock("../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
   assertScriptPathSchnorrSignature: vi.fn(),
 }));
+
+// Passthrough observer: records each per-vault PegIn build so the seam test can
+// assert the htlcVout bind-checks run BEFORE deposit-terms approval. The
+// prePeginTamper hook lets one test corrupt the Pre-PegIn result to prove the
+// funded-fee cross-check fires; it must be reset to null afterwards.
+const peginBuildLog = vi.hoisted(() => [] as string[]);
+const prePeginTamper = vi.hoisted(
+  () =>
+    ({ fn: null }) as {
+      fn:
+        | ((r: import("../../primitives").PrePeginPsbtResult) => import("../../primitives").PrePeginPsbtResult)
+        | null;
+    },
+);
+vi.mock("../../primitives/psbt/pegin", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../primitives/psbt/pegin")>();
+  const wrapped: typeof actual.buildPeginTxFromFundedPrePegin = async (
+    ...args
+  ) => {
+    peginBuildLog.push("buildPeginTx");
+    return actual.buildPeginTxFromFundedPrePegin(...args);
+  };
+  const wrappedPrePegin: typeof actual.buildPrePeginPsbt = async (...args) => {
+    const result = await actual.buildPrePeginPsbt(...args);
+    return prePeginTamper.fn ? prePeginTamper.fn(result) : result;
+  };
+  return {
+    ...actual,
+    buildPeginTxFromFundedPrePegin: wrapped,
+    buildPrePeginPsbt: wrappedPrePegin,
+  };
+});
 
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {
@@ -196,6 +235,7 @@ const BASE_PREPARE_PEGIN_PARAMS = {
   councilSize: 3,
   availableUTXOs: TEST_UTXOS,
   changeAddress: TEST_CHANGE_ADDRESS,
+  commissionBps: 250,
 } as const;
 
 describe("PeginManager", () => {
@@ -649,6 +689,210 @@ describe("PeginManager", () => {
           universalChallengerBtcPubkeys: [],
         }),
       ).rejects.toThrow();
+    });
+
+    it("approves the deposit terms after derive and before PegIn signing for capable wallets", async () => {
+      const callOrder: string[] = [];
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const originalDeriveContextHash =
+        btcWallet.deriveContextHash.bind(btcWallet);
+      const originalSignPsbts = btcWallet.signPsbts.bind(btcWallet);
+      let approvedTerms: DepositTerms | undefined;
+      let peginBuildsAtApproval = -1;
+      peginBuildLog.length = 0;
+
+      // Own-property overrides (class-field semantics) — mirrors how a real
+      // approval-capable wallet exposes approveDepositTerms.
+      const capableWallet = Object.assign(btcWallet, {
+        deriveContextHash: async (appName: string, context: string) => {
+          callOrder.push("deriveContextHash");
+          return originalDeriveContextHash(appName, context);
+        },
+        signPsbts: async (
+          psbtsHexes: string[],
+          options?: SignPsbtOptions[],
+        ) => {
+          callOrder.push("signPsbts");
+          return originalSignPsbts(psbtsHexes, options);
+        },
+        approveDepositTerms: async (terms: DepositTerms) => {
+          callOrder.push("approveDepositTerms");
+          approvedTerms = terms;
+          peginBuildsAtApproval = peginBuildLog.length;
+        },
+      });
+
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: capableWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Distinct amounts so per-vault ordering is observable (identical
+      // amounts would make a vault-order swap invisible).
+      const vaultAmounts = [TEST_AMOUNTS.PEGIN, TEST_AMOUNTS.PEGIN_MEDIUM];
+      const result = await manager.preparePegin({
+        // 2 vaults so the batch path calls wallet.signPsbts (not signPsbt),
+        // matching the "signPsbts" label asserted below.
+        amounts: vaultAmounts,
+        ...BASE_PREPARE_PEGIN_PARAMS,
+        // Distinct from minPeginFeeRate (10n) so a baseFeeRate assertion can
+        // tell the two same-typed rates apart.
+        protocolFeeRate: 12n,
+      });
+
+      expect(
+        callOrder.filter((c) => c === "approveDepositTerms"),
+      ).toHaveLength(1);
+      const deriveIdx = callOrder.indexOf("deriveContextHash");
+      const approveIdx = callOrder.indexOf("approveDepositTerms");
+      const signIdx = callOrder.indexOf("signPsbts");
+      expect(deriveIdx).toBeGreaterThanOrEqual(0);
+      expect(approveIdx).toBeGreaterThan(deriveIdx);
+      expect(signIdx).toBeGreaterThan(approveIdx);
+      // Seam invariant (see DepositTermsApprover): NO derive between approval and the last
+      // terms-bound signature — pin every derive before approval, not just
+      // the first one.
+      expect(callOrder.lastIndexOf("deriveContextHash")).toBeLessThan(
+        approveIdx,
+      );
+      // Both per-vault PegIn builds (and their htlcVout bind-checks) must have
+      // run before the depositor approved on the device.
+      expect(peginBuildsAtApproval).toBe(2);
+
+      expect(approvedTerms).toBeDefined();
+      expect(approvedTerms?.prepeginTxid).toBe(
+        result.transaction.prePeginTxid.replace(/^0x/i, "").toLowerCase(),
+      );
+      expect(result.depositTerms).toBe(approvedTerms);
+
+      // Pin every field the manager maps into buildDepositTerms. Several are
+      // same-typed and trivially swappable (the two key lists, the three sat
+      // amounts, the two rates, the two timelocks), so a partial check lets a
+      // mis-wiring through silently.
+      expect(approvedTerms?.baseFeeRate).toBe(12n);
+      expect(approvedTerms?.peginCsvTimelock).toBe(
+        BASE_PREPARE_PEGIN_PARAMS.timelockPegin,
+      );
+      expect(approvedTerms?.payoutTimelock).toBe(
+        BASE_PREPARE_PEGIN_PARAMS.timelockPegin,
+      );
+      expect(approvedTerms?.htlcRefundTimelock).toBe(
+        BASE_PREPARE_PEGIN_PARAMS.timelockRefund,
+      );
+      expect(approvedTerms?.keeperPks).toEqual(
+        BASE_PREPARE_PEGIN_PARAMS.vaultKeeperBtcPubkeys,
+      );
+      expect(approvedTerms?.challengerPks).toEqual(
+        BASE_PREPARE_PEGIN_PARAMS.universalChallengerBtcPubkeys,
+      );
+      expect(approvedTerms?.prepeginMaxFee).toBe(result.transaction.fee);
+
+      // Recompute the two WASM-sourced sat amounts independently so a swap
+      // between them (or with prepeginMaxFee) is caught, not just positivity.
+      const expectedClaimValue = await computeMinClaimValue(
+        BASE_PREPARE_PEGIN_PARAMS.vaultCoreVersion,
+        BASE_PREPARE_PEGIN_PARAMS.vaultKeeperBtcPubkeys.length,
+        BASE_PREPARE_PEGIN_PARAMS.universalChallengerBtcPubkeys.length,
+        BASE_PREPARE_PEGIN_PARAMS.councilQuorum,
+        BASE_PREPARE_PEGIN_PARAMS.councilSize,
+        12n,
+      );
+      const expectedPeginMaxFee = await computeMinPeginFee(
+        BASE_PREPARE_PEGIN_PARAMS.vaultCoreVersion,
+        BASE_PREPARE_PEGIN_PARAMS.vaultKeeperBtcPubkeys.length,
+        BASE_PREPARE_PEGIN_PARAMS.universalChallengerBtcPubkeys.length,
+        BASE_PREPARE_PEGIN_PARAMS.minPeginFeeRate,
+      );
+      expect(expectedClaimValue).not.toBe(expectedPeginMaxFee);
+
+      expect(approvedTerms?.vaults).toHaveLength(2);
+      approvedTerms?.vaults.forEach((vault, index) => {
+        expect(vault.htlcVout).toBe(index);
+        expect(vault.vaultProviderPk).toBe(
+          BASE_PREPARE_PEGIN_PARAMS.vaultProviderBtcPubkey,
+        );
+        expect(vault.vaultAmount).toBe(vaultAmounts[index]);
+        // floor(vaultAmount * 250 / 10_000)
+        expect(vault.commissionFee).toBe(
+          (vaultAmounts[index] *
+            BigInt(BASE_PREPARE_PEGIN_PARAMS.commissionBps)) /
+            10_000n,
+        );
+        expect(vault.peginMaxFee).toBe(expectedPeginMaxFee);
+        expect(vault.depositorClaimValue).toBe(expectedClaimValue);
+      });
+    });
+
+    it("is a no-op for wallets without approveDepositTerms", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const result = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      // The proof is the flow completing above without throwing — preparePegin
+      // would raise "not a function" if it called the absent method.
+      expect(result.depositTerms).toBeDefined();
+      expect(result.depositTerms.vaults).toHaveLength(1);
+    });
+
+    it("throws when the funded Pre-PegIn fee diverges from the sizing-pass fee", async () => {
+      // depositTerms.prepeginMaxFee publishes sizing.fee as a hardware signing
+      // bound — a funded tx paying a different fee must be refused, not shipped.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Corrupt only the COMMIT pass (second buildPrePeginPsbt call) — the
+      // sizing pass must stay honest so sizing.fee is the real baseline.
+      let prePeginCalls = 0;
+      prePeginTamper.fn = (result) => {
+        prePeginCalls += 1;
+        return prePeginCalls === 2
+          ? { ...result, totalOutputValue: result.totalOutputValue + 1n }
+          : result;
+      };
+      try {
+        await expect(
+          manager.preparePegin({
+            amounts: [TEST_AMOUNTS.PEGIN],
+            ...BASE_PREPARE_PEGIN_PARAMS,
+          }),
+        ).rejects.toThrow(/funded fee/i);
+      } finally {
+        prePeginTamper.fn = null;
+      }
     });
   });
 

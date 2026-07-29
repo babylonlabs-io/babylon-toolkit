@@ -8,6 +8,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type {
   BatchPeginRequestItem,
+  DepositTerms,
   PopSignature,
   UTXO as SDKUtxo,
   WotsBlockPublicKey,
@@ -48,6 +49,8 @@ export interface PreparePeginParams {
   mempoolFeeRate: number;
   changeAddress: string;
   vaultProviderBtcPubkey: string;
+  /** VP commission in basis points; feeds the deposit terms' per-vault commissionFee. */
+  commissionBps: number;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   /** CSV timelock in blocks for the PegIn vault output */
@@ -107,6 +110,8 @@ export interface PreparePeginResult {
    * terminal flow paths.
    */
   authAnchorHex: string;
+  /** Deposit terms for this Pre-PegIn; forwarded to payout signing. */
+  depositTerms: DepositTerms;
 }
 
 /**
@@ -197,11 +202,12 @@ export async function preparePeginTransaction(
 ): Promise<PreparePeginResult> {
   const peginManager = createPeginManager(btcWallet, ethWallet);
 
-  const { transaction, depositorBtcPubkey, derivedSecrets } =
+  const { transaction, depositorBtcPubkey, derivedSecrets, depositTerms } =
     await peginManager.preparePegin({
       vaultCoreVersion: params.vaultCoreVersion,
       amounts: params.pegInAmounts,
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      commissionBps: params.commissionBps,
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
       timelockPegin: params.timelockPegin,
@@ -231,6 +237,7 @@ export async function preparePeginTransaction(
     wotsPkHashes: derivedSecrets.wotsPkHashes,
     htlcSecretHexes: derivedSecrets.htlcSecretHexes,
     authAnchorHex: derivedSecrets.authAnchorHex,
+    depositTerms,
   };
 }
 

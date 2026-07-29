@@ -51,6 +51,11 @@ import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
+  buildDepositTerms,
+  supportsDepositApproval,
+  type DepositTerms,
+} from "../deposit-terms";
+import {
   assertPsbtUnsignedTxMatches,
   assertScriptPathSchnorrSignature,
   buildPeginInputPsbt,
@@ -203,6 +208,12 @@ export interface PreparePeginParams {
   vaultProviderBtcPubkey: string;
 
   /**
+   * VP commission in basis points; feeds the deposit terms' per-vault
+   * commissionFee (floor(vaultAmount * bps / 10_000)).
+   */
+  commissionBps: number;
+
+  /**
    * Vault keeper BTC public keys (x-only, 64-char hex).
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
@@ -345,6 +356,13 @@ export interface PreparePeginResult {
   depositorBtcPubkey: string;
   /** Sensitive derived material — see {@link PreparePeginDerivedSecrets}. */
   derivedSecrets: PreparePeginDerivedSecrets;
+  /**
+   * Protocol-level deposit terms for this Pre-PegIn. Always built, regardless
+   * of wallet capability — {@link supportsDepositApproval} wallets get it via
+   * `approveDepositTerms` before PegIn signing; others just get it back for
+   * reference.
+   */
+  depositTerms: DepositTerms;
 }
 
 /**
@@ -738,9 +756,11 @@ export class PeginManager {
       authAnchorHash,
     );
 
+    const { depositTerms, ...commitTransaction } = commit;
+
     return {
       transaction: {
-        ...commit,
+        ...commitTransaction,
         selectedUTXOs: sizing.selectedUTXOs,
         fee: sizing.fee,
         changeAmount: sizing.changeAmount,
@@ -752,6 +772,7 @@ export class PeginManager {
         htlcSecretHexes,
         authAnchorHex,
       },
+      depositTerms,
     };
   }
 
@@ -825,6 +846,7 @@ export class PeginManager {
     fundedPrePeginTxHex: string;
     prePeginTxid: string;
     perVault: PerVaultPeginData[];
+    depositTerms: DepositTerms;
   }> {
     const {
       depositorBtcPubkeyRaw,
@@ -895,10 +917,28 @@ export class PeginManager {
       network,
     });
 
+    // sizing.fee ships in the deposit terms as a hardware signing bound
+    // (prepeginMaxFee) — assert the funded tx actually pays it before the
+    // bound leaves this method.
+    const fundedFee =
+      sizing.selectedUTXOs.reduce((sum, u) => sum + BigInt(u.value), 0n) -
+      prePeginResult.totalOutputValue -
+      sizing.changeAmount;
+    if (fundedFee !== sizing.fee) {
+      throw new Error(
+        `Pre-PegIn funded fee ${fundedFee} does not match the sizing-pass fee ` +
+          `${sizing.fee}; refusing to publish a deposit-terms fee bound the ` +
+          `funded transaction does not pay.`,
+      );
+    }
+
     const prePeginTxid = stripHexPrefix(
       calculateBtcTxHash(fundedPrePeginTxHex),
     );
 
+    // Build the per-vault PegIn txs before deposit-terms approval so the real
+    // htlcVout bind-check inside buildPeginTxFromFundedPrePegin runs before
+    // the depositor approves on a hardware wallet, not after.
     const peginTxResults: Array<{
       txHex: string;
       txid: string;
@@ -933,6 +973,28 @@ export class PeginManager {
       signOptions.push(
         createTaprootScriptPathSignOptions(depositorBtcPubkeyRaw, 1),
       );
+    }
+
+    // Always build the deposit terms so callers get them back regardless of
+    // wallet capability; only approval-capable wallets need the call below.
+    // peginMaxFee reuses assertWasmPeginSizing's already-asserted minPeginFee
+    // (via prePeginResult) instead of recomputing it.
+    const depositTerms = buildDepositTerms({
+      protocolFeeRate: params.protocolFeeRate,
+      timelockPegin: params.timelockPegin,
+      timelockRefund: params.timelockRefund,
+      prepeginTxid: prePeginTxid,
+      prepeginMaxFee: sizing.fee,
+      vaultProviderPk: vaultProviderBtcPubkey,
+      keeperPks: vaultKeeperBtcPubkeys,
+      challengerPks: universalChallengerBtcPubkeys,
+      commissionBps: params.commissionBps,
+      vaultAmounts: params.amounts,
+      depositorClaimValue: prePeginResult.depositorClaimValue,
+      peginMaxFee: prePeginResult.minPeginFee,
+    });
+    if (supportsDepositApproval(this.config.btcWallet)) {
+      await this.config.btcWallet.approveDepositTerms(depositTerms);
     }
 
     const signedPsbts = await signPsbtsWithFallback(
@@ -978,6 +1040,7 @@ export class PeginManager {
       fundedPrePeginTxHex,
       prePeginTxid,
       perVault,
+      depositTerms,
     };
   }
 

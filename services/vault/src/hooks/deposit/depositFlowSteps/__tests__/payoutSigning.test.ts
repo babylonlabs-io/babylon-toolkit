@@ -149,6 +149,18 @@ describe("signAndSubmitPayouts", () => {
     expect(presignArgs.depositorPk).toBe("deadbeef");
   });
 
+  it("forwards the depositTerms into the presign flow unchanged", async () => {
+    const depositTerms = { marker: "deposit-terms" };
+
+    await callSignAndSubmit({ depositTerms });
+
+    expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(1);
+    const presignArgs = mockRunDepositorPresignFlow.mock.calls[0]?.[0] as {
+      depositTerms: unknown;
+    };
+    expect(presignArgs.depositTerms).toBe(depositTerms);
+  });
+
   it("authenticates the VP client against the vault provider address resolved on-chain by prepareSigningContext", async () => {
     await callSignAndSubmit();
 

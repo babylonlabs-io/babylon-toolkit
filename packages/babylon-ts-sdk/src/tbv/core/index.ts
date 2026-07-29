@@ -23,3 +23,4 @@ export * from "./contracts";
 export * from "./wots";
 export * from "./services";
 export * from "./vault-secrets";
+export * from "./deposit-terms";

@@ -3,6 +3,7 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address, Hex } from "viem";
@@ -41,6 +42,8 @@ export interface SignAndSubmitPayoutsParams {
   btcWallet: BitcoinWallet;
   depositorEthAddress: Address;
   unsignedPrePeginTxHex: string;
+  /** Required for approval-capable wallets on a fresh flow; resume path omits it. */
+  depositTerms?: DepositTerms;
   signal?: AbortSignal;
   onProgress?: (progress: PayoutSigningProgress | null) => void;
 }
@@ -63,6 +66,7 @@ export async function signAndSubmitPayouts(
     btcWallet,
     depositorEthAddress,
     unsignedPrePeginTxHex,
+    depositTerms,
     signal,
     onProgress,
   } = params;
@@ -103,6 +107,7 @@ export async function signAndSubmitPayouts(
     peginTxid,
     depositorPk: stripHexPrefix(depositorBtcPubkey),
     signingContext: context,
+    depositTerms,
     signal,
     onProgress: onProgress
       ? (completed, total) =>

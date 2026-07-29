@@ -7,7 +7,11 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  forwardDepositApproval,
+  stripHexPrefix,
+  type DepositTermsApprover,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
@@ -229,53 +233,56 @@ export function usePayoutSigningState({
       abortRef.current = new AbortController();
 
       const wallet = btcWalletProvider as BitcoinWallet;
-      const graphProgressWallet: BitcoinWallet = {
-        ...wallet,
-        deriveContextHash: async (appName, context) => {
-          setProgress({ phase: "auth", completed: 0, total: 0 });
-          try {
-            return await wallet.deriveContextHash(appName, context);
-          } finally {
-            setProgress({ phase: "claimers", completed: 0, total: 0 });
-          }
-        },
-        signPsbt: async (hex, opts) => {
-          if (claimersDoneRef.current) {
-            setProgress({ phase: "graph", completed: 0, total: 1 });
-          }
-          try {
-            return await wallet.signPsbt(hex, opts);
-          } finally {
-            if (claimersDoneRef.current) {
-              setProgress({ phase: "graph", completed: 1, total: 1 });
+      const graphProgressWallet: BitcoinWallet & Partial<DepositTermsApprover> =
+        {
+          ...wallet,
+          deriveContextHash: async (appName, context) => {
+            setProgress({ phase: "auth", completed: 0, total: 0 });
+            try {
+              return await wallet.deriveContextHash(appName, context);
+            } finally {
+              setProgress({ phase: "claimers", completed: 0, total: 0 });
             }
-          }
-        },
-        ...(wallet.signPsbts
-          ? {
-              signPsbts: async (hexes, opts) => {
-                if (claimersDoneRef.current) {
-                  setProgress({
-                    phase: "graph",
-                    completed: 0,
-                    total: hexes.length,
-                  });
-                }
-                try {
-                  return await wallet.signPsbts!(hexes, opts);
-                } finally {
+          },
+          signPsbt: async (hex, opts) => {
+            if (claimersDoneRef.current) {
+              setProgress({ phase: "graph", completed: 0, total: 1 });
+            }
+            try {
+              return await wallet.signPsbt(hex, opts);
+            } finally {
+              if (claimersDoneRef.current) {
+                setProgress({ phase: "graph", completed: 1, total: 1 });
+              }
+            }
+          },
+          ...(wallet.signPsbts
+            ? {
+                signPsbts: async (hexes, opts) => {
                   if (claimersDoneRef.current) {
                     setProgress({
                       phase: "graph",
-                      completed: hexes.length,
+                      completed: 0,
                       total: hexes.length,
                     });
                   }
-                }
-              },
-            }
-          : {}),
-      };
+                  try {
+                    return await wallet.signPsbts!(hexes, opts);
+                  } finally {
+                    if (claimersDoneRef.current) {
+                      setProgress({
+                        phase: "graph",
+                        completed: hexes.length,
+                        total: hexes.length,
+                      });
+                    }
+                  }
+                },
+              }
+            : {}),
+          // Object spread drops prototype methods — see forwardDepositApproval.
+          ...forwardDepositApproval(wallet),
+        };
 
       try {
         await signAndSubmitPayouts({

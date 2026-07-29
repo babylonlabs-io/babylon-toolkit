@@ -86,10 +86,10 @@ describe("assertWasmPeginSizing", () => {
     peginP2aAnchorOutputMock.mockResolvedValue(null);
   });
 
-  it("resolves without throwing for a valid single-vault result", async () => {
+  it("resolves with the asserted minPeginFee for a valid single-vault result", async () => {
     await expect(
       assertWasmPeginSizing(makeResult(), makeParams()),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(PEGIN_FEE);
   });
 
   it("throws when htlcValues length does not match the request", async () => {
@@ -194,7 +194,7 @@ describe("assertWasmPeginSizing", () => {
         }),
         makeParams({ vaultCoreVersion: 2 }),
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(PEGIN_FEE);
   });
 
   it("v2: throws when the htlcValue omits the anchor value (v1 formula)", async () => {
@@ -242,7 +242,7 @@ describe("assertWasmPeginSizing", () => {
     it("resolves for a valid two-vault result", async () => {
       await expect(
         assertWasmPeginSizing(makeTwoVaultResult(), makeTwoVaultParams()),
-      ).resolves.toBeUndefined();
+      ).resolves.toBe(PEGIN_FEE);
     });
 
     it("catches a tampered second-vault peginAmount", async () => {

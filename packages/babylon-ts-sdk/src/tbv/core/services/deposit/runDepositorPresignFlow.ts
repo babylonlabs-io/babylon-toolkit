@@ -16,6 +16,10 @@ import type {
   ClaimerSignatures,
   ClaimerTransactions,
 } from "../../clients/vault-provider/types";
+import {
+  supportsDepositApproval,
+  type DepositTerms,
+} from "../../deposit-terms";
 import { PayoutManager } from "../../managers/PayoutManager";
 import {
   processPublicKeyToXOnly,
@@ -95,6 +99,11 @@ export interface RunDepositorPresignFlowParams {
   depositorPk: string;
   /** Signing context built from on-chain data */
   signingContext: PayoutSigningContext;
+  /**
+   * Required for approval-capable wallets; fresh flows thread
+   * PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
+   */
+  depositTerms?: DepositTerms;
   /** Maximum polling timeout in milliseconds (default: 20 min) */
   timeoutMs?: number;
   /** AbortSignal for cancellation */
@@ -311,6 +320,7 @@ export async function runDepositorPresignFlow(
     peginTxid,
     depositorPk,
     signingContext,
+    depositTerms,
     timeoutMs = MAX_POLLING_TIMEOUT_MS,
     signal,
     onProgress,
@@ -331,6 +341,19 @@ export async function runDepositorPresignFlow(
   }
 
   signal?.throwIfAborted();
+
+  // Approval-capable wallets must approve the deposit terms before any signing
+  // call they authorize, including the Phase 3/4 payout and depositor-graph signing below.
+  if (supportsDepositApproval(btcWallet)) {
+    if (!depositTerms) {
+      throw new Error(
+        "runDepositorPresignFlow: this wallet requires approved deposit terms but none were " +
+          "provided. Fresh deposits must pass PreparePeginResult.depositTerms; resume-path " +
+          "rebuild is not wired yet.",
+      );
+    }
+    await btcWallet.approveDepositTerms(depositTerms);
+  }
 
   // Phase 2: Fetch presign transactions
   const response = await presignClient.requestDepositorPresignTransactions(

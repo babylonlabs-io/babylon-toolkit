@@ -8,6 +8,10 @@ import {
   type GetPeginStatusResponse,
   type RequestDepositorPresignTransactionsResponse,
 } from "../../../clients/vault-provider/types";
+import type {
+  DepositTerms,
+  DepositTermsApprover,
+} from "../../../deposit-terms";
 import type { PeginStatusReader, PresignClient } from "../interfaces";
 import { runDepositorPresignFlow, type PayoutSigningContext } from "../runDepositorPresignFlow";
 
@@ -142,6 +146,39 @@ function createMockWallet(): BitcoinWallet {
     ),
   } as unknown as BitcoinWallet;
 }
+
+/** Capability-stub wallet: has `approveDepositTerms`, so `supportsDepositApproval` is true. */
+function createCapabilityWallet(
+  onApprove?: (terms: DepositTerms) => void,
+): BitcoinWallet & DepositTermsApprover {
+  return {
+    ...createMockWallet(),
+    approveDepositTerms: vi.fn(async (terms: DepositTerms) => {
+      onApprove?.(terms);
+    }),
+  } as unknown as BitcoinWallet & DepositTermsApprover;
+}
+
+const DEPOSIT_TERMS: DepositTerms = {
+  baseFeeRate: 2n,
+  peginCsvTimelock: 144,
+  payoutTimelock: 144,
+  htlcRefundTimelock: 4320,
+  prepeginTxid: "1".repeat(64),
+  prepeginMaxFee: 1500n,
+  keeperPks: [VK_PUBKEY],
+  challengerPks: [CHALLENGER_PK],
+  vaults: [
+    {
+      htlcVout: 0,
+      vaultProviderPk: VP_PUBKEY,
+      vaultAmount: 500_000n,
+      commissionFee: 12_500n,
+      depositorClaimValue: 20_000n,
+      peginMaxFee: 800n,
+    },
+  ],
+};
 
 function createSigningContext(): PayoutSigningContext {
   return {
@@ -541,6 +578,114 @@ describe("runDepositorPresignFlow", () => {
       await expect(promise).rejects.toThrow(/duplicate/i);
       expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
       expect(wallet.signPsbts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deposit terms approval", () => {
+    it("approves the deposit terms before fetching presign transactions", async () => {
+      const callLog: string[] = [];
+      const wallet = createCapabilityWallet(() => callLog.push("approve"));
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const basePresignClient = createMockPresignClient();
+      const presignClient: PresignClient = {
+        ...basePresignClient,
+        requestDepositorPresignTransactions: vi.fn(async (request, signal) => {
+          callLog.push("presign");
+          return basePresignClient.requestDepositorPresignTransactions(
+            request,
+            signal,
+          );
+        }),
+      };
+
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+        depositTerms: DEPOSIT_TERMS,
+      });
+
+      expect(callLog).toEqual(["approve", "presign"]);
+      expect(wallet.approveDepositTerms).toHaveBeenCalledOnce();
+      expect(wallet.approveDepositTerms).toHaveBeenCalledWith(DEPOSIT_TERMS);
+    });
+
+    it("throws for capability wallets when no depositTerms is provided", async () => {
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: createSigningContext(),
+        }),
+      ).rejects.toThrow(/deposit terms/i);
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+      expect(
+        presignClient.requestDepositorPresignTransactions,
+      ).not.toHaveBeenCalled();
+      expect(
+        presignClient.submitDepositorPresignatures,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("skips approval entirely when the VP is already past payout signing", async () => {
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([DaemonStatus.PENDING_ACKS]);
+      const presignClient = createMockPresignClient();
+
+      // No depositTerms: the POST_PAYOUT early-return must win before the
+      // capability guard, or a resumed Ledger deposit hard-fails for nothing.
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+      });
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+      expect(
+        presignClient.requestDepositorPresignTransactions,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("ignores depositTerms for non-capability wallets", async () => {
+      const wallet = createMockWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+        depositTerms: DEPOSIT_TERMS,
+      });
+
+      // The proof is the flow completing above without throwing — it would
+      // throw a TypeError if src tried to call the absent method.
+      expect(
+        presignClient.submitDepositorPresignatures,
+      ).toHaveBeenCalledOnce();
     });
   });
 });
