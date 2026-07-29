@@ -9,7 +9,7 @@ import { getTokenByAddress } from "@/services/token/tokenService";
 
 import type { LoanTab } from "../../constants";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
-import { AssetListItem } from "../AssetSelectionModal/AssetListItem";
+import { AssetListItem } from "../AssetSelectionPanel/AssetListItem";
 
 interface AssetPillProps {
   symbol: string;

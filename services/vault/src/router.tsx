@@ -26,6 +26,7 @@ import RootLayout, {
 } from "./components/pages/RootLayout";
 import {
   getReserveDetailBaseRoute,
+  MARKET_SYMBOL_PARAM,
   RESERVE_QUERY_KEYS,
   ROUTES,
 } from "./routes";
@@ -35,6 +36,9 @@ const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
 const VaultsPage = lazyWithRetry(() => import("./components/pages/VaultsPage"));
 const LoansPage = lazyWithRetry(() => import("./components/pages/Loans"));
 const ExplorePage = lazyWithRetry(() => import("./components/pages/Explore"));
+const BorrowingMarketsDataPage = lazyWithRetry(
+  () => import("./components/pages/BorrowingMarketsData"),
+);
 const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -50,10 +54,10 @@ const GodModeMount = import.meta.env.DEV
     )
   : null;
 
-const importAaveReserveDetail = () =>
+const importLoanFlowOverlay = () =>
   import("./applications/aave/components/Detail");
-const AaveReserveDetail = lazyWithRetry(() =>
-  importAaveReserveDetail().then((m) => ({ default: m.AaveReserveDetail })),
+const LoanFlowOverlay = lazyWithRetry(() =>
+  importLoanFlowOverlay().then((m) => ({ default: m.LoanFlowOverlay })),
 );
 
 // Guarded as whole subtrees, so a v3 deep link redirects rather than 404s.
@@ -85,16 +89,23 @@ const AaveOverlayLayout = () => {
     searchParams.get(RESERVE_QUERY_KEYS.TAB) === LOAN_TAB.REPAY
       ? LOAN_TAB.REPAY
       : LOAN_TAB.BORROW;
+  const pickerParam = searchParams.get(RESERVE_QUERY_KEYS.PICKER);
+  const picker =
+    pickerParam === LOAN_TAB.REPAY
+      ? LOAN_TAB.REPAY
+      : pickerParam === LOAN_TAB.BORROW
+        ? LOAN_TAB.BORROW
+        : null;
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
       const handle = window.requestIdleCallback(() => {
-        void importAaveReserveDetail();
+        void importLoanFlowOverlay();
       });
       return () => window.cancelIdleCallback(handle);
     }
     const timer = window.setTimeout(() => {
-      void importAaveReserveDetail();
+      void importLoanFlowOverlay();
     }, 200);
     return () => window.clearTimeout(timer);
   }, []);
@@ -106,11 +117,15 @@ const AaveOverlayLayout = () => {
           <Suspense fallback={<RouteFallback />}>
             <Outlet context={outletContext} />
           </Suspense>
-          {reserveId &&
+          {(reserveId || picker) &&
             pathname ===
               getReserveDetailBaseRoute(featureFlags.isV3UiEnabled) && (
               <Suspense fallback={null}>
-                <AaveReserveDetail reserveId={reserveId} tab={tab} />
+                <LoanFlowOverlay
+                  picker={picker}
+                  reserveId={reserveId}
+                  tab={tab}
+                />
               </Suspense>
             )}
           {/* One god-mode panel for every tab under this layout (Overview,
@@ -180,6 +195,18 @@ export const Router = () => (
             featureFlags.isV3UiEnabled ? (
               <Suspense fallback={<RouteFallback />}>
                 <LoansPage />
+              </Suspense>
+            ) : (
+              <Navigate to={ROUTES.OVERVIEW} replace />
+            )
+          }
+        />
+        <Route
+          path={`${ROUTES.MARKETS}/:${MARKET_SYMBOL_PARAM}`}
+          element={
+            featureFlags.isV3UiEnabled ? (
+              <Suspense fallback={<RouteFallback />}>
+                <BorrowingMarketsDataPage />
               </Suspense>
             ) : (
               <Navigate to={ROUTES.OVERVIEW} replace />

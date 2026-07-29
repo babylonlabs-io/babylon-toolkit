@@ -43,7 +43,6 @@ vi.mock("@/hooks/useDashboardState", () => ({
     hasCollateral: true,
     hasDisplayCollateral: true,
     collateralVaults: [],
-    selectableBorrowedAssets: [],
     isLoading: false,
   }),
 }));
@@ -86,10 +85,6 @@ vi.mock("@/applications/aave/hooks", () => ({
 
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   usePositionNotifications: () => ({ result: null }),
-}));
-
-vi.mock("@/applications/aave/components/AssetSelectionModal", () => ({
-  AssetSelectionModal: () => null,
 }));
 
 vi.mock("../OverviewSection", () => ({

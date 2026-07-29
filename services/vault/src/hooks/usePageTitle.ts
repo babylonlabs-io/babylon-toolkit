@@ -2,6 +2,14 @@ import { useLocation } from "react-router";
 
 import { V3_NAV_ITEMS } from "@/config/v3Navigation";
 import { COPY } from "@/copy";
+import { ROUTES } from "@/routes";
+
+// Routed v3 pages the sidebar does not list, so they have no nav item to
+// derive a title from.
+const OFF_NAV_ROUTE_TITLES: readonly (readonly [
+  path: string,
+  title: string,
+])[] = [[ROUTES.MARKETS, COPY.marketData.pageTitle]];
 
 // First segment-boundary match against the v3 sidebar's routes (see
 // `config/v3Navigation.ts`'s `V3_NAV_ITEMS`, also used by
@@ -10,10 +18,12 @@ import { COPY } from "@/copy";
 // doesn't match is the Overview page, so it's the fallback rather than a
 // listed prefix. Harmless because none of the configured prefixes is
 // itself a prefix of another.
-const ROUTE_TITLES: readonly (readonly [path: string, title: string])[] =
-  V3_NAV_ITEMS.filter((item) => item.path !== "/").map(
+const ROUTE_TITLES: readonly (readonly [path: string, title: string])[] = [
+  ...V3_NAV_ITEMS.filter((item) => item.path !== "/").map(
     (item) => [item.path, item.label] as const,
-  );
+  ),
+  ...OFF_NAV_ROUTE_TITLES,
+];
 
 /** Current page title for the v3 header, driven by the active route. */
 export function usePageTitle(): string {

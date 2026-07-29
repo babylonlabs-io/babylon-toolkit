@@ -8,7 +8,6 @@ import { Container } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
-import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
@@ -107,14 +106,12 @@ export function DashboardPage() {
     hasCollateral,
     hasDisplayCollateral,
     collateralVaults,
-    selectableBorrowedAssets,
     isBorrowCapacityLoading,
     borrowCapacityError,
   } = useDashboardState(isConnected ? address : undefined);
 
-  const { openBorrowPicker, openRepay, assetModalProps } = useLoanActions({
+  const { openBorrowPicker, openRepay } = useLoanActions({
     borrowedAssets,
-    selectableBorrowedAssets,
   });
 
   const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
@@ -472,9 +469,6 @@ export function DashboardPage() {
         currentHealthFactor={healthFactor}
         preSelectedVaultIds={selectedVaultIds}
       />
-
-      {/* Asset Selection Modal for Borrow/Repay */}
-      <AssetSelectionModal {...assetModalProps} />
     </Container>
   );
 }
