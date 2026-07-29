@@ -1,6 +1,11 @@
 // ERC20 - Read operations (queries)
 
-import type { Address } from "viem";
+import {
+  BaseError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
+  type Address,
+} from "viem";
 
 import { ethClient } from "../client";
 
@@ -76,6 +81,59 @@ function sanitizeTokenString(raw: string, maxLength: number): string | null {
 }
 
 /**
+ * Whether a failed read is the contract's answer rather than a failure to
+ * reach it: the method is absent (the call returns no data) or it reverted.
+ *
+ * The distinction matters because `symbol()` and `name()` are optional in
+ * ERC-20. A caller must be able to conclude "this token has no symbol" — a
+ * permanent fact worth failing closed on — without a dropped connection
+ * producing the same conclusion, which would turn one blip into a permanent
+ * error state. viem wraps both in `ContractFunctionExecutionError`, so walk
+ * the cause chain rather than matching on the outer class.
+ */
+function isContractLevelFailure(error: unknown): boolean {
+  if (!(error instanceof BaseError)) return false;
+  return (
+    error.walk(
+      (cause) =>
+        cause instanceof ContractFunctionZeroDataError ||
+        cause instanceof ContractFunctionRevertedError,
+    ) !== null
+  );
+}
+
+/**
+ * Read an optional string-returning ERC-20 method.
+ *
+ * @returns The sanitized value, or null when the token does not implement the
+ *   method, reverts, or returns nothing usable.
+ * @throws Whatever the transport threw, when the read failed for any reason
+ *   other than the contract itself — so a caller can retry it.
+ */
+async function readOptionalTokenString(
+  tokenAddress: Address,
+  functionName: "symbol" | "name",
+  maxLength: number,
+): Promise<string | null> {
+  const publicClient = ethClient.getPublicClient();
+
+  let raw: string;
+  try {
+    raw = (await publicClient.readContract({
+      address: tokenAddress,
+      abi: ERC20_ABI,
+      functionName,
+      args: [],
+    })) as string;
+  } catch (error) {
+    if (isContractLevelFailure(error)) return null;
+    throw error;
+  }
+
+  return sanitizeTokenString(raw, maxLength);
+}
+
+/**
  * Get ERC20 token balance for an address
  * @param tokenAddress - ERC20 token contract address
  * @param holderAddress - Address to check balance for
@@ -136,44 +194,32 @@ export async function getERC20Decimals(tokenAddress: Address): Promise<number> {
  * proof of what the token is. It is still strictly better than an
  * indexer-supplied symbol, which isn't bound to the address at all.
  *
+ * `symbol()` is optional in ERC-20, so a token that doesn't implement it is a
+ * legitimate case, not an error — hence null rather than a throw. A transport
+ * failure is a different thing and still throws, so the caller can retry it.
+ *
  * @param tokenAddress - ERC20 token contract address
- * @returns Sanitized symbol, or null when the token returns nothing usable
+ * @returns Sanitized symbol, or null when the token has no usable symbol
+ * @throws On transport failure (network, timeout, rate limit)
  */
 export async function getERC20Symbol(
   tokenAddress: Address,
 ): Promise<string | null> {
-  const publicClient = ethClient.getPublicClient();
-
-  const symbol = await publicClient.readContract({
-    address: tokenAddress,
-    abi: ERC20_ABI,
-    functionName: "symbol",
-    args: [],
-  });
-
-  return sanitizeTokenString(symbol as string, MAX_SYMBOL_LENGTH);
+  return readOptionalTokenString(tokenAddress, "symbol", MAX_SYMBOL_LENGTH);
 }
 
 /**
- * Get an ERC20 token's name from the contract on-chain. Same trust caveats as
- * {@link getERC20Symbol} — display-only, registry-miss fallback.
+ * Get an ERC20 token's name from the contract on-chain. Same trust caveats and
+ * the same null-vs-throw split as {@link getERC20Symbol}.
  *
  * @param tokenAddress - ERC20 token contract address
- * @returns Sanitized name, or null when the token returns nothing usable
+ * @returns Sanitized name, or null when the token has no usable name
+ * @throws On transport failure (network, timeout, rate limit)
  */
 export async function getERC20Name(
   tokenAddress: Address,
 ): Promise<string | null> {
-  const publicClient = ethClient.getPublicClient();
-
-  const name = await publicClient.readContract({
-    address: tokenAddress,
-    abi: ERC20_ABI,
-    functionName: "name",
-    args: [],
-  });
-
-  return sanitizeTokenString(name as string, MAX_NAME_LENGTH);
+  return readOptionalTokenString(tokenAddress, "name", MAX_NAME_LENGTH);
 }
 
 /**

@@ -1,3 +1,9 @@
+import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
+  HttpRequestError,
+} from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 const mockReadContract = vi.fn();
@@ -18,6 +24,40 @@ import {
 } from "../query";
 
 const TOKEN_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+
+/**
+ * viem wraps the contract's own answer in a `ContractFunctionExecutionError`,
+ * so the readers have to walk the cause chain rather than match the outer
+ * class. Build the real nesting so these tests fail if that changes.
+ */
+function contractExecutionError(cause: Error) {
+  return new ContractFunctionExecutionError(cause as never, {
+    abi: [],
+    functionName: "symbol",
+  });
+}
+
+/** A token that does not implement the method: the call returns no data. */
+function missingMethodError(functionName: string) {
+  return contractExecutionError(
+    new ContractFunctionZeroDataError({ functionName }),
+  );
+}
+
+/** A token whose method exists but reverts. */
+function revertedError(functionName: string) {
+  return contractExecutionError(
+    new ContractFunctionRevertedError({ abi: [], functionName }),
+  );
+}
+
+/** Couldn't reach the node at all — not the contract's answer. */
+function transportError() {
+  return new HttpRequestError({
+    url: "https://rpc.example",
+    details: "socket hang up",
+  });
+}
 
 describe("getERC20Decimals", () => {
   it("returns decimals from the contract", async () => {
@@ -113,6 +153,30 @@ describe("getERC20Symbol", () => {
 
     expect(result).toBeNull();
   });
+
+  it("returns null when the token does not implement symbol()", async () => {
+    mockReadContract.mockRejectedValue(missingMethodError("symbol"));
+
+    const result = await getERC20Symbol(TOKEN_ADDRESS);
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when symbol() reverts", async () => {
+    mockReadContract.mockRejectedValue(revertedError("symbol"));
+
+    const result = await getERC20Symbol(TOKEN_ADDRESS);
+
+    expect(result).toBeNull();
+  });
+
+  it("throws on a transport failure so the caller can retry it", async () => {
+    mockReadContract.mockRejectedValue(transportError());
+
+    await expect(getERC20Symbol(TOKEN_ADDRESS)).rejects.toBeInstanceOf(
+      HttpRequestError,
+    );
+  });
 });
 
 describe("getERC20Name", () => {
@@ -138,5 +202,21 @@ describe("getERC20Name", () => {
     const result = await getERC20Name(TOKEN_ADDRESS);
 
     expect(result).toBeNull();
+  });
+
+  it("returns null when the token does not implement name()", async () => {
+    mockReadContract.mockRejectedValue(missingMethodError("name"));
+
+    const result = await getERC20Name(TOKEN_ADDRESS);
+
+    expect(result).toBeNull();
+  });
+
+  it("throws on a transport failure so the caller can retry it", async () => {
+    mockReadContract.mockRejectedValue(transportError());
+
+    await expect(getERC20Name(TOKEN_ADDRESS)).rejects.toBeInstanceOf(
+      HttpRequestError,
+    );
   });
 });

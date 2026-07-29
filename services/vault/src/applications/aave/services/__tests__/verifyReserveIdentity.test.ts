@@ -177,31 +177,6 @@ describe("verifyReserveIdentity", () => {
     expect(identity.name).toBe("TUSDC");
   });
 
-  it("falls back to the symbol when the token has no name() method", async () => {
-    mockGetERC20Symbol.mockResolvedValue("TUSDC");
-    mockGetERC20Name.mockRejectedValue(new Error('function "name" reverted'));
-
-    const identity = await verifyReserveIdentity(
-      ADAPTER,
-      RESERVE_ID,
-      TOKEN_USDC,
-    );
-
-    expect(identity.symbol).toBe("TUSDC");
-    expect(identity.name).toBe("TUSDC");
-  });
-
-  it("hard-blocks rather than retrying when the token has no symbol() method", async () => {
-    mockGetERC20Symbol.mockRejectedValue(
-      new Error('function "symbol" reverted'),
-    );
-    mockGetERC20Name.mockResolvedValue("Test USD Coin");
-
-    await expect(
-      verifyReserveIdentity(ADAPTER, RESERVE_ID, TOKEN_USDC),
-    ).rejects.toBeInstanceOf(UnknownReserveTokenError);
-  });
-
   it("throws UnknownReserveTokenError when neither the registry nor the contract can name the token", async () => {
     mockGetERC20Symbol.mockResolvedValue(null);
 
@@ -234,6 +209,21 @@ describe("verifyReserveIdentity", () => {
     await expect(
       verifyReserveIdentity(ADAPTER, RESERVE_ID, TOKEN_USDC),
     ).rejects.toThrow("rpc connection lost");
+  });
+
+  it("reports a transient failure from the label reads as retryable, not as a spoof", async () => {
+    mockGetERC20Symbol.mockRejectedValue(new Error("rpc connection lost"));
+
+    const error = await verifyReserveIdentity(
+      ADAPTER,
+      RESERVE_ID,
+      TOKEN_USDC,
+    ).catch((err: unknown) => err);
+
+    // A dropped connection must not read as "this token can't be named", which
+    // would hard-block the screen with no way back short of a reload.
+    expect(error).not.toBeInstanceOf(UnknownReserveTokenError);
+    expect(isIntegrityFailure(error)).toBe(false);
   });
 });
 
