@@ -34,6 +34,16 @@ export interface ReserveLiquidity {
    */
   availableLiquidity: number;
   /**
+   * Total drawn against this reserve (drawn + premium), in whole token units.
+   * Same `number` rationale as `availableLiquidity` — display only.
+   */
+  totalBorrowed: number;
+  /**
+   * Everything supplied to the reserve, borrowed or not
+   * (`availableLiquidity + totalBorrowed`), in whole token units.
+   */
+  suppliedLiquidity: number;
+  /**
    * Utilization (borrowed / supplied) in basis points, or null when the
    * reserve has no supplied liquidity (utilization is undefined at 0 supply).
    */
@@ -95,6 +105,12 @@ export function useAaveReserveLiquidity({
           // the borrow amount and the rest of the borrow flow already use.
           availableLiquidity: Number(
             formatUnits(availableLiquidityRaw, reserve.token.decimals),
+          ),
+          totalBorrowed: Number(
+            formatUnits(totalOwedRaw, reserve.token.decimals),
+          ),
+          suppliedLiquidity: Number(
+            formatUnits(suppliedRaw, reserve.token.decimals),
           ),
           // Utilization stays in bigint until the final ratio so a large
           // supplied total can't overflow the intermediate product.

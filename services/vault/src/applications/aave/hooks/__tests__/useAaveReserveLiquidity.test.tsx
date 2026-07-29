@@ -71,6 +71,8 @@ describe("useAaveReserveLiquidity", () => {
     );
     expect(result.current.liquidityByReserveId["1"]).toEqual({
       availableLiquidity: 75,
+      totalBorrowed: 25,
+      suppliedLiquidity: 100,
       utilizationBps: 2500,
     });
   });
@@ -96,6 +98,8 @@ describe("useAaveReserveLiquidity", () => {
     );
     expect(result.current.liquidityByReserveId["1"]).toEqual({
       availableLiquidity: 0,
+      totalBorrowed: 0,
+      suppliedLiquidity: 0,
       utilizationBps: null,
     });
   });
@@ -160,6 +164,8 @@ describe("useAaveReserveLiquidity", () => {
     await waitFor(() =>
       expect(result.current.liquidityByReserveId["1"]).toEqual({
         availableLiquidity: 75,
+        totalBorrowed: 25,
+        suppliedLiquidity: 100,
         utilizationBps: 2500,
       }),
     );
