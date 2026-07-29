@@ -84,7 +84,8 @@ type ErrorKind =
   | "unauthorized" // EIP-1193 4100 / UnauthorizedProviderError
   | "chain-switch-failed" // EIP-1193 4902 / viem SwitchChainError
   | "receipt-timeout" // viem WaitForTransactionReceiptTimeoutError
-  | "network" // HttpRequestError / WebSocketRequestError / TimeoutError / RpcRequestError
+  | "network" // transport failure: HttpRequestError / WebSocketRequestError / SocketClosedError / viem TimeoutError
+  | "rpc-error" // node/provider JSON-RPC failure via RpcRequestError (rate limit, resource unavailable, tx rejected, internal, nonce) — not the user's connection
   | "stale-deploy"; // Vite dynamic-import 404 after redeploy
 
 const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
@@ -95,6 +96,7 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
   "chain-switch-failed": COPY.common.classifiedErrors.chainSwitchFailed,
   "receipt-timeout": COPY.common.classifiedErrors.receiptTimeout,
   network: COPY.common.classifiedErrors.network,
+  "rpc-error": COPY.common.classifiedErrors.rpcError,
   "stale-deploy": COPY.common.classifiedErrors.staleDeploy,
 };
 
@@ -174,33 +176,40 @@ export function classifyError(err: unknown): ErrorKind | null {
       return "receipt-timeout";
     }
 
-    // RPC / network transport failures.
-    //
-    // `RpcRequestError` is a special case: viem also uses it to wrap
-    // node-level errors that carry contract-revert data (the node returns
-    // `{ code: 3, data: "0x..." }`, viem forwards it on the wrapper's
-    // `.data` field). Those aren't transport failures and should fall
-    // through so the underlying revert message bubbles up.
-    if (obj.name === "RpcRequestError" && isViemShape(obj)) {
-      const data = (obj as { data?: unknown }).data;
-      if (typeof data === "string" && data.startsWith("0x")) {
-        // Contract revert dressed as RPC error — don't classify as network.
-        cur = obj.cause;
-        continue;
-      }
-      return "network";
-    }
-    // `HttpRequestError` / `WebSocketRequestError` names are viem-specific
-    // enough not to collide; `TimeoutError` is generic (AbortSignal.timeout,
-    // `ky`, DOM APIs) and must be gated on viem shape.
+    // Transport failures — the request never got a usable response. These
+    // are the only errors where "check your connection" is honest.
+    // `HttpRequestError` / `WebSocketRequestError` / `SocketClosedError`
+    // names are viem-specific enough not to collide; `TimeoutError` is
+    // generic (AbortSignal.timeout, `ky`, DOM APIs) and must be gated on
+    // viem shape.
     if (
       obj.name === "HttpRequestError" ||
-      obj.name === "WebSocketRequestError"
+      obj.name === "WebSocketRequestError" ||
+      obj.name === "SocketClosedError"
     ) {
       return "network";
     }
     if (obj.name === "TimeoutError" && isViemShape(obj)) {
       return "network";
+    }
+
+    // `RpcRequestError` wraps a JSON-RPC error the node/provider returned:
+    // rate limit (-32005), resource unavailable (-32002), tx rejected
+    // (-32003), internal (-32603), and node-execution errors (nonce /
+    // "already known") whose inner frame is an RpcRequestError. None of
+    // these are the user's connection, so they get their own copy — never
+    // "check your connection".
+    //
+    // Exception: viem also reuses `RpcRequestError` to carry contract-revert
+    // data (`{ code: 3, data: "0x..." }`). That's a real revert, not an RPC
+    // failure — fall through so the underlying reason bubbles up.
+    if (obj.name === "RpcRequestError" && isViemShape(obj)) {
+      const data = (obj as { data?: unknown }).data;
+      if (typeof data === "string" && data.startsWith("0x")) {
+        cur = obj.cause;
+        continue;
+      }
+      return "rpc-error";
     }
 
     // Vite chunk 404 after a redeploy — the underlying error is a browser

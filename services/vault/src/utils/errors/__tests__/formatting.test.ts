@@ -281,15 +281,18 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage(outer)).not.toMatch(/Network error/i);
     });
 
-    it("still classifies RpcRequestError without revert data as network", () => {
-      // Pure transport failure — no `.data`, no revert. Should hit the
-      // network bucket.
+    it("classifies RpcRequestError without revert data as an rpc-error, not the user's connection", () => {
+      // A JSON-RPC error the node returned (here -32603 InternalRpcError).
+      // It's a provider/node failure, not transport, so it must NOT tell the
+      // user to check their connection.
       const err = Object.assign(new Error("RPC Request failed."), {
         name: "RpcRequestError",
         code: -32603,
         walk: () => {},
       });
-      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+      const msg = sanitizeErrorMessage(err);
+      expect(msg).not.toMatch(/check your connection/i);
+      expect(msg).toMatch(/wait a moment and try again/i);
     });
 
     it("collapses HttpRequestError (RPC transport failure)", () => {
@@ -323,6 +326,38 @@ describe("Error Formatting", () => {
         name: "WebSocketRequestError",
       });
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("classifies SocketClosedError as network (transport failure)", () => {
+      const err = Object.assign(new Error("The socket has been closed."), {
+        name: "SocketClosedError",
+      });
+      expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
+    });
+
+    it("does NOT tell the user to check their connection for a nonce error wrapped in RpcRequestError", () => {
+      // Regression: viem's chain for "already known" / nonce errors is
+      // TransactionExecutionError -> NonceTooLowError -> RpcRequestError. The
+      // inner RpcRequestError carries no `0x` revert data, so before the
+      // transport/RPC split the walker labeled it "Check your connection".
+      const inner = Object.assign(new Error("already known"), {
+        name: "RpcRequestError",
+        code: -32000,
+        walk: () => {},
+      });
+      const nonce = Object.assign(new Error("nonce too low"), {
+        name: "NonceTooLowError",
+        cause: inner,
+        walk: () => {},
+      });
+      const outer = Object.assign(new Error("nonce too low"), {
+        name: "TransactionExecutionError",
+        cause: nonce,
+        walk: () => {},
+      });
+      const msg = sanitizeErrorMessage(outer);
+      expect(msg).not.toMatch(/check your connection/i);
+      expect(msg).toMatch(/wait a moment and try again/i);
     });
 
     // The rest of the suite builds synthetic errors via Object.assign so we
