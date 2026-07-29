@@ -51,6 +51,10 @@ rubric below.
 - This document covers the code in this repository. The **vault smart contracts**, the
   **BaBe / vaultd protocol**, and the **vault provider daemon** are out of scope; see
   `babylonlabs-io/vault-contracts` and `babylonlabs-io/btc-vault`.
+- The transaction, vault-secret, external-data, and browser controls below primarily describe
+  `services/vault` and its supporting SDK packages. `services/simple-staking` shares the repository's
+  supply-chain controls but has its own signing flows and currently has no CSP meta tag; that missing
+  browser control is a known gap, not an implied inheritance from the vault app.
 - The backend services this frontend talks to each carry their own `SECURITY.md`:
   [`babylon-vault-indexer`](https://github.com/babylonlabs-io/babylon-vault-indexer),
   [`babylon-sidecar-api`](https://github.com/babylonlabs-io/babylon-sidecar-api),
@@ -100,7 +104,7 @@ rubric below.
     (`services/vault/index.html`, `services/vault/src/build/sriPlugin.ts`)
   - Install policy: frozen lockfile, store integrity verification, `minimumReleaseAge`, and the
     `onlyBuiltDependencies` allowlist (`.npmrc`, `pnpm-workspace.yaml`)
-- **High-risk areas (extra review):** the seven paths enumerated in
+- **High-risk areas (extra review):** the seven critical-path groups enumerated in
   [CLAUDE.md → CRITICAL PATHS](CLAUDE.md#critical-paths--human-review-required) and mirrored in
   [`.github/CODEOWNERS`](.github/CODEOWNERS), plus:
   - `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/` — the whole untrusted-counterparty
@@ -147,8 +151,8 @@ that reaches a signature.
 ### Not confidential, but integrity-critical
 
 - **Every value that enters a signature or an on-chain commitment**: HTLC output values, peg-in
-  amounts, fee totals, payout amounts, the challenger set, `depositorWotsPkHash`, and the OP_RETURN
-  auth-anchor preimage. Their correctness _is_ the security property.
+  amounts, fee totals, payout amounts, the challenger set, `depositorWotsPkHash`, and the OP*RETURN
+  auth-anchor preimage. Their correctness \_is* the security property.
 - **The built bundle on S3 and its SRI hashes.** Whoever can write to the bucket decides what code
   runs in every user's browser with their wallet connected.
 
@@ -223,15 +227,13 @@ Two independent implementations must agree before broadcast:
 A mismatch underfunds the transaction. The cross-check assertion belongs **at the broadcast site**,
 not only at the estimator — an estimator that agrees with itself proves nothing.
 
-**Known gap — the critical-path guard does not cover this path.** Both
+The real SDK model and dApp estimator are covered by
 [`.github/CODEOWNERS`](.github/CODEOWNERS) and
-[`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml) list
-`services/vault/src/utils/fee/peginFee.ts`, which **does not exist**. The real dApp-side estimator
-(`services/vault/src/hooks/deposit/useEstimatedBtcFee.ts`) and the real SDK model
-(`packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts`) are in neither list. A PR
-changing either one today gets no code-owner requirement and no critical-path PR comment. Fixing
-this means updating CLAUDE.md, CODEOWNERS, and the workflow's `paths` array in one change — they are
-three hand-maintained copies of the same list, and they have already drifted once.
+[`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml). The
+critical-path inventory is hand-maintained in five places: this file, CLAUDE.md, CODEOWNERS,
+`critical-path-check.yml`, and `claude-md-drift.yml`. Update all five together when a path moves or
+is added. The scheduled drift workflow checks that listed paths exist and reports missing entries to
+a tracker issue, but it does not block a pull request.
 
 ### Presigning the depositor graph
 
@@ -314,10 +316,12 @@ Two consequences, both easy to underrate:
 `services/vault/src/services/vault/vaultActivationService.ts` submits the preimage that unlocks the
 HTLC on-chain. A wrong secret locks funds permanently.
 
-The SDK re-checks `sha256(secret) === hashlock` immediately before assembling calldata — the last
-defence before the secret enters `simulateContract`. Preserve that placement: a check performed
-earlier in the flow proves nothing about the value that actually ships. **Derive the secret only from
-the source that generated it; never infer it from UI or storage state.**
+When a hashlock is supplied, the SDK re-checks `sha256(secret) === hashlock` immediately before
+assembling calldata — the last defence before the secret enters `simulateContract`. The vault app
+always supplies the required hashlock; SDK consumers must do the same to receive this pre-check.
+Preserve that placement: a check performed earlier in the flow proves nothing about the value that
+actually ships. **Derive the secret only from the source that generated it; never infer it from UI or
+storage state.**
 
 ### Claimer artifacts — recovery material with partial validation
 
@@ -385,7 +389,8 @@ Related bounds worth preserving:
 - `DEFAULT_MAX_PROOF_LIFETIME_SECS` (2h) caps how long a leaked VP ephemeral key stays usable. The
   bearer token's own TTL is a different trust boundary and does not bound this.
 - `MAX_EXPIRES_AT_SECS` guards against a bogus far-future `expires_at` locking the token cache on a
-  bad token forever.
+  bad token forever. It is defined in
+  `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenProvider.ts`.
 - `AUTH_GATED_METHODS` and `GRPC_AUTH_GATED_METHODS` (`auth/gatedMethods.ts`) are marked
   `@stability frozen` and must stay in sync with the VP server. The two sets differ by CWT subject;
   conflating them yields a token the server's interceptor rejects.
@@ -491,11 +496,15 @@ External links use `target="_blank"`; keep `rel="noopener"` on all of them.
 
 ### Content Security Policy
 
-The CSP lives **solely** in the `<meta http-equiv="Content-Security-Policy">` tag in
+The vault app's CSP lives **solely** in the `<meta http-equiv="Content-Security-Policy">` tag in
 `services/vault/index.html`. `services/vault/vite.config.ts` documents why it is not also a
 dev-server header: delivering it as a header would additionally govern the inline React Fast Refresh
 preamble that `@vitejs/plugin-react` injects above the meta tag, which carries no nonce and would
 white-screen `pnpm dev`. One source of truth, and it is the one that ships to the CDN.
+
+`services/simple-staking/index.html` has no CSP meta tag. Unless its deployment adds an equivalent
+response header, that dApp does not inherit the vault app's script or connection restrictions. Treat
+this as a known gap when reviewing simple-staking browser changes.
 
 Current policy:
 
@@ -551,7 +560,7 @@ CSP, the SRI hashes, and the script list. This is why the S3/OIDC write path in
 `.github/workflows/service-release-vault.yml` is treated as key material.
 
 The workflow emits per-file and global `sha256sum` manifests alongside every upload. Those are the
-artefact that makes "is what is being served what we built?" answerable — use them.
+artifact that makes "is what is being served what we built?" answerable — use them.
 
 ### Delivery and response headers
 
@@ -622,8 +631,9 @@ executes in the same origin as the signing flow, with the user's wallet connecte
 - `onlyBuiltDependencies` — an explicit allowlist of packages permitted to run install scripts.
   Everything else installs without executing arbitrary code. Adding an entry here grants arbitrary
   code execution on every developer machine and CI runner; it is a security review, not a build fix.
-- `engine-strict`, plus root `pnpm.overrides` pinning `@walletconnect/logger`, `js-yaml`, and
-  `@sats-connect/core>axios` to specific versions.
+- `engine-strict`, plus root `pnpm.overrides` pinning `@walletconnect/logger` and
+  `@sats-connect/core>axios` to exact versions and enforcing a `js-yaml >=4.1.1` minimum-version
+  floor.
 
 CLAUDE.md additionally requires **pinned exact versions** (no `^`) for new dependencies, especially
 crypto packages, and an explicit supply-chain audit before adding one. `syncpack` enforces a single
@@ -669,17 +679,19 @@ roles have different review requirements. Satisfy both.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
   bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
   a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
-- `claude-md-drift.yml` guards documentation drift between CLAUDE.md and the code. It did not catch
-  the stale fee path documented in §1; treat that as a signal about its coverage.
+- `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
+  no longer exist, and reports them to a tracker issue. It detects drift but does not gate merges;
+  acting on the tracker or moving the existence check into `verify.yml` is still a human process.
 
 ### E2E secrets
 
 `services/vault/e2e/real/` drives a real wallet against signet and Sepolia using
 `E2E_WALLET_MNEMONIC` / `E2E_WALLET_PASSWORD`, loaded from the environment or a gitignored
 `.env.local` in the wallet-connector package. Keep the mnemonic funded only with disposable testnet
-value, never reuse it for anything else, and never let it reach a CI log or an artifact. A `.cache_ggshield`
-entry in `.gitignore` indicates GitGuardian scanning is in use locally — it is not a substitute for
-keeping the value out of the repository in the first place.
+value, never reuse it for anything else, and never let it reach a CI log or an artifact. The
+gitignored local file prevents accidental inclusion by ordinary Git commands; no
+repository-configured secret-scanning control is present, so review and credential hygiene remain the
+only repository-local safeguards.
 
 ## Critical invariants (must not regress)
 
@@ -696,8 +708,9 @@ keeping the value out of the repository in the first place.
 6. **The vault-secret derivation primitives are byte-frozen.** Any change to layout, ordering, label,
    HKDF `info`, or `VAULT_WASM_COMMIT` output is a hard fork requiring golden-vector updates on both
    the Rust and JS sides and a migration plan.
-7. **`sha256(secret) === hashlock` is checked immediately before activation calldata is assembled**,
-   with the secret sourced from its generator, never from UI or storage state.
+7. **When a hashlock is supplied, `sha256(secret) === hashlock` is checked immediately before
+   activation calldata is assembled.** The vault app always supplies it; SDK consumers must do the
+   same. The secret is sourced from its generator, never from UI or storage state.
 8. **Split outputs sum exactly to `totalDeposit - fees`** and broadcast order is asserted explicitly.
 9. **The VP's `server_pubkey` is pinned to the on-chain `VaultProvider.btcPubKey`**, and every VP RPC
    response passes runtime validation before any security-relevant field is used.
@@ -717,33 +730,34 @@ keeping the value out of the repository in the first place.
 
 ## Attack scenarios matrix
 
-| Area                | Adversary | Scenario                                                                                | Impact                                                                  | Mitigation                                                                                                                        | Test / evidence                                                   |
-| ------------------- | --------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx                     | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` on every crossing; independent cross-check                                       | `babylon-tbv-rust-wasm` value-guard tests                         |
-| Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                                  | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                                   | SDK fee + `selectUtxos` tests                                     |
-| Critical-path guard | G         | Fee-path change ships with no code-owner review because CODEOWNERS names a deleted file | Integrity (process)                                                     | **Known gap** — CODEOWNERS + `critical-path-check.yml` reference `services/vault/src/utils/fee/peginFee.ts`, which does not exist | fix in CLAUDE.md + CODEOWNERS + workflow                          |
-| Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend                | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                                             | `signDepositorGraph` tests                                        |
-| Presigning          | A         | VP returns a challenger set with an extra or missing key                                | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                                              | `signDepositorGraph` tests                                        |
-| Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success       | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                                  | `verifyScriptPathSchnorrSignature` tests                          |
-| Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                        | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                                           | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |
-| Activation          | —         | Wrong preimage submitted to `activateVaultWithSecret`                                   | Funds permanently locked                                                | `sha256(secret) === hashlock` immediately before calldata assembly                                                                | SDK `activateVault` tests                                         |
-| Artifacts           | A         | VP returns a valid JSON-RPC envelope wrapping a corrupt ~1 GB artifact body             | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — only the envelope prefix is validated for large payloads                                                          | close with end-to-end body validation                             |
-| VP auth             | A/D       | Compromised proxy impersonates a vault provider                                         | Integrity of the whole deposit flow                                     | BIP-322 server identity pinned to on-chain `btcPubKey`; 2h ephemeral-key lifetime cap                                             | `serverIdentity.test.ts`                                          |
-| VP responses        | A         | Malformed or hostile VP response is cast without inspection                             | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                                      | `validators.test.ts`, `json-rpc-client.test.ts`                   |
-| Indexer             | B         | Wrong vault status induces an irreversible user action                                  | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification                   | deposit-context tests                                             |
-| Config              | G         | Wrong `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` points the app at attacker contracts         | **User fund loss**                                                      | Strict env validation; blocking modal on failure — but a _valid wrong address_ passes                                             | deployment review                                                 |
-| Screening           | G         | Typo'd or unset `NEXT_PUBLIC_TBV_UTILS_API` disables screening silently                 | Compliance bypass                                                       | **Known gap** — `parseOptionalUrl` warns and returns `undefined`; `verifyAddress` then allows all                                 | add a production startup gate                                     |
-| Screening           | —         | User edits the `localStorage` verdict or the bundle                                     | Compliance bypass                                                       | None possible client-side — documented as advisory, enforcement belongs server/contract-side                                      | —                                                                 |
-| Local storage       | D         | Tampered entry throws in `normalizeTransactionId` and wipes all pending deposits        | Availability, loss of resume state                                      | `hasValidSecurityFields` strict shape validation                                                                                  | `peginStorage.test.ts`                                            |
-| Delivery            | D         | Attacker with S3/CDN write serves modified `index.html`                                 | **Total compromise — arbitrary code with the user's wallet connected**  | OIDC-scoped role; SHA manifests per release; SRI protects assets but not `index.html`                                             | deployment review                                                 |
-| CSP                 | D         | Injected script exfiltrates derived secrets to an arbitrary HTTPS host                  | Confidentiality of vault secrets                                        | `script-src` blocks injection; **`connect-src https:` provides no exfiltration control**                                          | narrow `connect-src` per environment                              |
-| Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                              | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                                           | verify CDN configuration                                          |
-| Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                             | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                                                | `telemetry.test.ts`                                               |
-| Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                             | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                                         | `telemetry.test.ts`                                               |
-| Supply chain        | F         | Malicious npm release lands in the tree                                                 | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions                              | `.npmrc`, syncpack in CI                                          |
-| Supply chain        | F         | Known-vulnerable transitive dependency ships                                            | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                                          | add advisory gate                                                 |
-| Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators                     | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                                       | `package-release.yml`                                             |
-| E2E                 | F         | `E2E_WALLET_MNEMONIC` leaks into a log or the repo                                      | Loss of testnet funds; credential hygiene signal                        | Gitignored `.env.local`; ggshield scanning                                                                                        | review                                                            |
+| Area                | Adversary | Scenario                                                                          | Impact                                                                  | Mitigation                                                                                                      | Test / evidence                                                   |
+| ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` on every crossing; independent cross-check                     | `babylon-tbv-rust-wasm` value-guard tests                         |
+| Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
+| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | All current paths are aligned; the scheduled existence check reports missing paths but does not gate merges     | CLAUDE.md, CODEOWNERS, both critical-path workflows               |
+| Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
+| Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
+| Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |
+| Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                  | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                         | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |
+| Activation          | —         | Wrong preimage submitted to `activateVaultWithSecret`                             | Funds permanently locked                                                | SDK pre-check when `hashlock` is supplied; the vault app always supplies it                                     | SDK `activateVault` tests                                         |
+| Artifacts           | A         | VP returns a valid JSON-RPC envelope wrapping a corrupt ~1 GB artifact body       | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — only the envelope prefix is validated for large payloads                                        | close with end-to-end body validation                             |
+| VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 server identity pinned to on-chain `btcPubKey`; 2h ephemeral-key lifetime cap                           | `serverIdentity.test.ts`                                          |
+| VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |
+| Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
+| Config              | G         | Wrong `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` points the app at attacker contracts   | **User fund loss**                                                      | Strict env validation; blocking modal on failure — but a _valid wrong address_ passes                           | deployment review                                                 |
+| Screening           | G         | Typo'd or unset `NEXT_PUBLIC_TBV_UTILS_API` disables screening silently           | Compliance bypass                                                       | **Known gap** — `parseOptionalUrl` warns and returns `undefined`; `verifyAddress` then allows all               | add a production startup gate                                     |
+| Screening           | —         | User edits the `localStorage` verdict or the bundle                               | Compliance bypass                                                       | None possible client-side — documented as advisory, enforcement belongs server/contract-side                    | —                                                                 |
+| Local storage       | D         | Tampered entry throws in `normalizeTransactionId` and wipes all pending deposits  | Availability, loss of resume state                                      | `hasValidSecurityFields` strict shape validation                                                                | `peginStorage.test.ts`                                            |
+| Delivery            | D         | Attacker with S3/CDN write serves modified `index.html`                           | **Total compromise — arbitrary code with the user's wallet connected**  | OIDC-scoped role; SHA manifests per release; SRI protects assets but not `index.html`                           | deployment review                                                 |
+| CSP                 | D         | Injected script exfiltrates derived secrets to an arbitrary HTTPS host            | Confidentiality of vault secrets                                        | `script-src` blocks injection; **`connect-src https:` provides no exfiltration control**                        | narrow `connect-src` per environment                              |
+| CSP                 | D         | Script injection in simple-staking runs without an application-defined CSP        | Wallet action manipulation / data exposure                              | **Known gap** — no CSP meta tag; verify whether deployment supplies an equivalent response header               | `services/simple-staking/index.html`, deployment review           |
+| Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
+| Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
+| Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
+| Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |
+| Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
+| Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |
+| E2E                 | F         | `E2E_WALLET_MNEMONIC` leaks into a log or the repo                                | Loss of testnet funds; credential hygiene signal                        | Gitignored `.env.local`; no repository-configured secret-scanning control                                       | review                                                            |
 
 ## Bug severity classification (org standard v1.0)
 
@@ -817,13 +831,13 @@ that produced it, and any modifier applied · suggested remediation if you have 
 
 Concrete calibration examples for this repository. These are illustrations, not an exhaustive list.
 
-| Severity          | Example finding in this repo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Critical**      | Any path that lets a VP-supplied value reach a signature without independent re-derivation — a payout amount, an HTLC value, or PSBT sighash metadata (I4 × L2, ↑ silent). Removal or weakening of a WASM value guard on a path feeding a signed transaction (I4 × L2). A `VAULT_WASM_COMMIT` bump that changes expander output and ships without golden-vector verification, invalidating in-flight deposits (I4 × L2). Write access to the vault S3 bucket or the release OIDC role, i.e. arbitrary JavaScript in every user's browser with a wallet connected (I4 × L1 → High by matrix; ↑ raise to Critical, since it is unattributable and defeats every other control). `'unsafe-inline'` or `'unsafe-eval'` added to `script-src` (I3 × L3). |
-| **High**          | Undersigning or oversigning the challenger set — recovery material missing for an active challenger, or a signature handed to an unrecognised key (I4 × L1). Accepting a corrupt claimer-artifact body because only the envelope prefix is validated, discovered only at claim time (I4 × L1, ↑ silent). A wrong-but-valid `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` shipping to production (I4 × L1). A `localStorage`-sourced value reaching PSBT construction without passing `hasValidSecurityFields` (I3 × L2). Enabling Sentry tracing or replay without the corresponding URL scrubber, transmitting depositor addresses (I3 × L2).                                                                                                               |
-| **Medium**        | Screening silently disabled by a typo'd `NEXT_PUBLIC_TBV_UTILS_API` (I3 × L2 by impact of the compliance bypass, ↓ because the gate is advisory client-side ⇒ Medium; state the reasoning). A telemetry refactor that renames a secret-bearing field out of the denylist (I2 × L2, ↑ silent). Missing `X-Frame-Options`/HSTS at the CDN, enabling clickjacking of the dApp (I2 × L2). A known-vulnerable transitive dependency shipping because no SCA gate exists (I2 × L2). A tampered `localStorage` entry wiping all pending deposit records (I2 × L2).                                                                                                                                                                                         |
-| **Low**           | An external link with `target="_blank"` and no `rel="noopener"` (I1 × L2). `connect-src https:` remaining broad in an environment where a narrow allowlist is feasible (I1 × L2 — raise if paired with any script-injection path). Verbose error text exposing an internal endpoint URL in a user-facing message (I1 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **Informational** | CODEOWNERS and `critical-path-check.yml` referencing the deleted `services/vault/src/utils/fee/peginFee.ts` (raise to **Medium** the moment a fee-path change actually merges without code-owner review — the finding is informational only until it has a consequence). `nx affected`-scoped tests in `verify.yml` while build and lint are full-sweep. Empty package directories (`babylon-bsn-registry`, `babylon-campaigns`, `babylon-config`) with no `package.json`.                                                                                                                                                                                                                                                                          |
+| Severity          | Example finding in this repo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical**      | Any path that lets a VP-supplied value reach a signature without independent re-derivation — a payout amount, an HTLC value, or PSBT sighash metadata (I4 × L2, ↑ silent). Removal or weakening of a WASM value guard on a path feeding a signed transaction (I4 × L2). A `VAULT_WASM_COMMIT` bump that changes expander output and ships without golden-vector verification, invalidating in-flight deposits (I4 × L2). Accepting a corrupt claimer-artifact body because only the envelope prefix is validated, discovered only at claim time (I4 × L1 → High, ↑ silent → Critical). A telemetry refactor that renames a secret-bearing field out of the denylist and silently discloses vault secrets (I3 × L2 → High, ↑ silent → Critical). Write access to the vault S3 bucket or the release OIDC role, i.e. arbitrary JavaScript in every user's browser with a wallet connected (I4 × L1 → High by matrix; ↑ raise to Critical, since it is unattributable and defeats every other control). `'unsafe-inline'` or `'unsafe-eval'` added to `script-src` (I3 × L3). |
+| **High**          | Undersigning or oversigning the challenger set — recovery material missing for an active challenger, or a signature handed to an unrecognised key (I4 × L1). A wrong-but-valid `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` shipping to production (I4 × L1). A `localStorage`-sourced value reaching PSBT construction without passing `hasValidSecurityFields` (I3 × L2). Enabling Sentry tracing or replay without the corresponding URL scrubber, transmitting depositor addresses (I3 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Medium**        | Screening silently disabled by a typo'd `NEXT_PUBLIC_TBV_UTILS_API` (I3 × L2 by impact of the compliance bypass, ↓ because the gate is advisory client-side ⇒ Medium; state the reasoning). Missing `X-Frame-Options`/HSTS at the CDN, enabling clickjacking of the dApp (I2 × L2). A known-vulnerable transitive dependency shipping because no SCA gate exists (I2 × L2). A tampered `localStorage` entry wiping all pending deposit records (I2 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Low**           | An external link with `target="_blank"` and no `rel="noopener"` (I1 × L2). `connect-src https:` remaining broad in an environment where a narrow allowlist is feasible (I1 × L2 — raise if paired with any script-injection path). Verbose error text exposing an internal endpoint URL in a user-facing message (I1 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Informational** | `claude-md-drift.yml` reporting stale critical paths to a tracker issue rather than gating merges. `nx affected`-scoped tests in `verify.yml` while build and lint are full-sweep.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ## Contributor / reviewer checklist
 
@@ -868,13 +882,13 @@ When changing this repository, explicitly consider:
   the frozen vault-secret primitives, `VAULT_WASM_COMMIT`, the HTLC activation check, VP response
   validation or server-identity pinning, `localStorage` validation, the CSP, the SRI gate, telemetry
   scrubbing, or the install policy MUST be treated as a security-model change.
-- Closing any of the gaps named above — the stale critical-path fee entry, artifact body validation,
-  the fail-open screening configuration, `connect-src` narrowing, production response headers, or the
-  missing SCA gate — MUST update the corresponding section and the severity anchors.
-- This file, [CLAUDE.md](CLAUDE.md), [`.github/CODEOWNERS`](.github/CODEOWNERS), and
-  [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml) contain
-  four hand-maintained copies of the critical-path list. **Change them together.** They have drifted
-  before.
+- Closing any of the gaps named above — artifact body validation, the fail-open screening
+  configuration, either dApp's CSP restrictions, production response headers, or the missing SCA
+  gate — MUST update the corresponding section and the severity anchors.
+- This file, [CLAUDE.md](CLAUDE.md), [`.github/CODEOWNERS`](.github/CODEOWNERS),
+  [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml), and
+  [`.github/workflows/claude-md-drift.yml`](.github/workflows/claude-md-drift.yml) contain five
+  hand-maintained critical-path inventories. **Change them together.** They have drifted before.
 - Security-relevant PRs SHOULD reference the relevant attack-matrix row(s); if a row is missing, add
   it.
 - The **Bug severity classification** section is shared across repositories. Changes to it must be

@@ -2,7 +2,7 @@ name: CLAUDE.md Drift Check
 
 on:
   schedule:
-    - cron: '0 9 * * 1'  # Mondays 09:00 UTC
+    - cron: '0 9 * * 1' # Mondays 09:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -22,15 +22,21 @@ jobs:
         id: analyze
         run: |
           set -e
-          # Keep in sync with CLAUDE.md > "CRITICAL PATHS", .github/CODEOWNERS,
-          # and .github/workflows/critical-path-check.yml.
+          # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
+          # .github/CODEOWNERS, and .github/workflows/critical-path-check.yml.
           paths=(
             "packages/babylon-tbv-rust-wasm/src/index.ts"
+            "packages/babylon-tbv-rust-wasm/src/index-node.ts"
+            "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
             "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
-            "services/vault/src/utils/fee/peginFee.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"
+            "services/vault/src/hooks/deposit/useEstimatedBtcFee.ts"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts"
             "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
-            "services/vault/src/services/wots/"
+            "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/"
+            "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts"
             "services/vault/src/services/vault/vaultActivationService.ts"
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"

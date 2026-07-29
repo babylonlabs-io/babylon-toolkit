@@ -15,13 +15,17 @@
 
 # 1. WASM boundary (value computation)
 /packages/babylon-tbv-rust-wasm/src/index.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/index-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/scripts/build-wasm.js @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 2. Fee calculation consistency
 /packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
-/services/vault/src/utils/fee/peginFee.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/hooks/deposit/useEstimatedBtcFee.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 3. Presigning payout transactions
 /packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 4. Vault-secret derivation (frozen on-chain-binding API)

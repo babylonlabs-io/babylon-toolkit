@@ -90,7 +90,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 ### 7. Non-standard wallet signing options
 
 - File: `packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts`
-- Uses `disableTweakSigner: true` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
+- Uses `useTweakedSigner: false` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
 - **Rule:** Validate every signature produced with these flags against the expected sighash before treating the PSBT as signed. Do not rely on the wallet returning success.
 
 ---

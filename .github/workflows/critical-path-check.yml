@@ -21,12 +21,17 @@ jobs:
         id: detect
         run: |
           set -e
-          # Keep in sync with CLAUDE.md > "CRITICAL PATHS" and .github/CODEOWNERS.
+          # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
+          # .github/CODEOWNERS, and .github/workflows/claude-md-drift.yml.
           paths=(
             "packages/babylon-tbv-rust-wasm/src/index.ts"
+            "packages/babylon-tbv-rust-wasm/src/index-node.ts"
+            "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
             "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
-            "services/vault/src/utils/fee/peginFee.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"
+            "services/vault/src/hooks/deposit/useEstimatedBtcFee.ts"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts"
             "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
             "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/"
             "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts"
