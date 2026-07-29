@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { Timeline } from "./Timeline";
-import { bands, timelinePriceAxis, timeAxisLabels, makeCandles, safeZone } from "./fixtures";
+import { bands, collidingLevelBands, timelinePriceAxis, timeAxisLabels, makeCandles, safeZone } from "./fixtures";
 
 const meta: Meta<typeof Timeline> = {
   title: "Components/Data Display/Charts/Timeline",
@@ -33,8 +33,6 @@ const meta: Meta<typeof Timeline> = {
     currentPrice: 88700,
     currentPriceLabel: "$88,700",
     variant: "full",
-    bandClickHint: "click to open card",
-    onBandClick: (key: string) => alert(`open card: Liq Event ${key}`),
   },
 };
 export default meta;
@@ -92,7 +90,7 @@ export const NoGutter: Story = {
   args: { bandGutter: false },
 };
 
-/** All band text hidden — hover a band to identify it via the popover. */
+/** All band text hidden — for dense or preview surfaces. */
 export const HiddenLabels: Story = {
   args: { hideBandLabels: true },
 };
@@ -145,6 +143,52 @@ export const ManyEvents: Story = {
 /** No price-history feed yet: frame + band gutter render without candles. */
 export const NoCandles: Story = {
   args: { candles: [] },
+};
+
+/** Gutter without the safe-zone callout. */
+export const NoSafeZone: Story = {
+  args: { safeZone: undefined },
+};
+
+/**
+ * The safe region is too short to fit the detail lines, so the callout keeps
+ * its title and sheds them.
+ */
+export const TightSafeZone: Story = {
+  args: {
+    priceAxis: [
+      { value: 84000, label: "$84,000" },
+      { value: 73000, label: "$73,000" },
+      { value: 62000, label: "$62,000" },
+      { value: 51000, label: "$51,000" },
+      { value: 40000, label: "$40,000" },
+    ],
+    currentPrice: 83500,
+    currentPriceLabel: "$83,500",
+  },
+};
+
+/**
+ * Liquidation levels a few dollars apart: the axis pills would overlap, so the
+ * declutter pass fans the labels out while each dashed line stays at its price.
+ */
+export const CollidingLevels: Story = {
+  args: { bands: collidingLevelBands },
+};
+
+/** Degenerate two-tick price axis still renders a coherent frame. */
+export const TwoTickAxis: Story = {
+  args: {
+    priceAxis: [
+      { value: 90000, label: "$90,000" },
+      { value: 40000, label: "$40,000" },
+    ],
+  },
+};
+
+/** Full-width line series with the gutter unplugged. */
+export const NoGutterLineSeries: Story = {
+  args: { bandGutter: false, seriesStyle: "line" },
 };
 
 export const Narrow: Story = {

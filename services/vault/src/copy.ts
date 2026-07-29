@@ -1288,16 +1288,8 @@ export const COPY = {
       borrow: "Borrow",
     },
     reset: "Reset",
-    bandClickHint: "click to open card",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
     containVaults: (names: string) => `(contain ${names})`,
-    cumulativeSeized: (percent: number) => `${percent}% seized`,
-    popover: {
-      atPrice: "At price",
-      distance: "Distance",
-      vaults: "Vaults",
-      seizes: "Seizes",
-    },
     safeZone: {
       title: "Safe zone",
       noEventsAbove: (price: string) => `no events above ${price}`,

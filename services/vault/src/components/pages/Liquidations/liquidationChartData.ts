@@ -175,11 +175,8 @@ export function buildLiquidationChartData(
   );
   const widthBoundaries = compressedShareBoundaries(shares);
 
-  let cumulativeBtc = 0;
   const bands: LiquidationBand[] = groups.map((group, i) => {
     const shareStart = widthBoundaries[i];
-    cumulativeBtc += group.combinedBtc;
-    const trueShareEnd = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
     const shareEnd = widthBoundaries[i + 1];
     // Band spans from where this event triggers down to the next event's
     // trigger; the last band bottoms out at the axis floor.
@@ -200,28 +197,6 @@ export function buildLiquidationChartData(
       shareEnd,
       state: btcPrice <= group.liquidationPrice ? "liquidated" : "live",
       tone,
-      popoverMetrics: [
-        {
-          label: COPY.liquidations.popover.atPrice,
-          value: formatPriceUsd(group.liquidationPrice),
-          emphasis: true,
-        },
-        {
-          label: COPY.liquidations.popover.distance,
-          value: formatSignedPct(group.distancePct),
-        },
-        {
-          label: COPY.liquidations.popover.vaults,
-          value: group.vaults.map((v) => v.name).join(", "),
-        },
-        {
-          label: COPY.liquidations.popover.seizes,
-          value: formatBtcAmount(group.targetSeizureBtc),
-        },
-      ],
-      cumulativeLabel: COPY.liquidations.cumulativeSeized(
-        Math.round(trueShareEnd * 100),
-      ),
     };
   });
 

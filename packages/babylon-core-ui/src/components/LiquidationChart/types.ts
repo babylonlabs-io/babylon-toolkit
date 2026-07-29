@@ -19,16 +19,6 @@ export type LiquidationBandTone = "1" | "2" | "3";
  */
 export type LiquidationBandState = "live" | "liquidated";
 
-/**
- * Key/value rows shown in the band hover popover. All pre-formatted by the app.
- * `emphasis` tints a value (e.g. the liquidation price in the band's tone).
- */
-export interface BandPopoverMetric {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}
-
 export interface LiquidationBand {
   key: string;
   /** Primary label, e.g. "Liq Event 1". */
@@ -49,10 +39,6 @@ export interface LiquidationBand {
   shareEnd: number;
   state: LiquidationBandState;
   tone: LiquidationBandTone;
-  /** Rows for the hover popover (At price / Distance / Vaults / Seizes). */
-  popoverMetrics?: BandPopoverMetric[];
-  /** Footer row, e.g. "55% seized". */
-  cumulativeLabel?: string;
 }
 
 /** One OHLC bar. Timeline only; no data source exists yet. */
@@ -100,14 +86,10 @@ interface LiquidationChartBase {
   /** Background grid. Omit for the default dashed full grid. */
   grid?: ChartGridConfig;
   /**
-   * Hide all in-band text (tiny bands already drop text automatically); the
-   * hover popover still names the event. For dense/preview surfaces.
+   * Hide all in-band text (tiny bands already drop text automatically).
+   * For dense/preview surfaces.
    */
   hideBandLabels?: boolean;
-  /** Fired when a band (or its popover footer) is clicked — app scrolls to the card. */
-  onBandClick?: (key: string) => void;
-  /** Popover footer CTA, e.g. "click to open card". Omitted → no CTA row. */
-  bandClickHint?: string;
   className?: string;
 }
 
