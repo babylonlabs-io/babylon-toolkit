@@ -141,3 +141,50 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     );
   });
 });
+
+/**
+ * Both sides of the WOTS suppression window, driven by the injected `now`
+ * rather than a faked system clock — which is the point of `DepositPollingInputs.now`
+ * existing. The equivalent tests at the provider and store levels need
+ * `vi.useFakeTimers`, because they exercise the `Date.now()` default; these do
+ * not, and that is what makes this module's "pure per-deposit compute" header
+ * true in practice rather than only in the type. Same shape as
+ * `isRefundBroadcastWithinTtl`'s `now`, which `peginStateMachine.test.ts`
+ * exercises the same way.
+ */
+describe("computeDepositPollingResult — WOTS suppression clock", () => {
+  const SUBMITTED_AT = Date.parse("2026-07-27T12:00:00Z");
+  const INSIDE_WINDOW = SUBMITTED_AT + 5 * 60 * 1000;
+  const PAST_WINDOW = SUBMITTED_AT + 21 * 60 * 1000;
+
+  function makeAwaitingWotsInputs(now: number): DepositPollingInputs {
+    return makeInputs({
+      activity: {
+        ...makeExpiredActivity(),
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        contractStatus: ContractStatus.PENDING,
+      },
+      needsWotsKey: new Set([VAULT_ID]),
+      wotsSubmittedAt: new Map([[VAULT_ID, SUBMITTED_AT]]),
+      now,
+    });
+  }
+
+  it("suppresses Submit WOTS Key while the submission is inside the window", () => {
+    const result = computeDepositPollingResult(
+      makeAwaitingWotsInputs(INSIDE_WINDOW),
+    );
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.SUBMIT_WOTS_KEY,
+    );
+  });
+
+  it("re-offers Submit WOTS Key once the injected clock is past the window", () => {
+    const result = computeDepositPollingResult(
+      makeAwaitingWotsInputs(PAST_WINDOW),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.SUBMIT_WOTS_KEY,
+    );
+  });
+});
