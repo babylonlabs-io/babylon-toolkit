@@ -642,6 +642,28 @@ describe("runDepositorPresignFlow", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it("skips approval entirely when the VP is already past payout signing", async () => {
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([DaemonStatus.PENDING_ACKS]);
+      const presignClient = createMockPresignClient();
+
+      // No depositTerms: the POST_PAYOUT early-return must win before the
+      // capability guard, or a resumed Ledger deposit hard-fails for nothing.
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+      });
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+      expect(
+        presignClient.requestDepositorPresignTransactions,
+      ).not.toHaveBeenCalled();
+    });
+
     it("ignores depositTerms for non-capability wallets", async () => {
       const wallet = createMockWallet();
       const reader = createMockStatusReader([

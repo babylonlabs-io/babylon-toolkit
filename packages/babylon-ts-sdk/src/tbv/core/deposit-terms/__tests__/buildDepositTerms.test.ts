@@ -52,6 +52,14 @@ describe("buildDepositTerms", () => {
 
   it("throws on malformed txid and empty vault amounts", () => {
     expect(() => buildDepositTerms({ ...BASE, prepeginTxid: "12" })).toThrow(/txid/i);
+    // Right length, wrong charset — pins the hex check, not just the length.
+    expect(() =>
+      buildDepositTerms({ ...BASE, prepeginTxid: "z".repeat(64) }),
+    ).toThrow(/txid/i);
+    // 0x-prefixed input is rejected, not stripped.
+    expect(() =>
+      buildDepositTerms({ ...BASE, prepeginTxid: "0x" + "a".repeat(62) }),
+    ).toThrow(/txid/i);
     expect(() => buildDepositTerms({ ...BASE, vaultAmounts: [] })).toThrow(/vault/i);
   });
 

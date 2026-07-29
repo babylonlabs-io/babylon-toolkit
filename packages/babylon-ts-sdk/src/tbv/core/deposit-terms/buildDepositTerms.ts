@@ -21,7 +21,9 @@ export function buildDepositTerms(inputs: BuildDepositTermsInputs): DepositTerms
   if (inputs.vaultAmounts.length === 0) {
     throw new Error("buildDepositTerms: at least one vault amount is required");
   }
-  // TODO(#2106): device-range validation
+  // TODO(#2106): device-range validation — timelock ranges, participant caps,
+  // and the device's commission value-sanity floors (commissionFee >= 546 dust,
+  // vaultAmount > commissionFee + 2*546; vault_tlv.c on app-babylon-vault develop).
   if (inputs.timelockPegin <= 0 || inputs.timelockRefund <= 0) {
     throw new Error("buildDepositTerms: timelocks must be positive");
   }
