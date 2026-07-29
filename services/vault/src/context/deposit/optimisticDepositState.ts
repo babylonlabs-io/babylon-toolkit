@@ -49,8 +49,22 @@ export interface OptimisticDepositState {
  * which documents why a suppression marker must never be sticky. Generous
  * against real daemon lag, short enough that a stuck deposit recovers on its
  * own within one sitting.
+ *
+ * Sized against the continuation modal, not the dashboard row — it is the
+ * harsher consumer. `PostDepositContinuationView` renders `ResumeWotsContent`
+ * off the same `SUBMIT_WOTS_KEY` action, so a lapse while the VP is merely
+ * slow to leave `PENDING_DEPOSITOR_WOTS_PK` bounces a parked user back to the
+ * WOTS resume screen with nothing actually wrong. Twenty minutes clears
+ * realistic daemon lag for that consumer while still recovering in one sitting.
+ *
+ * Recovery is bounded by this TTL plus one poll interval, not by the TTL
+ * alone: nothing re-renders on the clock crossing the boundary. What carries
+ * it is `refetchInterval` — a deposit stuck at `needsWotsKey` keeps polling
+ * (it only stops at `pendingDepositorSignatures` or a terminal error) and the
+ * queryFn returns fresh `Set`s, which React Query's structural sharing does
+ * not descend into, so the deps change every tick and the row re-renders.
  */
-const WOTS_SUBMISSION_SUPPRESSION_MS = 10 * 60 * 1000;
+const WOTS_SUBMISSION_SUPPRESSION_MS = 20 * 60 * 1000;
 
 const EMPTY_STATE: OptimisticDepositState = {
   statuses: new Map(),
@@ -118,9 +132,17 @@ export function setOptimisticDepositStatus(
 }
 
 export function markWotsSubmitted(depositId: string): void {
-  // First write wins: a repeat call must not slide the TTL forward, or a retry
-  // loop could keep the action suppressed indefinitely.
-  if (currentState.wotsSubmittedAt.has(depositId)) return;
+  // First write wins WITHIN the window: a repeat call must not slide the TTL
+  // forward, or a retry loop could keep the action suppressed indefinitely.
+  // Guard on freshness rather than presence, though — once the window has
+  // lapsed the action is back on offer, and the submission that answers it
+  // must re-arm the marker. Testing `.has()` would leave the expired
+  // timestamp in place, so that second (successful) submission would get zero
+  // suppression and the row would re-offer the button for the whole daemon-lag
+  // window: the #2140 symptom, made permanent for that deposit.
+  if (isWotsSubmissionWithinTtl(currentState.wotsSubmittedAt.get(depositId))) {
+    return;
+  }
   publish({
     statuses: currentState.statuses,
     refundBroadcastAt: currentState.refundBroadcastAt,
@@ -146,9 +168,25 @@ export function markWotsSubmitted(depositId: string): void {
  */
 export function isWotsSubmissionWithinTtl(
   submittedAt: number | undefined,
+  now?: number,
 ): boolean {
   if (submittedAt === undefined) return false;
-  return Date.now() - submittedAt < WOTS_SUBMISSION_SUPPRESSION_MS;
+  const currentTime = now ?? Date.now();
+  return currentTime - submittedAt < WOTS_SUBMISSION_SUPPRESSION_MS;
+}
+
+/**
+ * Whether this deposit's WOTS submission resolved at least once this session,
+ * regardless of whether the suppression window is still open.
+ *
+ * Distinct from {@link isWotsSubmissionWithinTtl}, which asks "should the
+ * action stay hidden". This asks "has the user already been through this
+ * step", which is what tells a re-offer apart from a first visit — the
+ * signal `ResumeWotsContent` needs to decide whether it may auto-submit on
+ * mount or must wait for a click.
+ */
+export function hasWotsSubmissionRecord(depositId: string): boolean {
+  return currentState.wotsSubmittedAt.has(depositId);
 }
 
 /**

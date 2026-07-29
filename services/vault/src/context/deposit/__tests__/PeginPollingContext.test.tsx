@@ -336,11 +336,17 @@ describe("PeginPollingContext", () => {
     ).toContain(PeginAction.SUBMIT_WOTS_KEY);
   });
 
-  it("re-offers Submit WOTS Key once the suppression window has elapsed and the vault provider is still asking", () => {
-    // The marker only bridges daemon lag. A VP still asking ten minutes on is
-    // asking for real — a rejected or rotated key, or a submission lost behind
-    // a 200 — and an unbounded marker would leave the row with no action at
-    // all until the user thought to reload.
+  it("recomputes Submit WOTS Key as available once the suppression window has elapsed and the vault provider is still asking", () => {
+    // The marker only bridges daemon lag. A VP still asking twenty minutes on
+    // is asking for real — a rejected or rotated key, or a submission lost
+    // behind a 200 — and an unbounded marker would leave the row with no
+    // action at all until the user thought to reload.
+    //
+    // Scope: this calls `getPollingResult` directly after advancing the clock,
+    // so it pins the COMPUTATION flipping, not a re-render. No dep of that
+    // `useCallback` changes when the clock crosses the boundary, so this would
+    // pass even if nothing re-rendered. What carries it in production is
+    // `refetchInterval` — see `WOTS_SUBMISSION_SUPPRESSION_MS`.
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-27T12:00:00Z"));
     mockQueryResult.needsWotsKey = new Set([ACTIVITY_ID]);
@@ -355,7 +361,7 @@ describe("PeginPollingContext", () => {
       result.current.getPollingResult(ACTIVITY_ID)?.peginState.availableActions,
     ).toEqual([PeginAction.NONE]);
 
-    vi.advanceTimersByTime(11 * 60 * 1000);
+    vi.advanceTimersByTime(21 * 60 * 1000);
 
     expect(
       result.current.getPollingResult(ACTIVITY_ID)?.peginState.availableActions,

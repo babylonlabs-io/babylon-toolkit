@@ -89,6 +89,13 @@ export interface DepositPollingInputs {
    */
   wotsSubmittedAt: ReadonlyMap<string, number>;
   btcPublicKey: string | undefined;
+  /**
+   * Override `Date.now()` for the WOTS suppression TTL (testing only). Mirrors
+   * `PeginStateInputs.now`, and keeps this module's "pure compute" promise
+   * honest — without it the decision tree reads the wall clock transitively
+   * through `isWotsSubmissionWithinTtl` and needs fake timers to pin.
+   */
+  now?: number;
 }
 
 export function computeDepositPollingResult(
@@ -114,6 +121,7 @@ export function computeDepositPollingResult(
     optimisticRefundBroadcastAt,
     wotsSubmittedAt,
     btcPublicKey,
+    now,
   } = inputs;
   const depositId = activity.id;
   const depositIdKey = depositId.toLowerCase();
@@ -147,6 +155,7 @@ export function computeDepositPollingResult(
   // still asking is taken at its word, so the action comes back.
   const justSubmittedWotsThisSession = isWotsSubmissionWithinTtl(
     wotsSubmittedAt.get(depositId),
+    now,
   );
   const stillNeedsWotsKey = justSubmittedWotsThisSession
     ? false

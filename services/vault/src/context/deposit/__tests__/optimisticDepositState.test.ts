@@ -145,7 +145,7 @@ describe("optimisticDepositState", () => {
     vi.setSystemTime(new Date("2026-07-27T12:00:00Z"));
     markWotsSubmitted(DEPOSIT_ID);
 
-    vi.advanceTimersByTime(11 * 60 * 1000);
+    vi.advanceTimersByTime(21 * 60 * 1000);
 
     expect(
       isWotsSubmissionWithinTtl(
@@ -172,5 +172,24 @@ describe("optimisticDepositState", () => {
     expect(getOptimisticDepositState().wotsSubmittedAt.get(DEPOSIT_ID)).toBe(
       first,
     );
+  });
+
+  it("re-arms the suppression when a submission lands after the ttl lapsed", () => {
+    // The recovery path this bound creates has to work more than once. Once
+    // the window lapses the action is back on offer, so the submission that
+    // answers it must record a fresh timestamp — otherwise that second,
+    // successful submission gets zero suppression and the row re-offers the
+    // button for the whole daemon-lag window.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-27T12:00:00Z"));
+    markWotsSubmitted(DEPOSIT_ID);
+    const first = getOptimisticDepositState().wotsSubmittedAt.get(DEPOSIT_ID);
+
+    vi.advanceTimersByTime(21 * 60 * 1000);
+    markWotsSubmitted(DEPOSIT_ID);
+
+    const second = getOptimisticDepositState().wotsSubmittedAt.get(DEPOSIT_ID);
+    expect(second).not.toBe(first);
+    expect(isWotsSubmissionWithinTtl(second)).toBe(true);
   });
 });
