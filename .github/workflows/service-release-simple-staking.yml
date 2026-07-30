@@ -40,6 +40,9 @@ jobs:
 
   s3_publish:
     needs: [lint_test]
+    permissions:
+      id-token: write # OIDC assume-role for AWS
+      contents: write # publish checksum manifest as a release asset (#253)
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -138,6 +141,22 @@ jobs:
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}.tar.gz
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
+
+      - name: Publish checksum manifest as immutable release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Append-only per-deploy sha256 manifest for the frontend integrity
+          # checker (devops-backlog#253). Public + immutable per-sha => the
+          # checker reads it with no credentials, from a different trust domain
+          # than the AWS serving path. One pinned release acts as the store.
+          RELEASE_TAG=frontend-manifests
+          ASSET="/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt"
+          gh release create "$RELEASE_TAG" \
+            --title "Frontend integrity manifests" \
+            --notes "Append-only sha256 manifests consumed by the frontend integrity checker (devops-backlog#253). Do not delete." \
+            --latest=false 2>/dev/null || true
+          gh release upload "$RELEASE_TAG" "$ASSET" --clobber
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
