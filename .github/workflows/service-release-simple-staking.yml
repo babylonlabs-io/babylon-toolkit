@@ -156,7 +156,16 @@ jobs:
             --title "Frontend integrity manifests" \
             --notes "Append-only sha256 manifests consumed by the frontend integrity checker (devops-backlog#253). Do not delete." \
             --latest=false 2>/dev/null || true
-          gh release upload "$RELEASE_TAG" "$ASSET" --clobber
+          # Write-once: never overwrite an already-published manifest for this
+          # sha. Builds aren't byte-reproducible (run_id embedded), so a rerun
+          # with --clobber could swap the checker's source of truth. Keeping the
+          # original is fail-safe — a stale manifest alerts, it can't hide.
+          ASSET_NAME="$(basename "$ASSET")"
+          if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -qxF "$ASSET_NAME"; then
+            echo "manifest $ASSET_NAME already published — keeping the immutable original"
+          else
+            gh release upload "$RELEASE_TAG" "$ASSET"
+          fi
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
