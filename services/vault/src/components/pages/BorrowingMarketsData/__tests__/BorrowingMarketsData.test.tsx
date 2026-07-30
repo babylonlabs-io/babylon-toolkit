@@ -56,6 +56,12 @@ vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({ icon: "btc-icon.svg" }),
 }));
 
+const useDemoMarketDataMock = vi.fn();
+
+vi.mock("@/dev/demoMarketData", () => ({
+  useDemoMarketData: () => useDemoMarketDataMock(),
+}));
+
 const useAaveConfigMock = vi.fn();
 const useAaveBorrowAprsMock = vi.fn();
 const useAaveReserveLiquidityMock = vi.fn();
@@ -75,6 +81,7 @@ vi.mock("@/applications/aave/hooks", () => ({
   useVerifiedReserveIdentity: () => useVerifiedReserveIdentityMock(),
 }));
 
+import type { ReserveLiquidity } from "@/applications/aave/hooks";
 import { COPY } from "@/copy";
 import { MARKET_RESERVE_PARAM } from "@/routes";
 
@@ -140,24 +147,68 @@ const VERIFIED_USDC_IDENTITY = {
   source: "registry" as const,
 };
 
+/**
+ * Explicit, rather than inferred from the defaults below: the degraded cases
+ * these tests exist to cover pass `null` for a price or an identity, and
+ * inference from a populated default narrows those fields to non-nullable.
+ */
+type DemoMarketData = {
+  reserves: (typeof USDC_RESERVE)[];
+  liquidityByReserveId: Record<string, ReserveLiquidity | null>;
+  aprPercentByReserveId: Record<string, number | null>;
+  pricesByReserveId: Record<string, number | null>;
+  collateralFactor: number;
+};
+
+interface HookOverrides {
+  demoMarketData?: DemoMarketData | null;
+  aprsLoading?: boolean;
+  liquidityError?: Error | null;
+  borrowableReserves?: (typeof USDC_RESERVE)[];
+  liquidityByReserveId?: Record<string, ReserveLiquidity | null>;
+  aprPercentByReserveId?: Record<string, number | null>;
+  pricesByReserveId?: Record<string, number | null>;
+  splitParams?: typeof SPLIT_PARAMS | null;
+  identity?: typeof VERIFIED_USDC_IDENTITY | null;
+  identityLoading?: boolean;
+  identityError?: Error | null;
+  isIntegrityViolation?: boolean;
+}
+
 function setUpHooks({
+  demoMarketData = null as DemoMarketData | null,
   borrowableReserves = [USDC_RESERVE, WBTC_RESERVE],
   liquidityByReserveId = LIQUIDITY_BY_RESERVE_ID,
   aprPercentByReserveId = APR_BY_RESERVE_ID,
   pricesByReserveId = PRICES_BY_RESERVE_ID,
+  aprsLoading = false,
+  liquidityError = null,
   splitParams = SPLIT_PARAMS,
   identity = VERIFIED_USDC_IDENTITY,
   identityLoading = false,
-  identityError = null as Error | null,
+  identityError = null,
   isIntegrityViolation = false,
-} = {}) {
+}: HookOverrides = {}) {
+  useDemoMarketDataMock.mockReturnValue(demoMarketData);
   useAaveConfigMock.mockReturnValue({
     config: { coreSpokeAddress: "0xspoke000000000000000000000000000000000" },
     borrowableReserves,
   });
-  useAaveBorrowAprsMock.mockReturnValue({ aprPercentByReserveId });
-  useAaveReserveLiquidityMock.mockReturnValue({ liquidityByReserveId });
-  useAaveReservesPricesMock.mockReturnValue({ pricesByReserveId });
+  useAaveBorrowAprsMock.mockReturnValue({
+    aprPercentByReserveId,
+    isLoading: aprsLoading,
+    error: null,
+  });
+  useAaveReserveLiquidityMock.mockReturnValue({
+    liquidityByReserveId,
+    isLoading: false,
+    error: liquidityError,
+  });
+  useAaveReservesPricesMock.mockReturnValue({
+    pricesByReserveId,
+    isLoading: false,
+    error: null,
+  });
   useVaultSplitParamsMock.mockReturnValue({ params: splitParams });
   useVerifiedReserveIdentityMock.mockReturnValue({
     identity,
@@ -279,5 +330,77 @@ describe("BorrowingMarketsData", () => {
     expect(
       screen.queryByRole("button", { name: COPY.loans.detail.retry }),
     ).not.toBeInTheDocument();
+  });
+
+  // Review catch (greptile P1): demo fixtures have no on-chain counterpart, so
+  // verifying them always failed and the integrity gate hid the very layout the
+  // demo exists to show. The gate must not judge a check that never ran.
+  it("renders the populated layout for a demo fixture without tripping the identity gate", () => {
+    const DEMO_RESERVE = { ...USDC_RESERVE, reserveId: 9001n };
+    setUpHooks({
+      identity: null,
+      demoMarketData: {
+        reserves: [DEMO_RESERVE],
+        liquidityByReserveId: {
+          "9001": {
+            availableLiquidity: 11_400_000,
+            totalBorrowed: 24_500_000,
+            suppliedLiquidity: 38_500_000,
+            utilizationBps: 6259,
+          },
+        },
+        aprPercentByReserveId: { "9001": 3.5 },
+        pricesByReserveId: { "9001": 1 },
+        collateralFactor: 0.75,
+      },
+    });
+
+    renderPage("9001");
+
+    expect(screen.getByTestId("market-stats-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("borrow-market-row-USDC")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.loans.reserveNotFound),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reports a not-found reserve when demo is on and the routed id matches no fixture", () => {
+    setUpHooks({
+      identity: null,
+      demoMarketData: {
+        reserves: [],
+        liquidityByReserveId: {},
+        aprPercentByReserveId: {},
+        pricesByReserveId: {},
+        collateralFactor: 0.75,
+      },
+    });
+
+    renderPage("9999");
+
+    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
+  });
+
+  // Review catch: without its own error state a failed batch read rendered
+  // every cell as "–" on an otherwise complete page, so a user could not tell
+  // a broken read from a metric with no value.
+  it("surfaces a failed market-data read instead of a page of empty placeholders", () => {
+    setUpHooks({ liquidityError: new Error("multicall reverted") });
+
+    renderPage("1");
+
+    expect(
+      screen.getByText(COPY.marketData.dataUnavailable),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("market-stats-bar")).not.toBeInTheDocument();
+  });
+
+  it("holds on a loading state while the market reads are still in flight", () => {
+    setUpHooks({ aprsLoading: true });
+
+    renderPage("1");
+
+    expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
+    expect(screen.queryByTestId("market-stats-bar")).not.toBeInTheDocument();
   });
 });

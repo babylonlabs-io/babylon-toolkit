@@ -108,13 +108,21 @@ export default function BorrowingMarketsData() {
     () => borrowableReserves.map((r) => r.reserveId),
     [borrowableReserves],
   );
-  const { aprPercentByReserveId } = useAaveBorrowAprs({
-    reserves: borrowableReserves,
-  });
-  const { liquidityByReserveId } = useAaveReserveLiquidity({
-    reserves: borrowableReserves,
-  });
-  const { pricesByReserveId } = useAaveReservesPrices({
+  const {
+    aprPercentByReserveId,
+    isLoading: aprsLoading,
+    error: aprsError,
+  } = useAaveBorrowAprs({ reserves: borrowableReserves });
+  const {
+    liquidityByReserveId,
+    isLoading: liquidityLoading,
+    error: liquidityError,
+  } = useAaveReserveLiquidity({ reserves: borrowableReserves });
+  const {
+    pricesByReserveId,
+    isLoading: pricesLoading,
+    error: pricesError,
+  } = useAaveReservesPrices({
     spokeAddress: config?.coreSpokeAddress,
     reserveIds,
   });
@@ -127,6 +135,7 @@ export default function BorrowingMarketsData() {
   // Substituted at the raw-hook layer, so the derivation below formats demo
   // figures exactly as it formats live ones. Inert in production.
   const demoMarketData = useDemoMarketData();
+  const isDemo = demoMarketData !== null;
   const effectiveReserves = demoMarketData?.reserves ?? borrowableReserves;
   const effectiveLiquidityByReserveId =
     demoMarketData?.liquidityByReserveId ?? liquidityByReserveId;
@@ -149,6 +158,9 @@ export default function BorrowingMarketsData() {
     return matches.length === 1 ? matches[0] : null;
   }, [effectiveReserves, params]);
 
+  // Demo fixtures have no on-chain counterpart, so verification could only
+  // fail for them — leave the read disabled rather than letting that failure
+  // trip the integrity gate and hide the very layout the demo exists to show.
   const {
     identity,
     isLoading: identityLoading,
@@ -156,15 +168,14 @@ export default function BorrowingMarketsData() {
     isIntegrityViolation,
     retry: retryIdentity,
   } = useVerifiedReserveIdentity({
-    reserveId: selectedReserve?.reserveId,
-    underlying: selectedReserve?.reserve.underlying,
+    reserveId: isDemo ? undefined : selectedReserve?.reserveId,
+    underlying: isDemo ? undefined : selectedReserve?.reserve.underlying,
   });
 
-  // Demo reserves are fixtures with no on-chain counterpart, so verification
-  // cannot pass for them. Dev-only (`useDemoMarketData` is null in production),
-  // and it takes the label from the fixture rather than skipping a check on
-  // real data — the F7 gate below still governs every live reserve.
-  const demoIdentity = demoMarketData ? selectedReserve?.token : undefined;
+  // Dev-only (`useDemoMarketData` is null in production): the fixture's own
+  // label stands in for a verified identity. The F7 gate below still governs
+  // every live reserve.
+  const demoIdentity = isDemo ? selectedReserve?.token : undefined;
   const symbol = demoIdentity?.symbol ?? identity?.symbol ?? "";
   const name = demoIdentity?.name ?? identity?.name ?? symbol;
   const icon = getCurrencyIconWithFallback(
@@ -280,38 +291,45 @@ export default function BorrowingMarketsData() {
       ? COPY.common.emptyValue
       : formatBasisPointsAsPercent(effectiveCollateralFactor * BPS_SCALE);
 
-  if (identityError) {
-    return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <ReserveIdentityBlock
-          compromised={isIntegrityViolation}
-          onRetry={() => void retryIdentity()}
-        />
-      </Container>
-    );
-  }
+  const centered = (message: string) => (
+    <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+      <div className="flex items-center justify-center py-12">
+        <p className="text-accent-secondary">{message}</p>
+      </div>
+    </Container>
+  );
 
   // Nothing below may render before the asset is proven — every figure on the
   // page is a claim about a specific market, and an unverified header is the
-  // mislabeling F7 stops.
-  if (identityLoading) {
-    return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="flex items-center justify-center py-12">
-          <p className="text-accent-secondary">{COPY.common.loading}</p>
-        </div>
-      </Container>
-    );
+  // mislabeling F7 stops. Skipped under demo, where no verification ran.
+  if (!isDemo) {
+    if (identityError) {
+      return (
+        <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
+          <ReserveIdentityBlock
+            compromised={isIntegrityViolation}
+            onRetry={() => void retryIdentity()}
+          />
+        </Container>
+      );
+    }
+    if (identityLoading) return centered(COPY.common.loading);
+    if (!identity) return centered(COPY.loans.reserveNotFound);
+  } else if (!demoIdentity) {
+    // Demo is on but the routed id matches no fixture.
+    return centered(COPY.loans.reserveNotFound);
   }
 
-  if (!identity && !demoIdentity) {
-    return (
-      <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="flex items-center justify-center py-12">
-          <p className="text-accent-secondary">{COPY.loans.reserveNotFound}</p>
-        </div>
-      </Container>
-    );
+  // The financial reads are separate from identity: without their own states a
+  // failed batch RPC renders every cell as the empty placeholder on an
+  // otherwise complete-looking page, indistinguishable from a metric that
+  // genuinely has no value. Demo data bypasses them entirely.
+  const marketDataError = isDemo
+    ? null
+    : (liquidityError ?? aprsError ?? pricesError);
+  if (marketDataError) return centered(COPY.marketData.dataUnavailable);
+  if (!isDemo && (liquidityLoading || aprsLoading || pricesLoading)) {
+    return centered(COPY.common.loading);
   }
 
   return (
