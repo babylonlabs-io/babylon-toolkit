@@ -1,10 +1,12 @@
-import { Avatar, CheckIcon, CopyIcon, Text, useCopy } from "@babylonlabs-io/core-ui";
+import { CheckIcon, CopyIcon, Text, useCopy, WalletIcon } from "@babylonlabs-io/core-ui";
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import { twMerge } from "tailwind-merge";
 
 interface ConnectedWalletProps {
   className?: string;
   logo: string;
+  // See `IWallet.iconBackground`.
+  logoBackground?: string;
   address: string;
 }
 
@@ -19,7 +21,7 @@ function truncateAddress(address: string) {
   return `${address.slice(0, ADDRESS_EDGE_CHARS)}…${address.slice(-ADDRESS_EDGE_CHARS)}`;
 }
 
-export const ConnectedWallet = memo(({ className, logo, address }: ConnectedWalletProps) => {
+export const ConnectedWallet = memo(({ className, logo, logoBackground, address }: ConnectedWalletProps) => {
   const { isCopied, copyToClipboard } = useCopy();
   const copied = isCopied(address);
 
@@ -32,7 +34,7 @@ export const ConnectedWallet = memo(({ className, logo, address }: ConnectedWall
 
   return (
     <div className={twMerge("flex items-center gap-2.5 rounded-lg bg-secondary-highlight p-2", className)}>
-      <Avatar variant="circular" size="small" className="shrink-0" url={logo} />
+      <WalletIcon size="small" className="shrink-0" url={logo} background={logoBackground} />
 
       <Text
         as="div"

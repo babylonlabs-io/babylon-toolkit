@@ -45,7 +45,11 @@ export const Chains = memo(
                 onClick={() => void onSelectChain?.(chain)}
               >
                 {selectedWallet && (
-                  <ConnectedWallet logo={selectedWallet.icon} address={selectedWallet.account?.address ?? ""} />
+                  <ConnectedWallet
+                    logo={selectedWallet.icon}
+                    logoBackground={selectedWallet.iconBackground}
+                    address={selectedWallet.account?.address ?? ""}
+                  />
                 )}
               </ChainButton>
             );
