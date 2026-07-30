@@ -18,6 +18,7 @@ import {
   ArtifactDownloadTooLargeError,
   ArtifactFileAccessError,
 } from "../errors";
+import { MIN_DECRYPTOR_HEX_CHARS } from "../streamingArtifactValidator";
 
 const PROVIDER_ADDRESS = "0x0000000000000000000000000000000000000000";
 const PEGIN_TXID =
@@ -49,11 +50,14 @@ function txGraphJson(
   });
 }
 
+/** Clears the artifact floor so fixtures exercise the path under test. */
+const VALID_HEX = "cd".repeat(MIN_DECRYPTOR_HEX_CHARS / 2);
+
 const VALID_ARTIFACT_RESULT = {
   tx_graph_json: txGraphJson(),
   verifying_key_hex: "aabb",
   babe_sessions: {
-    [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "ccdd" },
+    [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
   },
 };
 
@@ -184,9 +188,7 @@ describe("fetchAndDownloadArtifacts", () => {
         result: {
           ...VALID_ARTIFACT_RESULT,
           babe_sessions: {
-            [CHALLENGER_PUBKEY]: {
-              decryptor_artifacts_hex: "ab".repeat(20_000),
-            },
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
           },
         },
         id: 1,
@@ -291,7 +293,7 @@ describe("fetchAndDownloadArtifacts", () => {
           jsonrpc: "2.0",
           result: {
             ...VALID_ARTIFACT_RESULT,
-            babe_sessions: { label: { decryptor_artifacts_hex: "ccdd" } },
+            babe_sessions: { label: { decryptor_artifacts_hex: VALID_HEX } },
           },
           id: 1,
         }),
@@ -754,9 +756,10 @@ describe("openArtifactSaveTarget", () => {
     const target = await openArtifactSaveTarget(PEGIN_TXID);
 
     expect(target.method).toBe("browser-download");
-    // A full-size bundle cannot be held as a Blob, so the fallback refuses it
-    // loudly rather than killing the tab.
-    expect(target.maxBytes).toBeLessThan(1_000_000_000);
+    // Bounded, but above a real bundle (~1.41 GB) — a cap below that would
+    // make this path fail every time, after spending the user's bandwidth.
+    expect(target.maxBytes).toBeGreaterThan(1_410_824_702);
+    expect(target.maxBytes).toBeLessThan(Number.POSITIVE_INFINITY);
   });
 
   it("falls back when the page is not a secure context", async () => {

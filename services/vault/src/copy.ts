@@ -516,13 +516,11 @@ export const COPY = {
       tooLargeForBrowser:
         "This browser cannot save a file this large. Please use a Chromium-based browser, such as Chrome or Brave, to download your artifacts.",
       // Rendered on those same browsers before the download starts, so the
-      // size ceiling is not a surprise partway through a long transfer.
+      // limits are not a surprise partway through a long transfer. This path
+      // must hold the whole ~1 GB file in memory, and the browser reports
+      // nothing back about whether it was saved.
       fallbackSaveHint:
-        "This browser saves the file to your downloads folder and cannot confirm the save. For large artifacts, use a Chromium-based browser.",
-      // Attestation shown after the fallback download fires: without the File
-      // System Access API the browser gives no save/cancel signal, so the
-      // user confirming is the only evidence the file reached disk.
-      saveConfirmation: "I have saved the artifacts file to my device.",
+        "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTC Vault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
     },
     form: {
       computingAllocation: "Computing allocation...",

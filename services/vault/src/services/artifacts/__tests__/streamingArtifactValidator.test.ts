@@ -6,17 +6,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   ArtifactStreamValidator,
+  MIN_DECRYPTOR_HEX_CHARS,
   type ArtifactStreamValidationResult,
 } from "../streamingArtifactValidator";
 
 const CHALLENGER_PUBKEY = "ab".repeat(32);
 const OTHER_CHALLENGER_PUBKEY = "cd".repeat(32);
 
+/**
+ * Hex long enough to clear the artifact floor. Fixtures build from the
+ * constant rather than a literal so the floor can move without a sweep.
+ */
+const VALID_HEX = "ab".repeat(MIN_DECRYPTOR_HEX_CHARS / 2);
+
 const VALID_RESULT = {
   tx_graph_json: JSON.stringify({ nodes: [], edges: [] }),
   verifying_key_hex: "abcdef01",
   babe_sessions: {
-    [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "aabbccdd" },
+    [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
   },
 };
 
@@ -45,14 +52,11 @@ function envelope(result: unknown): string {
 
 describe("ArtifactStreamValidator — accepts well-formed responses", () => {
   it("returns the parsed payload for a valid envelope", () => {
-    const { result, txGraph, sessionHexLengths } = validate(
-      envelope(VALID_RESULT),
-    );
+    const { result, txGraph } = validate(envelope(VALID_RESULT));
 
     expect(result.verifying_key_hex).toBe("abcdef01");
     expect(Object.keys(result.babe_sessions)).toEqual([CHALLENGER_PUBKEY]);
     expect(txGraph).toEqual({ nodes: [], edges: [] });
-    expect(sessionHexLengths).toEqual({ [CHALLENGER_PUBKEY]: 8 });
   });
 
   it("accepts result fields in any order", () => {
@@ -80,21 +84,20 @@ describe("ArtifactStreamValidator — accepts well-formed responses", () => {
     expect(() => validate(wire)).not.toThrow();
   });
 
-  it("accepts multiple challenger sessions and reports each hex length", () => {
-    const { sessionHexLengths } = validate(
+  it("accepts multiple challenger sessions", () => {
+    const { result } = validate(
       envelope({
         ...VALID_RESULT,
         babe_sessions: {
-          [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "aabb" },
-          [OTHER_CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "00112233" },
+          [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
+          [OTHER_CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
         },
       }),
     );
 
-    expect(sessionHexLengths).toEqual({
-      [CHALLENGER_PUBKEY]: 4,
-      [OTHER_CHALLENGER_PUBKEY]: 8,
-    });
+    expect(Object.keys(result.babe_sessions).sort()).toEqual(
+      [CHALLENGER_PUBKEY, OTHER_CHALLENGER_PUBKEY].sort(),
+    );
   });
 
   it("ignores an `error` key nested inside the result body", () => {
@@ -117,8 +120,8 @@ describe("ArtifactStreamValidator — accepts well-formed responses", () => {
   });
 
   it("returns only a bounded prefix of each decryptor_artifacts_hex value", () => {
-    const longHex = "ab".repeat(500);
-    const { result, sessionHexLengths } = validate(
+    const longHex = "ab".repeat(MIN_DECRYPTOR_HEX_CHARS);
+    const { result } = validate(
       envelope({
         ...VALID_RESULT,
         babe_sessions: {
@@ -128,7 +131,7 @@ describe("ArtifactStreamValidator — accepts well-formed responses", () => {
     );
 
     // The full value is never buffered — the skeleton carries a real prefix
-    // while the observed length is reported separately.
+    // of what streamed past, not the whole value.
     expect(
       result.babe_sessions[CHALLENGER_PUBKEY].decryptor_artifacts_hex,
     ).toHaveLength(64);
@@ -137,7 +140,6 @@ describe("ArtifactStreamValidator — accepts well-formed responses", () => {
         result.babe_sessions[CHALLENGER_PUBKEY].decryptor_artifacts_hex,
       ),
     ).toBe(true);
-    expect(sessionHexLengths[CHALLENGER_PUBKEY]).toBe(1000);
   });
 });
 
@@ -163,15 +165,16 @@ describe("ArtifactStreamValidator — chunk boundaries", () => {
   });
 
   it("splits a long hex value across chunks without losing bytes", () => {
-    const longHex = "ab".repeat(5_000);
     const wire = envelope({
       ...VALID_RESULT,
       babe_sessions: {
-        [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: longHex },
+        [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
       },
     });
 
-    expect(validate(wire, 7).sessionHexLengths[CHALLENGER_PUBKEY]).toBe(10_000);
+    // Chunked at a size that lands mid-value repeatedly; a byte lost at a
+    // boundary would drop the total under the floor and reject.
+    expect(() => validate(wire, 7)).not.toThrow();
   });
 });
 
@@ -274,7 +277,7 @@ describe("ArtifactStreamValidator — rejects malformed documents", () => {
     const wire =
       `{"result":{"tx_graph_json":${JSON.stringify(VALID_RESULT.tx_graph_json)},` +
       `"verifying_key_hex":"abcdef01","babe_sessions":{"${CHALLENGER_PUBKEY}":` +
-      `{"decryptor_artifacts_hex":"aabb","decryptor_artifacts_hex":"ccdd"}}}}`;
+      `{"decryptor_artifacts_hex":"${VALID_HEX}","decryptor_artifacts_hex":"${VALID_HEX}"}}}}`;
 
     expect(() => validate(wire)).toThrow(VpResponseValidationError);
   });
@@ -387,7 +390,7 @@ describe("ArtifactStreamValidator — rejects invalid artifact payloads", () => 
         envelope({
           ...VALID_RESULT,
           babe_sessions: {
-            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "aabbzz" },
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: `${VALID_HEX}zz` },
           },
         }),
       ),
@@ -398,9 +401,54 @@ describe("ArtifactStreamValidator — rejects invalid artifact payloads", () => 
     const wire =
       `{"result":{"tx_graph_json":${JSON.stringify(VALID_RESULT.tx_graph_json)},` +
       `"verifying_key_hex":"abcdef01","babe_sessions":{"${CHALLENGER_PUBKEY}":` +
-      `{"decryptor_artifacts_hex":"aa\\u0062b"}}}}`;
+      `{"decryptor_artifacts_hex":"${VALID_HEX}\\u0062b"}}}}`;
 
     expect(() => validate(wire)).toThrow(VpResponseValidationError);
+  });
+
+  it("rejects a token-sized decryptor_artifacts_hex", () => {
+    // Charset, non-emptiness and even length all pass here. Without a floor
+    // this is a structurally perfect, materially empty bundle that would earn
+    // a download receipt.
+    expect(() =>
+      validate(
+        envelope({
+          ...VALID_RESULT,
+          babe_sessions: {
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "ab" },
+          },
+        }),
+      ),
+    ).toThrow(VpResponseValidationError);
+  });
+
+  it("rejects a session one character below the artifact floor", () => {
+    expect(() =>
+      validate(
+        envelope({
+          ...VALID_RESULT,
+          babe_sessions: {
+            [CHALLENGER_PUBKEY]: {
+              decryptor_artifacts_hex: "a".repeat(MIN_DECRYPTOR_HEX_CHARS - 2),
+            },
+          },
+        }),
+      ),
+    ).toThrow(VpResponseValidationError);
+  });
+
+  it("rejects when only one of several sessions is undersized", () => {
+    expect(() =>
+      validate(
+        envelope({
+          ...VALID_RESULT,
+          babe_sessions: {
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: VALID_HEX },
+            [OTHER_CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "abcd" },
+          },
+        }),
+      ),
+    ).toThrow(VpResponseValidationError);
   });
 
   it("rejects an odd-length decryptor_artifacts_hex", () => {
@@ -409,7 +457,7 @@ describe("ArtifactStreamValidator — rejects invalid artifact payloads", () => 
         envelope({
           ...VALID_RESULT,
           babe_sessions: {
-            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: "aab" },
+            [CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: `${VALID_HEX}a` },
           },
         }),
       ),

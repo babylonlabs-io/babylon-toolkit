@@ -54,12 +54,6 @@ interface ArtifactDownloadState {
   progress: string;
   error: string | null;
   downloaded: boolean;
-  /**
-   * True after a fallback (anchor) download fired. That path gives no
-   * save/cancel signal from the browser, so the receipt is withheld until the
-   * user confirms via `confirmSaved`.
-   */
-  awaitingSaveConfirmation: boolean;
   /** Bytes received so far from the in-flight artifact stream. */
   receivedBytes: number;
   /**
@@ -75,16 +69,9 @@ const INITIAL_STATE: ArtifactDownloadState = {
   progress: "",
   error: null,
   downloaded: false,
-  awaitingSaveConfirmation: false,
   receivedBytes: 0,
   totalBytes: 0,
 };
-
-/** A validated, saved bundle waiting to be turned into a stored receipt. */
-interface PendingReceipt {
-  peginTxid: string;
-  outcome: ArtifactDownloadOutcome;
-}
 
 interface PrimeContext {
   vaultId: Hex;
@@ -134,17 +121,13 @@ export function useArtifactDownload(options?: {
   // instead of letting it run to completion in the background.
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Held outside React state so `confirmSaved` can persist it without a
-  // side effect inside a state updater.
-  const pendingReceiptRef = useRef<PendingReceipt | null>(null);
-
   /**
    * Turn a completed download into the stored receipt that the activation
    * gate reads. Only ever called with an outcome from a validated, saved
    * bundle — never from a fetch that merely resolved.
    */
   const persistReceipt = useCallback(
-    ({ peginTxid, outcome }: PendingReceipt) => {
+    (peginTxid: string, outcome: ArtifactDownloadOutcome) => {
       if (!vaultId) return;
       // Milestone only on the first real download — re-downloads are a
       // routine user action, not funnel progress.
@@ -197,7 +180,6 @@ export function useArtifactDownload(options?: {
       const isStale = () =>
         abortController.signal.aborted ||
         abortControllerRef.current !== abortController;
-      pendingReceiptRef.current = null;
       setState({
         ...INITIAL_STATE,
         loading: true,
@@ -408,15 +390,18 @@ export function useArtifactDownload(options?: {
           }
 
           if (outcome.method === "browser-download") {
-            // The anchor path gives no save/cancel signal, so the file may or
-            // may not have reached disk. Hold the receipt until the user says
-            // it did — see `confirmSaved`.
-            pendingReceiptRef.current = { peginTxid, outcome };
-            setState({ ...INITIAL_STATE, awaitingSaveConfirmation: true });
+            // The anchor path only proves a link was clicked: the browser
+            // reports nothing about whether the file reached disk, and it may
+            // have been blocked or the save dialog dismissed. Asking the user
+            // to attest would let a click satisfy the activation gate, which
+            // is the exact substitution this flow exists to remove. Show the
+            // file as delivered, but withhold the receipt so the vault keeps
+            // warning until there is real evidence.
+            setState({ ...INITIAL_STATE, downloaded: true });
             return;
           }
 
-          persistReceipt({ peginTxid, outcome });
+          persistReceipt(peginTxid, outcome);
           setState({
             ...INITIAL_STATE,
             downloaded: true,
@@ -527,27 +512,12 @@ export function useArtifactDownload(options?: {
 
   const cancel = useCallback(() => {
     abortControllerRef.current?.abort();
-    pendingReceiptRef.current = null;
     setState(INITIAL_STATE);
   }, []);
-
-  /**
-   * Record that the user saved the file on a browser that cannot tell us
-   * itself. Attestation is weaker evidence than a confirmed write, but on the
-   * anchor-download path it is the only evidence available.
-   */
-  const confirmSaved = useCallback(() => {
-    const pending = pendingReceiptRef.current;
-    if (!pending) return;
-    pendingReceiptRef.current = null;
-    persistReceipt(pending);
-    setState({ ...INITIAL_STATE, downloaded: true });
-  }, [persistReceipt]);
 
   return {
     ...state,
     download,
     cancel,
-    confirmSaved,
   };
 }

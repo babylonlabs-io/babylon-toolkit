@@ -275,9 +275,11 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
-  it("withholds the receipt on the fallback path until the user attests", async () => {
-    // An anchor download gives no save/cancel signal, so a resolved fetch is
-    // not evidence the file reached disk.
+  it("never writes a receipt on the anchor-download fallback", async () => {
+    // That path only proves a link was clicked — the browser reports nothing
+    // about whether the file reached disk, and it may have been blocked or
+    // the save dialog dismissed. The file is shown as delivered, but the
+    // activation gate stays unsatisfied because there is no evidence.
     seedHotCache();
     fetchMock.mockResolvedValueOnce(FALLBACK_OUTCOME);
 
@@ -289,48 +291,8 @@ describe("useArtifactDownload — prime then fetch", () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
     });
 
-    await waitFor(() =>
-      expect(result.current.awaitingSaveConfirmation).toBe(true),
-    );
-    expect(result.current.downloaded).toBe(false);
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
     expect(saveReceiptMock).not.toHaveBeenCalled();
-
-    act(() => {
-      result.current.confirmSaved();
-    });
-
-    expect(result.current.downloaded).toBe(true);
-    expect(saveReceiptMock).toHaveBeenCalledTimes(1);
-    expect(saveReceiptMock).toHaveBeenCalledWith(
-      VAULT_ID,
-      expect.objectContaining({ method: "browser-download" }),
-    );
-  });
-
-  it("does not write a receipt when a fallback download is cancelled before attestation", async () => {
-    seedHotCache();
-    fetchMock.mockResolvedValueOnce(FALLBACK_OUTCOME);
-
-    const { result } = renderHook(() =>
-      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
-    );
-
-    await act(async () => {
-      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
-    });
-    await waitFor(() =>
-      expect(result.current.awaitingSaveConfirmation).toBe(true),
-    );
-
-    act(() => {
-      result.current.cancel();
-    });
-    act(() => {
-      result.current.confirmSaved();
-    });
-
-    expect(saveReceiptMock).not.toHaveBeenCalled();
-    expect(result.current.downloaded).toBe(false);
   });
 
   it("runs a mocked (god-mode) download through a real save target but writes no receipt", async () => {

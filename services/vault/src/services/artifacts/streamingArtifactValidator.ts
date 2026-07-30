@@ -98,6 +98,19 @@ const MAX_UNKNOWN_STRING_BYTES = 1024 * 1024;
  */
 const DECRYPTOR_HEX_PREVIEW_CHARS = 64;
 
+/**
+ * Smallest `decryptor_artifacts_hex` value that could plausibly be a BaBe
+ * garbled-circuit artifact.
+ *
+ * Charset, non-emptiness and even length are all satisfied by a two-character
+ * payload, so without a floor a provider can return a bundle that is
+ * structurally perfect and materially empty — and it would earn a download
+ * receipt. A measured vault-devnet session carries ~176,129,340 characters;
+ * this floor sits ~2700x below that, leaving room for a smaller circuit while
+ * making a token payload impossible.
+ */
+export const MIN_DECRYPTOR_HEX_CHARS = 64 * 1024;
+
 /** Initial capacity for a growable capture buffer, doubled on demand. */
 const CAPTURE_BUFFER_INITIAL_BYTES = 256;
 
@@ -207,8 +220,6 @@ export interface ArtifactStreamValidationResult {
   result: RequestDepositorClaimerArtifactsResponse;
   /** `tx_graph_json` parsed, already proven to be a JSON object. */
   txGraph: Record<string, unknown>;
-  /** Full hex length observed per challenger pubkey. */
-  sessionHexLengths: Readonly<Record<string, number>>;
 }
 
 /** Growable byte buffer for capturing small JSON source spans. */
@@ -251,14 +262,6 @@ class CaptureBuffer {
   }
 }
 
-/** Per-challenger accounting for a `decryptor_artifacts_hex` value. */
-interface SessionHex {
-  /** Total hex characters observed on the wire. */
-  length: number;
-  /** First DECRYPTOR_HEX_PREVIEW_CHARS characters, as observed. */
-  preview: string;
-}
-
 export class ArtifactStreamValidator {
   private state: ParserState = "expect_value";
   private readonly frames: Frame[] = [];
@@ -281,7 +284,8 @@ export class ArtifactStreamValidator {
   private verifyingKeyHex: string | null = null;
   private babeSessionsSeen = false;
   private readonly sessionKeys: string[] = [];
-  private readonly sessionHex = new Map<string, SessionHex>();
+  /** Per-challenger hex prefix, keyed by challenger pubkey. */
+  private readonly sessionHex = new Map<string, string>();
 
   /**
    * Feed the next chunk of the response body.
@@ -360,11 +364,10 @@ export class ArtifactStreamValidator {
     const babeSessions: Record<string, { decryptor_artifacts_hex: string }> =
       {};
     for (const pubkey of this.sessionKeys) {
-      const hex = this.sessionHex.get(pubkey);
       // A session that never produced a decryptor_artifacts_hex value yields
       // an empty entry, which the SDK validator rejects by name.
       babeSessions[pubkey] = {
-        decryptor_artifacts_hex: hex ? hex.preview : "",
+        decryptor_artifacts_hex: this.sessionHex.get(pubkey) ?? "",
       };
     }
 
@@ -381,12 +384,7 @@ export class ArtifactStreamValidator {
 
     const txGraph = parseTxGraphJson(skeleton.tx_graph_json);
 
-    const sessionHexLengths: Record<string, number> = {};
-    for (const [pubkey, hex] of this.sessionHex) {
-      sessionHexLengths[pubkey] = hex.length;
-    }
-
-    return { result: skeleton, txGraph, sessionHexLengths };
+    return { result: skeleton, txGraph };
   }
 
   private processByte(byte: number): void {
@@ -727,12 +725,16 @@ export class ArtifactStreamValidator {
             "Artifact response contains an odd-length decryptor_artifacts_hex value",
           );
         }
+        if (this.hexCount < MIN_DECRYPTOR_HEX_CHARS) {
+          // Charset and non-emptiness alone would accept a token payload like
+          // "ab", which is not recovery material by any measure.
+          throw new VpResponseValidationError(
+            `Artifact response decryptor_artifacts_hex is ${this.hexCount} characters, below the ${MIN_DECRYPTOR_HEX_CHARS}-character minimum for a real artifact`,
+          );
+        }
         const pubkey = this.frames[this.frames.length - 2]?.currentKey;
         if (pubkey) {
-          this.sessionHex.set(pubkey, {
-            length: this.hexCount,
-            preview: this.hexPreview,
-          });
+          this.sessionHex.set(pubkey, this.hexPreview);
         }
         break;
       }

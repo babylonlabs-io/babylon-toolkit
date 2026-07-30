@@ -45,12 +45,18 @@ const ARTIFACT_PICKER_ID = "babylon-vault-artifacts";
 /**
  * Ceiling for the in-memory fallback path.
  *
- * A full-size bundle (~1.3 GB) cannot be held as a Blob without killing the
- * tab, so the fallback refuses anything above this and the caller surfaces
- * copy pointing at a Chromium browser. Failing loudly beats an out-of-memory
- * crash or a silently truncated recovery bundle.
+ * This path has to hold the whole body before it can hand the browser a Blob,
+ * so it needs a bound — but the bound has to sit *above* a real bundle or the
+ * path is guaranteed to fail after wasting the user's bandwidth. A measured
+ * vault-devnet body is 1,410,824,702 bytes, so 2 GiB leaves headroom while
+ * still refusing an implausible response outright.
+ *
+ * This is best-effort, not reliable: the chunk array and the resulting Blob
+ * can both be resident, so a full-size bundle may still exhaust memory on a
+ * constrained machine. Callers warn before starting. The durable fix is a
+ * streaming sink that works outside Chromium — see the OPFS follow-up.
  */
-const FALLBACK_MAX_BODY_BYTES = 512 * 1024 * 1024;
+const FALLBACK_MAX_BODY_BYTES = 2 * 1024 * 1024 * 1024;
 
 export type ArtifactSaveMethod = "file-system-access" | "browser-download";
 

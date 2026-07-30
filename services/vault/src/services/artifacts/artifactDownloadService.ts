@@ -17,11 +17,14 @@
  * Bytes are validated, hashed, and written chunk-by-chunk in a single pass,
  * so the full body is never held in memory on the File System Access path.
  *
- * What this does NOT establish: that the artifact bytes decrypt correctly, or
- * that the bundle belongs to this vault. The response carries no pegin txid or
- * depositor key to bind against, and no client-side BaBe verifier exists. A
- * provider returning a well-formed bundle for the wrong vault is not detected
- * here.
+ * The bundle is also bound to the deposit it was requested for: the envelope
+ * names no vault, but the transaction graph inside it does, so its claim and
+ * payout transactions are checked against the requested pegin txid and its
+ * depositor key against the requested one. See `artifactBinding.ts`.
+ *
+ * What this does NOT establish: that the artifact bytes decrypt correctly. No
+ * client-side BaBe verifier exists, so the payload is proven well-formed and
+ * addressed to this deposit, never proven usable.
  */
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";

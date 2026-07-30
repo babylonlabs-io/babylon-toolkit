@@ -1,4 +1,4 @@
-import { Checkbox, Loader } from "@babylonlabs-io/core-ui";
+import { Loader } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import {
@@ -138,12 +138,10 @@ export const RecoveryArtifactsCard = forwardRef<
     progress,
     error,
     downloaded,
-    awaitingSaveConfirmation,
     receivedBytes,
     totalBytes,
     download,
     cancel,
-    confirmSaved,
   } = useArtifactDownload({ vaultId, primeContext });
 
   useImperativeHandle(ref, () => ({ cancel }), [cancel]);
@@ -245,21 +243,7 @@ export const RecoveryArtifactsCard = forwardRef<
         </div>
       </div>
 
-      {awaitingSaveConfirmation && (
-        <label className="flex w-full cursor-pointer items-start gap-3">
-          <Checkbox
-            checked={false}
-            onChange={confirmSaved}
-            variant="default"
-            showLabel={false}
-          />
-          <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
-            {COPY.deposit.recoveryArtifacts.saveConfirmation}
-          </span>
-        </label>
-      )}
-
-      {!isDownloaded && !awaitingSaveConfirmation && (
+      {!isDownloaded && (
         <div className="flex flex-col items-stretch">
           <button
             type="button"
