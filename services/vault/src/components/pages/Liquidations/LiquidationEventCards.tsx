@@ -96,16 +96,16 @@ function EventCard({
         <MetricRow
           key={vault.name}
           label={vault.name}
-          value={vault.amountLabel}
+          value={`${vault.amount} ${vault.unit}`}
         />
       ))}
       <MetricRow
         label={COPY.liquidations.events.targetSeizure}
-        value={card.targetSeizureLabel}
+        value={`${card.targetSeizure.amount} ${card.targetSeizure.unit}`}
       />
       <MetricRow
         label={COPY.liquidations.events.overSeizure}
-        value={card.overSeizureLabel}
+        value={`${card.overSeizure.amount} ${card.overSeizure.unit}`}
       />
 
       <SectionCaption>

@@ -93,6 +93,13 @@ const PRESET_RATIOS = {
   expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
 };
 
+/**
+ * `vault-contracts-aave-v4` deploy-default liquidation bonus (10%), used only
+ * by the cascade preset below — unlike `DEBUG_DEFAULT_MAX_LB` (5%), which is
+ * just a representative starting point for manual mode, not a protocol value.
+ */
+const CASCADE_PRESET_MAX_LB = 1.1;
+
 export const DEBUG_PRESETS: DebugPreset[] = [
   {
     label: "Urgent",
@@ -147,6 +154,22 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       totalDebtUsd: 30000,
       vaults: vaults(0.2, 0.5, 0.3),
       ...PRESET_RATIOS,
+    },
+  },
+  {
+    // The Liquidation Dashboard's Figma reference (node 10209:67763): three
+    // vaults liquidated in sequence, the last a full liquidation — kept as a
+    // one-click preset (issue #2043 follow-up) instead of the page's old
+    // always-on fixture, so this exact demo shape stays reachable for
+    // screenshots without being shown to every real depositor.
+    label: "Liquidation cascade — 3 vaults",
+    expectedSeverity: "green",
+    params: {
+      btcPrice: 88_400,
+      totalDebtUsd: 44_287,
+      vaults: vaults(0.6, 0.4, 0.1),
+      ...PRESET_RATIOS,
+      maxLB: CASCADE_PRESET_MAX_LB,
     },
   },
   {

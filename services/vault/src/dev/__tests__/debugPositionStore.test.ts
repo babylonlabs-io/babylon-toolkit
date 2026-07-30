@@ -229,6 +229,19 @@ describe("DEBUG_PRESETS", () => {
     );
   });
 
+  it("cascades the 3-vault liquidation preset into three real groups, the last full", () => {
+    // Pins the calculator's own output so a future change to calculate() or to
+    // these params that collapses the cascade fails here instead of silently
+    // shipping a two-event (or one-event) demo.
+    const preset = DEBUG_PRESETS.find(
+      (p) => p.label === "Liquidation cascade — 3 vaults",
+    )!;
+    const { groups } = calculate(preset.params);
+
+    expect(groups).toHaveLength(3);
+    expect(groups.at(-1)?.isFullLiquidation).toBe(true);
+  });
+
   it("applying a preset switches manual mode on and loads its inputs", () => {
     const mode = renderHook(() => useDebugManualMode());
     const params = renderHook(() => useDebugManualParams());

@@ -37,6 +37,9 @@ const ExplorePage = lazyWithRetry(() => import("./components/pages/Explore"));
 const BorrowingMarketsDataPage = lazyWithRetry(
   () => import("./components/pages/BorrowingMarketsData"),
 );
+const Liquidations = lazyWithRetry(
+  () => import("./components/pages/Liquidations"),
+);
 const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -169,15 +172,6 @@ const ActivityWithProviders = () => (
   </AaveConfigProvider>
 );
 
-// /liquidations: v3 shell + the section's own flag, so the section is
-// unreachable by deep link while its sidebar entry is hidden.
-const V3Placeholder = () =>
-  featureFlags.isV3UiEnabled && isV3SectionEnabled("liquidations") ? (
-    <div data-testid="v3-placeholder" />
-  ) : (
-    <Navigate to={ROUTES.OVERVIEW} replace />
-  );
-
 export const Router = () => {
   // Read per render, not at module scope: the flags decide which subtrees are
   // guarded, and a flag can differ between renders (see v3Navigation.ts).
@@ -223,8 +217,23 @@ export const Router = () => {
               )
             }
           />
+          {/* Under AaveOverlayLayout (like /loans): the page reads
+              `useDashboardState` / `usePositionNotifications`, both of which
+              need the Aave config this layout provides. */}
+          <Route
+            path={ROUTES.LIQUIDATIONS}
+            element={
+              featureFlags.isV3UiEnabled &&
+              isV3SectionEnabled("liquidations") ? (
+                <Suspense fallback={<RouteFallback />}>
+                  <Liquidations />
+                </Suspense>
+              ) : (
+                <Navigate to={ROUTES.OVERVIEW} replace />
+              )
+            }
+          />
         </Route>
-        <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
         {/* Explore is a v3-only static page with no Aave providers or reserve
             overlay, so it sits directly under RootLayout (like /activity), not
             under AaveOverlayLayout. Gated on the v3 shell plus its own flag
