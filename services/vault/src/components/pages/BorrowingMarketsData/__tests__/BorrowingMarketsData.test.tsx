@@ -364,7 +364,38 @@ describe("BorrowingMarketsData", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("reports a not-found reserve when demo is on and the routed id matches no fixture", () => {
+  // The toggle is flipped while sitting on some real market route, so the id
+  // in the URL never matches a fixture — blanking the page there defeats the
+  // point of a preview toggle.
+  it("falls back to the first fixture when demo is on and the routed id matches none", () => {
+    const DEMO_RESERVE = { ...USDC_RESERVE, reserveId: 9001n };
+    setUpHooks({
+      identity: null,
+      demoMarketData: {
+        reserves: [DEMO_RESERVE],
+        liquidityByReserveId: {
+          "9001": {
+            availableLiquidity: 11_400_000,
+            totalBorrowed: 24_500_000,
+            suppliedLiquidity: 38_500_000,
+            utilizationBps: 6259,
+          },
+        },
+        aprPercentByReserveId: { "9001": 3.5 },
+        pricesByReserveId: { "9001": 1 },
+        collateralFactor: 0.75,
+      },
+    });
+
+    renderPage("42");
+
+    expect(screen.getByTestId("market-stats-bar")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.loans.reserveNotFound),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reports a not-found reserve when demo is on and there are no fixtures at all", () => {
     setUpHooks({
       identity: null,
       demoMarketData: {

@@ -153,10 +153,17 @@ export default function BorrowingMarketsData() {
   // indexer ordered first.
   const selectedReserve = useMemo(() => {
     const target = parseReserveId(params[MARKET_RESERVE_PARAM]);
-    if (target === null) return null;
-    const matches = effectiveReserves.filter((r) => r.reserveId === target);
-    return matches.length === 1 ? matches[0] : null;
-  }, [effectiveReserves, params]);
+    const matches =
+      target === null
+        ? []
+        : effectiveReserves.filter((r) => r.reserveId === target);
+    if (matches.length === 1) return matches[0];
+    // Demo only: the fixtures replace the live reserve set, so whatever id is
+    // already in the URL matches none of them. Falling back to the first
+    // fixture lets the toggle work from any market route instead of blanking
+    // the page — the live path above still resolves strictly or not at all.
+    return isDemo ? (effectiveReserves[0] ?? null) : null;
+  }, [effectiveReserves, params, isDemo]);
 
   // Demo fixtures have no on-chain counterpart, so verification could only
   // fail for them — leave the read disabled rather than letting that failure
