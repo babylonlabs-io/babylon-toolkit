@@ -1030,6 +1030,9 @@ export const COPY = {
   loans: {
     heading: "Loans",
     borrowButton: "Borrow",
+    // Per-row action on an already-borrowed asset (Active Loans list) — the
+    // user has a position here, so it borrows *more* of this asset.
+    borrowMoreButton: "Borrow more",
     repayButton: "Repay",
     // v3 Loans page: "Active Loans (N)" section heading.
     activeLoansHeading: (count: number) => `Active Loans (${count})`,

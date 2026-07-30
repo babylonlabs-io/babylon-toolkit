@@ -20,8 +20,8 @@ function makeRow(overrides: Partial<ActiveLoanRow> = {}): ActiveLoanRow {
   };
 }
 
-describe("ActiveLoansList — per-row Borrow gating", () => {
-  it("disables the Borrow button for a non-borrowable reserve while keeping Repay enabled", () => {
+describe("ActiveLoansList — per-row Borrow-more gating", () => {
+  it("disables the Borrow-more button for a non-borrowable reserve while keeping Repay enabled", () => {
     render(
       <ActiveLoansList
         rows={[makeRow({ isBorrowable: false })]}
@@ -31,11 +31,11 @@ describe("ActiveLoansList — per-row Borrow gating", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Borrow" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Borrow more" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Repay" })).toBeEnabled();
   });
 
-  it("enables the Borrow button for a borrowable reserve when capacity remains", () => {
+  it("enables the Borrow-more button for a borrowable reserve when capacity remains", () => {
     render(
       <ActiveLoansList
         rows={[makeRow({ isBorrowable: true })]}
@@ -45,10 +45,10 @@ describe("ActiveLoansList — per-row Borrow gating", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Borrow" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Borrow more" })).toBeEnabled();
   });
 
-  it("disables the Borrow button when there is no borrow capacity, even for a borrowable reserve", () => {
+  it("disables the Borrow-more button when there is no borrow capacity, even for a borrowable reserve", () => {
     render(
       <ActiveLoansList
         rows={[makeRow({ isBorrowable: true })]}
@@ -58,7 +58,7 @@ describe("ActiveLoansList — per-row Borrow gating", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Borrow" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Borrow more" })).toBeDisabled();
   });
 
   // A `displayOnly` row is a god-mode demo mock: its symbol resolves to no
@@ -75,7 +75,7 @@ describe("ActiveLoansList — per-row Borrow gating", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Borrow" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Borrow more" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
   });
 });
