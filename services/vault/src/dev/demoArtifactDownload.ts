@@ -30,6 +30,7 @@ import {
   type ArtifactSaveTarget,
   downloadArtifactsFromResponse,
   type FetchArtifactsOptions,
+  MAX_ERROR_VALUE_BYTES,
   type VaultBindingContext,
 } from "@/services/artifacts";
 
@@ -61,6 +62,15 @@ const DEMO_TRUNCATION_FRACTION = 0.4;
 
 /** Padding for the scenarios that must exceed any plausible prefix window. */
 const DEMO_PADDING_CHARS = 500_000;
+
+/**
+ * Padding for the error envelope. Must stay well past any prefix window but
+ * comfortably UNDER the validator's error-value cap: above that cap the
+ * capture buffer fails closed with a VpResponseValidationError, so the
+ * scenario would exercise the cap instead of the padded-error handling it
+ * exists to demonstrate. Derived from the cap so the two cannot drift.
+ */
+const DEMO_ERROR_PADDING_CHARS = Math.floor(MAX_ERROR_VALUE_BYTES / 4);
 
 /** A syntactically valid x-only challenger pubkey for the synthetic sessions. */
 const DEMO_CHALLENGER_PUBKEY = "ab".repeat(32);
@@ -201,8 +211,11 @@ function demoBodyFor(
       jsonrpc: "2.0",
       id: 1,
       error: {
+        // Deliberately not a "still processing" state string: those match
+        // isPreDepositorSignaturesError and would route this into the
+        // wait-and-retry loop instead of the padded-error handling.
         code: -32011,
-        message: `Invalid state: PendingBabeSetup ${"x".repeat(DEMO_PADDING_CHARS)}`,
+        message: `Vault provider rejected the request ${"x".repeat(DEMO_ERROR_PADDING_CHARS)}`,
       },
     });
   }

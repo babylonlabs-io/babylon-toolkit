@@ -45,7 +45,11 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
   RecoveryArtifactsCard: forwardRef<
     { cancel: () => void },
-    { onDownloaded?: () => void; onLoadingChange?: (loading: boolean) => void }
+    {
+      onDownloaded?: () => void;
+      onDelivered?: () => void;
+      onLoadingChange?: (loading: boolean) => void;
+    }
   >((props, ref) => {
     useImperativeHandle(ref, () => ({ cancel: cardCancelSpy }));
     return (
@@ -56,6 +60,13 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
           onClick={() => props.onDownloaded?.()}
         >
           download
+        </button>
+        <button
+          type="button"
+          data-testid="card-download-delivered"
+          onClick={() => props.onDelivered?.()}
+        >
+          delivered
         </button>
         <button
           type="button"
@@ -229,5 +240,41 @@ describe("ActivateConfirmationModal", () => {
 
     expect(screen.getByText("Activate vault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps the checkbox and Activate disabled when the card reports only a delivered download", () => {
+    // The anchor fallback (Firefox/Safari) cannot prove the file reached
+    // disk, so it must not stand in for the acknowledgement: a blocked or
+    // dismissed save would otherwise unlock activation with no evidence and
+    // no attestation, which is what the fallback hint promises it will not do.
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("card-download-delivered"));
+
+    expect(screen.getByText("Activate vault")).toBeDisabled();
+    expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
+  });
+
+  it("enables Activate vault after an unverified download only once the risk is acknowledged", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("card-download-delivered"));
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+
+    expect(screen.getByText("Activate vault")).not.toBeDisabled();
   });
 });

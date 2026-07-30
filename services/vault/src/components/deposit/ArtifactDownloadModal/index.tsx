@@ -135,6 +135,12 @@ export function ArtifactDownloadModal({
           vaultId={vaultId}
           unsignedPrePeginTxHex={unsignedPrePeginTxHex}
           onDownloaded={() => setDownloaded(true)}
+          // This dialog is informational — it gates nothing, and the card
+          // itself explains that an unverifiable save leaves the warning in
+          // place. Without this the user would be stuck with no way to close
+          // it after a fallback download. The activation modal deliberately
+          // does not do this: there the acknowledgement must stay required.
+          onDelivered={() => setDownloaded(true)}
           onLoadingChange={setIsDownloading}
         />
       </DialogBody>

@@ -275,11 +275,12 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
-  it("never writes a receipt on the anchor-download fallback", async () => {
+  it("reports the anchor-download fallback as delivered, never downloaded", async () => {
     // That path only proves a link was clicked — the browser reports nothing
     // about whether the file reached disk, and it may have been blocked or
-    // the save dialog dismissed. The file is shown as delivered, but the
-    // activation gate stays unsatisfied because there is no evidence.
+    // the save dialog dismissed. `downloaded` is what the activation gate
+    // reads, so it must stay false; `delivered` carries the "we handed the
+    // browser a file but cannot confirm it" state the card renders.
     seedHotCache();
     fetchMock.mockResolvedValueOnce(FALLBACK_OUTCOME);
 
@@ -291,7 +292,8 @@ describe("useArtifactDownload — prime then fetch", () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
     });
 
-    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.downloaded).toBe(false);
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
@@ -299,8 +301,8 @@ describe("useArtifactDownload — prime then fetch", () => {
     // The mock drives the real validator and file sink, so it opens a save
     // target like any download. What it must never do is satisfy the risk-ack
     // gate: the file it wrote is synthetic, so mocking a download on a real
-    // vault must not leave that vault looking recoverable. It still shows the
-    // downloaded UI so the demo flow can be exercised.
+    // vault must not leave that vault looking recoverable, so it reports
+    // `delivered` (which drives the UI) and never `downloaded`.
     demoEnabledMock.mockReturnValue(true);
     demoFetchMock.mockResolvedValueOnce(undefined);
 
@@ -312,7 +314,8 @@ describe("useArtifactDownload — prime then fetch", () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
     });
 
-    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.downloaded).toBe(false);
     expect(demoFetchMock).toHaveBeenCalledTimes(1);
     expect(demoFetchMock).toHaveBeenCalledWith(
       SAVE_TARGET,

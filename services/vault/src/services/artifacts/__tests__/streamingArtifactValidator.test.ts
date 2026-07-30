@@ -46,6 +46,33 @@ function validate(
   return validator.finish();
 }
 
+/**
+ * Feed raw bytes through the validator. `validate` goes through TextEncoder,
+ * which cannot emit invalid UTF-8 (lone surrogates come out as U+FFFD), so
+ * encoding-level cases have to build the byte array by hand.
+ */
+function validateBytes(bytes: Uint8Array): ArtifactStreamValidationResult {
+  const validator = new ArtifactStreamValidator();
+  validator.update(bytes);
+  return validator.finish();
+}
+
+/** Splice a raw byte into `wire` at the placeholder character. */
+function withRawByte(
+  wire: string,
+  placeholder: string,
+  raw: number,
+): Uint8Array {
+  const index = wire.indexOf(placeholder);
+  const head = encoder.encode(wire.slice(0, index));
+  const tail = encoder.encode(wire.slice(index + placeholder.length));
+  const bytes = new Uint8Array(head.length + 1 + tail.length);
+  bytes.set(head, 0);
+  bytes[head.length] = raw;
+  bytes.set(tail, head.length + 1);
+  return bytes;
+}
+
 function envelope(result: unknown): string {
   return JSON.stringify({ jsonrpc: "2.0", id: 7, result });
 }
@@ -250,6 +277,45 @@ describe("ArtifactStreamValidator — rejects malformed documents", () => {
         `{"jsonrpc":"\\u00zz","result":${JSON.stringify(VALID_RESULT)}}`,
       ),
     ).toThrow(VpResponseValidationError);
+  });
+
+  it("rejects invalid UTF-8 in an untracked string value", () => {
+    // The byte machine only rejects control characters, and untracked values
+    // are discarded rather than decoded — so a lone 0x80 here used to reach
+    // finish() and commit a bundle no strict JSON parser can read, while the
+    // UI reported success. The validator claims the WHOLE document is
+    // well-formed, and RFC 8259 makes UTF-8 part of that.
+    expect(() =>
+      validateBytes(
+        withRawByte(
+          `{"jsonrpc":"2@0","result":${JSON.stringify(VALID_RESULT)}}`,
+          "@",
+          0x80,
+        ),
+      ),
+    ).toThrow(VpResponseValidationError);
+  });
+
+  it("rejects invalid UTF-8 in an unknown forward-compat field", () => {
+    expect(() =>
+      validateBytes(
+        withRawByte(
+          `{"jsonrpc":"2.0","unknown_field":"a@b","result":${JSON.stringify(VALID_RESULT)}}`,
+          "@",
+          0x80,
+        ),
+      ),
+    ).toThrow(VpResponseValidationError);
+  });
+
+  it("accepts valid multibyte UTF-8 in an untracked string value", () => {
+    // The encoding check must not reject honest non-ASCII: only sequences
+    // that are not valid UTF-8 at all.
+    const { result } = validate(
+      `{"jsonrpc":"2.0","note":"café ✓","result":${JSON.stringify(VALID_RESULT)}}`,
+    );
+
+    expect(result.verifying_key_hex).toBe(VALID_RESULT.verifying_key_hex);
   });
 
   it("rejects a mismatched bracket", () => {

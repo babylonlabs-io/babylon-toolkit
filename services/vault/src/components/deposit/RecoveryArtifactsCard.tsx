@@ -89,8 +89,20 @@ interface RecoveryArtifactsCardProps {
    * a page reload) by deriving a fresh auth anchor.
    */
   unsignedPrePeginTxHex?: string;
-  /** Fired the first time the artifact download completes within this card. */
+  /**
+   * Fired the first time a download within this card completes with proof:
+   * a validated bundle written to a file the user chose, and receipted. This
+   * is what satisfies the activation gate, so the unverifiable anchor
+   * fallback deliberately does NOT fire it — see `onDelivered`.
+   */
   onDownloaded?: () => void;
+  /**
+   * Fired the first time a download finishes without proof — the anchor
+   * fallback, where the browser reports nothing about whether the file was
+   * saved. Parents may use it to offer a way out of an informational dialog,
+   * but it must never stand in for `onDownloaded` on an activation gate.
+   */
+  onDelivered?: () => void;
   /**
    * Fired whenever the in-card download flag flips. Lets a parent modal
    * swap its own title/body/footer copy in lockstep with the card so the
@@ -119,6 +131,7 @@ export const RecoveryArtifactsCard = forwardRef<
     vaultId,
     unsignedPrePeginTxHex,
     onDownloaded,
+    onDelivered,
     onLoadingChange,
   },
   ref,
@@ -138,6 +151,7 @@ export const RecoveryArtifactsCard = forwardRef<
     progress,
     error,
     downloaded,
+    delivered,
     receivedBytes,
     totalBytes,
     download,
@@ -151,6 +165,12 @@ export const RecoveryArtifactsCard = forwardRef<
   const persisted = hasArtifactsDownloaded(vaultId, peginTxid);
   const isDownloaded = downloaded || persisted;
 
+  // A finished-but-unprovable save (the anchor fallback). Deliberately not
+  // folded into `isDownloaded`: that flag drives the success presentation and,
+  // through onDownloaded, the activation gate. A receipt from an earlier
+  // Chromium download still wins, so this never downgrades a proven state.
+  const isUnverified = delivered && !isDownloaded;
+
   // Browsers without the File System Access API cannot stream to a chosen
   // file, so the user is warned before starting a multi-minute transfer.
   const usesFallbackSave = !isFileSystemAccessSupported();
@@ -162,6 +182,14 @@ export const RecoveryArtifactsCard = forwardRef<
       onDownloaded?.();
     }
   }, [downloaded, onDownloaded]);
+
+  const deliveredNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (delivered && !deliveredNotifiedRef.current) {
+      deliveredNotifiedRef.current = true;
+      onDelivered?.();
+    }
+  }, [delivered, onDelivered]);
 
   useEffect(() => {
     onLoadingChange?.(loading);
@@ -243,6 +271,22 @@ export const RecoveryArtifactsCard = forwardRef<
         </div>
       </div>
 
+      {/* The save finished but this browser cannot confirm it reached disk, so
+          the card stops short of the green "downloaded" state: the warning
+          copy stays, the download stays available for a retry on a browser
+          that can prove it, and no proof is reported upward. */}
+      {isUnverified && (
+        <span
+          data-testid="artifact-unverified-notice"
+          className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary"
+        >
+          <span className="text-accent-primary">
+            {COPY.deposit.recoveryArtifacts.unverifiedSaveTitle}
+          </span>{" "}
+          {COPY.deposit.recoveryArtifacts.unverifiedSaveNotice}
+        </span>
+      )}
+
       {!isDownloaded && (
         <div className="flex flex-col items-stretch">
           <button
@@ -254,7 +298,9 @@ export const RecoveryArtifactsCard = forwardRef<
             <span className="text-sm leading-[1.43] tracking-[0.17px]">
               {error
                 ? COPY.deposit.recoveryArtifacts.retryButton
-                : COPY.deposit.recoveryArtifacts.downloadButton}
+                : isUnverified
+                  ? COPY.deposit.recoveryArtifacts.downloadAgainButton
+                  : COPY.deposit.recoveryArtifacts.downloadButton}
             </span>
           </button>
           {!error && (
@@ -262,7 +308,8 @@ export const RecoveryArtifactsCard = forwardRef<
               {COPY.deposit.recoveryArtifacts.walletSignatureHint}
             </span>
           )}
-          {usesFallbackSave && (
+          {/* Already spelled out at length by the unverified notice above. */}
+          {usesFallbackSave && !isUnverified && (
             <span className="mt-2.5 text-center text-xs text-accent-secondary">
               {COPY.deposit.recoveryArtifacts.fallbackSaveHint}
             </span>

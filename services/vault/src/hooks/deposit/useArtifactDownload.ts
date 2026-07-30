@@ -53,7 +53,18 @@ interface ArtifactDownloadState {
   loading: boolean;
   progress: string;
   error: string | null;
+  /**
+   * A validated bundle reached disk and a receipt was written. This is the
+   * only success signal the activation gate accepts, so it must never be set
+   * from a path that cannot prove the file was saved.
+   */
   downloaded: boolean;
+  /**
+   * The file was handed to the browser but we cannot prove it was saved (the
+   * anchor fallback, or a mocked download). Drives the card's "we can't
+   * confirm this" state and nothing else — it must never satisfy the gate.
+   */
+  delivered: boolean;
   /** Bytes received so far from the in-flight artifact stream. */
   receivedBytes: number;
   /**
@@ -69,6 +80,7 @@ const INITIAL_STATE: ArtifactDownloadState = {
   progress: "",
   error: null,
   downloaded: false,
+  delivered: false,
   receivedBytes: 0,
   totalBytes: 0,
 };
@@ -383,24 +395,27 @@ export function useArtifactDownload(options?: {
 
           // No outcome means a mocked download: nothing was validated and no
           // file was written, so it must not satisfy the real activation gate.
-          // The demo still shows the downloaded UI.
+          // `delivered` drives the demo UI without ever claiming proof.
           if (!outcome) {
-            setState({ ...INITIAL_STATE, downloaded: true });
+            setState({ ...INITIAL_STATE, delivered: true });
             return;
           }
 
           if (outcome.method === "browser-download") {
             // The anchor path only proves a link was clicked: the browser
             // reports nothing about whether the file reached disk, and it may
-            // have been blocked or the save dialog dismissed. Asking the user
-            // to attest would let a click satisfy the activation gate, which
-            // is the exact substitution this flow exists to remove. Show the
-            // file as delivered, but withhold the receipt so the vault keeps
-            // warning until there is real evidence.
-            setState({ ...INITIAL_STATE, downloaded: true });
+            // have been blocked or the save dialog dismissed. So this reports
+            // `delivered`, not `downloaded` — the card says the save could not
+            // be confirmed, the risk acknowledgement stays required, and the
+            // vault keeps warning until there is real evidence. Setting
+            // `downloaded` here would let a click satisfy the activation gate,
+            // which is the exact substitution this flow exists to remove.
+            setState({ ...INITIAL_STATE, delivered: true });
             return;
           }
 
+          // The one path with real evidence: validated, streamed to a file the
+          // user chose, and receipted.
           persistReceipt(peginTxid, outcome);
           setState({
             ...INITIAL_STATE,

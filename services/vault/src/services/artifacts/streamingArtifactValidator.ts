@@ -79,7 +79,7 @@ const MAX_BABE_SESSIONS = 1024;
  * A JSON-RPC error object is small by construction. Anything larger is not a
  * plausible honest error response, so we fail closed rather than buffer it.
  */
-const MAX_ERROR_VALUE_BYTES = 64 * 1024;
+export const MAX_ERROR_VALUE_BYTES = 64 * 1024;
 
 /**
  * Ceiling for string values we do not consume (`jsonrpc`, `id`, and any
@@ -739,6 +739,15 @@ export class ArtifactStreamValidator {
         break;
       }
       default:
+        // Untracked values (jsonrpc, id, any forward-compat field) are
+        // discarded, but they are still part of the document this validator
+        // claims is well-formed, and RFC 8259 makes UTF-8 part of that. The
+        // byte machine only rejects control characters, so without this a raw
+        // 0x80 here would commit a bundle no strict JSON parser can read.
+        // The capture is already populated and bounded, so this only pays for
+        // the decode. `decryptor_artifacts_hex` never reaches here — its
+        // capture is null and the hex table already rejects bytes >= 0x80.
+        decodeJsonString(this.stringCapture, "string value");
         break;
     }
 

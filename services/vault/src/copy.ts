@@ -521,6 +521,17 @@ export const COPY = {
       // nothing back about whether it was saved.
       fallbackSaveHint:
         "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTC Vault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
+      // Shown after that same fallback path finishes. The transfer is done and
+      // the file was handed to the browser, but a blocked or dismissed save
+      // looks identical to a successful one from here, so this state stops
+      // short of claiming the download succeeded — the risk acknowledgement
+      // stays required and the vault keeps warning.
+      unverifiedSaveTitle: "Download finished, but we cannot confirm it saved",
+      unverifiedSaveNotice:
+        "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTC Vault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
+      // The fallback path may well have worked; this offers a retry without
+      // implying the first attempt failed.
+      downloadAgainButton: "Download Again",
     },
     form: {
       computingAllocation: "Computing allocation...",

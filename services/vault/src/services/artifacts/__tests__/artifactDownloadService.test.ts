@@ -489,7 +489,9 @@ describe("fetchAndDownloadArtifacts", () => {
       // Padding past the old 4096-byte threshold used to route an error
       // envelope down the unvalidated large-payload branch, which also cost
       // the caller its auth-expired retry (that only triggers on
-      // JsonRpcError). Size no longer changes the verdict.
+      // JsonRpcError). Padding no longer changes the verdict below the
+      // error-value cap; past that cap we fail closed instead — see the
+      // oversized-error test below.
       vi.mocked(fetch).mockResolvedValueOnce(
         streamingResponse(
           JSON.stringify({
