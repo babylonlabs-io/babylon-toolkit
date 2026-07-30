@@ -24,9 +24,24 @@ export function getReserveDetailBaseRoute(isV3Enabled: boolean): string {
   return isV3Enabled ? ROUTES.LOANS : ROUTES.OVERVIEW;
 }
 
+/**
+ * Query string that opens the loan overlay's asset picker. Search-only: the
+ * overlay renders over whichever page under the Aave layout is already
+ * mounted, so opening it must not change the pathname — a route change paints
+ * the destination page first and the user sees it flash behind the dialog.
+ * Pair with the current pathname (see `useLoanActions`).
+ */
+export function getAssetPickerSearch(tab: LoanTab) {
+  return `?${new URLSearchParams({ [RESERVE_QUERY_KEYS.PICKER]: tab })}`;
+}
+
+/**
+ * Full route to the asset picker, for the one caller that genuinely leaves its
+ * page to get there (the market data page's back link). In-page entry points
+ * use `getAssetPickerSearch` instead.
+ */
 export function getAssetPickerRoute(tab: LoanTab, isV3Enabled: boolean) {
-  const params = new URLSearchParams({ [RESERVE_QUERY_KEYS.PICKER]: tab });
-  return `${getReserveDetailBaseRoute(isV3Enabled)}?${params.toString()}`;
+  return `${getReserveDetailBaseRoute(isV3Enabled)}${getAssetPickerSearch(tab)}`;
 }
 
 /**
@@ -67,12 +82,16 @@ export function getReserveDetailRoute(
   tab: LoanTab,
   isV3Enabled: boolean,
 ) {
-  const baseRoute = getReserveDetailBaseRoute(isV3Enabled);
-  const params = new URLSearchParams({
+  return `${getReserveDetailBaseRoute(isV3Enabled)}${getReserveDetailSearch(reserveId, tab)}`;
+}
+
+/** Search-only form of {@link getReserveDetailRoute}; same rationale, and the
+ *  same id-not-symbol rule. */
+export function getReserveDetailSearch(reserveId: bigint, tab: LoanTab) {
+  return `?${new URLSearchParams({
     [RESERVE_QUERY_KEYS.RESERVE_ID]: reserveId.toString(),
     [RESERVE_QUERY_KEYS.TAB]: tab,
-  });
-  return `${baseRoute}?${params.toString()}`;
+  })}`;
 }
 
 /** Keyed by reserve id for the same reason as {@link getReserveDetailRoute}. */

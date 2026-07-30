@@ -188,19 +188,24 @@ export function formatPriceUsd(priceUsd: number): string {
 }
 
 /**
- * Format a USD value in compact notation (e.g., "$63.6k", "$1.2M").
+ * Format a USD value in compact notation (e.g., "$63.6k", "$1.5m").
  * Uses one fractional digit for k/M/B magnitudes; for values below 1000
  * falls back to the same formatting as `formatPriceUsd` for consistency.
  * Returns `$0` for zero or negative input.
+ *
+ * @param uppercaseSuffix - Render the magnitude suffix as Intl produces it
+ *   ("$1.5M") instead of lowercased. Set it wherever a USD figure sits beside
+ *   a `formatCompactTokenAmount` figure, which is always uppercase — mixing
+ *   the two cases in one row reads as a bug.
  */
-export function formatCompactUsd(usd: number): string {
+export function formatCompactUsd(usd: number, uppercaseSuffix = false): string {
   if (usd <= 0) return "$0";
   if (usd < 1000) return formatPriceUsd(usd);
   const compact = new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(usd);
-  return `$${compact.toLowerCase()}`;
+  return `$${uppercaseSuffix ? compact : compact.toLowerCase()}`;
 }
 
 /**

@@ -50,13 +50,16 @@ describe("useAaveReserveLiquidity", () => {
   });
 
   it("converts base units to token units and derives bps utilization", async () => {
-    // 6-decimal token: 75 available + 25 owed → 75 token units, 25% utilization.
+    // 6-decimal token: 75 liquidity, 25 drawn, 2 premium, 5 swept.
+    // supplied = 75 + 25 + 5 = 105; utilization = 25 / 105 = 23.80%.
     vi.mocked(getAssetLiquiditiesSafe).mockResolvedValueOnce([
       {
         hub: HUB,
         assetId: 0,
         availableLiquidityRaw: 75_000_000n,
-        totalOwedRaw: 25_000_000n,
+        drawnRaw: 25_000_000n,
+        premiumRaw: 2_000_000n,
+        sweptRaw: 5_000_000n,
         error: null,
       },
     ]);
@@ -71,8 +74,44 @@ describe("useAaveReserveLiquidity", () => {
     );
     expect(result.current.liquidityByReserveId["1"]).toEqual({
       availableLiquidity: 75,
-      utilizationBps: 2500,
+      totalBorrowed: 27,
+      suppliedLiquidity: 105,
+      utilizationBps: 2380,
     });
+  });
+
+  // The definition the Hub feeds its rate strategy, and the one the vault
+  // indexer records per snapshot. Drifting from it makes the displayed
+  // utilization disagree with the projected post-borrow rate and the borrow-APR
+  // chart, for the same reserve at the same moment.
+  it("excludes accrued premium from utilization and counts swept as supplied", async () => {
+    vi.mocked(getAssetLiquiditiesSafe).mockResolvedValueOnce([
+      {
+        hub: HUB,
+        assetId: 0,
+        availableLiquidityRaw: 50_000_000n,
+        drawnRaw: 50_000_000n,
+        // Large enough that folding either into the ratio would be obvious:
+        // premium in the numerator gives 6000bps, dropping swept gives 5000bps.
+        premiumRaw: 20_000_000n,
+        sweptRaw: 25_000_000n,
+        error: null,
+      },
+    ]);
+
+    const { result } = renderHook(
+      () => useAaveReserveLiquidity({ reserves: [makeReserve(1n, 0)] }),
+      { wrapper },
+    );
+
+    await waitFor(() =>
+      expect(result.current.liquidityByReserveId["1"]).not.toBeUndefined(),
+    );
+    // 50 drawn / (50 + 50 + 25) supplied = 40%.
+    expect(result.current.liquidityByReserveId["1"]?.utilizationBps).toBe(4000);
+    expect(result.current.liquidityByReserveId["1"]?.suppliedLiquidity).toBe(
+      125,
+    );
   });
 
   it("reports null utilization when the reserve has no supplied liquidity", async () => {
@@ -81,7 +120,9 @@ describe("useAaveReserveLiquidity", () => {
         hub: HUB,
         assetId: 0,
         availableLiquidityRaw: 0n,
-        totalOwedRaw: 0n,
+        drawnRaw: 0n,
+        premiumRaw: 0n,
+        sweptRaw: 0n,
         error: null,
       },
     ]);
@@ -96,6 +137,8 @@ describe("useAaveReserveLiquidity", () => {
     );
     expect(result.current.liquidityByReserveId["1"]).toEqual({
       availableLiquidity: 0,
+      totalBorrowed: 0,
+      suppliedLiquidity: 0,
       utilizationBps: null,
     });
   });
@@ -106,7 +149,9 @@ describe("useAaveReserveLiquidity", () => {
         hub: HUB,
         assetId: 0,
         availableLiquidityRaw: null,
-        totalOwedRaw: null,
+        drawnRaw: null,
+        premiumRaw: null,
+        sweptRaw: null,
         error: new Error("reverted"),
       },
     ]);
@@ -142,7 +187,9 @@ describe("useAaveReserveLiquidity", () => {
           hub: HUB,
           assetId: 0,
           availableLiquidityRaw: 75_000_000n,
-          totalOwedRaw: 25_000_000n,
+          drawnRaw: 25_000_000n,
+          premiumRaw: 2_000_000n,
+          sweptRaw: 5_000_000n,
           error: null,
         },
       ])
@@ -160,7 +207,9 @@ describe("useAaveReserveLiquidity", () => {
     await waitFor(() =>
       expect(result.current.liquidityByReserveId["1"]).toEqual({
         availableLiquidity: 75,
-        utilizationBps: 2500,
+        totalBorrowed: 27,
+        suppliedLiquidity: 105,
+        utilizationBps: 2380,
       }),
     );
 

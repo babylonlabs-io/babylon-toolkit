@@ -1224,6 +1224,30 @@ export const COPY = {
     subtitle: (symbol: string) =>
       `Learn more about the ${symbol} borrow market`,
     borrowAction: "Borrow",
+    // Shown instead of the metrics when a Hub or oracle read failed, so a
+    // failed read is never mistaken for a metric that has no value.
+    dataUnavailable:
+      "Market data is unavailable right now. Please try again shortly.",
+    // Stats bar above the fold. Title Case per the Figma; the design's
+    // "Utilisation" is respelled to the American form this file mandates.
+    stats: {
+      availableLiquidity: "Available Liquidity",
+      borrowApr: "Borrow APR",
+      supplied: "Supplied",
+      suppliedTooltip:
+        "Total liquidity supplied to this market — the borrowed amount plus what is still available.",
+      totalBorrowed: "Total Borrowed",
+      marketUtilization: "Market Utilization",
+    },
+    collateral: {
+      assetLabel: "Collateral Asset",
+      // The protocol takes one collateral: BTC locked in a vault. Named for
+      // what the depositor supplied, not for the vaultBTC reserve token.
+      assetName: "Native BTC",
+      factorLabel: "Collateral Factor",
+      factorTooltip:
+        "The share of your collateral's value you can borrow against before liquidation applies.",
+    },
     interestRateModel: {
       title: "Interest rate model",
       description:
@@ -1233,6 +1257,17 @@ export const COPY = {
       title: "Borrow markets",
       description: (symbol: string) =>
         `Understand market conditions, rates, and risk before borrowing ${symbol}`,
+      columns: {
+        market: "Market",
+        borrowApr: "Borrow APR",
+        available: "Available",
+        availableTooltip:
+          "Liquidity still borrowable from this market right now.",
+        utilization: "Utilization",
+        borrowed: "Borrowed",
+        supplied: "Supplied",
+      },
+      empty: "No borrow markets available.",
     },
   },
   nav: {

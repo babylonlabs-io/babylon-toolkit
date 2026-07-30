@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
-import BorrowingMarketsData from "../BorrowingMarketsData";
+import BorrowingMarketsData from "../index";
 
 const mockParams = vi.fn<() => Record<string, string>>();
 
@@ -25,6 +25,7 @@ vi.mock("react-router", () => ({
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
+  Hint: () => null,
   Container: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Heading: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
   Text: ({ children }: { children: ReactNode }) => <p>{children}</p>,
@@ -43,6 +44,7 @@ vi.mock("@/config/featureFlags", () => ({
 
 vi.mock("@/services/token/tokenService", () => ({
   getCurrencyIconWithFallback: () => "icon.png",
+  getTokenByAddress: () => null,
 }));
 
 // Reserve 2 is genuinely WETH; the indexer labels it "USDC".
@@ -62,9 +64,22 @@ vi.mock("@/applications/aave/context", () => ({
 }));
 
 const mockUseVerifiedReserveIdentity = vi.fn();
+const mockUseAaveBorrowAprs = vi.fn();
+const mockUseAaveReserveLiquidity = vi.fn();
+const mockUseAaveReservesPrices = vi.fn();
+const mockUseVaultSplitParams = vi.fn();
 vi.mock("@/applications/aave/hooks", () => ({
   useVerifiedReserveIdentity: (args: unknown) =>
     mockUseVerifiedReserveIdentity(args),
+  useAaveBorrowAprs: () => mockUseAaveBorrowAprs(),
+  useAaveReserveLiquidity: () => mockUseAaveReserveLiquidity(),
+  useAaveReservesPrices: () => mockUseAaveReservesPrices(),
+  useVaultSplitParams: () => mockUseVaultSplitParams(),
+}));
+
+const mockUseDemoMarketData = vi.fn();
+vi.mock("@/dev/demoMarketData", () => ({
+  useDemoMarketData: () => mockUseDemoMarketData(),
 }));
 
 const WETH_IDENTITY = {
@@ -92,6 +107,11 @@ describe("BorrowingMarketsData", () => {
     vi.clearAllMocks();
     mockParams.mockReturnValue({ reserveId: "2" });
     mockUseVerifiedReserveIdentity.mockReturnValue(resolved());
+    mockUseAaveBorrowAprs.mockReturnValue({ aprPercentByReserveId: {} });
+    mockUseAaveReserveLiquidity.mockReturnValue({ liquidityByReserveId: {} });
+    mockUseAaveReservesPrices.mockReturnValue({ pricesByReserveId: {} });
+    mockUseVaultSplitParams.mockReturnValue({ params: null });
+    mockUseDemoMarketData.mockReturnValue(null);
   });
 
   it("verifies the reserve the id resolves to, against its on-chain underlying", () => {
@@ -106,9 +126,18 @@ describe("BorrowingMarketsData", () => {
   it("labels the header from the proven identity, not the indexer's symbol", () => {
     render(<BorrowingMarketsData />);
 
-    expect(screen.getByText("Wrapped Ether")).toBeInTheDocument();
+    // Scoped to the heading rather than the whole page: the markets table
+    // below legitimately labels this same reserve's row from `token.*` (a row
+    // label steers nothing — only the header claims "this is the asset you
+    // routed to"), so a page-wide absence check would now fail on the table's
+    // own row instead of on a mislabeled header.
+    expect(
+      screen.getByRole("heading", { name: "Wrapped Ether" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "USD Coin" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("WETH")).toBeInTheDocument();
-    expect(screen.queryByText("USD Coin")).not.toBeInTheDocument();
   });
 
   it("blocks a legacy symbol URL instead of resolving it", () => {

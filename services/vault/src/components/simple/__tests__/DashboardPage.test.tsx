@@ -17,6 +17,9 @@ vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 vi.mock("react-router", () => ({
   useNavigate: () => vi.fn(),
+  // The borrow/repay entry points read the current pathname so the flow opens
+  // in place instead of routing to /loans (see useLoanActions).
+  useLocation: () => ({ pathname: "/", search: "" }),
   useOutletContext: () => ({ openDeposit: vi.fn() }),
 }));
 
