@@ -59,6 +59,16 @@ const INSUFFICIENT_GAS_FUNDS_PATTERN =
 // don't collapse the sats info the user needs.
 const BTC_FUNDS_GUARD_PATTERN = /\bsats\b|\bpegin\b/i;
 
+// revm's `HaltReason::OutOfFunds` — "Out of funds to pay for the call"
+// (revm crates/context/interface/src/result.rs) — reaches us through the
+// Babylon EVM RPC as `Details: EVM error: OutOfFunds` on eth_estimateGas.
+// It means the sender can't cover value + gas, but shares no wording with the
+// geth-style messages above, so without this it classifies as a transient
+// `rpc-error` and the user is told to wait and retry. Kept out of
+// `matchesInsufficientGasFundsMessage` because the BTC sats guard is
+// irrelevant here — this string never appears in the UTXO selector's error.
+const EVM_OUT_OF_FUNDS_PATTERN = /\bout ?of ?funds?\b/i;
+
 export function matchesInsufficientGasFundsMessage(msg: string): boolean {
   if (BTC_FUNDS_GUARD_PATTERN.test(msg)) return false;
   return INSUFFICIENT_GAS_FUNDS_PATTERN.test(msg);
@@ -150,6 +160,12 @@ export function classifyError(err: unknown): ErrorKind | null {
     if (
       typeof obj.message === "string" &&
       matchesInsufficientGasFundsMessage(obj.message)
+    ) {
+      return "insufficient-funds";
+    }
+    if (
+      typeof obj.message === "string" &&
+      EVM_OUT_OF_FUNDS_PATTERN.test(obj.message)
     ) {
       return "insufficient-funds";
     }
@@ -307,6 +323,98 @@ export function mapVpRpcError(error: JsonRpcError): {
 }
 
 /**
+ * viem builds `Error.message` by joining `shortMessage`, `metaMessages`, a docs
+ * link and `details` (viem `errors/base.ts`). `metaMessages` is the request
+ * dump — `TransactionExecutionError` puts "Request Arguments:" with the full
+ * calldata there — while `details` carries the node's own text. Read the parts
+ * so the user sees the diagnosis without the hex.
+ */
+function readViemMessage(err: unknown): string | null {
+  if (err === null || typeof err !== "object") return null;
+  // viem's BaseError constructor defines all three of these, so requiring them
+  // together keeps an unrelated SDK error that merely carries a `shortMessage`
+  // from having its own (possibly richer) `message` discarded.
+  if (
+    !("shortMessage" in err) ||
+    !("details" in err) ||
+    !("metaMessages" in err)
+  ) {
+    return null;
+  }
+  const { shortMessage, details, code } = err as {
+    shortMessage?: unknown;
+    details?: unknown;
+    code?: unknown;
+  };
+  if (typeof shortMessage !== "string" || !shortMessage) return null;
+
+  const parts = [shortMessage];
+  if (
+    typeof details === "string" &&
+    details &&
+    !shortMessage.includes(details)
+  ) {
+    parts.push(details);
+  }
+  if (typeof code === "number" && Number.isFinite(code)) {
+    parts.push(`(code ${code})`);
+  }
+  return parts.join(" ");
+}
+
+/** Upper bound on copied diagnostics; viem messages can run to many KB. */
+const MAX_DIAGNOSTICS_CHARS = 4000;
+
+/**
+ * The full error text for the "copy details" affordance — everything
+ * {@link sanitizeErrorMessage} deliberately withholds from the UI, including
+ * viem's request dump, so a reporter can paste one block instead of a
+ * screenshot.
+ */
+export function formatErrorDiagnostics(err: unknown): string {
+  if (typeof err === "string") return clampDiagnostics(err);
+  if (!(err instanceof Error)) return clampDiagnostics(stringifyUnknown(err));
+
+  const { shortMessage, details, code } = err as {
+    shortMessage?: unknown;
+    details?: unknown;
+    code?: unknown;
+  };
+  // Summary first, raw message last: viem puts the request dump ahead of
+  // `details`, so clamping the raw text alone would drop the very fields a
+  // triager reads.
+  const summary = [`name: ${err.name}`];
+  if (typeof shortMessage === "string" && shortMessage) {
+    summary.push(`shortMessage: ${shortMessage}`);
+  }
+  if (typeof details === "string" && details) {
+    summary.push(`details: ${details}`);
+  }
+  if (typeof code === "number" || typeof code === "string") {
+    summary.push(`code: ${code}`);
+  }
+
+  return clampDiagnostics([...summary, "", err.message].join("\n"));
+}
+
+function stringifyUnknown(err: unknown): string {
+  try {
+    // JSON.stringify returns undefined for undefined, functions and symbols.
+    return JSON.stringify(err) ?? String(err);
+  } catch {
+    // Circular or otherwise unserializable — String() still identifies it.
+    return String(err);
+  }
+}
+
+function clampDiagnostics(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.length > MAX_DIAGNOSTICS_CHARS
+    ? `${trimmed.slice(0, MAX_DIAGNOSTICS_CHARS - 1)}…`
+    : trimmed;
+}
+
+/**
  * Extract a safe error message from an unknown error value.
  *
  * Known viem / EIP-1193 / wallet-connector failure categories collapse to a
@@ -321,6 +429,8 @@ export function mapVpRpcError(error: JsonRpcError): {
 export function sanitizeErrorMessage(err: unknown): string {
   const kind = classifyError(err);
   if (kind) return FRIENDLY_MESSAGES[kind];
+  const viemMessage = readViemMessage(err);
+  if (viemMessage) return viemMessage;
   if (err instanceof Error) {
     return err.message && err.message !== "[object Object]"
       ? err.message

@@ -13,7 +13,14 @@
  */
 
 import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
-import { type ReactNode, useCallback, useMemo } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { NotificationPermissionPrompt } from "@/components/shared/NotificationPermissionPrompt";
 import { useBTCWallet } from "@/context/wallet";
@@ -39,6 +46,15 @@ import {
   STEP_GROUPS,
   TOTAL_VISUAL_STEPS,
 } from "./steps";
+
+/** How long the copy button reports its outcome before reverting. */
+const COPY_RESET_MS = 2000;
+
+const DIAGNOSTICS_COPY_LABELS = {
+  idle: COPY.deposit.errors.copyDiagnostics,
+  copied: COPY.deposit.errors.diagnosticsCopied,
+  failed: COPY.deposit.errors.diagnosticsCopyFailed,
+} as const;
 
 export interface BtcConfirmationDetailData {
   /** Pre-PegIn broadcast txid — the tx actually on the Bitcoin network. */
@@ -218,6 +234,45 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     "Wallet unlock from deposit progress",
   );
 
+  // Copy state is local rather than core-ui's `useCopy`, which flips to
+  // "copied" optimistically and swallows a rejected write. This button exists
+  // so a reporter can paste the error — telling them it copied when the
+  // clipboard refused (denied permission, insecure context) is the one failure
+  // that would defeat it.
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    },
+    [],
+  );
+
+  const handleCopyDiagnostics = useCallback((diagnostics: string) => {
+    const settle = (state: "copied" | "failed") => {
+      setCopyState(state);
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+      copyResetRef.current = setTimeout(
+        () => setCopyState("idle"),
+        COPY_RESET_MS,
+      );
+    };
+    try {
+      // Called synchronously so the write stays inside the click's user
+      // activation; `navigator.clipboard` is undefined outside a secure
+      // context, which throws here rather than rejecting.
+      void navigator.clipboard.writeText(diagnostics).then(
+        () => settle("copied"),
+        () => settle("failed"),
+      );
+    } catch {
+      settle("failed");
+    }
+  }, []);
+
   // A terminal-but-not-final milestone: closeable success without marking the
   // whole flow complete (so the stepper keeps its real position).
   const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
@@ -313,8 +368,31 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           )}
 
           {error && (
-            <Callout variant="error" title={error.title}>
+            <Callout
+              variant="error"
+              title={error.title}
+              actions={
+                error.diagnostics
+                  ? [
+                      {
+                        label: DIAGNOSTICS_COPY_LABELS[copyState],
+                        onClick: () =>
+                          handleCopyDiagnostics(error.diagnostics ?? ""),
+                        emphasis: "secondary",
+                      },
+                    ]
+                  : undefined
+              }
+            >
               {error.body}
+              {copyState === "failed" && error.diagnostics && (
+                // Last resort when the clipboard is unavailable: the text has
+                // to be on screen for "copy manually" to mean anything. Only
+                // here, never in the default view.
+                <pre className="mt-2 max-h-32 select-all overflow-auto whitespace-pre-wrap break-all rounded bg-primary-main/5 p-2 text-xs">
+                  {error.diagnostics}
+                </pre>
+              )}
             </Callout>
           )}
 
