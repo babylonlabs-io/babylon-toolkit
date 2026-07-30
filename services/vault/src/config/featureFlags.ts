@@ -177,6 +177,24 @@ export default {
   },
 
   /**
+   * ENABLE_MARKET_DETAIL_PAGE feature flag
+   *
+   * Purpose: Gates the borrowing market detail page (/markets/:reserveId) and
+   * its only entry point, the per-row Market Info button in the borrow asset
+   * picker. With the flag off the route redirects to the overview, so the page
+   * is unreachable by deep link too.
+   * Why needed: the page's market data (APR history, interest rate model,
+   * per-market rows) is not wired to a live source yet, so it would present
+   * placeholder numbers as real market conditions. The v3 flag alone is not
+   * enough — v3 is enabled on devnet/testnet.
+   * Default: false (the page and the button are hidden unless explicitly set
+   * to "true")
+   */
+  get isMarketDetailPageEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_MARKET_DETAIL_PAGE === "true";
+  },
+
+  /**
    * ENABLE_EXPLORE feature flag
    *
    * Purpose: Gates the Explore section — the /explore route and its sidebar

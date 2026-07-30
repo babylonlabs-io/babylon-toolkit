@@ -16,6 +16,7 @@
  * 4. /liquidations and /explore each carry a second flag on top of the v3
  *    shell, so either section can stay hidden while v3 is on. With its own
  *    flag off, both the section root and a deep link under it redirect.
+ *    /markets/:reserveId carries its own flag on the same model.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -41,6 +42,7 @@ const featureFlagsState = vi.hoisted(() => ({
   isV3UiEnabled: false,
   isLiquidationAnalysisChartEnabled: true,
   isExploreEnabled: true,
+  isMarketDetailPageEnabled: true,
 }));
 
 vi.mock("@/config/featureFlags", () => ({
@@ -215,6 +217,7 @@ afterEach(() => {
   featureFlagsState.isV3UiEnabled = false;
   featureFlagsState.isLiquidationAnalysisChartEnabled = true;
   featureFlagsState.isExploreEnabled = true;
+  featureFlagsState.isMarketDetailPageEnabled = true;
 });
 
 describe("Router — /activity regression for AaveConfigProvider wiring", () => {
@@ -347,6 +350,16 @@ describe("Router — new v3 placeholder routes", () => {
       expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
     });
     expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
+  });
+
+  it("redirects /markets/:reserveId to / when the market detail flag is off, even with v3 on", async () => {
+    setV3Flag("true");
+    featureFlagsState.isMarketDetailPageEnabled = false;
+    renderAt("/markets/1");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
   });
 
   it("redirects /explore to / when the explore flag is off, even with v3 on", async () => {

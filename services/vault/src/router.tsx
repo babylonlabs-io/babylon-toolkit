@@ -213,7 +213,8 @@ export const Router = () => {
           <Route
             path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
             element={
-              featureFlags.isV3UiEnabled ? (
+              featureFlags.isV3UiEnabled &&
+              featureFlags.isMarketDetailPageEnabled ? (
                 <Suspense fallback={<RouteFallback />}>
                   <BorrowingMarketsDataPage />
                 </Suspense>
