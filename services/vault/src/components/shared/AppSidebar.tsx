@@ -13,8 +13,7 @@ import {
 import type { ComponentType } from "react";
 import { NavLink } from "react-router";
 
-import featureFlags from "@/config/featureFlags";
-import { V3_NAV_GROUPS, type V3NavItemId } from "@/config/v3Navigation";
+import { getVisibleV3NavGroups, type V3NavItemId } from "@/config/v3Navigation";
 
 import { SidebarFooter } from "./SidebarFooter";
 
@@ -54,18 +53,12 @@ const V3_NAV_ICONS: Record<
   explore: ExploreIcon,
 };
 
-// /liquidations is still an empty placeholder with no page, so it hides
-// behind the same flag that gates the analysis chart rather than advertising
-// a dead end. /explore now has a real page, so it shows for all v3 users
-// (the sidebar itself only renders under v3 — see RootLayout).
-const LIQUIDATION_ANALYSIS_NAV_IDS = new Set<V3NavItemId>(["liquidations"]);
-
 function V3NavLinks() {
-  const groups = featureFlags.isLiquidationAnalysisChartEnabled
-    ? V3_NAV_GROUPS
-    : V3_NAV_GROUPS.map((group) =>
-        group.filter((item) => !LIQUIDATION_ANALYSIS_NAV_IDS.has(item.id)),
-      ).filter((group) => group.length > 0);
+  // Which sections a flag currently hides is decided by `V3_SECTION_FLAG_GATES`
+  // in config/v3Navigation.ts, shared with the router's guards so a hidden
+  // section is never advertised as a dead end. The sidebar itself only renders
+  // under v3 — see RootLayout.
+  const groups = getVisibleV3NavGroups();
 
   return (
     <>
