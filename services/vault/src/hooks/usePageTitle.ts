@@ -17,7 +17,9 @@ const OFF_NAV_ROUTE_TITLES: readonly (readonly [
 // "Vaults" (etc.) shows that same title in the header. Anything that
 // doesn't match is the Overview page, so it's the fallback rather than a
 // listed prefix. Harmless because none of the configured prefixes is
-// itself a prefix of another.
+// itself a prefix of another. Every v3 path is listed, flag-gated sections
+// included: a gated path redirects (see router.tsx) before its title is
+// user-visible, so filtering by flag here would change nothing observable.
 const ROUTE_TITLES: readonly (readonly [path: string, title: string])[] = [
   ...V3_NAV_ITEMS.filter((item) => item.path !== "/").map(
     (item) => [item.path, item.label] as const,

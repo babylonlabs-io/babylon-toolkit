@@ -8,10 +8,14 @@
  *    dashboard, v3 uses `/loans?reserve=<id>&tab=<tab>` over the loans page.
  *    Both are gated by pathname to prevent wrong-base rendering. The dashboard
  *    stays mounted in v2 so opening the overlay never blanks the page.
- * 3. /vaults, /loans, and /liquidations are reachable only when ENABLE_V3_UI
- *    is on. With the flag off a direct load of one of them redirects to the
- *    v2 dashboard. /vaults renders the VaultsPage and /loans the Loans page;
- *    /liquidations is still a placeholder.
+ * 3. /vaults, /loans, /liquidations and /explore are reachable only when
+ *    ENABLE_V3_UI is on. With the flag off a direct load of one of them
+ *    redirects to the v2 dashboard. /vaults renders the VaultsPage, /loans the
+ *    Loans page and /explore the Explore page; /liquidations is still a
+ *    placeholder.
+ * 4. /liquidations and /explore each carry a second flag on top of the v3
+ *    shell, so either section can stay hidden while v3 is on. With its own
+ *    flag off, both the section root and a deep link under it redirect.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -36,6 +40,7 @@ import { getReserveDetailRoute } from "../routes";
 const featureFlagsState = vi.hoisted(() => ({
   isV3UiEnabled: false,
   isLiquidationAnalysisChartEnabled: true,
+  isExploreEnabled: true,
 }));
 
 vi.mock("@/config/featureFlags", () => ({
@@ -209,6 +214,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   featureFlagsState.isV3UiEnabled = false;
   featureFlagsState.isLiquidationAnalysisChartEnabled = true;
+  featureFlagsState.isExploreEnabled = true;
 });
 
 describe("Router — /activity regression for AaveConfigProvider wiring", () => {
@@ -330,6 +336,39 @@ describe("Router — new v3 placeholder routes", () => {
       expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
     });
     expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
+  });
+
+  it("redirects a deep link under /liquidations when its flag is off, even with v3 on", async () => {
+    setV3Flag("true");
+    featureFlagsState.isLiquidationAnalysisChartEnabled = false;
+    renderAt("/liquidations/some-deep-link");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
+  });
+
+  it("redirects /explore to / when the explore flag is off, even with v3 on", async () => {
+    setV3Flag("true");
+    featureFlagsState.isExploreEnabled = false;
+    renderAt("/explore");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId(EXPLORE_TESTID)).not.toBeInTheDocument();
+  });
+
+  it("redirects a deep link under /explore when its flag is off, even with v3 on", async () => {
+    setV3Flag("true");
+    featureFlagsState.isExploreEnabled = false;
+    renderAt("/explore/some-deep-link");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
   });
 
   it("renders the vaults page at /vaults when the flag is on, not the dashboard", async () => {
