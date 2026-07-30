@@ -1,6 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { Timeline } from "./Timeline";
-import { bands, collidingLevelBands, timelinePriceAxis, timeAxisLabels, makeCandles, safeZone } from "./fixtures";
+import {
+  bands,
+  collidingLevelBands,
+  formatUsd,
+  makeCandles,
+  safeZone,
+  simulateBandStates,
+  simulatedSafeZone,
+  timeAxisLabels,
+  timelinePriceAxis,
+} from "./fixtures";
+import type { TimelineSeriesStyle } from "./types";
 
 const meta: Meta<typeof Timeline> = {
   title: "Components/Data Display/Charts/Timeline",
@@ -33,6 +44,7 @@ const meta: Meta<typeof Timeline> = {
     currentPrice: 88700,
     currentPriceLabel: "$88,700",
     variant: "full",
+    liquidatedLabel: "Liquidated",
   },
 };
 export default meta;
@@ -40,6 +52,53 @@ export default meta;
 type Story = StoryObj<typeof Timeline>;
 
 export const Full: Story = {};
+
+interface SimulatorArgs {
+  btcPrice: number;
+  candleCount: number;
+  seriesStyle: TimelineSeriesStyle;
+  crosshair: boolean;
+  pan: boolean;
+  zoom: boolean;
+}
+
+/**
+ * Drag the BTC price and watch the derived state re-flow: the price pill,
+ * which events read as liquidated, and the safe-zone callout — the same
+ * projection rules the vault applies. Candle count feeds the pan/zoom window.
+ */
+export const Simulator: StoryObj<SimulatorArgs> = {
+  args: {
+    btcPrice: 88700,
+    candleCount: 44,
+    seriesStyle: "candles",
+    crosshair: true,
+    pan: false,
+    zoom: false,
+  },
+  argTypes: {
+    btcPrice: { control: { type: "range", min: 40000, max: 95000, step: 100 } },
+    candleCount: { control: { type: "range", min: 1, max: 160, step: 1 } },
+    seriesStyle: { control: "inline-radio", options: ["candles", "line", "area"] },
+  },
+  parameters: {
+    controls: { include: ["btcPrice", "candleCount", "seriesStyle", "crosshair", "pan", "zoom"] },
+  },
+  render: (args) => (
+    <Timeline
+      bands={simulateBandStates(bands, args.btcPrice)}
+      candles={makeCandles(args.candleCount)}
+      priceAxis={timelinePriceAxis}
+      safeZone={simulatedSafeZone(bands, args.btcPrice)}
+      currentPrice={args.btcPrice}
+      currentPriceLabel={formatUsd(args.btcPrice)}
+      seriesStyle={args.seriesStyle}
+      visibleCandles={44}
+      interactions={{ crosshair: args.crosshair, pan: args.pan, zoom: args.zoom }}
+      liquidatedLabel="Liquidated"
+    />
+  ),
+};
 
 /** Hover the candle area for a crosshair + OHLC readout. */
 export const Crosshair: Story = {
@@ -96,8 +155,9 @@ export const HiddenLabels: Story = {
 };
 
 /**
- * Bands anchor at their true price. To show events living below the default
- * floor, the app extends the price axis — here down to $0.
+ * Five events share the gutter below the safe zone in equal blocks — every
+ * event reads at the same size regardless of its price span, and the axis
+ * pills keep the true trigger prices.
  */
 export const ManyEvents: Story = {
   args: {

@@ -84,6 +84,45 @@ describe("SeizureMap", () => {
     expect(dimmed[0].querySelector('[data-testid="liq-band-1"]')).not.toBeNull();
   });
 
+  it("swaps a liquidated band's vault list and amount for the liquidated label", () => {
+    const { container } = renderMap({
+      bands: bands.map((b) => (b.key === "1" ? { ...b, state: "liquidated" } : b)),
+      showShareLegend: false,
+      liquidatedLabel: "Liquidated",
+    });
+    const chart = within(container);
+    expect(chart.getByText("Liq Event 1")).toBeInTheDocument();
+    expect(chart.getByText("Liquidated")).toBeInTheDocument();
+    expect(chart.queryByText("(contain vault 1)")).not.toBeInTheDocument();
+    expect(chart.queryByText("0.6 BTC")).not.toBeInTheDocument();
+    // The live band keeps its normal text.
+    expect(chart.getByText("0.4 BTC")).toBeInTheDocument();
+  });
+
+  it("keeps a liquidated band's normal text when no liquidated label is given", () => {
+    const { container } = renderMap({
+      bands: bands.map((b) => (b.key === "1" ? { ...b, state: "liquidated" } : b)),
+      showShareLegend: false,
+    });
+    const chart = within(container);
+    expect(chart.getByText("(contain vault 1)")).toBeInTheDocument();
+    expect(chart.getByText("0.6 BTC")).toBeInTheDocument();
+  });
+
+  it("swaps and dims the liquidated band's legend segment", () => {
+    const { container } = renderMap({
+      bands: bands.map((b) => (b.key === "1" ? { ...b, state: "liquidated" } : b)),
+      hideBandLabels: true,
+      liquidatedLabel: "Liquidated",
+    });
+    const chart = within(container);
+    // Band text is hidden, so the only "Liquidated" text is the legend's.
+    expect(chart.getByText("Liquidated")).toBeInTheDocument();
+    expect(chart.queryByText("0.6 BTC")).not.toBeInTheDocument();
+    expect(chart.getByText("0.4 BTC")).toBeInTheDocument();
+    expect(container.querySelectorAll(".bbn-liq-legend__seg--liquidated")).toHaveLength(1);
+  });
+
   it("drops band text lines as the band gets shorter", () => {
     // Linear 2-tick axis over the deterministic 1016px fallback layout
     // (plot height ~326.6px): 100000 price units span the full plot, so a

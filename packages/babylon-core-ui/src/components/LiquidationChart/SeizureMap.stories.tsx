@@ -6,10 +6,13 @@ import {
   compressedShareTicks,
   dropoutLadderAxis,
   dropoutLadderBands,
+  formatUsd,
   longLabelBands,
   priceAxis,
   shareAxisLabels,
   shareAxisTicks,
+  simulateBandStates,
+  simulatedPriceAxis,
 } from "./fixtures";
 
 const meta: Meta<typeof SeizureMap> = {
@@ -39,6 +42,7 @@ const meta: Meta<typeof SeizureMap> = {
     currentPrice: 88400,
     currentPriceLabel: "$88,400",
     variant: "full",
+    liquidatedLabel: "Liquidated",
   },
 };
 export default meta;
@@ -46,6 +50,48 @@ export default meta;
 type Story = StoryObj<typeof SeizureMap>;
 
 export const Full: Story = {};
+
+interface SimulatorArgs {
+  btcPrice: number;
+  variant: "full" | "compact";
+  showShareLegend: boolean;
+  hideBandLabels: boolean;
+}
+
+/**
+ * Drag the BTC price and watch the derived state re-flow: the price label,
+ * the segmented axis, and which events read as liquidated — the same
+ * projection rules the vault applies.
+ */
+export const Simulator: StoryObj<SimulatorArgs> = {
+  args: {
+    btcPrice: 88400,
+    variant: "full",
+    showShareLegend: true,
+    hideBandLabels: false,
+  },
+  argTypes: {
+    btcPrice: { control: { type: "range", min: 3000, max: 95000, step: 100 } },
+    variant: { control: "inline-radio", options: ["full", "compact"] },
+  },
+  parameters: {
+    controls: { include: ["btcPrice", "variant", "showShareLegend", "hideBandLabels"] },
+  },
+  render: (args) => (
+    <SeizureMap
+      bands={simulateBandStates(bands, args.btcPrice)}
+      priceAxis={simulatedPriceAxis(bands, args.btcPrice)}
+      currentPrice={args.btcPrice}
+      currentPriceLabel={formatUsd(args.btcPrice)}
+      shareAxisLabels={shareAxisLabels}
+      priceLineCaption="Bitcoin Price"
+      variant={args.variant}
+      showShareLegend={args.showShareLegend}
+      hideBandLabels={args.hideBandLabels}
+      liquidatedLabel="Liquidated"
+    />
+  ),
+};
 
 export const Compact: Story = {
   args: { variant: "compact" },

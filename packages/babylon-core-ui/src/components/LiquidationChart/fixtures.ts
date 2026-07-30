@@ -1,6 +1,6 @@
 // Story fixtures only, not exported from the package. Production values come
 // from the vault's liquidation cascade + price-history feed.
-import type { Candle, LiquidationBand, PriceAxisTick } from "./types";
+import type { Candle, LiquidationBand, PriceAxisTick, SafeZone } from "./types";
 
 export const bands: LiquidationBand[] = [
   {
@@ -167,3 +167,35 @@ export const collidingLevelBands: LiquidationBand[] = [
   { ...bands[1], key: "c2", priceTop: 61400, priceBottom: 48000 },
   { ...bands[2], key: "c3", priceTop: 60900, priceBottom: 42000 },
 ];
+
+/* ---- Simulator-story derivations (mirror the vault's projection) ----- */
+
+export function formatUsd(price: number): string {
+  return `$${Math.round(price).toLocaleString("en-US")}`;
+}
+
+/** Bands with `state` derived from the simulated price. */
+export function simulateBandStates(base: LiquidationBand[], btcPrice: number): LiquidationBand[] {
+  return base.map((b) => ({ ...b, state: btcPrice <= b.priceTop ? "liquidated" : "live" }));
+}
+
+/**
+ * Segmented axis re-derived around the simulated price: the price itself,
+ * every trigger, and the cascade floor, sorted descending and deduped —
+ * the same rule the vault uses, so the axis re-flows as the price moves.
+ */
+export function simulatedPriceAxis(base: LiquidationBand[], btcPrice: number): PriceAxisTick[] {
+  const floor = base[base.length - 1]?.priceBottom ?? 0;
+  const values = Array.from(new Set([btcPrice, ...base.map((b) => b.priceTop), floor])).sort((a, b) => b - a);
+  return values.map((value) => ({ value, label: formatUsd(value) }));
+}
+
+/** Safe-zone callout derived from the simulated price and the first trigger. */
+export function simulatedSafeZone(base: LiquidationBand[], btcPrice: number): SafeZone {
+  const firstTrigger = base[0]?.priceTop ?? 0;
+  const dropPct = btcPrice > firstTrigger ? ((btcPrice - firstTrigger) / btcPrice) * 100 : 0;
+  return {
+    title: "Safe zone",
+    lines: [`no events above ${formatUsd(firstTrigger)}`, `${dropPct.toFixed(1)}% drop to Liq 1`],
+  };
+}

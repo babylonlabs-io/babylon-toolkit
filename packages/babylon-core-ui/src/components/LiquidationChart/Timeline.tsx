@@ -90,6 +90,7 @@ export function Timeline({
   variant = "full",
   grid,
   hideBandLabels,
+  liquidatedLabel,
   bandGutter = true,
   className,
 }: TimelineProps) {
@@ -394,6 +395,7 @@ export function Timeline({
           safeZone={safeZone}
           compact={compact}
           hideBandLabels={Boolean(hideBandLabels)}
+          liquidatedLabel={liquidatedLabel}
         />
       ) : null}
 

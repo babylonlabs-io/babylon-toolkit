@@ -1290,6 +1290,8 @@ export const COPY = {
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
     containVaults: (names: string) => `(contain ${names})`,
+    // Replaces a liquidated band's vault list + BTC amount on the chart.
+    liquidatedBandLabel: "Liquidated",
     safeZone: {
       title: "Safe zone",
       noEventsAbove: (price: string) => `no events above ${price}`,

@@ -24,7 +24,7 @@ export interface BandRect {
 }
 
 interface BandTextLine {
-  kind: "label" | "sublabel" | "amount";
+  kind: "label" | "sublabel" | "amount" | "liquidated";
   text: string;
   fontSize: number;
 }
@@ -38,6 +38,8 @@ export interface BandLayerProps {
   compact: boolean;
   /** Hide all in-band text. */
   hideBandLabels: boolean;
+  /** Replaces a liquidated band's sublabel + amount. See {@link LiquidationChartBase}. */
+  liquidatedLabel?: string;
 }
 
 /** Text lines a band has room for. Replaces the old `@container (max-height)`
@@ -51,11 +53,18 @@ function visibleBandLines(
   hideAll: boolean,
   fontLabel: number,
   fontAmount: number,
+  liquidatedLabel?: string,
 ): BandTextLine[] {
   if (hideAll) return [];
   const contentHeight = heightPx - 2 * BAND_PAD_Y_PX;
   const lines: BandTextLine[] = [];
   if (contentHeight > DROP_LABEL_MAX_PX) lines.push({ kind: "label", text: band.label, fontSize: fontLabel });
+  if (band.state === "liquidated" && liquidatedLabel) {
+    if (contentHeight > DROP_AMOUNT_MAX_PX) {
+      lines.push({ kind: "liquidated", text: liquidatedLabel, fontSize: fontLabel });
+    }
+    return lines;
+  }
   if (!compact && band.sublabel && contentHeight > DROP_SUBLABEL_MAX_PX) {
     lines.push({ kind: "sublabel", text: band.sublabel, fontSize: fontLabel });
   }
@@ -63,7 +72,15 @@ function visibleBandLines(
   return lines;
 }
 
-export function BandLayer({ bands, bandRect, fontLabel, fontAmount, compact, hideBandLabels }: BandLayerProps) {
+export function BandLayer({
+  bands,
+  bandRect,
+  fontLabel,
+  fontAmount,
+  compact,
+  hideBandLabels,
+  liquidatedLabel,
+}: BandLayerProps) {
   const clipBaseId = useId();
 
   return (
@@ -71,7 +88,15 @@ export function BandLayer({ bands, bandRect, fontLabel, fontAmount, compact, hid
       {bands.map((band) => {
         const rect = bandRect(band);
         const liquidated = band.state === "liquidated";
-        const lines = visibleBandLines(band, rect.height, compact, hideBandLabels, fontLabel, fontAmount);
+        const lines = visibleBandLines(
+          band,
+          rect.height,
+          compact,
+          hideBandLabels,
+          fontLabel,
+          fontAmount,
+          liquidatedLabel,
+        );
         const lineHeights = lines.map((line) => Math.round(line.fontSize * TEXT_LINE_HEIGHT));
         const stackHeight =
           lineHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, lines.length - 1) * BAND_LINE_GAP_PX;

@@ -114,6 +114,7 @@ function LiquidationChartPanel({
         priceAxis={priceAxis}
         shareAxisTicks={shareAxisTicks}
         showShareLegend={false}
+        liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
       />
     </>
   );

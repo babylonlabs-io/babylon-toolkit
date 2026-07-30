@@ -119,6 +119,12 @@
 }
 
 /* ---- Top collateral-share legend (Seizure Map) --------------------- */
+.bbn-liq-legend__seg {
+  transition: opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out);
+}
+.bbn-liq-legend__seg--liquidated {
+  opacity: 0.32;
+}
 .bbn-liq-legend__rect--tone-1 {
   fill: var(--liq-band-1);
 }

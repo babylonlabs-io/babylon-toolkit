@@ -15,9 +15,6 @@ import type { PriceScale } from "./priceScale";
 import { chartFont, truncateToWidth } from "./textMeasure";
 import type { LiquidationBand, SafeZone } from "./types";
 
-/** Minimum band height (plot fraction) so a band stays visible/hoverable. */
-const MIN_BAND_FRAC = 0.06;
-
 export interface SeizureGutterProps {
   bands: LiquidationBand[];
   priceScale: PriceScale;
@@ -31,14 +28,17 @@ export interface SeizureGutterProps {
   safeZone?: SafeZone;
   compact: boolean;
   hideBandLabels: boolean;
+  liquidatedLabel?: string;
 }
 
 /**
  * The pluggable seizure-map column inside the Timeline: safe zone on top,
- * then the liquidation bands. Each band's TOP is anchored exactly at its
- * trigger price; bands extend downward (with a minimum height) and anything
- * past the plot floor is clipped by this group — events below the visible
- * price domain are simply out of frame. Extend the price axis to reveal them.
+ * then the liquidation bands. The safe zone stays anchored to the first
+ * trigger price; the space below it is divided into EQUAL blocks, one per
+ * event, so every event reads at the same size regardless of its price span.
+ * Level lines and axis pills mark the trigger prices that fall inside the
+ * price axis; an event triggering below the axis floor keeps its block but
+ * goes unmarked — extend the axis to put its price on the frame.
  */
 export function SeizureGutter({
   bands,
@@ -51,21 +51,18 @@ export function SeizureGutter({
   safeZone,
   compact,
   hideBandLabels,
+  liquidatedLabel,
 }: SeizureGutterProps) {
   const clipId = useId();
 
   const bandGeom = useMemo(() => {
     const geoms = new Map<string, { top: number; height: number }>();
-    const minHeight = MIN_BAND_FRAC * plotHeight;
-    let cursor = 0;
-    for (const b of bands) {
-      // Anchor at the true price; `cursor` only prevents overlap when a
-      // previous band's minimum height ran past this band's trigger.
-      const top = Math.max(priceScale(b.priceTop), cursor);
-      const bottom = Math.max(priceScale(b.priceBottom), top + minHeight);
-      geoms.set(b.key, { top, height: bottom - top });
-      cursor = bottom;
-    }
+    if (!bands.length) return geoms;
+    const firstTop = priceScale(bands[0].priceTop);
+    const blockHeight = Math.max(0, (plotHeight - firstTop) / bands.length);
+    bands.forEach((b, i) => {
+      geoms.set(b.key, { top: firstTop + i * blockHeight, height: blockHeight });
+    });
     return geoms;
   }, [bands, priceScale, plotHeight]);
 
@@ -136,6 +133,7 @@ export function SeizureGutter({
         fontAmount={fontAmount}
         compact={compact}
         hideBandLabels={hideBandLabels}
+        liquidatedLabel={liquidatedLabel}
       />
     </Group>
   );

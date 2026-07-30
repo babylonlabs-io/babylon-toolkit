@@ -3,6 +3,7 @@ import { GridColumns } from "@visx/grid";
 import { scaleLinear } from "@visx/scale";
 import { Bar } from "@visx/shape";
 import { Text } from "@visx/text";
+import { twJoin } from "tailwind-merge";
 import "./LiquidationChart.css";
 import { BandLayer, type BandRect } from "./BandLayer";
 import { ChartFrame, useChartLayout } from "./ChartFrame";
@@ -11,15 +12,18 @@ import { createSegmentedPriceScale } from "./priceScale";
 import { chartFont, truncateToWidth } from "./textMeasure";
 import type { LiquidationBand, SeizureMapProps } from "./types";
 
-/** Collateral-share legend strip above the plot (0.6 BTC / 0.4 BTC / …). */
+/** Collateral-share legend strip above the plot (0.6 BTC / 0.4 BTC / …).
+ * A liquidated band's segment dims and swaps its amount for `liquidatedLabel`. */
 function ShareLegend({
   bands,
   shareScale,
   layout,
+  liquidatedLabel,
 }: {
   bands: LiquidationBand[];
   shareScale: (share: number) => number;
   layout: ChartLayout;
+  liquidatedLabel?: string;
 }) {
   return (
     <>
@@ -27,8 +31,10 @@ function ShareLegend({
         const x = shareScale(band.shareStart);
         const isLast = index === bands.length - 1;
         const width = Math.max(0, shareScale(band.shareEnd) - x - (isLast ? 0 : LEGEND_GAP_PX));
+        const liquidated = band.state === "liquidated";
+        const text = liquidated && liquidatedLabel ? liquidatedLabel : band.amountLabel;
         return (
-          <g key={band.key}>
+          <g key={band.key} className={twJoin("bbn-liq-legend__seg", liquidated && "bbn-liq-legend__seg--liquidated")}>
             <Bar
               className={`bbn-liq-legend__rect bbn-liq-legend__rect--tone-${band.tone}`}
               x={x}
@@ -46,7 +52,7 @@ function ShareLegend({
               fontSize={layout.fontLabel}
               pointerEvents="none"
             >
-              {truncateToWidth(band.amountLabel, chartFont(layout.fontLabel), width - 2 * LEGEND_PAD_X_PX)}
+              {truncateToWidth(text, chartFont(layout.fontLabel), width - 2 * LEGEND_PAD_X_PX)}
             </Text>
           </g>
         );
@@ -70,6 +76,7 @@ export function SeizureMap({
   priceLineColor,
   priceLineLabelColor,
   hideBandLabels,
+  liquidatedLabel,
   className,
 }: SeizureMapProps) {
   const compact = variant === "compact";
@@ -113,7 +120,11 @@ export function SeizureMap({
       priceLineColor={priceLineColor}
       priceLineLabelColor={priceLineLabelColor}
       className={className}
-      topLegend={hasTopLegend ? <ShareLegend bands={bands} shareScale={shareScale} layout={layout} /> : undefined}
+      topLegend={
+        hasTopLegend ? (
+          <ShareLegend bands={bands} shareScale={shareScale} layout={layout} liquidatedLabel={liquidatedLabel} />
+        ) : undefined
+      }
     >
       {(grid?.lines ?? "both") === "both" ? (
         <GridColumns
@@ -131,6 +142,7 @@ export function SeizureMap({
         fontAmount={layout.fontAmount}
         compact={compact}
         hideBandLabels={Boolean(hideBandLabels)}
+        liquidatedLabel={liquidatedLabel}
       />
     </ChartFrame>
   );

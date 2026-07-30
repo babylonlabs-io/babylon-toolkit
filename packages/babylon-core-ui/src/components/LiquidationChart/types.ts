@@ -90,6 +90,12 @@ interface LiquidationChartBase {
    * For dense/preview surfaces.
    */
   hideBandLabels?: boolean;
+  /**
+   * Pre-formatted text a liquidated band shows in place of its sublabel and
+   * amount, e.g. "Liquidated"; the share legend swaps it for the amount too.
+   * Omit to keep a liquidated band's normal text (it still dims).
+   */
+  liquidatedLabel?: string;
   className?: string;
 }
 
