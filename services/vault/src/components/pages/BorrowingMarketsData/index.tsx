@@ -30,11 +30,7 @@ import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { useDemoMarketData } from "@/dev/demoMarketData";
-import {
-  getAssetPickerRoute,
-  MARKET_RESERVE_PARAM,
-  parseReserveId,
-} from "@/routes";
+import { getAssetPickerRoute, getMarketSlug, MARKET_PARAM } from "@/routes";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
@@ -146,17 +142,17 @@ export default function BorrowingMarketsData() {
   const effectiveCollateralFactor =
     demoMarketData?.collateralFactor ?? splitParams?.CF ?? null;
 
-  // Resolve by the reserve's on-chain id, never by a token symbol from the URL:
-  // the symbol is indexer-supplied, so labelling this page from it lets a
-  // compromised indexer decide which market the user is reading (audit F7).
-  // Exactly one match or none — `.find` would take whichever duplicate the
-  // indexer ordered first.
+  // Resolve by the registry slug the link was built from, never by the
+  // indexer's own symbol — see `getMarketSlug` for why that distinction is the
+  // audit-F7 boundary. Exactly one match or none: `.find` would take whichever
+  // duplicate the indexer ordered first.
   const selectedReserve = useMemo(() => {
-    const target = parseReserveId(params[MARKET_RESERVE_PARAM]);
-    const matches =
-      target === null
-        ? []
-        : effectiveReserves.filter((r) => r.reserveId === target);
+    const slug = params[MARKET_PARAM]?.toLowerCase();
+    const matches = !slug
+      ? []
+      : effectiveReserves.filter(
+          (r) => getMarketSlug(r.reserveId, r.reserve.underlying) === slug,
+        );
     if (matches.length === 1) return matches[0];
     // Demo only: the fixtures replace the live reserve set, so whatever id is
     // already in the URL matches none of them. Falling back to the first

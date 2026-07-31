@@ -1,9 +1,10 @@
 /**
  * BorrowingMarketsData — reserve resolution and header labelling.
  *
- * The page is addressed by the reserve's on-chain id and labelled from the
- * proven identity, so a spoofed indexer symbol can neither steer which market
- * opens nor name the one that does (audit F7).
+ * The page is addressed by a registry-backed slug (the on-chain id for tokens
+ * the registry doesn't know) and labelled from the proven identity, so a
+ * spoofed indexer symbol can neither steer which market opens nor name the one
+ * that does (audit F7).
  */
 
 import { render, screen } from "@testing-library/react";
@@ -45,6 +46,8 @@ vi.mock("@/config/featureFlags", () => ({
 vi.mock("@/services/token/tokenService", () => ({
   getCurrencyIconWithFallback: () => "icon.png",
   getTokenByAddress: () => null,
+  // No registry entry for this fixture's underlying, so its slug is the id.
+  getRegisteredTokenByAddress: () => null,
 }));
 
 // Reserve 2 is genuinely WETH; the indexer labels it "USDC".
@@ -105,7 +108,7 @@ function resolved(overrides: Record<string, unknown> = {}) {
 describe("BorrowingMarketsData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockParams.mockReturnValue({ reserveId: "2" });
+    mockParams.mockReturnValue({ market: "2" });
     mockUseVerifiedReserveIdentity.mockReturnValue(resolved());
     mockUseAaveBorrowAprs.mockReturnValue({ aprPercentByReserveId: {} });
     mockUseAaveReserveLiquidity.mockReturnValue({ liquidityByReserveId: {} });
@@ -140,8 +143,8 @@ describe("BorrowingMarketsData", () => {
     expect(screen.getByText("WETH")).toBeInTheDocument();
   });
 
-  it("blocks a legacy symbol URL instead of resolving it", () => {
-    mockParams.mockReturnValue({ reserveId: "usdc" });
+  it("blocks a symbol URL the registry doesn't back instead of resolving it", () => {
+    mockParams.mockReturnValue({ market: "usdc" });
     mockUseVerifiedReserveIdentity.mockReturnValue(
       resolved({ identity: null }),
     );
@@ -156,7 +159,7 @@ describe("BorrowingMarketsData", () => {
   });
 
   it("reports an id matching no reserve as not found", () => {
-    mockParams.mockReturnValue({ reserveId: "99999" });
+    mockParams.mockReturnValue({ market: "99999" });
     mockUseVerifiedReserveIdentity.mockReturnValue(
       resolved({ identity: null }),
     );

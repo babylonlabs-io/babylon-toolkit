@@ -27,7 +27,7 @@ import NotFound from "./components/pages/not-found";
 import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
-import { MARKET_RESERVE_PARAM, RESERVE_QUERY_KEYS, ROUTES } from "./routes";
+import { MARKET_PARAM, RESERVE_QUERY_KEYS, ROUTES } from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -211,7 +211,7 @@ export const Router = () => {
             }
           />
           <Route
-            path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
+            path={`${ROUTES.MARKETS}/:${MARKET_PARAM}`}
             element={
               featureFlags.isV3UiEnabled &&
               featureFlags.isMarketDetailPageEnabled ? (
