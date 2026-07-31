@@ -7,14 +7,21 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
+import type { Hex } from "viem";
 
 import { isActivateAndRedeemBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { useVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 
 interface EmergencyWithdrawConfirmContentProps {
   /** True when the stuck state was detected on-chain — drives the body copy. */
   stuckStateDetected: boolean;
+  /**
+   * Vault whose application registration gates this exit. `undefined` while
+   * unknown (loading or a failed read) — see {@link useVaultApplicationActive}.
+   */
+  vaultId: Hex;
   /** Reveal + redeem in flight (wallet popup or on-chain submission). */
   withdrawing: boolean;
   error: string | null;
@@ -33,6 +40,7 @@ interface EmergencyWithdrawConfirmContentProps {
  */
 export function EmergencyWithdrawConfirmContent({
   stuckStateDetected,
+  vaultId,
   withdrawing,
   error,
   errorTerminal,
@@ -42,10 +50,19 @@ export function EmergencyWithdrawConfirmContent({
   const [acknowledged, setAcknowledged] = useState(false);
 
   const gate = useProtocolGateState();
+  // Withheld only on a CONFIRMED non-Active application: the registry rejects
+  // the redeem in that state, so offering it would spend the user's
+  // acknowledgement on a transaction that cannot succeed. `undefined` (loading
+  // or a failed read) does NOT block — over-blocking strands a depositor whose
+  // peg-in is already swept, and the pre-broadcast simulation still refuses to
+  // sign into a genuinely inactive application.
+  const applicationActive = useVaultApplicationActive(vaultId);
+  const applicationInactive = applicationActive === false;
   const canWithdraw =
     acknowledged &&
     !withdrawing &&
     !errorTerminal &&
+    !applicationInactive &&
     !isActivateAndRedeemBlocked(gate);
 
   return (
@@ -92,6 +109,13 @@ export function EmergencyWithdrawConfirmContent({
       </label>
 
       <div className="flex flex-col gap-4">
+        {/* Explains the withheld confirm button. Ordered before `error` so a
+            live blocker outranks a stale message from an earlier attempt. */}
+        {applicationInactive && (
+          <Callout variant="warning">
+            {COPY.deposit.emergencyWithdraw.applicationInactive}
+          </Callout>
+        )}
         {error && <Callout variant="error">{error}</Callout>}
         <div className="flex w-full gap-4">
           <Button

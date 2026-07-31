@@ -156,6 +156,7 @@ export function EmergencyWithdrawModal({
     <V3ModalShell open={open} onClose={withdrawing ? undefined : onClose}>
       <EmergencyWithdrawConfirmContent
         stuckStateDetected={stuckStateDetected}
+        vaultId={activity.id}
         withdrawing={withdrawing}
         error={error}
         errorTerminal={isTerminal}

@@ -219,8 +219,11 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   VaultProviderCommissionExceeded:
     "The vault provider's commission rate exceeds your acceptable maximum. Please try again.",
+  // Phase-agnostic by necessity: this map is consulted for BOTH a pre-broadcast
+  // simulation failure (nothing signed or sent) and a mined revert, so it must
+  // not assert anything about whether a transaction reached the chain.
   ApplicationNotActive:
-    "The application this vault is registered with is not active on the vault registry, so activation cannot proceed. No transaction was sent and your secret has not been revealed.",
+    "The application this BTC Vault is registered with is not active on the vault registry, so this operation cannot proceed.",
   BlocklistedVaultKeeper:
     "This vault keeper has been blocklisted and cannot perform this action.",
   PostExpiryGraceWindowElapsed:

@@ -488,6 +488,12 @@ export const COPY = {
         "This reveals your HTLC secret and redeems the BTC Vault without activating it. The vault provider will send your BTC to your payout address. If you are unsure, cancel and wait — letting the BTC Vault expire and refunding is the safe default.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
+      // Shown when the vault's application is registered but not Active on
+      // chain: the registry rejects the redeem in that state, so the action
+      // is withheld rather than failing after the user commits to revealing
+      // the secret.
+      applicationInactive:
+        "This BTC Vault's application is not currently active on the vault registry, so withdrawing would be rejected. Your secret has not been revealed. Please try again later or contact support.",
       confirmButton: "Withdraw without activating",
       retryButton: "Retry",
       cancelButton: "Cancel",
