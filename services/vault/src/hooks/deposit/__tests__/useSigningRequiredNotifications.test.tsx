@@ -66,6 +66,28 @@ describe("useSigningRequiredNotifications", () => {
     expect(ctx.notify).toHaveBeenCalledTimes(1);
   });
 
+  it("does not notify for a deposit whose polling result carries an error", () => {
+    // A params outage sets `error` on every deposit and the continuation UI
+    // collapses an errored result to `noAction` — the CTA the notification
+    // would point at is suppressed, so the nudge would land on a dead end.
+    renderHook(() =>
+      useSigningRequiredNotifications(
+        ACTIVITIES,
+        () =>
+          ({
+            isOwnedByCurrentWallet: true,
+            loading: false,
+            error: new Error("params unavailable"),
+            peginState: {
+              availableActions: [PeginAction.SUBMIT_WOTS_KEY],
+            },
+          }) as unknown as DepositPollingResult,
+        "btcpubkey",
+      ),
+    );
+    expect(ctx.notify).not.toHaveBeenCalled();
+  });
+
   it("does not notify for a deposit in a warning display state", () => {
     renderHook(() =>
       useSigningRequiredNotifications(
