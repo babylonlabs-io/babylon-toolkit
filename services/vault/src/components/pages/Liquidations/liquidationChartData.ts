@@ -63,6 +63,36 @@ export interface LiquidationChartOptions {
   collateralFactor: number;
 }
 
+/** Header figures for the analysis section at a (simulated) price. */
+export interface LiquidationSimulationSummary {
+  vaultsLiquidated: number;
+  vaultsTotal: number;
+  /** True cumulative share of collateral seized, whole percent. */
+  seizedPct: number;
+  /** Collateral left after the seized groups, pre-formatted. */
+  collateralRemainingLabel: string;
+}
+
+/**
+ * What the cascade looks like at `btcPrice`: a group is seized once the price
+ * is at or below its trigger — the same rule that flips a band's `state`.
+ */
+export function buildSimulationSummary(
+  result: CalculatorResult,
+  btcPrice: number,
+): LiquidationSimulationSummary {
+  const groups = result.groups;
+  const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
+  const seized = groups.filter((g) => btcPrice <= g.liquidationPrice);
+  const seizedBtc = seized.reduce((sum, g) => sum + g.combinedBtc, 0);
+  return {
+    vaultsLiquidated: seized.reduce((sum, g) => sum + g.vaults.length, 0),
+    vaultsTotal: groups.reduce((sum, g) => sum + g.vaults.length, 0),
+    seizedPct: totalBtc > 0 ? Math.round((seizedBtc / totalBtc) * 100) : 0,
+    collateralRemainingLabel: formatBtcAmount(totalBtc - seizedBtc),
+  };
+}
+
 /**
  * Headroom below the last trigger for the axis floor, so the final event reads
  * as a band rather than a hairline. The axis deliberately stops above $0.

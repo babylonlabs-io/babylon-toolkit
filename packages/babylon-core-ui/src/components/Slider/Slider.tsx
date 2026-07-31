@@ -21,6 +21,7 @@ export interface SliderProps {
   className?: string;
   disabled?: boolean;
   showFill?: boolean;
+  "aria-label"?: string;
 }
 
 export function Slider({
@@ -37,6 +38,7 @@ export function Slider({
   className,
   disabled = false,
   showFill = true,
+  "aria-label": ariaLabel,
 }: SliderProps) {
   const fillPercentage = useMemo(() => {
     return ((value - min) / (max - min)) * 100;
@@ -125,6 +127,7 @@ export function Slider({
         value={value}
         onChange={(e) => handleChange(parseFloat(e.target.value))}
         disabled={disabled}
+        aria-label={ariaLabel}
         className={twJoin(
           "bbn-slider",
           `bbn-slider-${variant}`,

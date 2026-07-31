@@ -1303,6 +1303,7 @@ export const COPY = {
         "Vaults are seized in order — each vault group is one liquidation event.",
       badgeSacrificial: "Sacrificial",
       badgeProtected: "Protected",
+      liquidatedInSimulation: "Liquidated in Simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: "Distance",

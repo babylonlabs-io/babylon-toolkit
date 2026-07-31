@@ -5,7 +5,10 @@ import type {
   LiquidationGroup,
 } from "@/applications/aave/positionNotifications/types";
 
-import { buildLiquidationChartData } from "../liquidationChartData";
+import {
+  buildLiquidationChartData,
+  buildSimulationSummary,
+} from "../liquidationChartData";
 
 // ── Fixtures ─────────────────────────────────────────────────────
 
@@ -216,5 +219,60 @@ describe("buildLiquidationChartData", () => {
     expect(cards[0].fairness.label).toBe("Fairness Payment (wBTC)");
     expect(cards[0].fairness.value).toContain("$81");
     expect(cards[0].fairness.value).toContain("0.002"); // 81 / 40500 = 0.002 BTC
+  });
+});
+
+describe("buildSimulationSummary", () => {
+  it("reports nothing seized while the price is above every trigger", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const summary = buildSimulationSummary(result, 90_000);
+
+    expect(summary.vaultsLiquidated).toBe(0);
+    expect(summary.vaultsTotal).toBe(2);
+    expect(summary.seizedPct).toBe(0);
+    expect(summary.collateralRemainingLabel).toMatch(/^1 /);
+  });
+
+  it("seizes a group once the price reaches its trigger", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const summary = buildSimulationSummary(result, 77_682);
+
+    expect(summary.vaultsLiquidated).toBe(1);
+    expect(summary.seizedPct).toBe(60);
+    expect(summary.collateralRemainingLabel).toMatch(/^0\.4 /);
+  });
+
+  it("seizes everything below the last trigger and counts every vault", () => {
+    const result = makeResult([
+      makeGroup(0, {
+        combinedBtc: 0.6,
+        liquidationPrice: 77_682,
+        vaults: [
+          { id: "a", name: "Vault 1", btc: 0.3 },
+          { id: "b", name: "Vault 2", btc: 0.3 },
+        ],
+      }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const summary = buildSimulationSummary(result, 10_000);
+
+    expect(summary.vaultsLiquidated).toBe(3);
+    expect(summary.vaultsTotal).toBe(3);
+    expect(summary.seizedPct).toBe(100);
+    expect(summary.collateralRemainingLabel).toMatch(/^0 /);
+  });
+
+  it("degrades to zeros with no groups", () => {
+    const summary = buildSimulationSummary(makeResult([]), 90_000);
+
+    expect(summary.vaultsLiquidated).toBe(0);
+    expect(summary.vaultsTotal).toBe(0);
+    expect(summary.seizedPct).toBe(0);
   });
 });
