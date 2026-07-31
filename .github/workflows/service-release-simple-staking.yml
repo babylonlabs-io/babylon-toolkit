@@ -65,6 +65,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          # Job holds contents:write; don't leave the token in .git/config while
+          # pnpm install / build run untrusted deps.
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
@@ -142,34 +146,44 @@ jobs:
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
 
-      - name: Publish checksum manifest as immutable release asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Append-only per-deploy sha256 manifest for the frontend integrity
-          # checker (devops-backlog#253). Public + immutable per-sha => the
-          # checker reads it with no credentials, from a different trust domain
-          # than the AWS serving path. One pinned release acts as the store.
-          RELEASE_TAG=frontend-manifests
-          ASSET="/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt"
-          gh release create "$RELEASE_TAG" \
-            --title "Frontend integrity manifests" \
-            --notes "Append-only sha256 manifests consumed by the frontend integrity checker (devops-backlog#253). Do not delete." \
-            --latest=false 2>/dev/null || true
-          # Write-once: never overwrite an already-published manifest for this
-          # sha. Builds aren't byte-reproducible (run_id embedded), so a rerun
-          # with --clobber could swap the checker's source of truth. Keeping the
-          # original is fail-safe — a stale manifest alerts, it can't hide.
-          ASSET_NAME="$(basename "$ASSET")"
-          if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -qxF "$ASSET_NAME"; then
-            echo "manifest $ASSET_NAME already published — keeping the immutable original"
-          else
-            gh release upload "$RELEASE_TAG" "$ASSET"
-          fi
-
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}.tar.gz
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-files-checksum.txt
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-global-checksum.txt
+
+      # Last step: publishing the manifest must not block the S3 uploads above.
+      - name: Publish checksum manifests as write-once release assets
+        # Only real deploy refs — workflow_dispatch can run from any branch, and
+        # the public store must hold manifests only for builds that shipped.
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/v1.x' || startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Append-only per-deploy sha256 manifests for the frontend integrity
+          # checker (devops-backlog#253). Public, so the checker reads them with
+          # no credentials, from a different trust domain than the AWS serving path.
+          RELEASE_TAG=frontend-manifests
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" \
+              --title "Frontend integrity manifests" \
+              --notes "Append-only sha256 manifests for the frontend integrity checker (devops-backlog#253). Do not delete." \
+              --latest=false || true
+          for ASSET in \
+            "/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt" \
+            "/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt"; do
+            NAME="$(basename "$ASSET")"
+            URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${NAME}"
+            # Write-once, checked against the URL the checker actually reads (not
+            # the producer's asset list): survives the create race, asset-list
+            # truncation and a draft release. Builds aren't byte-reproducible
+            # (run_id embedded), so a rerun must never swap a published manifest.
+            if curl -sfIL -o /dev/null "$URL"; then
+              echo "manifest $NAME already published — keeping the original"
+            else
+              gh release upload "$RELEASE_TAG" "$ASSET"
+              curl -sfIL -o /dev/null "$URL" || { echo "::error::manifest not retrievable at $URL"; exit 1; }
+            fi
+          done
