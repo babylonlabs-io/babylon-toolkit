@@ -771,4 +771,138 @@ describe("DepositProgressView", () => {
       ).toHaveLength(1);
     });
   });
+
+  describe("error diagnostics", () => {
+    it("copies the raw error when the callout's copy action is used", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          error={{
+            title: "Transaction failed",
+            body: "An unknown RPC error occurred. header not found",
+            diagnostics: "TransactionExecutionError: ... data: 0x68d177ac",
+          }}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.errors.copyDiagnostics,
+        }),
+      );
+
+      expect(writeText).toHaveBeenCalledWith(
+        "TransactionExecutionError: ... data: 0x68d177ac",
+      );
+      expect(
+        await screen.findByRole("button", {
+          name: COPY.deposit.errors.diagnosticsCopied,
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("says so instead of claiming success when the clipboard refuses", async () => {
+      // Denied permission or an insecure context: a false "Copied" would send
+      // the reporter off to paste nothing.
+      const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          error={{
+            title: "Transaction failed",
+            body: "An unknown RPC error occurred.",
+            diagnostics: "TransactionExecutionError: ...",
+          }}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.errors.copyDiagnostics,
+        }),
+      );
+
+      expect(
+        await screen.findByRole("button", {
+          name: COPY.deposit.errors.diagnosticsCopyFailed,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: COPY.deposit.errors.diagnosticsCopied,
+        }),
+      ).not.toBeInTheDocument();
+      // "copy manually" is only actionable if the text is actually on screen.
+      expect(
+        screen.getByText("TransactionExecutionError: ..."),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the raw diagnostics out of the callout until a copy fails", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          error={{
+            title: "Transaction failed",
+            body: "An unknown RPC error occurred.",
+            diagnostics: "TransactionExecutionError: ... data: 0x68d177ac",
+          }}
+        />,
+      );
+
+      expect(screen.queryByText(/0x68d177ac/)).not.toBeInTheDocument();
+    });
+
+    it("reports failure when the clipboard API is unavailable", async () => {
+      Object.assign(navigator, { clipboard: undefined });
+
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          error={{
+            title: "Transaction failed",
+            body: "An unknown RPC error occurred.",
+            diagnostics: "TransactionExecutionError: ...",
+          }}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.errors.copyDiagnostics,
+        }),
+      );
+
+      expect(
+        await screen.findByRole("button", {
+          name: COPY.deposit.errors.diagnosticsCopyFailed,
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("offers no copy action when the error carries no diagnostics", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          error={{ title: "Transaction rejected", body: "You declined." }}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", {
+          name: COPY.deposit.errors.copyDiagnostics,
+        }),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

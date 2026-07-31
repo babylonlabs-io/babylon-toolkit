@@ -656,6 +656,11 @@ export const COPY = {
       defaultTitle: TRANSACTION_FAILED_TITLE,
       genericBody:
         "Something went wrong during your deposit. Please try again.",
+      // Action on the error callout: puts the full raw error on the clipboard
+      // so a report carries the whole thing, not a screenshot of part of it.
+      copyDiagnostics: "Copy error details",
+      diagnosticsCopied: "Copied",
+      diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
