@@ -187,3 +187,13 @@ jobs:
               curl -sfIL -o /dev/null "$URL" || { echo "::error::manifest not retrievable at $URL"; exit 1; }
             fi
           done
+          # Keep the release well under GitHub's 1000-asset/release cap. Only the
+          # currently-deployed sha per env is ever looked up, so older manifests
+          # are dead weight — keep the most recent 500, drop the rest. Best-effort
+          # (|| true) so a prune race across the env matrix can't fail the publish.
+          KEEP=500
+          gh release view "$RELEASE_TAG" --json assets \
+            --jq ".assets | sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].name" \
+          | while IFS= read -r OLD; do
+              [ -n "$OLD" ] && gh release delete-asset "$RELEASE_TAG" "$OLD" --yes 2>/dev/null || true
+            done || true
