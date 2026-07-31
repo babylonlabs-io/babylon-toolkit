@@ -386,7 +386,6 @@ describe("ResumeWotsContent — submission marker", () => {
     mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
     mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
     mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
-    resetOptimisticDepositState();
   });
 
   it("records the WOTS submission so the dashboard row stops offering the button", async () => {
@@ -442,7 +441,16 @@ describe("ResumeWotsContent — submission marker", () => {
     // The TTL expiring re-offers SUBMIT_WOTS_KEY, which remounts this
     // component. Auto-firing there would open a wallet prompt at a modal the
     // user left sitting open, with no gesture behind it.
+    //
+    // Record the marker 21 minutes in the past (fake timers only for the
+    // write, real timers restored for the async render below) so the fixture
+    // is the production scenario the title names: a marker that is present
+    // but past the 20-minute TTL — not merely present.
+    const lapsedStamp = Date.now() - 21 * 60 * 1000;
+    vi.useFakeTimers();
+    vi.setSystemTime(lapsedStamp);
     markWotsSubmitted(baseActivity.id);
+    vi.useRealTimers();
 
     const { getByTestId } = render(
       <ResumeWotsContent
