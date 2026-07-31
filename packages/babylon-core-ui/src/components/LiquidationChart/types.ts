@@ -19,6 +19,16 @@ export type LiquidationBandTone = "1" | "2" | "3";
  */
 export type LiquidationBandState = "live" | "liquidated";
 
+/**
+ * Key/value rows shown in the band hover popover. All pre-formatted by the app.
+ * `emphasis` tints a value in the band's tone (e.g. the liquidation price).
+ */
+export interface BandPopoverMetric {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}
+
 export interface LiquidationBand {
   key: string;
   /** Primary label, e.g. "Liq Event 1". */
@@ -39,6 +49,10 @@ export interface LiquidationBand {
   shareEnd: number;
   state: LiquidationBandState;
   tone: LiquidationBandTone;
+  /** Rows for the hover popover (At price / Distance / Vaults / Seizes). */
+  popoverMetrics?: BandPopoverMetric[];
+  /** Popover footer value, e.g. "55% seized". */
+  cumulativeLabel?: string;
 }
 
 /** One OHLC bar. Timeline only; no data source exists yet. */

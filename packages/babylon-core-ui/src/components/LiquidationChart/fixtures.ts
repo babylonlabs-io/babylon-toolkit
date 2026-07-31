@@ -14,6 +14,13 @@ export const bands: LiquidationBand[] = [
     shareEnd: 0.55,
     state: "live",
     tone: "1",
+    popoverMetrics: [
+      { label: "At price", value: "$53,682", emphasis: true },
+      { label: "Distance", value: "-13.0%" },
+      { label: "Vaults", value: "Vault 1" },
+      { label: "Seizes", value: "0.60 BTC" },
+    ],
+    cumulativeLabel: "55% seized",
   },
   {
     key: "2",
@@ -26,6 +33,13 @@ export const bands: LiquidationBand[] = [
     shareEnd: 0.91,
     state: "live",
     tone: "2",
+    popoverMetrics: [
+      { label: "At price", value: "$40,283", emphasis: true },
+      { label: "Distance", value: "-34.7%" },
+      { label: "Vaults", value: "Vault 2" },
+      { label: "Seizes", value: "0.40 BTC" },
+    ],
+    cumulativeLabel: "91% seized",
   },
   {
     key: "3",
@@ -38,6 +52,13 @@ export const bands: LiquidationBand[] = [
     shareEnd: 1,
     state: "live",
     tone: "3",
+    popoverMetrics: [
+      { label: "At price", value: "$3,597", emphasis: true },
+      { label: "Distance", value: "-94.2%" },
+      { label: "Vaults", value: "Vault 3" },
+      { label: "Seizes", value: "0.10 BTC" },
+    ],
+    cumulativeLabel: "100% seized",
   },
 ];
 
@@ -51,7 +72,8 @@ export const priceAxis: PriceAxisTick[] = [
 
 export const shareAxisLabels = ["0%", "55%", "91%", "100%"];
 
-/** Linear price axis for the Timeline (candles need a true price scale). */
+/** Timeline price axis. The floor sits below the last trigger (mirroring the
+ * vault's floor = min trigger x 0.95) so every event stays on the frame. */
 export const timelinePriceAxis: PriceAxisTick[] = [
   { value: 90000, label: "$90,000" },
   { value: 80000, label: "$80,000" },
@@ -59,6 +81,7 @@ export const timelinePriceAxis: PriceAxisTick[] = [
   { value: 60000, label: "$60,000" },
   { value: 50000, label: "$50,000" },
   { value: 40000, label: "$40,000" },
+  { value: 3417, label: "$3,417" },
 ];
 
 export const timeAxisLabels = ["May 5", "12", "19", "Jun", "8", "15", "22"];
@@ -177,17 +200,6 @@ export function formatUsd(price: number): string {
 /** Bands with `state` derived from the simulated price. */
 export function simulateBandStates(base: LiquidationBand[], btcPrice: number): LiquidationBand[] {
   return base.map((b) => ({ ...b, state: btcPrice <= b.priceTop ? "liquidated" : "live" }));
-}
-
-/**
- * Segmented axis re-derived around the simulated price: the price itself,
- * every trigger, and the cascade floor, sorted descending and deduped —
- * the same rule the vault uses, so the axis re-flows as the price moves.
- */
-export function simulatedPriceAxis(base: LiquidationBand[], btcPrice: number): PriceAxisTick[] {
-  const floor = base[base.length - 1]?.priceBottom ?? 0;
-  const values = Array.from(new Set([btcPrice, ...base.map((b) => b.priceTop), floor])).sort((a, b) => b - a);
-  return values.map((value) => ({ value, label: formatUsd(value) }));
 }
 
 /** Safe-zone callout derived from the simulated price and the first trigger. */

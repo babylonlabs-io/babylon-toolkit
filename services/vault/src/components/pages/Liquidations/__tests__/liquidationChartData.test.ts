@@ -109,6 +109,64 @@ describe("buildLiquidationChartData", () => {
     expect(bands[0].shareEnd).toBeLessThan(0.6);
   });
 
+  it("equips each band with popover rows and the true cumulative share", () => {
+    const result = makeResult([
+      makeGroup(0, {
+        combinedBtc: 0.6,
+        liquidationPrice: 77_682,
+        distancePct: -12.1,
+      }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const { bands } = buildLiquidationChartData(result, {
+      btcPrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const rows = bands[0].popoverMetrics ?? [];
+    expect(rows.map((r) => r.label)).toEqual([
+      "At price",
+      "Distance",
+      "Vaults",
+      "Seizes",
+    ]);
+    expect(rows[0]).toMatchObject({ value: "$77,682", emphasis: true });
+    expect(rows[1].value).toBe("-12.1%");
+    expect(bands[0].cumulativeLabel).toBe("60% seized");
+    expect(bands[1].cumulativeLabel).toBe("100% seized");
+  });
+
+  it("anchors the axis to the live price, never the simulated one", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const { priceAxis } = buildLiquidationChartData(result, {
+      btcPrice: 60_000,
+      livePrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const values = priceAxis.map((t) => t.value);
+    expect(values[0]).toBe(90_000);
+    expect(values).not.toContain(60_000);
+  });
+
+  it("mints no axis segment below the floor when the simulated price drops under it", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const { priceAxis } = buildLiquidationChartData(result, {
+      btcPrice: 3_000,
+      livePrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const floor = 40_283 * 0.95;
+    expect(Math.min(...priceAxis.map((t) => t.value))).toBeCloseTo(floor);
+  });
+
   it("keeps the share axis honest about the true cumulative percentages", () => {
     // 90 / 9 / 1 by collateral: the last event is a sliver at true scale.
     const result = makeResult([

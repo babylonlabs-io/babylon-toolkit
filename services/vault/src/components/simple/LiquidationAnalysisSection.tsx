@@ -98,6 +98,7 @@ function LiquidationChartPanel({
       buildLiquidationChartData(cascade.result, {
         btcPrice: effectivePrice,
         collateralFactor: cascade.collateralFactor,
+        livePrice: cascade.btcPrice,
       }),
     [cascade, effectivePrice],
   );

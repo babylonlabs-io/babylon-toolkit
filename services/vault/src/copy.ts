@@ -1290,6 +1290,13 @@ export const COPY = {
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
     containVaults: (names: string) => `(contain ${names})`,
+    cumulativeSeized: (percent: number) => `${percent}% seized`,
+    popover: {
+      atPrice: "At price",
+      distance: "Distance",
+      vaults: "Vaults",
+      seizes: "Seizes",
+    },
     // Replaces a liquidated band's vault list + BTC amount on the chart.
     liquidatedBandLabel: "Liquidated",
     safeZone: {

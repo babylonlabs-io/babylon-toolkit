@@ -2,12 +2,13 @@
  * pixels from the measured chart width (see chartGeometry.ts); this file only
  * paints them. Geometry (positions, fonts, dropout thresholds) lives in TS.
  *
- * Colour tokens live at :root (light default + dark override). The dark
- * selector must list every signal a consumer sets — `.dark`, `data-mode`,
- * `data-theme` — since matching only one leaves a dark app drawing light
- * gridlines. Motion uses --motion-* tokens per docs/motion-system.md
- * (fallbacks reproduce legacy behaviour; reduced-motion handled by the global
- * reset). */
+ * Colour tokens live at :root (light default + dark override) because the
+ * band hover popover renders in a portal outside the chart subtree and must
+ * still inherit them. The dark selector must list every signal a consumer
+ * sets — `.dark`, `data-mode`, `data-theme` — since matching only one leaves
+ * a dark app drawing light gridlines. Motion uses --motion-* tokens per
+ * docs/motion-system.md (fallbacks reproduce legacy behaviour;
+ * reduced-motion handled by the global reset). */
 :root {
   --liq-band-1: #bf5833;
   --liq-band-2: #355e78;
@@ -22,6 +23,7 @@
   --liq-surface-text: #111111;
   --liq-surface-muted: #666666;
   --liq-surface-stroke: #e5e5e5;
+  --liq-surface-stroke-strong: #c4c4c4;
 }
 
 :root.dark,
@@ -33,6 +35,7 @@
   --liq-surface-text: #ffffff;
   --liq-surface-muted: #b0b0b0;
   --liq-surface-stroke: #2f2f2f;
+  --liq-surface-stroke-strong: #5a5a5a;
 }
 
 /* ---- Frame ---------------------------------------------------------- */
@@ -140,10 +143,15 @@
 
 /* ---- Bands ---------------------------------------------------------- */
 .bbn-liq-band {
-  transition: opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out);
+  transition:
+    opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out),
+    filter var(--motion-duration-icon, 180ms) var(--motion-ease-icon, ease-out);
 }
 .bbn-liq-band--liquidated {
   opacity: 0.32;
+}
+.bbn-liq-band--interactive:hover {
+  filter: brightness(1.06);
 }
 .bbn-liq-band__rect--tone-1 {
   fill: var(--liq-band-1);
@@ -261,4 +269,93 @@
 }
 .bbn-liq-safezone__line {
   fill: var(--liq-surface-muted);
+}
+
+/* ---- Hover popover (per the liq-event tooltip design) --------------- */
+.bbn-liq-popover .bbn-popover-content {
+  padding: 0;
+}
+/* Popper positions .bbn-liq-popover (inline transform) → animate opacity here,
+ * translate on the inner wrapper. Reduced-motion zeroes both via global reset. */
+.bbn-liq-popover {
+  animation: bbn-liq-pop-fade var(--motion-duration-tooltip, 140ms) var(--motion-ease-dropdown-in, ease-out) both;
+}
+.bbn-liq-popover__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 15rem;
+  max-width: 18rem;
+  padding: 0.75rem;
+  background: var(--liq-surface);
+  border: 1px solid var(--liq-surface-stroke);
+  border-radius: 0.5rem;
+  color: var(--liq-surface-text);
+  font-family: "Px Grotesk", sans-serif;
+  animation: bbn-liq-pop-rise var(--motion-duration-tooltip, 140ms) var(--motion-ease-dropdown-in, ease-out) both;
+}
+@keyframes bbn-liq-pop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes bbn-liq-pop-rise {
+  from {
+    transform: translateY(var(--motion-shift-dropdown, 4px));
+  }
+  to {
+    transform: none;
+  }
+}
+.bbn-liq-popover__chip {
+  align-self: flex-start;
+  padding: 0.1875rem 0.875rem;
+  border: 1px solid var(--liq-surface-stroke-strong);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  line-height: 1.43;
+  letter-spacing: 0.17px;
+  color: var(--liq-surface-text);
+}
+.bbn-liq-popover__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+.bbn-liq-popover__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1.66;
+  letter-spacing: 0.4px;
+}
+.bbn-liq-popover__row dt {
+  color: var(--liq-surface-muted);
+}
+.bbn-liq-popover__row dd {
+  margin: 0;
+  text-align: right;
+  color: var(--liq-surface-text);
+}
+.bbn-liq-popover__row--footer {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--liq-surface-stroke);
+}
+/* Element + class ties the plain `dd` rule's specificity; later order wins,
+ * so the tone tint sticks. */
+dd.bbn-liq-popover__value--tone-1 {
+  color: var(--liq-band-1);
+}
+dd.bbn-liq-popover__value--tone-2 {
+  color: var(--liq-band-2);
+}
+dd.bbn-liq-popover__value--tone-3 {
+  color: var(--liq-band-3);
 }

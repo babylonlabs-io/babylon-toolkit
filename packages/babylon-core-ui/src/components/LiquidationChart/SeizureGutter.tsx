@@ -18,6 +18,8 @@ import type { LiquidationBand, SafeZone } from "./types";
 export interface SeizureGutterProps {
   bands: LiquidationBand[];
   priceScale: PriceScale;
+  /** The (simulated) price; blocks the price line has passed render dimmed. */
+  currentPrice: number;
   /** Gutter width in px. */
   width: number;
   /** Plot height in px, for the clip rect. */
@@ -33,16 +35,16 @@ export interface SeizureGutterProps {
 
 /**
  * The pluggable seizure-map column inside the Timeline: safe zone on top,
- * then the liquidation bands. The safe zone stays anchored to the first
- * trigger price; the space below it is divided into EQUAL blocks, one per
- * event, so every event reads at the same size regardless of its price span.
- * Level lines and axis pills mark the trigger prices that fall inside the
- * price axis; an event triggering below the axis floor keeps its block but
- * goes unmarked — extend the axis to put its price on the frame.
+ * then the liquidation bands. Blocks tile from each trigger down to the next
+ * (the last one bottoms out at the plot floor), so with the Timeline's
+ * span-weighted scale every block edge carries its trigger's level line. An
+ * event triggering below the axis floor collapses out of frame — extend the
+ * axis to reveal it.
  */
 export function SeizureGutter({
   bands,
   priceScale,
+  currentPrice,
   width,
   plotHeight,
   fontAxis,
@@ -57,11 +59,10 @@ export function SeizureGutter({
 
   const bandGeom = useMemo(() => {
     const geoms = new Map<string, { top: number; height: number }>();
-    if (!bands.length) return geoms;
-    const firstTop = priceScale(bands[0].priceTop);
-    const blockHeight = Math.max(0, (plotHeight - firstTop) / bands.length);
     bands.forEach((b, i) => {
-      geoms.set(b.key, { top: firstTop + i * blockHeight, height: blockHeight });
+      const top = priceScale(b.priceTop);
+      const bottom = i + 1 < bands.length ? priceScale(bands[i + 1].priceTop) : plotHeight;
+      geoms.set(b.key, { top, height: Math.max(0, bottom - top) });
     });
     return geoms;
   }, [bands, priceScale, plotHeight]);
@@ -70,6 +71,16 @@ export function SeizureGutter({
   const bandRect = (b: LiquidationBand): BandRect => {
     const geom = bandGeom.get(b.key) ?? { top: 0, height: 0 };
     return { x: 0, y: geom.top, width, height: geom.height };
+  };
+
+  // A block reads as passed once the price LINE crosses its top edge — this
+  // matches `state` for on-axis triggers and also covers events clamped
+  // below the axis floor.
+  const priceLineY = priceScale(currentPrice);
+  const isBlockPassed = (b: LiquidationBand): boolean => {
+    if (b.state === "liquidated") return true;
+    const geom = bandGeom.get(b.key);
+    return geom ? priceLineY > geom.top : false;
   };
 
   // Safe-zone text stack: title always; the detail lines render whenever the
@@ -134,6 +145,7 @@ export function SeizureGutter({
         compact={compact}
         hideBandLabels={hideBandLabels}
         liquidatedLabel={liquidatedLabel}
+        isDimmed={isBlockPassed}
       />
     </Group>
   );

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createLinearPriceScale, createSegmentedPriceScale } from "../priceScale";
+import {
+  compressedSpanFractions,
+  createLinearPriceScale,
+  createSegmentedPriceScale,
+  timelineRegionFractions,
+} from "../priceScale";
 import type { PriceAxisTick } from "../types";
 
 const PLOT_HEIGHT = 320;
@@ -79,5 +84,55 @@ describe("createLinearPriceScale", () => {
     const scale = createLinearPriceScale(50000, 50000, PLOT_HEIGHT);
     expect(scale(50000)).toBe(0);
     expect(scale(99999)).toBe(0);
+  });
+});
+
+describe("compressedSpanFractions", () => {
+  it("weights regions by square-rooted span and sums to 1", () => {
+    const fractions = compressedSpanFractions([10_000, 40_000], 0.08);
+    expect(fractions[0]).toBeCloseTo(1 / 3, 9);
+    expect(fractions[1]).toBeCloseTo(2 / 3, 9);
+    expect(fractions[0] + fractions[1]).toBeCloseTo(1, 9);
+  });
+
+  it("floors a tiny region at the given minimum and renormalises the rest", () => {
+    const fractions = compressedSpanFractions([12_318, 37_399, 283], 0.08);
+    expect(fractions[2]).toBeCloseTo(0.08, 9);
+    expect(fractions.reduce((sum, f) => sum + f, 0)).toBeCloseTo(1, 9);
+    expect(fractions[1]).toBeGreaterThan(fractions[0]);
+  });
+
+  it("splits evenly when every span is zero", () => {
+    const fractions = compressedSpanFractions([0, 0], 0.08);
+    expect(fractions.reduce((sum, f) => sum + f, 0)).toBeCloseTo(1, 9);
+  });
+
+  it("returns nothing for no spans", () => {
+    expect(compressedSpanFractions([], 0.08)).toEqual([]);
+  });
+});
+
+describe("timelineRegionFractions", () => {
+  it("raises the safe zone to match the largest event", () => {
+    // Safe span far smaller than event 1: without the guarantee the candles
+    // would get ~32% of the plot; with it, safe equals the largest event.
+    const fractions = timelineRegionFractions([12_318, 37_399, 283], 0.1347);
+    expect(fractions[0]).toBeCloseTo(fractions[1], 9);
+    expect(fractions[0]).toBeGreaterThan(0.4);
+    expect(fractions[2]).toBeCloseTo(0.1347, 9);
+    expect(fractions.reduce((sum, f) => sum + f, 0)).toBeCloseTo(1, 3);
+  });
+
+  it("leaves an already-dominant safe zone alone", () => {
+    const fractions = timelineRegionFractions([80_000, 10_000, 10_000], 0.08);
+    const weighted = compressedSpanFractions([80_000, 10_000, 10_000], 0.08);
+    expect(fractions).toEqual(weighted);
+  });
+
+  it("keeps floored events at their minimum while equalising", () => {
+    const fractions = timelineRegionFractions([5_000, 40_000, 100, 90], 0.1);
+    expect(fractions[2]).toBeCloseTo(0.1, 9);
+    expect(fractions[3]).toBeCloseTo(0.1, 9);
+    expect(fractions[0]).toBeCloseTo(fractions[1], 9);
   });
 });

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SeizureMap } from "../SeizureMap";
 import type { LiquidationBand, PriceAxisTick } from "../types";
@@ -22,6 +22,11 @@ const bands: LiquidationBand[] = [
     shareEnd: 0.55,
     state: "live",
     tone: "1",
+    popoverMetrics: [
+      { label: "At price", value: "$77,682", emphasis: true },
+      { label: "Distance", value: "-12.1%" },
+    ],
+    cumulativeLabel: "55% seized",
   },
   {
     key: "2",
@@ -187,6 +192,20 @@ describe("SeizureMap", () => {
     expect(chart.queryByText("0.5 BTC")).not.toBeInTheDocument();
 
     expect(chart.queryByText("Event C")).not.toBeInTheDocument();
+  });
+
+  it("opens the event tooltip on band hover", () => {
+    renderMap();
+    fireEvent.mouseEnter(screen.getByTestId("liq-band-1"));
+    expect(screen.getByText("At price")).toBeInTheDocument();
+    expect(screen.getByText("Cumulative")).toBeInTheDocument();
+    expect(screen.getByText("55% seized")).toBeInTheDocument();
+  });
+
+  it("shows no tooltip for a band without popover metrics", () => {
+    renderMap();
+    fireEvent.mouseEnter(screen.getByTestId("liq-band-2"));
+    expect(screen.queryByText("Cumulative")).not.toBeInTheDocument();
   });
 
   it("rejects a non-descending price axis loudly", () => {

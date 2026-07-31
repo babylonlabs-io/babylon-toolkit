@@ -61,6 +61,13 @@ export interface LiquidationChartOptions {
   btcPrice: number;
   /** Collateral factor (0–1) from on-chain params, for post-liq HF. */
   collateralFactor: number;
+  /**
+   * The live BTC price anchoring the top of the axis. Defaults to `btcPrice`.
+   * Keeping the axis anchored here (never to the simulated price) is what lets
+   * the price line move smoothly through the fixed segments while dragging,
+   * instead of re-flowing the axis on every step.
+   */
+  livePrice?: number;
 }
 
 /** Header figures for the analysis section at a (simulated) price. */
@@ -195,7 +202,7 @@ function toCard(
 
 export function buildLiquidationChartData(
   result: CalculatorResult,
-  { btcPrice, collateralFactor }: LiquidationChartOptions,
+  { btcPrice, collateralFactor, livePrice }: LiquidationChartOptions,
 ): LiquidationChartData {
   const groups = result.groups;
   const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
@@ -205,8 +212,11 @@ export function buildLiquidationChartData(
   );
   const widthBoundaries = compressedShareBoundaries(shares);
 
+  let cumulativeBtc = 0;
   const bands: LiquidationBand[] = groups.map((group, i) => {
     const shareStart = widthBoundaries[i];
+    cumulativeBtc += group.combinedBtc;
+    const trueShareEnd = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
     const shareEnd = widthBoundaries[i + 1];
     // Band spans from where this event triggers down to the next event's
     // trigger; the last band bottoms out at the axis floor.
@@ -227,16 +237,41 @@ export function buildLiquidationChartData(
       shareEnd,
       state: btcPrice <= group.liquidationPrice ? "liquidated" : "live",
       tone,
+      popoverMetrics: [
+        {
+          label: COPY.liquidations.popover.atPrice,
+          value: formatPriceUsd(group.liquidationPrice),
+          emphasis: true,
+        },
+        {
+          label: COPY.liquidations.popover.distance,
+          value: formatSignedPct(group.distancePct),
+        },
+        {
+          label: COPY.liquidations.popover.vaults,
+          value: group.vaults.map((v) => v.name).join(", "),
+        },
+        {
+          label: COPY.liquidations.popover.seizes,
+          value: formatBtcAmount(group.targetSeizureBtc),
+        },
+      ],
+      cumulativeLabel: COPY.liquidations.cumulativeSeized(
+        Math.round(trueShareEnd * 100),
+      ),
     };
   });
 
-  // Segmented axis: current price, each trigger price, and the floor, sorted
-  // descending and deduped. Sorting (not prepending btcPrice) keeps the axis
-  // ordered when the simulator drops btcPrice below a trigger — otherwise
-  // segmentedFraction collapses the current-price rule and first event to the
-  // top. Dedup avoids duplicate tick values (React keys) when prices coincide.
+  // Segmented axis: the LIVE price, each trigger price, and the floor, sorted
+  // descending and deduped. The simulated price is deliberately NOT a tick —
+  // the chart interpolates it within its segment, so the line moves
+  // progressively while dragging and never mints an empty segment below the
+  // floor. Sorting keeps the axis ordered when the live price sits below a
+  // trigger; dedup avoids duplicate tick values (React keys) when prices
+  // coincide.
+  const axisAnchor = livePrice ?? btcPrice;
   const axisValues = Array.from(
-    new Set([btcPrice, ...groups.map((g) => g.liquidationPrice), floorPrice]),
+    new Set([axisAnchor, ...groups.map((g) => g.liquidationPrice), floorPrice]),
   ).sort((a, b) => b - a);
   const priceAxis: PriceAxisTick[] = axisValues.map((value) => ({
     value,

@@ -8,7 +8,12 @@ import "./LiquidationChart.css";
 import { ChartFrame, useChartLayout, type LevelMarker } from "./ChartFrame";
 import { SeizureGutter } from "./SeizureGutter";
 import { OVERLAY_INSET_PX } from "./chartGeometry";
-import { createLinearPriceScale } from "./priceScale";
+import {
+  createAnchoredPriceScale,
+  createLinearPriceScale,
+  timelineRegionFractions,
+  type PriceAnchor,
+} from "./priceScale";
 import type { Candle, TimelineProps } from "./types";
 
 /** Fraction of plot width reserved on the left for the liquidation bands. */
@@ -25,6 +30,9 @@ const CANDLE_BODY_MIN_HEIGHT = 0.004;
 const CANDLE_BODY_MIN_HEIGHT_PX = 1;
 /** Past this fraction of the candle region, the readout flips to the left. */
 const READOUT_FLIP_FRAC = 0.6;
+/** Floor for a weighted region, px: keeps the event label above its dropout
+ * threshold (26px content + padding) at any chart width. */
+const MIN_REGION_PX = 44;
 
 const defaultFormatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const defaultFormatTime = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -104,10 +112,33 @@ export function Timeline({
   const priceMax = priceAxis[0]?.value ?? currentPrice;
   const priceMin = priceAxis[priceAxis.length - 1]?.value ?? 0;
 
-  const priceScale = useMemo(
-    () => createLinearPriceScale(priceMax, priceMin, layout.plotHeight),
-    [priceMax, priceMin, layout.plotHeight],
-  );
+  // Deliberately non-uniform Y scale: every trigger is an anchor, and each
+  // region (safe zone, then trigger-to-trigger, then last trigger-to-floor)
+  // takes a vertical share weighted by its compressed price span — the split
+  // tracks the real values while small events stay readable, and the safe
+  // zone never drops below the largest event so the candles keep room.
+  // Without events (or with every trigger off-domain) it falls back to
+  // linear.
+  const priceScale = useMemo(() => {
+    const triggers = bands.map((b) => b.priceTop).filter((price) => price < priceMax && price > priceMin);
+    if (!triggers.length) {
+      return createLinearPriceScale(priceMax, priceMin, layout.plotHeight);
+    }
+    const stops = [priceMax, ...triggers, priceMin];
+    const fractions = timelineRegionFractions(
+      stops.slice(1).map((price, i) => stops[i] - price),
+      MIN_REGION_PX / layout.plotHeight,
+    );
+    let cumulative = 0;
+    const anchors: PriceAnchor[] = [
+      { price: priceMax, fraction: 0 },
+      ...stops.slice(1).map((price, i) => {
+        cumulative += fractions[i];
+        return { price, fraction: i === fractions.length - 1 ? 1 : cumulative };
+      }),
+    ];
+    return createAnchoredPriceScale(anchors, layout.plotHeight);
+  }, [bands, priceMax, priceMin, layout.plotHeight]);
 
   // Visible window. `startIndex === null` means "pinned to the most recent
   // candles" — this survives candles arriving asynchronously and is the
@@ -387,6 +418,7 @@ export function Timeline({
         <SeizureGutter
           bands={bands}
           priceScale={priceScale}
+          currentPrice={currentPrice}
           width={gutterWidth}
           plotHeight={layout.plotHeight}
           fontAxis={layout.fontAxis}

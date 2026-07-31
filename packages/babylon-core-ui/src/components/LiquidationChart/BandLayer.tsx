@@ -1,8 +1,9 @@
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 import { Bar } from "@visx/shape";
 import { Group } from "@visx/group";
 import { Text } from "@visx/text";
 import { twJoin } from "tailwind-merge";
+import { Popover } from "@/components/Popover";
 import {
   BAND_LINE_GAP_PX,
   BAND_PAD_X_PX,
@@ -14,6 +15,8 @@ import {
 } from "./chartGeometry";
 import { chartFont, truncateToWidth } from "./textMeasure";
 import type { LiquidationBand } from "./types";
+
+const HOVER_CLOSE_DELAY_MS = 120;
 
 /** A band's pixel rect inside the plot group. */
 export interface BandRect {
@@ -40,6 +43,12 @@ export interface BandLayerProps {
   hideBandLabels: boolean;
   /** Replaces a liquidated band's sublabel + amount. See {@link LiquidationChartBase}. */
   liquidatedLabel?: string;
+  /**
+   * Overrides which bands render dimmed. Defaults to the band's `state`; the
+   * Timeline gutter dims geometrically instead, because its blocks can extend
+   * past the price domain. The liquidated text swap always follows `state`.
+   */
+  isDimmed?: (band: LiquidationBand) => boolean;
 }
 
 /** Text lines a band has room for. Replaces the old `@container (max-height)`
@@ -80,14 +89,29 @@ export function BandLayer({
   compact,
   hideBandLabels,
   liquidatedLabel,
+  isDimmed,
 }: BandLayerProps) {
   const clipBaseId = useId();
+  const [hovered, setHovered] = useState<{ band: LiquidationBand; anchor: Element } | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setHovered(null), HOVER_CLOSE_DELAY_MS);
+  };
 
   return (
     <>
       {bands.map((band) => {
         const rect = bandRect(band);
-        const liquidated = band.state === "liquidated";
+        const dimmed = isDimmed ? isDimmed(band) : band.state === "liquidated";
+        const hoverable = Boolean(band.popoverMetrics?.length);
         const lines = visibleBandLines(
           band,
           rect.height,
@@ -109,7 +133,14 @@ export function BandLayer({
           nextTop += lineHeight + BAND_LINE_GAP_PX;
         }
         return (
-          <Group key={band.key} className={twJoin("bbn-liq-band", liquidated && "bbn-liq-band--liquidated")}>
+          <Group
+            key={band.key}
+            className={twJoin(
+              "bbn-liq-band",
+              dimmed && "bbn-liq-band--liquidated",
+              hoverable && "bbn-liq-band--interactive",
+            )}
+          >
             <clipPath id={clipId}>
               <rect x={rect.x} y={rect.y} width={rect.width} height={rect.height} />
             </clipPath>
@@ -120,6 +151,11 @@ export function BandLayer({
               width={rect.width}
               height={rect.height}
               data-testid={`liq-band-${band.key}`}
+              onMouseEnter={(e) => {
+                cancelClose();
+                if (band.popoverMetrics?.length) setHovered({ band, anchor: e.currentTarget });
+              }}
+              onMouseLeave={scheduleClose}
             />
             {lines.length > 0 ? (
               <g className="bbn-liq-band__text" clipPath={`url(#${clipId})`} pointerEvents="none">
@@ -140,6 +176,37 @@ export function BandLayer({
           </Group>
         );
       })}
+
+      <Popover
+        open={Boolean(hovered)}
+        anchorEl={hovered?.anchor ?? null}
+        placement="right-start"
+        offset={[0, 8]}
+        className="bbn-liq-popover"
+        onClickOutside={() => setHovered(null)}
+      >
+        {hovered ? (
+          <div className="bbn-liq-popover__inner" onMouseEnter={cancelClose} onMouseLeave={scheduleClose}>
+            <span className="bbn-liq-popover__chip">{hovered.band.label}</span>
+            <dl className="bbn-liq-popover__metrics">
+              {hovered.band.popoverMetrics?.map((m) => (
+                <div key={m.label} className="bbn-liq-popover__row">
+                  <dt>{m.label}</dt>
+                  <dd className={m.emphasis ? `bbn-liq-popover__value--tone-${hovered.band.tone}` : undefined}>
+                    {m.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {hovered.band.cumulativeLabel ? (
+              <div className="bbn-liq-popover__row bbn-liq-popover__row--footer">
+                <dt>Cumulative</dt>
+                <dd>{hovered.band.cumulativeLabel}</dd>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Popover>
     </>
   );
 }

@@ -12,7 +12,6 @@ import {
   shareAxisLabels,
   shareAxisTicks,
   simulateBandStates,
-  simulatedPriceAxis,
 } from "./fixtures";
 
 const meta: Meta<typeof SeizureMap> = {
@@ -49,6 +48,7 @@ export default meta;
 
 type Story = StoryObj<typeof SeizureMap>;
 
+/** Hover a band for the event tooltip. */
 export const Full: Story = {};
 
 interface SimulatorArgs {
@@ -59,9 +59,10 @@ interface SimulatorArgs {
 }
 
 /**
- * Drag the BTC price and watch the derived state re-flow: the price label,
- * the segmented axis, and which events read as liquidated — the same
- * projection rules the vault applies.
+ * Drag the BTC price and watch the derived state re-flow: the price line
+ * moves smoothly through the fixed segmented axis, and events read as
+ * liquidated as it crosses their triggers — the same projection rules the
+ * vault applies.
  */
 export const Simulator: StoryObj<SimulatorArgs> = {
   args: {
@@ -80,7 +81,7 @@ export const Simulator: StoryObj<SimulatorArgs> = {
   render: (args) => (
     <SeizureMap
       bands={simulateBandStates(bands, args.btcPrice)}
-      priceAxis={simulatedPriceAxis(bands, args.btcPrice)}
+      priceAxis={priceAxis}
       currentPrice={args.btcPrice}
       currentPriceLabel={formatUsd(args.btcPrice)}
       shareAxisLabels={shareAxisLabels}

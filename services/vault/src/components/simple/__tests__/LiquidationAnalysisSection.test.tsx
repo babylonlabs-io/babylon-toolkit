@@ -175,6 +175,16 @@ describe("LiquidationAnalysisSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens the event tooltip on band hover", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    fireEvent.mouseEnter(screen.getByTestId("liq-band-0"));
+
+    expect(
+      screen.getByText(COPY.liquidations.popover.atPrice),
+    ).toBeInTheDocument();
+  });
+
   // A position must never be charted from stand-in numbers, so with no cascade
   // the section renders nothing rather than an empty frame.
   it("renders nothing for a real position with no cascade", () => {

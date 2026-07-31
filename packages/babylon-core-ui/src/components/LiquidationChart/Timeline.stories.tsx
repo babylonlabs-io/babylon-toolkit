@@ -77,7 +77,7 @@ export const Simulator: StoryObj<SimulatorArgs> = {
     zoom: false,
   },
   argTypes: {
-    btcPrice: { control: { type: "range", min: 40000, max: 95000, step: 100 } },
+    btcPrice: { control: { type: "range", min: 3000, max: 95000, step: 100 } },
     candleCount: { control: { type: "range", min: 1, max: 160, step: 1 } },
     seriesStyle: { control: "inline-radio", options: ["candles", "line", "area"] },
   },
@@ -211,21 +211,17 @@ export const NoSafeZone: Story = {
 };
 
 /**
- * The safe region is too short to fit the detail lines, so the callout keeps
- * its title and sheds them.
+ * In a narrow container the fixed-third safe zone is too short for the detail
+ * lines, so the callout keeps its title and sheds them.
  */
 export const TightSafeZone: Story = {
-  args: {
-    priceAxis: [
-      { value: 84000, label: "$84,000" },
-      { value: 73000, label: "$73,000" },
-      { value: 62000, label: "$62,000" },
-      { value: 51000, label: "$51,000" },
-      { value: 40000, label: "$40,000" },
-    ],
-    currentPrice: 83500,
-    currentPriceLabel: "$83,500",
-  },
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 460 }}>
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 /**

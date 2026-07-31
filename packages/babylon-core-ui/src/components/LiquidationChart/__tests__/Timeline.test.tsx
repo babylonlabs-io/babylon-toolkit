@@ -87,19 +87,15 @@ describe("Timeline", () => {
     expect(chart.getByText("13.3% drop to Liq 1")).toBeInTheDocument();
   });
 
-  it("sheds the safe-zone detail lines when the safe region is too short for them", () => {
-    const { container } = renderTimeline({
-      priceAxis: [
-        { value: 84000, label: "$84,000" },
-        { value: 40000, label: "$40,000" },
-      ],
-      currentPrice: 83500,
-      currentPriceLabel: "$83,500",
-    });
+  it("sheds the safe-zone detail lines when they cannot fit the fixed-third box", () => {
+    const tallStack = {
+      title: "Safe zone",
+      lines: ["one", "two", "three", "four", "five", "six", "seven"],
+    };
+    const { container } = renderTimeline({ safeZone: tallStack });
     const chart = within(container);
     expect(chart.getByText("Safe zone")).toBeInTheDocument();
-    expect(chart.queryByText("no events above $77,682")).not.toBeInTheDocument();
-    expect(chart.queryByText("13.3% drop to Liq 1")).not.toBeInTheDocument();
+    expect(chart.queryByText("one")).not.toBeInTheDocument();
   });
 
   it("marks liquidation levels inside the price domain with an axis pill", () => {
@@ -134,13 +130,41 @@ describe("Timeline", () => {
     expect(screen.getByTestId("liq-band-1")).toBeInTheDocument();
   });
 
-  it("sizes the gutter blocks equally regardless of their price spans", () => {
-    // Event 1 spans $37k of price, event 2 spans $183 — the gutter still
-    // gives them the same block height; only the axis pills carry the prices.
-    renderTimeline();
+  it("sizes the gutter blocks by compressed price span with a readable floor", () => {
+    // Event 1 spans $37k of price, event 2 only $283: the split follows the
+    // square-rooted spans, but event 2 never shrinks below the 44px floor —
+    // tall enough that its label still renders.
+    const { container } = renderTimeline();
     const h1 = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("height") ?? "0");
     const h2 = Number.parseFloat(screen.getByTestId("liq-band-2").getAttribute("height") ?? "0");
-    expect(h1).toBeGreaterThan(0);
-    expect(h1).toBeCloseTo(h2, 6);
+    expect(h1).toBeGreaterThan(h2);
+    expect(h2).toBeCloseTo(44, 3);
+    expect(within(container).getByText("Liq Event 2")).toBeInTheDocument();
+  });
+
+  it("dims exactly the gutter blocks the price line has passed", () => {
+    // With the anchored scale, $48,900 sits inside event 1's block (between
+    // the $77,682 and $40,283 anchors), so only event 1 reads as passed.
+    const { container } = renderTimeline({
+      currentPrice: 48_900,
+      currentPriceLabel: "$48,900",
+    });
+    expect(container.querySelectorAll(".bbn-liq-band--liquidated")).toHaveLength(1);
+  });
+
+  it("gives the safe zone at least as much room as the largest event", () => {
+    // Safe span $12,318 weighs less than event 1's $37,399, so the guarantee
+    // kicks in: the safe zone is raised to match event 1 exactly.
+    renderTimeline();
+    const plotHeight = (948 * 350) / 1016;
+    const safeHeight = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("y") ?? "0");
+    const h1 = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("height") ?? "0");
+    expect(safeHeight).toBeCloseTo(h1, 2);
+    expect(safeHeight / plotHeight).toBeGreaterThan(0.4);
+  });
+
+  it("dims no gutter block while the price line sits above the safe zone floor", () => {
+    const { container } = renderTimeline();
+    expect(container.querySelectorAll(".bbn-liq-band--liquidated")).toHaveLength(0);
   });
 });
