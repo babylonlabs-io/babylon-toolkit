@@ -136,6 +136,54 @@ describe("buildLiquidationChartData", () => {
     expect(bands[1].cumulativeLabel).toBe("100% seized");
   });
 
+  it("keys titles and badges off array position, not the calculator's 1-based index", () => {
+    // calculate() emits group.index starting at 1.
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 77_682 }),
+      makeGroup(2, { liquidationPrice: 40_283 }),
+    ]);
+    const { bands, cards } = buildLiquidationChartData(result, {
+      btcPrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    expect(bands[0].label).toBe("Liq Event 1");
+    expect(cards[0].title).toBe("Liq Event 1");
+    expect(cards[0].badge).toBe("sacrificial");
+    expect(cards[1].badge).toBe("protected");
+  });
+
+  it("prices each event's aftermath at its own trigger, not the simulated price", () => {
+    const result = makeResult([
+      makeGroup(1, {
+        liquidationPrice: 77_682,
+        btcRemainingAfter: 0.5,
+        debtRemainingAfter: 10_000,
+      }),
+    ]);
+    const { cards } = buildLiquidationChartData(result, {
+      btcPrice: 50_000,
+      livePrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    // 0.5 BTC x $77,682 x 0.75 / $10,000 — independent of the $50k simulation.
+    expect(cards[0].hfAfterLabel).toBe(
+      ((0.5 * 77_682 * CF) / 10_000).toFixed(3),
+    );
+  });
+
+  it("drops non-finite prices from the axis instead of crashing the scale", () => {
+    const result = makeResult([makeGroup(1, { liquidationPrice: 77_682 })]);
+    const { priceAxis } = buildLiquidationChartData(result, {
+      btcPrice: Number.NaN,
+      livePrice: Number.NaN,
+      collateralFactor: CF,
+    });
+
+    expect(priceAxis.every((t) => Number.isFinite(t.value))).toBe(true);
+  });
+
   it("anchors the axis to the live price, never the simulated one", () => {
     const result = makeResult([
       makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
@@ -224,7 +272,7 @@ describe("buildLiquidationChartData", () => {
     expect(values).toStrictEqual([...values].sort((a, b) => b - a));
   });
 
-  it("derives post-liquidation HF from remaining collateral × price × CF ÷ debt", () => {
+  it("derives post-liquidation HF at the event's trigger price", () => {
     const result = makeResult([
       makeGroup(0, { btcRemainingAfter: 0.5, debtRemainingAfter: 15106 }),
     ]);
@@ -233,8 +281,10 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: CF,
     });
 
-    // 0.5 * 88400 * 0.75 / 15106 = 2.194...
-    expect(cards[0].hfAfterLabel).toBe("2.194");
+    // The liquidation executes at the trigger ($60,000), so the aftermath is
+    // priced there, not at the ambient/simulated price:
+    // 0.5 * 60000 * 0.75 / 15106 = 1.489...
+    expect(cards[0].hfAfterLabel).toBe("1.489");
   });
 
   it("shows ∞ HF when no debt remains", () => {
@@ -276,7 +326,8 @@ describe("buildLiquidationChartData", () => {
 
     expect(cards[0].fairness.label).toBe("Fairness Payment (wBTC)");
     expect(cards[0].fairness.value).toContain("$81");
-    expect(cards[0].fairness.value).toContain("0.002"); // 81 / 40500 = 0.002 BTC
+    // Converted at the event's trigger price: 81 / 60000 = 0.00135 BTC.
+    expect(cards[0].fairness.value).toContain("0.00135");
   });
 });
 

@@ -106,7 +106,7 @@ export function Timeline({
   // The time axis exists only when there is something to label: derived ticks
   // from candles, or the caller's static labels.
   const hasXAxis = !compact && (candles.length > 0 || Boolean(timeAxisLabels?.length));
-  const { parentRef, layout } = useChartLayout({ axisSide: "right", hasTopLegend: false, hasXAxis });
+  const { parentRef, layout, collapsed } = useChartLayout({ axisSide: "right", hasTopLegend: false, hasXAxis });
   const gutterWidth = bandGutter ? BAND_GUTTER_FRAC * layout.plotWidth : 0;
   const regionWidth = Math.max(0, layout.plotWidth - gutterWidth);
   const priceMax = priceAxis[0]?.value ?? currentPrice;
@@ -163,6 +163,12 @@ export function Timeline({
     () => candles.slice(clampedStart, clampedStart + windowSize),
     [candles, clampedStart, windowSize],
   );
+
+  // A pan/zoom re-slices `windowed`, so a held hover index would describe a
+  // different candle; drop it until the next pointer move.
+  useEffect(() => {
+    setHoverIndex(null);
+  }, [clampedStart, windowSize]);
   const candleGeom = useMemo(
     () => layoutCandles(windowed, priceScale, regionWidth, layout.plotHeight),
     [windowed, priceScale, regionWidth, layout.plotHeight],
@@ -185,17 +191,25 @@ export function Timeline({
   }, []);
 
   // Wheel zoom needs a native non-passive listener (React's root wheel
-  // listener is passive, so preventDefault would be ignored).
+  // listener is passive, so preventDefault would be ignored). State is read
+  // through refs so the listener survives pan/zoom ticks, and the page gets
+  // its scroll back once the window bottoms out or covers every candle.
+  const wheelState = useRef({ windowSize, candleCount: candles.length, zoomBy });
+  wheelState.current = { windowSize, candleCount: candles.length, zoomBy };
   useEffect(() => {
     const el = hitRef.current;
     if (!el || !zoomEnabled) return;
     const onWheel = (e: WheelEvent) => {
+      const { windowSize: size, candleCount, zoomBy: zoom } = wheelState.current;
+      const zoomOut = e.deltaY > 0;
+      const canAct = zoomOut ? size < candleCount : size > MIN_ZOOM_CANDLES;
+      if (!canAct) return;
       e.preventDefault();
-      zoomBy(e.deltaY > 0 ? ZOOM_OUT_FACTOR : ZOOM_IN_FACTOR);
+      zoom(zoomOut ? ZOOM_OUT_FACTOR : ZOOM_IN_FACTOR);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomEnabled, zoomBy]);
+  }, [zoomEnabled]);
 
   // Only mark liquidation levels that fall within the visible price domain;
   // off-scale levels would clamp to the floor and collide with each other.
@@ -216,16 +230,26 @@ export function Timeline({
 
   // Derive the time axis from the visible candles so it stays coherent while
   // panning/zooming; fall back to the caller's static labels without candles.
-  const xAxisLabels = useMemo(() => {
-    if (compact) return undefined;
-    if (!windowed.length) return timeAxisLabels;
-    const ticks = Math.min(7, windowed.length);
-    return Array.from({ length: ticks }, (_, i) => {
+  // Each tick sits at its candle's CENTER — (idx + 0.5) / n — so the label
+  // names the candle under it rather than the slot boundary beside it.
+  const xAxisTicks = useMemo(() => {
+    if (compact || !windowed.length) return undefined;
+    const tickCount = Math.min(7, windowed.length);
+    return Array.from({ length: tickCount }, (_, i) => {
       // A single candle gets a single tick; the even spread needs ticks >= 2.
-      const idx = ticks < 2 ? 0 : Math.round((i / (ticks - 1)) * (windowed.length - 1));
-      return formatTime(windowed[idx].time);
+      const idx = tickCount < 2 ? 0 : Math.round((i / (tickCount - 1)) * (windowed.length - 1));
+      return { fraction: (idx + 0.5) / windowed.length, label: formatTime(windowed[idx].time) };
     });
-  }, [compact, windowed, timeAxisLabels, formatTime]);
+  }, [compact, windowed, formatTime]);
+  const xAxisLabels = compact || windowed.length ? undefined : timeAxisLabels;
+
+  // Vertical gridlines share the tick fractions exactly; the static-label
+  // fallback spreads evenly (skipping the left edge, which the gutter owns).
+  const gridFractions = xAxisTicks
+    ? xAxisTicks.map((t) => t.fraction)
+    : xAxisLabels && xAxisLabels.length > 1
+      ? xAxisLabels.map((_, i) => i / (xAxisLabels.length - 1)).slice(1)
+      : undefined;
 
   // Vertical gridline scale over the candle region, one line per time tick.
   const timeScale = useMemo(
@@ -267,8 +291,10 @@ export function Timeline({
     setDragging(false);
   };
 
-  const hovered = hoverIndex != null ? candleGeom[hoverIndex] : null;
+  const hovered = hoverIndex != null ? (candleGeom[hoverIndex] ?? null) : null;
   const interactive = crosshairEnabled || panEnabled || zoomEnabled;
+
+  if (collapsed) return null;
 
   return (
     <ChartFrame
@@ -283,6 +309,7 @@ export function Timeline({
       levelMarkers={levelMarkers}
       plotInsetLeft={gutterWidth}
       xAxisLabels={xAxisLabels}
+      xAxisTicks={xAxisTicks}
       grid={grid}
       className={className}
       overlay={
@@ -342,12 +369,12 @@ export function Timeline({
         </>
       }
     >
-      {(grid?.lines ?? "both") === "both" && xAxisLabels && xAxisLabels.length > 1 ? (
+      {(grid?.lines ?? "both") === "both" && gridFractions?.length ? (
         <GridColumns
           className="bbn-liq-grid"
           scale={timeScale}
           height={layout.plotHeight}
-          tickValues={xAxisLabels.map((_, i) => i / (xAxisLabels.length - 1)).slice(1)}
+          tickValues={gridFractions}
           aria-hidden
         />
       ) : null}

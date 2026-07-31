@@ -85,6 +85,12 @@ describe("createLinearPriceScale", () => {
     expect(scale(50000)).toBe(0);
     expect(scale(99999)).toBe(0);
   });
+
+  it("degrades reversed or non-finite bounds to a flat scale instead of inverting", () => {
+    expect(createLinearPriceScale(40000, 90000, PLOT_HEIGHT)(65000)).toBe(0);
+    expect(createLinearPriceScale(Number.NaN, 40000, PLOT_HEIGHT)(65000)).toBe(0);
+    expect(createLinearPriceScale(90000, Number.NEGATIVE_INFINITY, PLOT_HEIGHT)(65000)).toBe(0);
+  });
 });
 
 describe("compressedSpanFractions", () => {

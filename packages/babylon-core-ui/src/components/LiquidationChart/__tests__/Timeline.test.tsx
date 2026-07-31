@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Timeline } from "../Timeline";
 import type { Candle, LiquidationBand, PriceAxisTick } from "../types";
@@ -70,9 +70,14 @@ describe("Timeline", () => {
   });
 
   it("renders a single candle with a single time tick", () => {
-    const { container } = renderTimeline({ candles: makeCandles(1) });
+    // Explicit formatter: the default renders in the machine's local
+    // timezone, which would flip the date around UTC midnight.
+    const { container } = renderTimeline({
+      candles: makeCandles(1),
+      formatTime: (t) => `t${t}`,
+    });
     expect(screen.getAllByTestId("liq-candle")).toHaveLength(1);
-    expect(within(container).getByText("Jun 15")).toBeInTheDocument();
+    expect(within(container).getByText("t1750000000000")).toBeInTheDocument();
   });
 
   it("shows the safe-zone detail lines when they fit above the first event", () => {
@@ -166,5 +171,31 @@ describe("Timeline", () => {
   it("dims no gutter block while the price line sits above the safe zone floor", () => {
     const { container } = renderTimeline();
     expect(container.querySelectorAll(".bbn-liq-band--liquidated")).toHaveLength(0);
+  });
+
+  it("zooms the candle window in and out and resets to the default view", () => {
+    renderTimeline({
+      candles: makeCandles(160),
+      visibleCandles: 44,
+      interactions: { zoom: true },
+    });
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(44);
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(35);
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(44);
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(44);
+  });
+
+  it("names the chart for assistive tech", () => {
+    const { container } = renderTimeline();
+    const svg = container.querySelector(".bbn-liq-chart__svg");
+    expect(svg).toHaveAttribute("role", "img");
+    expect(svg?.getAttribute("aria-label")).toContain("$88,700");
   });
 });

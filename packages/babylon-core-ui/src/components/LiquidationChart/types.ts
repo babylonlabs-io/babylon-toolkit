@@ -80,6 +80,12 @@ export interface PriceAxisTick {
   label: string;
 }
 
+/** An x-axis tick placed at an explicit fraction [0,1] of the plot. */
+export interface ShareAxisTick {
+  fraction: number;
+  label: string;
+}
+
 /** Background grid configuration, shared by both charts. */
 export interface ChartGridConfig {
   /** Which gridlines render. Default `"both"`. */
@@ -121,7 +127,7 @@ export interface SeizureMapProps extends LiquidationChartBase {
    * raw shares (see `shareStart`/`shareEnd`). Takes precedence over
    * `shareAxisLabels`, which spaces its labels evenly.
    */
-  shareAxisTicks?: { fraction: number; label: string }[];
+  shareAxisTicks?: ShareAxisTick[];
   /**
    * Show the collateral-share legend strip above the plot. Default true in the
    * `full` variant; `compact` never renders it. Off gives a bare plot that

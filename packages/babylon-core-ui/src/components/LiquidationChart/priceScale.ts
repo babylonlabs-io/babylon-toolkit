@@ -30,9 +30,11 @@ export function createSegmentedPriceScale(ticks: PriceAxisTick[], plotHeight: nu
   return scaleLinear<number>({ domain, range, clamp: true });
 }
 
-/** Linear price → pixel offset from the plot top over [max, min] (Timeline). */
+/** Linear price → pixel offset from the plot top over [max, min] (Timeline).
+ * Non-finite or reversed bounds degrade to the flat degenerate scale rather
+ * than silently inverting the axis or rendering NaN coordinates. */
 export function createLinearPriceScale(priceMax: number, priceMin: number, plotHeight: number): PriceScale {
-  if (priceMax === priceMin) {
+  if (!Number.isFinite(priceMax) || !Number.isFinite(priceMin) || priceMax <= priceMin) {
     return scaleLinear<number>({ domain: DEGENERATE_DOMAIN, range: DEGENERATE_RANGE, clamp: true });
   }
   return scaleLinear<number>({ domain: [priceMax, priceMin], range: [0, plotHeight], clamp: true });

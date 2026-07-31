@@ -55,7 +55,9 @@
 
 .bbn-liq-axis-text {
   fill: var(--liq-axis-text);
-  letter-spacing: 0.4px;
+  /* Sourced from AXIS_LETTER_SPACING_PX (textMeasure.ts), which also sizes
+   * the pills — the fallback only covers renders outside ChartFrame. */
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
   pointer-events: none;
 }
 
@@ -105,7 +107,7 @@
 }
 .bbn-liq-pill__text {
   fill: var(--liq-band-text);
-  letter-spacing: 0.4px;
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
   pointer-events: none;
 }
 
@@ -117,7 +119,7 @@
 /* Plain body text above the rule; `--liq-price-line-label` overrides the colour. */
 .bbn-liq-price-line-text {
   fill: var(--liq-price-line-label, var(--liq-surface-text));
-  letter-spacing: 0.4px;
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
   pointer-events: none;
 }
 

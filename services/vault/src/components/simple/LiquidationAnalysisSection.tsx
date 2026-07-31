@@ -36,8 +36,11 @@ interface LiquidationAnalysisSectionProps {
   cascade?: LiquidationCascade | null;
 }
 
-/** Slider granularity for the simulated BTC price. */
-const SIM_PRICE_STEP_USD = 100;
+/** Slider granularity. Must be 1: the native range input snaps to
+ * `min + k * step`, and the live BTC price is an arbitrary float — a coarser
+ * grid would make the top of the range (the live price) unreachable, leaving
+ * the simulator stuck in "simulating" after a full drag right. */
+const SIM_PRICE_STEP_USD = 1;
 /** Matches the chart's `--liq-price-line` orange so slider and rule read as one control. */
 const PRICE_SLIDER_COLOR = "#f7931a";
 

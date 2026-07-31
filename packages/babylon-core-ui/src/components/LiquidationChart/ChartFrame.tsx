@@ -21,7 +21,7 @@ import {
 } from "./chartGeometry";
 import type { PriceScale } from "./priceScale";
 import { AXIS_LETTER_SPACING_PX, chartFont, getFontEpoch, measureText, subscribeFontEpoch } from "./textMeasure";
-import type { ChartGridConfig, LiquidationBandTone, PriceAxisTick } from "./types";
+import type { ChartGridConfig, LiquidationBandTone, PriceAxisTick, ShareAxisTick } from "./types";
 
 /** Deterministic SSR/jsdom width; jsdom's ResizeObserver never fires, so the
  * chart must render a full frame from this fallback rather than bail on 0. */
@@ -34,6 +34,8 @@ const CURRENT_PILL_KEY = "__current__";
 export function useChartLayout(input: { axisSide: "left" | "right"; hasTopLegend: boolean; hasXAxis: boolean }): {
   parentRef: (node: HTMLDivElement | null) => void;
   layout: ChartLayout;
+  /** True when the container measured 0 wide — the chart renders nothing. */
+  collapsed: boolean;
 } {
   const { parentRef, width } = useParentSize({
     debounceTime: 16,
@@ -42,19 +44,18 @@ export function useChartLayout(input: { axisSide: "left" | "right"; hasTopLegend
   // Re-render when a webfont finishes loading so text measured against the
   // fallback font is redone with the real metrics (see textMeasure.ts).
   useSyncExternalStore(subscribeFontEpoch, getFontEpoch, getFontEpoch);
-  const chartWidth = width > 0 ? width : FALLBACK_CHART_WIDTH_PX;
+  // `width` starts at the fallback (initialSize) and only becomes 0 when the
+  // ResizeObserver reports a genuinely collapsed container — hidden tab,
+  // zero-width flex child. Rendering the fallback there would paint a 1016px
+  // chart across the siblings (the SVG overflows visibly), so collapse instead.
+  const collapsed = width <= 0;
+  const chartWidth = collapsed ? FALLBACK_CHART_WIDTH_PX : width;
   const { axisSide, hasTopLegend, hasXAxis } = input;
   const layout = useMemo(
     () => computeChartLayout({ chartWidth, axisSide, hasTopLegend, hasXAxis }),
     [chartWidth, axisSide, hasTopLegend, hasXAxis],
   );
-  return { parentRef, layout };
-}
-
-/** An x-axis tick placed at an explicit fraction [0,1] of the plot. */
-export interface AxisTick {
-  fraction: number;
-  label: string;
+  return { parentRef, layout, collapsed };
 }
 
 /** A tone-coloured horizontal level (dashed line + axis pill). */
@@ -94,8 +95,10 @@ export interface ChartFrameProps {
   /** X-axis tick labels, evenly distributed under the plot. */
   xAxisLabels?: string[];
   /** X-axis ticks at explicit fractions; takes precedence over `xAxisLabels`. */
-  xAxisTicks?: AxisTick[];
+  xAxisTicks?: ShareAxisTick[];
   grid?: ChartGridConfig;
+  /** Accessible name for the chart. Defaults to caption + current price. */
+  ariaLabel?: string;
   className?: string;
   /** SVG rendered above the plot, in legend space (Seizure Map share legend). */
   topLegend?: ReactNode;
@@ -150,28 +153,37 @@ function computePills(input: {
     return { pills: [], hiddenTickValues: new Set<number>() };
   }
   const items: DeclutterItem[] = markers.map((m) => ({ key: m.key, center: m.center, height: pillHeight }));
-  const tops = declutterCenters(items, layout.plotHeight);
+  // `declutterCenters` returns resolved CENTRES (despite pushing boxes apart
+  // by their heights); every consumer below treats them as centres.
+  const centers = declutterCenters(items, layout.plotHeight);
   const hidden = new Set<number>();
+  // A tick disappears when a pill overlaps it: centre distance under half the
+  // sum of the pill box and the tick text height.
+  const tickTextHeight = Math.round(layout.fontAxis * TEXT_LINE_HEIGHT);
+  const collisionRadius = (pillHeight + tickTextHeight) / 2;
   for (const tick of priceAxis) {
     const tickY = priceScale(tick.value);
     for (const m of markers) {
-      const top = tops.get(m.key);
-      if (top != null && Math.abs(top - tickY) < pillHeight) {
+      const center = centers.get(m.key);
+      if (center != null && Math.abs(center - tickY) < collisionRadius) {
         hidden.add(tick.value);
         break;
       }
     }
   }
-  const pills: PillGeom[] = markers.map((m) => ({
-    key: m.key,
-    label: m.label,
-    tone: m.tone,
-    current: m.current,
-    x: axisSide === "right" ? layout.plotWidth + PILL_AXIS_GAP_PX : 0,
-    width: measureText(m.label, font, AXIS_LETTER_SPACING_PX) + 2 * PILL_PAD_X_PX,
-    top: (tops.get(m.key) ?? m.center) - pillHeight / 2,
-    height: pillHeight,
-  }));
+  const pills: PillGeom[] = markers.map((m) => {
+    const width = measureText(m.label, font, AXIS_LETTER_SPACING_PX) + 2 * PILL_PAD_X_PX;
+    return {
+      key: m.key,
+      label: m.label,
+      tone: m.tone,
+      current: m.current,
+      x: axisSide === "right" ? layout.plotWidth + PILL_AXIS_GAP_PX : -(PILL_AXIS_GAP_PX + width),
+      width,
+      top: (centers.get(m.key) ?? m.center) - pillHeight / 2,
+      height: pillHeight,
+    };
+  });
   return { pills, hiddenTickValues: hidden };
 }
 
@@ -193,6 +205,7 @@ export function ChartFrame({
   xAxisLabels,
   xAxisTicks,
   grid,
+  ariaLabel,
   className,
   topLegend,
   children,
@@ -229,7 +242,7 @@ export function ChartFrame({
 
   const axisLabelX = axisSide === "left" ? layout.gutter - AXIS_LABEL_GAP_PX : layout.plotWidth + AXIS_LABEL_GAP_PX;
   const axisRegionWidth = layout.plotWidth - plotInsetLeft;
-  const xTicks: AxisTick[] | undefined = xAxisTicks?.length
+  const xTicks: ShareAxisTick[] | undefined = xAxisTicks?.length
     ? xAxisTicks
     : xAxisLabels?.length
       ? xAxisLabels.map((label, i) => ({
@@ -238,10 +251,27 @@ export function ChartFrame({
         }))
       : undefined;
 
+  // Everything informative inside the SVG is aria-hidden (ticks, pills,
+  // gridlines), so the chart names itself as one image for screen readers.
+  const svgLabel = ariaLabel ?? [priceLineCaption, currentPriceLabel].filter(Boolean).join(" ");
+  // The TS constant sizes the pills via measureText; emitting it as a CSS var
+  // keeps the painted letter-spacing in lockstep with the measured one.
+  const chartVars = { "--liq-axis-letter-spacing": `${AXIS_LETTER_SPACING_PX}px` } as CSSProperties;
+
   return (
-    <div ref={parentRef} className={twJoin("bbn-liq-chart", `bbn-liq-chart--gridstyle-${gridStyle}`, className)}>
+    <div
+      ref={parentRef}
+      style={chartVars}
+      className={twJoin("bbn-liq-chart", `bbn-liq-chart--gridstyle-${gridStyle}`, className)}
+    >
       <div className="bbn-liq-chart__canvas">
-        <svg className="bbn-liq-chart__svg" width={layout.chartWidth} height={layout.svgHeight}>
+        <svg
+          className="bbn-liq-chart__svg"
+          width={layout.chartWidth}
+          height={layout.svgHeight}
+          role="img"
+          aria-label={svgLabel}
+        >
           {topLegend ? <Group left={layout.plotLeft}>{topLegend}</Group> : null}
 
           <Group top={layout.plotTop} left={layout.plotLeft}>
@@ -331,10 +361,10 @@ export function ChartFrame({
             ))}
           </Group>
 
-          {priceAxis.map((tick) =>
+          {priceAxis.map((tick, index) =>
             hiddenTickValues.has(tick.value) ? null : (
               <Text
-                key={tick.value}
+                key={`${tick.value}:${index}`}
                 className="bbn-liq-axis-text"
                 x={axisLabelX}
                 y={layout.plotTop + priceScale(tick.value)}

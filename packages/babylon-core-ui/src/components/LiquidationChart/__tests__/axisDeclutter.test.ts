@@ -54,4 +54,20 @@ describe("declutterCenters", () => {
   it("returns an empty map for no labels", () => {
     expect(declutterCenters([], TRACK).size).toBe(0);
   });
+
+  it("keeps ordering when the stack is taller than the track", () => {
+    // Documented degradation: labels re-overlap rather than escape the track
+    // top, but their order never inverts.
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      key: `k${i}`,
+      center: 150,
+      height: PILL_HEIGHT,
+    }));
+    const out = declutterCenters(items, TRACK);
+    const centers = items.map((it) => out.get(it.key) ?? 0);
+    for (let i = 1; i < centers.length; i++) {
+      expect(centers[i]).toBeGreaterThanOrEqual(centers[i - 1]);
+    }
+    expect(Math.max(...centers) + PILL_HEIGHT / 2).toBeLessThanOrEqual(TRACK);
+  });
 });

@@ -16,7 +16,8 @@ const CASCADE: LiquidationCascade = {
   result: {
     groups: [
       {
-        index: 0,
+        // calculate() emits 1-based indices; the projection must not key off it.
+        index: 1,
         vaults: [{ id: "v-1", name: "Vault 1", btc: 0.6 }],
         combinedBtc: 0.6,
         liquidationPrice: 77_682,
@@ -105,6 +106,9 @@ describe("LiquidationAnalysisSection", () => {
     expect(slider).toHaveValue(String(CASCADE.btcPrice));
     expect(slider).toHaveAttribute("max", String(CASCADE.btcPrice));
     expect(slider).toHaveAttribute("min", "0");
+    // Step 1: a coarser grid cannot land back on the float live price, which
+    // would leave the simulator stuck in "simulating" after a full drag right.
+    expect(slider).toHaveAttribute("step", "1");
   });
 
   it("liquidates the event live as the price is dragged through its trigger", () => {

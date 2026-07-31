@@ -108,7 +108,7 @@ export function BandLayer({
 
   return (
     <>
-      {bands.map((band) => {
+      {bands.map((band, index) => {
         const rect = bandRect(band);
         const dimmed = isDimmed ? isDimmed(band) : band.state === "liquidated";
         const hoverable = Boolean(band.popoverMetrics?.length);
@@ -125,7 +125,10 @@ export function BandLayer({
         const stackHeight =
           lineHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, lines.length - 1) * BAND_LINE_GAP_PX;
         const maxTextWidth = rect.width - 2 * BAND_PAD_X_PX;
-        const clipId = `${clipBaseId}-${band.key}`;
+        // Keyed by index, not `band.key`: the key is caller-supplied and a
+        // quote or space would make the `url(#…)` reference silently drop the
+        // whole clipped group.
+        const clipId = `${clipBaseId}-${index}`;
         const lineTops: number[] = [];
         let nextTop = rect.y + (rect.height - stackHeight) / 2;
         for (const lineHeight of lineHeights) {
@@ -151,11 +154,23 @@ export function BandLayer({
               width={rect.width}
               height={rect.height}
               data-testid={`liq-band-${band.key}`}
+              // The tooltip is hover-only for pointers; focus gives keyboard
+              // users the same detail. The band text is a sibling group, so
+              // the rect names itself.
+              tabIndex={hoverable ? 0 : undefined}
+              aria-label={
+                hoverable ? [band.label, band.sublabel, band.amountLabel].filter(Boolean).join(" ") : undefined
+              }
               onMouseEnter={(e) => {
                 cancelClose();
                 if (band.popoverMetrics?.length) setHovered({ band, anchor: e.currentTarget });
               }}
               onMouseLeave={scheduleClose}
+              onFocus={(e) => {
+                cancelClose();
+                if (band.popoverMetrics?.length) setHovered({ band, anchor: e.currentTarget });
+              }}
+              onBlur={scheduleClose}
             />
             {lines.length > 0 ? (
               <g className="bbn-liq-band__text" clipPath={`url(#${clipId})`} pointerEvents="none">

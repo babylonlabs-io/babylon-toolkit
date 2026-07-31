@@ -24,10 +24,17 @@ const FONT_AMOUNT: FluidSize = { minRem: 0.75, cqiPct: 1.5, maxRem: 1 };
 const DEFAULT_ROOT_FONT_PX = 16;
 
 /** Root font-size in px (the CSS clamps were in `rem`). */
+let cachedRootFontPx: number | null = null;
+
+/** The root font size backs every rem-derived clamp. Read once and memoised:
+ * it effectively never changes at runtime, and caching keeps this module free
+ * of live style reads — the layout stays a pure computation. */
 function rootFontPx(): number {
+  if (cachedRootFontPx !== null) return cachedRootFontPx;
   if (typeof document === "undefined") return DEFAULT_ROOT_FONT_PX;
   const parsed = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ROOT_FONT_PX;
+  cachedRootFontPx = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ROOT_FONT_PX;
+  return cachedRootFontPx;
 }
 
 /** `cqi` = 1% of the chart's own inline size (the chart was its own container). */

@@ -160,16 +160,21 @@ function hfAfter(
   ).toFixed(3);
 }
 
+// `position` is the group's array index: `calculate()` emits 1-based
+// `group.index`, so array position is the only safe identity for titles,
+// badges, and keys. Aftermath figures are priced at the event's own trigger —
+// the price at which the liquidation actually executes — never the ambient
+// (possibly simulated) price.
 function toCard(
   group: LiquidationGroup,
-  btcPrice: number,
+  position: number,
   cf: number,
 ): LiquidationEventCard {
-  const sacrificial = group.index === 0;
+  const sacrificial = position === 0;
   const fairness = group.isFullLiquidation
     ? {
         label: COPY.liquidations.events.fairnessPaymentWbtc,
-        value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / btcPrice)})`,
+        value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / group.liquidationPrice)})`,
       }
     : {
         label: COPY.liquidations.events.fairnessDebtRepaid,
@@ -177,8 +182,8 @@ function toCard(
       };
 
   return {
-    key: String(group.index),
-    title: COPY.liquidations.eventTitle(group.index + 1),
+    key: String(position),
+    title: COPY.liquidations.eventTitle(position + 1),
     badge: sacrificial ? "sacrificial" : "protected",
     collateralLabel: formatBtcAmount(group.combinedBtc),
     liqPriceLabel: formatPriceUsd(group.liquidationPrice),
@@ -196,7 +201,7 @@ function toCard(
     fairness,
     btcRemainingLabel: formatBtcAmount(group.btcRemainingAfter),
     debtRemainingLabel: formatUsd(group.debtRemainingAfter),
-    hfAfterLabel: hfAfter(group, btcPrice, cf),
+    hfAfterLabel: hfAfter(group, group.liquidationPrice, cf),
   };
 }
 
@@ -225,8 +230,8 @@ export function buildLiquidationChartData(
     const tone = toneFor(i);
 
     return {
-      key: String(group.index),
-      label: COPY.liquidations.eventTitle(group.index + 1),
+      key: String(i),
+      label: COPY.liquidations.eventTitle(i + 1),
       sublabel: COPY.liquidations.containVaults(
         group.vaults.map((v) => v.name.toLowerCase()).join(", "),
       ),
@@ -270,8 +275,14 @@ export function buildLiquidationChartData(
   // trigger; dedup avoids duplicate tick values (React keys) when prices
   // coincide.
   const axisAnchor = livePrice ?? btcPrice;
+  // A price-feed miss (NaN/Infinity) must degrade the axis, not crash the
+  // chart's strictly-descending assertion downstream.
   const axisValues = Array.from(
-    new Set([axisAnchor, ...groups.map((g) => g.liquidationPrice), floorPrice]),
+    new Set(
+      [axisAnchor, ...groups.map((g) => g.liquidationPrice), floorPrice].filter(
+        (value) => Number.isFinite(value),
+      ),
+    ),
   ).sort((a, b) => b - a);
   const priceAxis: PriceAxisTick[] = axisValues.map((value) => ({
     value,
@@ -296,6 +307,6 @@ export function buildLiquidationChartData(
     bands,
     priceAxis,
     shareAxisTicks,
-    cards: groups.map((g) => toCard(g, btcPrice, collateralFactor)),
+    cards: groups.map((g, i) => toCard(g, i, collateralFactor)),
   };
 }
