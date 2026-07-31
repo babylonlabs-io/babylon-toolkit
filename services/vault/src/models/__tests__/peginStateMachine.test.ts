@@ -290,7 +290,7 @@ describe("peginStateMachine", () => {
 
     it("shows activation incomplete with the withdraw escape hatch when the HTLC is spent", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
-        htlcSpent: true,
+        htlcSpentByPeginTx: true,
       });
       expect(state.displayLabel).toBe(
         PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
@@ -304,9 +304,9 @@ describe("peginStateMachine", () => {
       expect(getPeginDisplayStep(state)).toBeNull();
     });
 
-    it("shows processing after the escape-hatch reveal was submitted (CONFIRMED wins over htlcSpent)", () => {
+    it("shows processing after the escape-hatch reveal was submitted (CONFIRMED wins over htlcSpentByPeginTx)", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
-        htlcSpent: true,
+        htlcSpentByPeginTx: true,
         localStatus: LocalStorageStatus.CONFIRMED,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
@@ -315,7 +315,7 @@ describe("peginStateMachine", () => {
 
     it("strips the escape hatch too once the activation deadline passed on-chain", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
-        htlcSpent: true,
+        htlcSpentByPeginTx: true,
         activationDeadlinePassed: true,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
@@ -688,7 +688,7 @@ describe("peginStateMachine", () => {
 
     it("returns Withdraw for the stuck state (VERIFIED with spent HTLC)", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
-        htlcSpent: true,
+        htlcSpentByPeginTx: true,
       });
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
@@ -739,7 +739,7 @@ describe("peginStateMachine", () => {
   describe("isCandidateVault", () => {
     it("excludes the stuck state (it recovers via a dedicated modal, not the continuation flow)", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
-        htlcSpent: true,
+        htlcSpentByPeginTx: true,
       });
       expect(state.displayVariant).toBe("warning");
       expect(isCandidateVault(state)).toBe(false);

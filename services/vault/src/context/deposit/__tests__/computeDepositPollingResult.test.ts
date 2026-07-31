@@ -14,6 +14,8 @@ import { canonicalizeTxid } from "@/utils/txid";
 
 const VAULT_ID = `0x${"11".repeat(32)}` as const;
 const PREPEGIN_TX = `0x${"ab".repeat(32)}` as const;
+const PEGIN_TX = `0x${"cd".repeat(32)}` as const;
+const REFUND_TX = `0x${"ef".repeat(32)}` as const;
 const PUBKEY = "ab".repeat(32);
 // matureRefundTxids keys off the canonical (lowercased, no-0x) Pre-PegIn txid.
 const CANONICAL_PREPEGIN = canonicalizeTxid(PREPEGIN_TX) as string;
@@ -112,6 +114,7 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
       ...makeExpiredActivity(),
       displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
       contractStatus: ContractStatus.VERIFIED,
+      peginTxHash: PEGIN_TX,
     };
   }
 
@@ -141,12 +144,24 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     );
   });
 
-  it("flags the stuck state when the HTLC is spent while still VERIFIED", () => {
+  it("flags the stuck state when the HTLC is spent by the PegIn tx while still VERIFIED", () => {
+    // The spender arrives in esplora's bare-hex form while the activity's
+    // PegIn txid is 0x-prefixed indexer hex — the comparison must hold
+    // ACROSS forms, so the fixture deliberately mismatches them. Same-form
+    // fixtures would keep passing even if canonicalization broke, which
+    // would silently disable the hatch for genuinely swept vaults.
     const result = computeDepositPollingResult(
       makeInputs({
         activity: makeVerifiedActivity(),
         htlcRefundByDepositId: new Map([
-          [VAULT_ID.toLowerCase(), { spent: true, confirmed: false }],
+          [
+            VAULT_ID.toLowerCase(),
+            {
+              spent: true,
+              confirmed: false,
+              spendingTxid: PEGIN_TX.slice("0x".length),
+            },
+          ],
         ]),
       }),
     );
@@ -156,6 +171,46 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     expect(result.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
     );
+  });
+
+  it("does not flag the stuck state when the HTLC spender is not the PegIn tx", () => {
+    // A spent HTLC can be the depositor's own CSV refund — the ETH-side
+    // VERIFIED status says nothing about BTC-side timing. Offering the
+    // secret-revealing escape hatch there would burn the secret for a vault
+    // whose funds already came back; the normal flow must stand.
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: false, spendingTxid: REFUND_TX },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.ACTIVATE_VAULT,
+    ]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+    );
+  });
+
+  it("does not flag the stuck state when the spender is unknown (fail-safe)", () => {
+    // An outspend row without `spendingTxid` is ambiguous evidence — the
+    // hatch reveals the secret, so it is only offered on proof.
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        htlcRefundByDepositId: new Map([
+          [VAULT_ID.toLowerCase(), { spent: true, confirmed: false }],
+        ]),
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.ACTIVATE_VAULT,
+    ]);
   });
 
   it("does not flag the stuck state from the refunded cache alone (live probe only)", () => {

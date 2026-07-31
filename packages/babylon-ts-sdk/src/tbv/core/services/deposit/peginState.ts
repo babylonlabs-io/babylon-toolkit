@@ -94,14 +94,22 @@ export interface GetPeginProtocolStateOptions {
   /** Whether the vault provider reported a terminal failure */
   hasProviderTerminalFailure?: boolean;
   /**
-   * VERIFIED only: the Pre-PegIn HTLC outpoint has been spent on Bitcoin
-   * while the vault is still Verified on Ethereum. The secret was revealed
-   * (e.g. in the calldata of a reverted activation) and the peg-in swept
-   * without the vault activating, so the normal activation no longer returns
-   * value to the depositor and the CSV refund can never broadcast. The
-   * remaining recovery is the activate-and-redeem escape hatch.
+   * VERIFIED only: the Pre-PegIn HTLC outpoint has been spent on Bitcoin BY
+   * THE PEGIN TRANSACTION while the vault is still Verified on Ethereum. The
+   * secret was revealed (e.g. in the calldata of a reverted activation) and
+   * the peg-in swept without the vault activating, so the normal activation
+   * no longer returns value to the depositor and the CSV refund can never
+   * broadcast. The remaining recovery is the activate-and-redeem escape
+   * hatch.
+   *
+   * The caller MUST prove the spender by comparing the outspend's
+   * `spendingTxid` against the vault's PegIn txid before setting this. A
+   * bare "spent" observation is not sufficient: the spend may be the
+   * depositor's own CSV refund, and offering the secret-revealing hatch
+   * against a refund burns the secret for a vault whose funds already
+   * returned.
    */
-  htlcSpent?: boolean;
+  htlcSpentByPeginTx?: boolean;
 }
 
 // ============================================================================
@@ -131,7 +139,7 @@ export function getPeginProtocolState(
     pendingIngestion,
     canRefund,
     hasProviderTerminalFailure,
-    htlcSpent,
+    htlcSpentByPeginTx,
   } = options;
 
   if (contractStatus === ContractStatus.PENDING) {
@@ -172,7 +180,7 @@ export function getPeginProtocolState(
     // activation: activating normally would hand the collateral to an
     // application flow that already failed once, and refunding is impossible
     // (the outpoint is gone). Surface only the escape hatch.
-    if (htlcSpent) {
+    if (htlcSpentByPeginTx) {
       return {
         contractStatus,
         availableActions: [PeginAction.ACTIVATE_AND_REDEEM],

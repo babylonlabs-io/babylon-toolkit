@@ -215,13 +215,23 @@ export function computeDepositPollingResult(
     refundMaturityState === "mature" &&
     refundSettlement === undefined;
 
-  // Stuck-state signal (VERIFIED only): the HTLC outpoint is spent — mempool
-  // or block — while the vault has not activated, meaning the secret was
-  // revealed and the peg-in swept without the depositor receiving collateral.
+  // Stuck-state signal (VERIFIED only): the HTLC outpoint was spent BY THE
+  // PEGIN TX — the VP swept the deposit while the vault has not activated,
+  // meaning the secret was revealed and the collateral moved without the
+  // depositor receiving anything. The spender must be proven, not inferred:
+  // a spent HTLC can equally be the depositor's own CSV refund (the ETH-side
+  // VERIFIED status says nothing about BTC-side timing), and offering the
+  // secret-revealing escape hatch against a refund would burn the secret for
+  // a vault whose funds already came back. A missing `spendingTxid` fails
+  // safe for the same reason: no hatch on ambiguous evidence.
   // Live probe only: confirmed spends of VERIFIED vaults are deliberately
   // never added to the refunded cache (see PeginPollingContext).
-  const htlcSpent =
-    contractStatus === ContractStatus.VERIFIED && liveRefund?.spent === true;
+  const peginTxCanonical = canonicalizeTxid(activity.peginTxHash);
+  const htlcSpentByPeginTx =
+    contractStatus === ContractStatus.VERIFIED &&
+    liveRefund?.spent === true &&
+    peginTxCanonical !== undefined &&
+    canonicalizeTxid(liveRefund.spendingTxid) === peginTxCanonical;
 
   const peginState = getPeginState(contractStatus, {
     localStatus,
@@ -234,7 +244,7 @@ export function computeDepositPollingResult(
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
     activationDeadlinePassed,
-    htlcSpent,
+    htlcSpentByPeginTx,
     canRefund,
     refundMaturityState,
     refundMaturesInBlocks,

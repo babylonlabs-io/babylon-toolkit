@@ -147,14 +147,19 @@ export interface GetPeginStateOptions {
   activationDeadlinePassed?: boolean;
   /**
    * VERIFIED only: the Pre-PegIn HTLC outpoint is spent on Bitcoin (mempool
-   * or block) while the vault is still Verified on Ethereum — the secret was
-   * revealed without the vault activating (e.g. a reverted activation leaked
-   * it via calldata) and the peg-in was swept. The stuck state: activation
-   * returned no collateral and the CSV refund can never broadcast. Drives the
-   * "Activation incomplete" display and the activate-and-redeem escape hatch.
-   * Fail-safe default: false (missing probe data keeps the normal flow).
+   * or block) BY THE PEGIN TRANSACTION while the vault is still Verified on
+   * Ethereum — the secret was revealed without the vault activating (e.g. a
+   * reverted activation leaked it via calldata) and the peg-in was swept.
+   * The stuck state: activation returned no collateral and the CSV refund
+   * can never broadcast. Drives the "Activation incomplete" display and the
+   * activate-and-redeem escape hatch.
+   *
+   * The deriver proves the spender (`spendingTxid` equals the PegIn txid)
+   * before setting this — a bare spend can equally be the depositor's own
+   * CSV refund, which must keep the normal flow. Fail-safe default: false
+   * (missing or ambiguous probe data keeps the normal flow).
    */
-  htlcSpent?: boolean;
+  htlcSpentByPeginTx?: boolean;
   /**
    * True only when the deposit can be refunded *now*: the Pre-PegIn tx
    * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
@@ -361,7 +366,7 @@ export function getPeginState(
     pendingIngestion: options.pendingIngestion,
     canRefund: options.canRefund,
     hasProviderTerminalFailure: !!options.vpTerminalError,
-    htlcSpent: options.htlcSpent,
+    htlcSpentByPeginTx: options.htlcSpentByPeginTx,
   });
 
   const sdkActions = applyTrackingOverrides(
@@ -617,7 +622,7 @@ function getDisplay(
     }
     // Activation window closed on-chain — present as terminal-expired in place
     // (the indexer flips to EXPIRED later). `warning` variant also suppresses
-    // the progress step via getPeginDisplayStep. Checked before `htlcSpent`:
+    // the progress step via getPeginDisplayStep. Checked before `htlcSpentByPeginTx`:
     // past the deadline the escape hatch reverts too, so the stuck-state
     // display would advertise an action that is already stripped above.
     if (options.activationDeadlinePassed) {
@@ -634,7 +639,7 @@ function getDisplay(
     // activate-and-redeem escape hatch instead. The tone is deliberately
     // reassuring (amber warning, "not lost" copy, always-visible subtext):
     // the state looks like lost funds but is fully recoverable.
-    if (options.htlcSpent) {
+    if (options.htlcSpentByPeginTx) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
         displayVariant: "warning",

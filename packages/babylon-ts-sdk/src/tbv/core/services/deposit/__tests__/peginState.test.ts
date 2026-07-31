@@ -74,16 +74,16 @@ describe("peginProtocolState", () => {
 
     it("offers only ACTIVATE_AND_REDEEM when the HTLC is spent", () => {
       const state = getPeginProtocolState(ContractStatus.VERIFIED, {
-        htlcSpent: true,
+        htlcSpentByPeginTx: true,
       });
       expect(state.availableActions).toEqual([
         PeginAction.ACTIVATE_AND_REDEEM,
       ]);
     });
 
-    it("keeps ACTIVATE_VAULT when htlcSpent is false", () => {
+    it("keeps ACTIVATE_VAULT when htlcSpentByPeginTx is false", () => {
       const state = getPeginProtocolState(ContractStatus.VERIFIED, {
-        htlcSpent: false,
+        htlcSpentByPeginTx: false,
       });
       expect(state.availableActions).toEqual([PeginAction.ACTIVATE_VAULT]);
     });
