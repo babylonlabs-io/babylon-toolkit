@@ -18,8 +18,11 @@ const mockGetPollingResult = vi.hoisted(() => vi.fn());
 const mockRefetch = vi.hoisted(() => vi.fn());
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  // `refetch` gets a FRESH identity on every render, mirroring production:
+  // the provider re-creates it whenever its context value recomputes. The
+  // one-shot mount effect must not key on that identity, or it loops.
   usePeginPolling: () => ({
-    refetch: mockRefetch,
+    refetch: (...args: unknown[]) => mockRefetch(...args),
     getPollingResult: mockGetPollingResult,
   }),
 }));
@@ -361,18 +364,36 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("activate")).toBeNull();
   });
 
-  it("refetches the VP poll on open", () => {
+  it("refetches the VP poll exactly once on open, not on every render", () => {
     // This used to come for free: the modal mounted its own provider whose
     // query key was scoped to the viewed batch, so opening it always missed
     // the cache and refetched. Sharing the app-wide provider means the key no
     // longer changes — and the poll may already have halted — so without an
     // explicit refetch the user opens onto a stale snapshot and never sees the
     // action they came for.
+    //
+    // Exactly once is the load-bearing half: the mock hands the view a fresh
+    // `refetch` identity per render (as the provider does whenever its context
+    // value recomputes), so an effect keyed on that identity would fire again
+    // on every re-render — refetch → new data → new context value → effect —
+    // a self-sustaining loop the poll's halt cannot survive.
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.NONE] }),
     );
-    renderView();
-    expect(mockRefetch).toHaveBeenCalled();
+    const vaultIds: Hex[] = ["0xvault0" as Hex];
+    const { rerender } = renderView({ vaultIds });
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={vaultIds}
+        activities={vaultIds.map((id) => activityWithId(id))}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        onClose={vi.fn()}
+      />,
+    );
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
   });
 
   it("auto-mounts WOTS submission when the VP needs the WOTS key", () => {

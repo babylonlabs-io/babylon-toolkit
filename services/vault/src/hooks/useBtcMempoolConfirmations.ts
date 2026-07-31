@@ -17,6 +17,12 @@ const STALE_TIME_MS = 55 * 1000;
 // Cap concurrency — the public mempool.space endpoint rate-limits (429s).
 const MAX_CONCURRENT_REQUESTS = 4;
 
+// Singleton for the no-data render: same identity-stability reasoning as
+// `EMPTY_REFUNDS` in useBtcHtlcRefundStatus — a per-render `new Map()` makes
+// every consumer memo recompute on every render while the query is disabled
+// or unloaded, and React Query's structural sharing cannot share Maps.
+const EMPTY_CONFIRMATIONS = new Map<string, number>();
+
 export interface BtcMempoolConfirmationsResult {
   /** Canonical (lowercased, no 0x) txid → confirmation count. Missing = unknown. */
   confirmationsByTxid: Map<string, number>;
@@ -78,5 +84,5 @@ export function useBtcMempoolConfirmations(
     },
   });
 
-  return { confirmationsByTxid: query.data ?? new Map() };
+  return { confirmationsByTxid: query.data ?? EMPTY_CONFIRMATIONS };
 }
