@@ -87,6 +87,17 @@ export async function activateVaultWithSecret(
  * delegates into the application adapter on this path, so it stays usable
  * while the adapter is paused or its activation reverts; the vault provider
  * then pays the BTC out to the depositor's committed payout address.
+ *
+ * Registry preconditions the gate cannot pre-read — the application
+ * registration being Active (`ApplicationNotActive`), the activation
+ * deadline, the Verified status — are checked by `executeWrite`'s mandatory
+ * pre-broadcast simulation: on a simulated revert nothing is signed or
+ * sent, so a precondition already failing at submission time never
+ * publishes the secret. The residual is the simulate-to-mine window: a
+ * precondition that flips after a passing simulation (or a lagging RPC
+ * replica) still mines a reverting transaction with the secret in public
+ * calldata. That window is inherent — any pre-check, including a CTA-time
+ * application-status read, is point-in-time in exactly the same way.
  */
 export async function activateVaultWithSecretAndRedeem(
   params: ActivateVaultParams,

@@ -220,7 +220,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   VaultProviderCommissionExceeded:
     "The vault provider's commission rate exceeds your acceptable maximum. Please try again.",
   ApplicationNotActive:
-    "This application is currently paused. BTC Vault operations are temporarily disabled.",
+    "The application this vault is registered with is not active on the vault registry, so activation cannot proceed. No transaction was sent and your secret has not been revealed.",
   BlocklistedVaultKeeper:
     "This vault keeper has been blocklisted and cannot perform this action.",
   PostExpiryGraceWindowElapsed:

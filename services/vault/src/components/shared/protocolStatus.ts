@@ -105,6 +105,21 @@ export function isActivationBlocked(gate: ProtocolGateState): boolean {
  * application adapter, and an aave-scope pause is precisely the situation the
  * hatch exists to escape — blocking on it would disable the recovery when it
  * is most needed.
+ *
+ * A further on-chain precondition this gate cannot see: the registry requires
+ * the vault's application registration to be Active (`ApplicationNotActive`
+ * otherwise) even on the redeem path. A failure existing at submission time
+ * is caught pre-broadcast by the mandatory `simulateContract` in
+ * `executeWrite` — nothing is signed or sent, so the secret stays private —
+ * and surfaces through the `ApplicationNotActive` entry in
+ * `errorMessages.ts`. The simulate-to-mine window remains: a registration
+ * deactivated after a passing simulation still mines a reverting tx with
+ * the secret public, and no point-in-time pre-check (this gate included)
+ * can close that.
+ * TODO(#2159): also gate the CTA on the registry's application status so the
+ * hatch is never offered when it cannot succeed. Blocked on the status getter
+ * being exposed in our bundled ABI slice — the signature must come from the
+ * contracts repo, not be guessed here.
  */
 export function isActivateAndRedeemBlocked(gate: ProtocolGateState): boolean {
   return gate.protocol === "paused";
