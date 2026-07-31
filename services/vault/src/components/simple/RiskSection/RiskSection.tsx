@@ -15,7 +15,9 @@ interface RiskSectionProps {
   healthFactorStatus: HealthFactorStatus;
   hasPosition: boolean;
   liquidationPriceText: string;
+  liquidationPriceLoading: boolean;
   btcPriceText: string;
+  btcPriceLoading: boolean;
   pctToLiquidationText: string;
   collateralFactorText: string;
   collateralFactorLoading: boolean;
@@ -89,7 +91,9 @@ export function RiskSection({
   healthFactorStatus,
   hasPosition,
   liquidationPriceText,
+  liquidationPriceLoading,
   btcPriceText,
+  btcPriceLoading,
   pctToLiquidationText,
   collateralFactorText,
   collateralFactorLoading,
@@ -156,11 +160,13 @@ export function RiskSection({
               <StatCell
                 label={COPY.risk.liquidationBtcPriceLabel}
                 value={liquidationPriceText}
+                loading={liquidationPriceLoading}
               />
               <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight" />
               <StatCell
                 label={COPY.risk.currentBtcPriceLabel}
                 value={btcPriceText}
+                loading={btcPriceLoading}
               />
               <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight" />
               <StatCell

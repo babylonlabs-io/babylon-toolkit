@@ -314,23 +314,10 @@ describe("getTokenPrices", () => {
     expect(staleEvents).toHaveLength(2);
   });
 
-  it("stores error metadata when multicall fails", async () => {
+  it("propagates a multicall rejection instead of resolving with failed metadata", async () => {
     mockMulticall.mockRejectedValueOnce(new Error("RPC timeout"));
 
-    const result = await getTokenPrices(["BTC"]);
-
-    expect(result.prices["BTC"]).toBeUndefined();
-    expect(result.metadata["BTC"].fetchFailed).toBe(true);
-    expect(result.metadata["BTC"].error).toBe("RPC timeout");
-  });
-
-  it("stores error metadata for alias tokens when BTC fetch fails", async () => {
-    mockMulticall.mockRejectedValueOnce(new Error("RPC timeout"));
-
-    const result = await getTokenPrices(["BTC"]);
-
-    expect(result.metadata["vBTC"].fetchFailed).toBe(true);
-    expect(result.metadata["sBTC"].fetchFailed).toBe(true);
+    await expect(getTokenPrices(["BTC"])).rejects.toThrow("RPC timeout");
   });
 
   it("throws on non-positive price via getTokenPrices error handling", async () => {
@@ -417,16 +404,35 @@ describe("getTokenPrices", () => {
     expect(result.metadata["ETH"].fetchFailed).toBe(false);
   });
 
-  it("marks every requested symbol failed (including aliases) when the batched multicall rejects", async () => {
-    mockMulticall.mockRejectedValueOnce(new Error("RPC timeout"));
+  it("throws when every call failed from one shared transport error", async () => {
+    // viem's multicall does not reject on a transport failure when
+    // allowFailure is set; it pushes the same rejection reason onto every
+    // entry (viem multicall.ts, rejected-chunk branch). Throwing here is what
+    // lets React Query retry and keep the last good prices on screen.
+    const transportError = new Error("HTTP request failed");
+    mockMulticall.mockResolvedValueOnce([
+      { status: "failure", error: transportError, result: undefined },
+      { status: "failure", error: transportError, result: undefined },
+    ]);
 
-    const result = await getTokenPrices(["BTC", "ETH"]);
+    await expect(getTokenPrices(["BTC"])).rejects.toThrow(
+      "HTTP request failed",
+    );
+  });
 
-    for (const symbol of ["BTC", "vBTC", "sBTC", "ETH", "WETH"]) {
-      expect(result.prices[symbol]).toBeUndefined();
-      expect(result.metadata[symbol].fetchFailed).toBe(true);
-      expect(result.metadata[symbol].error).toBe("RPC timeout");
-    }
+  it("does not throw when the only requested feed reverts on-chain", async () => {
+    // Every entry is a failure here too, but each carries its own error
+    // object — viem builds one per call via getContractError. That is a real
+    // per-feed fault, not a dead transport, so it stays data.
+    mockMulticall.mockResolvedValueOnce([
+      { status: "failure", error: new Error("InvalidSource()") },
+      { status: "failure", error: new Error("InvalidSource()") },
+    ]);
+
+    const result = await getTokenPrices(["BTC"]);
+
+    expect(result.metadata["BTC"].fetchFailed).toBe(true);
+    expect(result.prices["BTC"]).toBeUndefined();
   });
 
   it("deduplicates shared BTC aliases into one feed entry in a mixed-symbol batch", async () => {

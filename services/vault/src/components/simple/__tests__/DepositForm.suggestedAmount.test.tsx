@@ -74,7 +74,7 @@ const feeState: DepositFeeState = {
   minPeginFee: 0n,
   minPeginFeeError: null,
   btcPrice: 60_000,
-  hasPriceFetchError: false,
+  hasBtcPriceFetchError: false,
   estimatedFeeSats: 0n,
   estimatedFeeRate: 1,
   isLoadingFee: false,

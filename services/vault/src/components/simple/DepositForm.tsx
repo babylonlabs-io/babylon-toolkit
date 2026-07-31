@@ -92,7 +92,7 @@ export interface DepositFeeState {
   /** Per-vault P2A anchor value; null while loading (CTA waits on it). */
   p2aAnchorValueSats: bigint | null;
   btcPrice: number;
-  hasPriceFetchError: boolean;
+  hasBtcPriceFetchError: boolean;
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
   isLoadingFee: boolean;
@@ -233,7 +233,7 @@ export function DepositForm({
     appVersionUnsupported,
     p2aAnchorValueSats,
     btcPrice,
-    hasPriceFetchError,
+    hasBtcPriceFetchError,
     estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
@@ -323,14 +323,15 @@ export function DepositForm({
   const sliderValueSats = Number(amountSats);
 
   const usdValue = useMemo(() => {
-    if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
+    if (hasBtcPriceFetchError || !btcPrice || !amount || amount === "0")
+      return "";
     const btcNum = parseFloat(amount);
     if (isNaN(btcNum)) return "";
     return `$${(btcNum * btcPrice).toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })} USD`;
-  }, [amount, btcPrice, hasPriceFetchError]);
+  }, [amount, btcPrice, hasBtcPriceFetchError]);
 
   // When the confirmed balance reads zero but unconfirmed funds exist, show a
   // "pending confirmation" note in the slider's right slot (where the USD value
@@ -482,7 +483,7 @@ export function DepositForm({
           collateralFactor={collateralFactor}
           amountBtc={amount}
           btcPrice={btcPrice}
-          hasPriceFetchError={hasPriceFetchError}
+          hasBtcPriceFetchError={hasBtcPriceFetchError}
         />
         {suggestedAmountSats != null && (
           <SuggestedDepositContainer
@@ -599,7 +600,7 @@ export function DepositForm({
       <DepositFeesBreakdown
         depositorClaimValue={depositorClaimValue}
         btcPrice={btcPrice}
-        hasPriceFetchError={hasPriceFetchError}
+        hasBtcPriceFetchError={hasBtcPriceFetchError}
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
         protocolFeeIsError={protocolFeeIsError}

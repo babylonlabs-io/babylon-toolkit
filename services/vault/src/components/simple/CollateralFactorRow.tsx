@@ -10,20 +10,20 @@ interface CollateralFactorRowProps {
   collateralFactor: number | null;
   amountBtc: string;
   btcPrice: number;
-  hasPriceFetchError: boolean;
+  hasBtcPriceFetchError: boolean;
 }
 
 export function CollateralFactorRow({
   collateralFactor,
   amountBtc,
   btcPrice,
-  hasPriceFetchError,
+  hasBtcPriceFetchError,
 }: CollateralFactorRowProps) {
   if (collateralFactor === null) return null;
 
   const percent = `${Math.round(collateralFactor * PERCENT_SCALE)}%`;
 
-  const maxBorrowUsd = hasPriceFetchError
+  const maxBorrowUsd = hasBtcPriceFetchError
     ? null
     : computeMaxBorrowUsd(amountBtc, btcPrice, collateralFactor);
 

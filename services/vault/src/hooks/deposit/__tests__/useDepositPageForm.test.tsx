@@ -138,8 +138,6 @@ vi.mock("../../usePrices", () => ({
     metadata: {},
     isLoading: false,
     error: null,
-    hasStalePrices: false,
-    hasPriceFetchError: false,
   })),
 }));
 
@@ -488,6 +486,25 @@ describe("useDepositPageForm", () => {
   };
 
   describe("initialization", () => {
+    it("keeps the BTC USD figures usable when only a non-BTC feed failed", async () => {
+      // Every consumer of this flag renders a BTC-denominated figure, so a
+      // dead ETH feed must not blank them.
+      const { usePrices } = await import("../../usePrices");
+      vi.mocked(usePrices).mockReturnValueOnce({
+        prices: { BTC: 95000.5 },
+        metadata: {
+          BTC: { isStale: false, ageSeconds: 0, fetchFailed: false },
+          ETH: { isStale: false, ageSeconds: 0, fetchFailed: true },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.hasBtcPriceFetchError).toBe(false);
+    });
+
     it("should initialize with empty form data", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 

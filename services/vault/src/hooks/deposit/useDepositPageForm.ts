@@ -8,7 +8,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
@@ -103,9 +102,8 @@ export interface UseDepositPageFormResult {
    */
   hasUnconfirmedBalanceOnly: boolean;
   btcPrice: number;
-  priceMetadata: Record<string, PriceMetadata>;
-  hasStalePrices: boolean;
-  hasPriceFetchError: boolean;
+  /** Scoped to BTC: every consumer renders a BTC-denominated figure. */
+  hasBtcPriceFetchError: boolean;
   applications: Array<{
     id: string;
     name: string;
@@ -228,7 +226,10 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
   const { config: aaveConfig } = useAaveConfig();
   const btcPriceUSD = usePrice("BTC");
-  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
+  const { metadata } = usePrices();
+  // Deliberately not the any-symbol aggregate: a dead ETH feed used to blank
+  // every BTC USD figure in this form while the BTC price was perfectly good.
+  const hasBtcPriceFetchError = metadata["BTC"]?.fetchFailed === true;
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
@@ -737,9 +738,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     unconfirmedBalance,
     hasUnconfirmedBalanceOnly,
     btcPrice: btcPriceUSD,
-    priceMetadata: metadata,
-    hasStalePrices,
-    hasPriceFetchError,
+    hasBtcPriceFetchError,
     applications,
     isLoadingApplications,
     providers,

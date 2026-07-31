@@ -19,7 +19,7 @@ const METRIC_PLACEHOLDER = "--";
 interface DepositFeesBreakdownProps {
   depositorClaimValue?: bigint;
   btcPrice: number;
-  hasPriceFetchError: boolean;
+  hasBtcPriceFetchError: boolean;
   protocolFeeAmount: string;
   protocolFeePrice: string;
   protocolFeeIsError: boolean;
@@ -77,7 +77,7 @@ function FeeLine({
 export function DepositFeesBreakdown({
   depositorClaimValue,
   btcPrice,
-  hasPriceFetchError,
+  hasBtcPriceFetchError,
   protocolFeeAmount,
   protocolFeePrice,
   protocolFeeIsError,
@@ -95,7 +95,7 @@ export function DepositFeesBreakdown({
       return { amount: METRIC_PLACEHOLDER, price: "" };
     }
     const btc = satoshiToBtcNumber(sats);
-    const hasPrice = !hasPriceFetchError && btcPrice > 0;
+    const hasPrice = !hasBtcPriceFetchError && btcPrice > 0;
     const price = hasPrice
       ? `($${(btc * btcPrice).toLocaleString("en-US", {
           minimumFractionDigits: 2,

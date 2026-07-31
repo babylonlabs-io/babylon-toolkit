@@ -298,6 +298,29 @@ function readoutForFeed(
   };
 }
 
+/**
+ * Rethrow when the batch never reached the chain.
+ *
+ * With `allowFailure`, viem does not reject on a transport failure — its
+ * rejected-chunk branch pushes the one rejection reason onto every entry, while
+ * a per-call revert builds a distinct error per call via `getContractError`. So
+ * a single error object shared by every entry means the whole read died in
+ * transit, and the caller should see that as a failed fetch rather than as
+ * "every feed is broken".
+ */
+function assertBatchReachedChain(
+  results: readonly { status: "success" | "failure"; error?: Error }[],
+): void {
+  const sharedError = results[0]?.error;
+  if (sharedError === undefined) return;
+  const everyCallDiedTogether = results.every(
+    (entry) => entry.status === "failure" && entry.error === sharedError,
+  );
+  if (!everyCallDiedTogether) return;
+  logger.warn(`Chainlink multicall failed`, { error: sharedError.message });
+  throw sharedError;
+}
+
 export async function getTokenPrices(
   symbols: string[],
 ): Promise<TokenPricesResult> {
@@ -336,31 +359,13 @@ export async function getTokenPrices(
   );
 
   const publicClient = ethClient.getPublicClient();
-  let results;
-  try {
-    results = await publicClient.multicall({
-      contracts,
-      allowFailure: true,
-    });
-  } catch (error) {
-    // Network-level multicall failure (RPC timeout, etc.). Mark every
-    // requested symbol failed so consumers fail closed rather than display
-    // stale or undefined prices.
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.warn(`Chainlink multicall failed`, { error: errorMessage });
-    const failedMetadata: PriceMetadata = {
-      isStale: false,
-      ageSeconds: 0,
-      fetchFailed: true,
-      error: errorMessage,
-    };
-    for (const feedSymbols of symbolsByFeed.values()) {
-      for (const symbol of feedSymbols) {
-        emitForSymbol(symbol, { metadata: failedMetadata }, prices, metadata);
-      }
-    }
-    return { prices, metadata };
-  }
+  // A transport failure must reject, not resolve: React Query only retries and
+  // only keeps the last good prices when the query function throws.
+  const results = await publicClient.multicall({
+    contracts,
+    allowFailure: true,
+  });
+  assertBatchReachedChain(results);
 
   uniqueFeeds.forEach((feedAddress, feedIdx) => {
     const roundDataResult =

@@ -61,6 +61,7 @@ vi.mock("@/hooks/usePegoutPolling", () => ({
 const pricesMock = vi.hoisted(() => ({
   prices: {} as Record<string, number>,
   metadata: {} as Record<string, { isStale: boolean; fetchFailed: boolean }>,
+  isLoading: false,
 }));
 
 vi.mock("@/hooks/usePrices", () => ({
@@ -87,7 +88,9 @@ vi.mock("@/applications/aave/hooks", () => ({
 }));
 
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
-  usePositionNotifications: () => ({ result: null }),
+  // Mirrors the real shape: a null result always carries the status that
+  // explains it, and the page now reads that status.
+  usePositionNotifications: () => ({ result: null, status: "no-price" }),
 }));
 
 vi.mock("../OverviewSection", () => ({
@@ -132,6 +135,7 @@ beforeEach(() => {
   featureFlagsMock.isGodModePanelEnabled = false;
   pricesMock.prices = {};
   pricesMock.metadata = {};
+  pricesMock.isLoading = false;
   setDebugHealthFactorOverride(null);
 });
 
@@ -163,6 +167,21 @@ describe("DashboardPage v3 composition", () => {
     expect(screen.queryByTestId("supply-cap")).not.toBeInTheDocument();
     expect(screen.queryByTestId("pending-deposits")).not.toBeInTheDocument();
     expect(screen.queryByTestId("pending-withdrawals")).not.toBeInTheDocument();
+  });
+});
+
+describe("DashboardPage risk stats on first landing", () => {
+  it("shows loading rather than the unavailable placeholder while prices are in flight", () => {
+    featureFlagsMock.isV3UiEnabled = true;
+    pricesMock.isLoading = true;
+
+    render(<DashboardPage />);
+
+    // Liquidation BTC Price and Current BTC Price both wait on this query;
+    // before, they rendered the same dash a failed feed produces.
+    expect(
+      screen.getAllByText(COPY.common.loading).length,
+    ).toBeGreaterThanOrEqual(2);
   });
 });
 

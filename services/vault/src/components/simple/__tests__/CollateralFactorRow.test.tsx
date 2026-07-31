@@ -10,7 +10,7 @@ describe("CollateralFactorRow", () => {
         collateralFactor={null}
         amountBtc="1"
         btcPrice={88_400}
-        hasPriceFetchError={false}
+        hasBtcPriceFetchError={false}
       />,
     );
     expect(container).toBeEmptyDOMElement();
@@ -22,7 +22,7 @@ describe("CollateralFactorRow", () => {
         collateralFactor={0.72}
         amountBtc=""
         btcPrice={88_400}
-        hasPriceFetchError={false}
+        hasBtcPriceFetchError={false}
       />,
     );
     expect(screen.getByText("Max to Borrow:")).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("CollateralFactorRow", () => {
         collateralFactor={0.72}
         amountBtc="0"
         btcPrice={88_400}
-        hasPriceFetchError={false}
+        hasBtcPriceFetchError={false}
       />,
     );
     expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
@@ -50,20 +50,20 @@ describe("CollateralFactorRow", () => {
         collateralFactor={0.72}
         amountBtc="1"
         btcPrice={88_400}
-        hasPriceFetchError={false}
+        hasBtcPriceFetchError={false}
       />,
     );
     expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
     expect(screen.getByText(/\$63\.6k USD/)).toBeInTheDocument();
   });
 
-  it("shows -- for max-to-borrow when hasPriceFetchError is true", () => {
+  it("shows -- for max-to-borrow when hasBtcPriceFetchError is true", () => {
     render(
       <CollateralFactorRow
         collateralFactor={0.72}
         amountBtc="1"
         btcPrice={88_400}
-        hasPriceFetchError={true}
+        hasBtcPriceFetchError={true}
       />,
     );
     expect(screen.getByText("(CF=72%)")).toBeInTheDocument();

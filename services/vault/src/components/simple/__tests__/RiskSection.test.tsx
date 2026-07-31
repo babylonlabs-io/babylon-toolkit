@@ -123,6 +123,20 @@ describe("RiskSection rendering", () => {
     expect(screen.queryByText("78%")).not.toBeInTheDocument();
   });
 
+  it("shows loading rather than the empty placeholder while the prices are still in flight", () => {
+    renderSection({
+      btcPriceLoading: true,
+      liquidationPriceLoading: true,
+      btcPriceText: COPY.common.emptyValue,
+      liquidationPriceText: COPY.common.emptyValue,
+      btcPriceUsd: null,
+      liquidationPriceUsd: null,
+    });
+
+    expect(screen.getAllByText(COPY.common.loading)).toHaveLength(2);
+    expect(screen.queryByText(COPY.common.emptyValue)).not.toBeInTheDocument();
+  });
+
   it("renders the moderate state with both price markers and the bracket", () => {
     renderSection({
       healthFactorStatus: "warning",

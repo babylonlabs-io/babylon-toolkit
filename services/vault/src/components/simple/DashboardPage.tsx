@@ -118,10 +118,9 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
 
-  const { result: positionNotifications } = usePositionNotifications(
-    isConnected ? address : undefined,
-  );
-  const { prices, metadata } = usePrices();
+  const { result: positionNotifications, status: positionNotificationsStatus } =
+    usePositionNotifications(isConnected ? address : undefined);
+  const { prices, metadata, isLoading: isPricesLoading } = usePrices();
 
   const liquidationNotificationsEnabled =
     featureFlags.isLiquidationNotificationsEnabled;
@@ -303,6 +302,11 @@ export function DashboardPage() {
     collateralFactorBps !== null
       ? formatBasisPointsAsPercent(collateralFactorBps)
       : COPY.common.emptyValue;
+  // A first load has no number yet and the placeholder reads as "unavailable",
+  // which is the state a failed or stale feed lands in. Only the price query
+  // being in flight — or the cascade still resolving — counts as loading.
+  const isLiquidationPriceLoading =
+    isPricesLoading || positionNotificationsStatus === "loading";
 
   const handleOpenWithdraw = useCallback(() => {
     setIsWithdrawOpen(true);
@@ -393,7 +397,9 @@ export function DashboardPage() {
             healthFactorStatus={shownHealthFactorStatus}
             hasPosition={hasOverviewData || healthFactorOverride !== null}
             liquidationPriceText={liquidationPrice}
+            liquidationPriceLoading={isLiquidationPriceLoading}
             btcPriceText={btcPrice}
+            btcPriceLoading={isPricesLoading}
             pctToLiquidationText={pctToLiquidation}
             collateralFactorText={collateralFactorText}
             collateralFactorLoading={isBorrowCapacityLoading}

@@ -6,7 +6,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 
 import {
   getTokenPrices,
@@ -39,10 +38,6 @@ export interface UsePricesResult {
   isLoading: boolean;
   /** Error if the price fetch failed */
   error: Error | null;
-  /** Whether any price data is stale (older than 1 hour) */
-  hasStalePrices: boolean;
-  /** Whether any price fetch failed */
-  hasPriceFetchError: boolean;
 }
 
 /**
@@ -68,23 +63,11 @@ export function usePrices(): UsePricesResult {
     retry: 2,
   });
 
-  const hasStalePrices = useMemo(() => {
-    if (!data?.metadata) return false;
-    return Object.values(data.metadata).some((meta) => meta.isStale);
-  }, [data?.metadata]);
-
-  const hasPriceFetchError = useMemo(() => {
-    if (!data?.metadata) return false;
-    return Object.values(data.metadata).some((meta) => meta.fetchFailed);
-  }, [data?.metadata]);
-
   return {
     prices: data?.prices ?? {},
     metadata: data?.metadata ?? {},
     isLoading,
     error: error as Error | null,
-    hasStalePrices,
-    hasPriceFetchError,
   };
 }
 

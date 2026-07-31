@@ -14,7 +14,7 @@ import { DepositFeesBreakdown } from "../DepositFeesBreakdown";
 
 const baseProps = {
   btcPrice: 0,
-  hasPriceFetchError: false,
+  hasBtcPriceFetchError: false,
   protocolFeeAmount: "0.0001 BTC",
   protocolFeePrice: "",
   protocolFeeIsError: false,
