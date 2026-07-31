@@ -19,7 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
 const VAULT_WASM_BRANCH = 'main';
 // main incl. PR #2 (P2A anchor exports); bundles btc-vault v1 @ a0ad5503, v2 @ d7e33b26.
-const VAULT_WASM_COMMIT = '4d7ee90e803bfdcab9cf4f19e32bb0f37755bf27';
+const VAULT_WASM_COMMIT = 'ae00321b8710acdbb4d94900b91c3053b5e62416';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');

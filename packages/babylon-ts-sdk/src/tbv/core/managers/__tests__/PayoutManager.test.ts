@@ -147,7 +147,7 @@ describe("PayoutManager", () => {
      *   outs[1]: VP commission
      *   outs[2]: CPFP anchor (546 sats)
      * Implicit fee = inputs (150_000) − outputs (145_000) = 5_000 = 3.3%,
-     * comfortably under the 10% bound in `buildPayoutPsbt`.
+     * comfortably under the device fee bound in `buildPayoutPsbt`.
      */
     function createTestPayoutTransaction(
       peginTxHex: string,
@@ -243,6 +243,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         },
         {
           vaultCoreVersion: 1,
@@ -257,6 +259,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         },
       ]);
 
@@ -306,6 +310,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
         ]),
       ).rejects.toThrow(
@@ -352,6 +358,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
         ]),
       ).rejects.toThrow();
@@ -413,6 +421,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
           {
             vaultCoreVersion: 1,
@@ -427,6 +437,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
         ]),
       ).rejects.toThrow("Expected 2 signed PSBTs but received 1");
@@ -490,6 +502,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
           {
             vaultCoreVersion: 1,
@@ -504,6 +518,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
         ]),
       ).rejects.toThrow("Expected 2 signed PSBTs but received 3");
@@ -529,7 +545,7 @@ describe("PayoutManager", () => {
      *   outs[1]: VP commission
      *   outs[2]: CPFP anchor (546 sats)
      * Implicit fee = inputs (150_000) − outputs (145_000) = 5_000 = 3.3%,
-     * comfortably under the 10% bound in `buildPayoutPsbt`.
+     * comfortably under the device fee bound in `buildPayoutPsbt`.
      */
     function createTestPayoutTransaction(
       peginTxHex: string,
@@ -593,6 +609,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: wrongScriptPubKey,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         }),
       ).rejects.toThrow(
         "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
@@ -632,6 +650,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: prefixedScriptPubKey,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         }),
       ).rejects.not.toThrow(
         "output 0 does not pay the expected scriptPubKey for role vp-claimer",
@@ -666,6 +686,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: "not-valid-hex",
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         }),
       ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
     });
@@ -726,6 +748,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         }),
       ).rejects.toThrow(/has 4 output\(s\), expected exactly 3/);
     });
@@ -785,6 +809,8 @@ describe("PayoutManager", () => {
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
         }),
       ).rejects.toThrow(/output 0 script/);
     });
@@ -821,6 +847,8 @@ describe("PayoutManager", () => {
             registeredPayoutScriptPubKey: wrongScriptPubKey,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
           },
         ]),
       ).rejects.toThrow(

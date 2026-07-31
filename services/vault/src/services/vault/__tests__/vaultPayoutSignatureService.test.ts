@@ -148,6 +148,9 @@ describe("vaultPayoutSignatureService", () => {
         securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
         councilQuorum: 1,
         minVpCommissionBps: 10,
+        // Distinctive on purpose: a hardcoded rate anywhere in the threading
+        // path would fail the assertion below.
+        feeRate: 7n,
       });
       mockGetVaultKeepersByVersion.mockResolvedValue([
         { btcPubKey: "vk1" },
@@ -183,6 +186,8 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.network).toBe("testnet");
       expect(context.registeredPayoutScriptPubKey).toBe("0xscript");
       expect(context.commissionBps).toBe(50);
+      // Version-locked graph-build rate threaded from offchainParams.feeRate.
+      expect(context.protocolFeeRate).toBe(7n);
     });
 
     it("throws when VP commission is below the protocol floor", async () => {
@@ -228,6 +233,7 @@ describe("vaultPayoutSignatureService", () => {
         securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
         councilQuorum: 1,
         minVpCommissionBps: 0,
+        feeRate: 2n,
       });
       (getVaultFromChain as Mock).mockResolvedValue({
         ...ON_CHAIN_VAULT,

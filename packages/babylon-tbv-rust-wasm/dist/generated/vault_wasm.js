@@ -1460,6 +1460,47 @@ export function computePayoutDepositorSighash(tx_graph_version, graph_json) {
 }
 
 /**
+ * Floor of the Payout transaction fee under `tx_graph_version`: the minimum
+ * of `estimate_vsize * fee_rate` across every output-sizing model a deployed
+ * vault provider is known to have used (fixed-34, intermediate, script-aware
+ * — see the version modules). A VP-built payout paying LESS than this value
+ * is provably not produced by any known VP build.
+ *
+ * Callers pass TRUSTED output script lengths only: `out0_len` from the
+ * already-pinned registered payout script (or the derived BIP-86 script for
+ * VK claimers while that pin is active), `out1_len` (VP-claimer commission,
+ * `None` otherwise) pre-checked against the contract's 128-byte registration
+ * cap. The CPFP anchor length is forced to 34 internally.
+ *
+ * # Arguments
+ *
+ * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
+ * * `num_vault_keepers` - Vault keeper count (N)
+ * * `num_universal_challengers` - Universal challenger count (M)
+ * * `num_local_challengers` - Local challenger count (always N by role derivation)
+ * * `council_size` - Security council member count
+ * * `out0_len` - Trusted byte length of the payout receiver scriptPubKey
+ * * `out1_len` - Trusted byte length of the VP commission scriptPubKey, if present
+ * * `fee_rate_sat_per_vb` - Tx-graph fee rate (the vault's version-locked `offchainParams.feeRate`)
+ * @param {number} tx_graph_version
+ * @param {number} num_vault_keepers
+ * @param {number} num_universal_challengers
+ * @param {number} num_local_challengers
+ * @param {number} council_size
+ * @param {number} out0_len
+ * @param {number | null | undefined} out1_len
+ * @param {bigint} fee_rate_sat_per_vb
+ * @returns {bigint}
+ */
+export function computePayoutFeeFloor(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, out0_len, out1_len, fee_rate_sat_per_vb) {
+    const ret = wasm.computePayoutFeeFloor(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, out0_len, isLikeNone(out1_len) ? Number.MAX_SAFE_INTEGER : (out1_len) >>> 0, fee_rate_sat_per_vb);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return BigInt.asUintN(64, ret[0]);
+}
+
+/**
  * Computes the PegIn input sighash under `tx_graph_version`.
  *
  * `pegin_json` must have been serialized under the same tx graph version —

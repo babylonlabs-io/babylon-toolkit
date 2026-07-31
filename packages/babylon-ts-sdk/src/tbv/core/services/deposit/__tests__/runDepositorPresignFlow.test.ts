@@ -28,6 +28,9 @@ vi.mock("../signDepositorGraph", () => ({
   })),
 }));
 
+const capturedPayoutInputs = vi.hoisted(
+  () => [] as Record<string, unknown>[],
+);
 vi.mock("../../../managers/PayoutManager", () => {
   return {
     PayoutManager: class MockPayoutManager {
@@ -35,6 +38,7 @@ vi.mock("../../../managers/PayoutManager", () => {
         return true;
       }
       async signPayoutTransactionsBatch(inputs: unknown[]) {
+        capturedPayoutInputs.push(...(inputs as Record<string, unknown>[]));
         return (inputs as unknown[]).map(() => ({
           payoutSignature: "mock_payout_sig",
         }));
@@ -195,6 +199,7 @@ function createSigningContext(): PayoutSigningContext {
     network: "Testnet4" as never,
     registeredPayoutScriptPubKey: "0x5120" + DEPOSITOR_PK,
     commissionBps: 50,
+    protocolFeeRate: 2n,
   };
 }
 
@@ -581,6 +586,39 @@ describe("runDepositorPresignFlow", () => {
     });
   });
 
+  it("threads every payout signing-input field from the context", async () => {
+    // The batch inputs are built by buildPayoutSigningInput — a hardcoded
+    // field there (rate, councilSize, timelock, keys) must fail here.
+    capturedPayoutInputs.length = 0;
+    const reader = createMockStatusReader([
+      DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+    ]);
+    const context = createSigningContext();
+
+    await runDepositorPresignFlow({
+      statusReader: reader,
+      presignClient: createMockPresignClient(),
+      btcWallet: createMockWallet(),
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      signingContext: context,
+    });
+
+    expect(capturedPayoutInputs.length).toBeGreaterThan(0);
+    for (const input of capturedPayoutInputs) {
+      expect(input).toMatchObject({
+        vaultCoreVersion: context.vaultCoreVersion,
+        vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+        timelockPegin: context.timelockPegin,
+        registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
+        commissionBps: context.commissionBps,
+        protocolFeeRate: context.protocolFeeRate,
+        councilSize: context.councilMembers.length,
+      });
+    }
+  });
+
   describe("deposit terms approval", () => {
     it("approves the deposit terms before fetching presign transactions", async () => {
       const callLog: string[] = [];
@@ -639,6 +677,32 @@ describe("runDepositorPresignFlow", () => {
       ).not.toHaveBeenCalled();
       expect(
         presignClient.submitDepositorPresignatures,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("throws when depositTerms.baseFeeRate diverges from the context's version-locked rate", async () => {
+      // The approved terms and the payout bound must share one graph-build
+      // rate; divergence means a params-version drift bug, not a user error.
+      const wallet = createMockWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: { ...createSigningContext(), protocolFeeRate: 3n },
+          depositTerms: DEPOSIT_TERMS, // baseFeeRate: 2n
+        }),
+      ).rejects.toThrow(/baseFeeRate/);
+
+      expect(
+        presignClient.requestDepositorPresignTransactions,
       ).not.toHaveBeenCalled();
     });
 

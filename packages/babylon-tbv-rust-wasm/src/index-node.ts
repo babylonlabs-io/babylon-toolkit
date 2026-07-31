@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed, peginP2aAnchorOutput as wasmPeginP2aAnchorOutput, supportedTxGraphVersions as wasmSupportedTxGraphVersions, validatePeginP2aAnchor as wasmValidatePeginP2aAnchor } from "./generated/vault_wasm.js";
+import { initSync, WasmPrePeginTx, WasmPeginTx, WasmPrePeginHtlcConnector, WasmPeginPayoutConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector, computeMinClaimValue as wasmComputeMinClaimValue, computeMinPeginFee as wasmComputeMinPeginFee, computePayoutFeeFloor as wasmComputePayoutFeeFloor, deriveVaultId as wasmDeriveVaultId, expandAuthAnchor as wasmExpandAuthAnchor, expandHashlockSecret as wasmExpandHashlockSecret, expandWotsSeed as wasmExpandWotsSeed, peginP2aAnchorOutput as wasmPeginP2aAnchorOutput, supportedTxGraphVersions as wasmSupportedTxGraphVersions, validatePeginP2aAnchor as wasmValidatePeginP2aAnchor } from "./generated/vault_wasm.js";
 
 import type {
   PrePeginParams,
@@ -223,6 +223,46 @@ export async function computeMinPeginFee(
     );
   } catch (err) {
     throw toError(err, "computeMinPeginFee");
+  }
+}
+
+/**
+ * Floor of the Payout transaction fee under `txGraphVersion`: the minimum of
+ * `estimatedVsize * feeRate` across every output-sizing model a deployed
+ * vault provider is known to have used (fixed-34, intermediate,
+ * script-aware). A VP-built payout paying less than this is provably not
+ * produced by any known VP build. `out0Len`/`out1Len` must be TRUSTED script
+ * byte-lengths (registered/pinned scripts, 1..=128); pass `undefined` for
+ * `out1Len` on 2-output (non-VP-claimer) payouts. `feeRate` is the vault's
+ * version-locked `offchainParams.feeRate`.
+ */
+export async function computePayoutFeeFloor(
+  txGraphVersion: number,
+  numVaultKeepers: number,
+  numUniversalChallengers: number,
+  numLocalChallengers: number,
+  councilSize: number,
+  out0Len: number,
+  out1Len: number | null | undefined,
+  feeRate: bigint,
+): Promise<bigint> {
+  await initWasm();
+  try {
+    return assertWasmBigint(
+      wasmComputePayoutFeeFloor(
+        txGraphVersion,
+        numVaultKeepers,
+        numUniversalChallengers,
+        numLocalChallengers,
+        councilSize,
+        out0Len,
+        out1Len,
+        feeRate,
+      ),
+      "payoutFeeFloor",
+    );
+  } catch (err) {
+    throw toError(err, "computePayoutFeeFloor");
   }
 }
 

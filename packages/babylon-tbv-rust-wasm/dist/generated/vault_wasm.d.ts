@@ -430,6 +430,32 @@ export function computePayoutClaimerSighash(tx_graph_version: number, graph_json
 export function computePayoutDepositorSighash(tx_graph_version: number, graph_json: string): string;
 
 /**
+ * Floor of the Payout transaction fee under `tx_graph_version`: the minimum
+ * of `estimate_vsize * fee_rate` across every output-sizing model a deployed
+ * vault provider is known to have used (fixed-34, intermediate, script-aware
+ * — see the version modules). A VP-built payout paying LESS than this value
+ * is provably not produced by any known VP build.
+ *
+ * Callers pass TRUSTED output script lengths only: `out0_len` from the
+ * already-pinned registered payout script (or the derived BIP-86 script for
+ * VK claimers while that pin is active), `out1_len` (VP-claimer commission,
+ * `None` otherwise) pre-checked against the contract's 128-byte registration
+ * cap. The CPFP anchor length is forced to 34 internally.
+ *
+ * # Arguments
+ *
+ * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
+ * * `num_vault_keepers` - Vault keeper count (N)
+ * * `num_universal_challengers` - Universal challenger count (M)
+ * * `num_local_challengers` - Local challenger count (always N by role derivation)
+ * * `council_size` - Security council member count
+ * * `out0_len` - Trusted byte length of the payout receiver scriptPubKey
+ * * `out1_len` - Trusted byte length of the VP commission scriptPubKey, if present
+ * * `fee_rate_sat_per_vb` - Tx-graph fee rate (the vault's version-locked `offchainParams.feeRate`)
+ */
+export function computePayoutFeeFloor(tx_graph_version: number, num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number, out0_len: number, out1_len: number | null | undefined, fee_rate_sat_per_vb: bigint): bigint;
+
+/**
  * Computes the PegIn input sighash under `tx_graph_version`.
  *
  * `pegin_json` must have been serialized under the same tx graph version —
@@ -527,10 +553,76 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
     readonly supportedTxGraphVersions: () => [number, number];
     readonly validateTxGraphParams: (a: number, b: number, c: number) => [number, number];
     readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
     readonly verifyP2trScriptSpendSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number];
+    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+    readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
+    readonly computePayoutClaimerSighash: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computePayoutDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computePayoutFeeFloor: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint) => [bigint, number, number];
+    readonly verifyDepositorSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+    readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [bigint, number, number];
+    readonly wasmpayouttx_fromJson: (a: number, b: number, c: number) => [number, number, number];
+    readonly wasmpayouttx_getTxGraphVersion: (a: number) => number;
+    readonly wasmpayouttx_getTxid: (a: number) => [number, number];
+    readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly wasmpayouttx_toHex: (a: number) => [number, number];
+    readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
+    readonly __wbg_wasmprepegintx_free: (a: number, b: number) => void;
+    readonly computeMinClaimValue: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [bigint, number, number];
+    readonly wasmprepegintx_buildPeginTx: (a: number, b: number, c: number) => [number, number, number];
+    readonly wasmprepegintx_buildRefundTx: (a: number, b: bigint, c: number) => [number, number, number, number];
+    readonly wasmprepegintx_fromFundedTransaction: (a: number, b: number, c: number) => [number, number, number];
+    readonly wasmprepegintx_getDepositorClaimValue: (a: number) => bigint;
+    readonly wasmprepegintx_getHtlcAddress: (a: number, b: number) => [number, number, number, number];
+    readonly wasmprepegintx_getHtlcScriptPubKey: (a: number, b: number) => [number, number, number, number];
+    readonly wasmprepegintx_getHtlcValue: (a: number, b: number) => [bigint, number, number];
+    readonly wasmprepegintx_getNumHtlcs: (a: number) => number;
+    readonly wasmprepegintx_getPeginAmountAt: (a: number, b: number) => [bigint, number, number];
+    readonly wasmprepegintx_getTxGraphVersion: (a: number) => number;
+    readonly wasmprepegintx_getTxid: (a: number) => [number, number];
+    readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: bigint, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number, w: number) => [number, number, number];
+    readonly wasmprepegintx_toHex: (a: number) => [number, number];
+    readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
+    readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
+    readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmpeginpayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
+    readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
+    readonly wasmpeginpayoutconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+    readonly wasmprepeginhtlcconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getHashlockControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getHashlockScript: (a: number) => [number, number];
+    readonly wasmprepeginhtlcconnector_getRefundControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getRefundScript: (a: number) => [number, number];
+    readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly __wbg_wasmassertpayoutnopayoutconnector_free: (a: number, b: number) => void;
+    readonly computeAssertClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeNoPayoutClaimerSighash: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly deriveVaultId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly expandAuthAnchor: (a: number, b: number) => [number, number, number, number];
+    readonly expandHashlockSecret: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly expandWotsSeed: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getNoPayoutControlBlock: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getNoPayoutScript: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getPayoutScript: (a: number) => [number, number];
+    readonly wasmassertpayoutnopayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
+    readonly init_panic_hook: () => void;
     readonly __wbg_peginp2aanchoroutput_free: (a: number, b: number) => void;
     readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
     readonly computeMinPeginFee: (a: number, b: number, c: number, d: bigint) => [bigint, number, number];
@@ -547,71 +639,6 @@ export interface InitOutput {
     readonly wasmpegintx_getVaultValue: (a: number) => bigint;
     readonly wasmpegintx_toHex: (a: number) => [number, number];
     readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
-    readonly __wbg_wasmassertpayoutnopayoutconnector_free: (a: number, b: number) => void;
-    readonly computeAssertClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computeNoPayoutClaimerSighash: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getNoPayoutControlBlock: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getNoPayoutScript: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getPayoutScript: (a: number) => [number, number];
-    readonly wasmassertpayoutnopayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
-    readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
-    readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmpeginpayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
-    readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
-    readonly wasmpeginpayoutconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
-    readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
-    readonly computePayoutClaimerSighash: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computePayoutDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly verifyDepositorSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-    readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [bigint, number, number];
-    readonly wasmpayouttx_fromJson: (a: number, b: number, c: number) => [number, number, number];
-    readonly wasmpayouttx_getTxGraphVersion: (a: number) => number;
-    readonly wasmpayouttx_getTxid: (a: number) => [number, number];
-    readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly wasmpayouttx_toHex: (a: number) => [number, number];
-    readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
-    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
-    readonly deriveVaultId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly expandAuthAnchor: (a: number, b: number) => [number, number, number, number];
-    readonly expandHashlockSecret: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly expandWotsSeed: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
-    readonly init_panic_hook: () => void;
-    readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
-    readonly wasmprepeginhtlcconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getHashlockControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getHashlockScript: (a: number) => [number, number];
-    readonly wasmprepeginhtlcconnector_getRefundControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getRefundScript: (a: number) => [number, number];
-    readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly __wbg_wasmprepegintx_free: (a: number, b: number) => void;
-    readonly computeMinClaimValue: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [bigint, number, number];
-    readonly wasmprepegintx_buildPeginTx: (a: number, b: number, c: number) => [number, number, number];
-    readonly wasmprepegintx_buildRefundTx: (a: number, b: bigint, c: number) => [number, number, number, number];
-    readonly wasmprepegintx_fromFundedTransaction: (a: number, b: number, c: number) => [number, number, number];
-    readonly wasmprepegintx_getDepositorClaimValue: (a: number) => bigint;
-    readonly wasmprepegintx_getHtlcAddress: (a: number, b: number) => [number, number, number, number];
-    readonly wasmprepegintx_getHtlcScriptPubKey: (a: number, b: number) => [number, number, number, number];
-    readonly wasmprepegintx_getHtlcValue: (a: number, b: number) => [bigint, number, number];
-    readonly wasmprepegintx_getNumHtlcs: (a: number) => number;
-    readonly wasmprepegintx_getPeginAmountAt: (a: number, b: number) => [bigint, number, number];
-    readonly wasmprepegintx_getTxGraphVersion: (a: number) => number;
-    readonly wasmprepegintx_getTxid: (a: number) => [number, number];
-    readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: bigint, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number, w: number) => [number, number, number];
-    readonly wasmprepegintx_toHex: (a: number) => [number, number];
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
     readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
     readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
