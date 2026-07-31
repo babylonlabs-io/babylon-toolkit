@@ -4,6 +4,7 @@ import { LocalStorageStatus } from "@/models/peginStateMachine";
 
 import {
   getOptimisticDepositState,
+  hasWotsSubmissionRecord,
   isWotsSubmissionWithinTtl,
   markWotsSubmitted,
   resetOptimisticDepositState,
@@ -191,5 +192,33 @@ describe("optimisticDepositState", () => {
     const second = getOptimisticDepositState().wotsSubmittedAt.get(DEPOSIT_ID);
     expect(second).not.toBe(first);
     expect(isWotsSubmissionWithinTtl(second)).toBe(true);
+  });
+
+  it("keeps the submission record after the suppression window lapsed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-27T12:00:00Z"));
+    markWotsSubmitted(DEPOSIT_ID);
+
+    vi.advanceTimersByTime(21 * 60 * 1000);
+
+    // The action is back on offer, but the user has still been through this
+    // step — which is what tells a re-offer apart from a first visit.
+    expect(hasWotsSubmissionRecord(DEPOSIT_ID)).toBe(true);
+    expect(
+      isWotsSubmissionWithinTtl(
+        getOptimisticDepositState().wotsSubmittedAt.get(DEPOSIT_ID),
+      ),
+    ).toBe(false);
+  });
+
+  it("stops suppressing when the recorded timestamp is ahead of the clock", () => {
+    // A backwards wall-clock jump (NTP step, manual change) leaves the
+    // recorded timestamp in the future. Elapsed then reads negative — inside
+    // the window under a bare `< TTL` for as long as the clock stays behind —
+    // so the suppression would outlast the TTL by the size of the jump.
+    const submittedAt = Date.parse("2026-07-27T12:00:00Z");
+    expect(isWotsSubmissionWithinTtl(submittedAt, submittedAt - 60_000)).toBe(
+      false,
+    );
   });
 });

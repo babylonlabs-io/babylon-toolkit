@@ -172,7 +172,15 @@ export function isWotsSubmissionWithinTtl(
 ): boolean {
   if (submittedAt === undefined) return false;
   const currentTime = now ?? Date.now();
-  return currentTime - submittedAt < WOTS_SUBMISSION_SUPPRESSION_MS;
+  const elapsedMs = currentTime - submittedAt;
+  // A timestamp ahead of the clock means the wall clock jumped backwards
+  // after the submission was recorded (NTP step, manual change). Elapsed then
+  // reads negative — inside the window under a bare `< TTL` — for as long as
+  // the clock stays behind, so suppression would outlast the TTL by the size
+  // of the jump. Treat it as expired instead: the re-offer waits for a click,
+  // a redundant submission is a no-op the VP ignores, and `markWotsSubmitted`
+  // re-arms against the corrected clock.
+  return elapsedMs >= 0 && elapsedMs < WOTS_SUBMISSION_SUPPRESSION_MS;
 }
 
 /**
