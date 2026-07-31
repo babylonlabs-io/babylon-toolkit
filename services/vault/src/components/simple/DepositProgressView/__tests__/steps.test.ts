@@ -192,6 +192,29 @@ describe("buildStepGroups", () => {
     expect(payout.status).toBe("upcoming");
   });
 
+  it("keeps a pre-entry group collapsed and not-started until its work begins", () => {
+    // Pre-entry (started=false) at the WOTS re-offer: earlier work still
+    // reads done, but the current group has nothing of its own finished —
+    // there is nothing in progress to announce, so it reads upcoming and
+    // stays collapsed until the user's click.
+    const [register, wots] = buildStepGroups(7, false);
+
+    expect(register.status).toBe("completed");
+    expect(wots.status).toBe("upcoming");
+    expect(wots.expanded).toBe(false);
+  });
+
+  it("keeps a pre-entry group active when part of its work is already done", () => {
+    // Mid-group pre-entry (visual step 8): the WOTS group holds one finished
+    // sub-step, so it reads active — but still must not expand while the
+    // flow idles awaiting the click.
+    const [, wots] = buildStepGroups(8, false);
+
+    expect(wots.status).toBe("active");
+    expect(wots.expanded).toBe(false);
+    expect(wots.completedInGroup).toBe(1);
+  });
+
   it("counts completed sub-steps within the active group (mid-group resume)", () => {
     // Step 12 is the last step of the Sign payout group (9..12): 3 done, 1 active.
     const payout = buildStepGroups(12).find(

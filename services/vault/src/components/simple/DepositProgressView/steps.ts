@@ -177,8 +177,19 @@ export interface StepGroupView extends StepGroup {
  * Resolve per-group view state from the current visual step. `currentStep` is a
  * 1-based visual step (see {@link getVisualStep}); on completion it is
  * `TOTAL_VISUAL_STEPS + 1`, which leaves every group `completed` and collapsed.
+ *
+ * `started` false is the pre-entry state (the flow is waiting for the user's
+ * click): completed groups and counts still reflect the real step — work
+ * already done must read as done — but no group expands, so no sub-step row
+ * can render as in-progress while nothing is actually running. The current
+ * group likewise reads "active" only if some of its own work is done: with
+ * nothing finished inside it there is nothing in progress to announce,
+ * visually or to a screen reader, so it stays "upcoming" until the click.
  */
-export function buildStepGroups(currentStep: number): StepGroupView[] {
+export function buildStepGroups(
+  currentStep: number,
+  started = true,
+): StepGroupView[] {
   return STEP_GROUPS.map((group) => {
     const totalInGroup = group.endStep - group.startStep + 1;
 
@@ -186,7 +197,7 @@ export function buildStepGroups(currentStep: number): StepGroupView[] {
     if (currentStep > group.endStep) {
       status = "completed";
     } else if (currentStep >= group.startStep) {
-      status = "active";
+      status = started || currentStep > group.startStep ? "active" : "upcoming";
     } else {
       status = "upcoming";
     }
@@ -201,7 +212,7 @@ export function buildStepGroups(currentStep: number): StepGroupView[] {
       status,
       completedInGroup,
       totalInGroup,
-      expanded: status === "active",
+      expanded: status === "active" && started,
     };
   });
 }
