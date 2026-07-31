@@ -59,7 +59,7 @@ describe("usePeginPollingProtocolParams", () => {
     mockGetProtocolParamsReader.mockReturnValue(new Promise(() => {}));
     const client = makeClient();
 
-    const { result } = renderHook(() => usePeginPollingProtocolParams(), {
+    const { result } = renderHook(() => usePeginPollingProtocolParams(true), {
       wrapper: makeWrapper(client),
     });
 
@@ -77,7 +77,7 @@ describe("usePeginPollingProtocolParams", () => {
     mockGetProtocolParamsReader.mockRejectedValue(loadError);
     const client = makeClient();
 
-    const { result } = renderHook(() => usePeginPollingProtocolParams(), {
+    const { result } = renderHook(() => usePeginPollingProtocolParams(true), {
       wrapper: makeWrapper(client),
     });
 
@@ -86,11 +86,11 @@ describe("usePeginPollingProtocolParams", () => {
     expect(result.current.resolveRequiredPrePeginDepth()).toBeUndefined();
   });
 
-  it("resolves the pinned depth, falling back to the latest version", () => {
+  it("resolves the pinned depth, and the latest only for the pre-sign (no version) case", () => {
     const client = makeClient();
     seedResolvedParams(client);
 
-    const { result } = renderHook(() => usePeginPollingProtocolParams(), {
+    const { result } = renderHook(() => usePeginPollingProtocolParams(true), {
       wrapper: makeWrapper(client),
     });
 
@@ -104,6 +104,40 @@ describe("usePeginPollingProtocolParams", () => {
     );
   });
 
+  it("withholds the depth for a registered version the params do not know", () => {
+    // A registered-but-missing version must NOT fall back to the latest
+    // depth: the at-depth conclusion this feeds persists (confirmedTxids),
+    // so a fallback would confirm at the wrong threshold and the mistake
+    // would outlive the params catching up.
+    const client = makeClient();
+    seedResolvedParams(client);
+
+    const { result } = renderHook(() => usePeginPollingProtocolParams(true), {
+      wrapper: makeWrapper(client),
+    });
+
+    expect(result.current.ready).toBe(true);
+    expect(
+      result.current.resolveRequiredPrePeginDepth(PINNED_VERSION + 1),
+    ).toBeUndefined();
+  });
+
+  it("fires no contract read while disabled", () => {
+    // The hook mounts app-wide; `enabled` is what keeps a session with no
+    // deposits (disconnected visitors included) from paying two multicalls
+    // on page load.
+    mockGetProtocolParamsReader.mockReturnValue(new Promise(() => {}));
+    const client = makeClient();
+
+    const { result } = renderHook(() => usePeginPollingProtocolParams(false), {
+      wrapper: makeWrapper(client),
+    });
+
+    expect(mockGetProtocolParamsReader).not.toHaveBeenCalled();
+    expect(result.current.ready).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
   // The regression the `ready ? null : …` gate exists for. React Query retains
   // `data` when a REFETCH fails, so without the gate a post-stale-time failure
   // would report an error beside a cached depth that is present and correct —
@@ -113,7 +147,7 @@ describe("usePeginPollingProtocolParams", () => {
     seedResolvedParams(client);
     mockGetProtocolParamsReader.mockRejectedValue(new Error("rpc flaked"));
 
-    const { result } = renderHook(() => usePeginPollingProtocolParams(), {
+    const { result } = renderHook(() => usePeginPollingProtocolParams(true), {
       wrapper: makeWrapper(client),
     });
 

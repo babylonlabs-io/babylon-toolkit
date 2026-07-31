@@ -100,8 +100,14 @@ const mockProtocolParams = {
     v !== undefined ? mockVersionedParams.get(v)?.tRefund : undefined,
 };
 
+// Captures the `enabled` argument so the provider's gate wiring is asserted
+// here, not only at the hook level.
+const mockParamsEnabledCalls: boolean[] = [];
 vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({
-  usePeginPollingProtocolParams: () => mockProtocolParams,
+  usePeginPollingProtocolParams: (enabled: boolean) => {
+    mockParamsEnabledCalls.push(enabled);
+    return mockProtocolParams;
+  },
 }));
 
 const ACTIVITY_ID = "0xpegin" as Hex;
@@ -136,6 +142,7 @@ function renderProvider() {
 
 describe("PeginPollingContext", () => {
   beforeEach(() => {
+    mockParamsEnabledCalls.length = 0;
     mockQueryResult.errors = undefined;
     mockQueryResult.needsWotsKey = undefined;
     mockQueryResult.pendingIngestion = undefined;
@@ -960,6 +967,69 @@ describe("PeginPollingContext", () => {
     expect(() => render(<Tree />)).toThrow(
       /PeginPollingProvider instances are mounted at once/,
     );
+  });
+
+  it("gates the params reads on having deposits to evaluate", () => {
+    // The wiring half of the hook-level "fires no contract read while
+    // disabled" test: the provider must pass `activities.length > 0`, or the
+    // gate exists but nothing ever flips it.
+    const withDeposits = renderProvider();
+    expect(mockParamsEnabledCalls.at(-1)).toBe(true);
+    // Unmount before the empty-activities mount — the single-provider
+    // invariant (rightly) throws on two live providers.
+    withDeposits.unmount();
+
+    mockParamsEnabledCalls.length = 0;
+    render(
+      <PeginPollingProvider
+        activities={[]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <div />
+      </PeginPollingProvider>,
+    );
+    expect(mockParamsEnabledCalls.at(-1)).toBe(false);
+  });
+
+  it("recovers after the dev double-mount throw without a counter reset", () => {
+    // The throw happens inside an effect setup, which never registers its
+    // cleanup — so the offending mount's increment must be undone before
+    // throwing. Otherwise the counter stays elevated for the session and a
+    // CORRECTED tree (the second render here) keeps tripping the invariant
+    // on every HMR update until a full reload.
+    const Doubled = () => (
+      <>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+      </>
+    );
+    expect(() => render(<Doubled />)).toThrow(
+      /PeginPollingProvider instances are mounted at once/,
+    );
+
+    const Single = () => (
+      <PeginPollingProvider
+        activities={[ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <div />
+      </PeginPollingProvider>
+    );
+    expect(() => render(<Single />)).not.toThrow();
   });
 
   it("allows a provider to remount after the previous one unmounts", () => {

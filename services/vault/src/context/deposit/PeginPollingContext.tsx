@@ -154,6 +154,11 @@ function useSingleProviderInvariant(): void {
         "instance forks polling and optimistic-completion state, so a completed " +
         "action stops hiding its own button.";
       if (import.meta.env.DEV) {
+        // An effect setup that throws never registers its cleanup, so undo
+        // this mount's increment first — otherwise the counter stays elevated
+        // for the rest of the session and a corrected tree keeps tripping the
+        // invariant on every HMR update until a full reload.
+        mountedProviderCount -= 1;
         throw new Error(message);
       }
       logger.error(new Error(message), { tags: { area: "pegin-polling" } });
@@ -225,7 +230,11 @@ export function PeginPollingProvider({
   // blocking ProtocolParamsProvider, so it reads the same queries directly
   // rather than depending on a context that renders a spinner in place of its
   // children. Params resolve to `undefined` until loaded — never a default.
-  const params = usePeginPollingProtocolParams();
+  // Gated on having deposits to evaluate: the provider mounts app-wide, and
+  // ungated queries would bill two multicalls to every session on page load,
+  // connected or not — the pre-hoist footprint only paid them when a pending
+  // section actually rendered.
+  const params = usePeginPollingProtocolParams(activities.length > 0);
   // Tiered (Tier-1 estimate → Tier-2 chain confirm) activation-deadline gate.
   // Lowercased ids of VERIFIED vaults confirmed past their activation window.
   // Fails safe on an undefined timeout (gate stays closed until params land).
@@ -416,10 +425,12 @@ export function PeginPollingProvider({
   // deposit.completed — once per vault as its contractStatus transitions. The
   // detector seeds already-terminal vaults on first observation, so a dashboard
   // load never emits a burst for prior-session completions. Tracking is
-  // app-scoped rather than per-provider: the continuation modal mounts a second
-  // provider over the same vault, and per-instance tracking would count every
-  // terminal twice. It is a plain module store, not state — emitting telemetry
-  // must not trigger a re-render.
+  // app-scoped rather than per-provider: the provider legitimately unmounts
+  // and remounts (geo-block branch, wallet churn), and per-instance tracking
+  // would re-count a terminal on every remount. (It also predates the
+  // single-provider invariant above, when the continuation modal mounted a
+  // second provider over the same vault.) It is a plain module store, not
+  // state — emitting telemetry must not trigger a re-render.
   useEffect(() => {
     const milestones = collectTerminalMilestones(
       activities,
@@ -625,7 +636,7 @@ export function useDepositPollingResult(depositId: string) {
  * A deposit is unindexed in the moments right after broadcast, before the
  * indexer has it; callers fall back to a direct mempool read there.
  */
-export function useOptionalDepositPollingResult(
+export function useFirstIndexedDepositPollingResult(
   depositIds: readonly string[],
 ): DepositPollingResult | undefined {
   const { getPollingResult } = usePeginPolling();
