@@ -281,6 +281,15 @@ export function ResumeWotsContent({
   // gesture behind it, so a re-offer waits for an explicit click instead.
   // Read once at mount: `markWotsSubmitted` below flips it, and re-reading
   // would swap the component into the wrong mode mid-flight.
+  //
+  // Deliberately gated even when the user just clicked the re-offered row
+  // action — where that click was already a gesture and this costs a second
+  // one. A re-offer means the VP is still asking after a submission this
+  // session watched resolve, so something may genuinely be wrong; making the
+  // user confirm the fresh wallet popup on that abnormal path is worth more
+  // than the click it saves, and it spares the mount site from having to
+  // report whether this render is a fresh open or a branch swap under an
+  // already-open modal.
   const [isReoffer] = useState(() => hasWotsSubmissionRecord(activity.id));
 
   // `started` false parks DepositProgressView on its pre-sign entry state,
