@@ -1362,6 +1362,17 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     ).rejects.toThrow(/device range/);
   });
 
+  it("rejects a councilSize outside the accepted domain", async () => {
+    const peginTxHex = createTestPeginTransaction();
+    const assertTxHex = createTestAssertTransaction();
+    const payoutTxHex = makePayoutWithFee(peginTxHex, assertTxHex, 5_000);
+    const params = baseParams({ payoutTxHex, assertTxHex, peginTxHex });
+
+    await expect(
+      buildPayoutPsbt({ ...params, councilSize: 0 }),
+    ).rejects.toThrow(/councilSize must be an integer/);
+  });
+
   it("rejects a non-positive or above-u32 protocolFeeRate before any validation", async () => {
     const peginTxHex = createTestPeginTransaction();
     const assertTxHex = createTestAssertTransaction();

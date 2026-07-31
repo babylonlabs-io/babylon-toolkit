@@ -185,8 +185,8 @@ export interface PayoutPsbtResult {
  * @throws If the implicit fee (inputs − outputs) is outside the fee band —
  *   below the floor or above the extended device ceiling (see
  *   {@link assertPayoutFeeInBand})
- * @throws If `protocolFeeRate` or a participant count is outside the device's
- *   accepted domain (see {@link assertPayoutFeeBandDomain})
+ * @throws If `protocolFeeRate`, a participant count, or `councilSize` is
+ *   outside the accepted input domain (see {@link assertPayoutFeeBandDomain})
  * @throws If a non-anchor scriptPubKey length is outside `[1,
  *   {@link MAX_PAYOUT_SCRIPT_LEN}]`
  * @throws If `claimerBtcPubkey` is not VP, depositor, or a registered VK

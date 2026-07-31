@@ -43,7 +43,6 @@
  * - {@link buildPeginTxFromFundedPrePegin} - Derive PegIn tx from funded Pre-PegIn
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing
  * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
- * - {@link buildDepositorPayoutPsbt} - Create depositor's own Payout PSBT (depositor-as-claimer path)
  * - {@link buildNoPayoutPsbt} - Create NoPayout PSBT per challenger (depositor-as-claimer path)
  * - {@link buildChallengeAssertPsbt} - Create ChallengeAssert PSBT per challenger (depositor-as-claimer path)
  *
@@ -145,9 +144,6 @@ export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsigne
 
 export { assertScriptPathSchnorrSignature } from "./psbt/verifyScriptPathSchnorrSignature";
 export type { VerifyScriptPathSchnorrSignatureParams } from "./psbt/verifyScriptPathSchnorrSignature";
-
-export { buildDepositorPayoutPsbt } from "./psbt/depositorPayout";
-export type { DepositorPayoutParams } from "./psbt/depositorPayout";
 
 export { buildNoPayoutPsbt } from "./psbt/noPayout";
 export type { NoPayoutParams } from "./psbt/noPayout";

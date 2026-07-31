@@ -75,10 +75,14 @@ export interface PayoutFeeBandParams {
 
 /**
  * Validate that the fee-band inputs lie in the proven/accepted domain:
- * `protocolFeeRate` in `[1, 0xffffffff]` and participant counts in `[1, 32]`.
+ * `protocolFeeRate` in `[1, 0xffffffff]`, participant counts in `[1, 32]`,
+ * `councilSize` a positive integer.
  *
  * @throws If `protocolFeeRate` is not a bigint within the device's range
- * @throws If a participant count is outside the device range `[1, 32]`
+ * @throws If a participant count is not an integer in the device range `[1, 32]`
+ * @throws If `councilSize` is not an integer `>= 1` — the contract write path
+ *   (`ProtocolParams.sol`) rejects an empty council, and the WASM floor would
+ *   silently treat 0 as a 1-member council rather than erroring
  */
 export function assertPayoutFeeBandDomain(params: PayoutFeeBandParams): void {
   // Fail fast on a rate the device's own parser would reject — also keeps the
@@ -110,6 +114,14 @@ export function assertPayoutFeeBandDomain(params: PayoutFeeBandParams): void {
           `range [1, ${MAX_PAYOUT_PARTICIPANTS_PER_ROLE}].`,
       );
     }
+  }
+  // councilSize crosses the WASM boundary with no glue-side validation; a
+  // non-integer would silently truncate at the u32 ABI and a 0 would be
+  // silently promoted to a 1-member council by the pinned estimator.
+  if (!Number.isInteger(params.councilSize) || params.councilSize < 1) {
+    throw new Error(
+      `councilSize must be an integer >= 1, got ${params.councilSize}`,
+    );
   }
 }
 

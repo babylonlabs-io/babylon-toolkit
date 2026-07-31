@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
 const VAULT_WASM_BRANCH = 'main';
-// main incl. PR #2 (P2A anchor exports); bundles btc-vault v1 @ a0ad5503, v2 @ d7e33b26.
+// main incl. PR #3 (computePayoutFeeFloor export); bundles btc-vault v1 @ a0ad5503, v2 @ d7e33b26.
 const VAULT_WASM_COMMIT = 'ae00321b8710acdbb4d94900b91c3053b5e62416';
 const REQUIRED_RUSTC_VERSION = '1.94';
 

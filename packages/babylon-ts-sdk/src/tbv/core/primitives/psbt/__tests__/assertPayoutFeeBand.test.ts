@@ -99,6 +99,27 @@ describe("assertPayoutFeeBandDomain", () => {
     ).not.toThrow();
     expect(() => assertPayoutFeeBandDomain(BASE_PARAMS)).not.toThrow();
   });
+
+  it("rejects a councilSize of 0 or a non-integer", () => {
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: 0 }),
+    ).toThrow(/councilSize must be an integer/);
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: 2.5 }),
+    ).toThrow(/councilSize must be an integer/);
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: NaN }),
+    ).toThrow(/councilSize must be an integer/);
+  });
+
+  it("accepts any positive integer councilSize", () => {
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: 1 }),
+    ).not.toThrow();
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: 100 }),
+    ).not.toThrow();
+  });
 });
 
 describe("assertPayoutFeeInBand", () => {
