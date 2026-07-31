@@ -6,6 +6,7 @@ import {
 } from "@/context/deposit/computeDepositPollingResult";
 import {
   ContractStatus,
+  LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
 } from "@/models/peginStateMachine";
@@ -185,6 +186,49 @@ describe("computeDepositPollingResult — WOTS suppression clock", () => {
     );
     expect(result.peginState.availableActions).toContain(
       PeginAction.SUBMIT_WOTS_KEY,
+    );
+  });
+});
+
+/**
+ * The injected `now` must also reach the refund-broadcast TTL inside
+ * `getPeginState` — one clock for every suppression window a single call
+ * judges. Without the forward, the WOTS decision would honor the injected
+ * time while the refund decision silently read `Date.now()`; the
+ * inside-the-window case below fails in that world, because the real clock
+ * sits years past the fixture's broadcast time.
+ */
+describe("computeDepositPollingResult — refund suppression clock", () => {
+  const BROADCAST_AT = Date.parse("2026-07-27T12:00:00Z");
+  const INSIDE_WINDOW = BROADCAST_AT + 60 * 60 * 1000;
+  const PAST_WINDOW = BROADCAST_AT + 7 * 60 * 60 * 1000;
+
+  function makeBroadcastRefundInputs(now: number): DepositPollingInputs {
+    return makeInputs({
+      optimisticStatuses: new Map([
+        [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
+      ]),
+      optimisticRefundBroadcastAt: new Map([[VAULT_ID, BROADCAST_AT]]),
+      now,
+    });
+  }
+
+  it("suppresses the refund action while the broadcast is inside the window", () => {
+    const result = computeDepositPollingResult(
+      makeBroadcastRefundInputs(INSIDE_WINDOW),
+    );
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.REFUND_HTLC,
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+  });
+
+  it("re-offers the refund action once the injected clock is past the window", () => {
+    const result = computeDepositPollingResult(
+      makeBroadcastRefundInputs(PAST_WINDOW),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.REFUND_HTLC,
     );
   });
 });

@@ -90,10 +90,13 @@ export interface DepositPollingInputs {
   wotsSubmittedAt: ReadonlyMap<string, number>;
   btcPublicKey: string | undefined;
   /**
-   * Override `Date.now()` for the WOTS suppression TTL (testing only). Mirrors
-   * `PeginStateInputs.now`, and keeps this module's "pure compute" promise
-   * honest — without it the decision tree reads the wall clock transitively
-   * through `isWotsSubmissionWithinTtl` and needs fake timers to pin.
+   * Override `Date.now()` for every suppression TTL this compute touches
+   * (testing only): the WOTS window here, and — forwarded into
+   * `getPeginState` — the refund-broadcast window inside it. One injected
+   * clock must drive both, or a single call would judge the two TTLs at
+   * different times. Keeps this module's "pure compute" promise honest —
+   * without it the decision tree reads the wall clock transitively and needs
+   * fake timers to pin.
    */
   now?: number;
 }
@@ -248,6 +251,7 @@ export function computeDepositPollingResult(
     refundSettlement,
     vpTerminalError,
     refundBroadcastAt,
+    now,
   });
 
   // Coalesce cached at-depth observations into the live count: once a tx
