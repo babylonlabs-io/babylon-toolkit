@@ -24,11 +24,19 @@ import {
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import {
   ArtifactDownloadCancelledError,
+  type ArtifactDownloadOutcome,
+  ArtifactDownloadTooLargeError,
+  ArtifactFileAccessError,
+  type ArtifactSaveTarget,
   fetchAndDownloadArtifacts,
+  type FetchArtifactsOptions,
+  openArtifactSaveTarget,
 } from "@/services/artifacts";
 import {
+  ARTIFACT_RECEIPT_VERSION,
   hasArtifactsDownloaded,
-  markArtifactsDownloaded,
+  normalizePeginTxid,
+  saveArtifactDownloadReceipt,
 } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
@@ -45,7 +53,18 @@ interface ArtifactDownloadState {
   loading: boolean;
   progress: string;
   error: string | null;
+  /**
+   * A validated bundle reached disk and a receipt was written. This is the
+   * only success signal the activation gate accepts, so it must never be set
+   * from a path that cannot prove the file was saved.
+   */
   downloaded: boolean;
+  /**
+   * The file was handed to the browser but we cannot prove it was saved (the
+   * anchor fallback, or a mocked download). Drives the card's "we can't
+   * confirm this" state and nothing else — it must never satisfy the gate.
+   */
+  delivered: boolean;
   /** Bytes received so far from the in-flight artifact stream. */
   receivedBytes: number;
   /**
@@ -61,6 +80,7 @@ const INITIAL_STATE: ArtifactDownloadState = {
   progress: "",
   error: null,
   downloaded: false,
+  delivered: false,
   receivedBytes: 0,
   totalBytes: 0,
 };
@@ -113,8 +133,55 @@ export function useArtifactDownload(options?: {
   // instead of letting it run to completion in the background.
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  /**
+   * Turn a completed download into the stored receipt that the activation
+   * gate reads. Only ever called with an outcome from a validated, saved
+   * bundle — never from a fetch that merely resolved.
+   */
+  const persistReceipt = useCallback(
+    (peginTxid: string, outcome: ArtifactDownloadOutcome) => {
+      if (!vaultId) return;
+      // Milestone only on the first real download — re-downloads are a
+      // routine user action, not funnel progress.
+      const firstDownload = !hasArtifactsDownloaded(vaultId, peginTxid);
+      saveArtifactDownloadReceipt(vaultId, {
+        version: ARTIFACT_RECEIPT_VERSION,
+        peginTxid: normalizePeginTxid(peginTxid),
+        filename: outcome.filename,
+        byteLength: outcome.byteLength,
+        sha256: outcome.sha256,
+        savedAt: Date.now(),
+        method: outcome.method,
+      });
+      if (firstDownload) {
+        logger.event(TELEMETRY_EVENT.ACTIVATION_ARTIFACTS_DOWNLOADED, {
+          level: "info",
+          category: "activation",
+          tags: { vaultId: shortId(vaultId) },
+        });
+      }
+    },
+    [vaultId],
+  );
+
   const download = useCallback(
     async (providerAddress: string, peginTxid: string, depositorPk: string) => {
+      // Dev/QA-only simulation of the artifact fetch (never reaches a VP),
+      // so the dialogs' progress states can be exercised. Opted into via the
+      // god-mode panel's "Mock artifact download" toggle; off in production
+      // builds, where the god-mode gate is compile-time false.
+      const demoDownload = isArtifactDownloadDemoEnabled();
+
+      // DO NOT REORDER: showSaveFilePicker() requires transient user
+      // activation, which any preceding `await` destroys. Opening the save
+      // target has to be the first thing this handler does, while the click
+      // that triggered it is still the active gesture. The promise is awaited
+      // further down, once the synchronous setup is out of the way.
+      //
+      // The demo path opens a real save target too — it writes a real (if
+      // synthetic) file through the real pipeline, and only skips the network.
+      const saveTargetPromise = openArtifactSaveTarget(peginTxid);
+
       // Each invocation owns its controller, and staleness is derived from
       // it rather than a shared flag: a cancelled flow parked in a
       // non-abortable await (wallet prime, retry sleep) stays permanently
@@ -128,7 +195,9 @@ export function useArtifactDownload(options?: {
       setState({
         ...INITIAL_STATE,
         loading: true,
-        progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
+        // The save dialog is already open at this point, so the first status
+        // the user sees names it rather than the fetch behind it.
+        progress: COPY.deposit.recoveryArtifacts.choosingSaveLocation,
       });
 
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
@@ -138,15 +207,6 @@ export function useArtifactDownload(options?: {
       // deposit and is public on-chain data (shortened before emission anyway).
       const telemetryVaultId = vaultId ?? normalizedPeginTxid;
 
-      // Dev/QA-only simulation of the artifact fetch (never reaches a VP),
-      // so the dialogs' progress states can be exercised. Opted into via the
-      // god-mode panel's "Mock artifact download" toggle; off in production
-      // builds, where the god-mode gate is compile-time false.
-      const demoDownload = isArtifactDownloadDemoEnabled();
-      const fetchArtifacts = demoDownload
-        ? demoFetchAndDownloadArtifacts
-        : fetchAndDownloadArtifacts;
-
       // Stop the flow with an error message. Used by every fail path
       // below so the rendered modal state stays consistent.
       const setError = (message: string) =>
@@ -154,6 +214,56 @@ export function useArtifactDownload(options?: {
           ...INITIAL_STATE,
           error: message,
         });
+
+      // Resolve the save location before priming, so the user answers the
+      // file dialog and the wallet prompt in that order rather than both at
+      // once.
+      let saveTarget: ArtifactSaveTarget;
+      try {
+        saveTarget = await saveTargetPromise;
+      } catch (err) {
+        if (err instanceof ArtifactDownloadCancelledError) {
+          setState(INITIAL_STATE);
+          return;
+        }
+        if (isStale()) return;
+        captureFunnelFailure(
+          TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+          err,
+          telemetryVaultId,
+          { tags: { site: "save_target" } },
+        );
+        setError(
+          err instanceof Error
+            ? err.message
+            : COPY.deposit.recoveryArtifacts.fileAccessDenied,
+        );
+        return;
+      }
+      if (isStale()) return;
+      setState((prev) => ({
+        ...prev,
+        progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
+      }));
+
+      // The demo yields no outcome, which is what keeps a simulated download
+      // from ever writing the receipt that satisfies the activation gate.
+      const runDownload = (
+        fetchOptions: FetchArtifactsOptions,
+      ): Promise<ArtifactDownloadOutcome | null> =>
+        demoDownload
+          ? demoFetchAndDownloadArtifacts(
+              saveTarget,
+              { peginTxid: normalizedPeginTxid, depositorPk },
+              fetchOptions,
+            ).then(() => null)
+          : fetchAndDownloadArtifacts(
+              providerAddress,
+              peginTxid,
+              depositorPk,
+              saveTarget,
+              fetchOptions,
+            );
 
       // Ensure the bearer is in cache before any artifact request. The
       // RPC is auth-gated server-side (AUTH_GATED_METHODS), so a
@@ -268,7 +378,7 @@ export function useArtifactDownload(options?: {
         if (isStale()) return;
 
         try {
-          await fetchArtifacts(providerAddress, peginTxid, depositorPk, {
+          const outcome = await runDownload({
             onProgress: (receivedBytes, totalBytes) => {
               // Drop progress events that arrive after cancel — they would
               // otherwise re-show the bar after the UI has reset.
@@ -282,23 +392,31 @@ export function useArtifactDownload(options?: {
           });
 
           if (isStale()) return;
-          // A mocked download never wrote a real artifact file, so it must not
-          // persist the real risk-ack gate — otherwise a demo "download" on a
-          // real vault permanently satisfies its gate with no file saved. The
-          // demo still shows the downloaded UI via `downloaded: true` below.
-          if (vaultId && !demoDownload) {
-            // Milestone only on the first real download — re-downloads are a
-            // routine user action, not funnel progress.
-            const firstDownload = !hasArtifactsDownloaded(vaultId);
-            markArtifactsDownloaded(vaultId);
-            if (firstDownload) {
-              logger.event(TELEMETRY_EVENT.ACTIVATION_ARTIFACTS_DOWNLOADED, {
-                level: "info",
-                category: "activation",
-                tags: { vaultId: shortId(vaultId) },
-              });
-            }
+
+          // No outcome means a mocked download: nothing was validated and no
+          // file was written, so it must not satisfy the real activation gate.
+          // `delivered` drives the demo UI without ever claiming proof.
+          if (!outcome) {
+            setState({ ...INITIAL_STATE, delivered: true });
+            return;
           }
+
+          if (outcome.method === "browser-download") {
+            // The anchor path only proves a link was clicked: the browser
+            // reports nothing about whether the file reached disk, and it may
+            // have been blocked or the save dialog dismissed. So this reports
+            // `delivered`, not `downloaded` — the card says the save could not
+            // be confirmed, the risk acknowledgement stays required, and the
+            // vault keeps warning until there is real evidence. Setting
+            // `downloaded` here would let a click satisfy the activation gate,
+            // which is the exact substitution this flow exists to remove.
+            setState({ ...INITIAL_STATE, delivered: true });
+            return;
+          }
+
+          // The one path with real evidence: validated, streamed to a file the
+          // user chose, and receipted.
+          persistReceipt(peginTxid, outcome);
           setState({
             ...INITIAL_STATE,
             downloaded: true,
@@ -307,6 +425,29 @@ export function useArtifactDownload(options?: {
         } catch (err) {
           if (err instanceof ArtifactDownloadCancelledError) return;
           if (isStale()) return;
+
+          // Terminal by nature: neither re-priming nor waiting changes a
+          // refused file handle or a body too large for this browser.
+          if (err instanceof ArtifactDownloadTooLargeError) {
+            captureFunnelFailure(
+              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+              err,
+              telemetryVaultId,
+              { tags: { site: "too_large" } },
+            );
+            setError(COPY.deposit.recoveryArtifacts.tooLargeForBrowser);
+            return;
+          }
+          if (err instanceof ArtifactFileAccessError) {
+            captureFunnelFailure(
+              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+              err,
+              telemetryVaultId,
+              { tags: { site: "file_sink" } },
+            );
+            setError(err.message);
+            return;
+          }
 
           if (isPreDepositorSignaturesError(err)) {
             stillProcessingAttempts += 1;
@@ -381,7 +522,7 @@ export function useArtifactDownload(options?: {
         }
       }
     },
-    [vaultId, primeContext],
+    [vaultId, primeContext, persistReceipt],
   );
 
   const cancel = useCallback(() => {
