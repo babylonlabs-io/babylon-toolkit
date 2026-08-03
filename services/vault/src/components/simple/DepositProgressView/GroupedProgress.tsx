@@ -5,7 +5,8 @@
  * Completed groups are hidden — they fold into the "X of N steps completed" pill
  * — so only the active and upcoming groups render. The active group expands into
  * a filled card revealing its sub-steps; upcoming groups collapse to a header
- * row. Visibility and expansion are derived entirely from `currentStep`.
+ * row. Visibility is derived from `currentStep`; expansion additionally
+ * requires the flow to have `started` (see buildStepGroups).
  */
 
 import type { StepperItem } from "@babylonlabs-io/core-ui";
@@ -23,6 +24,8 @@ interface GroupedProgressProps {
   activeStepDetail?: ReactNode;
   /** When true, the current step failed — render it as an error, not active. */
   hasError?: boolean;
+  /** False in the pre-entry state — no group expands (see buildStepGroups). */
+  started?: boolean;
 }
 
 export function GroupedProgress({
@@ -30,8 +33,9 @@ export function GroupedProgress({
   currentStep,
   activeStepDetail,
   hasError = false,
+  started = true,
 }: GroupedProgressProps) {
-  const groups = buildStepGroups(currentStep);
+  const groups = buildStepGroups(currentStep, started);
 
   // Completed groups are represented by the steps-completed pill, so hide their
   // rows. Original 1-based group numbers are preserved (after group 1 finishes,

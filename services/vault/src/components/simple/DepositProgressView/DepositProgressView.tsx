@@ -283,13 +283,20 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const showUnlockCta = !started && walletLocked;
 
   // On completion, advance past the last row so every circle renders as ✓.
-  // Before the flow starts, pin visual step 0 so every group collapses and
-  // nothing reads as completed.
-  const visualStep = !started
-    ? 0
-    : isComplete
-      ? TOTAL_VISUAL_STEPS + 1
-      : getVisualStep(currentStep);
+  // The pre-entry state (`!started`) keeps the REAL step: work already done
+  // must still read as done — a WOTS re-offer enters here with the whole
+  // "Register deposit" group genuinely complete, and pinning 0 would show a
+  // confirmed deposit as zero progress. What pre-entry suppresses is how the
+  // CURRENT step reads (see buildStepGroups): no group expands — per-column
+  // on the split path, where sibling lanes keep their polled expansion — and
+  // a current group with none of its own work done reads not-started, so
+  // nothing spins or announces progress while the flow idles awaiting the
+  // click. Flows entering at step 1 have nothing completed, so they render
+  // exactly as before: no bar, no pill, every group a collapsed not-started
+  // header.
+  const visualStep = isComplete
+    ? TOTAL_VISUAL_STEPS + 1
+    : getVisualStep(currentStep);
   // `currentStep` is the active action, but split deposits can have each vault
   // lane land on a different step after a recoverable per-vault failure. The
   // aggregate progress bar and completed-group pill must therefore use the
@@ -300,11 +307,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           getVisualStep(step) < getVisualStep(minStep) ? step : minStep,
         )
       : currentStep;
-  const aggregateVisualStep = !started
-    ? 0
-    : isComplete
-      ? TOTAL_VISUAL_STEPS + 1
-      : getVisualStep(aggregateRawStep);
+  const aggregateVisualStep = isComplete
+    ? TOTAL_VISUAL_STEPS + 1
+    : getVisualStep(aggregateRawStep);
   const completedSteps = Math.max(
     0,
     Math.min(TOTAL_VISUAL_STEPS, aggregateVisualStep - 1),
@@ -482,6 +487,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             hasError={Boolean(error)}
             renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
+            started={started}
           />
         ) : (
           <GroupedProgress
@@ -489,6 +495,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             currentStep={visualStep}
             activeStepDetail={activeStepDetail}
             hasError={Boolean(error)}
+            started={started}
           />
         )}
 

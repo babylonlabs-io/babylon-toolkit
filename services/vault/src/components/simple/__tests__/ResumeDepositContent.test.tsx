@@ -6,13 +6,14 @@
  * indexer can ask the wallet to derive over attacker-chosen funding outpoints.
  */
 
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import {
   getOptimisticDepositState,
+  markWotsSubmitted,
   resetOptimisticDepositState,
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
@@ -208,6 +209,8 @@ vi.mock("../DepositProgressView", () => ({
     canContinueInBackground,
     onRetry,
     wotsApprovalHint,
+    started,
+    onSign,
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
@@ -217,8 +220,16 @@ vi.mock("../DepositProgressView", () => ({
     canContinueInBackground?: boolean;
     onRetry?: () => void;
     wotsApprovalHint?: string | null;
+    started?: boolean;
+    onSign?: () => void;
   }) => (
     <div data-testid="progress-view">
+      {/* Mirrors the real prop default so views that never pass it read as
+          started, the same as they render today. */}
+      <span data-testid="started">{String(started !== false)}</span>
+      <button type="button" data-testid="sign" onClick={onSign}>
+        sign
+      </button>
       <span data-testid="wots-hint">{wotsApprovalHint ?? ""}</span>
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
@@ -266,6 +277,15 @@ function readerWith(prePeginTxHash: string) {
     getVaultProtocolInfo: vi.fn(),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
 }
+
+// The optimistic store is module-scoped, so it outlives every render here. A
+// leaked WOTS marker is not inert: `ResumeWotsContent` reads it at mount to
+// decide whether it may auto-submit, so one block's marker would silently
+// turn off the auto-submit every later block depends on. Reset for the whole
+// file rather than per-describe.
+beforeEach(() => {
+  resetOptimisticDepositState();
+});
 
 describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
   beforeEach(() => {
@@ -366,7 +386,6 @@ describe("ResumeWotsContent — submission marker", () => {
     mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
     mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
     mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
-    resetOptimisticDepositState();
   });
 
   it("records the WOTS submission so the dashboard row stops offering the button", async () => {
@@ -380,7 +399,7 @@ describe("ResumeWotsContent — submission marker", () => {
 
     await waitFor(() => {
       expect(
-        getOptimisticDepositState().wotsSubmitted.has(baseActivity.id),
+        getOptimisticDepositState().wotsSubmittedAt.has(baseActivity.id),
       ).toBe(true);
     });
   });
@@ -399,9 +418,61 @@ describe("ResumeWotsContent — submission marker", () => {
     await waitFor(() => {
       expect(getByTestId("error").textContent).toContain("VP rejected the key");
     });
-    expect(getOptimisticDepositState().wotsSubmitted.has(baseActivity.id)).toBe(
-      false,
+    expect(
+      getOptimisticDepositState().wotsSubmittedAt.has(baseActivity.id),
+    ).toBe(false);
+  });
+
+  it("submits automatically on a first visit", async () => {
+    render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
     );
+
+    await waitFor(() => {
+      expect(mockSubmitWotsPublicKey).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("waits for a click instead of auto-submitting when the suppression lapsed", async () => {
+    // The TTL expiring re-offers SUBMIT_WOTS_KEY, which remounts this
+    // component. Auto-firing there would open a wallet prompt at a modal the
+    // user left sitting open, with no gesture behind it.
+    //
+    // Record the marker 21 minutes in the past (fake timers only for the
+    // write, real timers restored for the async render below) so the fixture
+    // is the production scenario the title names: a marker that is present
+    // but past the 20-minute TTL — not merely present.
+    const lapsedStamp = Date.now() - 21 * 60 * 1000;
+    vi.useFakeTimers();
+    vi.setSystemTime(lapsedStamp);
+    markWotsSubmitted(baseActivity.id);
+    vi.useRealTimers();
+
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    // `getVaultRegistryReader` is the first thing handleSubmit touches and it
+    // runs synchronously, so it is a reliable "the submit path started" probe.
+    // Asserting on `submitWotsPublicKey` here would not be: it sits behind
+    // several awaits and reads as un-called whether or not the guard holds.
+    expect(mockGetVaultRegistryReader).not.toHaveBeenCalled();
+    expect(getByTestId("started").textContent).toBe("false");
+
+    fireEvent.click(getByTestId("sign"));
+
+    await waitFor(() => {
+      expect(mockSubmitWotsPublicKey).toHaveBeenCalledTimes(1);
+    });
+    expect(getByTestId("started").textContent).toBe("true");
   });
 });
 
