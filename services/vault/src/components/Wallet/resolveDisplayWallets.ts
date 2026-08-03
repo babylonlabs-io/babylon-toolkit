@@ -21,12 +21,14 @@
 interface WalletDisplayMeta {
   name: string;
   icon: string;
+  iconBackground?: string;
 }
 
 /** Minimal shape we read off an `IWallet` — keeps this helper test-friendly. */
 interface WalletLike {
   name: string;
   icon: string;
+  iconBackground?: string;
   installed: boolean;
 }
 
@@ -37,7 +39,7 @@ interface ConnectorLike {
 }
 
 function resolveChainWallet(
-  selected: { name: string; icon: string } | undefined,
+  selected: { name: string; icon: string; iconBackground?: string } | undefined,
   connector: ConnectorLike | null | undefined,
 ): WalletDisplayMeta | undefined {
   const wallet =
@@ -45,11 +47,20 @@ function resolveChainWallet(
     connector?.connectedWallet ??
     connector?.wallets.find((w) => w.installed);
 
-  return wallet ? { name: wallet.name, icon: wallet.icon } : undefined;
+  return wallet
+    ? {
+        name: wallet.name,
+        icon: wallet.icon,
+        iconBackground: wallet.iconBackground,
+      }
+    : undefined;
 }
 
 export interface ResolveDisplayWalletsParams {
-  selectedWallets: Record<string, { name: string; icon: string } | undefined>;
+  selectedWallets: Record<
+    string,
+    { name: string; icon: string; iconBackground?: string } | undefined
+  >;
   btcConnected: boolean;
   ethConnected: boolean;
   btcConnector: ConnectorLike | null | undefined;

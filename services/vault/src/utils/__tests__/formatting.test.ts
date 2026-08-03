@@ -394,6 +394,11 @@ describe("Formatting Utilities", () => {
     it("formats millions as '$Nm'", () => {
       expect(formatCompactUsd(1_500_000)).toBe("$1.5m");
     });
+
+    it("keeps the magnitude suffix uppercase when asked", () => {
+      expect(formatCompactUsd(1_500_000, true)).toBe("$1.5M");
+      expect(formatCompactUsd(63_600, true)).toBe("$63.6K");
+    });
   });
 
   describe("formatBasisPointsAsPercent", () => {

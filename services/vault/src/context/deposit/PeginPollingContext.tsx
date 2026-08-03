@@ -195,7 +195,7 @@ export function PeginPollingProvider({
   const {
     statuses: optimisticStatuses,
     refundBroadcastAt: optimisticRefundBroadcastAt,
-    wotsSubmitted,
+    wotsSubmittedAt,
   } = useSyncExternalStore(
     subscribeToOptimisticDepositState,
     getOptimisticDepositState,
@@ -532,7 +532,7 @@ export function PeginPollingProvider({
         protocolParamsError: params.error,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
-        wotsSubmitted,
+        wotsSubmittedAt,
         btcPublicKey,
       });
     },
@@ -557,7 +557,7 @@ export function PeginPollingProvider({
       params.error,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
-      wotsSubmitted,
+      wotsSubmittedAt,
       btcPublicKey,
     ],
   );

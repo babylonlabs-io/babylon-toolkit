@@ -9,12 +9,11 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
-import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import { getReserveDetailBaseRoute, getReserveDetailRoute } from "@/routes";
+import { getReserveDetailSearch } from "@/routes";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveBorrowedAssets, useAaveUserPosition } from "../../hooks";
@@ -47,6 +46,7 @@ export function LoanFlowOverlay({
   tab,
 }: LoanFlowOverlayProps) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
 
@@ -88,14 +88,14 @@ export function LoanFlowOverlay({
     }
   }, [successReserveId, reserveId]);
 
-  const isV3 = FeatureFlags.isV3UiEnabled;
-  const baseRoute = getReserveDetailBaseRoute(isV3);
-
+  // Dropping the search alone returns the depositor to the page they opened
+  // the flow from — the overlay renders over any page under the Aave layout,
+  // so a fixed route here would teleport someone who started on Overview.
   // `replace` so dismissing doesn't leave a history entry browser Back would
   // use to reopen the just-closed flow.
   const close = () => {
     setSuccess(null);
-    navigate(baseRoute, { replace: true });
+    navigate({ pathname, search: "" }, { replace: true });
   };
 
   const showForm = Boolean(reserveId) && !showSuccess;
@@ -139,9 +139,13 @@ export function LoanFlowOverlay({
         // from the form returns to the page, and Back after closing can't drop
         // the user into the flow again.
         onSelectAsset={(selectedReserveId) =>
-          navigate(getReserveDetailRoute(selectedReserveId, mode, isV3), {
-            replace: true,
-          })
+          navigate(
+            {
+              pathname,
+              search: getReserveDetailSearch(selectedReserveId, mode),
+            },
+            { replace: true },
+          )
         }
       />
     );

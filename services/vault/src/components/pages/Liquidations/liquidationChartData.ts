@@ -61,6 +61,43 @@ export interface LiquidationChartOptions {
   btcPrice: number;
   /** Collateral factor (0–1) from on-chain params, for post-liq HF. */
   collateralFactor: number;
+  /**
+   * The live BTC price anchoring the top of the axis. Defaults to `btcPrice`.
+   * Keeping the axis anchored here (never to the simulated price) is what lets
+   * the price line move smoothly through the fixed segments while dragging,
+   * instead of re-flowing the axis on every step.
+   */
+  livePrice?: number;
+}
+
+/** Header figures for the analysis section at a (simulated) price. */
+export interface LiquidationSimulationSummary {
+  vaultsLiquidated: number;
+  vaultsTotal: number;
+  /** True cumulative share of collateral seized, whole percent. */
+  seizedPct: number;
+  /** Collateral left after the seized groups, pre-formatted. */
+  collateralRemainingLabel: string;
+}
+
+/**
+ * What the cascade looks like at `btcPrice`: a group is seized once the price
+ * is at or below its trigger — the same rule that flips a band's `state`.
+ */
+export function buildSimulationSummary(
+  result: CalculatorResult,
+  btcPrice: number,
+): LiquidationSimulationSummary {
+  const groups = result.groups;
+  const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
+  const seized = groups.filter((g) => btcPrice <= g.liquidationPrice);
+  const seizedBtc = seized.reduce((sum, g) => sum + g.combinedBtc, 0);
+  return {
+    vaultsLiquidated: seized.reduce((sum, g) => sum + g.vaults.length, 0),
+    vaultsTotal: groups.reduce((sum, g) => sum + g.vaults.length, 0),
+    seizedPct: totalBtc > 0 ? Math.round((seizedBtc / totalBtc) * 100) : 0,
+    collateralRemainingLabel: formatBtcAmount(totalBtc - seizedBtc),
+  };
 }
 
 /**
@@ -123,16 +160,21 @@ function hfAfter(
   ).toFixed(3);
 }
 
+// `position` is the group's array index: `calculate()` emits 1-based
+// `group.index`, so array position is the only safe identity for titles,
+// badges, and keys. Aftermath figures are priced at the event's own trigger —
+// the price at which the liquidation actually executes — never the ambient
+// (possibly simulated) price.
 function toCard(
   group: LiquidationGroup,
-  btcPrice: number,
+  position: number,
   cf: number,
 ): LiquidationEventCard {
-  const sacrificial = group.index === 0;
+  const sacrificial = position === 0;
   const fairness = group.isFullLiquidation
     ? {
         label: COPY.liquidations.events.fairnessPaymentWbtc,
-        value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / btcPrice)})`,
+        value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / group.liquidationPrice)})`,
       }
     : {
         label: COPY.liquidations.events.fairnessDebtRepaid,
@@ -140,8 +182,8 @@ function toCard(
       };
 
   return {
-    key: String(group.index),
-    title: COPY.liquidations.eventTitle(group.index + 1),
+    key: String(position),
+    title: COPY.liquidations.eventTitle(position + 1),
     badge: sacrificial ? "sacrificial" : "protected",
     collateralLabel: formatBtcAmount(group.combinedBtc),
     liqPriceLabel: formatPriceUsd(group.liquidationPrice),
@@ -159,13 +201,13 @@ function toCard(
     fairness,
     btcRemainingLabel: formatBtcAmount(group.btcRemainingAfter),
     debtRemainingLabel: formatUsd(group.debtRemainingAfter),
-    hfAfterLabel: hfAfter(group, btcPrice, cf),
+    hfAfterLabel: hfAfter(group, group.liquidationPrice, cf),
   };
 }
 
 export function buildLiquidationChartData(
   result: CalculatorResult,
-  { btcPrice, collateralFactor }: LiquidationChartOptions,
+  { btcPrice, collateralFactor, livePrice }: LiquidationChartOptions,
 ): LiquidationChartData {
   const groups = result.groups;
   const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
@@ -188,8 +230,8 @@ export function buildLiquidationChartData(
     const tone = toneFor(i);
 
     return {
-      key: String(group.index),
-      label: COPY.liquidations.eventTitle(group.index + 1),
+      key: String(i),
+      label: COPY.liquidations.eventTitle(i + 1),
       sublabel: COPY.liquidations.containVaults(
         group.vaults.map((v) => v.name.toLowerCase()).join(", "),
       ),
@@ -225,13 +267,22 @@ export function buildLiquidationChartData(
     };
   });
 
-  // Segmented axis: current price, each trigger price, and the floor, sorted
-  // descending and deduped. Sorting (not prepending btcPrice) keeps the axis
-  // ordered when the simulator drops btcPrice below a trigger — otherwise
-  // segmentedFraction collapses the current-price rule and first event to the
-  // top. Dedup avoids duplicate tick values (React keys) when prices coincide.
+  // Segmented axis: the LIVE price, each trigger price, and the floor, sorted
+  // descending and deduped. The simulated price is deliberately NOT a tick —
+  // the chart interpolates it within its segment, so the line moves
+  // progressively while dragging and never mints an empty segment below the
+  // floor. Sorting keeps the axis ordered when the live price sits below a
+  // trigger; dedup avoids duplicate tick values (React keys) when prices
+  // coincide.
+  const axisAnchor = livePrice ?? btcPrice;
+  // A price-feed miss (NaN/Infinity) must degrade the axis, not crash the
+  // chart's strictly-descending assertion downstream.
   const axisValues = Array.from(
-    new Set([btcPrice, ...groups.map((g) => g.liquidationPrice), floorPrice]),
+    new Set(
+      [axisAnchor, ...groups.map((g) => g.liquidationPrice), floorPrice].filter(
+        (value) => Number.isFinite(value),
+      ),
+    ),
   ).sort((a, b) => b - a);
   const priceAxis: PriceAxisTick[] = axisValues.map((value) => ({
     value,
@@ -256,6 +307,6 @@ export function buildLiquidationChartData(
     bands,
     priceAxis,
     shareAxisTicks,
-    cards: groups.map((g) => toCard(g, btcPrice, collateralFactor)),
+    cards: groups.map((g, i) => toCard(g, i, collateralFactor)),
   };
 }

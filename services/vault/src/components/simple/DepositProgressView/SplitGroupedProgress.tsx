@@ -53,6 +53,12 @@ interface SplitGroupedProgressProps {
    * inferring it from array position.
    */
   perVaultSteps?: DepositFlowStep[];
+  /**
+   * False in the pre-entry state. Columns mirroring the flow's own un-started
+   * step stay collapsed; sibling lanes keep expanding off their polled state
+   * (see the per-column gate below).
+   */
+  started?: boolean;
 }
 
 /** One group list per vault, rendered as the new filled-card / header blocks. */
@@ -116,10 +122,11 @@ export function SplitGroupedProgress({
   hasError = false,
   renderStepDetail,
   perVaultSteps,
+  started = true,
 }: SplitGroupedProgressProps) {
   // Shared trunk groups (Register deposit). Keep original 1-based numbers, hide
   // completed groups (they fold into the steps-completed pill).
-  const trunkGroups = buildStepGroups(currentStep)
+  const trunkGroups = buildStepGroups(currentStep, started)
     .map((group, index) => ({ group, number: index + 1 }))
     .filter(
       ({ group }) =>
@@ -151,7 +158,16 @@ export function SplitGroupedProgress({
             perVaultSteps?.[vaultIndex] ??
             derivePerVaultStep(rawStep, currentVaultIndex, vaultIndex);
           const perVaultVisualStep = getVisualStep(vaultRawStep);
-          const branchGroups = buildStepGroups(perVaultVisualStep)
+          // The pre-entry gate applies only to columns mirroring the flow's
+          // own un-started step. A sibling lane on a different step is driven
+          // by its own polled state — its expansion (and any live detail
+          // panel, e.g. the confirmation-depth counter) reflects a genuinely
+          // running remote process, not the action awaiting this click.
+          const columnStarted = started || vaultRawStep !== rawStep;
+          const branchGroups = buildStepGroups(
+            perVaultVisualStep,
+            columnStarted,
+          )
             .map((group, index) => ({ group, number: index + 1 }))
             .filter(
               ({ group }) =>

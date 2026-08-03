@@ -8,6 +8,7 @@ const IDLE_HOOK_STATE = {
   progress: "",
   error: null as string | null,
   downloaded: false,
+  delivered: false,
   receivedBytes: 0,
   totalBytes: 0,
   download: vi.fn(),
@@ -93,5 +94,54 @@ describe("RecoveryArtifactsCard — byte-progress panel", () => {
       screen.getByText("Fetching artifacts from vault provider..."),
     ).toBeTruthy();
     expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+});
+
+describe("RecoveryArtifactsCard — unverifiable save", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    hookState.current = { ...IDLE_HOOK_STATE };
+  });
+
+  it("does not report a download upward when the save could not be verified", () => {
+    // onDownloaded is what removes the activation modal's risk acknowledgement
+    // and enables Activate. The anchor fallback proves only that a link was
+    // clicked, so firing it there would unlock activation for a save the
+    // browser may have blocked or the user may have dismissed.
+    const onDownloaded = vi.fn();
+    const onDelivered = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, delivered: true };
+
+    render(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onDownloaded={onDownloaded}
+        onDelivered={onDelivered}
+      />,
+    );
+
+    expect(onDownloaded).not.toHaveBeenCalled();
+    expect(onDelivered).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the download available and warns that the save is unconfirmed", () => {
+    hookState.current = { ...IDLE_HOOK_STATE, delivered: true };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(screen.getByTestId("artifact-unverified-notice")).toBeTruthy();
+    expect(screen.getByText("Download Again")).toBeTruthy();
+  });
+
+  it("reports a download upward once there is real evidence", () => {
+    const onDownloaded = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, downloaded: true };
+
+    render(
+      <RecoveryArtifactsCard {...COMMON_PROPS} onDownloaded={onDownloaded} />,
+    );
+
+    expect(onDownloaded).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("artifact-unverified-notice")).toBeNull();
   });
 });

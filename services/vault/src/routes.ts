@@ -1,4 +1,7 @@
+import type { Address } from "viem";
+
 import type { LoanTab } from "@/applications/aave/constants";
+import { getRegisteredTokenByAddress } from "@/services/token/tokenService";
 
 export const ROUTES = {
   OVERVIEW: "/",
@@ -10,8 +13,8 @@ export const ROUTES = {
   MARKETS: "/markets",
 } as const;
 
-/** Path segment of `/markets/:reserveId` — the reserve's on-chain id. */
-export const MARKET_RESERVE_PARAM = "reserveId";
+/** Path segment of `/markets/:market` — see {@link getMarketSlug}. */
+export const MARKET_PARAM = "market";
 
 export const RESERVE_QUERY_KEYS = {
   RESERVE_ID: "reserve",
@@ -24,9 +27,24 @@ export function getReserveDetailBaseRoute(isV3Enabled: boolean): string {
   return isV3Enabled ? ROUTES.LOANS : ROUTES.OVERVIEW;
 }
 
+/**
+ * Query string that opens the loan overlay's asset picker. Search-only: the
+ * overlay renders over whichever page under the Aave layout is already
+ * mounted, so opening it must not change the pathname — a route change paints
+ * the destination page first and the user sees it flash behind the dialog.
+ * Pair with the current pathname (see `useLoanActions`).
+ */
+export function getAssetPickerSearch(tab: LoanTab) {
+  return `?${new URLSearchParams({ [RESERVE_QUERY_KEYS.PICKER]: tab })}`;
+}
+
+/**
+ * Full route to the asset picker, for the one caller that genuinely leaves its
+ * page to get there (the market data page's back link). In-page entry points
+ * use `getAssetPickerSearch` instead.
+ */
 export function getAssetPickerRoute(tab: LoanTab, isV3Enabled: boolean) {
-  const params = new URLSearchParams({ [RESERVE_QUERY_KEYS.PICKER]: tab });
-  return `${getReserveDetailBaseRoute(isV3Enabled)}?${params.toString()}`;
+  return `${getReserveDetailBaseRoute(isV3Enabled)}${getAssetPickerSearch(tab)}`;
 }
 
 /**
@@ -67,15 +85,39 @@ export function getReserveDetailRoute(
   tab: LoanTab,
   isV3Enabled: boolean,
 ) {
-  const baseRoute = getReserveDetailBaseRoute(isV3Enabled);
-  const params = new URLSearchParams({
-    [RESERVE_QUERY_KEYS.RESERVE_ID]: reserveId.toString(),
-    [RESERVE_QUERY_KEYS.TAB]: tab,
-  });
-  return `${baseRoute}?${params.toString()}`;
+  return `${getReserveDetailBaseRoute(isV3Enabled)}${getReserveDetailSearch(reserveId, tab)}`;
 }
 
-/** Keyed by reserve id for the same reason as {@link getReserveDetailRoute}. */
-export function getMarketDataRoute(reserveId: bigint) {
-  return `${ROUTES.MARKETS}/${reserveId.toString()}`;
+/** Search-only form of {@link getReserveDetailRoute}; same rationale, and the
+ *  same id-not-symbol rule. */
+export function getReserveDetailSearch(reserveId: bigint, tab: LoanTab) {
+  return `?${new URLSearchParams({
+    [RESERVE_QUERY_KEYS.RESERVE_ID]: reserveId.toString(),
+    [RESERVE_QUERY_KEYS.TAB]: tab,
+  })}`;
+}
+
+/**
+ * Slug naming a reserve in `/markets/:market`: the compile-time token
+ * registry's symbol for the reserve's underlying address, lowercased, falling
+ * back to the on-chain id for addresses the registry does not know (testnet
+ * mocks).
+ *
+ * Deliberately not the indexer's `token.symbol`. Link building and the page's
+ * lookup both key off the registry, so a compromised indexer that rewrites a
+ * reserve's underlying can only make the link resolve to nothing, never to a
+ * different market — and the id/underlying pair it does resolve to is still
+ * proven against the chain before anything renders
+ * (`useVerifiedReserveIdentity`, audit F7).
+ */
+export function getMarketSlug(reserveId: bigint, underlying?: Address): string {
+  const symbol = underlying
+    ? getRegisteredTokenByAddress(underlying)?.symbol
+    : undefined;
+  return symbol ? symbol.toLowerCase() : reserveId.toString();
+}
+
+/** Route to a reserve's market data page. See {@link getMarketSlug}. */
+export function getMarketDataRoute(reserveId: bigint, underlying?: Address) {
+  return `${ROUTES.MARKETS}/${getMarketSlug(reserveId, underlying)}`;
 }

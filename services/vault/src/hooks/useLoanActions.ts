@@ -6,17 +6,20 @@
  * reserve's borrow/repay form.
  *
  * Every step is route state so the whole flow renders into one dialog — see
- * `applications/aave/components/Detail` (`LoanFlowOverlay`).
+ * `applications/aave/components/Detail` (`LoanFlowOverlay`). The step lives in
+ * the *search* only, keeping the current pathname: the overlay renders over
+ * any page under the Aave layout, and navigating to a fixed route instead
+ * would mount and paint that page first — the depositor watches a page they
+ * never asked for flash behind the dialog before it covers them.
  */
 
 import { useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
-import featureFlags from "@/config/featureFlags";
 import {
-  getAssetPickerRoute,
-  getReserveDetailRoute,
+  getAssetPickerSearch,
+  getReserveDetailSearch,
   parseReserveId,
 } from "@/routes";
 
@@ -31,18 +34,18 @@ interface UseLoanActionsProps {
 
 export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
   const navigate = useNavigate();
-  const isV3 = featureFlags.isV3UiEnabled;
+  const { pathname } = useLocation();
 
   const goToReserve = useCallback(
     (reserveId: bigint, tab: LoanTab) => {
-      navigate(getReserveDetailRoute(reserveId, tab, isV3));
+      navigate({ pathname, search: getReserveDetailSearch(reserveId, tab) });
     },
-    [navigate, isV3],
+    [navigate, pathname],
   );
 
   const openBorrowPicker = useCallback(() => {
-    navigate(getAssetPickerRoute(LOAN_TAB.BORROW, isV3));
-  }, [navigate, isV3]);
+    navigate({ pathname, search: getAssetPickerSearch(LOAN_TAB.BORROW) });
+  }, [navigate, pathname]);
 
   const openRepay = useCallback(() => {
     // A single borrowed asset has no choice to make — skip the picker and open
@@ -56,8 +59,8 @@ export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
       goToReserve(soleReserveId, LOAN_TAB.REPAY);
       return;
     }
-    navigate(getAssetPickerRoute(LOAN_TAB.REPAY, isV3));
-  }, [borrowedAssets, goToReserve, navigate, isV3]);
+    navigate({ pathname, search: getAssetPickerSearch(LOAN_TAB.REPAY) });
+  }, [borrowedAssets, goToReserve, navigate, pathname]);
 
   return { openBorrowPicker, openRepay, goToReserve };
 }

@@ -14,7 +14,12 @@ import { LoanFlowOverlay } from "../index";
 
 const SHELL_TESTID = "modal-shell";
 
-vi.mock("@/config", () => ({ FeatureFlags: { isV3UiEnabled: true } }));
+// `getNetworkConfigBTC` is read at module scope by the token registry, which
+// this tree reaches through `@/routes`.
+vi.mock("@/config", () => ({
+  FeatureFlags: { isV3UiEnabled: true },
+  getNetworkConfigBTC: () => ({ icon: "btc-icon.svg", coinSymbol: "vBTC" }),
+}));
 
 vi.mock("@/components/shared/V3ModalShell", () => ({
   V3ModalShell: ({

@@ -47,7 +47,17 @@ const HUB_LIQUIDITY_ABI = [
   },
   {
     type: "function",
-    name: "getAssetTotalOwed",
+    name: "getAssetOwed",
+    stateMutability: "view",
+    inputs: [{ name: "assetId", type: "uint256" }],
+    outputs: [
+      { name: "drawn", type: "uint256" },
+      { name: "premium", type: "uint256" },
+    ],
+  },
+  {
+    type: "function",
+    name: "getAssetSwept",
     stateMutability: "view",
     inputs: [{ name: "assetId", type: "uint256" }],
     outputs: [{ name: "", type: "uint256" }],
@@ -145,21 +155,35 @@ export interface AssetLiquidityRequest {
 export interface AssetLiquidityResult {
   hub: Address;
   assetId: number;
-  /** Borrowable liquidity remaining (token units), or null on revert. */
+  /** `getAssetLiquidity` — borrowable liquidity remaining (token units). */
   availableLiquidityRaw: bigint | null;
-  /** Total borrowed: drawn + premium (token units), or null on revert. */
-  totalOwedRaw: bigint | null;
+  /** `getAssetOwed[0]` — principal drawn (token units). */
+  drawnRaw: bigint | null;
+  /** `getAssetOwed[1]` — accrued premium (token units). */
+  premiumRaw: bigint | null;
+  /** `getAssetSwept` — supplied capital moved into reinvestment (token units). */
+  sweptRaw: bigint | null;
   error: Error | null;
 }
 
+/** Hub reads per asset: liquidity, owed (drawn + premium), swept. */
+const LIQUIDITY_LEGS_PER_ASSET = 3;
+
 /**
- * Per-asset isolated read of available liquidity and total owed for display
- * lists (one bad asset ≠ whole list blank). One multicall round-trip pairs
- * `getAssetLiquidity` + `getAssetTotalOwed` per asset with `allowFailure: true`.
- * Both legs are required to derive available liquidity and utilization, so if
- * either reverts the asset is nulled whole (no half-read figure). A
- * network-level multicall failure marks every asset failed rather than throwing
- * — callers (display hooks) rely on always getting a per-asset result array.
+ * Per-asset isolated read of the reserve totals the display surfaces derive
+ * from (one bad asset ≠ whole list blank). One multicall round-trip issues
+ * `getAssetLiquidity` + `getAssetOwed` + `getAssetSwept` per asset with
+ * `allowFailure: true`.
+ *
+ * `swept` is read because it belongs in the utilization denominator: the Hub
+ * feeds the strategy `drawn / (liquidity + drawn + swept)` (see HUB_RATE_ABI),
+ * so omitting it would make the displayed utilization disagree with both the
+ * projected rate this app already computes and the indexer's snapshot series.
+ *
+ * Every leg is required to derive the figures, so if any reverts the asset is
+ * nulled whole (no half-read figure). A network-level multicall failure marks
+ * every asset failed rather than throwing — callers (display hooks) rely on
+ * always getting a per-asset result array.
  */
 export async function getAssetLiquiditiesSafe(
   requests: AssetLiquidityRequest[],
@@ -167,6 +191,16 @@ export async function getAssetLiquiditiesSafe(
   if (requests.length === 0) return [];
 
   const publicClient = ethClient.getPublicClient();
+
+  const nulled = (hub: Address, assetId: number, error: Error) => ({
+    hub,
+    assetId,
+    availableLiquidityRaw: null,
+    drawnRaw: null,
+    premiumRaw: null,
+    sweptRaw: null,
+    error,
+  });
 
   let results;
   try {
@@ -181,7 +215,13 @@ export async function getAssetLiquiditiesSafe(
         {
           address: hub,
           abi: HUB_LIQUIDITY_ABI as Abi,
-          functionName: "getAssetTotalOwed" as const,
+          functionName: "getAssetOwed" as const,
+          args: [BigInt(assetId)] as const,
+        },
+        {
+          address: hub,
+          abi: HUB_LIQUIDITY_ABI as Abi,
+          functionName: "getAssetSwept" as const,
           args: [BigInt(assetId)] as const,
         },
       ]),
@@ -189,38 +229,31 @@ export async function getAssetLiquiditiesSafe(
     });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    return requests.map(({ hub, assetId }) => ({
-      hub,
-      assetId,
-      availableLiquidityRaw: null,
-      totalOwedRaw: null,
-      error,
-    }));
+    return requests.map(({ hub, assetId }) => nulled(hub, assetId, error));
   }
 
   return requests.map(({ hub, assetId }, i): AssetLiquidityResult => {
-    const liquidity = results[i * 2];
-    const owed = results[i * 2 + 1];
-    if (liquidity.status !== "success" || owed.status !== "success") {
-      const failed =
-        liquidity.status !== "success" ? liquidity.error : owed.error;
-      const error =
-        failed instanceof Error
-          ? failed
-          : new Error(String(failed ?? "Hub reserve-total read reverted"));
-      return {
+    const base = i * LIQUIDITY_LEGS_PER_ASSET;
+    const legs = [results[base], results[base + 1], results[base + 2]];
+    const failedLeg = legs.find((leg) => leg.status !== "success");
+    if (failedLeg) {
+      const failed = failedLeg.error;
+      return nulled(
         hub,
         assetId,
-        availableLiquidityRaw: null,
-        totalOwedRaw: null,
-        error,
-      };
+        failed instanceof Error
+          ? failed
+          : new Error(String(failed ?? "Hub reserve-total read reverted")),
+      );
     }
+    const [drawn, premium] = legs[1].result as readonly [bigint, bigint];
     return {
       hub,
       assetId,
-      availableLiquidityRaw: liquidity.result as bigint,
-      totalOwedRaw: owed.result as bigint,
+      availableLiquidityRaw: legs[0].result as bigint,
+      drawnRaw: drawn,
+      premiumRaw: premium,
+      sweptRaw: legs[2].result as bigint,
       error: null,
     };
   });

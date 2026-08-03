@@ -501,6 +501,37 @@ export const COPY = {
       authenticationFailed: "Authentication failed",
       reauthenticationFailed: "Re-authentication failed",
       downloadFailed: "Download failed",
+      unknownRpcError: "Unknown RPC error",
+      // Shown while the browser's save-location dialog is open. The picker is
+      // opened before the wallet prompt, so this is the first status a user
+      // sees after pressing Download.
+      choosingSaveLocation: "Choose where to save your artifacts...",
+      savePickerDescription: "BTC Vault recovery artifacts",
+      // The browser refused the chosen location, or the write failed partway
+      // through (permission revoked, disk full).
+      fileAccessDenied:
+        "Could not write to the selected location. Choose a different folder and try again.",
+      // Browsers without the File System Access API must hold the whole file
+      // in memory, which a full-size bundle does not survive.
+      tooLargeForBrowser:
+        "This browser cannot save a file this large. Please use a Chromium-based browser, such as Chrome or Brave, to download your artifacts.",
+      // Rendered on those same browsers before the download starts, so the
+      // limits are not a surprise partway through a long transfer. This path
+      // must hold the whole ~1 GB file in memory, and the browser reports
+      // nothing back about whether it was saved.
+      fallbackSaveHint:
+        "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTC Vault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
+      // Shown after that same fallback path finishes. The transfer is done and
+      // the file was handed to the browser, but a blocked or dismissed save
+      // looks identical to a successful one from here, so this state stops
+      // short of claiming the download succeeded — the risk acknowledgement
+      // stays required and the vault keeps warning.
+      unverifiedSaveTitle: "Download finished, but we cannot confirm it saved",
+      unverifiedSaveNotice:
+        "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTC Vault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
+      // The fallback path may well have worked; this offers a retry without
+      // implying the first attempt failed.
+      downloadAgainButton: "Download Again",
     },
     form: {
       computingAllocation: "Computing allocation...",
@@ -656,6 +687,11 @@ export const COPY = {
       defaultTitle: TRANSACTION_FAILED_TITLE,
       genericBody:
         "Something went wrong during your deposit. Please try again.",
+      // Action on the error callout: puts the full raw error on the clipboard
+      // so a report carries the whole thing, not a screenshot of part of it.
+      copyDiagnostics: "Copy error details",
+      diagnosticsCopied: "Copied",
+      diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
@@ -1030,6 +1066,9 @@ export const COPY = {
   loans: {
     heading: "Loans",
     borrowButton: "Borrow",
+    // Per-row action on an already-borrowed asset (Active Loans list) — the
+    // user has a position here, so it borrows *more* of this asset.
+    borrowMoreButton: "Borrow more",
     repayButton: "Repay",
     // v3 Loans page: "Active Loans (N)" section heading.
     activeLoansHeading: (count: number) => `Active Loans (${count})`,
@@ -1224,6 +1263,30 @@ export const COPY = {
     subtitle: (symbol: string) =>
       `Learn more about the ${symbol} borrow market`,
     borrowAction: "Borrow",
+    // Shown instead of the metrics when a Hub or oracle read failed, so a
+    // failed read is never mistaken for a metric that has no value.
+    dataUnavailable:
+      "Market data is unavailable right now. Please try again shortly.",
+    // Stats bar above the fold. Title Case per the Figma; the design's
+    // "Utilisation" is respelled to the American form this file mandates.
+    stats: {
+      availableLiquidity: "Available Liquidity",
+      borrowApr: "Borrow APR",
+      supplied: "Supplied",
+      suppliedTooltip:
+        "Total liquidity supplied to this market — the borrowed amount plus what is still available.",
+      totalBorrowed: "Total Borrowed",
+      marketUtilization: "Market Utilization",
+    },
+    collateral: {
+      assetLabel: "Collateral Asset",
+      // The protocol takes one collateral: BTC locked in a vault. Named for
+      // what the depositor supplied, not for the vaultBTC reserve token.
+      assetName: "Native BTC",
+      factorLabel: "Collateral Factor",
+      factorTooltip:
+        "The share of your collateral's value you can borrow against before liquidation applies.",
+    },
     interestRateModel: {
       title: "Interest rate model",
       description:
@@ -1233,6 +1296,17 @@ export const COPY = {
       title: "Borrow markets",
       description: (symbol: string) =>
         `Understand market conditions, rates, and risk before borrowing ${symbol}`,
+      columns: {
+        market: "Market",
+        borrowApr: "Borrow APR",
+        available: "Available",
+        availableTooltip:
+          "Liquidity still borrowable from this market right now.",
+        utilization: "Utilization",
+        borrowed: "Borrowed",
+        supplied: "Supplied",
+      },
+      empty: "No borrow markets available.",
     },
   },
   nav: {
@@ -1288,7 +1362,6 @@ export const COPY = {
       borrow: "Borrow",
     },
     reset: "Reset",
-    bandClickHint: "click to open card",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
     containVaults: (names: string) => `(contain ${names})`,
     cumulativeSeized: (percent: number) => `${percent}% seized`,
@@ -1298,6 +1371,8 @@ export const COPY = {
       vaults: "Vaults",
       seizes: "Seizes",
     },
+    // Replaces a liquidated band's vault list + BTC amount on the chart.
+    liquidatedBandLabel: "Liquidated",
     safeZone: {
       title: "Safe zone",
       noEventsAbove: (price: string) => `no events above ${price}`,
@@ -1309,6 +1384,7 @@ export const COPY = {
         "Vaults are seized in order — each vault group is one liquidation event.",
       badgeSacrificial: "Sacrificial",
       badgeProtected: "Protected",
+      liquidatedInSimulation: "Liquidated in Simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: "Distance",

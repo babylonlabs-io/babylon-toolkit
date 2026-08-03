@@ -35,6 +35,7 @@ import { COPY } from "@/copy";
 
 import {
   classifyError,
+  formatErrorDiagnostics,
   isWalletRejectionError,
   mapVpRpcError,
   sanitizeErrorMessage,
@@ -47,6 +48,11 @@ export interface DepositErrorContent {
    * or emphasized phrase. Today every mapped body is a plain copy string.
    */
   body: ReactNode;
+  /**
+   * Full raw error for the "copy details" action. `body` is deliberately
+   * lossy, so this is what a reporter pastes instead of a screenshot.
+   */
+  diagnostics?: string;
 }
 
 const ERRORS = COPY.deposit.errors;
@@ -228,9 +234,15 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // diagnostic info is hidden. `sanitizeErrorMessage` returns the "Unknown
   // error" sentinel for opaque throws — swap that for the friendlier
   // genericBody so the callout never shows "Unknown error".
+  //
+  // Only this bucket carries `diagnostics`: every branch above already names
+  // the cause, so the raw error adds nothing a reporter could act on. Here we
+  // don't know what happened, and `sanitizeErrorMessage` has dropped viem's
+  // request dump, so offer the untrimmed error for a bug report.
   const raw = sanitizeErrorMessage(err);
   return {
     title: ERRORS.defaultTitle,
     body: raw === "Unknown error" ? ERRORS.genericBody : raw,
+    diagnostics: formatErrorDiagnostics(err),
   };
 }

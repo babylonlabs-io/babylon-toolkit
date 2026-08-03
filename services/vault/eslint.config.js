@@ -211,6 +211,11 @@ export default tseslint.config(
       // the populated layout under demo injection, and applies the god-mode
       // health-factor / borrow-capacity summary overrides. Mirrors VaultsPage.
       "src/components/pages/Loans.tsx",
+      // v3 /markets/:symbol: substitutes demo reserves/liquidity/APR/price
+      // maps and the on-chain collateral factor into the page's own
+      // derivation, so the populated layout (incl. degraded price/liquidity
+      // cells) can be reviewed without live devnet reserve state.
+      "src/components/pages/BorrowingMarketsData/index.tsx",
       // v3 /activity: merges demo activity rows into the feed (display-only —
       // never polled, never written to the pending-activity storage).
       "src/hooks/useActivitiesWithPending.ts",
