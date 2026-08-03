@@ -143,7 +143,9 @@ export function AssetSelectionPanel({
   });
 
   const handleMarketInfoClick = (reserveId: bigint) => {
-    navigate(getMarketDataRoute(reserveId));
+    const underlying = pricedReserves.find((r) => r.reserveId === reserveId)
+      ?.reserve.underlying;
+    navigate(getMarketDataRoute(reserveId, underlying));
   };
 
   const rows: AssetRow[] = useMemo(() => {

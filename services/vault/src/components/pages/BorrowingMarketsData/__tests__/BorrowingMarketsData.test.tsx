@@ -50,6 +50,13 @@ vi.mock("@/services/token/tokenService", () => ({
   getCurrencyIconWithFallback: (_icon: string | undefined, symbol: string) =>
     `icon-${symbol}`,
   getTokenByAddress: () => null,
+  // Address-keyed, like the real registry: only mainnet USDC is known here, so
+  // only that reserve earns a symbol slug. Inlined rather than referencing the
+  // fixture below — `vi.mock` factories run before the module body.
+  getRegisteredTokenByAddress: (address: string) =>
+    address === "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"
+      ? { symbol: "USDC" }
+      : null,
 }));
 
 vi.mock("@/config", () => ({
@@ -83,7 +90,7 @@ vi.mock("@/applications/aave/hooks", () => ({
 
 import type { ReserveLiquidity } from "@/applications/aave/hooks";
 import { COPY } from "@/copy";
-import { MARKET_RESERVE_PARAM } from "@/routes";
+import { MARKET_PARAM } from "@/routes";
 
 import BorrowingMarketsData from "../index";
 
@@ -97,6 +104,15 @@ const USDC_RESERVE = {
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
+  },
+};
+
+/** Same reserve, but on the mainnet USDC address the token registry knows —
+ *  the only thing that earns a reserve a symbol slug. */
+const REGISTERED_USDC_RESERVE = {
+  ...USDC_RESERVE,
+  reserve: {
+    underlying: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
   },
 };
 
@@ -224,7 +240,7 @@ function renderPage(reserveIdParam: string) {
     <MemoryRouter initialEntries={[`/markets/${reserveIdParam}`]}>
       <Routes>
         <Route
-          path={`/markets/:${MARKET_RESERVE_PARAM}`}
+          path={`/markets/:${MARKET_PARAM}`}
           element={<BorrowingMarketsData />}
         />
       </Routes>
@@ -305,7 +321,23 @@ describe("BorrowingMarketsData", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the not-found copy for a legacy symbol-shaped route param instead of resolving a reserve", () => {
+  it("resolves a token-symbol slug to the reserve whose underlying carries that registry symbol", () => {
+    setUpHooks({
+      borrowableReserves: [REGISTERED_USDC_RESERVE, WBTC_RESERVE],
+    });
+
+    renderPage("usdc");
+
+    const statsBar = within(screen.getByTestId("market-stats-bar"));
+    expect(statsBar.getByText("$11.4M")).toBeInTheDocument(); // reserve 1's liquidity
+    expect(
+      screen.queryByText(COPY.loans.reserveNotFound),
+    ).not.toBeInTheDocument();
+  });
+
+  // The slug is matched against the address-keyed registry, so the indexer's
+  // own `token.symbol` — "USDC" on this fixture — cannot pull a reserve up.
+  it("shows the not-found copy for a symbol no registered underlying matches", () => {
     setUpHooks({ identity: null });
 
     renderPage("usdc");

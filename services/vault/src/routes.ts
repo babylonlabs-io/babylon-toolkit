@@ -1,4 +1,7 @@
+import type { Address } from "viem";
+
 import type { LoanTab } from "@/applications/aave/constants";
+import { getRegisteredTokenByAddress } from "@/services/token/tokenService";
 
 export const ROUTES = {
   OVERVIEW: "/",
@@ -10,8 +13,8 @@ export const ROUTES = {
   MARKETS: "/markets",
 } as const;
 
-/** Path segment of `/markets/:reserveId` — the reserve's on-chain id. */
-export const MARKET_RESERVE_PARAM = "reserveId";
+/** Path segment of `/markets/:market` — see {@link getMarketSlug}. */
+export const MARKET_PARAM = "market";
 
 export const RESERVE_QUERY_KEYS = {
   RESERVE_ID: "reserve",
@@ -94,7 +97,27 @@ export function getReserveDetailSearch(reserveId: bigint, tab: LoanTab) {
   })}`;
 }
 
-/** Keyed by reserve id for the same reason as {@link getReserveDetailRoute}. */
-export function getMarketDataRoute(reserveId: bigint) {
-  return `${ROUTES.MARKETS}/${reserveId.toString()}`;
+/**
+ * Slug naming a reserve in `/markets/:market`: the compile-time token
+ * registry's symbol for the reserve's underlying address, lowercased, falling
+ * back to the on-chain id for addresses the registry does not know (testnet
+ * mocks).
+ *
+ * Deliberately not the indexer's `token.symbol`. Link building and the page's
+ * lookup both key off the registry, so a compromised indexer that rewrites a
+ * reserve's underlying can only make the link resolve to nothing, never to a
+ * different market — and the id/underlying pair it does resolve to is still
+ * proven against the chain before anything renders
+ * (`useVerifiedReserveIdentity`, audit F7).
+ */
+export function getMarketSlug(reserveId: bigint, underlying?: Address): string {
+  const symbol = underlying
+    ? getRegisteredTokenByAddress(underlying)?.symbol
+    : undefined;
+  return symbol ? symbol.toLowerCase() : reserveId.toString();
+}
+
+/** Route to a reserve's market data page. See {@link getMarketSlug}. */
+export function getMarketDataRoute(reserveId: bigint, underlying?: Address) {
+  return `${ROUTES.MARKETS}/${getMarketSlug(reserveId, underlying)}`;
 }
