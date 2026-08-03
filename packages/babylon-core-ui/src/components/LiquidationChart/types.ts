@@ -21,7 +21,7 @@ export type LiquidationBandState = "live" | "liquidated";
 
 /**
  * Key/value rows shown in the band hover popover. All pre-formatted by the app.
- * `emphasis` tints a value (e.g. the liquidation price in the band's tone).
+ * `emphasis` tints a value in the band's tone (e.g. the liquidation price).
  */
 export interface BandPopoverMetric {
   label: string;
@@ -51,7 +51,7 @@ export interface LiquidationBand {
   tone: LiquidationBandTone;
   /** Rows for the hover popover (At price / Distance / Vaults / Seizes). */
   popoverMetrics?: BandPopoverMetric[];
-  /** Footer row, e.g. "55% seized". */
+  /** Popover footer value, e.g. "55% seized". */
   cumulativeLabel?: string;
 }
 
@@ -80,6 +80,12 @@ export interface PriceAxisTick {
   label: string;
 }
 
+/** An x-axis tick placed at an explicit fraction [0,1] of the plot. */
+export interface ShareAxisTick {
+  fraction: number;
+  label: string;
+}
+
 /** Background grid configuration, shared by both charts. */
 export interface ChartGridConfig {
   /** Which gridlines render. Default `"both"`. */
@@ -100,14 +106,16 @@ interface LiquidationChartBase {
   /** Background grid. Omit for the default dashed full grid. */
   grid?: ChartGridConfig;
   /**
-   * Hide all in-band text (tiny bands already drop text automatically); the
-   * hover popover still names the event. For dense/preview surfaces.
+   * Hide all in-band text (tiny bands already drop text automatically).
+   * For dense/preview surfaces.
    */
   hideBandLabels?: boolean;
-  /** Fired when a band (or its popover footer) is clicked — app scrolls to the card. */
-  onBandClick?: (key: string) => void;
-  /** Popover footer CTA, e.g. "click to open card". Omitted → no CTA row. */
-  bandClickHint?: string;
+  /**
+   * Pre-formatted text a liquidated band shows in place of its sublabel and
+   * amount, e.g. "Liquidated"; the share legend swaps it for the amount too.
+   * Omit to keep a liquidated band's normal text (it still dims).
+   */
+  liquidatedLabel?: string;
   className?: string;
 }
 
@@ -119,7 +127,7 @@ export interface SeizureMapProps extends LiquidationChartBase {
    * raw shares (see `shareStart`/`shareEnd`). Takes precedence over
    * `shareAxisLabels`, which spaces its labels evenly.
    */
-  shareAxisTicks?: { fraction: number; label: string }[];
+  shareAxisTicks?: ShareAxisTick[];
   /**
    * Show the collateral-share legend strip above the plot. Default true in the
    * `full` variant; `compact` never renders it. Off gives a bare plot that

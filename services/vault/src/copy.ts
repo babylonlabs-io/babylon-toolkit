@@ -1362,7 +1362,6 @@ export const COPY = {
       borrow: "Borrow",
     },
     reset: "Reset",
-    bandClickHint: "click to open card",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
     containVaults: (names: string) => `(contain ${names})`,
     cumulativeSeized: (percent: number) => `${percent}% seized`,
@@ -1372,6 +1371,8 @@ export const COPY = {
       vaults: "Vaults",
       seizes: "Seizes",
     },
+    // Replaces a liquidated band's vault list + BTC amount on the chart.
+    liquidatedBandLabel: "Liquidated",
     safeZone: {
       title: "Safe zone",
       noEventsAbove: (price: string) => `no events above ${price}`,
@@ -1383,6 +1384,7 @@ export const COPY = {
         "Vaults are seized in order — each vault group is one liquidation event.",
       badgeSacrificial: "Sacrificial",
       badgeProtected: "Protected",
+      liquidatedInSimulation: "Liquidated in Simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: "Distance",

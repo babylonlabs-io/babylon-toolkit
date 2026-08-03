@@ -1,6 +1,6 @@
 // Story fixtures only, not exported from the package. Production values come
 // from the vault's liquidation cascade + price-history feed.
-import type { Candle, LiquidationBand, PriceAxisTick } from "./types";
+import type { Candle, LiquidationBand, PriceAxisTick, SafeZone } from "./types";
 
 export const bands: LiquidationBand[] = [
   {
@@ -72,7 +72,8 @@ export const priceAxis: PriceAxisTick[] = [
 
 export const shareAxisLabels = ["0%", "55%", "91%", "100%"];
 
-/** Linear price axis for the Timeline (candles need a true price scale). */
+/** Timeline price axis. The floor sits below the last trigger (mirroring the
+ * vault's floor = min trigger x 0.95) so every event stays on the frame. */
 export const timelinePriceAxis: PriceAxisTick[] = [
   { value: 90000, label: "$90,000" },
   { value: 80000, label: "$80,000" },
@@ -80,6 +81,7 @@ export const timelinePriceAxis: PriceAxisTick[] = [
   { value: 60000, label: "$60,000" },
   { value: 50000, label: "$50,000" },
   { value: 40000, label: "$40,000" },
+  { value: 3417, label: "$3,417" },
 ];
 
 export const timeAxisLabels = ["May 5", "12", "19", "Jun", "8", "15", "22"];
@@ -111,3 +113,101 @@ export const safeZone = {
   title: "Safe zone",
   lines: ["no events above $59,050", "4.3% drop to Liq 1"],
 };
+
+/**
+ * Compressed share axis: event 3 is really 1% of collateral but drawn 20%
+ * wide so it stays readable; `compressedShareTicks` carries the true
+ * percentages at the compressed band edges (mirrors the vault's projection).
+ */
+export const compressedBands: LiquidationBand[] = [
+  { ...bands[0], shareStart: 0, shareEnd: 0.45 },
+  { ...bands[1], shareStart: 0.45, shareEnd: 0.8 },
+  { ...bands[2], amountLabel: "0.01 BTC", shareStart: 0.8, shareEnd: 1 },
+];
+
+export const compressedShareTicks = [
+  { fraction: 0, label: "0%" },
+  { fraction: 0.45, label: "55%" },
+  { fraction: 0.8, label: "99%" },
+  { fraction: 1, label: "100%" },
+];
+
+/** True-percentage ticks matching the uncompressed `bands` share widths. */
+export const shareAxisTicks = [
+  { fraction: 0, label: "0%" },
+  { fraction: 0.55, label: "55%" },
+  { fraction: 0.91, label: "91%" },
+  { fraction: 1, label: "100%" },
+];
+
+/** Overlong text in every band slot, to prove measured truncation. */
+export const longLabelBands: LiquidationBand[] = bands.map((band, i) => ({
+  ...band,
+  label: `Liquidation Event ${i + 1} with a very long name`,
+  sublabel: `(contains vaults ${i + 1}, ${i + 4}, ${i + 7} and several more)`,
+  amountLabel: `${band.amountLabel} across multiple vaults`,
+}));
+
+/**
+ * Progressively shorter bands down a linear axis. Text lines drop out as a
+ * band shrinks: sublabel below ~76px, amount below ~54px, label below ~26px.
+ */
+export const dropoutLadderAxis: PriceAxisTick[] = [
+  { value: 100000, label: "$100,000" },
+  { value: 0, label: "$0" },
+];
+
+export const dropoutLadderBands: LiquidationBand[] = (() => {
+  // Band price spans shrink toward the bottom of a 0..100k linear axis.
+  const spans = [30000, 21000, 13000, 8000, 5000];
+  const out: LiquidationBand[] = [];
+  let top = 98000;
+  for (let i = 0; i < spans.length; i++) {
+    out.push({
+      key: `ladder-${i + 1}`,
+      label: `Liq Event ${i + 1}`,
+      sublabel: `(contain vault ${i + 1})`,
+      amountLabel: `0.${5 - i} BTC`,
+      priceTop: top,
+      priceBottom: top - spans[i],
+      shareStart: i * 0.2,
+      shareEnd: (i + 1) * 0.2,
+      state: "live",
+      tone: `${(i % 3) + 1}` as LiquidationBand["tone"],
+    });
+    top -= spans[i];
+  }
+  return out;
+})();
+
+/**
+ * Liquidation levels within a few dollars of each other: their axis pills
+ * would overlap, so the declutter pass pushes the labels apart while the
+ * dashed level lines stay at the true prices.
+ */
+export const collidingLevelBands: LiquidationBand[] = [
+  { ...bands[0], key: "c1", priceTop: 62000, priceBottom: 55000 },
+  { ...bands[1], key: "c2", priceTop: 61400, priceBottom: 48000 },
+  { ...bands[2], key: "c3", priceTop: 60900, priceBottom: 42000 },
+];
+
+/* ---- Simulator-story derivations (mirror the vault's projection) ----- */
+
+export function formatUsd(price: number): string {
+  return `$${Math.round(price).toLocaleString("en-US")}`;
+}
+
+/** Bands with `state` derived from the simulated price. */
+export function simulateBandStates(base: LiquidationBand[], btcPrice: number): LiquidationBand[] {
+  return base.map((b) => ({ ...b, state: btcPrice <= b.priceTop ? "liquidated" : "live" }));
+}
+
+/** Safe-zone callout derived from the simulated price and the first trigger. */
+export function simulatedSafeZone(base: LiquidationBand[], btcPrice: number): SafeZone {
+  const firstTrigger = base[0]?.priceTop ?? 0;
+  const dropPct = btcPrice > firstTrigger ? ((btcPrice - firstTrigger) / btcPrice) * 100 : 0;
+  return {
+    title: "Safe zone",
+    lines: [`no events above ${formatUsd(firstTrigger)}`, `${dropPct.toFixed(1)}% drop to Liq 1`],
+  };
+}

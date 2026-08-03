@@ -8,7 +8,8 @@ export default defineConfig({
     react(),
     dts({
       tsconfigPath: "./tsconfig.lib.json",
-      exclude: ["src/**/*.stories.(ts|tsx)"],
+      // Tests and their setup must not ship in the published tarball.
+      exclude: ["src/**/*.stories.(ts|tsx)", "src/**/__tests__/**", "src/test/**"],
     }),
   ],
   build: {

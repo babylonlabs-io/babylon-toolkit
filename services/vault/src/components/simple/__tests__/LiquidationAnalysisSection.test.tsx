@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
@@ -16,7 +16,8 @@ const CASCADE: LiquidationCascade = {
   result: {
     groups: [
       {
-        index: 0,
+        // calculate() emits 1-based indices; the projection must not key off it.
+        index: 1,
         vaults: [{ id: "v-1", name: "Vault 1", btc: 0.6 }],
         combinedBtc: 0.6,
         liquidationPrice: 77_682,
@@ -86,6 +87,106 @@ describe("LiquidationAnalysisSection", () => {
       screen.getByText(COPY.liquidations.simulateLabel),
     ).toBeInTheDocument();
     expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
+  });
+
+  it("opens at the live price with nothing seized and no simulation chip", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    expect(
+      screen.getByText(COPY.liquidations.vaultsLiquidated(0, 1)),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("liq-seized-pct")).toHaveTextContent("0%");
+    expect(screen.queryByText(COPY.liquidations.simulationChip)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: COPY.liquidations.reset }),
+    ).toBeDisabled();
+    const slider = screen.getByRole("slider", {
+      name: COPY.liquidations.simulateLabel,
+    });
+    expect(slider).toHaveValue(String(CASCADE.btcPrice));
+    expect(slider).toHaveAttribute("max", String(CASCADE.btcPrice));
+    expect(slider).toHaveAttribute("min", "0");
+    // Step 1: a coarser grid cannot land back on the float live price, which
+    // would leave the simulator stuck in "simulating" after a full drag right.
+    expect(slider).toHaveAttribute("step", "1");
+  });
+
+  it("liquidates the event live as the price is dragged through its trigger", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    fireEvent.change(
+      screen.getByRole("slider", { name: COPY.liquidations.simulateLabel }),
+      { target: { value: "60000" } },
+    );
+
+    // Header figures follow the simulation.
+    expect(
+      screen.getByText(COPY.liquidations.vaultsLiquidated(1, 1)),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("liq-seized-pct")).toHaveTextContent("100%");
+    expect(
+      screen.getByText(COPY.liquidations.simulationChip),
+    ).toBeInTheDocument();
+    // The event card flips to its simulated-liquidation state.
+    expect(
+      screen.getByText(COPY.liquidations.events.liquidatedInSimulation),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.liquidations.events.badgeSacrificial),
+    ).toBeNull();
+  });
+
+  it("returns to the live view on reset", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    const slider = screen.getByRole("slider", {
+      name: COPY.liquidations.simulateLabel,
+    });
+    fireEvent.change(slider, { target: { value: "60000" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.liquidations.reset }),
+    );
+
+    expect(slider).toHaveValue(String(CASCADE.btcPrice));
+    expect(screen.queryByText(COPY.liquidations.simulationChip)).toBeNull();
+    expect(
+      screen.queryByText(COPY.liquidations.events.liquidatedInSimulation),
+    ).toBeNull();
+    expect(
+      screen.getByText(COPY.liquidations.events.badgeSacrificial),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the event card sections from the cascade", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    expect(
+      screen.getByText(COPY.liquidations.events.heading),
+    ).toBeInTheDocument();
+    const cards = within(screen.getByTestId("liq-event-cards"));
+    expect(
+      cards.getByText(COPY.liquidations.eventTitle(1)),
+    ).toBeInTheDocument();
+    expect(
+      cards.getByText(COPY.liquidations.events.badgeSacrificial),
+    ).toBeInTheDocument();
+    expect(
+      cards.getByText(COPY.liquidations.events.positionAfterSection),
+    ).toBeInTheDocument();
+    // Full-liquidation groups show the wBTC fairness payment row.
+    expect(
+      screen.getByText(COPY.liquidations.events.fairnessPaymentWbtc),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the event tooltip on band hover", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    fireEvent.mouseEnter(screen.getByTestId("liq-band-0"));
+
+    expect(
+      screen.getByText(COPY.liquidations.popover.atPrice),
+    ).toBeInTheDocument();
   });
 
   // A position must never be charted from stand-in numbers, so with no cascade

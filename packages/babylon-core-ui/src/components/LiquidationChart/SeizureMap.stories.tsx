@@ -1,6 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { SeizureMap } from "./SeizureMap";
-import { bands, priceAxis, shareAxisLabels } from "./fixtures";
+import {
+  bands,
+  compressedBands,
+  compressedShareTicks,
+  dropoutLadderAxis,
+  dropoutLadderBands,
+  formatUsd,
+  longLabelBands,
+  priceAxis,
+  shareAxisLabels,
+  shareAxisTicks,
+  simulateBandStates,
+} from "./fixtures";
 
 const meta: Meta<typeof SeizureMap> = {
   title: "Components/Data Display/Charts/SeizureMap",
@@ -29,19 +41,74 @@ const meta: Meta<typeof SeizureMap> = {
     currentPrice: 88400,
     currentPriceLabel: "$88,400",
     variant: "full",
-    bandClickHint: "click to open card",
-    onBandClick: (key: string) => alert(`open card: Liq Event ${key}`),
+    liquidatedLabel: "Liquidated",
   },
 };
 export default meta;
 
 type Story = StoryObj<typeof SeizureMap>;
 
-/** Hover a band to see the metrics popover; click to fire onBandClick. */
+/** Hover a band for the event tooltip. */
 export const Full: Story = {};
+
+interface SimulatorArgs {
+  btcPrice: number;
+  variant: "full" | "compact";
+  showShareLegend: boolean;
+  hideBandLabels: boolean;
+}
+
+/**
+ * Drag the BTC price and watch the derived state re-flow: the price line
+ * moves smoothly through the fixed segmented axis, and events read as
+ * liquidated as it crosses their triggers — the same projection rules the
+ * vault applies.
+ */
+export const Simulator: StoryObj<SimulatorArgs> = {
+  args: {
+    btcPrice: 88400,
+    variant: "full",
+    showShareLegend: true,
+    hideBandLabels: false,
+  },
+  argTypes: {
+    btcPrice: { control: { type: "range", min: 3000, max: 95000, step: 100 } },
+    variant: { control: "inline-radio", options: ["full", "compact"] },
+  },
+  parameters: {
+    controls: { include: ["btcPrice", "variant", "showShareLegend", "hideBandLabels"] },
+  },
+  render: (args) => (
+    <SeizureMap
+      bands={simulateBandStates(bands, args.btcPrice)}
+      priceAxis={priceAxis}
+      currentPrice={args.btcPrice}
+      currentPriceLabel={formatUsd(args.btcPrice)}
+      shareAxisLabels={shareAxisLabels}
+      priceLineCaption="Bitcoin Price"
+      variant={args.variant}
+      showShareLegend={args.showShareLegend}
+      hideBandLabels={args.hideBandLabels}
+      liquidatedLabel="Liquidated"
+    />
+  ),
+};
 
 export const Compact: Story = {
   args: { variant: "compact" },
+};
+
+/**
+ * The vault v3 overview configuration: no legend strip, positioned share
+ * ticks, "Bitcoin Price" caption.
+ */
+export const VaultConfiguration: Story = {
+  args: {
+    shareAxisLabels: undefined,
+    shareAxisTicks,
+    showShareLegend: false,
+    priceLineCaption: "Bitcoin Price",
+  },
 };
 
 /** Simulated price dropped through Event 1 — it reads as liquidated. */
@@ -50,6 +117,82 @@ export const PartiallyLiquidated: Story = {
     currentPrice: 60000,
     currentPriceLabel: "$60,000",
     bands: bands.map((b) => (b.key === "1" ? { ...b, state: "liquidated" } : b)),
+  },
+};
+
+/** Every event underwater — the whole cascade reads as liquidated. */
+export const AllLiquidated: Story = {
+  args: {
+    currentPrice: 3400,
+    currentPriceLabel: "$3,400",
+    bands: bands.map((b) => ({ ...b, state: "liquidated" })),
+  },
+};
+
+/**
+ * A visually-compressed share axis: the tiny final event is drawn wider than
+ * its true share, and the positioned ticks carry the real percentages.
+ */
+export const CompressedShareAxis: Story = {
+  args: {
+    bands: compressedBands,
+    shareAxisLabels: undefined,
+    shareAxisTicks: compressedShareTicks,
+  },
+};
+
+/** Legend strip off; the share axis stays. */
+export const NoShareLegend: Story = {
+  args: { showShareLegend: false },
+};
+
+/** All band text hidden — for dense or preview surfaces. */
+export const HiddenLabels: Story = {
+  args: { hideBandLabels: true },
+};
+
+export const GridDotted: Story = {
+  args: { grid: { lines: "both", style: "dotted" } },
+};
+
+export const GridSolid: Story = {
+  args: { grid: { lines: "both", style: "solid" } },
+};
+
+export const GridHorizontalOnly: Story = {
+  args: { grid: { lines: "horizontal" } },
+};
+
+export const GridNone: Story = {
+  args: { grid: { lines: "none" } },
+};
+
+/** Per-instance price-line colour override (line + inline label). */
+export const PriceLineCustomColors: Story = {
+  args: { priceLineColor: "#3b82f6", priceLineLabelColor: "#3b82f6" },
+};
+
+/** Bare price rule without the inline label. */
+export const NoPriceLineLabel: Story = {
+  args: { showPriceLineLabel: false },
+};
+
+/** Overlong band text truncates with an ellipsis instead of overflowing. */
+export const LongLabels: Story = {
+  args: { bands: longLabelBands },
+};
+
+/**
+ * Bands shrink down a linear axis; text lines drop out with the height
+ * (sublabel first, then amount, then the label itself).
+ */
+export const DropoutLadder: Story = {
+  args: {
+    bands: dropoutLadderBands,
+    priceAxis: dropoutLadderAxis,
+    currentPrice: 100000,
+    currentPriceLabel: "$100,000",
+    shareAxisLabels: ["0%", "20%", "40%", "60%", "80%", "100%"],
   },
 };
 

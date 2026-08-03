@@ -5,7 +5,10 @@ import type {
   LiquidationGroup,
 } from "@/applications/aave/positionNotifications/types";
 
-import { buildLiquidationChartData } from "../liquidationChartData";
+import {
+  buildLiquidationChartData,
+  buildSimulationSummary,
+} from "../liquidationChartData";
 
 // ── Fixtures ─────────────────────────────────────────────────────
 
@@ -106,6 +109,112 @@ describe("buildLiquidationChartData", () => {
     expect(bands[0].shareEnd).toBeLessThan(0.6);
   });
 
+  it("equips each band with popover rows and the true cumulative share", () => {
+    const result = makeResult([
+      makeGroup(0, {
+        combinedBtc: 0.6,
+        liquidationPrice: 77_682,
+        distancePct: -12.1,
+      }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const { bands } = buildLiquidationChartData(result, {
+      btcPrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const rows = bands[0].popoverMetrics ?? [];
+    expect(rows.map((r) => r.label)).toEqual([
+      "At price",
+      "Distance",
+      "Vaults",
+      "Seizes",
+    ]);
+    expect(rows[0]).toMatchObject({ value: "$77,682", emphasis: true });
+    expect(rows[1].value).toBe("-12.1%");
+    expect(bands[0].cumulativeLabel).toBe("60% seized");
+    expect(bands[1].cumulativeLabel).toBe("100% seized");
+  });
+
+  it("keys titles and badges off array position, not the calculator's 1-based index", () => {
+    // calculate() emits group.index starting at 1.
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 77_682 }),
+      makeGroup(2, { liquidationPrice: 40_283 }),
+    ]);
+    const { bands, cards } = buildLiquidationChartData(result, {
+      btcPrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    expect(bands[0].label).toBe("Liq Event 1");
+    expect(cards[0].title).toBe("Liq Event 1");
+    expect(cards[0].badge).toBe("sacrificial");
+    expect(cards[1].badge).toBe("protected");
+  });
+
+  it("prices each event's aftermath at its own trigger, not the simulated price", () => {
+    const result = makeResult([
+      makeGroup(1, {
+        liquidationPrice: 77_682,
+        btcRemainingAfter: 0.5,
+        debtRemainingAfter: 10_000,
+      }),
+    ]);
+    const { cards } = buildLiquidationChartData(result, {
+      btcPrice: 50_000,
+      livePrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    // 0.5 BTC x $77,682 x 0.75 / $10,000 — independent of the $50k simulation.
+    expect(cards[0].hfAfterLabel).toBe(
+      ((0.5 * 77_682 * CF) / 10_000).toFixed(3),
+    );
+  });
+
+  it("drops non-finite prices from the axis instead of crashing the scale", () => {
+    const result = makeResult([makeGroup(1, { liquidationPrice: 77_682 })]);
+    const { priceAxis } = buildLiquidationChartData(result, {
+      btcPrice: Number.NaN,
+      livePrice: Number.NaN,
+      collateralFactor: CF,
+    });
+
+    expect(priceAxis.every((t) => Number.isFinite(t.value))).toBe(true);
+  });
+
+  it("anchors the axis to the live price, never the simulated one", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const { priceAxis } = buildLiquidationChartData(result, {
+      btcPrice: 60_000,
+      livePrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const values = priceAxis.map((t) => t.value);
+    expect(values[0]).toBe(90_000);
+    expect(values).not.toContain(60_000);
+  });
+
+  it("mints no axis segment below the floor when the simulated price drops under it", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const { priceAxis } = buildLiquidationChartData(result, {
+      btcPrice: 3_000,
+      livePrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const floor = 40_283 * 0.95;
+    expect(Math.min(...priceAxis.map((t) => t.value))).toBeCloseTo(floor);
+  });
+
   it("keeps the share axis honest about the true cumulative percentages", () => {
     // 90 / 9 / 1 by collateral: the last event is a sliver at true scale.
     const result = makeResult([
@@ -163,7 +272,7 @@ describe("buildLiquidationChartData", () => {
     expect(values).toStrictEqual([...values].sort((a, b) => b - a));
   });
 
-  it("derives post-liquidation HF from remaining collateral × price × CF ÷ debt", () => {
+  it("derives post-liquidation HF at the event's trigger price", () => {
     const result = makeResult([
       makeGroup(0, { btcRemainingAfter: 0.5, debtRemainingAfter: 15106 }),
     ]);
@@ -172,8 +281,10 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: CF,
     });
 
-    // 0.5 * 88400 * 0.75 / 15106 = 2.194...
-    expect(cards[0].hfAfterLabel).toBe("2.194");
+    // The liquidation executes at the trigger ($60,000), so the aftermath is
+    // priced there, not at the ambient/simulated price:
+    // 0.5 * 60000 * 0.75 / 15106 = 1.489...
+    expect(cards[0].hfAfterLabel).toBe("1.489");
   });
 
   it("shows ∞ HF when no debt remains", () => {
@@ -215,6 +326,62 @@ describe("buildLiquidationChartData", () => {
 
     expect(cards[0].fairness.label).toBe("Fairness Payment (wBTC)");
     expect(cards[0].fairness.value).toContain("$81");
-    expect(cards[0].fairness.value).toContain("0.002"); // 81 / 40500 = 0.002 BTC
+    // Converted at the event's trigger price: 81 / 60000 = 0.00135 BTC.
+    expect(cards[0].fairness.value).toContain("0.00135");
+  });
+});
+
+describe("buildSimulationSummary", () => {
+  it("reports nothing seized while the price is above every trigger", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const summary = buildSimulationSummary(result, 90_000);
+
+    expect(summary.vaultsLiquidated).toBe(0);
+    expect(summary.vaultsTotal).toBe(2);
+    expect(summary.seizedPct).toBe(0);
+    expect(summary.collateralRemainingLabel).toMatch(/^1 /);
+  });
+
+  it("seizes a group once the price reaches its trigger", () => {
+    const result = makeResult([
+      makeGroup(0, { combinedBtc: 0.6, liquidationPrice: 77_682 }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const summary = buildSimulationSummary(result, 77_682);
+
+    expect(summary.vaultsLiquidated).toBe(1);
+    expect(summary.seizedPct).toBe(60);
+    expect(summary.collateralRemainingLabel).toMatch(/^0\.4 /);
+  });
+
+  it("seizes everything below the last trigger and counts every vault", () => {
+    const result = makeResult([
+      makeGroup(0, {
+        combinedBtc: 0.6,
+        liquidationPrice: 77_682,
+        vaults: [
+          { id: "a", name: "Vault 1", btc: 0.3 },
+          { id: "b", name: "Vault 2", btc: 0.3 },
+        ],
+      }),
+      makeGroup(1, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+    ]);
+    const summary = buildSimulationSummary(result, 10_000);
+
+    expect(summary.vaultsLiquidated).toBe(3);
+    expect(summary.vaultsTotal).toBe(3);
+    expect(summary.seizedPct).toBe(100);
+    expect(summary.collateralRemainingLabel).toMatch(/^0 /);
+  });
+
+  it("degrades to zeros with no groups", () => {
+    const summary = buildSimulationSummary(makeResult([]), 90_000);
+
+    expect(summary.vaultsLiquidated).toBe(0);
+    expect(summary.vaultsTotal).toBe(0);
+    expect(summary.seizedPct).toBe(0);
   });
 });
