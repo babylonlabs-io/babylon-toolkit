@@ -7,7 +7,7 @@
  * broadcast on the active flow, before the indexer has it.
  */
 
-import { useOptionalDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import { useFirstIndexedDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { useBtcConfirmations } from "@/hooks/deposit/useBtcConfirmations";
 
 import { BtcConfirmationDetail } from "./BtcConfirmationDetail";
@@ -32,7 +32,7 @@ export function BtcConfirmationDetailContainer({
   depositIds,
   stacked,
 }: BtcConfirmationDetailContainerProps) {
-  const polling = useOptionalDepositPollingResult(depositIds);
+  const polling = useFirstIndexedDepositPollingResult(depositIds);
   // Direct poll only runs while the polling result is missing — once the
   // dashboard's cache is the source of truth, we trust it (avoids the
   // disagreement Greptile flagged: modal showing live count growing past

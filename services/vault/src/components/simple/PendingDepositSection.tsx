@@ -122,109 +122,107 @@ export function PendingDepositSection() {
   // pay the params load.
   return (
     <ProtocolParamsProvider>
-      <>
-        <div className="w-full space-y-10">
-          {hasPendingDeposits && (
-            <div className="space-y-6">
-              {/* Header row */}
-              <div className="flex items-center gap-3">
-                <Heading
-                  variant="h5"
-                  as="h2"
-                  className="font-normal text-accent-primary"
-                >
-                  Pending Deposits ({count})
-                </Heading>
-                <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+      <div className="w-full space-y-10">
+        {hasPendingDeposits && (
+          <div className="space-y-6">
+            {/* Header row */}
+            <div className="flex items-center gap-3">
+              <Heading
+                variant="h5"
+                as="h2"
+                className="font-normal text-accent-primary"
+              >
+                Pending Deposits ({count})
+              </Heading>
+              <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+            </div>
+
+            {/* Summary card */}
+            <Card variant="filled" className={SUMMARY_CARD_CLASS}>
+              {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <Avatar
+                    url={btcConfig.icon}
+                    alt={btcConfig.coinSymbol}
+                    size="medium"
+                  />
+                  <span className="text-xl text-accent-primary">
+                    {formatBtcAmount(totalBtcAmount)}
+                  </span>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <PendingDepositActionBadge
+                    pendingActivityIds={pendingActivities.map((a) => a.id)}
+                    isExpanded={isExpanded}
+                  />
+                  <ExpandMenuButton
+                    isExpanded={isExpanded}
+                    onToggle={() => setIsExpanded((prev) => !prev)}
+                    aria-label="Pending deposit details"
+                  />
+                </div>
               </div>
 
-              {/* Summary card */}
-              <Card variant="filled" className={SUMMARY_CARD_CLASS}>
-                {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <Avatar
-                      url={btcConfig.icon}
-                      alt={btcConfig.coinSymbol}
-                      size="medium"
-                    />
-                    <span className="text-xl text-accent-primary">
-                      {formatBtcAmount(totalBtcAmount)}
-                    </span>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <PendingDepositActionBadge
-                      pendingActivityIds={pendingActivities.map((a) => a.id)}
-                      isExpanded={isExpanded}
-                    />
-                    <ExpandMenuButton
-                      isExpanded={isExpanded}
-                      onToggle={() => setIsExpanded((prev) => !prev)}
-                      aria-label="Pending deposit details"
-                    />
-                  </div>
+              {/* Expanded deposit list */}
+              <ExpandablePanel expanded={isExpanded}>
+                <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
+                  {pendingGroups.map((group) =>
+                    group.length > 1 ? (
+                      <BatchedDepositGroup
+                        key={group[0].id}
+                        activities={group}
+                        vaultProviders={vaultProviders}
+                        onBroadcastClick={broadcastModal.handleBroadcastClick}
+                        onGroupClick={handleCardClick}
+                      />
+                    ) : (
+                      <PendingDepositCard
+                        key={group[0].id}
+                        depositId={group[0].id}
+                        amount={group[0].collateral.amount}
+                        timestamp={group[0].timestamp}
+                        peginTxHash={group[0].peginTxHash}
+                        prePeginTxHash={group[0].prePeginTxHash}
+                        providerId={group[0].providers[0].id}
+                        vaultProviders={vaultProviders}
+                        onCardClick={handleCardClick}
+                      />
+                    ),
+                  )}
                 </div>
-
-                {/* Expanded deposit list */}
-                <ExpandablePanel expanded={isExpanded}>
-                  <div className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
-                    {pendingGroups.map((group) =>
-                      group.length > 1 ? (
-                        <BatchedDepositGroup
-                          key={group[0].id}
-                          activities={group}
-                          vaultProviders={vaultProviders}
-                          onBroadcastClick={broadcastModal.handleBroadcastClick}
-                          onGroupClick={handleCardClick}
-                        />
-                      ) : (
-                        <PendingDepositCard
-                          key={group[0].id}
-                          depositId={group[0].id}
-                          amount={group[0].collateral.amount}
-                          timestamp={group[0].timestamp}
-                          peginTxHash={group[0].peginTxHash}
-                          prePeginTxHash={group[0].prePeginTxHash}
-                          providerId={group[0].providers[0].id}
-                          vaultProviders={vaultProviders}
-                          onCardClick={handleCardClick}
-                        />
-                      ),
-                    )}
-                  </div>
-                </ExpandablePanel>
-              </Card>
-            </div>
-          )}
-
-          <ExpiredDepositSection
-            expiredActivities={expiredActivities}
-            vaultProviders={vaultProviders}
-            onRefundClick={refundModal.handleRefundClick}
-          />
-        </div>
-
-        {/* Broadcast / Refund / Success modals. Every other per-vault action
-            is owned by the deposit multistepper opened from the card body. */}
-        <PendingDepositModals
-          broadcastModal={broadcastModal}
-          refundModal={refundModal}
-          ethAddress={ethAddress}
-        />
-
-        {/* Multistepper view — opened by clicking a pending deposit card. */}
-        {viewingBatch && ethAddress && (
-          <V3ModalShell open onClose={handleViewingClose}>
-            <div className="mx-auto w-full max-w-[520px]">
-              <PostDepositContinuationContent
-                vaultIds={viewingBatch}
-                depositorEthAddress={ethAddress as Address}
-                onClose={handleViewingClose}
-              />
-            </div>
-          </V3ModalShell>
+              </ExpandablePanel>
+            </Card>
+          </div>
         )}
-      </>
+
+        <ExpiredDepositSection
+          expiredActivities={expiredActivities}
+          vaultProviders={vaultProviders}
+          onRefundClick={refundModal.handleRefundClick}
+        />
+      </div>
+
+      {/* Broadcast / Refund / Success modals. Every other per-vault action
+            is owned by the deposit multistepper opened from the card body. */}
+      <PendingDepositModals
+        broadcastModal={broadcastModal}
+        refundModal={refundModal}
+        ethAddress={ethAddress}
+      />
+
+      {/* Multistepper view — opened by clicking a pending deposit card. */}
+      {viewingBatch && ethAddress && (
+        <V3ModalShell open onClose={handleViewingClose}>
+          <div className="mx-auto w-full max-w-[520px]">
+            <PostDepositContinuationContent
+              vaultIds={viewingBatch}
+              depositorEthAddress={ethAddress as Address}
+              onClose={handleViewingClose}
+            />
+          </div>
+        </V3ModalShell>
+      )}
     </ProtocolParamsProvider>
   );
 }

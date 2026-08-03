@@ -11,12 +11,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BtcConfirmationDetailContainer } from "../BtcConfirmationDetailContainer";
 
-const useOptionalDepositPollingResult = vi.fn();
+const useFirstIndexedDepositPollingResult = vi.fn();
 const useBtcConfirmations = vi.fn();
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  useOptionalDepositPollingResult: (ids: readonly string[]) =>
-    useOptionalDepositPollingResult(ids),
+  useFirstIndexedDepositPollingResult: (ids: readonly string[]) =>
+    useFirstIndexedDepositPollingResult(ids),
 }));
 
 vi.mock("@/hooks/deposit/useBtcConfirmations", () => ({
@@ -41,13 +41,13 @@ const PREPEGIN_TXID = "ab".repeat(32);
 const DEPOSIT_ID = `0x${"11".repeat(32)}`;
 
 beforeEach(() => {
-  useOptionalDepositPollingResult.mockReset();
+  useFirstIndexedDepositPollingResult.mockReset();
   useBtcConfirmations.mockReset();
 });
 
 describe("BtcConfirmationDetailContainer", () => {
   it("falls back to the direct mempool poll when no candidate id is indexed", () => {
-    useOptionalDepositPollingResult.mockReturnValue(undefined);
+    useFirstIndexedDepositPollingResult.mockReturnValue(undefined);
     useBtcConfirmations.mockReturnValue({ confirmations: 2 });
 
     render(
@@ -64,7 +64,7 @@ describe("BtcConfirmationDetailContainer", () => {
   });
 
   it("uses the shared polling count once a candidate id is indexed", () => {
-    useOptionalDepositPollingResult.mockReturnValue({
+    useFirstIndexedDepositPollingResult.mockReturnValue({
       prePeginConfirmations: 4,
     });
     useBtcConfirmations.mockReturnValue({ confirmations: 99 });
@@ -81,7 +81,7 @@ describe("BtcConfirmationDetailContainer", () => {
   });
 
   it("disables the direct poll once the shared cache is authoritative", () => {
-    useOptionalDepositPollingResult.mockReturnValue({
+    useFirstIndexedDepositPollingResult.mockReturnValue({
       prePeginConfirmations: 4,
     });
     useBtcConfirmations.mockReturnValue({ confirmations: null });
@@ -100,7 +100,7 @@ describe("BtcConfirmationDetailContainer", () => {
   });
 
   it("shows no count while the indexed deposit's first poll is still pending", () => {
-    useOptionalDepositPollingResult.mockReturnValue({
+    useFirstIndexedDepositPollingResult.mockReturnValue({
       prePeginConfirmations: null,
     });
     useBtcConfirmations.mockReturnValue({ confirmations: 3 });

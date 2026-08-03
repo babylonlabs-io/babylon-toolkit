@@ -76,12 +76,13 @@ export interface DepositPollingInputs {
   requiredDepth: number | undefined;
   /**
    * Protocol-param load failure. Surfaced on every deposit's `error` when no
-   * more specific per-deposit error exists, so a params outage is never
-   * silently swallowed.
+   * more specific per-deposit error exists, so a params outage suppresses
+   * actions on every deposit rather than being dropped.
    *
-   * why this is suppression, not display: `error` is read only by
-   * `getActionStatus`, which collapses to `noAction` — so this withholds every
-   * CTA rather than rendering a message. That is the intended posture. Depth
+   * why this is suppression, not display: `error`'s readers are
+   * `getActionStatus`, which collapses to `noAction`, and the signing
+   * notifications, which mute — so this withholds every CTA and nudge rather
+   * than rendering a message. That is the intended posture. Depth
    * and `tRefund` maturity gate Broadcast and Refund, and offering an action
    * derived from params we could not read is worse than offering none. The
    * user-facing surface for a params outage is `ProtocolParamsProvider`'s own
@@ -299,7 +300,8 @@ export function computeDepositPollingResult(
     depositId,
     loading: isLoading,
     // A per-deposit VP error is more specific, so it wins; the params failure
-    // is the fallback so an outage is never silently swallowed.
+    // is the fallback so an outage suppresses actions on every deposit
+    // rather than being dropped (see the input doc above).
     error: errors?.get(depositId) ?? protocolParamsError,
     peginState,
     isOwnedByCurrentWallet,

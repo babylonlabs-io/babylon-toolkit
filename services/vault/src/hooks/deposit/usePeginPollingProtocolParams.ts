@@ -39,9 +39,15 @@ export interface PeginPollingProtocolParams {
   pegInActivationTimeout: bigint | undefined;
   /**
    * Required Pre-PegIn confirmation depth (`minPrepeginDepth`), pinned to the
-   * deposit's registered offchain-params version, or the latest version when it
-   * has none (pre-sign). Same rule as `useRequiredPrePeginDepthResolver`, which
-   * still serves the components that render under the blocking provider.
+   * deposit's registered offchain-params version. The latest version applies
+   * ONLY pre-sign (no registered version): a registered version missing from
+   * `byVersion` withholds (`undefined`) rather than falling back — the
+   * at-depth conclusion this feeds persists (`confirmedTxids`), so a
+   * fallback depth would confirm at the wrong threshold and the mistake
+   * would survive the params catching up. Strict like
+   * {@link resolveRefundTimelock}; deliberately stricter than the blocking
+   * `useRequiredPrePeginDepthResolver`, whose consumers only display the
+   * depth and never persist a conclusion from it.
    */
   resolveRequiredPrePeginDepth: (
     offchainParamsVersion?: number,
@@ -54,23 +60,40 @@ export interface PeginPollingProtocolParams {
   resolveRefundTimelock: (offchainParamsVersion?: number) => number | undefined;
 }
 
-export function usePeginPollingProtocolParams(): PeginPollingProtocolParams {
-  const { data: config, error: configError } = useQuery(
-    pegInConfigQueryOptions(),
-  );
-  const { data: offchainParams, error: offchainError } = useQuery(
-    offchainParamsQueryOptions(),
-  );
+/**
+ * @param enabled Gates both contract reads. This hook mounts app-wide (the
+ * polling provider sits in the root layout), so without a gate every session
+ * pays two multicalls on page load — disconnected visitors and param-free
+ * routes included. The caller passes "is there anything to conclude about"
+ * (deposits exist); while disabled the resolvers simply stay in their
+ * withheld `undefined` state, which is already the correct answer when
+ * nothing needs a conclusion.
+ */
+export function usePeginPollingProtocolParams(
+  enabled: boolean,
+): PeginPollingProtocolParams {
+  const { data: config, error: configError } = useQuery({
+    ...pegInConfigQueryOptions(),
+    enabled,
+  });
+  const { data: offchainParams, error: offchainError } = useQuery({
+    ...offchainParamsQueryOptions(),
+    enabled,
+  });
 
   const resolveRequiredPrePeginDepth = useCallback(
     (offchainParamsVersion?: number): number | undefined => {
       if (!config || !offchainParams) return undefined;
-      const pinned =
-        offchainParamsVersion !== undefined
-          ? offchainParams.byVersion.get(offchainParamsVersion)
-              ?.minPrepeginDepth
-          : undefined;
-      return pinned ?? config.offchainParams.minPrepeginDepth;
+      // Pre-sign: the deposit has no registered version yet → latest params.
+      if (offchainParamsVersion === undefined) {
+        return config.offchainParams.minPrepeginDepth;
+      }
+      // Registered version: strict — see the interface doc. A missing
+      // version withholds the conclusion; it must never substitute the
+      // latest depth, because the at-depth observation this feeds is
+      // persisted and would outlive the wrong threshold that produced it.
+      return offchainParams.byVersion.get(offchainParamsVersion)
+        ?.minPrepeginDepth;
     },
     [config, offchainParams],
   );
