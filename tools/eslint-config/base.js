@@ -9,7 +9,11 @@ import pkgJson from 'eslint-plugin-package-json';
  * @type {import("eslint").Linter.Config[]}
  * */
 export const baseConfig = defineConfig([
-  globalIgnores(['**/dist/', '**/.storybook']),
+  // `storybook-static/` is Storybook's build output (the input to the
+  // visual-regression capture). It is minified vendor bundles, so linting
+  // it only produces "rule definition not found" errors from directives
+  // baked into third-party code.
+  globalIgnores(['**/dist/', '**/.storybook', '**/storybook-static/']),
   {
     plugins: {
       nx,

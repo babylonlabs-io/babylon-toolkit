@@ -1,0 +1,222 @@
+name: Visual regression
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Advisory to begin with: this reports and comments, it does not fail the
+# build. Promote it to blocking (add --fail-on-change to the diff step)
+# once its noise floor is proven on real PRs.
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          # Full history so the merge-base with main is resolvable. The
+          # baseline is computed from that commit, not from a stored file.
+          fetch-depth: 0
+
+      - name: Resolve merge-base
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          # Compare against the merge-base, NOT origin/main's head. Using
+          # main's head would attribute every UI change merged by someone
+          # else while this PR was open to this PR.
+          MERGE_BASE="$(git merge-base "origin/${{ github.base_ref }}" HEAD)"
+          echo "merge_base=${MERGE_BASE}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Baseline will be computed from ${MERGE_BASE}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: '24.2.0'
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Resolve pnpm store path
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 https://github.com/actions/cache/releases/tag/v4.3.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install Playwright browser
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      # Stash the capture harness BEFORE any checkout juggling. The two
+      # sides must be photographed by the SAME harness, otherwise a change
+      # to the harness itself reads as an app change. It also solves the
+      # bootstrap problem: the merge-base does not have these files at all
+      # until this PR merges.
+      - name: Stash capture harness
+        run: |
+          set -euo pipefail
+          H="${{ runner.temp }}/harness"
+          mkdir -p "$H"
+          cp -R services/vault/e2e/visual "$H/vault-visual"
+          cp services/vault/playwright.visual.config.ts "$H/"
+          cp -R packages/babylon-core-ui/visual "$H/core-ui-visual"
+          cp packages/babylon-core-ui/playwright.visual.config.ts "$H/core-ui-playwright.visual.config.ts"
+          cp scripts/visual-diff.mjs "$H/"
+
+      - name: Capture candidate (PR head)
+        env:
+          CAPTURE_ROOT: ${{ runner.temp }}/visual/candidate
+        run: ./.github/scripts/visual-capture.sh
+
+      - name: Check out merge-base source
+        run: git checkout --force "${{ steps.refs.outputs.merge_base }}"
+
+      - name: Restore capture harness onto merge-base
+        run: |
+          set -euo pipefail
+          H="${{ runner.temp }}/harness"
+          rm -rf services/vault/e2e/visual packages/babylon-core-ui/visual
+          mkdir -p services/vault/e2e packages/babylon-core-ui
+          cp -R "$H/vault-visual" services/vault/e2e/visual
+          cp "$H/playwright.visual.config.ts" services/vault/
+          cp -R "$H/core-ui-visual" packages/babylon-core-ui/visual
+          cp "$H/core-ui-playwright.visual.config.ts" packages/babylon-core-ui/playwright.visual.config.ts
+
+      # The merge-base may carry a different lockfile, so reinstall: the
+      # baseline must reflect the dependencies that commit actually shipped.
+      - name: Install dependencies at merge-base
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Capture baseline (merge-base)
+        env:
+          CAPTURE_ROOT: ${{ runner.temp }}/visual/baseline
+        run: ./.github/scripts/visual-capture.sh
+
+      - name: Restore PR head
+        if: always()
+        run: git checkout --force "${{ steps.refs.outputs.head_sha }}"
+
+      # MUST reinstall. The merge-base install above prunes any dependency
+      # this PR adds - including pixelmatch/pngjs, which the diff script
+      # imports. Restoring the files does not restore node_modules, so
+      # without this the diff dies with ERR_MODULE_NOT_FOUND every run.
+      - name: Reinstall dependencies for the diff step
+        if: always()
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Compare baseline against candidate
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOTAL_CHANGED=0
+          for SURFACE in vault storybook; do
+            BASE="${{ runner.temp }}/visual/baseline/${SURFACE}"
+            CAND="${{ runner.temp }}/visual/candidate/${SURFACE}"
+            OUT="${{ runner.temp }}/visual/report/${SURFACE}"
+            [ -d "$CAND" ] || { echo "No candidate captures for ${SURFACE}, skipping."; continue; }
+            echo "### ${SURFACE}" | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+            node scripts/visual-diff.mjs \
+              --baseline "$BASE" --candidate "$CAND" --out "$OUT" \
+              --baseline-ref "${{ steps.refs.outputs.merge_base }}" \
+              --candidate-ref "${{ steps.refs.outputs.head_sha }}" \
+              | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+            N="$(node -e "console.log(require('${OUT}/summary.json').changedCount)")"
+            TOTAL_CHANGED=$((TOTAL_CHANGED + N))
+          done
+          echo "changed_count=${TOTAL_CHANGED}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload visual report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        if: always()
+        with:
+          name: visual-report
+          path: ${{ runner.temp }}/visual/report
+          retention-days: 14
+
+      - name: Summarise
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Visual regression"
+            echo ""
+            echo "Baseline \`${{ steps.refs.outputs.merge_base }}\` (merge-base) vs candidate \`${{ steps.refs.outputs.head_sha }}\`."
+            echo ""
+            if [ "${{ steps.diff.outputs.changed_count }}" = "0" ]; then
+              echo ":white_check_mark: No visual changes detected."
+            else
+              echo ":framed_picture: **${{ steps.diff.outputs.changed_count }} screen(s) changed.**"
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Sticky comment: edits the previous one instead of stacking one per
+      # push. Uses the preinstalled gh CLI rather than adding a third-party
+      # action, per the repo's supply-chain policy.
+      - name: Comment on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGED: ${{ steps.diff.outputs.changed_count }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          MARKER="<!-- visual-regression-report -->"
+          BODY_FILE="${{ runner.temp }}/visual/comment.md"
+          mkdir -p "$(dirname "$BODY_FILE")"
+          {
+            echo "$MARKER"
+            echo "### Visual regression"
+            echo ""
+            if [ "${CHANGED:-0}" = "0" ]; then
+              echo ":white_check_mark: No visual changes against the merge-base."
+            else
+              echo ":framed_picture: **${CHANGED} screen(s) changed** against the merge-base."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              echo '```'
+              echo ""
+              echo "[Open the run](${RUN_URL}#artifacts), download **visual-report**, and open \`index.html\` for the before / after / diff view."
+              echo ""
+              echo "If these changes are intentional there is nothing to update - this repo stores no baseline images. The baseline is recomputed from the merge-base on every run."
+            fi
+          } > "$BODY_FILE"
+
+          EXISTING="$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq "map(select(.body | startswith(\"$MARKER\"))) | .[0].id // empty")"
+
+          if [ -n "$EXISTING" ]; then
+            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/${EXISTING}" \
+              -F body=@"$BODY_FILE" > /dev/null
+            echo "Updated existing comment ${EXISTING}."
+          else
+            gh api --method POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -F body=@"$BODY_FILE" > /dev/null
+            echo "Posted a new comment."
+          fi

@@ -271,6 +271,12 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 
+# Visual capture output. There are no committed baselines - the baseline
+# is recomputed from the PR's merge-base on every CI run - so nothing
+# under here should ever be checked in.
+/e2e/visual/__captures__/
+/e2e/visual/.playwright-output/
+
 # E2E Chrome Extensions
 extensions
 
