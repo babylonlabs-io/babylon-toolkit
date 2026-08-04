@@ -161,9 +161,9 @@ export async function getUniversalChallengerReader(): Promise<ViemUniversalChall
 /**
  * Get the RFC-006 operation-key reader (contract-based).
  *
- * Only call on the epoch-aware path — the flag must be on and the capability
- * check must have passed. Against a registry that predates RFC-006 these
- * getters do not exist and every call reverts on selector mismatch.
+ * Only valid against an RFC-006 registry: on one that predates RFC-006 these
+ * getters do not exist and every call reverts on selector mismatch. Unlike the
+ * extended `getBtcVaultProtocolInfo` read, that failure is loud.
  */
 export async function getOperationKeyReader(): Promise<ViemOperationKeyReader> {
   return (await getResolvedReaders()).operationKeyReader;

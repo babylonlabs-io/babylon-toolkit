@@ -76,7 +76,7 @@ export interface PendingPeginRequest {
    * before they meant anything. Asserted before a resume broadcast so a
    * rotation that landed after the build cannot be broadcast against.
    *
-   * Optional: absent on records written with the flag off, on legacy records,
+   * Optional: absent on records written before this shipped, on legacy records,
    * and on REFUND_BROADCAST tracking entries. Absent simply skips the check —
    * the versions guard above still applies.
    */

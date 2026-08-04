@@ -17,9 +17,8 @@ import {
 
 describe("resolveParticipantKeysAtEpochs", () => {
   it("resolves every participant to its genesis key at epoch 0", async () => {
-    // The proof that turning the flag on before anyone rotates is a no-op:
-    // epoch-aware resolution must reproduce the registration/roster keys
-    // byte-for-byte.
+    // The proof that epoch-aware resolution is a no-op before anyone rotates:
+    // it must reproduce the registration/roster keys byte-for-byte.
     const result = await resolveParticipantKeysAtEpochs({
       operationKeyReader: new FakeOperationKeyReader(),
       query: buildQuery(),

@@ -58,13 +58,20 @@ function resolveOne(
 /**
  * Assert no two participants resolved to the same operation key.
  *
- * Registration-time checks guarantee distinctness across the *registered*
- * keys, but nothing on-chain prevents two operators from rotating onto the
- * same key, or a keeper from rotating onto the VP's key. A duplicate would
- * collapse two entries in the sorted script key set and silently build a lock
- * with the wrong participant count, so it is rejected here — before any script
- * is constructed — rather than surfacing as a confusing signature mismatch
- * much later.
+ * The on-chain guarantees are narrower than "registration keys are distinct",
+ * and narrower than an earlier revision of this comment claimed. Each registry
+ * enforces uniqueness *within its own role*, on rotation as well as
+ * registration, and a VP rotation additionally rejects any key held in the
+ * current vault-keeper or universal-challenger rosters.
+ *
+ * What no contract checks is the cross-role direction those rules leave open:
+ * a keeper or challenger rotating **onto** the VP's key (the VP-side check runs
+ * at VP rotation time and does not run again when a keeper moves), a keeper and
+ * a challenger colliding with each other, and keepers of different applications
+ * colliding. Any of those would collapse two entries in the sorted script key
+ * set and silently build a lock with the wrong participant count, so they are
+ * rejected here — before any script is constructed — rather than surfacing as a
+ * confusing signature mismatch much later.
  */
 function assertDistinctOperationKeys(
   participants: ResolvedParticipant[],

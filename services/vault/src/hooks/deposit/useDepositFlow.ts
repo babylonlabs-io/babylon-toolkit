@@ -515,6 +515,13 @@ export function useDepositFlow(
           expectedVaultKeeperBtcPubkeys: vaultKeeperBtcPubkeys,
           expectedUniversalChallengerBtcPubkeys: universalChallengerBtcPubkeys,
           onIndexerServingOperationKeys: (message) => logger.info(message),
+          onIndexerHintsInconsistent: (message) =>
+            logger.error(new Error(message), {
+              tags: {
+                component: "useDepositFlow",
+                phase: "validate-participant-keys",
+              },
+            }),
         });
 
         // Prime the peg-in signing sub-counter (one tx per vault) before the
@@ -755,22 +762,6 @@ export function useDepositFlow(
               validatedKeys.expectedUniversalChallengersVersion,
             expectedVaultCoreVersion: config.activeVaultCoreVersion,
           });
-
-          // RFC-006 read-after-mine. The vault froze its key epochs when
-          // `submitPeginRequest` executed, so an operator rotating between our
-          // key read and that execution would leave the registered vault bonded
-          // to keys other than the ones baked into the Pre-PegIn we are about to
-          // broadcast. Re-resolve against the frozen epochs and fail closed.
-          //
-          // Runs after the version check on purpose: a version mismatch has the
-          // clearer message, and re-resolving against an already-drifted roster
-          // version would report a key diff caused by a version diff.
-          await verifyRegisteredParticipantKeys({
-            vaultRegistryReader: getVaultRegistryReader(),
-            operationKeyReader,
-            vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
-            expected: validatedKeys.participantKeys,
-          });
         } catch (err) {
           // Only a confirmed mismatch removes pending entries — transient RPC
           // failures keep them so the user can resume.
@@ -781,6 +772,28 @@ export function useDepositFlow(
           }
           throw err;
         }
+
+        // RFC-006 read-after-mine. The vault froze its key epochs when
+        // `submitPeginRequest` executed, so an operator rotating between our
+        // key read and that execution would leave the registered vault bonded
+        // to keys other than the ones baked into the Pre-PegIn we are about to
+        // broadcast. Re-resolve against the frozen epochs and fail closed.
+        //
+        // Runs after the version check on purpose: a version mismatch has the
+        // clearer message, and re-resolving against an already-drifted roster
+        // version would report a key diff caused by a version diff.
+        //
+        // Outside the cleanup above by design. Key drift must leave the pending
+        // records in place: they hold the build-time key stamp, which is the
+        // only thing that lets a later resume re-detect the drift. Dropping
+        // them would let the resume path fall back to the indexer's copy, pass
+        // the `prePeginTxHash` check, and broadcast the Pre-PegIn this refused.
+        await verifyRegisteredParticipantKeys({
+          vaultRegistryReader: getVaultRegistryReader(),
+          operationKeyReader,
+          vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
+          expected: validatedKeys.participantKeys,
+        });
 
         // ========================================================================
         // Step 4b: Broadcast Pre-PegIn transaction to Bitcoin

@@ -10,7 +10,10 @@ import {
   epochsAt,
 } from "../../participants/__tests__/fixtures/rotation";
 import { resolveParticipantKeysAtEpochs } from "../../participants/resolveParticipantKeys";
-import { verifyRegisteredParticipantKeys } from "../verifyRegisteredParticipantKeys";
+import {
+  isParticipantKeyDriftError,
+  verifyRegisteredParticipantKeys,
+} from "../verifyRegisteredParticipantKeys";
 import { isRegisteredVaultVersionMismatchError } from "../verifyRegisteredVaultVersions";
 
 const VAULT_ID = `0x${"11".repeat(32)}` as Hex;
@@ -68,9 +71,12 @@ describe("verifyRegisteredParticipantKeys", () => {
     ).rejects.toThrow(/vault provider key expected/i);
   });
 
-  it("throws an error the existing cleanup path recognises", async () => {
-    // The orchestrator removes pending pegin entries on this error class only,
-    // so it must survive the module boundary the same way the sibling does.
+  it("throws a key-drift error that is not a version mismatch", async () => {
+    // The distinction drives cleanup: the orchestrator drops the local pending
+    // record on a version mismatch, but must keep it on key drift — the record
+    // holds the build-time key stamp that lets a later resume re-detect the
+    // drift instead of falling back to the indexer's copy and broadcasting it.
+    // Recognition must also survive the module boundary, as the sibling does.
     const expected = await keySetAt(EPOCH_GENESIS);
 
     const error = await verifyRegisteredParticipantKeys({
@@ -80,7 +86,8 @@ describe("verifyRegisteredParticipantKeys", () => {
       expected,
     }).catch((e: unknown) => e);
 
-    expect(isRegisteredVaultVersionMismatchError(error)).toBe(true);
+    expect(isParticipantKeyDriftError(error)).toBe(true);
+    expect(isRegisteredVaultVersionMismatchError(error)).toBe(false);
     expect((error as Error).message).toMatch(/was not broadcast/i);
   });
 

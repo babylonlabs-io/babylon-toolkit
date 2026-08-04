@@ -12,8 +12,8 @@
  */
 
 import {
+  ParticipantKeyDriftError,
   processPublicKeyToXOnly,
-  RegisteredVaultVersionMismatchError,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
@@ -45,7 +45,7 @@ function assertSameSet(
     expected.length !== actual.length ||
     expected.some((k, i) => k !== actual[i])
   ) {
-    throw new RegisteredVaultVersionMismatchError(
+    throw new ParticipantKeyDriftError(
       `Aborting Pre-PegIn broadcast: ${label} changed since this deposit was built ` +
         `(expected [${expected.join(", ")}], got [${actual.join(", ")}]). ` +
         `The Pre-PegIn was not broadcast; the registered ETH vault will time out ` +
@@ -56,8 +56,13 @@ function assertSameSet(
 
 /**
  * Throw when the vault's frozen epochs no longer resolve to the keys the
- * Pre-PegIn was built with. A no-op when the flag is off or the record predates
- * the stamp.
+ * Pre-PegIn was built with.
+ *
+ * Callers gate on the stamp being present: records written before this shipped
+ * carry no `buildParticipantOperationKeys` and simply skip the check.
+ *
+ * Throws `ParticipantKeyDriftError`, which callers must NOT treat as a reason
+ * to drop the pending record — see the class docs in the SDK.
  */
 export async function verifyResumeParticipantKeys(params: {
   vaultId: Hex;
@@ -102,7 +107,7 @@ export async function verifyResumeParticipantKeys(params: {
     expected.vaultProvider,
   ).toLowerCase();
   if (resolved.vaultProvider.operationBtcPubkey !== expectedVp) {
-    throw new RegisteredVaultVersionMismatchError(
+    throw new ParticipantKeyDriftError(
       `Aborting Pre-PegIn broadcast: the vault provider's operation key changed ` +
         `since this deposit was built (expected ${expectedVp}, got ` +
         `${resolved.vaultProvider.operationBtcPubkey}). The Pre-PegIn was not ` +

@@ -47,6 +47,8 @@ export {
   type ValidationResult,
 } from "./validation";
 export {
+  ParticipantKeyDriftError,
+  isParticipantKeyDriftError,
   verifyRegisteredParticipantKeys,
   type VerifyRegisteredParticipantKeysParams,
 } from "./verifyRegisteredParticipantKeys";

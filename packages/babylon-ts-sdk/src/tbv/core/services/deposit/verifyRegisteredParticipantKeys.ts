@@ -14,8 +14,7 @@
  * Deliberately a sibling of `verifyRegisteredVaultVersions` rather than an
  * extension of it: that function reads `getProtocolInfoBatch` through the
  * shared 13-field ABI and must stay there, while this one needs the extended
- * key-epoch ABI. They throw the same error class so the orchestrator's
- * pending-entry cleanup covers both.
+ * key-epoch ABI.
  *
  * @module services/deposit/verifyRegisteredParticipantKeys
  */
@@ -28,7 +27,45 @@ import type {
 } from "../../clients/eth/types";
 import { resolveParticipantKeysAtEpochs } from "../participants/resolveParticipantKeys";
 import type { ParticipantKeySet } from "../participants/types";
-import { RegisteredVaultVersionMismatchError } from "./verifyRegisteredVaultVersions";
+
+/**
+ * Participant operation keys drifted between building the Bitcoin artifacts
+ * and the vault freezing its epochs.
+ *
+ * A *sibling* of `RegisteredVaultVersionMismatchError`, never a subclass, and
+ * the distinction is load-bearing. On a version mismatch the orchestrator drops
+ * the local pending-pegin record, because the on-chain `prePeginTxHash` is
+ * still the authoritative copy of the transaction and a later resume can safely
+ * broadcast it from the indexer.
+ *
+ * Key drift breaks exactly that assumption. The registered hash commits to a
+ * transaction whose scripts embed the *pre-rotation* keys, while the vault
+ * froze the *post-rotation* epoch — so every counterparty resolves a different
+ * funding output and the deposit can never activate. Dropping the record would
+ * discard `buildParticipantOperationKeys`, the only thing that lets the resume
+ * path re-detect the drift; the next attempt would fall back to the indexer's
+ * copy, pass the hash check, and broadcast the very transaction this refused,
+ * locking BTC until the refund timelock.
+ *
+ * So: callers must keep the pending record when they catch this.
+ */
+export class ParticipantKeyDriftError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ParticipantKeyDriftError";
+  }
+}
+
+// `instanceof` alone fails across module boundaries (duplicate SDK copies,
+// test mocks). Fall back to the name field, as the version guard does.
+export function isParticipantKeyDriftError(
+  err: unknown,
+): err is ParticipantKeyDriftError {
+  return (
+    err instanceof ParticipantKeyDriftError ||
+    (err instanceof Error && err.name === "ParticipantKeyDriftError")
+  );
+}
 
 export interface VerifyRegisteredParticipantKeysParams {
   vaultRegistryReader: VaultRegistryReader;
@@ -124,7 +161,7 @@ export async function verifyRegisteredParticipantKeys(
   }
 
   if (mismatches.length > 0) {
-    throw new RegisteredVaultVersionMismatchError(
+    throw new ParticipantKeyDriftError(
       `Aborting BTC broadcast: participant operation keys changed during registration ` +
         `(${mismatches.join("; ")}). The Pre-PegIn was not broadcast; the registered ` +
         `ETH vault will time out per protocol rules.`,

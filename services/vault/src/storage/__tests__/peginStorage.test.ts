@@ -220,7 +220,7 @@ describe("getPendingPegins integrity validation", () => {
   // A tampered or malformed value here would feed that equality check, so the
   // field is optional but strictly validated whenever it is present.
 
-  it("accepts an entry with no operation keys (written with the flag off)", () => {
+  it("accepts an entry with no operation keys (written before the stamp shipped)", () => {
     localStorage.setItem(storageKey, JSON.stringify([validPegin]));
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(1);

@@ -7,9 +7,25 @@
  * shape would let a keeper that registered a garbage or unspendable script get
  * the depositor to pre-sign a payout nobody can ever claim.
  *
- * The registry accepts anything; the protocol only makes sense for outputs
- * that are spendable and representable as an address, which is the same gate
- * `vaultd` applies before it will build a graph.
+ * This bound is ours alone — it is deliberately NOT parity with `vaultd`.
+ * `vaultd` uses registry scripts verbatim at graph-build time and documents
+ * why: applying a predicate the contract does not apply would block every
+ * peg-in for an operator the instant the two disagreed. The registry itself
+ * only bounds length to 1..128 bytes, and the registration CLI has an
+ * `--allow-non-standard` escape hatch.
+ *
+ * We hold the stricter line because we occupy a different position: we are the
+ * party being asked to *pre-sign* against these bytes, and a depositor
+ * signature pinned to a provably unspendable output is not recoverable. The
+ * bound is also load-bearing for the payout fee band — capping a standard
+ * output at 34 bytes is what lets `assertPayoutFeeBand` reason about `outs[1]`
+ * without a separate length cap.
+ *
+ * The deliberate consequence: an operator that registers a non-standard script
+ * via `--allow-non-standard` can have its graphs built by `vaultd` and still be
+ * refused here, blocking deposits against that operator in this dApp. That is
+ * fail-closed by choice — the alternative is pre-signing into a destination we
+ * cannot verify is spendable.
  *
  * @module primitives/psbt/standardPayoutScript
  */

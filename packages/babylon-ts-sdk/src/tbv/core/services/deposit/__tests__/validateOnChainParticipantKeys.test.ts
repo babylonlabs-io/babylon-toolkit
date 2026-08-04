@@ -423,6 +423,28 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
     ).rejects.toThrow(/internally inconsistent/i);
   });
 
+  // The block clears only when the indexer converges, so it must be reported
+  // rather than surfacing as user reports of a provider nobody can deposit to.
+  it("reports a half-applied indexer view before throwing", async () => {
+    const readers = buildRotationReaders();
+    const onIndexerHintsInconsistent = vi.fn();
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        expectedVaultProviderBtcPubkey: REGISTRATION.vp,
+        expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
+        expectedUniversalChallengerBtcPubkeys: OPERATION.challengers,
+        onIndexerHintsInconsistent,
+      }),
+    ).rejects.toThrow(/internally inconsistent/i);
+
+    expect(onIndexerHintsInconsistent).toHaveBeenCalledTimes(1);
+    expect(onIndexerHintsInconsistent).toHaveBeenCalledWith(
+      expect.stringContaining(ADDRESSES.vaultProvider),
+    );
+  });
+
   it("rejects a hint matching neither key set", async () => {
     const readers = buildRotationReaders();
 

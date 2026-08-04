@@ -33,9 +33,16 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 
 vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
-  // Reached transitively: the resume broadcast's RFC-006 capability probe
-  // pulls in the shared ETHClient, which reads the RPC config at construction.
+  // Reached transitively: the resume broadcast's RFC-006 key resolution pulls
+  // in the shared ETHClient, which reads the RPC config at construction.
   getNetworkConfigETH: vi.fn(() => ({ rpcUrl: "http://localhost:8545" })),
+}));
+
+const mockVerifyResumeParticipantKeys = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+vi.mock("@/services/vault/verifyResumeParticipantKeys", () => ({
+  verifyResumeParticipantKeys: mockVerifyResumeParticipantKeys,
 }));
 
 // `captureFunnelFailure` reaches the logger through this barrel, so mocking it
@@ -245,6 +252,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     mockGetVaultRegistryReader.mockReturnValue({
       getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
   });
 
   it("broadcasts using local tx when it matches GraphQL", async () => {
@@ -754,6 +762,69 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(result.current.broadcastError).toContain("eth_call failed");
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  // The key stamp is the guard's only real precondition. A record that carries
+  // the stamp but predates the build-version fields must still be checked —
+  // the versions say nothing about whether an operator rotated.
+  it("runs the RFC-006 key guard when the stamp is present but build versions are missing", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          buildOffchainParamsVersion: undefined,
+          buildAppVaultKeepersVersion: undefined,
+          buildUniversalChallengersVersion: undefined,
+          buildParticipantOperationKeys: {
+            vaultProvider: "aa".repeat(32),
+            vaultKeepers: ["bb".repeat(32)],
+            universalChallengers: ["cc".repeat(32)],
+          },
+        },
+      });
+    });
+
+    expect(mockVerifyResumeParticipantKeys).toHaveBeenCalledTimes(1);
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  // Key drift must NOT clear the entry. The stamp it holds is the only thing
+  // that makes this guard re-fire; without it the next attempt finds no local
+  // copy, falls back to the indexer's transaction, passes the prePeginTxHash
+  // check — it is the registered transaction — and broadcasts the Pre-PegIn
+  // this just refused, locking BTC until the refund timelock.
+  it("keeps the pending entry when the RFC-006 key guard reports drift", async () => {
+    const drift = new Error(
+      "Aborting Pre-PegIn broadcast: the vault keeper set changed since this deposit was built",
+    );
+    drift.name = "ParticipantKeyDriftError";
+    mockVerifyResumeParticipantKeys.mockRejectedValue(drift);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          buildParticipantOperationKeys: {
+            vaultProvider: "aa".repeat(32),
+            vaultKeepers: ["bb".repeat(32)],
+            universalChallengers: ["cc".repeat(32)],
+          },
+        },
+        removePendingPegin,
+      });
+    });
+
+    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toBeTruthy();
   });
 });
 

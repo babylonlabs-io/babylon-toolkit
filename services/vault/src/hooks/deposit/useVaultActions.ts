@@ -317,16 +317,6 @@ export function useVaultActions(): UseVaultActionsReturn {
               buildUniversalChallengersVersion,
             expectedVaultCoreVersion: buildVaultCoreVersion,
           });
-
-          // RFC-006: the same guard the inline deposit path applies before
-          // broadcast. Gated on the stamp being present — records written with
-          // the flag off, or before it shipped, simply skip it.
-          if (pendingPegin?.buildParticipantOperationKeys) {
-            await verifyResumeParticipantKeys({
-              vaultId,
-              expected: pendingPegin.buildParticipantOperationKeys,
-            });
-          }
         } catch (err) {
           // Only a confirmed mismatch drops the entry — transient RPC
           // failures keep it so the user can retry. Mirrors the inline
@@ -336,6 +326,26 @@ export function useVaultActions(): UseVaultActionsReturn {
           }
           throw err;
         }
+      }
+
+      // RFC-006: the same guard the inline deposit path applies before
+      // broadcast. Its only precondition is the stamp — a missing build
+      // version says nothing about participant keys, so this sits outside the
+      // version block rather than inheriting its conditions. Records written
+      // before this shipped carry no stamp and skip the check.
+      //
+      // Deliberately NOT wrapped in the cleanup above: dropping the record on
+      // drift would discard the stamp, and the next attempt would find no
+      // local copy, fall back to the indexer's transaction, pass the
+      // `prePeginTxHash` check — it is the registered transaction — and
+      // broadcast the very Pre-PegIn this just refused. The hash proves the
+      // transaction was not substituted; it does not prove the vault's frozen
+      // epochs still resolve to the keys inside its scripts.
+      if (pendingPegin?.buildParticipantOperationKeys) {
+        await verifyResumeParticipantKeys({
+          vaultId,
+          expected: pendingPegin.buildParticipantOperationKeys,
+        });
       }
 
       await broadcastPrePeginTransaction({

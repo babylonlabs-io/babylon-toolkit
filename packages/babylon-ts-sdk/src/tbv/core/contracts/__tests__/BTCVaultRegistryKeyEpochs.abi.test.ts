@@ -87,9 +87,13 @@ describe("BTCVaultRegistryKeyEpochsABI", () => {
     // integers.
     //
     // So the extended ABI must never be read on a registry that has not been
-    // upgraded. Being careful with the values is not enough; the capability
-    // probe below is the only thing standing between this and resolving
-    // participant keys at a fabricated epoch.
+    // upgraded, and being careful with the decoded values is not enough — the
+    // `uint64` range check in `vault-registry-reader.ts` rejects the wild
+    // values but not the plausible ones. What stands between this and resolving
+    // participant keys at a fabricated epoch is a deployment invariant: every
+    // network this ships to already has the RFC-006 getters, and mainnet is a
+    // fresh RFC-006 deploy. This test pins the hazard so that invariant stays
+    // a conscious one.
     const legacyReturndata = encodeFunctionResult({
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultProtocolInfo",

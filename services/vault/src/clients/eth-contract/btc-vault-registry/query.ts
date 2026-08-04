@@ -103,7 +103,8 @@ export async function getVaultFromChain(
  * of those depend on the registry having been upgraded. See
  * `BTCVaultRegistryKeyEpochs.abi.ts`.
  *
- * Only call once the capability check has passed.
+ * Only valid against an RFC-006 registry: on an older one it returns plausible
+ * garbage rather than throwing.
  */
 export async function getVaultKeyEpochsFromChain(
   vaultId: Hex,

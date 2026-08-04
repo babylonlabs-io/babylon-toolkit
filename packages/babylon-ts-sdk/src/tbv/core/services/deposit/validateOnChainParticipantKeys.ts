@@ -30,6 +30,15 @@ export interface ValidateOnChainParticipantKeysParams {
    * ahead of us, not wrong. Called at most once.
    */
   onIndexerServingOperationKeys?: (message: string) => void;
+  /**
+   * Optional observer for the case where the indexer is serving a half-applied
+   * view — one role explainable only by the registration keys, another only by
+   * the operation keys. That blocks every deposit for the provider until the
+   * indexer converges, and "Refresh and try again" cannot help, so the block
+   * needs to be visible rather than showing up only as user reports. Called
+   * immediately before the throw.
+   */
+  onIndexerHintsInconsistent?: (message: string) => void;
 }
 
 export interface ValidatedOnChainParticipantKeys {
@@ -77,6 +86,7 @@ export async function validateOnChainParticipantKeys(
     expectedUniversalChallengerBtcPubkeys,
     operationKeyReader,
     onIndexerServingOperationKeys,
+    onIndexerHintsInconsistent,
   } = params;
 
   const [
@@ -199,11 +209,15 @@ export async function validateOnChainParticipantKeys(
   const pinsOperation = roles.some((m) => m.operation && !m.registration);
 
   if (pinsRegistration && pinsOperation) {
-    throw new Error(
+    const message =
       `Indexer participant hints are internally inconsistent for vault provider ` +
-        `${vaultProviderEthAddress}: some roles match the registration keys while ` +
-        `others match the rotated operation keys. Refresh and try again.`,
-    );
+      `${vaultProviderEthAddress}: some roles match the registration keys while ` +
+      `others match the rotated operation keys.`;
+    // Report before throwing. This state blocks every deposit for the provider
+    // and clears only when the indexer converges across all three registries —
+    // nothing the user does resolves it, so it has to be observable to us.
+    onIndexerHintsInconsistent?.(message);
+    throw new Error(`${message} Refresh and try again.`);
   }
 
   if (pinsOperation) {

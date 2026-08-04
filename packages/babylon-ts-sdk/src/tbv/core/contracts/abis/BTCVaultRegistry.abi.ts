@@ -260,11 +260,23 @@ export const BTCVaultRegistryABI = [
   // vault freezes a `vpKeyEpoch` at `submitPeginRequest` and resolves the key
   // bonded at that epoch, so a later rotation never invalidates a live vault.
   //
-  // Both getters fall back on-chain when the provider never rotated:
-  // `getCurrentOperationBtcKey` returns the registration key at version 0, and
-  // `getPayoutScriptAtEpoch` returns the BIP-86 P2TR of the epoch's operation
-  // key when no explicit payout script was registered. That is what makes
-  // adopting them a no-op until the first rotation on a network.
+  // `getCurrentOperationBtcKey` falls back on-chain to the registration key at
+  // version 0, so adopting it is a no-op for a provider that never rotated.
+  //
+  // `getPayoutScriptAtEpoch` does NOT behave that way, and assuming it did was
+  // wrong in an earlier revision of this comment. A payout script is mandatory
+  // at registration and stored as version 1, so on an RFC-006 registry this
+  // returns the operator's own registered script from the very first epoch —
+  // not a BIP-86 derivation of its key. The contract's BIP-86 branch is a
+  // migration default for pre-RFC-006 rows and is not reachable from
+  // registration. An operator whose registered script happens to equal
+  // bip86(key) is a coincidence of what it chose to register, not a fallback.
+  //
+  // This is why depositor payout validation must accept the legacy BIP-86 form
+  // alongside the registered one: a payout graph is built once at BaBe Setup
+  // and never rebuilt, so a vault whose graph predates its network's
+  // btc-vault#2440 upgrade pays BIP-86 for the rest of its life. See
+  // `acceptedPayoutScriptHexes` in `primitives/psbt/payout.ts`.
   {
     type: "function",
     name: "getCurrentOperationBtcKey",

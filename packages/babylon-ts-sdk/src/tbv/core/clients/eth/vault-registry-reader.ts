@@ -92,9 +92,10 @@ function mapVaultProtocolInfo(result: RawVaultProtocolInfo): VaultProtocolInfo {
  * viem does not range-check a decoded `uint64`, so a misaligned decode can
  * hand back a value far larger than the field can hold. Rejecting those is
  * cheap defence in depth against reading the extended ABI on a registry that
- * predates RFC-006 — but it is only a backstop, not a substitute for the
- * capability check: a misaligned decode can also land on a small,
- * plausible-looking integer. See `BTCVaultRegistryKeyEpochs.abi.ts`.
+ * predates RFC-006 — but it is only a backstop, and a weak one: a misaligned
+ * decode can also land on a small, plausible-looking integer that this range
+ * accepts. Correctness rests on only ever pointing at an RFC-006 registry.
+ * See `BTCVaultRegistryKeyEpochs.abi.ts`.
  */
 const UINT64_EXCLUSIVE_UPPER_BOUND = 1n << 64n;
 
@@ -189,10 +190,12 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
   /**
    * Read a vault's frozen RFC-006 operation-key epochs.
    *
-   * Reads `getBtcVaultProtocolInfo` through the **extended** ABI. Callers must
-   * have passed the capability check first: against a registry that predates
-   * RFC-006 this call does not fail for a populated vault, it silently returns
-   * three words of tail data as epochs. See `BTCVaultRegistryKeyEpochs.abi.ts`.
+   * Reads `getBtcVaultProtocolInfo` through the **extended** ABI, which is only
+   * valid against an RFC-006 registry: against one that predates RFC-006 this
+   * call does not fail for a populated vault, it silently returns three words
+   * of tail data as epochs. Nothing here can detect that, so the guarantee is a
+   * deployment one — every network this ships to has the RFC-006 getters, and
+   * mainnet is a fresh RFC-006 deploy. See `BTCVaultRegistryKeyEpochs.abi.ts`.
    */
   async getVaultKeyEpochs(vaultId: Hex): Promise<KeyEpochs> {
     const result = (await this.publicClient.readContract({
