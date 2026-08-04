@@ -73,6 +73,13 @@ describe("default query retry policy", () => {
     expect(retryFor(httpError(404))).toBe(false);
   });
 
+  it("does not retry a 501, despite it being 5xx", () => {
+    // 501 means the server does not implement the operation, which retrying
+    // cannot change. Pinned because the neighbouring 5xx rule says the
+    // opposite and the two are easy to conflate.
+    expect(retryFor(httpError(501))).toBe(false);
+  });
+
   it("still retries a rate limit and a server error", () => {
     expect(retryFor(httpError(429))).toBe(true);
     expect(retryFor(httpError(503))).toBe(true);
@@ -117,6 +124,44 @@ describe("reportQueryCacheError", () => {
     expect(mockLoggerError).not.toHaveBeenCalled();
     expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
     expect(mockLoggerWarn.mock.calls[0][0]).toContain("451");
+  });
+
+  it("still captures a 400, which is a defect rather than a location", () => {
+    // Not retrying and not reporting are separate decisions. A malformed query
+    // is pointless to retry but someone needs to see it.
+    reportQueryCacheError(
+      Object.assign(new Error("GraphQL Error (Code: 400)"), {
+        response: { status: 400 },
+      }),
+      "Query",
+    );
+
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+  });
+
+  it("still captures a 501, which signals a frontend/backend skew", () => {
+    reportQueryCacheError(
+      Object.assign(new Error("GraphQL Error (Code: 501)"), {
+        response: { status: 501 },
+      }),
+      "Query",
+    );
+
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+  });
+
+  it("captures a viem-shaped error carrying a top-level status", () => {
+    // viem's HttpRequestError puts the status on the error itself rather than
+    // under `response`, and it does reach this handler.
+    reportQueryCacheError(
+      Object.assign(new Error("HTTP request failed"), { status: 401 }),
+      "Query",
+    );
+
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
   });
 
   it("captures a genuine query error with the query context tag", () => {

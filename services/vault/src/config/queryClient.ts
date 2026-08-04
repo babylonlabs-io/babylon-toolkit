@@ -12,14 +12,34 @@ const calculateRetryDelay = (attemptIndex: number): number => {
  * 451 is the one that hurt in production: a geo-block made every poll cycle
  * issue four doomed requests, and two independent 30s-interval queries then
  * alternated for over an hour, each settled failure billing a Sentry issue.
- * 408 and 429 stay retryable, as does everything 5xx.
+ * 408 and 429 stay retryable.
+ *
+ * 501 is here deliberately. It is 5xx by number but it means "this server does
+ * not implement this operation", which no amount of retrying changes.
  */
-const PERMANENT_HTTP_STATUSES = new Set([400, 401, 403, 404, 410, 451, 501]);
+const NON_RETRYABLE_HTTP_STATUSES = new Set([
+  400, 401, 403, 404, 410, 451, 501,
+]);
 
 /**
- * Pull an HTTP status off the error shapes this app actually throws:
- * graphql-request's `ClientError` (`response.status`) and the app's own
- * `ApiError` (`status`).
+ * Statuses that are also not worth a standalone Sentry issue.
+ *
+ * Deliberately narrower than {@link NON_RETRYABLE_HTTP_STATUSES}: not retrying
+ * and not reporting are different decisions. A geo-block (451) is a property of
+ * where the user is and repeats every poll for the rest of the session, so it
+ * is breadcrumbed. Everything else - a 400 from a malformed query, a 501 from a
+ * frontend/backend version skew - is a real defect someone should see, so it
+ * still reaches `logger.error` even though it is never retried.
+ */
+const UNREPORTABLE_HTTP_STATUSES = new Set([451]);
+
+/**
+ * Pull an HTTP status off the error shapes that actually reach this handler:
+ * graphql-request's `ClientError` (`response.status`) and viem's
+ * `HttpRequestError` (`status`).
+ *
+ * Note the app's own `ApiError` does NOT reach here - every throw site is
+ * caught inside `healthCheckService`.
  */
 const httpStatusOf = (error: unknown): number | undefined => {
   if (!error || typeof error !== "object") return undefined;
@@ -33,9 +53,9 @@ const httpStatusOf = (error: unknown): number | undefined => {
   return undefined;
 };
 
-const isPermanentHttpError = (error: unknown): boolean => {
+const isNonRetryableHttpError = (error: unknown): boolean => {
   const status = httpStatusOf(error);
-  return status !== undefined && PERMANENT_HTTP_STATUSES.has(status);
+  return status !== undefined && NON_RETRYABLE_HTTP_STATUSES.has(status);
 };
 
 const shouldRetry = (failureCount: number, error: Error): boolean => {
@@ -43,7 +63,7 @@ const shouldRetry = (failureCount: number, error: Error): boolean => {
     return false;
   }
 
-  if (isPermanentHttpError(error)) {
+  if (isNonRetryableHttpError(error)) {
     return false;
   }
 
@@ -93,17 +113,17 @@ export function reportQueryCacheError(
     return;
   }
 
-  // A permanent status is a property of where the user is, not a fault we can
-  // act on, and it repeats on every poll for the rest of the session. Recorded
-  // as a breadcrumb so it still attaches to any genuine error captured later.
-  const permanentStatus = httpStatusOf(error);
-  if (permanentStatus !== undefined && isPermanentHttpError(error)) {
-    logger.warn(
-      `Permanent ${kind.toLowerCase()} failure: HTTP ${permanentStatus}`,
-      {
-        detail: error.message,
-      },
-    );
+  // An unreportable status is a property of where the user is, not a fault we
+  // can act on, and it repeats on every poll for the rest of the session.
+  // Recorded as a breadcrumb so it still attaches to any genuine error captured
+  // later. Note this set is NOT the non-retryable set: a 400 or 501 is equally
+  // pointless to retry but is a real defect, so it falls through to
+  // `logger.error` below.
+  const status = httpStatusOf(error);
+  if (status !== undefined && UNREPORTABLE_HTTP_STATUSES.has(status)) {
+    logger.warn(`Unreportable ${kind.toLowerCase()} failure: HTTP ${status}`, {
+      detail: error.message,
+    });
     return;
   }
 
