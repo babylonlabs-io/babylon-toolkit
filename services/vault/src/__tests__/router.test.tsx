@@ -11,8 +11,8 @@
  * 3. /vaults, /loans, /liquidations and /explore are reachable only when
  *    ENABLE_V3_UI is on. With the flag off a direct load of one of them
  *    redirects to the v2 dashboard. /vaults renders the VaultsPage, /loans the
- *    Loans page and /explore the Explore page; /liquidations is still a
- *    placeholder.
+ *    Loans page, /explore the Explore page and /liquidations the Liquidation
+ *    Dashboard.
  * 4. /liquidations and /explore each carry a second flag on top of the v3
  *    shell, so either section can stay hidden while v3 is on. With its own
  *    flag off, both the section root and a deep link under it redirect.
@@ -102,6 +102,7 @@ const DASHBOARD_TESTID = "dashboard";
 const RESERVE_DETAIL_TESTID = "reserve-detail";
 const VAULTS_PAGE_TESTID = "vaults-page";
 const LOANS_TESTID = "loans-page";
+const LIQUIDATIONS_TESTID = "liquidations-page";
 const EXPLORE_TESTID = "explore-page";
 
 vi.mock("../components/pages/VaultsPage", () => ({
@@ -130,6 +131,22 @@ vi.mock("../components/simple/DashboardPage", () => ({
 
 vi.mock("../components/pages/Loans", () => ({
   default: () => <div data-testid={LOANS_TESTID} />,
+}));
+
+vi.mock("../components/pages/Liquidations", () => ({
+  default: function LiquidationsPage() {
+    const outletContext = useOutletContext<{
+      openDeposit?: () => void;
+    } | null>();
+    return (
+      <div
+        data-testid={LIQUIDATIONS_TESTID}
+        data-has-open-deposit={String(
+          typeof outletContext?.openDeposit === "function",
+        )}
+      />
+    );
+  },
 }));
 
 vi.mock("../applications/aave/components/Detail", () => ({
@@ -268,7 +285,6 @@ describe("Router — / and /activity keep their original components", () => {
       await waitFor(() => {
         expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
       });
-      expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
     },
   );
 
@@ -282,7 +298,7 @@ describe("Router — / and /activity keep their original components", () => {
   });
 });
 
-describe("Router — new v3 placeholder routes", () => {
+describe("Router — v3 section routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -296,7 +312,6 @@ describe("Router — new v3 placeholder routes", () => {
       await waitFor(() => {
         expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
       });
-      expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
       expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
     },
   );
@@ -314,22 +329,6 @@ describe("Router — new v3 placeholder routes", () => {
     },
   );
 
-  it.each(["/liquidations"])(
-    "renders a placeholder at %s when the flag is on, not the dashboard",
-    async (path) => {
-      setV3Flag("true");
-      renderAt(path);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("v3-placeholder")).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
-      expect(
-        screen.queryByTestId(RESERVE_DETAIL_TESTID),
-      ).not.toBeInTheDocument();
-    },
-  );
-
   it("redirects /liquidations to / when the liquidation-analysis flag is off, even with v3 on", async () => {
     setV3Flag("true");
     featureFlagsState.isLiquidationAnalysisChartEnabled = false;
@@ -338,7 +337,7 @@ describe("Router — new v3 placeholder routes", () => {
     await waitFor(() => {
       expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
+    expect(screen.queryByTestId(LIQUIDATIONS_TESTID)).not.toBeInTheDocument();
   });
 
   it("redirects a deep link under /liquidations when its flag is off, even with v3 on", async () => {
@@ -402,7 +401,16 @@ describe("Router — new v3 placeholder routes", () => {
     await waitFor(() => {
       expect(screen.getByTestId(LOANS_TESTID)).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
+    expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
+  });
+
+  it("renders the Liquidation Dashboard at /liquidations when the flag is on", async () => {
+    setV3Flag("true");
+    renderAt("/liquidations");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(LIQUIDATIONS_TESTID)).toBeInTheDocument();
+    });
     expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
   });
 
@@ -414,7 +422,6 @@ describe("Router — new v3 placeholder routes", () => {
       expect(screen.getByTestId(EXPLORE_TESTID)).toBeInTheDocument();
     });
     expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
-    expect(screen.queryByTestId("v3-placeholder")).not.toBeInTheDocument();
   });
 
   it.each(["/app/aave/reserve/usdc/borrow", "/vaults/details"])(
@@ -441,6 +448,22 @@ describe("Router — RootLayout outlet context reaches the dashboard", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId(DASHBOARD_TESTID)).toHaveAttribute(
+        "data-has-open-deposit",
+        "true",
+      );
+    });
+  });
+
+  // Regression: /liquidations moved under AaveOverlayLayout (from directly
+  // under RootLayout) so it can read the Aave-scoped position hooks. That
+  // move must not lose the RootLayoutContext outlet the empty states need
+  // for their Deposit action.
+  it("forwards openDeposit to the Liquidation Dashboard at /liquidations", async () => {
+    setV3Flag("true");
+    renderAt("/liquidations");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(LIQUIDATIONS_TESTID)).toHaveAttribute(
         "data-has-open-deposit",
         "true",
       );

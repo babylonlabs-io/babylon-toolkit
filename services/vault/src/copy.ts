@@ -1345,9 +1345,8 @@ export const COPY = {
     simulationChip: "Simulation",
     seizedSummaryLabel: "Seized",
     collateralSummaryLabel: "Collateral",
-    seizureMapTab: "Seizure Map",
-    timelineTab: "Timeline",
     simulateLabel: "Simulate BTC price",
+    simulatePriceEntryLabel: "Enter BTC price",
     simulateDescription:
       "Simulate BTC price movements and see how your vault responds to liquidation risk.",
     exploreAction: "Explore",
@@ -1360,6 +1359,9 @@ export const COPY = {
       noLoanDescription:
         "Borrow against your BTC to see your liquidation levels and simulate how price changes affect your position.",
       borrow: "Borrow",
+      unavailableTitle: "Liquidation analysis unavailable",
+      unavailableDescription:
+        "The BTC price feed is unavailable or out of date, so we can't project your liquidation events right now. Your position details above are unaffected.",
     },
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
@@ -1373,11 +1375,6 @@ export const COPY = {
     },
     // Replaces a liquidated band's vault list + BTC amount on the chart.
     liquidatedBandLabel: "Liquidated",
-    safeZone: {
-      title: "Safe zone",
-      noEventsAbove: (price: string) => `no events above ${price}`,
-      dropToFirstEvent: (percent: string) => `${percent} drop to Liq 1`,
-    },
     events: {
       heading: "Liquidation Events",
       subheading:
@@ -1410,8 +1407,9 @@ export const COPY = {
       deposit: "Deposit",
       repay: "Repay",
     },
-    emptyNoWallet: "Connect your wallet to analyze liquidation risk.",
-    emptyNoVaults: "No borrow position — nothing to liquidate.",
+    // v3 Liquidation Dashboard, disconnected — title-only prompt, matching
+    // the other v3 tabs' disconnected empty state.
+    emptyDisconnected: connectToView("liquidation analysis"),
   },
   overview: {
     heading: "Overview",

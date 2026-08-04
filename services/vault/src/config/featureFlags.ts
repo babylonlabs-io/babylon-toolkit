@@ -163,12 +163,13 @@ export default {
    *
    * Purpose: Gates the liquidation-analysis feature — the seizure-map chart
    * inside the overview's Liquidation Analysis card, plus the sidebar's
-   * Liquidations section and the /liquidations route (still an empty
-   * placeholder). The overview card's empty states read the live position and
-   * are not gated by this.
-   * Why needed: until the cascade is wired to `usePositionNotifications`, the
-   * only cascade available is a placeholder, and rendering it beside a real
-   * position would present fabricated liquidation prices as the user's own.
+   * Liquidations section and the /liquidations Liquidation Dashboard. The
+   * overview card's empty states read the live position and are not gated by
+   * this.
+   * Why needed: the /liquidations page charts the live
+   * `usePositionNotifications` cascade, but the overview card's cascade is
+   * still god-mode-only, and rendering that beside a real position would
+   * present fabricated liquidation prices as the user's own.
    * The v3 flag alone is not enough — v3 is enabled on devnet/testnet.
    * Default: false (no chart unless explicitly set to "true")
    */

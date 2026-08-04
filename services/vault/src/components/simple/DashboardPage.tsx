@@ -86,6 +86,7 @@ export function DashboardPage() {
             result: debugResultOverride,
             btcPrice: debugManualParams.btcPrice,
             collateralFactor: debugManualParams.CF,
+            vaultsTotal: debugManualParams.vaults.length,
           }
         : null,
     [debugManualMode, debugResultOverride, debugManualParams],
