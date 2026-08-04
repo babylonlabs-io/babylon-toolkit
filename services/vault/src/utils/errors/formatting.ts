@@ -11,15 +11,10 @@ import {
 
 import { COPY } from "@/copy";
 
-/**
- * Wallet-connector error code emitted by BTC providers when the user rejects
- * a signing prompt. Mirrors `ERROR_CODES.CONNECTION_REJECTED` from
- * `@babylonlabs-io/wallet-connector`. Inlined to avoid pulling the full
- * wallet-connector bundle into this file (and its test transform); the
- * constant is the public contract - if it ever changes upstream, this string
- * must change too.
- */
-const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
+import {
+  EIP1193_USER_REJECTED,
+  WALLET_CONNECTION_REJECTED_CODE,
+} from "./userCancellation";
 
 export function isWalletRejectionError(error: unknown): boolean {
   return (
@@ -31,7 +26,7 @@ export function isWalletRejectionError(error: unknown): boolean {
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
-  USER_REJECTED: 4001,
+  USER_REJECTED: EIP1193_USER_REJECTED,
   UNAUTHORIZED: 4100,
   PROVIDER_DISCONNECTED: 4900,
   CHAIN_DISCONNECTED: 4901,

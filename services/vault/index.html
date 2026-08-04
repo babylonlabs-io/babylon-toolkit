@@ -5,6 +5,13 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="32x32" />
     <link rel="canonical" href="%NEXT_PUBLIC_CANONICAL%" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Opt out of page translation. Translation extensions replace React-owned
+      text nodes with their own wrappers; React's next commit then calls
+      removeChild on a node that is no longer its child, which throws
+      NotFoundError and unmounts the whole app via the error boundary.
+    -->
+    <meta name="google" content="notranslate" />
     <meta property="og:title" content="Babylon - Vault" />
     <meta name="description" content="Vault Dashboard" key="desc" />
     <meta property="og:description" content="Vault Dashboard" />

@@ -1,9 +1,41 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { logger } from "@/infrastructure";
+import { isUserCancellation } from "@/utils/errors/userCancellation";
 
 const calculateRetryDelay = (attemptIndex: number): number => {
   return Math.min(1000 * 2 ** attemptIndex, 30000);
+};
+
+/**
+ * HTTP statuses that will not change by trying again with the same request.
+ * 451 is the one that hurt in production: a geo-block made every poll cycle
+ * issue four doomed requests, and two independent 30s-interval queries then
+ * alternated for over an hour, each settled failure billing a Sentry issue.
+ * 408 and 429 stay retryable, as does everything 5xx.
+ */
+const PERMANENT_HTTP_STATUSES = new Set([400, 401, 403, 404, 410, 451, 501]);
+
+/**
+ * Pull an HTTP status off the error shapes this app actually throws:
+ * graphql-request's `ClientError` (`response.status`) and the app's own
+ * `ApiError` (`status`).
+ */
+const httpStatusOf = (error: unknown): number | undefined => {
+  if (!error || typeof error !== "object") return undefined;
+
+  const { status, response } = error as {
+    status?: unknown;
+    response?: { status?: unknown };
+  };
+  if (typeof status === "number") return status;
+  if (typeof response?.status === "number") return response.status;
+  return undefined;
+};
+
+const isPermanentHttpError = (error: unknown): boolean => {
+  const status = httpStatusOf(error);
+  return status !== undefined && PERMANENT_HTTP_STATUSES.has(status);
 };
 
 const shouldRetry = (failureCount: number, error: Error): boolean => {
@@ -11,11 +43,18 @@ const shouldRetry = (failureCount: number, error: Error): boolean => {
     return false;
   }
 
-  if (error.message?.includes("rejected")) {
+  if (isPermanentHttpError(error)) {
     return false;
   }
 
-  if (error.message?.includes("User rejected")) {
+  if (isUserCancellation(error)) {
+    return false;
+  }
+
+  // Kept deliberately broad for the retry decision only: any rejection wording
+  // (including a deterministic contract rejection, which `isUserCancellation`
+  // intentionally does not match) reproduces on retry, so re-sending is waste.
+  if (error.message?.includes("rejected")) {
     return false;
   }
 
@@ -53,6 +92,21 @@ export function reportQueryCacheError(
     });
     return;
   }
+
+  // A permanent status is a property of where the user is, not a fault we can
+  // act on, and it repeats on every poll for the rest of the session. Recorded
+  // as a breadcrumb so it still attaches to any genuine error captured later.
+  const permanentStatus = httpStatusOf(error);
+  if (permanentStatus !== undefined && isPermanentHttpError(error)) {
+    logger.warn(
+      `Permanent ${kind.toLowerCase()} failure: HTTP ${permanentStatus}`,
+      {
+        detail: error.message,
+      },
+    );
+    return;
+  }
+
   logger.error(error, {
     data: { context: `React Query Error [${kind}]` },
   });

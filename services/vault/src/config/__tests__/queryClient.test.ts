@@ -6,7 +6,11 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: mockLoggerError, warn: mockLoggerWarn },
 }));
 
-import { isExpectedQueryError, reportQueryCacheError } from "../queryClient";
+import {
+  createQueryClient,
+  isExpectedQueryError,
+  reportQueryCacheError,
+} from "../queryClient";
 
 /**
  * A structural copy of the wallet-connector's error, constructed here so the
@@ -37,6 +41,56 @@ describe("isExpectedQueryError", () => {
   });
 });
 
+/**
+ * The retry predicate is exercised through the wired client rather than
+ * exported directly, so these tests pin the behaviour production actually gets.
+ */
+describe("default query retry policy", () => {
+  const retryFor = (error: Error, failureCount = 0): boolean => {
+    const retry = createQueryClient().getDefaultOptions().queries?.retry;
+    if (typeof retry !== "function") {
+      throw new Error(
+        "expected a retry predicate on the default query options",
+      );
+    }
+    return retry(failureCount, error) as boolean;
+  };
+
+  /** graphql-request's ClientError shape. */
+  const httpError = (status: number): Error =>
+    Object.assign(new Error(`GraphQL Error (Code: ${status})`), {
+      response: { status },
+    });
+
+  it("does not retry a 451, which is permanent for the session", () => {
+    // A geo-block previously retried on every poll cycle, forever, and each
+    // settled failure billed a separate Sentry issue.
+    expect(retryFor(httpError(451))).toBe(false);
+  });
+
+  it("does not retry other permanent statuses", () => {
+    expect(retryFor(httpError(403))).toBe(false);
+    expect(retryFor(httpError(404))).toBe(false);
+  });
+
+  it("still retries a rate limit and a server error", () => {
+    expect(retryFor(httpError(429))).toBe(true);
+    expect(retryFor(httpError(503))).toBe(true);
+  });
+
+  it("still retries a transient network failure", () => {
+    expect(retryFor(new Error("Failed to fetch"))).toBe(true);
+  });
+
+  it("does not retry a user-cancelled wallet prompt", () => {
+    expect(retryFor(new Error("User rejected the request."))).toBe(false);
+  });
+
+  it("gives up after three failures", () => {
+    expect(retryFor(new Error("Failed to fetch"), 3)).toBe(false);
+  });
+});
+
 describe("reportQueryCacheError", () => {
   beforeEach(() => {
     mockLoggerError.mockReset();
@@ -50,6 +104,19 @@ describe("reportQueryCacheError", () => {
     expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
     const [message] = mockLoggerWarn.mock.calls[0];
     expect(message).toContain("OrdinalsClassifierUnavailableError");
+  });
+
+  it("records a permanent HTTP failure as a breadcrumb, not a captured error", () => {
+    reportQueryCacheError(
+      Object.assign(new Error("GraphQL Error (Code: 451)"), {
+        response: { status: 451 },
+      }),
+      "Query",
+    );
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn.mock.calls[0][0]).toContain("451");
   });
 
   it("captures a genuine query error with the query context tag", () => {

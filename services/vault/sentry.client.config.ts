@@ -13,9 +13,33 @@ import * as Sentry from "@sentry/react";
 import { v4 as uuidv4 } from "uuid";
 
 import { getCommitHash } from "@/config";
+import { isUserCancellation } from "@/utils/errors/userCancellation";
 import { redactData, scrubSentryEvent, scrubString } from "@/utils/telemetry";
 
 const SENTRY_DEVICE_ID_KEY = "sentry_device_id";
+
+/**
+ * Errors thrown by browser extensions in the page, not by this app.
+ *
+ * Every entry was confirmed absent from our source: they come from competing
+ * wallet extensions racing over `window.ethereum` (we never write to it - the
+ * connector uses AppKit/EIP-6963 discovery), from a wallet extension's own
+ * message channel after it reloads mid-session, or from page-translation
+ * extensions swapping React-owned text nodes (the `removeChild`/`insertBefore`
+ * family). None is actionable and together they crowd out real reports.
+ */
+const THIRD_PARTY_EXTENSION_ERRORS = [
+  // Injected-provider collisions between wallet extensions
+  "Cannot redefine property: ethereum",
+  /Cannot set property ethereum of .* which has only a getter/,
+  "trap returned falsish for property 'tronlinkParams'",
+  // Extension messaging after the extension reloaded or was disabled
+  "Could not establish connection. Receiving end does not exist.",
+  "Extension context invalidated.",
+  // Page-translation extensions mutating nodes React owns
+  "The node to be removed is not a child of this node",
+  /Failed to execute '(removeChild|insertBefore)' on 'Node'/,
+];
 
 const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
@@ -85,6 +109,8 @@ Sentry.init({
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
 
+  ignoreErrors: THIRD_PARTY_EXTENSION_ERRORS,
+
   beforeBreadcrumb(breadcrumb) {
     if (breadcrumb.message) {
       breadcrumb.message = scrubString(breadcrumb.message);
@@ -104,6 +130,14 @@ Sentry.init({
   // redaction hook (URL + href masking).
 
   beforeSend(event, hint) {
+    // A depositor declining or dismissing a wallet prompt is routine drop-off,
+    // not a fault. Dropped here as well as at the call sites so a cancellation
+    // reaching Sentry through a global handler (rather than logger.error) is
+    // filtered too.
+    if (isUserCancellation(hint?.originalException)) {
+      return null;
+    }
+
     event.extra = {
       ...(event.extra || {}),
       version: getCommitHash(),
