@@ -1,9 +1,31 @@
 import { GraphQLClient } from "graphql-request";
 
 import { ENV } from "../../config/env";
+import { combineAbortSignals } from "../../utils/async";
 
 /** Timeout for GraphQL API requests — prevents indefinite hangs from stalled endpoints */
 const GRAPHQL_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * A browser `fetch` rejection carries no endpoint information — the exception is
+ * literally `TypeError: Failed to fetch` (`Load failed` on Safari), so every
+ * failing query in the app produces an identical, untriageable Sentry issue.
+ * Naming the host restores enough context to tell an indexer outage apart from
+ * an RPC or mempool one, without leaking the query or its variables.
+ */
+function describeFetchFailure(url: string, error: unknown): Error {
+  const host = (() => {
+    try {
+      return new URL(url).host;
+    } catch {
+      return "unknown host";
+    }
+  })();
+  const detail = error instanceof Error ? error.message : String(error);
+  return new Error(`GraphQL request to ${host} failed: ${detail}`, {
+    cause: error,
+  });
+}
 
 export const graphqlClient = new GraphQLClient(ENV.GRAPHQL_ENDPOINT, {
   fetch: async (url, options) => {
@@ -17,11 +39,12 @@ export const graphqlClient = new GraphQLClient(ENV.GRAPHQL_ENDPOINT, {
     const signals = [controller.signal, options?.signal].filter(
       Boolean,
     ) as AbortSignal[];
+    const combined = combineAbortSignals(signals);
 
     try {
       const response = await fetch(url, {
         ...options,
-        signal: AbortSignal.any(signals),
+        signal: combined.signal,
       });
       const body = await response.text();
       clearTimeout(timeoutId);
@@ -43,7 +66,20 @@ export const graphqlClient = new GraphQLClient(ENV.GRAPHQL_ENDPOINT, {
           `GraphQL request timed out after ${GRAPHQL_REQUEST_TIMEOUT_MS}ms`,
         );
       }
-      throw error;
+      // A caller-initiated abort (React Query unmount) must stay an AbortError
+      // so downstream `name === "AbortError"` checks keep treating it as a
+      // cancellation rather than a fault.
+      if (
+        error != null &&
+        typeof error === "object" &&
+        "name" in error &&
+        error.name === "AbortError"
+      ) {
+        throw error;
+      }
+      throw describeFetchFailure(String(url), error);
+    } finally {
+      combined.cleanup();
     }
   },
 });
