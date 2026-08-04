@@ -51,7 +51,7 @@ targets — see the [Troubleshooting Guide](./docs/get-started/troubleshooting.m
 
 ### Requirements
 
-- **Node.js ≥ 20.3.0** (for `AbortSignal.any()`). Works on Node 20 LTS, 22 LTS, 24 LTS.
+- **Node.js ≥ 20.3.0** — the supported baseline. Works on Node 20 LTS, 22 LTS, 24 LTS.
 - Package manager: npm, yarn, or pnpm
 
 ### Install
