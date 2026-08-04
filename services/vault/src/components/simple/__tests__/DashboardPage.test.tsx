@@ -7,7 +7,6 @@ import { setDebugHealthFactorOverride } from "@/dev/debugPositionStore";
 import { DashboardPage } from "../DashboardPage";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: false,
   isLiquidationNotificationsEnabled: false,
   isGodModePanelEnabled: false,
   isPositionDebugPanelEnabled: false,
@@ -127,7 +126,6 @@ vi.mock("../WithdrawFlow", () => ({ default: () => null }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  featureFlagsMock.isV3UiEnabled = false;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   pricesMock.prices = {};
@@ -135,19 +133,8 @@ beforeEach(() => {
   setDebugHealthFactorOverride(null);
 });
 
-describe("DashboardPage v3 composition", () => {
-  it("renders every legacy section when the v3 flag is off", () => {
-    render(<DashboardPage />);
-
-    expect(screen.getByTestId("collateral-section")).toBeInTheDocument();
-    expect(screen.getByTestId("loans-section")).toBeInTheDocument();
-    expect(screen.getByTestId("supply-cap")).toBeInTheDocument();
-    expect(screen.getByTestId("pending-deposits")).toBeInTheDocument();
-    expect(screen.getAllByTestId("pending-withdrawals")).toHaveLength(2);
-  });
-
-  it("shows only the overview summary in v3, hiding cap, pending, collateral, and loans while keeping safety notifications", () => {
-    featureFlagsMock.isV3UiEnabled = true;
+describe("DashboardPage composition", () => {
+  it("shows only the overview summary, hiding cap, pending, collateral, and loans while keeping safety notifications", () => {
     featureFlagsMock.isLiquidationNotificationsEnabled = true;
 
     render(<DashboardPage />);
@@ -168,7 +155,6 @@ describe("DashboardPage v3 composition", () => {
 
 describe("DashboardPage risk card under a forced health factor", () => {
   beforeEach(() => {
-    featureFlagsMock.isV3UiEnabled = true;
     featureFlagsMock.isGodModePanelEnabled = true;
     pricesMock.prices = { BTC: 63488 };
     pricesMock.metadata = { BTC: { isStale: false, fetchFailed: false } };

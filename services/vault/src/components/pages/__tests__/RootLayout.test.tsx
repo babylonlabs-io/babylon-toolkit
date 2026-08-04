@@ -1,17 +1,13 @@
 /**
  * RootLayout header wiring tests.
  *
- * The `Header`'s `logo` slot and `rightActions` NetworkBadge are both gated
- * on `FeatureFlags.isV3UiEnabled`:
- * - v2 (flag off, today's production path): `logo` is the v2 `BrandLockup`
- *   mark, no page-title heading, no NetworkBadge.
- * - v3 (flag on): `logo` is the current page title (`usePageTitle()`) as an
- *   `<h1>`, and `rightActions` gains a leading `NetworkBadge` (visible only
- *   on non-mainnet networks).
+ * The `Header`'s `logo` slot is the current page title (`usePageTitle()`) as an
+ * `<h1>`, and `rightActions` carries a leading `NetworkBadge` (visible only on
+ * non-mainnet networks).
  *
  * These are locked in here since no other test exercises the real
  * (unmocked) RootLayout — `src/__tests__/router.test.tsx` mocks it away
- * entirely — and the v2 path is what ships to production today.
+ * entirely.
  */
 
 import { render, screen } from "@testing-library/react";
@@ -22,7 +18,6 @@ import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidation
 import { COPY } from "@/copy";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: false,
   noticeBannerMessage: undefined as string | undefined,
   isDepositDisabled: false,
 }));
@@ -123,7 +118,6 @@ function renderRootLayout() {
 }
 
 beforeEach(() => {
-  featureFlagsMock.isV3UiEnabled = false;
   featureFlagsMock.noticeBannerMessage = undefined;
   featureFlagsMock.isDepositDisabled = false;
   networkMock.value = "mainnet";
@@ -133,29 +127,14 @@ beforeEach(() => {
 });
 
 describe("RootLayout — header wiring", () => {
-  it("v2 (flag off): shows BrandLockup, no page-title heading, no NetworkBadge", () => {
-    featureFlagsMock.isV3UiEnabled = false;
-
-    renderRootLayout();
-
-    // BrandLockup renders SmallLogo + a divider + the Aave wordmark image —
-    // the alt text is the stable, concrete marker (see AppSidebar.tsx).
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(COPY.header.networkBadge),
-    ).not.toBeInTheDocument();
-  });
-
-  it("v3 flag on, mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
-    featureFlagsMock.isV3UiEnabled = true;
+  it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
     networkMock.value = "mainnet";
 
     renderRootLayout();
 
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading).toHaveTextContent(COPY.nav.overview);
-    // The logo slot is replaced, not just hidden behind the title.
+    // The logo slot is the page title, not the BrandLockup wordmark.
     expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
     // Mainnet: NetworkBadge renders null.
     expect(
@@ -163,8 +142,7 @@ describe("RootLayout — header wiring", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("v3 flag on, signet: shows the page-title h1 and the NetworkBadge", () => {
-    featureFlagsMock.isV3UiEnabled = true;
+  it("signet: shows the page-title h1 and the NetworkBadge", () => {
     networkMock.value = "signet";
 
     renderRootLayout();
@@ -177,8 +155,6 @@ describe("RootLayout — header wiring", () => {
   });
 
   it("keeps the critical-banner portal slot mounted across the mobile breakpoint", () => {
-    featureFlagsMock.isV3UiEnabled = true;
-
     const { rerender } = renderRootLayout();
     const slot = document.getElementById(CRITICAL_BANNER_SLOT_ID);
 
@@ -193,8 +169,7 @@ describe("RootLayout — header wiring", () => {
     expect(slot).toBeInTheDocument();
   });
 
-  it("keeps legal links visible in the page footer on v3 mobile", () => {
-    featureFlagsMock.isV3UiEnabled = true;
+  it("keeps legal links visible in the page footer on mobile", () => {
     mobileMock.value = true;
 
     const { container } = renderRootLayout();

@@ -13,7 +13,6 @@ import featureFlags from "@/config/featureFlags";
 import {
   getFlagDisabledV3SectionPaths,
   isV3SectionEnabled,
-  V3_GUARDED_ROUTE_PATHS,
 } from "@/config/v3Navigation";
 
 import { AAVE_APP_ID } from "./applications/aave/config";
@@ -61,11 +60,10 @@ const LoanFlowOverlay = lazyWithRetry(() =>
   importLoanFlowOverlay().then((m) => ({ default: m.LoanFlowOverlay })),
 );
 
-// Guarded as whole subtrees, so a deep link into a section the flags hide
-// redirects rather than 404s — every v3 section while the v3 shell flag is
-// off, and the individually flag-gated ones while it is on. See
-// `config/v3Navigation.ts` for both lists (derived from the sidebar's nav
-// items so they can't silently drift from the six sections).
+// Guarded as whole subtrees, so a deep link into a section its own flag hides
+// redirects rather than 404s. See `config/v3Navigation.ts` for the list
+// (derived from the sidebar's nav items so it can't silently drift from the
+// six sections).
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -175,39 +173,25 @@ const ActivityWithProviders = () => (
 export const Router = () => {
   // Read per render, not at module scope: the flags decide which subtrees are
   // guarded, and a flag can differ between renders (see v3Navigation.ts).
-  const guardedSubtreePaths = featureFlags.isV3UiEnabled
-    ? getFlagDisabledV3SectionPaths()
-    : V3_GUARDED_ROUTE_PATHS;
+  const guardedSubtreePaths = getFlagDisabledV3SectionPaths();
 
   return (
     <Routes>
       <Route element={<RootLayout />}>
         <Route element={<AaveOverlayLayout />}>
           <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
-          {/* Registered only when the v3 flag is on: with no exact /vaults
-              route, the flag-off subtree guard below catches the bare path
-              (a splat matches zero segments) and redirects before any
-              provider mounts. Nesting a flag-off redirect here instead would
-              make it wait on AaveConfigProvider's blocking config fetch. */}
-          {featureFlags.isV3UiEnabled && (
-            <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
-          )}
+          <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
           <Route
             path={ROUTES.LOANS}
             element={
-              featureFlags.isV3UiEnabled ? (
-                <Suspense fallback={<RouteFallback />}>
-                  <LoansPage />
-                </Suspense>
-              ) : (
-                <Navigate to={ROUTES.OVERVIEW} replace />
-              )
+              <Suspense fallback={<RouteFallback />}>
+                <LoansPage />
+              </Suspense>
             }
           />
           <Route
             path={`${ROUTES.MARKETS}/:${MARKET_PARAM}`}
             element={
-              featureFlags.isV3UiEnabled &&
               featureFlags.isMarketDetailPageEnabled ? (
                 <Suspense fallback={<RouteFallback />}>
                   <BorrowingMarketsDataPage />
@@ -223,7 +207,6 @@ export const Router = () => {
           <Route
             path={ROUTES.LIQUIDATIONS}
             element={
-              featureFlags.isV3UiEnabled &&
               isV3SectionEnabled("liquidations") ? (
                 <Suspense fallback={<RouteFallback />}>
                   <Liquidations />
@@ -234,15 +217,14 @@ export const Router = () => {
             }
           />
         </Route>
-        {/* Explore is a v3-only static page with no Aave providers or reserve
-            overlay, so it sits directly under RootLayout (like /activity), not
-            under AaveOverlayLayout. Gated on the v3 shell plus its own flag
-            (like /liquidations); the subtree guards below cover /explore/*
-            under either flag being off. */}
+        {/* Explore is a static page with no Aave providers or reserve overlay,
+            so it sits directly under RootLayout (like /activity), not under
+            AaveOverlayLayout. Gated on its own flag (like /liquidations); the
+            subtree guards below cover /explore/* while that flag is off. */}
         <Route
           path={ROUTES.EXPLORE}
           element={
-            featureFlags.isV3UiEnabled && isV3SectionEnabled("explore") ? (
+            isV3SectionEnabled("explore") ? (
               <Suspense fallback={<RouteFallback />}>
                 <ExplorePage />
               </Suspense>

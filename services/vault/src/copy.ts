@@ -538,11 +538,8 @@ export const COPY = {
       transactionReserveLabel: "Transaction Reserve",
       transactionReserveTooltip:
         "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.",
-      // Amount-input left-field label; the slider renders its Max button when
-      // this reads "max" (case-insensitive), so keep the value as "Max".
-      maxLabel: "Max",
-      // v3 amount row: the depositable maximum is labelled as the balance,
-      // with `maxTooltip` explaining the fee buffer / cap adjustments.
+      // The depositable maximum is labelled as the balance, with `maxTooltip`
+      // explaining the fee buffer / cap adjustments.
       balanceLabel: "Balance",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
@@ -1588,13 +1585,11 @@ export const COPY = {
       repaidLabel: "Loan Repaid",
     },
     emptyDisconnected: connectToView("activity"),
-    emptyConnected: "No activity yet. Make your first deposit to get started.",
     emptyFiltered: "No activity",
-    depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
-    // v3 activity page (behind ENABLE_V3_UI): the empty state matches the
-    // shared v3 EmptyState card; status labels are derived from the row type
-    // plus pending/expired (a deposit's collateral is "In use", every other
-    // settled action is "Done"); date-group headers label the rows by day.
+    // The empty state matches the shared EmptyState card; status labels are
+    // derived from the row type plus pending/expired (a deposit's collateral is
+    // "In use", every other settled action is "Done"); date-group headers label
+    // the rows by day.
     emptyV3Title: "No activity yet",
     emptyV3Body:
       "Your account activity will appear here once you start using Babylon",
@@ -1656,29 +1651,9 @@ export const COPY = {
   // wording deliberately does not claim the remaining ops are blocked yet; those
   // gates land with the Freeze (reorder) and Pause (withdraw/repay/activation/…)
   // follow-ups, and the final freeze/pause wording is owned by design.
-  protocolStatus: {
-    frozen: {
-      title: "Protocol is frozen",
-      // Non-specific about which actions: gating is per-scope, so naming
-      // "deposits and borrows" can be inaccurate (e.g. an aave-only freeze
-      // leaves deposits working). Exits are always preserved under a freeze, so
-      // that reassurance is safe to state. The per-action buttons are the
-      // precise source of truth.
-      body: "Some new actions are temporarily restricted while the protocol is frozen. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
-    },
-    paused: {
-      title: "Protocol is paused",
-      // Non-specific for the same reason — under a per-scope pause the exact set
-      // of blocked actions varies. Each affected button explains itself.
-      body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
-    },
-  },
-  // v3 (Premium Design) freeze/pause banners, behind ENABLE_V3_UI. A flat
-  // sibling (not nested under protocolStatus) so `COPY.protocolStatus` stays a
-  // clean Record<ProtocolStatus>. Same per-scope accuracy constraint as the v2
-  // copy above applies here: gating is per-scope, so the wording is deliberately
-  // non-specific — an aave-only freeze leaves deposits working, so naming
-  // specific actions would be inaccurate. Keyed by ProtocolStatus.
+  // Per-scope accuracy constraint: gating is per-scope, so the wording is
+  // deliberately non-specific — an aave-only freeze leaves deposits working, so
+  // naming specific actions would be inaccurate. Keyed by ProtocolStatus.
   protocolStatusV3: {
     frozen: {
       title: "Protocol is soft-paused",
@@ -1783,10 +1758,7 @@ export const COPY = {
         "Consider consolidating smaller BTC Vaults into fewer larger ones — fewer BTC Vaults means lower fees and better optimization.",
     },
     maxVaults: {
-      title: "Maximum BTC Vaults reached",
-      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body
-      // keeps. Separate key so the v2 title above is untouched with the flag
-      // off, and so both retire in one edit when v2 goes.
+      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body keeps.
       titleV3: "Maximum vaults reached",
       detail: (cap: number) =>
         `This position already has the maximum number of BTC Vaults (${cap}).`,

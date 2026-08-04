@@ -2,9 +2,8 @@ import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 import { IoInformationCircle } from "react-icons/io5";
 
-import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
-import { FeatureFlags, getNetworkConfigBTC } from "@/config";
+import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
@@ -14,12 +13,8 @@ import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
 import { SplitTooLowHint } from "./SplitTooLowHint";
 import { SuggestedDepositContainer } from "./SuggestedDepositContainer";
-import {
-  UtxoSplitSelector,
-  type TwoVaultSplitProps,
-} from "./UtxoSplitSelector";
+import { type TwoVaultSplitProps } from "./UtxoSplitSelector";
 import { UtxoSplitSelectorV3 } from "./UtxoSplitSelectorV3";
-import { VaultProviderSelector } from "./VaultProviderSelector";
 import {
   VaultProviderSelectorV3,
   type VaultProviderSelectorProps,
@@ -27,19 +22,12 @@ import {
 
 const btcConfig = getNetworkConfigBTC();
 
-// v3 deposit CTA: accent-primary (#CE6533) enabled, stroke-primary (#5A5A5A)
+// Deposit CTA: accent-primary (#CE6533) enabled, stroke-primary (#5A5A5A)
 // disabled, 8px radius. core-ui's contained/primary button is slate blue with a
 // 30%-opacity disabled state, so both states are overridden here rather than in
-// the shared component. Undefined pre-v3, which leaves the core-ui styling.
-const V3_CTA_CLASSES = FeatureFlags.isV3UiEnabled
-  ? "!rounded-lg !bg-secondary-main disabled:!bg-secondary-strokeDark disabled:!opacity-100"
-  : undefined;
-
-interface Application {
-  id: string;
-  name: string;
-  logoUrl: string | null;
-}
+// the shared component.
+const V3_CTA_CLASSES =
+  "!rounded-lg !bg-secondary-main disabled:!bg-secondary-strokeDark disabled:!opacity-100";
 
 export interface DepositAmountState {
   amount: string;
@@ -117,8 +105,6 @@ export interface DepositFeeState {
 }
 
 export interface DepositProviderState {
-  applications: Application[];
-  selectedApplication: string;
   providers: VaultProviderListItem[];
   isLoadingProviders: boolean;
   selectedProvider: string;
@@ -246,14 +232,8 @@ export function DepositForm({
     protocolFeeIsError = false,
     feeRows,
   } = feeState;
-  const {
-    applications,
-    selectedApplication,
-    providers,
-    isLoadingProviders,
-    selectedProvider,
-    onProviderSelect,
-  } = providerState;
+  const { providers, isLoadingProviders, selectedProvider, onProviderSelect } =
+    providerState;
   const {
     isWalletConnected,
     hasWalletConnectionError = false,
@@ -351,8 +331,6 @@ export function DepositForm({
     </span>
   ) : null;
 
-  const selectedApp = applications.find((a) => a.id === selectedApplication);
-
   const maxTooltip = hasUnconfirmedBalanceOnly
     ? undefined
     : COPY.deposit.form.maxTooltip({
@@ -438,43 +416,18 @@ export function DepositForm({
             )
           }
           sliderVariant="primary"
-          // v3 mirrors the Figma row: USD value on the left, balance + Max
-          // pill on the right. v2 keeps the Max-pill-first layout.
-          leftField={
-            FeatureFlags.isV3UiEnabled
-              ? {
-                  value: !hasAmount
-                    ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-                    : usdValue,
-                }
-              : {
-                  label: COPY.deposit.form.maxLabel,
-                  value: maxDepositLabel,
-                  // Mention the supply cap only when one exists for this user.
-                  // `effectiveRemaining` is null both when no cap applies and
-                  // while the cap read is loading; either way we omit the cap
-                  // clause until we know it's a real constraint.
-                  //
-                  // Drop the Max tooltip while the pending-confirmation note is
-                  // shown so the row carries a single info icon (the pending
-                  // one) rather than two competing tooltips.
-                  tooltip: maxTooltip,
-                }
-          }
-          rightField={
-            FeatureFlags.isV3UiEnabled
-              ? {
-                  label: COPY.deposit.form.balanceLabel,
-                  value: maxDepositLabel,
-                  tooltip: maxTooltip,
-                }
-              : {
-                  value: !hasAmount
-                    ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-                    : usdValue,
-                }
-          }
-          maxPosition={FeatureFlags.isV3UiEnabled ? "right" : "left"}
+          // Figma row: USD value on the left, balance + Max pill on the right.
+          leftField={{
+            value: !hasAmount
+              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+              : usdValue,
+          }}
+          rightField={{
+            label: COPY.deposit.form.balanceLabel,
+            value: maxDepositLabel,
+            tooltip: maxTooltip,
+          }}
+          maxPosition="right"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
@@ -526,41 +479,15 @@ export function DepositForm({
         )}
       </Card>
 
-      {twoVaultSplit &&
-        (FeatureFlags.isV3UiEnabled ? (
-          <UtxoSplitSelectorV3
-            twoVaultSplit={twoVaultSplit}
-            expanded={openPanel === "split"}
-            onExpandedChange={setPanelExpanded("split")}
-          />
-        ) : (
-          <UtxoSplitSelector
-            twoVaultSplit={twoVaultSplit}
-            expanded={openPanel === "split"}
-            onExpandedChange={setPanelExpanded("split")}
-          />
-        ))}
-
-      {/* Aave app. v3 shows the application logo in the page header instead
-          (see SimpleDeposit), so this row is v2-only. */}
-      {!FeatureFlags.isV3UiEnabled && selectedApp && (
-        <Card variant="filled" className="flex items-center gap-3 !rounded-lg">
-          <ApplicationLogo
-            logoUrl={selectedApp.logoUrl}
-            name={selectedApp.name}
-            size="small"
-          />
-          <span className="text-sm text-accent-primary">
-            {selectedApp.name}
-          </span>
-        </Card>
+      {twoVaultSplit && (
+        <UtxoSplitSelectorV3
+          twoVaultSplit={twoVaultSplit}
+          expanded={openPanel === "split"}
+          onExpandedChange={setPanelExpanded("split")}
+        />
       )}
 
-      {FeatureFlags.isV3UiEnabled ? (
-        <VaultProviderSelectorV3 {...providerSelectorProps} />
-      ) : (
-        <VaultProviderSelector {...providerSelectorProps} />
-      )}
+      <VaultProviderSelectorV3 {...providerSelectorProps} />
 
       {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
           ("Unlock wallet") is the affordance. A liveness failure still surfaces

@@ -28,7 +28,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 }));
 
 vi.mock("@/config", () => ({
-  FeatureFlags: { isV3UiEnabled: true },
+  FeatureFlags: {},
   // AssetListItem pulls in @/utils/formatting, which reads BTC network config
   // at module scope.
   getNetworkConfigBTC: () => ({ coinSymbol: "sBTC", displayUSD: false }),

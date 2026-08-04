@@ -18,20 +18,14 @@ import {
 const REGISTERED_USDC = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
 
 describe("getReserveDetailRoute", () => {
-  it("writes the reserve id into the v2 route", () => {
-    expect(getReserveDetailRoute(5n, "borrow", false)).toBe(
-      "/?reserve=5&tab=borrow",
-    );
-  });
-
-  it("writes the reserve id into the v3 route", () => {
-    expect(getReserveDetailRoute(5n, "repay", true)).toBe(
+  it("writes the reserve id into the route", () => {
+    expect(getReserveDetailRoute(5n, "repay")).toBe(
       "/loans?reserve=5&tab=repay",
     );
   });
 
   it("preserves a large reserve id exactly", () => {
-    expect(getReserveDetailRoute(18446744073709551617n, "borrow", true)).toBe(
+    expect(getReserveDetailRoute(18446744073709551617n, "borrow")).toBe(
       "/loans?reserve=18446744073709551617&tab=borrow",
     );
   });

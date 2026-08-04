@@ -1,8 +1,4 @@
-import {
-  Container,
-  Notification,
-  type NotificationVariant,
-} from "@babylonlabs-io/core-ui";
+import { Container } from "@babylonlabs-io/core-ui";
 
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
@@ -18,16 +14,8 @@ import { COPY } from "@/copy";
 import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
-// frozen = teal/info-light (you can still act); paused = red/error-light (full
-// stop). The core-ui variant names ("paused"/"halted") are visual styles, kept
-// as-is — only the protocol-status naming changed.
-const STATUS_VARIANT: Record<ProtocolStatus, NotificationVariant> = {
-  frozen: "paused",
-  paused: "halted",
-};
-
-// v3 tone per status — exhaustive over ProtocolStatus, mirroring STATUS_VARIANT
-// so a new ScopeStatus fails the typecheck instead of silently falling through.
+// tone per status — exhaustive over ProtocolStatus so a new ScopeStatus fails
+// the typecheck instead of silently falling through.
 const STATUS_TONE: Record<ProtocolStatus, NotificationCardTone> = {
   frozen: "soft-paused",
   paused: "fully-paused",
@@ -50,36 +38,20 @@ export function ProtocolStatusBanner() {
     return null;
   }
 
-  if (featureFlags.isV3UiEnabled) {
-    const v3 = COPY.protocolStatusV3[status];
-    const body = featureFlags.noticeBannerMessage ?? v3.body;
-    return (
-      <Container className={`${PAGE_CONTENT_CLASS} py-6`}>
-        <NotificationCard
-          tone={STATUS_TONE[status]}
-          title={v3.title}
-          data-testid="protocol-status-banner"
-        >
-          {body}
-        </NotificationCard>
-      </Container>
-    );
-  }
-
-  const copy = COPY.protocolStatus[status];
-  const body = featureFlags.noticeBannerMessage ?? copy.body;
+  const v3 = COPY.protocolStatusV3[status];
+  const body = featureFlags.noticeBannerMessage ?? v3.body;
 
   // Same Container the page sections use, so the card aligns to the content
   // column width instead of overshooting it.
   return (
     <Container className={`${PAGE_CONTENT_CLASS} py-6`}>
-      <Notification
-        variant={STATUS_VARIANT[status]}
-        title={copy.title}
+      <NotificationCard
+        tone={STATUS_TONE[status]}
+        title={v3.title}
         data-testid="protocol-status-banner"
       >
         {body}
-      </Notification>
+      </NotificationCard>
     </Container>
   );
 }

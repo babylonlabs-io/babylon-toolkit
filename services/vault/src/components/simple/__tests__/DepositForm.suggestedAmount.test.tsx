@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
@@ -12,12 +12,7 @@ import {
   type DepositWalletState,
 } from "../DepositForm";
 
-const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: true,
-}));
-
 vi.mock("@/config", () => ({
-  FeatureFlags: featureFlagsMock,
   getNetworkConfigBTC: () => ({
     coinSymbol: "BTC",
     name: "Bitcoin",
@@ -91,8 +86,6 @@ const feeState: DepositFeeState = {
 };
 
 const providerState: DepositProviderState = {
-  applications: [],
-  selectedApplication: "",
   providers: [],
   isLoadingProviders: false,
   selectedProvider: "",
@@ -129,10 +122,6 @@ function renderForm(
   );
   return onAmountChange;
 }
-
-beforeEach(() => {
-  featureFlagsMock.isV3UiEnabled = true;
-});
 
 describe("DepositForm suggested amount", () => {
   it("does not render the suggested container when there is no suggestion", () => {

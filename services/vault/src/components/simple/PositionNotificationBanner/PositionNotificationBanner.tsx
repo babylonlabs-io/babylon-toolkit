@@ -30,7 +30,6 @@ import {
   isReorderBlocked,
   isRepayBlocked,
 } from "@/components/shared/protocolStatus";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
@@ -79,20 +78,18 @@ const WARNING_TONE: Record<WarningType, NotificationCardTone | null> = {
   "weird-params": null,
 };
 
-// Advisories the user may close in both UI versions: informational notices with
-// no action to take. Unchanged from the v2 behaviour these two have always had.
+// Advisories the user may close: informational notices with no action to take.
 const DISMISSIBLE_WARNINGS: ReadonlySet<WarningType> = new Set<WarningType>([
   "dust",
   "weird-params",
 ]);
 
-// Additionally dismissible under the v3 Premium Design, whose Figma frames draw
-// a close (X) on cliff (§4) and reorder (§5, including the standalone suggestion
-// card). The spec covers the v3 cards only, so v2 keeps its existing X-less
-// cliff/reorder. `urgent` (§1) and `too-many-vaults` (§9) are dismissible in
-// neither: an imminent-liquidation warning must not be hideable. Keyed by
-// warning type rather than severity because cliff/too-many-vaults share the same
-// `yellow` severity but differ here.
+// Also dismissible, per the Figma frames that draw a close (X) on cliff (§4)
+// and reorder (§5, including the standalone suggestion card). `urgent` (§1) and
+// `too-many-vaults` (§9) are dismissible in neither: an imminent-liquidation
+// warning must not be hideable. Keyed by warning type rather than severity
+// because cliff/too-many-vaults share the same `yellow` severity but differ
+// here.
 const V3_DISMISSIBLE_WARNINGS: ReadonlySet<WarningType> = new Set<WarningType>([
   "cliff",
   "reorder",
@@ -244,8 +241,7 @@ export function PositionNotificationBanner({
       ? `reorder:${result.optimalVaultOrder?.map((vault) => vault.id).join(",") ?? ""}`
       : advisoryType;
   const canDismissType = (type: WarningType) =>
-    DISMISSIBLE_WARNINGS.has(type) ||
-    (featureFlags.isV3UiEnabled && V3_DISMISSIBLE_WARNINGS.has(type));
+    DISMISSIBLE_WARNINGS.has(type) || V3_DISMISSIBLE_WARNINGS.has(type);
   // One card carries the primary warning AND any secondaries stacked in its
   // suggestion box, so closing it hides them too. Only offer the X when every
   // warning on the card is one the user is allowed to dismiss — otherwise a
@@ -403,7 +399,7 @@ export function PositionNotificationBanner({
 
   return (
     <>
-      {featureFlags.isV3UiEnabled && v3Tone ? (
+      {v3Tone ? (
         <NotificationCard
           tone={v3Tone}
           // Figma insets the cliff card's suggestion box tighter than the rest.
