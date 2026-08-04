@@ -61,6 +61,7 @@ import {
 } from "../../services/vault";
 import { activateVaultWithSecret } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
+import { verifyResumeParticipantKeys } from "../../services/vault/verifyResumeParticipantKeys";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import {
   shouldProbeWalletLiveness,
@@ -316,6 +317,16 @@ export function useVaultActions(): UseVaultActionsReturn {
               buildUniversalChallengersVersion,
             expectedVaultCoreVersion: buildVaultCoreVersion,
           });
+
+          // RFC-006: the same guard the inline deposit path applies before
+          // broadcast. Gated on the stamp being present — records written with
+          // the flag off, or before it shipped, simply skip it.
+          if (pendingPegin?.buildParticipantOperationKeys) {
+            await verifyResumeParticipantKeys({
+              vaultId,
+              expected: pendingPegin.buildParticipantOperationKeys,
+            });
+          }
         } catch (err) {
           // Only a confirmed mismatch drops the entry — transient RPC
           // failures keep it so the user can retry. Mirrors the inline

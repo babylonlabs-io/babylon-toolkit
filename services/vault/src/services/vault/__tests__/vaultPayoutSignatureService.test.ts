@@ -12,6 +12,21 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
   getVaultProviderBtcPubkeyFromChain: vi.fn(),
+  getVaultKeyEpochsFromChain: vi.fn().mockResolvedValue({
+    vpKeyEpoch: 0n,
+    appKeeperKeyEpoch: 0n,
+    ucKeyEpoch: 0n,
+  }),
+}));
+
+// Un-rotated operator set: every participant's bonded key is its roster key and
+// the registry backfills BIP-86, so resolution is a pass-through here and these
+// cases stay about the surrounding context wiring.
+const mockResolveParticipantKeysAtEpochs = vi.hoisted(() => vi.fn());
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
+  ...((await importOriginal()) as object),
+  resolveParticipantKeysAtEpochs: (...args: unknown[]) =>
+    mockResolveParticipantKeysAtEpochs(...args),
 }));
 
 vi.mock("../../../config/pegin", () => ({
@@ -36,6 +51,11 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getUniversalChallengerReader: vi.fn().mockResolvedValue({
     getUniversalChallengersByVersion: (...args: unknown[]) =>
       mockGetUniversalChallengersByVersion(...args),
+  }),
+  getOperationKeyReader: vi.fn().mockResolvedValue({
+    getPayoutScriptsAtEpochs: vi
+      .fn()
+      .mockResolvedValue({ vaultProvider: "0xvpScript", vaultKeepers: [] }),
   }),
 }));
 
@@ -162,6 +182,15 @@ describe("vaultPayoutSignatureService", () => {
       (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
+      mockResolveParticipantKeysAtEpochs.mockResolvedValue({
+        vaultProvider: { operationBtcPubkey: ON_CHAIN_VP_PUBKEY },
+        vaultKeepers: [
+          { operationBtcPubkey: "vk1" },
+          { operationBtcPubkey: "vk2" },
+        ],
+        vaultKeeperOperationKeysSorted: ["vk1", "vk2"],
+        universalChallengerOperationKeysSorted: ["uc1"],
+      });
     });
 
     it("builds a SigningContext from on-chain data and returns provider address", async () => {

@@ -25,6 +25,7 @@ import {
 } from "../../primitives/psbt/__tests__/constants";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import { PAYOUT_ANCHOR_DUST_SATS } from "../../primitives/psbt/constants";
+import { deriveBip86ScriptPubKeyHex } from "../../primitives/utils/bitcoin";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // These tests inject synthetic signatures into otherwise-real payout PSBTs to
@@ -49,6 +50,18 @@ const TEST_KEYS = {
 
 /** Valid P2WPKH scriptPubKey for payout output address validation tests */
 const TEST_PAYOUT_SCRIPT_PUBKEY = P2WPKH_PREFIX + "d".repeat(40);
+
+/**
+ * VP commission destination of the test payout transactions (outs[1]), and the
+ * keeper payout map for an un-rotated operator set where the registry backfills
+ * BIP-86 — the same bytes local derivation would produce.
+ */
+const TEST_VP_COMMISSION_SCRIPT = createDummyP2WPKH("e").toString("hex");
+const TEST_VK_PAYOUT_SCRIPTS: Readonly<Record<string, string>> = {
+  [TEST_KEYS.VAULT_KEEPER_1.toLowerCase()]: deriveBip86ScriptPubKeyHex(
+    TEST_KEYS.VAULT_KEEPER_1,
+  ),
+};
 
 describe("PayoutManager", () => {
   beforeAll(async () => {
@@ -245,6 +258,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         },
         {
           vaultCoreVersion: 1,
@@ -261,6 +276,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         },
       ]);
 
@@ -312,6 +329,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow(
@@ -360,6 +379,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow();
@@ -423,6 +444,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
           {
             vaultCoreVersion: 1,
@@ -439,6 +462,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow("Expected 2 signed PSBTs but received 1");
@@ -504,6 +529,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
           {
             vaultCoreVersion: 1,
@@ -520,6 +547,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow("Expected 2 signed PSBTs but received 3");
@@ -611,6 +640,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow(
         "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
@@ -652,6 +683,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.not.toThrow(
         "output 0 does not pay the expected scriptPubKey for role vp-claimer",
@@ -688,6 +721,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
     });
@@ -750,6 +785,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow(/has 4 output\(s\), expected exactly 3/);
     });
@@ -811,6 +848,8 @@ describe("PayoutManager", () => {
           commissionBps: 500,
           protocolFeeRate: 10n,
           councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow(/output 0 script/);
     });
@@ -849,6 +888,8 @@ describe("PayoutManager", () => {
             commissionBps: 500,
             protocolFeeRate: 10n,
             councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow(

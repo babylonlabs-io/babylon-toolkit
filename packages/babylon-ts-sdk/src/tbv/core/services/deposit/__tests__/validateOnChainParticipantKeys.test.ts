@@ -4,25 +4,43 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AddressBTCKeyPair,
   OnChainBtcPubkey,
+  OperationKeyQuery,
+  OperationKeyReader,
+  RawOperationKeys,
   UniversalChallengerReader,
   VaultKeeperReader,
   VaultRegistryReader,
 } from "../../../clients/eth/types";
+import {
+  ADDRESSES,
+  FakeOperationKeyReader,
+  KEYS,
+  buildQuery,
+  xOnlyFromSeed,
+} from "../../participants/__tests__/fixtures/rotation";
 import { validateOnChainParticipantKeys } from "../validateOnChainParticipantKeys";
 
-const VP_KEY = "a".repeat(64);
+// Real secp256k1 x-only keys: operation-key resolution asserts every roster
+// key is a curve point, so placeholder hex will not survive it. Keeper and
+// challenger names are assigned in sorted order so the lex-ordering
+// expectations below hold by construction rather than by luck.
+const VP_KEY = xOnlyFromSeed(101);
 const VP_KEY_COMPRESSED = `02${VP_KEY}`;
-const VP_KEY_UPPERCASE = "A".repeat(64);
-const VP_KEY_DIFFERENT = "b".repeat(64);
+const VP_KEY_UPPERCASE = VP_KEY.toUpperCase();
+const VP_KEY_DIFFERENT = xOnlyFromSeed(102);
 
-const KEEPER_1 = "1".repeat(64);
-const KEEPER_2 = "2".repeat(64);
-const KEEPER_3 = "3".repeat(64);
-const KEEPER_OTHER = "9".repeat(64);
+const [KEEPER_1, KEEPER_2, KEEPER_3, KEEPER_OTHER] = [
+  xOnlyFromSeed(103),
+  xOnlyFromSeed(104),
+  xOnlyFromSeed(105),
+  xOnlyFromSeed(106),
+].sort();
 
-const CHALLENGER_1 = "4".repeat(64);
-const CHALLENGER_2 = "5".repeat(64);
-const CHALLENGER_OTHER = "8".repeat(64);
+const [CHALLENGER_1, CHALLENGER_2, CHALLENGER_OTHER] = [
+  xOnlyFromSeed(107),
+  xOnlyFromSeed(108),
+  xOnlyFromSeed(109),
+].sort();
 
 const APP_ENTRY_POINT = "0xApp" as Address;
 const VP_ETH_ADDRESS = "0xVP" as Address;
@@ -31,7 +49,12 @@ const KEEPERS_VERSION = 7;
 const CHALLENGERS_VERSION = 11;
 
 function pair(btcPubKey: string): AddressBTCKeyPair {
-  return { ethAddress: "0x0" as Address, btcPubKey: btcPubKey as `0x${string}` };
+  // The registry always returns roster keys 0x-prefixed; the bare constants in
+  // this file are for readability only.
+  return {
+    ethAddress: "0x0" as Address,
+    btcPubKey: `0x${btcPubKey}` as `0x${string}`,
+  };
 }
 
 function buildReaders({
@@ -54,6 +77,9 @@ function buildReaders({
     getPegInFee: vi.fn(),
     getVaultProviderCommission: vi.fn(),
     getOffchainParamsVersionsByVaultIds: vi.fn(),
+    getVaultKeyEpochs: vi.fn(),
+    getVaultKeyEpochsBatch: vi.fn(),
+    getCurrentVaultProviderOperationBtcKey: vi.fn(),
   };
   const vaultKeeperReader: VaultKeeperReader = {
     getVaultKeepersByVersion: vi.fn().mockResolvedValue(keeperKeys.map(pair)),
@@ -69,7 +95,31 @@ function buildReaders({
       .fn()
       .mockResolvedValue(CHALLENGERS_VERSION),
   };
-  return { vaultRegistryReader, vaultKeeperReader, universalChallengerReader };
+  return {
+    vaultRegistryReader,
+    vaultKeeperReader,
+    universalChallengerReader,
+    operationKeyReader: unrotatedOperationKeyReader(),
+  };
+}
+
+/**
+ * Operation-key reader for an operator set that has never rotated: every
+ * participant's current operation key is its genesis/roster key. Mirrors what
+ * the registry's own genesis fallback returns, so these cases stay focused on
+ * the indexer-hint and sorting behaviour rather than on rotation.
+ */
+function unrotatedOperationKeyReader(): OperationKeyReader {
+  const echo = async (query: OperationKeyQuery): Promise<RawOperationKeys> => ({
+    vaultProvider: query.vaultProviderGenesisBtcPubkey,
+    vaultKeepers: query.vaultKeepers.map((k) => k.btcPubKey),
+    universalChallengers: query.universalChallengers.map((c) => c.btcPubKey),
+  });
+  return {
+    getCurrentOperationKeys: echo,
+    getOperationKeysAtEpochs: echo,
+    getPayoutScriptsAtEpochs: vi.fn(),
+  };
 }
 
 describe("validateOnChainParticipantKeys", () => {
@@ -139,7 +189,9 @@ describe("validateOnChainParticipantKeys", () => {
   });
 
   it("rejects when the keeper count differs from the on-chain set", async () => {
-    const readers = buildReaders({ keeperKeys: [KEEPER_1, KEEPER_2, KEEPER_3] });
+    const readers = buildReaders({
+      keeperKeys: [KEEPER_1, KEEPER_2, KEEPER_3],
+    });
 
     await expect(
       validateOnChainParticipantKeys({
@@ -240,5 +292,147 @@ describe("validateOnChainParticipantKeys", () => {
 
     expect(result.vaultProviderBtcPubkeyXOnly).toBe(VP_KEY);
     expect(result.vaultProviderBtcPubkeyXOnly).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("validateOnChainParticipantKeys with operation-key resolution", () => {
+  // Real secp256k1 points, because resolution validates curve membership —
+  // the placeholder keys above would be rejected before any hint comparison.
+  const REGISTRATION = {
+    vp: KEYS.vpGenesis,
+    keepers: [
+      KEYS.keeperAGenesis,
+      KEYS.keeperBGenesis,
+      KEYS.keeperCGenesis,
+    ].sort(),
+    challengers: [KEYS.challenger1Genesis, KEYS.challenger2Genesis].sort(),
+  };
+  const OPERATION = {
+    vp: KEYS.vpRotated,
+    keepers: [
+      KEYS.keeperAGenesis,
+      KEYS.keeperBRotated,
+      KEYS.keeperCGenesis,
+    ].sort(),
+    challengers: [KEYS.challenger1Rotated, KEYS.challenger2Genesis].sort(),
+  };
+
+  function buildRotationReaders() {
+    const query = buildQuery();
+    return {
+      vaultRegistryReader: {
+        getVaultBasicInfo: vi.fn(),
+        getVaultProtocolInfo: vi.fn(),
+        getProtocolInfoBatch: vi.fn(),
+        getVaultData: vi.fn(),
+        getVaultProviderBtcPubKey: vi
+          .fn()
+          .mockResolvedValue(KEYS.vpGenesis as OnChainBtcPubkey),
+        getPegInFee: vi.fn(),
+        getVaultProviderCommission: vi.fn(),
+        getOffchainParamsVersionsByVaultIds: vi.fn(),
+        getVaultKeyEpochs: vi.fn(),
+        getVaultKeyEpochsBatch: vi.fn(),
+        getCurrentVaultProviderOperationBtcKey: vi.fn(),
+      } as VaultRegistryReader,
+      vaultKeeperReader: {
+        getVaultKeepersByVersion: vi.fn().mockResolvedValue(query.vaultKeepers),
+        getCurrentVaultKeepers: vi.fn(),
+        getCurrentVaultKeepersVersion: vi.fn().mockResolvedValue(3),
+      } as VaultKeeperReader,
+      universalChallengerReader: {
+        getUniversalChallengersByVersion: vi
+          .fn()
+          .mockResolvedValue(query.universalChallengers),
+        getCurrentUniversalChallengers: vi.fn(),
+        getLatestUniversalChallengersVersion: vi.fn().mockResolvedValue(5),
+      } as UniversalChallengerReader,
+      operationKeyReader: new FakeOperationKeyReader(),
+      vaultProviderEthAddress: ADDRESSES.vaultProvider,
+      applicationEntryPoint: ADDRESSES.applicationEntryPoint,
+    };
+  }
+
+  it("builds with the operation keys, not the registration keys", async () => {
+    const readers = buildRotationReaders();
+
+    const result = await validateOnChainParticipantKeys({
+      ...readers,
+      expectedVaultProviderBtcPubkey: REGISTRATION.vp,
+      expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
+      expectedUniversalChallengerBtcPubkeys: REGISTRATION.challengers,
+    });
+
+    expect(result.vaultProviderBtcPubkeyXOnly).toBe(OPERATION.vp);
+    expect(result.vaultKeeperBtcPubkeysSorted).toEqual(OPERATION.keepers);
+    expect(result.universalChallengerBtcPubkeysSorted).toEqual(
+      OPERATION.challengers,
+    );
+    // The registration keys stay available for diagnostics.
+    expect(result.registrationKeys.vaultProvider).toBe(REGISTRATION.vp);
+    expect(result.participantKeys).not.toBeNull();
+  });
+
+  it("accepts an indexer hint that still serves the registration keys", async () => {
+    const readers = buildRotationReaders();
+    const onIndexerServingOperationKeys = vi.fn();
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        expectedVaultProviderBtcPubkey: REGISTRATION.vp,
+        expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
+        expectedUniversalChallengerBtcPubkeys: REGISTRATION.challengers,
+        onIndexerServingOperationKeys,
+      }),
+    ).resolves.toBeDefined();
+
+    expect(onIndexerServingOperationKeys).not.toHaveBeenCalled();
+  });
+
+  it("accepts an indexer hint that has caught up to the operation keys", async () => {
+    const readers = buildRotationReaders();
+    const onIndexerServingOperationKeys = vi.fn();
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        expectedVaultProviderBtcPubkey: OPERATION.vp,
+        expectedVaultKeeperBtcPubkeys: OPERATION.keepers,
+        expectedUniversalChallengerBtcPubkeys: OPERATION.challengers,
+        onIndexerServingOperationKeys,
+      }),
+    ).resolves.toBeDefined();
+
+    expect(onIndexerServingOperationKeys).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a hint that mixes registration and operation keys across roles", async () => {
+    // A half-applied indexer view: the VP is still pre-rotation while the
+    // challengers have caught up. No single snapshot of the indexer ever held
+    // this combination.
+    const readers = buildRotationReaders();
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        expectedVaultProviderBtcPubkey: REGISTRATION.vp,
+        expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
+        expectedUniversalChallengerBtcPubkeys: OPERATION.challengers,
+      }),
+    ).rejects.toThrow(/internally inconsistent/i);
+  });
+
+  it("rejects a hint matching neither key set", async () => {
+    const readers = buildRotationReaders();
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        expectedVaultProviderBtcPubkey: KEYS.outsider,
+        expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
+        expectedUniversalChallengerBtcPubkeys: REGISTRATION.challengers,
+      }),
+    ).rejects.toThrow(/Vault provider BTC pubkey/);
   });
 });

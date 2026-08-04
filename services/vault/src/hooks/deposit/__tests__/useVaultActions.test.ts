@@ -33,6 +33,9 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 
 vi.mock("@/config/network", () => ({
   getETHChain: vi.fn(() => ({ id: 11155111 })),
+  // Reached transitively: the resume broadcast's RFC-006 capability probe
+  // pulls in the shared ETHClient, which reads the RPC config at construction.
+  getNetworkConfigETH: vi.fn(() => ({ rpcUrl: "http://localhost:8545" })),
 }));
 
 // `captureFunnelFailure` reaches the logger through this barrel, so mocking it

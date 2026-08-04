@@ -67,6 +67,24 @@ export interface PendingPeginRequest {
   buildAppVaultKeepersVersion?: number;
   buildUniversalChallengersVersion?: number;
   buildVaultCoreVersion?: number;
+  /**
+   * RFC-006 participant operation keys the Pre-PegIn scripts were built with
+   * (x-only, lowercase, no `0x`; the two sets lex-sorted).
+   *
+   * Stored as *keys* rather than the vault's key epochs on purpose: keys are
+   * directly comparable, whereas epochs would need the frozen roster re-derived
+   * before they meant anything. Asserted before a resume broadcast so a
+   * rotation that landed after the build cannot be broadcast against.
+   *
+   * Optional: absent on records written with the flag off, on legacy records,
+   * and on REFUND_BROADCAST tracking entries. Absent simply skips the check —
+   * the versions guard above still applies.
+   */
+  buildParticipantOperationKeys?: {
+    vaultProvider: string;
+    vaultKeepers: string[];
+    universalChallengers: string[];
+  };
 }
 
 // Hex with optional 0x prefix and at least one byte (even-length).
@@ -222,6 +240,28 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     // ≥ 0 acceptance.
     const min = field === "buildVaultCoreVersion" ? 1 : 0;
     if (typeof v !== "number" || !Number.isInteger(v) || v < min) {
+      return false;
+    }
+  }
+
+  // RFC-006 build-time operation keys. Optional, but if present the shape must
+  // hold — this is untrusted storage feeding a pre-broadcast equality check.
+  const opKeys = pegin.buildParticipantOperationKeys;
+  if (opKeys !== undefined) {
+    if (!opKeys || typeof opKeys !== "object") return false;
+    const { vaultProvider, vaultKeepers, universalChallengers } =
+      opKeys as Record<string, unknown>;
+    const isXOnly = (k: unknown) =>
+      typeof k === "string" && /^[0-9a-f]{64}$/.test(k);
+    if (
+      !isXOnly(vaultProvider) ||
+      !Array.isArray(vaultKeepers) ||
+      !Array.isArray(universalChallengers) ||
+      vaultKeepers.length === 0 ||
+      universalChallengers.length === 0 ||
+      !vaultKeepers.every(isXOnly) ||
+      !universalChallengers.every(isXOnly)
+    ) {
       return false;
     }
   }

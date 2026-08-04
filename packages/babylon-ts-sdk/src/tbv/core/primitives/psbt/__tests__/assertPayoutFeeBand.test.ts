@@ -189,7 +189,7 @@ describe("assertPayoutFeeInBand", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
-  it("does not widen the ceiling for the unpinned commission script length", async () => {
+  it("does not widen the ceiling for the commission script length", async () => {
     // out1 is VP-controlled; a 128-byte pad must buy zero extra headroom —
     // the ceiling stays at the flat 10 * 610 = 6_100.
     const measured = { out0Len: P2WPKH_LEN, out1Len: 128 };

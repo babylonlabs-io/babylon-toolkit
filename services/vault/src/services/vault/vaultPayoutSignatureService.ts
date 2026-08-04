@@ -18,8 +18,8 @@
  */
 
 import {
-  getSortedXOnlyPubkeys,
   processPublicKeyToXOnly,
+  resolveParticipantKeysAtEpochs,
   stripHexPrefix,
   type Network,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -27,9 +27,11 @@ import type { Address, Hex } from "viem";
 
 import {
   getVaultFromChain,
+  getVaultKeyEpochsFromChain,
   getVaultProviderBtcPubkeyFromChain,
 } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
+  getOperationKeyReader,
   getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
@@ -90,6 +92,14 @@ export interface SigningContext {
    * implicit fee (device fee-bound model).
    */
   protocolFeeRate: bigint;
+
+  /**
+   * RFC-006 keeper payout destinations at the vault's frozen
+   * `appKeeperKeyEpoch`, keyed by lowercased x-only operation pubkey.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** RFC-006 VP commission destination at the vault's frozen `vpKeyEpoch`. */
+  vpCommissionScriptPubKey: string;
 }
 
 export interface PreparedSigningData {
@@ -206,17 +216,46 @@ export async function prepareSigningContext(
     );
   }
 
-  const vaultProviderBtcPubkey = await resolveVaultProviderBtcPubkey(
+  const registrationVpBtcPubkey = await resolveVaultProviderBtcPubkey(
     vault.vaultProvider,
     vaultProviderBtcPubKey,
   );
 
-  const vaultKeeperBtcPubkeys = getSortedXOnlyPubkeys(
-    vaultKeepers.map((vk) => vk.btcPubKey),
+  // RFC-006. This vault froze its key epochs at creation, so it must be signed
+  // with the keys bonded *then* — not whatever the operators hold now. The
+  // rosters above are already at the vault's frozen membership versions, which
+  // is what supplies the genesis fallback for keepers and challengers.
+  const operationKeyReader = await getOperationKeyReader();
+  const epochs = await getVaultKeyEpochsFromChain(vaultId as Hex);
+  const query = {
+    vaultProviderEthAddress: vault.vaultProvider,
+    vaultProviderGenesisBtcPubkey: `0x${registrationVpBtcPubkey}` as Hex,
+    applicationEntryPoint: vault.applicationEntryPoint,
+    vaultKeepers,
+    universalChallengers,
+  };
+
+  const [participantKeys, payoutScripts] = await Promise.all([
+    resolveParticipantKeysAtEpochs({ operationKeyReader, query, epochs }),
+    operationKeyReader.getPayoutScriptsAtEpochs(query, epochs),
+  ]);
+
+  const vaultProviderBtcPubkey =
+    participantKeys.vaultProvider.operationBtcPubkey;
+  const vaultKeeperBtcPubkeys = participantKeys.vaultKeeperOperationKeysSorted;
+  const universalChallengerBtcPubkeys =
+    participantKeys.universalChallengerOperationKeysSorted;
+
+  // Keyed by the *operation* key, which is what arrives as `claimer_pubkey`.
+  // Built from the roster-ordered pairs, never by index-joining a sorted
+  // array — a rotated key sorts somewhere else.
+  const vkClaimerPayoutScriptPubKeys = Object.fromEntries(
+    participantKeys.vaultKeepers.map((keeper, i) => [
+      keeper.operationBtcPubkey.toLowerCase(),
+      payoutScripts.vaultKeepers[i],
+    ]),
   );
-  const universalChallengerBtcPubkeys = getSortedXOnlyPubkeys(
-    universalChallengers.map((uc) => uc.btcPubKey),
-  );
+  const vpCommissionScriptPubKey = payoutScripts.vaultProvider;
 
   return {
     context: {
@@ -237,6 +276,8 @@ export async function prepareSigningContext(
       commissionBps: vault.vaultProviderCommissionBps,
       // Version-locked graph-build rate — same fetch as timelockAssert above.
       protocolFeeRate: offchainParams.feeRate,
+      vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey,
     },
     vaultProviderAddress: vault.vaultProvider,
   };

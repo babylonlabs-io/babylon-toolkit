@@ -171,15 +171,31 @@ export const BTCVaultRegistryABI = [
         type: "tuple[]",
         internalType: "struct BTCVaultRegistryTypes.BatchPeginRequest[]",
         components: [
-          { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
+          {
+            name: "depositorBtcPubKey",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
           { name: "btcPopSignature", type: "bytes", internalType: "bytes" },
           { name: "unsignedPrePeginTx", type: "bytes", internalType: "bytes" },
-          { name: "depositorSignedPeginTx", type: "bytes", internalType: "bytes" },
+          {
+            name: "depositorSignedPeginTx",
+            type: "bytes",
+            internalType: "bytes",
+          },
           { name: "hashlock", type: "bytes32", internalType: "bytes32" },
           { name: "htlcVout", type: "uint8", internalType: "uint8" },
           { name: "referralCode", type: "uint32", internalType: "uint32" },
-          { name: "depositorPayoutBtcAddress", type: "bytes", internalType: "bytes" },
-          { name: "depositorWotsPkHash", type: "bytes32", internalType: "bytes32" },
+          {
+            name: "depositorPayoutBtcAddress",
+            type: "bytes",
+            internalType: "bytes",
+          },
+          {
+            name: "depositorWotsPkHash",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
         ],
       },
     ],
@@ -233,23 +249,54 @@ export const BTCVaultRegistryABI = [
   {
     type: "function",
     name: "getVaultProviderBTCKey",
+    inputs: [{ name: "vpAddr", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view",
+  },
+  // --- RFC-006 operation-key resolution ---------------------------------
+  // A vault provider's BTC key is no longer the fixed registration key
+  // returned by `getVaultProviderBTCKey` above: it is an append-only history
+  // of *operation* keys, rotated by the provider's cold ETH admin key. Each
+  // vault freezes a `vpKeyEpoch` at `submitPeginRequest` and resolves the key
+  // bonded at that epoch, so a later rotation never invalidates a live vault.
+  //
+  // Both getters fall back on-chain when the provider never rotated:
+  // `getCurrentOperationBtcKey` returns the registration key at version 0, and
+  // `getPayoutScriptAtEpoch` returns the BIP-86 P2TR of the epoch's operation
+  // key when no explicit payout script was registered. That is what makes
+  // adopting them a no-op until the first rotation on a network.
+  {
+    type: "function",
+    name: "getCurrentOperationBtcKey",
+    inputs: [{ name: "provider", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getOperationBtcKeyAtEpoch",
     inputs: [
-      { name: "vpAddr", type: "address", internalType: "address" },
+      { name: "provider", type: "address", internalType: "address" },
+      { name: "epoch", type: "uint64", internalType: "uint64" },
     ],
-    outputs: [
-      { name: "", type: "bytes32", internalType: "bytes32" },
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPayoutScriptAtEpoch",
+    inputs: [
+      { name: "provider", type: "address", internalType: "address" },
+      { name: "epoch", type: "uint64", internalType: "uint64" },
     ],
+    outputs: [{ name: "", type: "bytes", internalType: "bytes" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getVaultProviderCommission",
-    inputs: [
-      { name: "vpAddr", type: "address", internalType: "address" },
-    ],
-    outputs: [
-      { name: "", type: "uint16", internalType: "uint16" },
-    ],
+    inputs: [{ name: "vpAddr", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint16", internalType: "uint16" }],
     stateMutability: "view",
   },
   {
@@ -361,8 +408,7 @@ export const BTCVaultRegistryABI = [
       {
         name: "vProtocol",
         type: "tuple",
-        internalType:
-          "struct BTCVaultRegistryTypes.BTCVaultProtocolInfo",
+        internalType: "struct BTCVaultRegistryTypes.BTCVaultProtocolInfo",
         components: [
           {
             name: "depositorSignedPeginTx",

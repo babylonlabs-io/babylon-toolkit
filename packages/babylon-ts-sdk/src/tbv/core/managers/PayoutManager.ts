@@ -117,6 +117,15 @@ interface SignPayoutBaseParams {
 
   /** Security council member count; forwarded to the fee floor (see PayoutParams). */
   councilSize: number;
+
+  /**
+   * RFC-006 resolved payout destinations, keyed by lowercased x-only operation
+   * pubkey. Forwarded verbatim to {@link buildPayoutPsbt}; every VK claimer
+   * must be present.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** RFC-006 VP commission destination. Forwarded to {@link buildPayoutPsbt}. */
+  vpCommissionScriptPubKey: string;
 }
 
 /**
@@ -238,6 +247,8 @@ export class PayoutManager {
       commissionBps: params.commissionBps,
       protocolFeeRate: params.protocolFeeRate,
       councilSize: params.councilSize,
+      vkClaimerPayoutScriptPubKeys: params.vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey: params.vpCommissionScriptPubKey,
     });
 
     // Sign PSBT via wallet (Taproot script-path spend, input 0 only)
@@ -341,6 +352,8 @@ export class PayoutManager {
         commissionBps: tx.commissionBps,
         protocolFeeRate: tx.protocolFeeRate,
         councilSize: tx.councilSize,
+        vkClaimerPayoutScriptPubKeys: tx.vkClaimerPayoutScriptPubKeys,
+        vpCommissionScriptPubKey: tx.vpCommissionScriptPubKey,
       });
       psbtsToSign.push(payoutPsbt.psbtHex);
       signOptions.push(createTaprootScriptPathSignOptions(walletPubkeyRaw, 1));

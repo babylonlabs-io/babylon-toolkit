@@ -23,6 +23,7 @@ const mockProtocolParamsReaderCtor = vi.fn();
 const mockVaultKeeperReaderCtor = vi.fn();
 const mockUniversalChallengerReaderCtor = vi.fn();
 const mockVaultRegistryReaderCtor = vi.fn();
+const mockOperationKeyReaderCtor = vi.fn();
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
   // Constructable classes must be declared inside the factory because
@@ -59,6 +60,14 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
       this.args = args;
     }
   }
+  class MockOperationKeyReader {
+    args: unknown[];
+    kind = "operation-key" as const;
+    constructor(...args: unknown[]) {
+      mockOperationKeyReaderCtor(...args);
+      this.args = args;
+    }
+  }
 
   return {
     resolveProtocolAddresses: (...args: unknown[]) =>
@@ -67,6 +76,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
     ViemVaultKeeperReader: MockVaultKeeperReader,
     ViemUniversalChallengerReader: MockUniversalChallengerReader,
     ViemVaultRegistryReader: MockVaultRegistryReader,
+    ViemOperationKeyReader: MockOperationKeyReader,
   };
 });
 
