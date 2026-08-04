@@ -23,12 +23,18 @@ mkdir -p "${CAPTURE_ROOT}/vault" "${CAPTURE_ROOT}/storybook"
 # The broadest and cheapest surface: every story renders in isolation with no
 # backend, no wallet and no network. Built static rather than served by
 # `storybook dev` so there is no HMR client injecting itself into the frame.
+# Binaries are invoked directly rather than through the `visual:*` package
+# scripts. Those scripts are added by the PR that introduces this harness, so
+# they do not exist at the merge-base and the baseline side would die with
+# ERR_PNPM_NO_SCRIPT. Calling the binary makes this script independent of the
+# checked-out commit's package.json.
 echo "==> Building static Storybook"
-pnpm --filter @babylonlabs-io/core-ui run visual:build
+pnpm --filter @babylonlabs-io/core-ui exec storybook build -o storybook-static --quiet
 
 echo "==> Capturing Storybook stories"
 VISUAL_OUT_DIR="${CAPTURE_ROOT}/storybook" \
-  pnpm --filter @babylonlabs-io/core-ui run visual:capture
+  pnpm --filter @babylonlabs-io/core-ui exec \
+  playwright test --config=playwright.visual.config.ts
 
 # --- Vault app (pages) ------------------------------------------------------
 # The vault dev server resolves @babylonlabs-io/core-ui (and ts-sdk,
@@ -42,7 +48,8 @@ pnpm exec nx run-many --target=build \
 
 echo "==> Capturing vault routes"
 VISUAL_OUT_DIR="${CAPTURE_ROOT}/vault" \
-  pnpm --filter @services/vault run visual:capture
+  pnpm --filter @services/vault exec \
+  playwright test --config=playwright.visual.config.ts
 
 echo "==> Capture complete for ${CAPTURE_ROOT}"
 ls -1 "${CAPTURE_ROOT}/storybook" | wc -l | xargs echo "    storybook screens:"

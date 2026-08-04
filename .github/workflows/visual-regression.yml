@@ -82,6 +82,10 @@ jobs:
           cp -R packages/babylon-core-ui/visual "$H/core-ui-visual"
           cp packages/babylon-core-ui/playwright.visual.config.ts "$H/core-ui-playwright.visual.config.ts"
           cp scripts/visual-diff.mjs "$H/"
+          # The runner script itself. Easy to forget, and forgetting it fails
+          # the baseline side with a bare "No such file or directory": the
+          # script does not exist at the merge-base either.
+          cp .github/scripts/visual-capture.sh "$H/"
 
       - name: Capture candidate (PR head)
         env:
@@ -96,17 +100,25 @@ jobs:
           set -euo pipefail
           H="${{ runner.temp }}/harness"
           rm -rf services/vault/e2e/visual packages/babylon-core-ui/visual
-          mkdir -p services/vault/e2e packages/babylon-core-ui
+          mkdir -p services/vault/e2e packages/babylon-core-ui .github/scripts
           cp -R "$H/vault-visual" services/vault/e2e/visual
           cp "$H/playwright.visual.config.ts" services/vault/
           cp -R "$H/core-ui-visual" packages/babylon-core-ui/visual
           cp "$H/core-ui-playwright.visual.config.ts" packages/babylon-core-ui/playwright.visual.config.ts
+          cp "$H/visual-capture.sh" .github/scripts/visual-capture.sh
+          chmod +x .github/scripts/visual-capture.sh
 
-      # The merge-base may carry a different lockfile, so reinstall: the
-      # baseline must reflect the dependencies that commit actually shipped.
-      - name: Install dependencies at merge-base
-        run: pnpm install --frozen-lockfile --prefer-offline
-
+      # Deliberately NOT reinstalling here. The harness needs tooling this PR
+      # adds (core-ui gains @playwright/test), which the merge-base lockfile
+      # would prune - the baseline could then never run. Keeping HEAD's
+      # node_modules also means both sides are photographed by an identical
+      # instrument, which is the property this whole design is built on.
+      #
+      # The trade-off, stated plainly: the baseline renders merge-base SOURCE
+      # against HEAD's external npm packages. Workspace changes (core-ui,
+      # ts-sdk, wallet-connector) are still compared correctly because those
+      # are rebuilt from the checked-out source. A PR that only bumps an
+      # external UI dependency will not show a diff.
       - name: Capture baseline (merge-base)
         env:
           CAPTURE_ROOT: ${{ runner.temp }}/visual/baseline
@@ -115,14 +127,6 @@ jobs:
       - name: Restore PR head
         if: always()
         run: git checkout --force "${{ steps.refs.outputs.head_sha }}"
-
-      # MUST reinstall. The merge-base install above prunes any dependency
-      # this PR adds - including pixelmatch/pngjs, which the diff script
-      # imports. Restoring the files does not restore node_modules, so
-      # without this the diff dies with ERR_MODULE_NOT_FOUND every run.
-      - name: Reinstall dependencies for the diff step
-        if: always()
-        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Compare baseline against candidate
         id: diff
