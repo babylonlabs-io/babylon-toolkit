@@ -127,7 +127,7 @@ const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
 
 When the depositor acts as the claimer (instead of the vault provider), the depositor must sign 3 types of PSBTs per vault:
 
-1. **Payout** (1 per vault) — depositor signs using PeginPayoutConnector (same connector as VP/VK payout)
+1. **Payout** (1 per vault) — sign with `buildPayoutPsbt` (section 2 above) with `claimerBtcPubkey` set to the depositor's own key; it validates the output layout and the implicit-fee band before returning the PSBT
 2. **NoPayout** (1 per challenger) — covers the case where the vault expires without a successful claim
 3. **ChallengeAssert** (1 per challenger, with 3 inputs) — covers the challenge-assert spending paths
 
@@ -139,7 +139,6 @@ VP cannot trick the wallet into signing over an attacker-chosen prevout.
 
 ```typescript
 import {
-  buildDepositorPayoutPsbt,
   buildNoPayoutPsbt,
   buildChallengeAssertPsbt,
   extractPayoutSignature,
@@ -147,22 +146,9 @@ import {
 
 const depositorPubkey = "abc123..."; // x-only, 64 hex chars
 
-// 1. Payout (depositor-as-claimer variant)
-// Uses PeginPayoutConnector — input 0 spends PegIn:0, input 1 spends Assert:0
-const payoutPsbtHex = await buildDepositorPayoutPsbt({
-  payoutTxHex: "...",               // From vault provider
-  peginTxHex: "...",                // Authoritative (e.g. on-chain) — input 0 must spend PegIn:0
-  assertTxHex: "...",               // Authoritative — input 1 must spend Assert:0
-  connectorParams: {                // PeginPayoutConnector params
-    depositor: depositorPubkey,
-    vaultProvider: "...",
-    vaultKeepers: ["..."],
-    universalChallengers: ["..."],
-    timelockPegin: 50,
-  },
-});
-const signedPayout = await wallet.signPsbt(payoutPsbtHex);
-const payoutSig = extractPayoutSignature(signedPayout, depositorPubkey);
+// 1. Payout (depositor-as-claimer variant): use buildPayoutPsbt (section 2
+// above) with claimerBtcPubkey = depositorPubkey, then sign and extract with
+// extractPayoutSignature as shown there.
 
 // 2. NoPayout (one per challenger)
 // Uses AssertPayoutNoPayoutConnector — input 0 spends Assert:0
@@ -201,7 +187,7 @@ const caSig1 = extractPayoutSignature(signedCA, depositorPubkey, 1);
 const caSig2 = extractPayoutSignature(signedCA, depositorPubkey, 2);
 ```
 
-All three builders return a PSBT hex string and all use `extractPayoutSignature()` for signature extraction (same Schnorr extraction mechanism). The `extractPayoutSignature` function accepts an optional `inputIndex` parameter (defaults to 0) for extracting signatures from specific inputs.
+All of these builders use `extractPayoutSignature()` for signature extraction (same Schnorr extraction mechanism). The `extractPayoutSignature` function accepts an optional `inputIndex` parameter (defaults to 0) for extracting signatures from specific inputs.
 
 ---
 

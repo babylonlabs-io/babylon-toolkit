@@ -108,6 +108,15 @@ interface SignPayoutBaseParams {
    * VP commission in basis points (`1..=9999`). Forwarded to {@link buildPayoutPsbt}.
    */
   commissionBps: number;
+
+  /**
+   * Version-locked tx-graph fee rate (sat/vB) the graph was built with.
+   * Forwarded to {@link buildPayoutPsbt} for the fee band.
+   */
+  protocolFeeRate: bigint;
+
+  /** Security council member count; forwarded to the fee floor (see PayoutParams). */
+  councilSize: number;
 }
 
 /**
@@ -227,6 +236,8 @@ export class PayoutManager {
       claimerBtcPubkey: params.claimerBtcPubkey,
       registeredPayoutScriptPubKey: params.registeredPayoutScriptPubKey,
       commissionBps: params.commissionBps,
+      protocolFeeRate: params.protocolFeeRate,
+      councilSize: params.councilSize,
     });
 
     // Sign PSBT via wallet (Taproot script-path spend, input 0 only)
@@ -328,6 +339,8 @@ export class PayoutManager {
         claimerBtcPubkey: tx.claimerBtcPubkey,
         registeredPayoutScriptPubKey: tx.registeredPayoutScriptPubKey,
         commissionBps: tx.commissionBps,
+        protocolFeeRate: tx.protocolFeeRate,
+        councilSize: tx.councilSize,
       });
       psbtsToSign.push(payoutPsbt.psbtHex);
       signOptions.push(createTaprootScriptPathSignOptions(walletPubkeyRaw, 1));

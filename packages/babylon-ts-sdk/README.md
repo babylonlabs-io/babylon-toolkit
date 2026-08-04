@@ -114,7 +114,6 @@ import {
   buildPrePeginPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPayoutPsbt,
-  buildDepositorPayoutPsbt,
   buildNoPayoutPsbt,
   buildChallengeAssertPsbt,
   buildRefundPsbt,

@@ -59,3 +59,11 @@ export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
  * the accepted bps range must never change the arithmetic.
  */
 export const BPS_DENOMINATOR = 10_000;
+
+/**
+ * Contract cap on a registered payout/commission scriptPubKey's byte length
+ * (`MAX_PAYOUT_ADDRESS_LENGTH`, Constants.sol; empty scripts are rejected at
+ * registration, so valid lengths are `[1, 128]`). A measured length outside
+ * this range is provably not a registered script.
+ */
+export const MAX_PAYOUT_SCRIPT_LEN = 128;

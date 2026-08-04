@@ -84,6 +84,12 @@ export interface SigningContext {
    * Forwarded to `buildPayoutPsbt` to cap the VP-claimer commission output.
    */
   commissionBps: number;
+  /**
+   * Tx-graph fee rate (sat/vB) from the vault's locked offchain params
+   * version — the rate the VP built the graph with. Bounds every payout's
+   * implicit fee (device fee-bound model).
+   */
+  protocolFeeRate: bigint;
 }
 
 export interface PreparedSigningData {
@@ -229,6 +235,8 @@ export async function prepareSigningContext(
       network: getBTCNetworkForWASM(),
       registeredPayoutScriptPubKey,
       commissionBps: vault.vaultProviderCommissionBps,
+      // Version-locked graph-build rate — same fetch as timelockAssert above.
+      protocolFeeRate: offchainParams.feeRate,
     },
     vaultProviderAddress: vault.vaultProvider,
   };

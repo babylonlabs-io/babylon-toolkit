@@ -664,11 +664,23 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 
 VP commission (bps) from `BTCVaultRegistry`; caps the VP-claimer payout commission output.
 
+##### protocolFeeRate
+
+```ts
+protocolFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L92)
+
+Tx-graph fee rate (sat/vB) from the locked offchain params version —
+`getOffchainParamsByVersion(...).feeRate`, the rate the VP built the
+graph with. Bounds every payout's implicit fee (device fee-bound model).
+
 ***
 
 ### RunDepositorPresignFlowParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:89](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L89)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L95)
 
 #### Properties
 
@@ -678,7 +690,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 statusReader: PeginStatusReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L91)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L97)
 
 VP client implementing the status reader interface
 
@@ -688,7 +700,7 @@ VP client implementing the status reader interface
 presignClient: PresignClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L93)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L99)
 
 VP client implementing the presign transaction flow interface
 
@@ -698,7 +710,7 @@ VP client implementing the presign transaction flow interface
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L101)
 
 Bitcoin wallet for signing
 
@@ -708,7 +720,7 @@ Bitcoin wallet for signing
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:103](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L103)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars)
 
@@ -718,7 +730,7 @@ BTC pegin transaction ID (unprefixed hex, 64 chars)
 depositorPk: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L105)
 
 Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 
@@ -728,7 +740,7 @@ Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 signingContext: PayoutSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L101)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:107](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L107)
 
 Signing context built from on-chain data
 
@@ -738,7 +750,7 @@ Signing context built from on-chain data
 optional depositTerms: DepositTerms;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L112)
 
 Required for approval-capable wallets; fresh flows thread
 PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
@@ -749,7 +761,7 @@ PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
 optional timeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L114)
 
 Maximum polling timeout in milliseconds (default: 20 min)
 
@@ -759,7 +771,7 @@ Maximum polling timeout in milliseconds (default: 20 min)
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L110)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L116)
 
 AbortSignal for cancellation
 
@@ -769,7 +781,7 @@ AbortSignal for cancellation
 optional onProgress: (completed, total) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L118)
 
 Optional progress callback (completed claimers, total claimers)
 
@@ -791,7 +803,7 @@ Optional progress callback (completed claimers, total claimers)
 
 ### DepositorGraphSigningContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:495](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L495)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:497](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L497)
 
 Authoritative inputs required to construct the depositor's Payout AND every
 per-challenger NoPayout PSBT locally. Every field here must come from
@@ -806,7 +818,7 @@ directly into the Taproot sighash.
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:501](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L501)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:503](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L503)
 
 Vault core (tx-graph) version the vault was registered under — the
 vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
@@ -818,7 +830,7 @@ Selects which graph's connector scripts every PSBT is rebuilt with.
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:503](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L503)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:505](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L505)
 
 Raw pegin BTC transaction hex (provides the depositor's signed prevout)
 
@@ -828,7 +840,7 @@ Raw pegin BTC transaction hex (provides the depositor's signed prevout)
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:505](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L505)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:507](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L507)
 
 Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 
@@ -838,7 +850,7 @@ Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:507](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L507)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:509](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L509)
 
 Vault provider's BTC public key (x-only hex, no prefix)
 
@@ -848,7 +860,7 @@ Vault provider's BTC public key (x-only hex, no prefix)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:509](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L509)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:511](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L511)
 
 Sorted vault keeper BTC public keys (x-only hex, no prefix)
 
@@ -858,7 +870,7 @@ Sorted vault keeper BTC public keys (x-only hex, no prefix)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:511](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L511)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:513](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L513)
 
 Sorted universal challenger BTC public keys (x-only hex, no prefix)
 
@@ -868,9 +880,20 @@ Sorted universal challenger BTC public keys (x-only hex, no prefix)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:513](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L513)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:515](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L515)
 
 Pegin CSV timelock from the locked offchain params version (blocks)
+
+##### protocolFeeRate
+
+```ts
+protocolFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:520](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L520)
+
+Tx-graph fee rate (sat/vB) from the locked offchain params version —
+bounds the depositor-claimer payout's implicit fee (device fee-bound model).
 
 ##### timelockAssert
 
@@ -878,7 +901,7 @@ Pegin CSV timelock from the locked offchain params version (blocks)
 timelockAssert: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:519](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L519)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:526](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L526)
 
 Assert CSV timelock from the locked offchain params version (blocks).
 Sourced from the on-chain ProtocolParams contract via
@@ -890,7 +913,7 @@ Sourced from the on-chain ProtocolParams contract via
 councilMembers: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:525](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L525)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:532](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L532)
 
 Security council member x-only public keys (hex, no prefix). Sourced from
 the on-chain ProtocolParams contract via
@@ -902,7 +925,7 @@ the on-chain ProtocolParams contract via
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:530](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L530)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:537](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L537)
 
 M-of-N council quorum threshold. Sourced from the on-chain ProtocolParams
 contract via `ViemProtocolParamsReader.getOffchainParamsByVersion(...).councilQuorum`.
@@ -913,7 +936,7 @@ contract via `ViemProtocolParamsReader.getOffchainParamsByVersion(...).councilQu
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:532](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L532)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:539](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L539)
 
 BTC network (Mainnet, Testnet, etc.)
 
@@ -923,7 +946,7 @@ BTC network (Mainnet, Testnet, etc.)
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:538](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L538)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:545](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L545)
 
 On-chain registered depositor payout scriptPubKey (hex, with or without
 0x prefix). Used to assert the VP-advertised payout transaction pays to
@@ -933,7 +956,7 @@ the depositor's registered address before the wallet produces a signature.
 
 ### SignDepositorGraphParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:541](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L541)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:548](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L548)
 
 #### Properties
 
@@ -943,7 +966,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositor
 depositorGraph: DepositorGraphTransactions;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:543](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L543)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:550](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L550)
 
 The depositor graph from VP response
 
@@ -953,7 +976,7 @@ The depositor graph from VP response
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:545](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L545)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:552](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L552)
 
 Bitcoin wallet for signing
 
@@ -963,7 +986,7 @@ Bitcoin wallet for signing
 signingContext: DepositorGraphSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:547](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L547)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:554](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L554)
 
 Authoritative inputs used to rebuild every PSBT locally
 
@@ -2159,7 +2182,7 @@ boundary-equal block is NOT expired. All values are Ethereum block numbers.
 function runDepositorPresignFlow(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:313](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L313)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:319](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L319)
 
 Poll for payout transactions, sign them, sign the depositor graph,
 and submit all signatures to the vault provider.
@@ -2188,7 +2211,7 @@ Error on timeout, abort, signing failure, or RPC error
 function signDepositorGraph(params): Promise<DepositorAsClaimerPresignatures>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:559](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L559)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:566](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L566)
 
 Sign all depositor graph transactions and assemble into presignatures.
 

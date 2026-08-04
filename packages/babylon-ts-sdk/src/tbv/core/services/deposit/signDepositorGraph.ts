@@ -262,6 +262,8 @@ async function collectDepositorGraphPsbts(
     claimerBtcPubkey: ctx.depositorBtcPubkey,
     registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
     commissionBps: DEPOSITOR_PATH_UNUSED_COMMISSION_BPS,
+    protocolFeeRate: ctx.protocolFeeRate,
+    councilSize: ctx.councilMembers.length,
   });
   psbtHexes.push(builtPayout.psbtHex);
   signOptions.push(
@@ -511,6 +513,11 @@ export interface DepositorGraphSigningContext {
   universalChallengerBtcPubkeys: string[];
   /** Pegin CSV timelock from the locked offchain params version (blocks) */
   timelockPegin: number;
+  /**
+   * Tx-graph fee rate (sat/vB) from the locked offchain params version —
+   * bounds the depositor-claimer payout's implicit fee (device fee-bound model).
+   */
+  protocolFeeRate: bigint;
   /**
    * Assert CSV timelock from the locked offchain params version (blocks).
    * Sourced from the on-chain ProtocolParams contract via

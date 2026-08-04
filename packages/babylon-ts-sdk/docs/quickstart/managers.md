@@ -199,6 +199,7 @@ const signingContext: PayoutSigningContext = {
   timelockPegin,
   network: "signet",
   registeredPayoutScriptPubKey: "0x...",   // from PegInSubmitted event / indexer
+  protocolFeeRate,                         // version-locked offchainParams.feeRate
 };
 
 await runDepositorPresignFlow({

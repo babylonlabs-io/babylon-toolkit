@@ -11,11 +11,11 @@
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";
-import { DaemonStatus } from "../../clients/vault-provider/types";
 import type {
   ClaimerSignatures,
   ClaimerTransactions,
 } from "../../clients/vault-provider/types";
+import { DaemonStatus } from "../../clients/vault-provider/types";
 import {
   supportsDepositApproval,
   type DepositTerms,
@@ -84,6 +84,12 @@ export interface PayoutSigningContext {
   registeredPayoutScriptPubKey: string;
   /** VP commission (bps) from `BTCVaultRegistry`; caps the VP-claimer payout commission output. */
   commissionBps: number;
+  /**
+   * Tx-graph fee rate (sat/vB) from the locked offchain params version —
+   * `getOffchainParamsByVersion(...).feeRate`, the rate the VP built the
+   * graph with. Bounds every payout's implicit fee (device fee-bound model).
+   */
+  protocolFeeRate: bigint;
 }
 
 export interface RunDepositorPresignFlowParams {
@@ -208,9 +214,7 @@ function assertNonDepositorClaimerSetMatches(
     normalizeClaimerPubkey(tx.claimer_pubkey),
   );
   if (new Set(suppliedAll).size !== suppliedAll.length) {
-    throw new Error(
-      "Presign response contains duplicate claimer entries",
-    );
+    throw new Error("Presign response contains duplicate claimer entries");
   }
 
   const suppliedNonDepositor = suppliedAll.filter((k) => k !== depositor);
@@ -248,6 +252,8 @@ function buildPayoutSigningInput(
     registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
     claimerBtcPubkey: tx.claimerPubkeyXOnly,
     commissionBps: context.commissionBps,
+    protocolFeeRate: context.protocolFeeRate,
+    councilSize: context.councilMembers.length,
   };
 }
 
@@ -344,6 +350,25 @@ export async function runDepositorPresignFlow(
 
   // Approval-capable wallets must approve the deposit terms before any signing
   // call they authorize, including the Phase 3/4 payout and depositor-graph signing below.
+  // The terms the depositor approved must carry the same graph-build rate the
+  // payout bound will enforce — a mismatch means a params-version drift bug.
+  // Only the rate is checked: the other shared fields (keys, timelocks) come
+  // from the same append-only versioned reads and are already pinned upstream
+  // by verifyRegisteredVaultVersions, so they cannot drift under current flows.
+  // Fresh-flow only: the resume path passes no depositTerms, where the rate is
+  // correct-by-construction (read from the vault's stamped params version).
+  if (
+    depositTerms !== undefined &&
+    depositTerms.baseFeeRate !== signingContext.protocolFeeRate
+  ) {
+    throw new Error(
+      `Deposit terms baseFeeRate (${depositTerms.baseFeeRate} sat/vB) does not ` +
+        `match the vault's version-locked protocolFeeRate ` +
+        `(${signingContext.protocolFeeRate} sat/vB); refusing to sign payouts ` +
+        `against terms built from a different params version.`,
+    );
+  }
+
   if (supportsDepositApproval(btcWallet)) {
     if (!depositTerms) {
       throw new Error(
@@ -417,6 +442,7 @@ export async function runDepositorPresignFlow(
       councilQuorum: signingContext.councilQuorum,
       network: signingContext.network,
       registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
+      protocolFeeRate: signingContext.protocolFeeRate,
     },
   });
 

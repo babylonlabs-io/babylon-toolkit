@@ -269,6 +269,7 @@ function createSigningContext(
     // Non-default on purpose: a re-hardcoded version anywhere in the
     // signing path would fail the threading assertions below.
     vaultCoreVersion: 2,
+    protocolFeeRate: 2n,
     peginTxHex: PEGIN_TX_HEX,
     depositorBtcPubkey: DEPOSITOR_PUBKEY,
     vaultProviderBtcPubkey: VP_PUBKEY,
@@ -320,6 +321,8 @@ describe("signDepositorGraph", () => {
       claimerBtcPubkey: ctx.depositorBtcPubkey,
       registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
       commissionBps: 1,
+      protocolFeeRate: ctx.protocolFeeRate,
+      councilSize: ctx.councilMembers.length,
     });
   });
 

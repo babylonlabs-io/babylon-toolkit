@@ -97,6 +97,8 @@ const { signature, depositorBtcPubkey } = await payoutManager.signPayoutTransact
   universalChallengerBtcPubkeys: [/* … */],
   timelockPegin: 100,                        // from vault-pinned offchain params
   registeredPayoutScriptPubKey: "0x...",     // from on-chain vault data
+  protocolFeeRate,                           // version-locked offchainParams.feeRate
+  councilSize,                               // offchainParams.securityCouncilKeys.length
 });
 ```
 
