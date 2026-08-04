@@ -2,14 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockLoggerError = vi.hoisted(() => vi.fn());
 const mockLoggerWarn = vi.hoisted(() => vi.fn());
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
 vi.mock("@/infrastructure", () => ({
-  logger: { error: mockLoggerError, warn: mockLoggerWarn },
+  logger: {
+    error: mockLoggerError,
+    warn: mockLoggerWarn,
+    event: mockLoggerEvent,
+  },
 }));
 
 import {
   createQueryClient,
   isExpectedQueryError,
   reportQueryCacheError,
+  resetGeoBlockReportingForTests,
 } from "../queryClient";
 
 /**
@@ -68,9 +74,37 @@ describe("default query retry policy", () => {
     expect(retryFor(httpError(451))).toBe(false);
   });
 
-  it("does not retry other permanent statuses", () => {
-    expect(retryFor(httpError(403))).toBe(false);
-    expect(retryFor(httpError(404))).toBe(false);
+  it("still retries 401/403/404, which are routinely transient here", () => {
+    // A just-broadcast tx isn't indexed yet, a subgraph is mid-redeploy, an RPC
+    // provider returns 401/403 for a rate limit. The in-fetch retries are what
+    // bridge that lag, and this predicate governs mutations too — so treating
+    // these as permanent would also stop retrying ETH submissions.
+    expect(retryFor(httpError(401))).toBe(true);
+    expect(retryFor(httpError(403))).toBe(true);
+    expect(retryFor(httpError(404))).toBe(true);
+  });
+
+  it("does not retry a 410, which is permanent by definition", () => {
+    expect(retryFor(httpError(410))).toBe(false);
+  });
+
+  it("ignores a non-HTTP numeric status", () => {
+    // A contract receipt carries `status: 1`; without a range check that reads
+    // as an HTTP status and lands in whatever set happens to contain it.
+    expect(
+      retryFor(Object.assign(new Error("receipt reverted"), { status: 1 })),
+    ).toBe(true);
+  });
+
+  it("prefers response.status over a colliding top-level status", () => {
+    // graphql-request's ClientError is the more specific shape; a stray
+    // top-level `status` must not win over it.
+    const error = Object.assign(new Error("GraphQL Error (Code: 451)"), {
+      status: 200,
+      response: { status: 451 },
+    });
+
+    expect(retryFor(error)).toBe(false);
   });
 
   it("does not retry a 501, despite it being 5xx", () => {
@@ -102,6 +136,8 @@ describe("reportQueryCacheError", () => {
   beforeEach(() => {
     mockLoggerError.mockReset();
     mockLoggerWarn.mockReset();
+    mockLoggerEvent.mockReset();
+    resetGeoBlockReportingForTests();
   });
 
   it("records an expected query error as a breadcrumb, not a captured error", () => {
@@ -113,17 +149,39 @@ describe("reportQueryCacheError", () => {
     expect(message).toContain("OrdinalsClassifierUnavailableError");
   });
 
-  it("records a permanent HTTP failure as a breadcrumb, not a captured error", () => {
+  const geoBlockError = () =>
+    Object.assign(new Error("GraphQL Error (Code: 451)"), {
+      response: { status: 451 },
+    });
+
+  it("captures the geo-block once, not per settled query", () => {
+    // A breadcrumb only ships if some other error is captured in the same
+    // session, so a geo-blocked user produced no signal at all. One captured
+    // event keeps it visible; the latch keeps the volume flat.
+    reportQueryCacheError(geoBlockError(), "Query");
+    reportQueryCacheError(geoBlockError(), "Query");
+    reportQueryCacheError(geoBlockError(), "Mutation");
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    expect(mockLoggerEvent.mock.calls[0][0]).toContain("451");
+    expect(mockLoggerEvent.mock.calls[0][1].level).toBe("warning");
+  });
+
+  it("keeps the raw message out of the geo-block event", () => {
+    // A graphql-request ClientError stringifies the whole response AND request,
+    // so the message can carry query variables — BTC/ETH addresses included.
     reportQueryCacheError(
-      Object.assign(new Error("GraphQL Error (Code: 451)"), {
+      Object.assign(new Error('GraphQL Error: {"address":"bc1qexampleaddr"}'), {
         response: { status: 451 },
       }),
       "Query",
+      "vault.status",
     );
 
-    expect(mockLoggerError).not.toHaveBeenCalled();
-    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
-    expect(mockLoggerWarn.mock.calls[0][0]).toContain("451");
+    const [, context] = mockLoggerEvent.mock.calls[0];
+    expect(JSON.stringify(context)).not.toContain("bc1qexampleaddr");
+    expect(context.source).toBe("vault.status");
   });
 
   it("still captures a 400, which is a defect rather than a location", () => {

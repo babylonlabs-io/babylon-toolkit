@@ -1,6 +1,11 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { logger } from "@/infrastructure";
+import {
+  HTTP_GEO_BLOCKED,
+  httpStatusOf,
+  isError451,
+} from "@/utils/errors/types";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
 const calculateRetryDelay = (attemptIndex: number): number => {
@@ -16,42 +21,16 @@ const calculateRetryDelay = (attemptIndex: number): number => {
  *
  * 501 is here deliberately. It is 5xx by number but it means "this server does
  * not implement this operation", which no amount of retrying changes.
- */
-const NON_RETRYABLE_HTTP_STATUSES = new Set([
-  400, 401, 403, 404, 410, 451, 501,
-]);
-
-/**
- * Statuses that are also not worth a standalone Sentry issue.
  *
- * Deliberately narrower than {@link NON_RETRYABLE_HTTP_STATUSES}: not retrying
- * and not reporting are different decisions. A geo-block (451) is a property of
- * where the user is and repeats every poll for the rest of the session, so it
- * is breadcrumbed. Everything else - a 400 from a malformed query, a 501 from a
- * frontend/backend version skew - is a real defect someone should see, so it
- * still reaches `logger.error` even though it is never retried.
+ * Deliberately narrow. 401/403/404 are NOT here, because on this app's
+ * endpoints they are routinely transient: a just-broadcast transaction is not
+ * indexed yet, a subgraph is mid-redeploy, an RPC provider returns 401/403 for
+ * a rate limit or an edge condition, and a rotated key clears its own 401.
+ * The in-fetch retries are what bridge that propagation lag. This predicate
+ * also governs mutations, so a status added here stops retrying ETH
+ * submissions too.
  */
-const UNREPORTABLE_HTTP_STATUSES = new Set([451]);
-
-/**
- * Pull an HTTP status off the error shapes that actually reach this handler:
- * graphql-request's `ClientError` (`response.status`) and viem's
- * `HttpRequestError` (`status`).
- *
- * Note the app's own `ApiError` does NOT reach here - every throw site is
- * caught inside `healthCheckService`.
- */
-const httpStatusOf = (error: unknown): number | undefined => {
-  if (!error || typeof error !== "object") return undefined;
-
-  const { status, response } = error as {
-    status?: unknown;
-    response?: { status?: unknown };
-  };
-  if (typeof status === "number") return status;
-  if (typeof response?.status === "number") return response.status;
-  return undefined;
-};
+const NON_RETRYABLE_HTTP_STATUSES = new Set([400, 410, 451, 501]);
 
 const isNonRetryableHttpError = (error: unknown): boolean => {
   const status = httpStatusOf(error);
@@ -67,14 +46,10 @@ const shouldRetry = (failureCount: number, error: Error): boolean => {
     return false;
   }
 
-  if (isUserCancellation(error)) {
-    return false;
-  }
-
   // Kept deliberately broad for the retry decision only: any rejection wording
   // (including a deterministic contract rejection, which `isUserCancellation`
   // intentionally does not match) reproduces on retry, so re-sending is waste.
-  if (error.message?.includes("rejected")) {
+  if (isUserCancellation(error) || error.message?.includes("rejected")) {
     return false;
   }
 
@@ -102,9 +77,32 @@ export function isExpectedQueryError(error: Error): boolean {
   return EXPECTED_QUERY_ERROR_NAMES.has(error.name);
 }
 
+/**
+ * Whether this session has already reported the geo-block.
+ *
+ * A 451 is a property of where the user is: it repeats on every poll for the
+ * rest of the session and nothing the user does clears it. Reporting each
+ * settled query was what billed an issue per failure; breadcrumbing it instead
+ * went too far the other way, because a breadcrumb only ships if some *other*
+ * error is captured in the same session — so a geo-blocked user got a broken
+ * app and we learned nothing. Worse, two 30s-interval queries at four requests
+ * per cycle evict Sentry's 100-breadcrumb buffer in about 25 minutes, taking
+ * the surrounding context with them.
+ *
+ * One captured event per session is the middle: the geo-block stays visible
+ * while the volume stays flat. Module scope, so it resets with the page.
+ */
+let geoBlockReported = false;
+
+/** Reset the once-per-session geo-block latch. Test seam only. */
+export function resetGeoBlockReportingForTests(): void {
+  geoBlockReported = false;
+}
+
 export function reportQueryCacheError(
   error: Error,
   kind: "Query" | "Mutation",
+  source?: string,
 ): void {
   if (isExpectedQueryError(error)) {
     logger.warn(`Expected ${kind.toLowerCase()} condition: ${error.name}`, {
@@ -113,17 +111,22 @@ export function reportQueryCacheError(
     return;
   }
 
-  // An unreportable status is a property of where the user is, not a fault we
-  // can act on, and it repeats on every poll for the rest of the session.
-  // Recorded as a breadcrumb so it still attaches to any genuine error captured
-  // later. Note this set is NOT the non-retryable set: a 400 or 501 is equally
-  // pointless to retry but is a real defect, so it falls through to
-  // `logger.error` below.
-  const status = httpStatusOf(error);
-  if (status !== undefined && UNREPORTABLE_HTTP_STATUSES.has(status)) {
-    logger.warn(`Unreportable ${kind.toLowerCase()} failure: HTTP ${status}`, {
-      detail: error.message,
-    });
+  // Note this is NOT the non-retryable set: a 400 or 501 is equally pointless
+  // to retry but is a real defect, so it falls through to `logger.error` below.
+  if (isError451(error)) {
+    if (!geoBlockReported) {
+      geoBlockReported = true;
+      // Deliberately no `error.message`: a graphql-request `ClientError`
+      // stringifies the whole response *and* request, so the message can carry
+      // query variables (BTC/ETH addresses). The status plus the query key is
+      // smaller and safer, and `scrubString` is then a backstop rather than the
+      // only thing standing between us and an address in telemetry.
+      logger.event("Geo-blocked data plane (HTTP 451)", {
+        level: "warning",
+        tags: { httpStatus: String(HTTP_GEO_BLOCKED), kind },
+        ...(source ? { source } : {}),
+      });
+    }
     return;
   }
 
@@ -134,11 +137,17 @@ export function reportQueryCacheError(
 
 export const createQueryClient = (): QueryClient => {
   const queryCache = new QueryCache({
-    onError: (error) => reportQueryCacheError(error, "Query"),
+    onError: (error, query) =>
+      reportQueryCacheError(error, "Query", query.queryHash),
   });
 
   const mutationCache = new MutationCache({
-    onError: (error) => reportQueryCacheError(error, "Mutation"),
+    onError: (error, _variables, _context, mutation) =>
+      reportQueryCacheError(
+        error,
+        "Mutation",
+        mutation.options.mutationKey?.join("."),
+      ),
   });
 
   return new QueryClient({

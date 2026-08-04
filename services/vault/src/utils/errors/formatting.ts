@@ -12,21 +12,12 @@ import {
 import { COPY } from "@/copy";
 
 import {
-  EIP1193_USER_REJECTED,
-  WALLET_CONNECTION_REJECTED_CODE,
+  isUserCancellationFrame,
+  isWalletRejectionError,
 } from "./userCancellation";
-
-export function isWalletRejectionError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code: unknown }).code === WALLET_CONNECTION_REJECTED_CODE
-  );
-}
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
-  USER_REJECTED: EIP1193_USER_REJECTED,
   UNAUTHORIZED: 4100,
   PROVIDER_DISCONNECTED: 4900,
   CHAIN_DISCONNECTED: 4901,
@@ -142,13 +133,12 @@ export function classifyError(err: unknown): ErrorKind | null {
     };
 
     // User rejection — MUST stay first within the frame; see precedence (a).
-    if (
-      obj.code === EIP1193.USER_REJECTED ||
-      obj.name === "UserRejectedRequestError"
-    ) {
-      return "user-rejection";
-    }
-    if (isWalletRejectionError(cur)) return "user-rejection";
+    // Shared with the telemetry-side drop so the two cannot drift: a wording
+    // this recognises but the classifier did not used to (e.g. "Connection to
+    // Keystone was canceled") was dropped from Sentry while still rendering
+    // generic error copy. `isUserCancellationFrame` deliberately does not walk
+    // `cause` — the walk here is what enforces precedence (b).
+    if (isUserCancellationFrame(cur)) return "user-rejection";
 
     // Insufficient ETH for gas + value
     if (obj.name === "InsufficientFundsError") return "insufficient-funds";
