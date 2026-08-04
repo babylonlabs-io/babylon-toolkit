@@ -230,6 +230,10 @@ export async function buildPayoutPsbt(
     "Assert",
     ASSERT_PAYOUT_OUTPUT_INDEX,
   );
+  // Assert:0's value is deliberately NOT validated: the taproot sighash
+  // commits to input 1's amount and outpoint, so a misstated value yields a
+  // signature invalid against the real Assert tx — nothing to protect. (The
+  // device's ==546 pin here is the known-buggy firmware behavior, Q15.)
 
   // Per-role output validation — blocks an extra attacker output or value
   // routed into a non-payout slot. Returns the layout-trusted script lengths

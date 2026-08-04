@@ -2054,7 +2054,7 @@ function extractPayoutSignature(
    inputIndex): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:541](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L541)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:545](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L545)
 
 Extract Schnorr signature from signed payout PSBT.
 

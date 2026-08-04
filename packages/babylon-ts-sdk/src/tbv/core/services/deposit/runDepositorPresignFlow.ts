@@ -11,11 +11,11 @@
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";
-import { DaemonStatus } from "../../clients/vault-provider/types";
 import type {
   ClaimerSignatures,
   ClaimerTransactions,
 } from "../../clients/vault-provider/types";
+import { DaemonStatus } from "../../clients/vault-provider/types";
 import {
   supportsDepositApproval,
   type DepositTerms,
@@ -214,9 +214,7 @@ function assertNonDepositorClaimerSetMatches(
     normalizeClaimerPubkey(tx.claimer_pubkey),
   );
   if (new Set(suppliedAll).size !== suppliedAll.length) {
-    throw new Error(
-      "Presign response contains duplicate claimer entries",
-    );
+    throw new Error("Presign response contains duplicate claimer entries");
   }
 
   const suppliedNonDepositor = suppliedAll.filter((k) => k !== depositor);
@@ -354,6 +352,9 @@ export async function runDepositorPresignFlow(
   // call they authorize, including the Phase 3/4 payout and depositor-graph signing below.
   // The terms the depositor approved must carry the same graph-build rate the
   // payout bound will enforce — a mismatch means a params-version drift bug.
+  // Only the rate is checked: the other shared fields (keys, timelocks) come
+  // from the same append-only versioned reads and are already pinned upstream
+  // by verifyRegisteredVaultVersions, so they cannot drift under current flows.
   // Fresh-flow only: the resume path passes no depositTerms, where the rate is
   // correct-by-construction (read from the vault's stamped params version).
   if (

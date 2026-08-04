@@ -14,8 +14,12 @@
  * Preconditions, enforced by the caller (`buildPayoutPsbt`):
  * - `assertPayoutFeeBandDomain` has accepted the rate and participant counts,
  *   so the band runs exactly over the domain its dominance proof was swept.
- * - `out0Len`/`out1Len` are the layout-trusted script lengths returned by
- *   the per-role output validation — never re-measured from the raw tx.
+ * - `out0Len` is the layout-trusted length of the PINNED outs[0] script.
+ *   `out1Len` is measured from the deliberately-unpinned VP commission
+ *   output and is UNTRUSTED: it feeds only the floor, where padding cannot
+ *   raise it (the fixed-34 model saturates the minimum) and shortening only
+ *   lowers it. It must never widen the ceiling — a VP-controlled length
+ *   there would buy burnable headroom.
  * - `implicitFeeSats` is `inputs − outputs` over verified prevouts, `>= 0`.
  *
  * @module primitives/psbt/assertPayoutFeeBand
@@ -28,9 +32,14 @@ import { computePayoutFeeFloor } from "@babylonlabs-io/babylon-tbv-rust-wasm";
  * where N = vault keepers, M = universal challengers. Constants and comparison
  * match the Ledger device (`app-babylon-vault` `sign_psbt_validate.c`
  * MAX_PAYOUT_VSIZE_BASE/PER_PARTICIPANT; HLD v22 §4.9.7.1) — a conservative
- * upper estimate with ~13%+ headroom over the exact vsize the VP pays. Our fee
- * basis (true prevout fee) is strictly stricter than the device's
- * `vault_amount + 546` proxy, so our accept-set is a subset of the device's.
+ * upper estimate with ~13%+ headroom over the exact vsize the VP pays. For
+ * payouts whose outs[0] script is <= 34 bytes our accept-set is a subset of
+ * the device's: the device bound is FLAT (no script-excess term) and our fee
+ * basis (true prevout fee; real graphs build Assert:0 as 546 + council fee)
+ * is stricter than its `vault_amount + 546` proxy. A pinned outs[0] script
+ * above 34 bytes extends our ceiling past the device's flat bound —
+ * contract-legal, but such payouts cannot pass a device today (it also
+ * hard-requires 34-byte output scripts).
  */
 const MAX_PAYOUT_VSIZE_BASE = 500;
 const MAX_PAYOUT_VSIZE_PER_PARTICIPANT = 55;
@@ -145,9 +154,13 @@ export async function assertPayoutFeeInBand(
   const implicitFee = BigInt(implicitFeeSats);
 
   // Ceiling first: synchronous arithmetic, no WASM round-trip.
-  const scriptExcess =
-    Math.max(0, out0Len - PAYOUT_BOUND_ASSUMED_SCRIPT_LEN) +
-    Math.max(0, (out1Len ?? 0) - PAYOUT_BOUND_ASSUMED_SCRIPT_LEN);
+  // Only the PINNED outs[0] script extends the ceiling. out1Len is
+  // VP-controlled (commission script deliberately unpinned) — including it
+  // would let a padded script widen the burnable band by up to 94 vB x rate.
+  // Honest long-commission builds still fit: the flat model's >=175 vB
+  // headroom over the exact estimator vsize absorbs the 94 vB with >=81 vB
+  // to spare across the entire accepted domain.
+  const scriptExcess = Math.max(0, out0Len - PAYOUT_BOUND_ASSUMED_SCRIPT_LEN);
   const maxPayoutVsize =
     MAX_PAYOUT_VSIZE_BASE +
     MAX_PAYOUT_VSIZE_PER_PARTICIPANT * numParticipants +

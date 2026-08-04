@@ -13,7 +13,10 @@ import type {
   DepositTermsApprover,
 } from "../../../deposit-terms";
 import type { PeginStatusReader, PresignClient } from "../interfaces";
-import { runDepositorPresignFlow, type PayoutSigningContext } from "../runDepositorPresignFlow";
+import {
+  runDepositorPresignFlow,
+  type PayoutSigningContext,
+} from "../runDepositorPresignFlow";
 
 // ---------------------------------------------------------------------------
 // Mocks — we test the orchestration, not PSBT internals or PayoutManager
@@ -28,9 +31,7 @@ vi.mock("../signDepositorGraph", () => ({
   })),
 }));
 
-const capturedPayoutInputs = vi.hoisted(
-  () => [] as Record<string, unknown>[],
-);
+const capturedPayoutInputs = vi.hoisted(() => [] as Record<string, unknown>[]);
 vi.mock("../../../managers/PayoutManager", () => {
   return {
     PayoutManager: class MockPayoutManager {
@@ -53,10 +54,8 @@ vi.mock("../../../managers/PayoutManager", () => {
 vi.mock("../../../primitives/utils/bitcoin", () => ({
   processPublicKeyToXOnly: (pk: string) =>
     pk.startsWith("0x") ? pk.slice(2) : pk.length === 66 ? pk.slice(2) : pk,
-  stripHexPrefix: (s: string) =>
-    s.startsWith("0x") ? s.slice(2) : s,
-  deriveBip86ScriptPubKeyHex: (xOnlyPubkey: string) =>
-    `0x5120${xOnlyPubkey}`,
+  stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
+  deriveBip86ScriptPubKeyHex: (xOnlyPubkey: string) => `0x5120${xOnlyPubkey}`,
 }));
 
 vi.mock("bitcoinjs-lib", () => ({
@@ -77,16 +76,13 @@ const VP_PUBKEY = "e".repeat(64);
 const VK_PUBKEY = "f".repeat(64);
 const CHALLENGER_PK = "c".repeat(64);
 
-function createMockStatusReader(
-  statuses: DaemonStatus[],
-): PeginStatusReader {
+function createMockStatusReader(statuses: DaemonStatus[]): PeginStatusReader {
   let callIdx = 0;
   return {
     getPeginStatus: vi.fn(
       async (): Promise<GetPeginStatusResponse> => ({
         pegin_txid: VALID_TXID,
-        status:
-          statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
+        status: statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
         progress: {},
         health_info: "ok",
       }),
@@ -134,8 +130,7 @@ function createMockPresignClient(
   return {
     requestDepositorPresignTransactions: vi.fn(async () => ({
       txs: response?.txs ?? [vpClaimer, vkClaimer],
-      depositor_graph:
-        response?.depositor_graph ?? defaultDepositorGraph,
+      depositor_graph: response?.depositor_graph ?? defaultDepositorGraph,
     })),
     submitDepositorPresignatures: vi.fn(async () => {}),
   };
@@ -232,9 +227,7 @@ describe("runDepositorPresignFlow", () => {
     expect(
       presignClient.requestDepositorPresignTransactions,
     ).not.toHaveBeenCalled();
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
   it("skips when VP is in PENDING_ACKS", async () => {
@@ -273,9 +266,7 @@ describe("runDepositorPresignFlow", () => {
     expect(
       presignClient.requestDepositorPresignTransactions,
     ).not.toHaveBeenCalled();
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
   it("fetches presign txs, signs, and submits when VP is ready", async () => {
@@ -301,9 +292,7 @@ describe("runDepositorPresignFlow", () => {
       undefined, // signal
     );
 
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).toHaveBeenCalledOnce();
+    expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
 
     // Verify the submission includes depositor's own claimer signatures
     const submitCall = (
@@ -338,9 +327,7 @@ describe("runDepositorPresignFlow", () => {
     await vi.advanceTimersByTimeAsync(15_000);
     await resultPromise;
 
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).toHaveBeenCalledOnce();
+    expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
   });
 
   it("calls onProgress callback", async () => {
@@ -423,9 +410,9 @@ describe("runDepositorPresignFlow", () => {
       presignClient.submitDepositorPresignatures as ReturnType<typeof vi.fn>
     ).mock.calls[0][0];
     expect(submitCall.signatures[DEPOSITOR_PK]).toBeDefined();
-    expect(
-      submitCall.signatures[DEPOSITOR_PK].payout_signature,
-    ).toBe("depositor_payout_sig");
+    expect(submitCall.signatures[DEPOSITOR_PK].payout_signature).toBe(
+      "depositor_payout_sig",
+    );
   });
 
   it("throws when already aborted", async () => {
@@ -535,9 +522,7 @@ describe("runDepositorPresignFlow", () => {
         depositorEntry,
       ]);
       await promise;
-      expect(
-        presignClient.submitDepositorPresignatures,
-      ).toHaveBeenCalledOnce();
+      expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
     });
 
     it("filters out an uppercase-hex depositor entry consistently with the assertion", async () => {
@@ -675,9 +660,7 @@ describe("runDepositorPresignFlow", () => {
       expect(
         presignClient.requestDepositorPresignTransactions,
       ).not.toHaveBeenCalled();
-      expect(
-        presignClient.submitDepositorPresignatures,
-      ).not.toHaveBeenCalled();
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
     });
 
     it("throws when depositTerms.baseFeeRate diverges from the context's version-locked rate", async () => {
@@ -747,9 +730,7 @@ describe("runDepositorPresignFlow", () => {
 
       // The proof is the flow completing above without throwing — it would
       // throw a TypeError if src tried to call the absent method.
-      expect(
-        presignClient.submitDepositorPresignatures,
-      ).toHaveBeenCalledOnce();
+      expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
     });
   });
 });

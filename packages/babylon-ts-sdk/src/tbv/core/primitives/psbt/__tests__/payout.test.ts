@@ -1324,6 +1324,43 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
+  it("gives a padded commission script no extra ceiling headroom", async () => {
+    // out1 is VP-controlled and unpinned; a 128-byte commission script must
+    // not widen the ceiling — flat 10 * 610 = 6_100 still applies.
+    const bigCommissionScript = Buffer.alloc(128, 0x51);
+    const peginTxHex = createTestPeginTransaction();
+    const assertTxHex = createTestAssertTransaction();
+    const inputTotal = Number(TEST_PEGIN_VALUE) + Number(TEST_CLAIM_VALUE);
+    const makePaddedCommissionPayout = (feeSats: number) =>
+      makeDeflatedPayoutTxHex(peginTxHex, assertTxHex, [
+        {
+          script: createDummyP2WPKH("a"),
+          value: inputTotal - feeSats - 1_000 - PAYOUT_ANCHOR_DUST_SATS,
+        },
+        { script: bigCommissionScript, value: 1_000 },
+        { script: createDummyP2WPKH("c"), value: PAYOUT_ANCHOR_DUST_SATS },
+      ]);
+
+    await expect(
+      buildPayoutPsbt(
+        baseParams({
+          payoutTxHex: makePaddedCommissionPayout(6_100),
+          assertTxHex,
+          peginTxHex,
+        }),
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      buildPayoutPsbt(
+        baseParams({
+          payoutTxHex: makePaddedCommissionPayout(6_101),
+          assertTxHex,
+          peginTxHex,
+        }),
+      ),
+    ).rejects.toThrow(/exceeds the safety cap/);
+  });
+
   it("rejects a commission scriptPubKey outside the contract registration cap", async () => {
     const peginTxHex = createTestPeginTransaction();
     const assertTxHex = createTestAssertTransaction();

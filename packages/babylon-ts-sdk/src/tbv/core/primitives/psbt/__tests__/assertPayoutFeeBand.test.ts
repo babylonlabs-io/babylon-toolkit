@@ -171,7 +171,7 @@ describe("assertPayoutFeeInBand", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
-  it("extends the ceiling by script excess over the 34-byte assumption", async () => {
+  it("extends the ceiling by pinned out0 script excess over the 34-byte assumption", async () => {
     // 128-byte out0: ceiling = 10 * (610 + (128 - 34)) = 7_040.
     const measured = { out0Len: 128, out1Len: P2WPKH_LEN };
 
@@ -188,6 +188,75 @@ describe("assertPayoutFeeInBand", () => {
       }),
     ).rejects.toThrow(/exceeds the safety cap/);
   });
+
+  it("does not widen the ceiling for the unpinned commission script length", async () => {
+    // out1 is VP-controlled; a 128-byte pad must buy zero extra headroom —
+    // the ceiling stays at the flat 10 * 610 = 6_100.
+    const measured = { out0Len: P2WPKH_LEN, out1Len: 128 };
+
+    await expect(
+      assertPayoutFeeInBand(BASE_PARAMS, {
+        ...measured,
+        implicitFeeSats: 6_100,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertPayoutFeeInBand(BASE_PARAMS, {
+        ...measured,
+        implicitFeeSats: 6_101,
+      }),
+    ).rejects.toThrow(/exceeds the safety cap/);
+  });
+
+  // 324 WASM floor calls (~4s alone; longer under a parallel full-repo run).
+  it(
+    "keeps the band non-empty (floor <= ceiling) across the domain corners",
+    { timeout: 30_000 },
+    async () => {
+      // The floor moves with VAULT_WASM_COMMIT (pinned Rust model set) while
+      // the ceiling constants are local — a pin bump that lifts the floor
+      // above the ceiling would brick every payout of that shape with CI
+      // green. Both ends scale linearly with rate, so rate 1 covers all rates.
+      const params = { ...BASE_PARAMS, protocolFeeRate: 1n };
+      for (const vaultCoreVersion of [1, 2]) {
+        for (const n of [1, 2, 32]) {
+          for (const m of [1, 2, 32]) {
+            for (const out0Len of [1, 34, 128]) {
+              for (const out1Len of [34, 128, undefined]) {
+                for (const councilSize of [1, 100]) {
+                  const shape = {
+                    ...params,
+                    vaultCoreVersion,
+                    numVaultKeepers: n,
+                    numUniversalChallengers: m,
+                    councilSize,
+                  };
+                  const floor = await computePayoutFeeFloor(
+                    vaultCoreVersion,
+                    n,
+                    m,
+                    n,
+                    councilSize,
+                    out0Len,
+                    out1Len,
+                    1n,
+                  );
+                  // A floor above the ceiling would throw here.
+                  await expect(
+                    assertPayoutFeeInBand(shape, {
+                      implicitFeeSats: Number(floor),
+                      out0Len,
+                      out1Len,
+                    }),
+                  ).resolves.toBeUndefined();
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+  );
 
   it("floors the no-commission (2-output) shape with out1Len undefined", async () => {
     const floor = await computePayoutFeeFloor(
