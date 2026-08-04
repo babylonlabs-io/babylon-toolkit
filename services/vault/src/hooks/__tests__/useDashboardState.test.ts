@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  BORROW_CAPACITY_HEADROOM,
   BPS_SCALE,
   MIN_BORROWABLE_USD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
@@ -259,9 +260,10 @@ describe("useDashboardState", () => {
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
     const expectedMaxTotalDebtUsd =
-      (10000 * Math.round(0.8 * BPS_SCALE)) /
-      BPS_SCALE /
-      MIN_HEALTH_FACTOR_FOR_BORROW;
+      ((10000 * Math.round(0.8 * BPS_SCALE)) /
+        BPS_SCALE /
+        MIN_HEALTH_FACTOR_FOR_BORROW) *
+      (1 - BORROW_CAPACITY_HEADROOM);
     expect(result.current.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
     expect(result.current.availableToBorrowUsd).toBe(
       expectedMaxTotalDebtUsd - 2000,

@@ -15,6 +15,7 @@ import { getETHChain } from "@/config/network";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
+  ContractError,
   ErrorCode,
   WalletError,
   mapViemErrorToContractError,
@@ -105,12 +106,17 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
           error instanceof Error ? error : new Error(String(error)),
           { data: { context: "Withdraw collateral failed" } },
         );
+        // The transaction client already mapped this against the Aave ABIs.
+        // Re-mapping here would re-prefix the operation name and discard the
+        // decoded revert reason, so pass a ContractError straight through.
         const mappedError =
-          error instanceof Error
-            ? mapViemErrorToContractError(error, "Withdraw Collateral")
-            : new Error(
-                "An unexpected error occurred while withdrawing collateral",
-              );
+          error instanceof ContractError
+            ? error
+            : error instanceof Error
+              ? mapViemErrorToContractError(error, "Withdraw Collateral")
+              : new Error(
+                  "An unexpected error occurred while withdrawing collateral",
+                );
 
         setError(mappedError.message);
 

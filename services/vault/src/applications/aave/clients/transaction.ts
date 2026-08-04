@@ -8,7 +8,9 @@
 import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
+  AaveAdapterPositionProxyABI,
   AaveIntegrationAdapterABI,
+  AaveSpokeABI,
   buildBorrowTx,
   buildReorderVaultsTx,
   buildRepayTx,
@@ -27,6 +29,22 @@ import {
   mapViemErrorToContractError,
   tagSimulationPhase,
 } from "../../../utils/errors";
+
+/**
+ * ABIs consulted when decoding a revert on the Aave paths.
+ *
+ * The adapter alone is not enough: a withdraw or borrow reverts inside the Aave
+ * Core Spoke (health-factor floor, dust rule, frozen/paused reserve) or in the
+ * per-position proxy, and a selector outside the supplied ABIs decodes to
+ * nothing — which is how ordinary, explainable conditions reached the user as
+ * "Execution reverted for an unknown reason."
+ */
+const AAVE_REVERT_DECODING_ABIS = [
+  AaveIntegrationAdapterABI,
+  AaveSpokeABI,
+  AaveAdapterPositionProxyABI,
+  BTCVaultRegistryABI,
+];
 
 /**
  * Read the Core Spoke address from the controller contract.
@@ -134,10 +152,11 @@ async function executeTx(
     // Tagged so callers can safely auto-retry: nothing was signed or sent,
     // and the failure may be a lagging RPC backend, not the chain.
     throw tagSimulationPhase(
-      mapViemErrorToContractError(error, errorContext, [
-        AaveIntegrationAdapterABI,
-        BTCVaultRegistryABI,
-      ]),
+      mapViemErrorToContractError(
+        error,
+        errorContext,
+        AAVE_REVERT_DECODING_ABIS,
+      ),
     );
   }
 
@@ -177,12 +196,11 @@ async function executeTx(
       receipt,
     };
   } catch (error) {
-    // Include both ABIs for comprehensive error decoding
-    // AaveIntegrationAdapter may call into BTCVaultRegistry
-    throw mapViemErrorToContractError(error, errorContext, [
-      AaveIntegrationAdapterABI,
-      BTCVaultRegistryABI,
-    ]);
+    throw mapViemErrorToContractError(
+      error,
+      errorContext,
+      AAVE_REVERT_DECODING_ABIS,
+    );
   }
 }
 

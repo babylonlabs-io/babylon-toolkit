@@ -13,6 +13,21 @@ export {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 /**
+ * Fraction of borrow capacity held back so the advertised maximum does not sit
+ * exactly on the health-factor rail.
+ *
+ * Sizing "Max" against `MIN_HEALTH_FACTOR_FOR_BORROW` alone produced a figure
+ * whose projected HF equalled the floor to the last decimal. Debt accrues
+ * interest continuously, so by the time the pre-sign check refetched the
+ * position the projected HF had slipped just under the floor and the borrow was
+ * rejected with "Projected health factor (1.05) would be below 1.05" - a
+ * message that reads as self-contradictory because both numbers are rounded for
+ * display. 0.5% is far above the ~5e-8 relative drift that 30s of accrual at 5%
+ * APR produces, while costing a borrower a negligible amount of capacity.
+ */
+export const BORROW_CAPACITY_HEADROOM = 0.005;
+
+/**
  * Stale time for config queries (5 minutes)
  * Config data (reserves, contract addresses) rarely changes
  */

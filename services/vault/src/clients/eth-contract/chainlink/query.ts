@@ -44,8 +44,43 @@ const CHAINLINK_PRICE_FEEDS: Record<Network, ChainlinkFeedAddresses> = {
   },
 };
 
-/** Maximum acceptable age for Chainlink price data (1 hour) */
-const CHAINLINK_MAX_PRICE_AGE_SECONDS = 3600;
+/**
+ * Nominal Chainlink heartbeat: the longest the aggregator will go without
+ * publishing, absent a deviation trigger. Matches the BTC/USD and ETH/USD
+ * feeds this app reads.
+ *
+ * TODO: this is per-aggregator, not global — mainnet USDC/USDT run a 24h
+ * heartbeat, so they will read as chronically stale if those feeds are ever
+ * enabled (they are `null` on SIGNET/TESTNET today, so nothing queries them).
+ * The heartbeat is aggregator config and is not exposed on the proxy ABI, so
+ * it has to come from a per-feed table rather than a contract read.
+ */
+const CHAINLINK_HEARTBEAT_SECONDS = 3600;
+
+/**
+ * Grace period added to the heartbeat before calling a feed stale.
+ *
+ * A feed is *contractually* allowed to be one full heartbeat old, and real
+ * updates routinely land a few minutes late (block time, gas, deviation-trigger
+ * jitter). Comparing age against the bare heartbeat therefore flagged the tail
+ * of every normal heartbeat window — which is why the reported ages clustered
+ * at 1.0-1.2 hours and made this the highest-volume event in the project, while
+ * also blanking the liquidation UI on a perfectly healthy feed.
+ */
+const CHAINLINK_STALENESS_GRACE_SECONDS = 600;
+
+/** Maximum acceptable age for Chainlink price data before it is called stale. */
+const CHAINLINK_MAX_PRICE_AGE_SECONDS =
+  CHAINLINK_HEARTBEAT_SECONDS + CHAINLINK_STALENESS_GRACE_SECONDS;
+
+/**
+ * How far the client clock may run behind chain time before freshness becomes
+ * unknowable. `updatedAt` is compared against `Date.now()`, so a device clock
+ * that is behind yields a NEGATIVE age; `age <= maxAge` then reports "fresh"
+ * for arbitrarily old data — a fail-open on the check that guards the
+ * health-factor path. Skew beyond this bound is treated as stale instead.
+ */
+const MAX_CLIENT_CLOCK_SKEW_SECONDS = 300;
 
 /** Number of seconds in one hour — used for display formatting */
 const SECONDS_PER_HOUR = 3600;
@@ -133,7 +168,7 @@ export interface ChainlinkRoundData {
  * Metadata about a price feed's freshness and status
  */
 export interface PriceMetadata {
-  /** Whether the price data is stale (older than 1 hour) */
+  /** Whether the price data is older than the heartbeat plus its grace window */
   isStale: boolean;
   /** Age of the price data in seconds */
   ageSeconds: number;
@@ -158,7 +193,7 @@ interface TokenPricesResult {
  * Chainlink recommends checking updatedAt is recent
  *
  * @param roundData - Round data from getLatestRoundData
- * @param maxAgeSeconds - Maximum age in seconds (default: 3600 = 1 hour)
+ * @param maxAgeSeconds - Maximum age in seconds (default: heartbeat + grace)
  * @returns true if data is fresh, false if stale
  */
 export function isPriceFresh(
@@ -168,6 +203,10 @@ export function isPriceFresh(
   if (roundData.answeredInRound < roundData.roundId) return false;
   const now = BigInt(Math.floor(Date.now() / 1000));
   const age = now - roundData.updatedAt;
+  // A negative age means the client clock is behind chain time. A small skew is
+  // ordinary and the round really is fresh; past that we cannot tell fresh from
+  // ancient, so fail closed rather than pass everything.
+  if (age < 0n) return -age <= BigInt(MAX_CLIENT_CLOCK_SKEW_SECONDS);
   return age <= BigInt(maxAgeSeconds);
 }
 
@@ -274,17 +313,34 @@ function readoutForFeed(
   const feedKey = feedAddress.toLowerCase();
   if (isStale) {
     // One event per stale episode; subsequent reads while still stale are silent.
+    // Messages are kept literal — interpolating the age or the round numbers
+    // made every distinct value its own Sentry issue, so the condition could
+    // never be seen as a single trend.
     if (!reportedStaleFeeds.has(feedKey)) {
       reportedStaleFeeds.add(feedKey);
       if (answeredInRound < roundId) {
         logger.event(
-          `Chainlink price data is stale: incomplete round (answeredInRound=${answeredInRound} < roundId=${roundId}). Using last known price.`,
+          "Chainlink price data is stale: incomplete round. Using last known price.",
+          {
+            tags: { staleReason: "incomplete-round", feed: feedKey },
+            roundId: roundId.toString(),
+            answeredInRound: answeredInRound.toString(),
+          },
+        );
+      } else if (ageSeconds < 0) {
+        logger.event(
+          "Chainlink price data rejected: client clock is behind chain time. Using last known price.",
+          {
+            tags: { staleReason: "clock-skew", feed: feedKey },
+            skewSeconds: -ageSeconds,
+          },
         );
       } else {
-        const ageHours = (ageSeconds / SECONDS_PER_HOUR).toFixed(1);
-        logger.event(
-          `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
-        );
+        logger.event("Chainlink price data is stale. Using last known price.", {
+          tags: { staleReason: "age", feed: feedKey },
+          ageHours: (ageSeconds / SECONDS_PER_HOUR).toFixed(1),
+          ageSeconds,
+        });
       }
     }
   } else {
