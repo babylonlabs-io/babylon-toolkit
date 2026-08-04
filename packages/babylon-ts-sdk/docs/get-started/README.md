@@ -142,7 +142,7 @@ Each maps to a public subpath like `@babylonlabs-io/ts-sdk/tbv/core/<name>` (see
 
 ### Runtime
 
-- **Node.js ≥ 20.3.0** (`AbortSignal.any()` is required). Works on Node 20 LTS, 22 LTS, 24 LTS.
+- **Node.js ≥ 20.3.0** — the supported baseline. Works on Node 20 LTS, 22 LTS, 24 LTS.
 - For browser targets: a bundler that handles `.wasm` assets (Vite, webpack, Next.js, Rollup) and a `Buffer` polyfill. See [Troubleshooting](./troubleshooting.md).
 
 ### Packages

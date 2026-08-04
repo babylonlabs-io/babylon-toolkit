@@ -1,3 +1,9 @@
+/**
+ * AbortSignal composition helpers.
+ *
+ * @module utils/abortSignals
+ */
+
 export interface CombinedAbortSignal {
   signal: AbortSignal;
   /** Remove listeners from the source signals. Call once the request settles. */
@@ -5,13 +11,15 @@ export interface CombinedAbortSignal {
 }
 
 /**
- * Compose several AbortSignals into one that aborts when any input aborts.
+ * Compose several AbortSignals into one that aborts when any input aborts,
+ * propagating the reason of whichever fired first.
  *
  * Deliberately does NOT use `AbortSignal.any`: that shipped in Chrome 116 /
- * Safari 17.4, which is newer than this app's build target, and it is a runtime
- * API so no transpile step can backfill it. Calling it directly threw
+ * Safari 17.4, newer than the browsers this SDK is consumed from, and it is a
+ * runtime API so no transpile step can backfill it. Calling it directly threw
  * `TypeError: AbortSignal.any is not a function` before `fetch` was ever
- * reached, failing every request on older browsers.
+ * reached, which failed UTXO fetches, fee estimation and transaction broadcast
+ * outright on those browsers.
  */
 export function combineAbortSignals(
   signals: AbortSignal[],
@@ -36,31 +44,4 @@ export function combineAbortSignals(
   };
 
   return { signal: controller.signal, cleanup };
-}
-
-export function abortableSleep(
-  ms: number,
-  signal?: AbortSignal,
-): Promise<void> {
-  if (ms <= 0) return Promise.resolve();
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
-    };
-
-    if (signal) {
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener("abort", onAbort, { once: true });
-    }
-  });
 }
