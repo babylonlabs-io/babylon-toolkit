@@ -210,6 +210,12 @@ export function usePeginStorage({
         depositorBtcPubkey: pending.depositorBtcPubkey,
         unsignedPrePeginTx: pending.unsignedTxHex,
         depositorWotsPkHash: "",
+        // The version the vault was actually registered with. It is persisted
+        // at registration and re-asserted on chain, so it is known here - it
+        // was simply never mapped across. Without it these rows arrive
+        // downstream as `undefined`, silently pick up the latest params, and
+        // persist a conclusion drawn against the wrong version.
+        offchainParamsVersion: pending.buildOffchainParamsVersion,
       }));
 
     // Update confirmed activities with localStorage status (for displayLabel)

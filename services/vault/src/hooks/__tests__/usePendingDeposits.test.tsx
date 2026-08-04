@@ -21,20 +21,11 @@ vi.mock("@/context/wallet", () => ({
   useETHWallet: vi.fn(() => ({ address: "0xethtest" })),
 }));
 
-vi.mock("@/hooks/useBtcPublicKey", () => ({
-  useBtcPublicKey: vi.fn(() => ({
-    publicKey: "btcpubkey123",
-    error: null,
-    refetch: vi.fn(),
-  })),
-}));
-
 const mockActivities = vi.fn((): any[] => []);
 
 vi.mock("@/hooks/useVaultDeposits", () => ({
   useVaultDeposits: vi.fn(() => ({
     activities: mockActivities(),
-    pendingPegins: [],
     refetchActivities: mockRefetchActivities,
   })),
 }));
@@ -137,7 +128,6 @@ describe("usePendingDeposits", () => {
 
     expect(result.current.btcAddress).toBe("bc1qtest");
     expect(result.current.ethAddress).toBe("0xethtest");
-    expect(result.current.btcPublicKey).toBe("btcpubkey123");
   });
 
   it("places EXPIRED activities with unsignedPrePeginTx into expiredActivities, not pendingActivities", () => {

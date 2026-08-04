@@ -40,7 +40,7 @@ export interface PeginPollingProtocolParams {
   /**
    * Required Pre-PegIn confirmation depth (`minPrepeginDepth`), pinned to the
    * deposit's registered offchain-params version. The latest version applies
-   * ONLY pre-sign (no registered version): a registered version missing from
+   * ONLY before registration: a registered version missing from
    * `byVersion` withholds (`undefined`) rather than falling back — the
    * at-depth conclusion this feeds persists (`confirmedTxids`), so a
    * fallback depth would confirm at the wrong threshold and the mistake
@@ -84,7 +84,9 @@ export function usePeginPollingProtocolParams(
   const resolveRequiredPrePeginDepth = useCallback(
     (offchainParamsVersion?: number): number | undefined => {
       if (!config || !offchainParams) return undefined;
-      // Pre-sign: the deposit has no registered version yet → latest params.
+      // No registered version yet (the deposit has not been registered on
+      // Ethereum) → latest params. Registered deposits carry their pinned
+      // version through from storage, so they never take this branch.
       if (offchainParamsVersion === undefined) {
         return config.offchainParams.minPrepeginDepth;
       }
