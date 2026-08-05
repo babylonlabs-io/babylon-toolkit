@@ -40,6 +40,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   })),
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
+  getOperationKeyReader: vi.fn(async () => ({})),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -172,8 +173,15 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
     universalChallengerBtcPubkeysSorted: ["uc1pubkey"],
     expectedAppVaultKeepersVersion: 3,
     expectedUniversalChallengersVersion: 5,
+    participantKeys: {
+      vaultProvider: { operationBtcPubkey: "ab".repeat(32) },
+      vaultKeepers: [{ operationBtcPubkey: "keeper1pubkey" }],
+      vaultKeeperOperationKeysSorted: ["keeper1pubkey"],
+      universalChallengerOperationKeysSorted: ["uc1pubkey"],
+    },
   }),
   verifyRegisteredVaultVersions: vi.fn().mockResolvedValue(undefined),
+  verifyRegisteredParticipantKeys: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../depositFlowSteps", async () => {

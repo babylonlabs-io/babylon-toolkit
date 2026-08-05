@@ -15,11 +15,11 @@
  * - `assertPayoutFeeBandDomain` has accepted the rate and participant counts,
  *   so the band runs exactly over the domain its dominance proof was swept.
  * - `out0Len` is the layout-trusted length of the PINNED outs[0] script.
- *   `out1Len` is measured from the deliberately-unpinned VP commission
- *   output and is UNTRUSTED: it feeds only the floor, where padding cannot
- *   raise it (the fixed-34 model saturates the minimum) and shortening only
- *   lowers it. It must never widen the ceiling — a VP-controlled length
- *   there would buy burnable headroom.
+ *   `out1Len` is the VP commission output's length. RFC-006 pins that output
+ *   to the operator's registered scriptPubKey, so it is now layout-trusted
+ *   too and bounded to a standard type. It still feeds only the floor and
+ *   must never widen the ceiling: that separation is kept deliberately, so
+ *   the bound holds even if a future change unpins the output again.
  * - `implicitFeeSats` is `inputs − outputs` over verified prevouts, `>= 0`.
  *
  * @module primitives/psbt/assertPayoutFeeBand
@@ -154,12 +154,13 @@ export async function assertPayoutFeeInBand(
   const implicitFee = BigInt(implicitFeeSats);
 
   // Ceiling first: synchronous arithmetic, no WASM round-trip.
-  // Only the PINNED outs[0] script extends the ceiling. out1Len is
-  // VP-controlled (commission script deliberately unpinned) — including it
-  // would let a padded script widen the burnable band by up to 94 vB x rate.
-  // Honest long-commission builds still fit: the flat model's >=175 vB
-  // headroom over the exact estimator vsize absorbs the 94 vB with >=81 vB
-  // to spare across the entire accepted domain.
+  // Only outs[0] extends the ceiling; out1Len never does. RFC-006 now pins the
+  // commission script, so a padded one can no longer reach here — but the
+  // separation is kept so the bound does not silently depend on that pin.
+  // Including out1Len would let a padded script widen the burnable band by up
+  // to 94 vB x rate. Honest long-commission builds still fit: the flat model's
+  // >=175 vB headroom over the exact estimator vsize absorbs the 94 vB with
+  // >=81 vB to spare across the entire accepted domain.
   const scriptExcess = Math.max(0, out0Len - PAYOUT_BOUND_ASSUMED_SCRIPT_LEN);
   const maxPayoutVsize =
     MAX_PAYOUT_VSIZE_BASE +

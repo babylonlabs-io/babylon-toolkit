@@ -7,6 +7,7 @@
  */
 
 import { assertValidVaultCoreVersion } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type { KeyEpochs } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type Address, type Hex, zeroAddress } from "viem";
 
 import { getVaultRegistryReader } from "../sdk-readers";
@@ -90,6 +91,25 @@ export async function getVaultFromChain(
     vaultProviderCommissionBps: Number(protocol.vaultProviderCommissionBps),
     status: basic.status,
   };
+}
+
+/**
+ * Read a vault's frozen RFC-006 operation-key epochs.
+ *
+ * Deliberately a **separate** read from {@link getVaultFromChain} rather than
+ * three more fields on `OnChainVaultData`. It goes through the extended
+ * `getBtcVaultProtocolInfo` ABI, and `getVaultFromChain` is on the status,
+ * resume, refund and payout paths — folding the epochs into it would make all
+ * of those depend on the registry having been upgraded. See
+ * `BTCVaultRegistryKeyEpochs.abi.ts`.
+ *
+ * Only valid against an RFC-006 registry: on an older one it returns plausible
+ * garbage rather than throwing.
+ */
+export async function getVaultKeyEpochsFromChain(
+  vaultId: Hex,
+): Promise<KeyEpochs> {
+  return getVaultRegistryReader().getVaultKeyEpochs(vaultId);
 }
 
 /**

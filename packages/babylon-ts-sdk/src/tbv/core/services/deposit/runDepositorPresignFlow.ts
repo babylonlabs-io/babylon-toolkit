@@ -90,6 +90,17 @@ export interface PayoutSigningContext {
    * graph with. Bounds every payout's implicit fee (device fee-bound model).
    */
   protocolFeeRate: bigint;
+
+  /**
+   * RFC-006 resolved keeper payout destinations at the vault's frozen
+   * `appKeeperKeyEpoch`, keyed by lowercased x-only operation pubkey.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /**
+   * RFC-006 resolved VP commission destination at the vault's frozen
+   * `vpKeyEpoch`.
+   */
+  vpCommissionScriptPubKey: string;
 }
 
 export interface RunDepositorPresignFlowParams {
@@ -254,6 +265,8 @@ function buildPayoutSigningInput(
     commissionBps: context.commissionBps,
     protocolFeeRate: context.protocolFeeRate,
     councilSize: context.councilMembers.length,
+    vkClaimerPayoutScriptPubKeys: context.vkClaimerPayoutScriptPubKeys,
+    vpCommissionScriptPubKey: context.vpCommissionScriptPubKey,
   };
 }
 
@@ -443,6 +456,8 @@ export async function runDepositorPresignFlow(
       network: signingContext.network,
       registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
       protocolFeeRate: signingContext.protocolFeeRate,
+      vkClaimerPayoutScriptPubKeys: signingContext.vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey: signingContext.vpCommissionScriptPubKey,
     },
   });
 

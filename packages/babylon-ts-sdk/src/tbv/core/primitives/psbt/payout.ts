@@ -40,6 +40,7 @@ import {
   PEGIN_VAULT_OUTPUT_INDEX,
   VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
 } from "./constants";
+import { assertStandardPayoutScript } from "./standardPayoutScript";
 
 /**
  * Number of items in a Taproot script-path spend witness stack for a
@@ -149,6 +150,31 @@ export interface PayoutParams {
    * pinned models.
    */
   councilSize: number;
+
+  /**
+   * RFC-006. Expected `outs[0].script` per vault-keeper claimer, keyed by
+   * lowercased x-only **operation** pubkey (no `0x`), resolved from
+   * `ApplicationRegistry.getPayoutScriptAtEpoch` at the vault's frozen
+   * `appKeeperKeyEpoch`.
+   *
+   * Every VK claimer must be present: a claimer missing from the map is an
+   * error rather than a cue to derive BIP-86, because a gap means resolution
+   * was incomplete and we do not know what that keeper registered.
+   *
+   * Each entry accepts either that registered script or the BIP-86 default of
+   * the same bonded key, so graphs built before btc-vault#2440 remain signable
+   * — see {@link acceptedPayoutScriptHexes} for why that is required and when
+   * it can be dropped.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+
+  /**
+   * RFC-006. Expected `outs[1].script` for the VP-claimer commission output,
+   * from `BTCVaultRegistry.getPayoutScriptAtEpoch` at the vault's frozen
+   * `vpKeyEpoch`. The BIP-86 default of the bonded VP key is accepted alongside
+   * it — see {@link acceptedPayoutScriptHexes}.
+   */
+  vpCommissionScriptPubKey: string;
 }
 
 /**
@@ -383,15 +409,94 @@ function assemblePayoutPsbt(
 }
 
 /**
+ * The scriptPubKeys a payout output may legitimately pay for `bondedPubkey`.
+ *
+ * ## What this is
+ *
+ * A deliberate dual-accept: both the operator's RFC-006 **registered** payout
+ * script and the **BIP-86 default** of its bonded operation key are treated as
+ * valid destinations for the same output.
+ *
+ * ## Why both forms exist
+ *
+ * A vault provider running a daemon that predates btc-vault#2440 computes
+ * operator payout destinations itself, via BIP-86 over the bonded operation
+ * key. From #2440 onward it reads them from the registry instead
+ * (`getPayoutScriptAtEpoch`), so an operator can point payouts at cold custody.
+ *
+ * The two forms are not a transition state that resolves on its own. A payout
+ * graph is built once, at BaBe Setup, and is **never rebuilt** — so a vault
+ * whose graph was built before its network's #2440 upgrade pays BIP-86 for the
+ * rest of its life. Accepting only the registered form makes every such vault
+ * permanently unsignable: the depositor can never complete the deposit, and
+ * the BTC is already committed by then. Confirmed on devnet 2026-08-04, where
+ * a pre-upgrade vault failed exactly this way.
+ *
+ * ## Why this is not a weakening
+ *
+ * Both candidates are derived here from on-chain state — the registry read and
+ * a local BIP-86 derivation over the bonded key. Neither is taken from the VP's
+ * response, so a substituted or attacker-chosen script still fails.
+ *
+ * The only substitution this permits is between two destinations the *same
+ * operator* already controls, which moves that operator's own funds between its
+ * own addresses. It cannot redirect value to a third party, and it cannot touch
+ * the depositor's output. For the VP commission the value cap
+ * (`floor(peginValue × commissionBps / 10_000)`) still bounds depositor
+ * exposure independently of where the commission goes. The BIP-86 branch is
+ * also precisely what every pre-RFC-006 client pinned, so this is the older
+ * rule retained alongside the newer one, not a laxer rule invented for it.
+ *
+ * ## When this can be removed
+ *
+ * This validation runs at one point in the lifecycle: depositor payout signing
+ * (`PENDING` → `VERIFIED`). It is not re-run on refund or withdrawal. So the
+ * BIP-86 branch stops being reachable for a network once every vault
+ * registered before that network's #2440 upgrade has left
+ * `PendingDepositorSignatures` — signed and activated, or expired past its
+ * activation deadline. That is bounded by the vault lifetime, not indefinite.
+ *
+ * Removal is therefore gated by the **last** network to upgrade, since this
+ * code is shared. Concretely: drop the BIP-86 branch only once devnet, testnet
+ * and mainnet have all been on #2440 for longer than the activation deadline,
+ * and no vault registered before those upgrades is still awaiting signatures.
+ * Deleting it earlier strands deposits with BTC already locked; there is no
+ * recovery path short of the refund timelock.
+ *
+ * @internal Helper invoked by {@link assertPayoutOutputLayout}.
+ */
+function acceptedPayoutScriptHexes(
+  registeredScriptPubKey: string,
+  bondedPubkey: string,
+): string[] {
+  const registered = stripHexPrefix(registeredScriptPubKey).toLowerCase();
+  const legacyBip86 = stripHexPrefix(
+    deriveBip86ScriptPubKeyHex(bondedPubkey),
+  ).toLowerCase();
+  return registered === legacyBip86 ? [registered] : [registered, legacyBip86];
+}
+
+/** Whether `script` matches any of `acceptedHexes`. */
+function matchesAnyScript(script: Buffer, acceptedHexes: string[]): boolean {
+  return acceptedHexes.some((hex) => script.equals(Buffer.from(hex, "hex")));
+}
+
+/**
  * Validate a payout transaction's output structure for the claimer's role,
  * keyed on `claimerBtcPubkey`. Pins per role: `outs.length`, `outs[0].script`,
  * `outs[last].value` (anchor dust), and (VP-claimer) `outs[1].value` capped at
  * `floor(peginValue × commissionBps / 10_000)`. Canonical layouts: VP-claimer
  * = [payout, commission, anchor]; depositor/VK-claimer = [payout, anchor].
  *
- * `outs[1].script` and `outs[last].script` are intentionally not pinned: the
- * value pins above bound depositor exposure regardless of where those outputs
- * are sent, so the value pins — not script pins — are load-bearing.
+ * `outs[last].script` (the CPFP anchor) is intentionally not pinned: the value
+ * pin above bounds depositor exposure regardless of where that dust goes.
+ *
+ * `outs[1].script` (the VP commission) was unpinned for the same reason.
+ * RFC-006 supersedes that rationale: the commission destination is now an
+ * operator-registered scriptPubKey we can resolve independently at the vault's
+ * frozen `vpKeyEpoch`, so when `vpCommissionScriptPubKey` is supplied it is
+ * pinned too. The value cap stays — it is still what bounds exposure — and the
+ * script pin is added precision, not a replacement for it.
  *
  * Returns the layout-trusted non-anchor script lengths for the fee band:
  * `out0Len` from the pinned outs[0] script (registered payout script, or
@@ -414,6 +519,8 @@ function assertPayoutOutputLayout(
     vaultKeeperBtcPubkeys,
     registeredPayoutScriptPubKey,
     commissionBps,
+    vkClaimerPayoutScriptPubKeys,
+    vpCommissionScriptPubKey,
   } = params;
 
   if (!isValidHex(registeredPayoutScriptPubKey)) {
@@ -430,20 +537,39 @@ function assertPayoutOutputLayout(
   type Role = "vp-claimer" | "depositor-as-claimer" | "vk-claimer";
   let role: Role;
   let expectedOutCount: number;
-  let expectedOut0ScriptHex: string;
+  let acceptedOut0ScriptHexes: string[];
 
   if (claimer === vp) {
     role = "vp-claimer";
     expectedOutCount = VP_CLAIMER_PAYOUT_OUTPUT_COUNT;
-    expectedOut0ScriptHex = stripHexPrefix(registeredPayoutScriptPubKey);
+    acceptedOut0ScriptHexes = [stripHexPrefix(registeredPayoutScriptPubKey)];
   } else if (claimer === dep) {
     role = "depositor-as-claimer";
     expectedOutCount = NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT;
-    expectedOut0ScriptHex = stripHexPrefix(registeredPayoutScriptPubKey);
+    acceptedOut0ScriptHexes = [stripHexPrefix(registeredPayoutScriptPubKey)];
   } else if (keepers.includes(claimer)) {
     role = "vk-claimer";
     expectedOutCount = NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT;
-    expectedOut0ScriptHex = stripHexPrefix(deriveBip86ScriptPubKeyHex(claimer));
+    // RFC-006: a keeper's payout goes to the scriptPubKey it registered
+    // on-chain, resolved at the vault's frozen keeper epoch. Deriving BIP-86
+    // locally as the sole expectation would reject a valid payout the moment a
+    // keeper points its payouts at cold custody.
+    //
+    // A missing entry is an error, never a BIP-86 fallback: the registry
+    // backfills BIP-86 itself for keepers that never registered a script, so a
+    // gap here means the resolution was incomplete, not that this keeper is on
+    // the default.
+    const registered = vkClaimerPayoutScriptPubKeys[claimer];
+    if (registered === undefined) {
+      throw new Error(
+        `No registered payout script resolved for vault keeper claimer ${claimer}`,
+      );
+    }
+    assertStandardPayoutScript(
+      registered,
+      `Vault keeper payout script for claimer ${claimer}`,
+    );
+    acceptedOut0ScriptHexes = acceptedPayoutScriptHexes(registered, claimer);
   } else {
     throw new Error(
       `Unknown claimer pubkey ${claimer}: not VP, depositor, or a registered vault keeper`,
@@ -457,10 +583,11 @@ function assertPayoutOutputLayout(
     );
   }
 
-  const expectedOut0Script = Buffer.from(expectedOut0ScriptHex, "hex");
-  if (!payoutTx.outs[0].script.equals(expectedOut0Script)) {
+  if (!matchesAnyScript(payoutTx.outs[0].script, acceptedOut0ScriptHexes)) {
     throw new Error(
-      `Payout transaction output 0 does not pay the expected scriptPubKey for role ${role}`,
+      `Payout transaction output 0 does not pay the expected scriptPubKey for role ${role}. ` +
+        `Accepted: ${acceptedOut0ScriptHexes.join(" or ")}; ` +
+        `got ${payoutTx.outs[0].script.toString("hex")}`,
     );
   }
 
@@ -473,6 +600,27 @@ function assertPayoutOutputLayout(
   }
 
   if (role === "vp-claimer") {
+    // RFC-006 commission destination. Checked before the value cap so a
+    // substituted destination reports as such rather than surfacing later as a
+    // confusing amount error.
+    assertStandardPayoutScript(
+      vpCommissionScriptPubKey,
+      "Vault provider commission payout script",
+    );
+    const acceptedCommissionScriptHexes = acceptedPayoutScriptHexes(
+      vpCommissionScriptPubKey,
+      vp,
+    );
+    if (
+      !matchesAnyScript(payoutTx.outs[1].script, acceptedCommissionScriptHexes)
+    ) {
+      throw new Error(
+        `Payout transaction output 1 does not pay the vault provider's commission scriptPubKey. ` +
+          `Accepted: ${acceptedCommissionScriptHexes.join(" or ")}; ` +
+          `got ${payoutTx.outs[1].script.toString("hex")}`,
+      );
+    }
+
     // Structural guard only — a non-negative integer below the bps
     // denominator, so the cap math `floor(peginValue * bps / 10_000)` is
     // meaningful. The protocol minimum is enforced at the trust boundary
@@ -499,7 +647,10 @@ function assertPayoutOutputLayout(
     }
   }
 
-  const out0Len = expectedOut0Script.length;
+  // The accepted-script set can hold more than one candidate (dual-accept), so
+  // the length the fee band consumes is that of the output actually present —
+  // which the check above has already pinned to one of the accepted values.
+  const out0Len = payoutTx.outs[0].script.length;
   if (out0Len === 0 || out0Len > MAX_PAYOUT_SCRIPT_LEN) {
     throw new Error(
       `Payout receiver scriptPubKey length ${out0Len} is outside the ` +
@@ -507,18 +658,14 @@ function assertPayoutOutputLayout(
         `refusing to sign payout.`,
     );
   }
+  // No length cap on outs[1]: under RFC-006 the commission output is pinned to
+  // the operator's registered script, and `assertStandardPayoutScript` above
+  // already bounds that to a standard type (34 bytes at most). A separate
+  // 128-byte cap here would be unreachable. Still measured, because the fee
+  // floor consumes it — and now from a pinned source rather than a
+  // VP-controlled one.
   const out1Len =
     role === "vp-claimer" ? payoutTx.outs[1].script.length : undefined;
-  if (
-    out1Len !== undefined &&
-    (out1Len === 0 || out1Len > MAX_PAYOUT_SCRIPT_LEN)
-  ) {
-    throw new Error(
-      `Payout commission scriptPubKey length ${out1Len} is outside the ` +
-        `contract's registration cap [1, ${MAX_PAYOUT_SCRIPT_LEN}]; ` +
-        `refusing to sign payout.`,
-    );
-  }
 
   return { out0Len, out1Len };
 }

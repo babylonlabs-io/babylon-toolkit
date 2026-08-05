@@ -266,6 +266,10 @@ function createSigningContext(
   // excluded) ∪ UniversalChallengers. Default fixture uses 2 VKs and 0 UCs
   // so most tests can build a 2-entry graph; tests that need a UC override.
   return {
+    // Unused by the depositor-as-claimer role, but required by the shared
+    // `buildPayoutPsbt` shape.
+    vkClaimerPayoutScriptPubKeys: {},
+    vpCommissionScriptPubKey: "0x0014" + "00".repeat(20),
     // Non-default on purpose: a re-hardcoded version anywhere in the
     // signing path would fail the threading assertions below.
     vaultCoreVersion: 2,
@@ -309,6 +313,8 @@ describe("signDepositorGraph", () => {
     expect(builder).toHaveBeenCalledOnce();
     expect(builder).toHaveBeenCalledWith({
       vaultCoreVersion: 2,
+      vkClaimerPayoutScriptPubKeys: ctx.vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey: ctx.vpCommissionScriptPubKey,
       payoutTxHex: graph.payout_tx.tx_hex,
       peginTxHex: ctx.peginTxHex,
       assertTxHex: graph.assert_tx.tx_hex,

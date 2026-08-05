@@ -57,6 +57,7 @@ import {
   ContractStatus,
   getPeginDisplayStep,
 } from "@/models/peginStateMachine";
+import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -355,15 +356,15 @@ export function ResumeWotsContent({
 
       // Best-effort priming: VP pubkey fetch can fail without blocking the
       // resume flow because submitWotsPublicKey re-derives on cache miss.
-      const pinnedServerPubkeyPromise = reader
-        .getVaultProviderBtcPubKey(providerAddress as Address)
-        .catch((err: unknown) => {
-          logger.warn("Failed to fetch VP pubkey for registry priming", {
-            peginTxHash,
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return null;
+      const pinnedServerPubkeyPromise = resolveVpAuthPinnedPubkey(
+        providerAddress as Address,
+      ).catch((err: unknown) => {
+        logger.warn("Failed to fetch VP pubkey for registry priming", {
+          peginTxHash,
+          error: err instanceof Error ? err.message : String(err),
         });
+        return null;
+      });
 
       // Indexer-supplied tx is untrusted. Verify against on-chain
       // prePeginTxHash before deriveVaultRoot fires the wallet popup.

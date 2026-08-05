@@ -31,6 +31,7 @@ import type {
   DepositorPreSigsPerChallenger,
   PresignDataPerChallenger,
 } from "../../clients/vault-provider/types";
+import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import {
   assertPsbtUnsignedTxMatches,
   type AssertPsbtUnsignedTxMatchesParams,
@@ -44,7 +45,6 @@ import {
   extractPayoutSignature,
 } from "../../primitives/psbt/payout";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
-import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import {
   stripHexPrefix,
   uint8ArrayToHex,
@@ -250,6 +250,8 @@ async function collectDepositorGraphPsbts(
   //    buildPayoutPsbt also runs the per-role output validation.
   const builtPayout = await buildPayoutPsbt({
     vaultCoreVersion: ctx.vaultCoreVersion,
+    vkClaimerPayoutScriptPubKeys: ctx.vkClaimerPayoutScriptPubKeys,
+    vpCommissionScriptPubKey: ctx.vpCommissionScriptPubKey,
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,
     assertTxHex: depositorGraph.assert_tx.tx_hex,
@@ -543,6 +545,15 @@ export interface DepositorGraphSigningContext {
    * the depositor's registered address before the wallet produces a signature.
    */
   registeredPayoutScriptPubKey: string;
+  /**
+   * RFC-006 operator payout destinations. Forwarded to `buildPayoutPsbt` for
+   * shape completeness only: this graph is signed under the
+   * `depositor-as-claimer` role, whose payout has two outputs and reads
+   * neither the keeper map nor the VP commission destination.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** See {@link vkClaimerPayoutScriptPubKeys} — unused for this role. */
+  vpCommissionScriptPubKey: string;
 }
 
 export interface SignDepositorGraphParams {

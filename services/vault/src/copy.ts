@@ -739,6 +739,10 @@ export const COPY = {
         title: "Protocol parameters changed",
         body: "The protocol parameters changed while preparing your deposit. Please restart the deposit.",
       },
+      participantKeyDrift: {
+        title: "Vault operator keys changed",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-PegIn was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
+      },
       wrongWalletAccount: {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,

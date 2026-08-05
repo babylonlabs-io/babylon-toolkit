@@ -181,6 +181,13 @@ const DEPOSIT_TERMS: DepositTerms = {
 
 function createSigningContext(): PayoutSigningContext {
   return {
+    // Un-rotated operator set: the registry backfills BIP-86, so these match
+    // what local derivation would produce. Threaded through to buildPayoutPsbt,
+    // which is mocked here — the values only need to be well-formed.
+    vkClaimerPayoutScriptPubKeys: {
+      [VK_PUBKEY.toLowerCase()]: `0x5120${VK_PUBKEY}`,
+    },
+    vpCommissionScriptPubKey: `0x5120${VP_PUBKEY}`,
     vaultCoreVersion: 1,
     peginTxHex: "01000000" + "00".repeat(60),
     vaultProviderBtcPubkey: VP_PUBKEY,

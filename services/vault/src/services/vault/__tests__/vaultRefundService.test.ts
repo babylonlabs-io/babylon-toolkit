@@ -18,10 +18,43 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   },
 }));
 
+// Un-rotated operator set: each participant's bonded key at the vault's frozen
+// epochs is its roster key, so resolution is a pass-through and these cases
+// stay about the refund adapter wiring.
+const mockResolveParticipantKeysAtEpochs = vi.hoisted(() =>
+  vi.fn(async (...args: unknown[]) => {
+    const q = (
+      args[0] as {
+        query: {
+          vaultProviderGenesisBtcPubkey: string;
+          vaultKeepers: { btcPubKey: string }[];
+          universalChallengers: { btcPubKey: string }[];
+        };
+      }
+    ).query;
+    const strip = (k: string) => (k.startsWith("0x") ? k.slice(2) : k);
+    return {
+      vaultProvider: {
+        operationBtcPubkey: strip(q.vaultProviderGenesisBtcPubkey),
+      },
+      vaultKeepers: q.vaultKeepers.map((k) => ({
+        operationBtcPubkey: strip(k.btcPubKey),
+      })),
+      vaultKeeperOperationKeysSorted: q.vaultKeepers
+        .map((k) => strip(k.btcPubKey))
+        .sort(),
+      universalChallengerOperationKeysSorted: q.universalChallengers
+        .map((c) => strip(c.btcPubKey))
+        .sort(),
+    };
+  }),
+);
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   getNetworkFees: vi.fn().mockResolvedValue({ halfHourFee: 10 }),
   pushTx: vi.fn().mockResolvedValue("broadcast_txid"),
+  resolveParticipantKeysAtEpochs: (...args: unknown[]) =>
+    mockResolveParticipantKeysAtEpochs(...args),
 }));
 
 vi.mock("../../../clients/btc/config", () => ({
@@ -38,6 +71,11 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
+  getVaultKeyEpochsFromChain: vi.fn().mockResolvedValue({
+    vpKeyEpoch: 0n,
+    appKeeperKeyEpoch: 0n,
+    ucKeyEpoch: 0n,
+  }),
 }));
 
 vi.mock("../../../config/pegin", () => ({
@@ -82,6 +120,7 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
     getProtocolInfoBatch: (ids: readonly string[]) =>
       mockGetProtocolInfoBatch(ids),
   }),
+  getOperationKeyReader: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("../fetchVaultProviders", () => ({

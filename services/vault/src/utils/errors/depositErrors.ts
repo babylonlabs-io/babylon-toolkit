@@ -27,7 +27,10 @@
  *    "Transaction failed" title (preserves prior behavior, no info hidden).
  */
 
-import { isRegisteredVaultVersionMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  isParticipantKeyDriftError,
+  isRegisteredVaultVersionMismatchError,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type ReactNode } from "react";
 
@@ -112,6 +115,14 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // 3. Protocol-parameter version mismatch (registered vault drifted).
   if (isRegisteredVaultVersionMismatchError(err)) {
     return ERRORS.versionMismatch;
+  }
+
+  // 3b. RFC-006 participant key drift. Distinct from the version mismatch
+  // above: retrying cannot help, because the registered vault is bonded to
+  // keys the prepared Pre-PegIn does not use. The copy says so rather than
+  // inviting a retry.
+  if (isParticipantKeyDriftError(err)) {
+    return ERRORS.participantKeyDrift;
   }
 
   const msg = lowerMessage(err);

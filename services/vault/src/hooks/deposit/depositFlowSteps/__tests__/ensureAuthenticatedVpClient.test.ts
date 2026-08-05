@@ -19,7 +19,7 @@ const mockGetVaultProviderBtcPubKey = vi.fn();
 const mockGetVaultProtocolInfo = vi.fn();
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
-    getVaultProviderBtcPubKey: mockGetVaultProviderBtcPubKey,
+    getCurrentVaultProviderOperationBtcKey: mockGetVaultProviderBtcPubKey,
     getVaultProtocolInfo: mockGetVaultProtocolInfo,
   }),
 }));

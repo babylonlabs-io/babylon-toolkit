@@ -314,4 +314,29 @@ export const ProtocolParamsABI = [
     ],
     stateMutability: "view",
   },
+  // --- RFC-006 operation-key resolution ---------------------------------
+  // Universal challengers get the reduced RFC-006 model: an operation key
+  // that goes into the challenge scripts, resolved against the vault's frozen
+  // `ucKeyEpoch`, but no payout script (a UC is never a claimer, so its only
+  // BTC output is the NoPayout anchor) and no per-UC setter — key changes go
+  // through a roster version bump. The roster entry's `ethAddress` is the
+  // `ucAdmin` lookup key and its `btcPubKey` is the genesis key.
+  {
+    type: "function",
+    name: "getCurrentOperationBtcKey",
+    inputs: [{ name: "ucAdmin", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getOperationBtcKeyAtEpochOrGenesis",
+    inputs: [
+      { name: "ucAdmin", type: "address", internalType: "address" },
+      { name: "epoch", type: "uint64", internalType: "uint64" },
+      { name: "rosterGenesisKey", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view",
+  },
 ] as const;

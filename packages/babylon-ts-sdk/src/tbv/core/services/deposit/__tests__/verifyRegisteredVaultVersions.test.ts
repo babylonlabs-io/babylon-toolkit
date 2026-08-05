@@ -57,6 +57,9 @@ function buildRegistryReader(
     getPegInFee: vi.fn(),
     getVaultProviderCommission: vi.fn(),
     getOffchainParamsVersionsByVaultIds: vi.fn(),
+    getVaultKeyEpochs: vi.fn(),
+    getVaultKeyEpochsBatch: vi.fn(),
+    getCurrentVaultProviderOperationBtcKey: vi.fn(),
   };
 }
 
@@ -144,7 +147,9 @@ describe("verifyRegisteredVaultVersions", () => {
         expectedUniversalChallengersVersion: CHALLENGERS,
         expectedVaultCoreVersion: CORE,
       }),
-    ).rejects.toThrow(/vaultCoreVersion expected v1 \(build-time active\), got v2/);
+    ).rejects.toThrow(
+      /vaultCoreVersion expected v1 \(build-time active\), got v2/,
+    );
   });
 
   it("resolves without RPC for empty vaultIds", async () => {
