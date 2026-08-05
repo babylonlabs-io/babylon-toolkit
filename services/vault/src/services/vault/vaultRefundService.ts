@@ -13,8 +13,8 @@
 
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import {
+  assertVaultProviderHintAccepted,
   getNetworkFees,
-  processPublicKeyToXOnly,
   pushTx,
   resolveParticipantKeysAtEpochs,
   stripHexPrefix,
@@ -434,14 +434,23 @@ async function readPrePeginContext(
   // value. A stale or compromised indexer could otherwise substitute a
   // different key and produce a refund signed against a Taproot script tree
   // that doesn't match the actual vault.
-  const indexerXOnly = processPublicKeyToXOnly(
-    vaultProvider.btcPubKey,
-  ).toLowerCase();
-  if (indexerXOnly !== vaultProviderOnChainPubkey.toLowerCase()) {
-    throw new Error(
-      `Indexer vault provider key for ${vault.vaultProvider} does not match on-chain registry. Aborting refund.`,
-    );
-  }
+  //
+  // RFC-006. Accepted against the registration key *or* the provider's current
+  // operation key, the shared policy the deposit and payout paths apply. This
+  // is the recovery path of last resort, with BTC already committed, and the
+  // trigger is an indexer deploy rather than one of ours — comparing against
+  // the registration key alone would strand every depositor of a rotated
+  // provider with no workaround.
+  await assertVaultProviderHintAccepted({
+    vaultProviderEthAddress: vault.vaultProvider as Address,
+    hintBtcPubkey: vaultProvider.btcPubKey,
+    registrationBtcPubkey: vaultProviderOnChainPubkey,
+    readCurrentOperationBtcPubkey: () =>
+      getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(
+        vault.vaultProvider as Address,
+      ),
+    context: "Aborting refund.",
+  });
 
   // RFC-006. A refund rebuilds this vault's Pre-PegIn script tree, so it must
   // use the keys bonded at the vault's frozen epochs — not whatever the

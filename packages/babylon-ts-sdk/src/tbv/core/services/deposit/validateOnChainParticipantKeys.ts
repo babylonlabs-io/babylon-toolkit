@@ -6,7 +6,13 @@ import type {
   VaultKeeperReader,
   VaultRegistryReader,
 } from "../../clients/eth/types";
-import { processPublicKeyToXOnly } from "../../primitives/utils/bitcoin";
+import { canonicalizeBtcPubkey } from "../../primitives/utils/bitcoin";
+import {
+  type HintMatch,
+  isHintAccepted,
+  matchKeyHint,
+  matchKeySetHint,
+} from "../participants/indexerKeyHint";
 import { resolveCurrentParticipantKeys } from "../participants/resolveParticipantKeys";
 import type { ParticipantKeySet } from "../participants/types";
 
@@ -65,12 +71,7 @@ export interface ValidatedOnChainParticipantKeys {
   participantKeys: ParticipantKeySet;
 }
 
-const canonical = (k: string) => processPublicKeyToXOnly(k).toLowerCase();
-const sortedSet = (keys: string[]) => keys.map(canonical).sort();
-
-function setsEqual(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((k, i) => k === b[i]);
-}
+const sortedSet = (keys: string[]) => keys.map(canonicalizeBtcPubkey).sort();
 
 export async function validateOnChainParticipantKeys(
   params: ValidateOnChainParticipantKeysParams,
@@ -110,14 +111,18 @@ export async function validateOnChainParticipantKeys(
   ]);
 
   const registrationKeys = {
-    vaultProvider: canonical(onChainVpKey),
+    vaultProvider: canonicalizeBtcPubkey(onChainVpKey),
     vaultKeepers: sortedSet(onChainKeepers.map((p) => p.btcPubKey)),
     universalChallengers: sortedSet(onChainChallengers.map((p) => p.btcPubKey)),
   };
 
-  // Resolve the current operation keys, if enabled. This is what we build the
-  // Bitcoin lock with; the registration keys above stay only as the primary
-  // comparison target for indexer hints.
+  // Resolve the current operation keys. This is what we build the Bitcoin lock
+  // with; the registration keys above stay only as the primary comparison
+  // target for indexer hints.
+  //
+  // Read unconditionally, which is why this path cannot use
+  // `assertVaultProviderHintAccepted` — that helper reads the operation key
+  // lazily, for callers that only need it to explain a hint mismatch.
   const participantKeys: ParticipantKeySet =
     await resolveCurrentParticipantKeys({
       operationKeyReader,
@@ -146,53 +151,36 @@ export async function validateOnChainParticipantKeys(
   //
   // Once rotation is possible the indexer may legitimately serve either the
   // registration keys (it has not caught up) or the operation keys (it has),
-  // so each role is accepted against both candidates. For a role that never
-  // rotated the two candidates are identical, so this is strictly the old
-  // check until someone rotates.
-  //
-  // Each role is compared as a *whole set*, never as per-element membership of
-  // the union: a keeper set holding one registration key and one operation key
-  // is an indexer inconsistency, and union membership would wave it through.
-  // The cross-role check below closes the same hole one level up.
-  const hintVp = canonical(expectedVaultProviderBtcPubkey);
-  const hintKeepers = sortedSet(expectedVaultKeeperBtcPubkeys);
-  const hintChallengers = sortedSet(expectedUniversalChallengerBtcPubkeys);
+  // so each role is accepted against both candidates — see `indexerKeyHint`,
+  // which owns that policy and the whole-set matching rule. The cross-role
+  // check below closes the same hole one level up.
+  const vpMatch: HintMatch = matchKeyHint(
+    expectedVaultProviderBtcPubkey,
+    registrationKeys.vaultProvider,
+    operationKeys.vaultProvider,
+  );
+  const keeperMatch: HintMatch = matchKeySetHint(
+    expectedVaultKeeperBtcPubkeys,
+    registrationKeys.vaultKeepers,
+    operationKeys.vaultKeepers,
+  );
+  const challengerMatch: HintMatch = matchKeySetHint(
+    expectedUniversalChallengerBtcPubkeys,
+    registrationKeys.universalChallengers,
+    operationKeys.universalChallengers,
+  );
 
-  /** Which of the two candidate sets a role's hint matched. */
-  interface RoleMatch {
-    registration: boolean;
-    operation: boolean;
-  }
-
-  const vpMatch: RoleMatch = {
-    registration: hintVp === registrationKeys.vaultProvider,
-    operation: hintVp === operationKeys.vaultProvider,
-  };
-  const keeperMatch: RoleMatch = {
-    registration: setsEqual(hintKeepers, registrationKeys.vaultKeepers),
-    operation: setsEqual(hintKeepers, operationKeys.vaultKeepers),
-  };
-  const challengerMatch: RoleMatch = {
-    registration: setsEqual(
-      hintChallengers,
-      registrationKeys.universalChallengers,
-    ),
-    operation: setsEqual(hintChallengers, operationKeys.universalChallengers),
-  };
-
-  const accepted = (m: RoleMatch) => m.registration || m.operation;
-
-  if (!accepted(vpMatch)) {
+  if (!isHintAccepted(vpMatch)) {
     throw new Error(
       `Vault provider BTC pubkey indexer hint does not match BTCVaultRegistry for ${vaultProviderEthAddress}. Refresh and try again.`,
     );
   }
-  if (!accepted(keeperMatch)) {
+  if (!isHintAccepted(keeperMatch)) {
     throw new Error(
       `Vault keeper BTC pubkeys (v${expectedAppVaultKeepersVersion}) indexer set does not match ApplicationRegistry on-chain set. Refresh and try again.`,
     );
   }
-  if (!accepted(challengerMatch)) {
+  if (!isHintAccepted(challengerMatch)) {
     throw new Error(
       `Universal challenger BTC pubkeys (v${expectedUniversalChallengersVersion}) indexer set does not match ProtocolParams on-chain set. Refresh and try again.`,
     );

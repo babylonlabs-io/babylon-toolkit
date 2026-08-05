@@ -5,6 +5,16 @@
  */
 
 export {
+  assertVaultProviderHintAccepted,
+  isHintAccepted,
+  matchKeyHint,
+  matchKeySetHint,
+} from "./indexerKeyHint";
+export type {
+  AssertVaultProviderHintAcceptedParams,
+  HintMatch,
+} from "./indexerKeyHint";
+export {
   resolveCurrentParticipantKeys,
   resolveParticipantKeysAtEpochs,
 } from "./resolveParticipantKeys";

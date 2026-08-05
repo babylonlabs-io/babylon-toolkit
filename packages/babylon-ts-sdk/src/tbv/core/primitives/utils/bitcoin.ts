@@ -194,6 +194,23 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
 }
 
 /**
+ * Normalize a public key to the one form two keys can be compared in:
+ * lowercase x-only hex, no `0x`.
+ *
+ * `processPublicKeyToXOnly` returns already-x-only input untouched, so it
+ * preserves case on that path — comparing its output directly is a latent
+ * false mismatch for any source that serves uppercase hex. Every comparison
+ * site therefore has to pair it with `.toLowerCase()`, and that pairing is
+ * what this function exists to stop people re-deriving by hand.
+ *
+ * @param publicKeyHex - x-only, compressed, or uncompressed key, `0x` optional
+ * @throws If the key is not valid hex or has an unexpected length
+ */
+export function canonicalizeBtcPubkey(publicKeyHex: string): string {
+  return processPublicKeyToXOnly(publicKeyHex).toLowerCase();
+}
+
+/**
  * Validate hex string format.
  *
  * Checks that the string contains only valid hexadecimal characters (0-9, a-f, A-F)
