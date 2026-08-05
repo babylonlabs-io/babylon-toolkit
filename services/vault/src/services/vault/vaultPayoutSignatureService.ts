@@ -18,7 +18,8 @@
  */
 
 import {
-  processPublicKeyToXOnly,
+  assertVaultProviderHintAccepted,
+  canonicalizeBtcPubkey,
   resolveParticipantKeysAtEpochs,
   stripHexPrefix,
   type Network,
@@ -126,13 +127,11 @@ export interface PayoutSigningProgress {
  * a stale indexer view, not to supply key material.
  *
  * Under RFC-006 the hint is accepted against *either* the registration key or
- * the provider's current operation key, mirroring the policy
- * `validateOnChainParticipantKeys` applies on the deposit path. Comparing only
- * against the registration key would hard-fail payout signing for every
- * depositor of a rotated provider the day the indexer starts serving operation
- * keys — an indexer-side change, with no deploy on our side and no user
- * workaround. For a provider that never rotated the two candidates are
- * identical, so this is exactly the old check until someone rotates.
+ * the provider's current operation key — the policy owned by
+ * `assertVaultProviderHintAccepted`, which the deposit and refund paths share.
+ * Comparing only against the registration key would hard-fail payout signing
+ * for every depositor of a rotated provider the day the indexer starts serving
+ * operation keys.
  *
  * The returned registration key is only used as the genesis fallback for
  * epoch-based resolution; the keys actually signed with come from
@@ -142,26 +141,17 @@ export async function resolveVaultProviderBtcPubkey(
   address: Address,
   btcPubKey?: string,
 ): Promise<string> {
-  const registrationBtcPubkey = processPublicKeyToXOnly(
+  const registrationBtcPubkey = canonicalizeBtcPubkey(
     await getVaultProviderBtcPubkeyFromChain(address),
-  ).toLowerCase();
+  );
 
-  if (btcPubKey) {
-    const hintedBtcPubkey = processPublicKeyToXOnly(btcPubKey).toLowerCase();
-    if (hintedBtcPubkey !== registrationBtcPubkey) {
-      const currentOperationBtcPubkey = processPublicKeyToXOnly(
-        await getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(
-          address,
-        ),
-      ).toLowerCase();
-      if (hintedBtcPubkey !== currentOperationBtcPubkey) {
-        throw new Error(
-          `Vault provider BTC pubkey mismatch for ${address}: indexer hint matches ` +
-            `neither the registration key nor the current operation key on-chain`,
-        );
-      }
-    }
-  }
+  await assertVaultProviderHintAccepted({
+    vaultProviderEthAddress: address,
+    hintBtcPubkey: btcPubKey,
+    registrationBtcPubkey,
+    readCurrentOperationBtcPubkey: () =>
+      getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(address),
+  });
 
   return registrationBtcPubkey;
 }
