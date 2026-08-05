@@ -104,7 +104,7 @@ export function DashboardPage() {
     borrowedAssets,
   });
 
-  const { snapshot: capSnapshot } = useApplicationCap(
+  const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isConnected ? address : undefined,
   );
 
@@ -235,7 +235,7 @@ export function DashboardPage() {
       // `margin: auto`, vertically centering the disconnected landing screen in
       // the remaining viewport height.
       <Container className={`${ENTRY_CONTENT_CLASS} my-auto pb-6`}>
-        <DisconnectedOverview capSnapshot={capSnapshot} />
+        <DisconnectedOverview capSnapshot={capSnapshot} capError={capError} />
       </Container>
     );
   }

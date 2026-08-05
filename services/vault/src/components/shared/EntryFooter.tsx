@@ -1,15 +1,15 @@
 import {
   DiscordIcon,
   LinkedinIcon,
-  Logo,
   MailIcon,
+  SidebarBrandLockup,
   TelegramIcon,
   XIcon,
 } from "@babylonlabs-io/core-ui";
 import type { ComponentType } from "react";
 
 import { ENTRY_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { SOCIAL_LINK_URLS } from "@/config/socialLinks";
+import { LEGAL_LINK_URLS, SOCIAL_LINK_URLS } from "@/config/socialLinks";
 import { COPY } from "@/copy";
 
 interface EntryFooterSocialLink {
@@ -38,12 +38,16 @@ const LINK_CLASS = "transition-colors hover:text-secondary-main";
  */
 export function EntryFooter() {
   return (
-    <footer className="border-t border-secondary-strokeLight py-8">
+    <footer className="mt-auto border-t border-secondary-strokeLight py-8">
       <div
         className={`${ENTRY_CONTENT_CLASS} flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between sm:gap-4`}
       >
         <div className="flex flex-col gap-3">
-          <Logo className="h-6 w-auto text-secondary-main dark:text-accent-primary" />
+          <SidebarBrandLockup
+            height={24}
+            width="auto"
+            className="text-secondary-main dark:text-accent-primary"
+          />
           <p className="text-sm tracking-[0.17px] text-accent-secondary">
             {COPY.footer.copyright(new Date().getFullYear())}
           </p>
@@ -65,16 +69,16 @@ export function EntryFooter() {
           </div>
           <p className="text-sm tracking-[0.17px] text-accent-secondary">
             <a
-              href="https://babylonlabs.io/terms-of-use"
+              href={LEGAL_LINK_URLS.termsOfUse}
               target="_blank"
               rel="noopener noreferrer"
               className={LINK_CLASS}
             >
               {COPY.nav.termsOfUse}
             </a>
-            {" - "}
+            {COPY.footer.legalSeparator}
             <a
-              href="https://babylonlabs.io/privacy-policy"
+              href={LEGAL_LINK_URLS.privacyPolicy}
               target="_blank"
               rel="noopener noreferrer"
               className={LINK_CLASS}

@@ -1233,6 +1233,7 @@ export const COPY = {
   footer: {
     copyright: (year: number) =>
       `© ${year} Babylon Labs. All rights reserved.`,
+    legalSeparator: " - ",
   },
   // v3 Explore page (components/pages/Explore.tsx). Per-app names/descriptions
   // are dataset content and live in config/exploreApps.ts, not here.

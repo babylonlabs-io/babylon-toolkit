@@ -38,8 +38,13 @@ const CAP_SNAPSHOT = {
   totalCapBTC: 10_000_000_000n,
 } as CapSnapshot;
 
-function renderOverview(capSnapshot: CapSnapshot | null = CAP_SNAPSHOT) {
-  return render(<DisconnectedOverview capSnapshot={capSnapshot} />);
+function renderOverview(
+  capSnapshot: CapSnapshot | null = CAP_SNAPSHOT,
+  capError: Error | null = null,
+) {
+  return render(
+    <DisconnectedOverview capSnapshot={capSnapshot} capError={capError} />,
+  );
 }
 
 describe("DisconnectedOverview", () => {
@@ -154,6 +159,29 @@ describe("DisconnectedOverview", () => {
 
     expect(
       screen.getByText(COPY_OVERVIEW.stats.capLabel).nextElementSibling,
+    ).toHaveTextContent(COPY.common.emptyValue);
+  });
+
+  it("suppresses both cap-derived chips when the usage read errored", () => {
+    renderOverview(CAP_SNAPSHOT, new Error("usage read failed"));
+
+    // The snapshot falls back to a 0n total on an errored usage read, so
+    // trusting it would price the protocol at $0 and claim an empty cap.
+    expect(
+      screen.getByText(COPY_OVERVIEW.stats.tvlLabel).nextElementSibling,
+    ).toHaveTextContent(COPY.common.emptyValue);
+    expect(
+      screen.getByText(COPY_OVERVIEW.stats.capLabel).nextElementSibling,
+    ).toHaveTextContent(COPY.common.emptyValue);
+  });
+
+  it("suppresses TVL when a fresh oracle round answers zero", () => {
+    priceMock.prices = { BTC: 0 };
+
+    renderOverview();
+
+    expect(
+      screen.getByText(COPY_OVERVIEW.stats.tvlLabel).nextElementSibling,
     ).toHaveTextContent(COPY.common.emptyValue);
   });
 

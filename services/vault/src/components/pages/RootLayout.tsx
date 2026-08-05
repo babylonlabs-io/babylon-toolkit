@@ -86,11 +86,12 @@ export default function RootLayout() {
   const { pathname } = useLocation();
 
   const isWalletConnected = btcConnected && ethConnected;
-  const showV3Sidebar = !isMobileView && isWalletConnected;
-  // The entry screen has no sidebar, so the navbar has no column to fill and
-  // takes the capped box DashboardPage gives the landing. Scoped to the landing
-  // route so the two can never disagree on a disconnected deep link.
+  // One signal for "is this the entry frame", so the sidebar and the chrome
+  // that replaces it can never disagree. The other routes render disconnected
+  // states on purpose and keep their shell — without it a disconnected desktop
+  // visitor to /vaults would have no navigation at all.
   const isEntryLayout = !isWalletConnected && pathname === "/";
+  const showV3Sidebar = !isMobileView && !isEntryLayout;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a

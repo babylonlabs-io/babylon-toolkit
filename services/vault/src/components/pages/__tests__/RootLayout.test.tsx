@@ -108,9 +108,9 @@ vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => {
 
 import RootLayout from "../RootLayout";
 
-function renderRootLayout() {
+function renderRootLayout(path = "/") {
   return render(
-    <MemoryRouter initialEntries={["/"]}>
+    <MemoryRouter initialEntries={[path]}>
       <RootLayout />
     </MemoryRouter>,
   );
@@ -180,6 +180,18 @@ describe("RootLayout — header wiring", () => {
     expect(footer).toHaveTextContent(COPY.nav.termsOfUse);
     expect(footer).toHaveTextContent(COPY.nav.privacyPolicy);
     expect(container.querySelectorAll("footer")).toHaveLength(1);
+  });
+
+  it("keeps the shell on the other routes while disconnected", () => {
+    // Only the landing is the entry frame. /vaults and /activity render
+    // disconnected states on purpose, and dropping the sidebar there would
+    // leave a desktop visitor with no navigation at all.
+    const { container } = renderRootLayout("/vaults");
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the critical-banner portal slot mounted across the mobile breakpoint", () => {

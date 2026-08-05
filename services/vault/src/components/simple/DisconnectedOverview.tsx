@@ -50,8 +50,11 @@ function formatCapAmount(satoshis: bigint): string {
   return formatSatoshisToBtcDisplay(satoshis, btc >= 1 ? 2 : 8);
 }
 
-function capStatValue(capSnapshot: CapSnapshot | null): string {
-  if (!capSnapshot) return COPY.common.emptyValue;
+function capStatValue(
+  capSnapshot: CapSnapshot | null,
+  capError: Error | null,
+): string {
+  if (!capSnapshot || capError) return COPY.common.emptyValue;
   if (!capSnapshot.hasTotalCap) return COPY_OVERVIEW.stats.capUncapped;
   return COPY_OVERVIEW.stats.capValue(
     formatCapAmount(capSnapshot.totalBTC),
@@ -65,14 +68,23 @@ function maxCfStatValue(splitParams: VaultSplitParams | null): string {
 }
 
 // TVL is the BTC locked across the application priced in USD. Suppressed rather
-// than approximated when the oracle round is stale or failed, matching the
-// dashboard's guard — a headline figure from a bad feed is worse than none.
+// than approximated whenever an input is untrustworthy — a stale or failed
+// oracle round, a zero answer from a fresh one (nothing upstream rejects it),
+// or an errored usage read, whose snapshot falls back to a 0n total. `$0 TVL`
+// on the landing screen reads as a fact rather than as a failure.
 function tvlStatValue(
   capSnapshot: CapSnapshot | null,
+  capError: Error | null,
   btcPriceUsd: number | undefined,
   isBtcPriceUsable: boolean,
 ): string {
-  if (!capSnapshot || !isBtcPriceUsable || btcPriceUsd === undefined) {
+  if (
+    !capSnapshot ||
+    capError ||
+    !isBtcPriceUsable ||
+    btcPriceUsd === undefined ||
+    btcPriceUsd <= 0
+  ) {
     return COPY.common.emptyValue;
   }
   return formatCompactUsd(
@@ -145,10 +157,12 @@ function AprRow({ stats }: { stats: AprStat[] }) {
 
 interface DisconnectedOverviewProps {
   capSnapshot: CapSnapshot | null;
+  capError: Error | null;
 }
 
 export function DisconnectedOverview({
   capSnapshot,
+  capError,
 }: DisconnectedOverviewProps) {
   const borrowAprs = useLandingBorrowAprs();
   const { params: splitParams } = useVaultSplitParams();
@@ -187,18 +201,23 @@ export function DisconnectedOverview({
     () => [
       {
         label: COPY_OVERVIEW.stats.tvlLabel,
-        value: tvlStatValue(capSnapshot, btcPriceUsd, isBtcPriceUsable),
+        value: tvlStatValue(
+          capSnapshot,
+          capError,
+          btcPriceUsd,
+          isBtcPriceUsable,
+        ),
       },
       {
         label: COPY_OVERVIEW.stats.capLabel,
-        value: capStatValue(capSnapshot),
+        value: capStatValue(capSnapshot, capError),
       },
       {
         label: COPY_OVERVIEW.stats.maxCfLabel,
         value: maxCfStatValue(splitParams),
       },
     ],
-    [capSnapshot, splitParams, btcPriceUsd, isBtcPriceUsable],
+    [capSnapshot, capError, splitParams, btcPriceUsd, isBtcPriceUsable],
   );
 
   const featureCards = useMemo(() => {
