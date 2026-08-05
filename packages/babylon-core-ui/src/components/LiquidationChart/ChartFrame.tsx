@@ -1,62 +1,26 @@
-import { useMemo, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { GridRows } from "@visx/grid";
 import { Group } from "@visx/group";
-import { useParentSize } from "@visx/responsive";
 import { Line } from "@visx/shape";
 import { Text } from "@visx/text";
 import { twJoin } from "tailwind-merge";
-import { declutterCenters, type DeclutterItem } from "./axisDeclutter";
+import { declutterCenters, type DeclutterItem } from "../charts/axisDeclutter";
+import { AXIS_LABEL_GAP_PX, TEXT_LINE_HEIGHT, X_AXIS_MARGIN_TOP_PX, type ChartLayout } from "../charts/chartLayout";
 import {
-  AXIS_LABEL_GAP_PX,
   BAND_RADIUS_PX,
   PILL_AXIS_GAP_PX,
   PILL_PAD_X_PX,
   PILL_PAD_Y_PX,
   PRICE_LABEL_BELOW_FRAC,
   PRICE_LABEL_GAP_PX,
-  TEXT_LINE_HEIGHT,
-  X_AXIS_MARGIN_TOP_PX,
-  computeChartLayout,
-  type ChartLayout,
 } from "./chartGeometry";
 import type { PriceScale } from "./priceScale";
-import { AXIS_LETTER_SPACING_PX, chartFont, getFontEpoch, measureText, subscribeFontEpoch } from "./textMeasure";
-import type { ChartGridConfig, LiquidationBandTone, PriceAxisTick, ShareAxisTick } from "./types";
-
-/** Deterministic SSR/jsdom width; jsdom's ResizeObserver never fires, so the
- * chart must render a full frame from this fallback rather than bail on 0. */
-const FALLBACK_CHART_WIDTH_PX = 1016;
+import { AXIS_LETTER_SPACING_PX, chartFont, measureText } from "../charts/textMeasure";
+import type { ChartGridConfig } from "../charts/types";
+import type { LiquidationBandTone, PriceAxisTick, ShareAxisTick } from "./types";
 
 /** Declutter key for the current-price pill (level markers use their band key). */
 const CURRENT_PILL_KEY = "__current__";
-
-/** Measures the chart's container and derives the full pixel layout. */
-export function useChartLayout(input: { axisSide: "left" | "right"; hasTopLegend: boolean; hasXAxis: boolean }): {
-  parentRef: (node: HTMLDivElement | null) => void;
-  layout: ChartLayout;
-  /** True when the container measured 0 wide — the chart renders nothing. */
-  collapsed: boolean;
-} {
-  const { parentRef, width } = useParentSize({
-    debounceTime: 16,
-    initialSize: { width: FALLBACK_CHART_WIDTH_PX },
-  });
-  // Re-render when a webfont finishes loading so text measured against the
-  // fallback font is redone with the real metrics (see textMeasure.ts).
-  useSyncExternalStore(subscribeFontEpoch, getFontEpoch, getFontEpoch);
-  // `width` starts at the fallback (initialSize) and only becomes 0 when the
-  // ResizeObserver reports a genuinely collapsed container — hidden tab,
-  // zero-width flex child. Rendering the fallback there would paint a 1016px
-  // chart across the siblings (the SVG overflows visibly), so collapse instead.
-  const collapsed = width <= 0;
-  const chartWidth = collapsed ? FALLBACK_CHART_WIDTH_PX : width;
-  const { axisSide, hasTopLegend, hasXAxis } = input;
-  const layout = useMemo(
-    () => computeChartLayout({ chartWidth, axisSide, hasTopLegend, hasXAxis }),
-    [chartWidth, axisSide, hasTopLegend, hasXAxis],
-  );
-  return { parentRef, layout, collapsed };
-}
 
 /** A tone-coloured horizontal level (dashed line + axis pill). */
 export interface LevelMarker {

@@ -11,9 +11,9 @@ import {
   DROP_AMOUNT_MAX_PX,
   DROP_LABEL_MAX_PX,
   DROP_SUBLABEL_MAX_PX,
-  TEXT_LINE_HEIGHT,
 } from "./chartGeometry";
-import { chartFont, truncateToWidth } from "./textMeasure";
+import { TEXT_LINE_HEIGHT } from "../charts/chartLayout";
+import { chartFont, truncateToWidth } from "../charts/textMeasure";
 import type { LiquidationBand } from "./types";
 
 const HOVER_CLOSE_DELAY_MS = 120;

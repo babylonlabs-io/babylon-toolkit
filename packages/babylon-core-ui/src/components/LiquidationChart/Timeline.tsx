@@ -5,7 +5,8 @@ import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
 import { AreaClosed, Bar, Line, LinePath } from "@visx/shape";
 import "./LiquidationChart.css";
-import { ChartFrame, useChartLayout, type LevelMarker } from "./ChartFrame";
+import { ChartFrame, type LevelMarker } from "./ChartFrame";
+import { useChartLayout } from "../charts/chartLayout";
 import { SeizureGutter } from "./SeizureGutter";
 import { OVERLAY_INSET_PX } from "./chartGeometry";
 import {

@@ -4,11 +4,12 @@
  *
  * Colour tokens live at :root (light default + dark override) because the
  * band hover popover renders in a portal outside the chart subtree and must
- * still inherit them. The dark selector must list every signal a consumer
- * sets — `.dark`, `data-mode`, `data-theme` — since matching only one leaves
- * a dark app drawing light gridlines. Motion uses --motion-* tokens per
- * docs/motion-system.md (fallbacks reproduce legacy behaviour;
- * reduced-motion handled by the global reset). */
+ * still inherit them. Neutral chrome (gridlines, axis text, surfaces) tracks
+ * the shared --bbn-chart-* tokens, which carry their own dark override.
+ * Motion uses --motion-* tokens per docs/motion-system.md (fallbacks reproduce
+ * legacy behaviour; reduced-motion handled by the global reset). */
+@import "../charts/chartTokens.css";
+
 :root {
   --liq-band-1: #bf5833;
   --liq-band-2: #355e78;
@@ -17,25 +18,13 @@
   --liq-band-text: #ffffff;
   --liq-candle-up: #34d1a6;
   --liq-candle-down: #ff5c5c;
-  --liq-gridline: #e5e5e5;
-  --liq-axis-text: #666666;
-  --liq-surface: #ffffff;
-  --liq-surface-text: #111111;
-  --liq-surface-muted: #666666;
-  --liq-surface-stroke: #e5e5e5;
-  --liq-surface-stroke-strong: #c4c4c4;
-}
-
-:root.dark,
-:root[data-mode="dark"],
-:root[data-theme="dark"] {
-  --liq-gridline: #2f2f2f;
-  --liq-axis-text: #b0b0b0;
-  --liq-surface: #202020;
-  --liq-surface-text: #ffffff;
-  --liq-surface-muted: #b0b0b0;
-  --liq-surface-stroke: #2f2f2f;
-  --liq-surface-stroke-strong: #5a5a5a;
+  --liq-gridline: var(--bbn-chart-gridline);
+  --liq-axis-text: var(--bbn-chart-axis-text);
+  --liq-surface: var(--bbn-chart-surface);
+  --liq-surface-text: var(--bbn-chart-surface-text);
+  --liq-surface-muted: var(--bbn-chart-surface-muted);
+  --liq-surface-stroke: var(--bbn-chart-surface-stroke);
+  --liq-surface-stroke-strong: var(--bbn-chart-surface-stroke-strong);
 }
 
 /* ---- Frame ---------------------------------------------------------- */

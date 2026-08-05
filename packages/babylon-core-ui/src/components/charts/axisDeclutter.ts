@@ -1,9 +1,8 @@
 /**
- * One-axis label declutter. The Timeline stacks price pills (current price +
- * liquidation levels) on the right axis at their exact price; when two land at
- * the same height they overlap and can't be read. This pushes overlapping pills
- * apart in order, keeping the cluster inside the track — their dashed level
- * lines stay at the true price, only the label moves.
+ * One-axis label declutter. Charts stack axis labels at their exact value; when
+ * two land at the same offset they overlap and can't be read. This pushes
+ * overlapping labels apart in order, keeping the cluster inside the track — the
+ * marks they annotate stay at their true value, only the label moves.
  */
 
 export interface DeclutterItem {
@@ -18,9 +17,8 @@ export interface DeclutterItem {
  * Returns key → resolved centre (px), order preserved. `gap` is the minimum
  * space between adjacent labels.
  *
- * ponytail: assumes the labels' total height fits `track`; denser than that and
- * the top clamp lets them re-overlap. Fine for the handful of price pills here —
- * revisit with leader lines / collapsing if a chart ever stacks dozens.
+ * Assumes the labels' total height fits `track`; denser than that and the top
+ * clamp lets them re-overlap, though their order never inverts.
  */
 export function declutterCenters(items: DeclutterItem[], track: number, gap = 2): Map<string, number> {
   const out = new Map<string, number>();
