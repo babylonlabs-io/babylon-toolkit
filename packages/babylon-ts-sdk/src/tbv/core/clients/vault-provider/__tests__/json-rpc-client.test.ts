@@ -386,12 +386,14 @@ describe("JsonRpcClient", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        createJsonResponse(
-          { jsonrpc: "2.0", result: artifactResponse, id: 1 },
-          { headers: { "Content-Length": "512" } },
+      vi
+        .fn()
+        .mockResolvedValue(
+          createJsonResponse(
+            { jsonrpc: "2.0", result: artifactResponse, id: 1 },
+            { headers: { "Content-Length": "512" } },
+          ),
         ),
-      ),
     );
 
     const client = new VaultProviderRpcClient(TEST_BASE_URL, {
@@ -476,9 +478,9 @@ describe("JsonRpcClient", () => {
         createJsonResponse({
           jsonrpc: "2.0",
           error: {
-            code: -32001,
-            message: "token expired",
-            data: { kind: "auth_expired", expiresAt: 123 },
+            code: -32602,
+            message: "invalid pubkey encoding",
+            data: { field: "pubkey" },
           },
           id: 1,
         }),
@@ -492,11 +494,8 @@ describe("JsonRpcClient", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
       expect((err as JsonRpcError).source).toBe("wire");
-      expect((err as JsonRpcError).code).toBe(-32001);
-      expect((err as JsonRpcError).data).toEqual({
-        kind: "auth_expired",
-        expiresAt: 123,
-      });
+      expect((err as JsonRpcError).code).toBe(-32602);
+      expect((err as JsonRpcError).data).toEqual({ field: "pubkey" });
     }
   });
 
@@ -564,16 +563,19 @@ describe("JsonRpcClient", () => {
   });
 
   // -----------------------------------------------------------------
-  // Reactive refresh on auth_expired wire error
+  // Reactive re-auth when the server rejects the bearer.
+  //
+  // The daemon collapses all eight token-rejection variants onto code
+  // -32001 with no `data` payload (btc-vault `crates/btc-auth/src/rpc.rs`
+  // passes `None::<()>`), so every fixture below matches that shape.
   // -----------------------------------------------------------------
 
-  it("invalidates token and retries once on wire error with data.kind=auth_expired", async () => {
+  it("invalidates token and retries once when the server rejects the bearer", async () => {
     const expiredResponse = createJsonResponse({
       jsonrpc: "2.0",
       error: {
         code: -32001,
-        message: "token expired",
-        data: { kind: "auth_expired" },
+        message: "invalid token signature",
       },
       id: 1,
     });
@@ -616,20 +618,30 @@ describe("JsonRpcClient", () => {
     expect(secondAuth).toBe("Bearer token-2");
   });
 
-  it("does NOT retry on wire error with code -32001 but no auth_expired data", async () => {
-    // Covers the "server sent -32001 for a non-auth reason" path. The
-    // SDK must not blindly retry just because the code is -32001 —
-    // the `data.kind` marker is required.
-    const response = createJsonResponse({
-      jsonrpc: "2.0",
-      error: {
-        code: -32001,
-        message: "provider not found",
-      },
-      id: 1,
-    });
-
-    const mockFetch = vi.fn().mockResolvedValue(response);
+  // Every message the daemon's `AuthError` Display can produce for a
+  // -32001 (btc-vault `crates/btc-auth/src/error.rs`). All eight mean the
+  // same thing operationally — this bearer is dead — so all eight must
+  // trigger the same invalidate-and-retry.
+  it.each([
+    ["invalid signature", "invalid token signature"],
+    ["expiry", "token expired at 1754300000 (now: 1754300400)"],
+    ["not yet valid", "token not yet valid (nbf: 1754300000, now: 1754299000)"],
+    ["malformed structure", "invalid token structure: cose_sign1"],
+    ["missing claim", "invalid token claim: aud"],
+    ["subject mismatch", "subject mismatch: expected jsonrpc, got grpc"],
+    ["issuer mismatch", "issuer mismatch: expected abcd, got ef01"],
+    ["missing bearer", "missing or malformed Bearer token"],
+  ])("re-auths on -32001 %s", async (_label, message) => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          jsonrpc: "2.0",
+          error: { code: -32001, message },
+          id: 1,
+        }),
+      )
+      .mockResolvedValueOnce(createSuccessResponse("ok", 2));
     vi.stubGlobal("fetch", mockFetch);
 
     const tokenProvider = {
@@ -640,33 +652,24 @@ describe("JsonRpcClient", () => {
     const client = createClient({ tokenProvider });
     await expect(
       client.call("vaultProvider_submitDepositorWotsKey", {}),
-    ).rejects.toThrow(JsonRpcError);
+    ).resolves.toBe("ok");
 
-    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
-    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(tokenProvider.invalidate).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  // Malformed `error.data` payloads (string, number, array). The
-  // `isAuthExpiredError` helper must treat anything that isn't an
-  // object with `kind === "auth_expired"` as not-an-auth-expired error,
-  // so a server bug (or a hostile proxy) can't trigger the reactive
-  // refresh path with junk data.
-  it.each([
-    ["string error.data", "auth_expired"],
-    ["number error.data", 42],
-    ["array error.data", ["auth_expired"]],
-    ["null error.data", null],
-    ["object without kind", { other: "field" }],
-    ["object with non-string kind", { kind: 42 }],
-    ["object with wrong kind value", { kind: "something_else" }],
-  ])("does NOT retry on -32001 with %s", async (_label, malformedData) => {
-    const response = createJsonResponse({
-      jsonrpc: "2.0",
-      error: { code: -32001, message: "x", data: malformedData },
-      id: 1,
-    });
+  it("retries at most once — a second rejection propagates", async () => {
+    const rejected = (id: number) =>
+      createJsonResponse({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "invalid token signature" },
+        id,
+      });
 
-    const mockFetch = vi.fn().mockResolvedValue(response);
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(rejected(1))
+      .mockResolvedValueOnce(rejected(2));
     vi.stubGlobal("fetch", mockFetch);
 
     const tokenProvider = {
@@ -677,7 +680,34 @@ describe("JsonRpcClient", () => {
     const client = createClient({ tokenProvider });
     await expect(
       client.call("vaultProvider_submitDepositorWotsKey", {}),
-    ).rejects.toThrow(JsonRpcError);
+    ).rejects.toThrow("invalid token signature");
+
+    expect(tokenProvider.invalidate).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT re-auth on -32001 when the request carried no bearer", async () => {
+    // The token-issuing calls are themselves unauthenticated, so a -32001
+    // on them can't be a bearer rejection — it's the proxy's colliding
+    // "Provider not found". Re-minting would burn a round-trip for nothing.
+    const response = createJsonResponse({
+      jsonrpc: "2.0",
+      error: { code: -32001, message: "Provider not found" },
+      id: 1,
+    });
+
+    const mockFetch = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal("fetch", mockFetch);
+
+    const tokenProvider = {
+      getToken: vi.fn().mockResolvedValue(null),
+      invalidate: vi.fn(),
+    };
+
+    const client = createClient({ tokenProvider });
+    await expect(client.call("auth_createDepositorToken", {})).rejects.toThrow(
+      JsonRpcError,
+    );
 
     expect(tokenProvider.invalidate).not.toHaveBeenCalled();
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -706,22 +736,18 @@ describe("JsonRpcClient", () => {
     expect(tokenProvider.invalidate).not.toHaveBeenCalled();
   });
 
-  it("two concurrent auth_expired calls share one re-acquire when provider single-flights", async () => {
+  it("two concurrent rejected calls share one re-acquire when provider single-flights", async () => {
     // Models the realistic race: two auth-gated calls fire in parallel
-    // with the same cached (now-expired) token, the server returns
-    // auth_expired for both, both reach the catch block and call
-    // invalidate(). A correctly-implemented VpTokenProvider single-flights
-    // the re-acquire — this test asserts JsonRpcClient does not depend
-    // on the provider doing so (both invalidate calls land, both retries
-    // proceed) AND verifies the contract the provider should honor.
+    // with the same cached (now-stale) token, the server rejects both,
+    // both reach the catch block and call invalidate(). A
+    // correctly-implemented VpTokenProvider single-flights the re-acquire —
+    // this test asserts JsonRpcClient does not depend on the provider
+    // doing so (both invalidate calls land, both retries proceed) AND
+    // verifies the contract the provider should honor.
     const expired = (id: number) =>
       createJsonResponse({
         jsonrpc: "2.0",
-        error: {
-          code: -32001,
-          message: "token expired",
-          data: { kind: "auth_expired" },
-        },
+        error: { code: -32001, message: "token expired at 1 (now: 2)" },
         id,
       });
 
@@ -765,7 +791,7 @@ describe("JsonRpcClient", () => {
 
     expect(a).toBe("ok-A");
     expect(b).toBe("ok-B");
-    // Both calls saw auth_expired and both invalidated.
+    // Both calls saw the rejection and both invalidated.
     expect(tokenProvider.invalidate).toHaveBeenCalledTimes(2);
     expect(mockFetch).toHaveBeenCalledTimes(4);
   });
@@ -774,11 +800,7 @@ describe("JsonRpcClient", () => {
     const expiredRaw = new Response(
       JSON.stringify({
         jsonrpc: "2.0",
-        error: {
-          code: -32001,
-          message: "token expired",
-          data: { kind: "auth_expired" },
-        },
+        error: { code: -32001, message: "invalid token signature" },
         id: 1,
       }),
       { status: HTTP_OK, headers: { "Content-Type": "application/json" } },

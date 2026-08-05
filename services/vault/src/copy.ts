@@ -778,6 +778,11 @@ export const COPY = {
           message:
             "Unable to connect to the vault provider. Please check your connection and try again.",
         },
+        sessionExpired: {
+          title: "Session expired",
+          message:
+            "Your session with the vault provider is no longer valid and could not be renewed automatically. Please reload the page and try again.",
+        },
         providerTimeout: {
           title: "Vault provider timeout",
           message:
