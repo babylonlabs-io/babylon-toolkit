@@ -152,7 +152,6 @@ export default {
    * `usePositionNotifications` cascade, but the overview card's cascade is
    * still god-mode-only, and rendering that beside a real position would
    * present fabricated liquidation prices as the user's own.
-   * The v3 flag alone is not enough — v3 is enabled on devnet/testnet.
    * Default: false (no chart unless explicitly set to "true")
    */
   get isLiquidationAnalysisChartEnabled() {
@@ -168,8 +167,7 @@ export default {
    * is unreachable by deep link too.
    * Why needed: the page's market data (APR history, interest rate model,
    * per-market rows) is not wired to a live source yet, so it would present
-   * placeholder numbers as real market conditions. The v3 flag alone is not
-   * enough — v3 is enabled on devnet/testnet.
+   * placeholder numbers as real market conditions.
    * Default: false (the page and the button are hidden unless explicitly set
    * to "true")
    */
@@ -186,8 +184,7 @@ export default {
    * Why needed: the page lists a hand-authored set of partner apps
    * (config/exploreApps.ts) rather than data from a source we can point at, so
    * until it is backed by the contributor registry it would advertise a curated
-   * directory we don't have yet. The v3 flag alone is not enough — v3 is
-   * enabled on devnet/testnet.
+   * directory we don't have yet.
    * Default: false (the section is hidden unless explicitly set to "true")
    */
   get isExploreEnabled() {

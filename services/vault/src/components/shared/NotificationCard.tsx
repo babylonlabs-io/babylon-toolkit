@@ -16,9 +16,8 @@ import { COPY } from "@/copy";
 
 /**
  * v3 notification card (Figma "TBV v.3 – Premium Design"), shared by the
- * position banner (#2072) and the protocol pause banner (#2073) behind
- * `ENABLE_V3_UI`. Pure presentation — every input is derived upstream and
- * passed in.
+ * position banner (#2072) and the protocol pause banner (#2073). Pure
+ * presentation — every input is derived upstream and passed in.
  *
  * Deliberate fork of core-ui's `Notification` (not an inline flag-branch, and
  * not a core-ui change). Kept in the app on purpose while the v3 epic churns:
