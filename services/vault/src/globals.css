@@ -61,15 +61,18 @@ html {
   --motion-duration-skeleton: 1.5s;
 }
 
-/* Palette overrides (Figma light: text/primary #000000, stroke/secondary
- * #dddddd, stroke/primary #cccccc). core-ui's tw-colors themes are shared with
- * simple-staking, so the vault re-points the --twc-* HSL triplets here rather
- * than editing that palette. */
+/* Palette overrides. core-ui's tw-colors themes are shared with simple-staking,
+ * so the vault re-points the --twc-* HSL triplets here rather than editing that
+ * palette. The --twc-<token> names are tw-colors' output format, coupled to the
+ * exact "tw-colors": "3.3.2" pin and the key names in core-ui's createThemes.
+ * These blocks must stay below the @tailwind directives: tw-colors emits
+ * `.light,[data-theme=light]` at the same specificity, so source order is what
+ * makes the override win. */
 .light,
 [data-theme="light"] {
-  --twc-accent-primary: 0 0% 0%;
-  --twc-secondary-strokeLight: 0 0% 86.7%;
-  --twc-secondary-strokeDark: 0 0% 80%;
+  --twc-accent-primary: 0 0% 0%; /* Figma text/primary     #000000 */
+  --twc-secondary-strokeLight: 0 0% 86.7%; /* Figma stroke/secondary #dddddd */
+  --twc-secondary-strokeDark: 0 0% 80%; /* Figma stroke/primary   #cccccc */
 }
 
 /* Dark overrides — Figma dark text/primary #ffffff, plus the risk-card dark
@@ -77,7 +80,7 @@ html {
  * [data-theme="dark"] hook. */
 .dark,
 [data-theme="dark"] {
-  --twc-accent-primary: 0 0% 100%;
+  --twc-accent-primary: 0 0% 100%; /* Figma text/primary #ffffff */
   --risk-amber: 255 179 0;
   --risk-green: 0 230 118;
   --risk-muted: 124 124 124;
