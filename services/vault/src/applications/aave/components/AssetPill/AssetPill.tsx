@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
 import { useNavigate } from "react-router";
 
-import { FeatureFlags } from "@/config";
 import { getReserveDetailRoute } from "@/routes";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
@@ -57,9 +56,7 @@ export function AssetPill({
   // reserve the click opens (audit F7).
   const handleSelect = (reserveId: bigint) => {
     setIsOpen(false);
-    navigate(
-      getReserveDetailRoute(reserveId, mode, FeatureFlags.isV3UiEnabled),
-    );
+    navigate(getReserveDetailRoute(reserveId, mode));
   };
 
   return (

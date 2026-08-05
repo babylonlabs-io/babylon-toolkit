@@ -38,7 +38,7 @@ vi.mock("@/components/shared", () => ({
 }));
 
 vi.mock("@/config", () => ({
-  FeatureFlags: { isV3UiEnabled: true },
+  FeatureFlags: {},
   getNetworkConfigBTC: () => ({ icon: "btc.png", name: "sBTC" }),
 }));
 

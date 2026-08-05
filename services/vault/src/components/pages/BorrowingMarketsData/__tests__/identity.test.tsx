@@ -40,7 +40,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 }));
 
 vi.mock("@/config/featureFlags", () => ({
-  default: { isV3UiEnabled: true },
+  default: {},
 }));
 
 vi.mock("@/services/token/tokenService", () => ({

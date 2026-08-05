@@ -4,19 +4,13 @@
  * 1. The /activity route renders <Activity />, which transitively calls
  *    useAaveConfig() through useActivities(). If the route element loses its
  *    AaveConfigProvider wrapper, the page throws synchronously on mount.
- * 2. The reserve detail is an overlay: v2 uses `/?reserve=<id>&tab=<tab>` over the
- *    dashboard, v3 uses `/loans?reserve=<id>&tab=<tab>` over the loans page.
- *    Both are gated by pathname to prevent wrong-base rendering. The dashboard
- *    stays mounted in v2 so opening the overlay never blanks the page.
- * 3. /vaults, /loans, /liquidations and /explore are reachable only when
- *    ENABLE_V3_UI is on. With the flag off a direct load of one of them
- *    redirects to the v2 dashboard. /vaults renders the VaultsPage, /loans the
- *    Loans page, /explore the Explore page and /liquidations the Liquidation
- *    Dashboard.
- * 4. /liquidations and /explore each carry a second flag on top of the v3
- *    shell, so either section can stay hidden while v3 is on. With its own
- *    flag off, both the section root and a deep link under it redirect.
- *    /markets/:reserveId carries its own flag on the same model.
+ * 2. The reserve detail is an overlay opened by `?reserve=<id>&tab=<tab>` over
+ *    whichever page under the Aave layout the depositor is already on, so no
+ *    page flashes behind the dialog. The page under the overlay stays mounted.
+ * 3. /vaults renders the VaultsPage and /loans the Loans page.
+ * 4. /liquidations, /explore and /markets/:reserveId each carry their own
+ *    feature flag, so with that flag off both the section root and a deep link
+ *    under it redirect to the dashboard.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -33,13 +27,10 @@ import type { ReactNode } from "react";
 import { MemoryRouter, Outlet, useOutletContext } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
-
 import { Router } from "../router";
 import { getReserveDetailRoute } from "../routes";
 
 const featureFlagsState = vi.hoisted(() => ({
-  isV3UiEnabled: false,
   isLiquidationAnalysisChartEnabled: true,
   isExploreEnabled: true,
   isMarketDetailPageEnabled: true,
@@ -225,13 +216,8 @@ function renderAt(path: string): RenderResult {
   return render(ui);
 }
 
-function setV3Flag(value?: string) {
-  featureFlagsState.isV3UiEnabled = value === "true";
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
-  featureFlagsState.isV3UiEnabled = false;
   featureFlagsState.isLiquidationAnalysisChartEnabled = true;
   featureFlagsState.isExploreEnabled = true;
   featureFlagsState.isMarketDetailPageEnabled = true;
@@ -245,7 +231,7 @@ describe("Router — /activity regression for AaveConfigProvider wiring", () => 
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  it("renders the Activity page heading without throwing the provider error", async () => {
+  it("renders the Activity page without throwing the provider error", async () => {
     renderAt("/activity");
 
     // Explicit timeout: the Activity page is lazily imported, and resolving
@@ -253,7 +239,7 @@ describe("Router — /activity regression for AaveConfigProvider wiring", () => 
     // files in parallel. This assertion is about provider wiring, not speed.
     await waitFor(
       () => {
-        expect(screen.getByText("Activity")).toBeInTheDocument();
+        expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
       },
       { timeout: 10_000 },
     );
@@ -276,61 +262,30 @@ describe("Router — / and /activity keep their original components", () => {
     vi.clearAllMocks();
   });
 
-  it.each(["true", "false", undefined])(
-    "renders the dashboard at / regardless of the v3 flag (%s)",
-    async (flag) => {
-      setV3Flag(flag);
-      renderAt("/");
+  it("renders the dashboard at /", async () => {
+    renderAt("/");
 
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-    },
-  );
+    await waitFor(() => {
+      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    });
+  });
 
   it("renders Activity at /activity, not the dashboard", async () => {
     renderAt("/activity");
 
     await waitFor(() => {
-      expect(screen.getByText("Activity")).toBeInTheDocument();
+      expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
     });
     expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
   });
 });
 
-describe("Router — v3 section routes", () => {
+describe("Router — section routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it.each(V3_GUARDED_ROUTE_PATHS.map((path) => `/${path}`))(
-    "redirects %s to / when the flag is off",
-    async (path) => {
-      setV3Flag("false");
-      renderAt(path);
-
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
-    },
-  );
-
-  it.each(V3_GUARDED_ROUTE_PATHS.map((path) => `/${path}`))(
-    "redirects a deep link under %s, not just the section root, when the flag is off",
-    async (path) => {
-      setV3Flag("false");
-      renderAt(`${path}/some-deep-link`);
-
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
-    },
-  );
-
-  it("redirects /liquidations to / when the liquidation-analysis flag is off, even with v3 on", async () => {
-    setV3Flag("true");
+  it("redirects /liquidations to / when the liquidation-analysis flag is off", async () => {
     featureFlagsState.isLiquidationAnalysisChartEnabled = false;
     renderAt("/liquidations");
 
@@ -340,8 +295,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId(LIQUIDATIONS_TESTID)).not.toBeInTheDocument();
   });
 
-  it("redirects a deep link under /liquidations when its flag is off, even with v3 on", async () => {
-    setV3Flag("true");
+  it("redirects a deep link under /liquidations when its flag is off", async () => {
     featureFlagsState.isLiquidationAnalysisChartEnabled = false;
     renderAt("/liquidations/some-deep-link");
 
@@ -351,8 +305,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
   });
 
-  it("redirects /markets/:reserveId to / when the market detail flag is off, even with v3 on", async () => {
-    setV3Flag("true");
+  it("redirects /markets/:reserveId to / when the market detail flag is off", async () => {
     featureFlagsState.isMarketDetailPageEnabled = false;
     renderAt("/markets/1");
 
@@ -361,8 +314,7 @@ describe("Router — v3 section routes", () => {
     });
   });
 
-  it("redirects /explore to / when the explore flag is off, even with v3 on", async () => {
-    setV3Flag("true");
+  it("redirects /explore to / when the explore flag is off", async () => {
     featureFlagsState.isExploreEnabled = false;
     renderAt("/explore");
 
@@ -372,8 +324,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId(EXPLORE_TESTID)).not.toBeInTheDocument();
   });
 
-  it("redirects a deep link under /explore when its flag is off, even with v3 on", async () => {
-    setV3Flag("true");
+  it("redirects a deep link under /explore when its flag is off", async () => {
     featureFlagsState.isExploreEnabled = false;
     renderAt("/explore/some-deep-link");
 
@@ -383,8 +334,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
   });
 
-  it("renders the vaults page at /vaults when the flag is on, not the dashboard", async () => {
-    setV3Flag("true");
+  it("renders the vaults page at /vaults, not the dashboard", async () => {
     renderAt("/vaults");
 
     await waitFor(() => {
@@ -394,8 +344,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId(RESERVE_DETAIL_TESTID)).not.toBeInTheDocument();
   });
 
-  it("renders the Loans page at /loans when the flag is on, not the dashboard or a placeholder", async () => {
-    setV3Flag("true");
+  it("renders the Loans page at /loans, not the dashboard or a placeholder", async () => {
     renderAt("/loans");
 
     await waitFor(() => {
@@ -404,8 +353,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
   });
 
-  it("renders the Liquidation Dashboard at /liquidations when the flag is on", async () => {
-    setV3Flag("true");
+  it("renders the Liquidation Dashboard at /liquidations", async () => {
     renderAt("/liquidations");
 
     await waitFor(() => {
@@ -414,8 +362,7 @@ describe("Router — v3 section routes", () => {
     expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
   });
 
-  it("renders the Explore page at /explore when the flag is on, not the dashboard", async () => {
-    setV3Flag("true");
+  it("renders the Explore page at /explore, not the dashboard", async () => {
     renderAt("/explore");
 
     await waitFor(() => {
@@ -427,7 +374,6 @@ describe("Router — v3 section routes", () => {
   it.each(["/app/aave/reserve/usdc/borrow", "/vaults/details"])(
     "rejects the nested path %s",
     async (path) => {
-      setV3Flag("true");
       renderAt(path);
 
       await waitFor(() => {
@@ -459,7 +405,6 @@ describe("Router — RootLayout outlet context reaches the dashboard", () => {
   // move must not lose the RootLayoutContext outlet the empty states need
   // for their Deposit action.
   it("forwards openDeposit to the Liquidation Dashboard at /liquidations", async () => {
-    setV3Flag("true");
     renderAt("/liquidations");
 
     await waitFor(() => {
@@ -471,14 +416,19 @@ describe("Router — RootLayout outlet context reaches the dashboard", () => {
   });
 });
 
-describe("Router — reserve detail stays over the dashboard", () => {
+describe("Router — reserve detail overlays over the routed page", () => {
   beforeEach(() => {
-    setV3Flag("false");
     vi.clearAllMocks();
   });
 
+  it("generates the reserve-detail URL (/loans base)", () => {
+    expect(getReserveDetailRoute(5n, "borrow")).toBe(
+      "/loans?reserve=5&tab=borrow",
+    );
+  });
+
   it("renders the reserve detail as an overlay over the dashboard", async () => {
-    renderAt(getReserveDetailRoute(5n, "borrow", false));
+    renderAt("/?reserve=5&tab=borrow");
 
     await waitFor(() => {
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
@@ -504,128 +454,54 @@ describe("Router — reserve detail stays over the dashboard", () => {
       );
     });
   });
-});
 
-describe("Router — flag-aware reserve-detail routing", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("renders the reserve detail overlay when /loans has reserve query params", async () => {
+    renderAt("/loans?reserve=5&tab=repay");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-reserve-id",
+      "5",
+    );
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "repay",
+    );
   });
 
-  describe("v2 (flag off): reserve detail at /", () => {
-    beforeEach(() => {
-      setV3Flag("false");
-    });
+  // The flow is not pinned to a base route: it opens over whichever page under
+  // the Aave layout the depositor is already on, so the entry points never
+  // navigate and no page flashes behind the dialog. The page under the overlay
+  // must still be the one that was routed to.
+  it("opens the reserve detail overlay over Overview", async () => {
+    renderAt("/?reserve=5&tab=repay");
 
-    it("generates v2 reserve-detail URL (/ base)", () => {
-      const route = getReserveDetailRoute(5n, "borrow", false);
-      expect(route).toBe("/?reserve=5&tab=borrow");
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
     });
-
-    it("renders reserve detail overlay over dashboard at / with query params", async () => {
-      renderAt("/?reserve=5&tab=repay");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
-      });
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-        "data-reserve-id",
-        "5",
-      );
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-        "data-tab",
-        "repay",
-      );
-      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-    });
+    expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+    expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+      "data-tab",
+      "repay",
+    );
   });
 
-  describe("v3 (flag on): reserve detail at /loans", () => {
-    beforeEach(() => {
-      setV3Flag("true");
-    });
+  it("opens the reserve detail overlay over Vaults", async () => {
+    renderAt("/vaults?reserve=5&tab=repay");
 
-    it("generates v3 reserve-detail URL (/loans base)", () => {
-      const route = getReserveDetailRoute(5n, "borrow", true);
-      expect(route).toBe("/loans?reserve=5&tab=borrow");
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
     });
-
-    it("renders reserve detail overlay when /loans has reserve query params", async () => {
-      renderAt("/loans?reserve=5&tab=repay");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
-      });
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-        "data-reserve-id",
-        "5",
-      );
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-        "data-tab",
-        "repay",
-      );
-    });
-  });
-  describe("wrong base route: flag-off + /loans query params", () => {
-    beforeEach(() => {
-      setV3Flag("false");
-    });
-
-    it("does NOT open reserve detail overlay on /loans when flag is off", async () => {
-      renderAt("/loans?reserve=5&tab=repay");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      });
-      expect(
-        screen.queryByTestId(RESERVE_DETAIL_TESTID),
-      ).not.toBeInTheDocument();
-    });
+    expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
   });
 
-  // The flow is no longer pinned to the base route: it opens over whichever
-  // page under the Aave layout the depositor is already on, so the entry
-  // points never navigate and no page flashes behind the dialog. The page
-  // under the overlay must still be the one that was routed to.
-  describe("flag-on: the flow opens over any page under the Aave layout", () => {
-    beforeEach(() => {
-      setV3Flag("true");
-    });
+  it("rejects the old v2 reserve-detail path (/app/aave/reserve/...)", async () => {
+    renderAt("/app/aave/reserve/usdc/borrow");
 
-    it("opens the reserve detail overlay over Overview", async () => {
-      renderAt("/?reserve=5&tab=repay");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
-      });
-      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
-        "data-tab",
-        "repay",
-      );
-    });
-
-    it("opens the reserve detail overlay over Vaults", async () => {
-      renderAt("/vaults?reserve=5&tab=repay");
-
-      await waitFor(() => {
-        expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
-      });
-      expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("not-found")).toBeInTheDocument();
     });
   });
-  it.each([
-    { flag: "true", label: "v3 (flag on)" },
-    { flag: "false", label: "v2 (flag off)" },
-    { flag: undefined, label: "default (flag undefined)" },
-  ])(
-    "rejects old v2 reserve-detail path (/app/aave/reserve/...) when $label",
-    async ({ flag }) => {
-      setV3Flag(flag);
-      renderAt("/app/aave/reserve/usdc/borrow");
-
-      await waitFor(() => {
-        expect(screen.getByTestId("not-found")).toBeInTheDocument();
-      });
-    },
-  );
 });

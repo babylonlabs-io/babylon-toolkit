@@ -113,14 +113,10 @@ export const COPY = {
       // Row label for the dual Pegin / Pre-Pegin hash row on deposit and
       // collateral cards.
       label: "Transaction hash",
-      // Row label for the single-hash row (withdraw section).
-      singleLabel: "Transaction hash",
       // Inline prefixes for each hash in the dual row.
       pegin: "Peg-in:",
       prePegin: "Pre-Pegin:",
     },
-    // Row label for the vault creation time (rendered as relative time).
-    dateLabel: "Date",
     // Shown if activation is attempted while the protocol is paused — surfaced
     // as the activation error so the spinner clears and the user understands
     // it's a governance pause (not a failed secret). Activation resumes on unpause.
@@ -201,12 +197,6 @@ export const COPY = {
         justNow: "just now",
         prefix: "Expired",
       },
-    },
-    batchedDeposit: {
-      groupLabel: "Batched deposit",
-      broadcastHelper: "Broadcasts once for all BTC Vaults in this deposit",
-      totalLabel: (amount: string, symbol: string) =>
-        `${amount} ${symbol} total`,
     },
     warnings: {
       walletOwnershipMismatch: (truncatedPubkey: string) =>
@@ -337,9 +327,6 @@ export const COPY = {
         "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
       splitVaultColumnLabel: (vaultNumber: number) =>
         `BTC Vault ${vaultNumber}`,
-      // Accessible label for the clickable deposit card / batched group, which
-      // acts as a button opening the deposit multistepper.
-      openDetailsAria: "Open deposit details",
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",
@@ -359,12 +346,6 @@ export const COPY = {
       waitingForPayoutPrep:
         "Waiting for vault provider to prepare claim and payout transactions...",
       bitcoinTx: "Pre-Pegin Bitcoin transaction",
-      // Compact summary rendered inline on PendingDepositCard during the
-      // AWAIT_PAYOUT_TRANSACTIONS wait while BTC depth is still accruing.
-      cardSummaryProgressing: (blocksLeft: number, minutes: number) =>
-        `${blocksLeft} BTC ${
-          blocksLeft === 1 ? "block" : "blocks"
-        } · ~${minutes} min`,
     },
     waitDetails: {
       status: "Status",
@@ -450,12 +431,6 @@ export const COPY = {
     artifactDownload: {
       title: "Download BTC Vault artifacts",
       body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
-      // Shown in the same modal once the download is in flight (title +
-      // body swap so the user sees a focused progress dialog instead of
-      // the pre-download marketing copy).
-      titleDownloading: "Downloading vault artifacts",
-      bodyDownloading:
-        "This may take a few minutes depending on your connection.",
       // Shown after the download completes (third copy bucket for the
       // same modal); the green-card layout pairs with this title.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
@@ -538,11 +513,8 @@ export const COPY = {
       transactionReserveLabel: "Transaction Reserve",
       transactionReserveTooltip:
         "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.",
-      // Amount-input left-field label; the slider renders its Max button when
-      // this reads "max" (case-insensitive), so keep the value as "Max".
-      maxLabel: "Max",
-      // v3 amount row: the depositable maximum is labelled as the balance,
-      // with `maxTooltip` explaining the fee buffer / cap adjustments.
+      // The depositable maximum is labelled as the balance, with `maxTooltip`
+      // explaining the fee buffer / cap adjustments.
       balanceLabel: "Balance",
       maxTooltip: (opts: { hasSupplyCap: boolean }) =>
         opts.hasSupplyCap
@@ -570,14 +542,8 @@ export const COPY = {
       // Status label for a vault provider that has recently been unreachable
       // per the health proxy. It stays selectable (health can recover).
       providerStatusUnhealthy: "Recently unreachable",
-      // Tooltip on an unhealthy provider, explaining it stays selectable.
-      providerUnhealthyReason:
-        "This vault provider has recently been unreachable. You can still select it, but the deposit may need a retry.",
-      // Divider label above the group of unhealthy / rejected providers.
-      providerGroupUnavailableLabel: "Limited availability",
       // Per-provider metric labels shown in the picker.
       providerCommissionLabel: "Commission",
-      providerActiveLabel: "Total locked",
       // v3 picker column labels + healthy-provider status line. The v3 rows
       // are a metric table, so the labels sit under their values instead of
       // reading as a sentence.
@@ -915,10 +881,6 @@ export const COPY = {
       "Your BTC wallet did not return a public key. Please reconnect your wallet and try again.",
   },
   collateral: {
-    releaseDisabledTooltip:
-      "No BTC Vault can be released without putting your position at risk of liquidation. Repay debt first.",
-    releaseHfBreachTooltip: (threshold: number) =>
-      `This selection would drop your health factor below ${threshold.toFixed(1)} and be rejected on-chain. Reduce the selection or repay debt first.`,
     uncapped: "Uncapped",
     // Shown on an optimistic collateral row right after the activation ETH tx,
     // while the indexer catches up and the vault becomes "In use".
@@ -930,27 +892,18 @@ export const COPY = {
     },
     // The "⋯" actions menu on the Collateral summary card.
     menu: {
-      triggerLabel: "Collateral options",
       withdraw: "Withdraw",
       reorder: "Reorder",
-    },
-    artifactCallout: {
-      fileName: "vault-artifacts.json",
-      recommended: "(Recommended)",
-      downloadNow: "Download now",
     },
   },
   // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
   // accessible name + tooltip.
   explorer: {
-    vaultLinkLabel: "View BTC Vault on explorer",
-    providerLinkLabel: "View vault provider on explorer",
     // Callout under the Protocol Cap section. `calloutLinkText` renders as the
     // anchor to the explorer home; `callout` is the plain lead-in.
     callout:
       "Explore BTC Vault activity, liquidity metrics, and protocol statistics in the",
-    calloutLinkText: "BTC Trustless Vault Explorer",
   },
   withdraw: {
     // Collateral-selection modal opened from the Collateral "⋯" menu. Picks
@@ -960,7 +913,6 @@ export const COPY = {
       subtitle:
         "Choose the collateral you want to withdraw. Remaining BTC Vaults will move up in priority order.",
       confirmButton: "Withdraw",
-      confirmButtonWithAmount: (amount: string) => `Withdraw ${amount}`,
     },
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
@@ -1015,61 +967,9 @@ export const COPY = {
       unknownMessage: (status: string) =>
         `Unknown status: ${status}. Please contact support.`,
     },
-    // Dashboard section headings. A "Payout sent" withdrawal is terminal
-    // success, so it moves out of "Pending Withdrawals" into a plain
-    // "Withdrawals" section while it lingers in the redeemed set.
-    section: {
-      pendingTitle: "Pending Withdrawals",
-      completedTitle: "Withdrawals",
-      // Derived from the section title so each section's expand button is
-      // distinctly labelled ("Pending Withdrawals details" vs "Withdrawals
-      // details") when both render at once.
-      detailsAria: (title: string) => `${title} details`,
-    },
-    // Staged pending-withdraw card (Submitted → … → Payout sent / Blocked).
-    card: {
-      // When the withdrawal was initiated (the VP's claimer-record timestamp).
-      initiatedLabel: "Initiated",
-      // Umbrella label for the single withdrawal-tx row, which surfaces the
-      // claim tx early and the assert tx during/after the challenge period.
-      // Kept user-facing (not "claim"/"assert") to avoid protocol jargon.
-      withdrawalTxLabel: "Withdrawal transaction",
-      // Shown in the withdrawal-transaction slot before the claim tx is broadcast.
-      withdrawalTxPending: "Pending",
-      // Live challenge-period countdown. Labelled as the *challenge period* (a
-      // single step) — not total time to funds — so it doesn't read as "X days
-      // until withdrawn". The payout is broadcast only after this ends.
-      challengePeriodEndsLabel: "Challenge period ends",
-      challengePeriodEndsIn: (duration: string) => `in ~${duration}`,
-      // Shown once the challenge-period clock has elapsed (payout eligible).
-      challengePeriodEndsSoon: "shortly",
-      // Live Assert-tx confirmation count toward the payout CSV clock, shown
-      // during the challenge period. `confirmed`/`required` are BTC blocks.
-      confirmationsLabel: "Confirmations",
-      confirmationsValue: (confirmed: number, required: number) =>
-        `${confirmed} of ${required}`,
-      // Typical total length of the challenge period, derived from the vault's
-      // timelockAssert (display-only). Sets the up-front expectation; the live
-      // countdown above shows the remaining time, so total-vs-remaining don't
-      // conflict.
-      challengePeriodTypicalDuration: (duration: string) =>
-        `This typically takes about ${duration}.`,
-      // Challenge-period help note. Explains this is one step (the on-chain
-      // challenge period) and that a payout step follows. The concrete typical
-      // duration is appended separately (challengePeriodTypicalDuration), kept
-      // out of this base sentence so the live countdown stays the source of
-      // remaining time.
-      challengeNote:
-        "For your security, your withdrawal goes through an on-chain challenge period. After it ends, the payout is broadcast to your nominated address.",
-      learnMorePrefix: "Read more about the withdrawal latency ",
-      learnMoreLink: "here.",
-      // Error action on the Blocked stage.
-      contactSupport: "Contact Support",
-    },
   },
   loans: {
     heading: "Loans",
-    borrowButton: "Borrow",
     // Per-row action on an already-borrowed asset (Active Loans list) — the
     // user has a position here, so it borrows *more* of this asset.
     borrowMoreButton: "Borrow more",
@@ -1109,7 +1009,6 @@ export const COPY = {
       "The total amount you currently owe for this asset, including accrued interest.",
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
-    detailsAriaLabel: (symbol: string) => `${symbol} loan details`,
     borrowingUnavailable:
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:
@@ -1421,10 +1320,6 @@ export const COPY = {
     healthFactorLabel: "Health factor",
     healthFactorTooltip:
       "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
-    healthFactorHealthy: "Healthy",
-    healthFactorAtRisk: "At Risk",
-    healthFactorLiquidatable: "Liquidatable",
-    liquidationRiskLabel: "Liquidation Risk",
     totalCollateralValueLabel: "Total collateral value",
     totalCollateralValueTooltip:
       "The total value of assets used as collateral.",
@@ -1440,7 +1335,6 @@ export const COPY = {
     availableMeterBelowOneLabel: "<1% remaining",
     borrowedMeterNearFullLabel: ">99% borrowed",
     liquidationPriceLabel: "Liquidation price",
-    btcPriceLabel: "BTC price",
     pctToLiquidationLabel: "% to liquidation",
     disconnected: {
       heroTitle: "Native Bitcoin backed borrowing",
@@ -1582,7 +1476,6 @@ export const COPY = {
       "Pending Deposit": "Deposit",
     } satisfies Record<ActivityType, string>,
     hashPending: "Pending…",
-    expiredTooltip: "Deposit expired",
     // Accessible name for the v3 row's hash link, which opens the explorer.
     viewTransaction: (chain: string, hash: string) =>
       `View ${chain} transaction ${hash} in explorer`,
@@ -1592,13 +1485,11 @@ export const COPY = {
       repaidLabel: "Loan Repaid",
     },
     emptyDisconnected: connectToView("activity"),
-    emptyConnected: "No activity yet. Make your first deposit to get started.",
     emptyFiltered: "No activity",
-    depositCta: (coinSymbol: string) => `Deposit ${coinSymbol}`,
-    // v3 activity page (behind ENABLE_V3_UI): the empty state matches the
-    // shared v3 EmptyState card; status labels are derived from the row type
-    // plus pending/expired (a deposit's collateral is "In use", every other
-    // settled action is "Done"); date-group headers label the rows by day.
+    // The empty state matches the shared EmptyState card; status labels are
+    // derived from the row type plus pending/expired (a deposit's collateral is
+    // "In use", every other settled action is "Done"); date-group headers label
+    // the rows by day.
     emptyV3Title: "No activity yet",
     emptyV3Body:
       "Your account activity will appear here once you start using Babylon",
@@ -1660,29 +1551,9 @@ export const COPY = {
   // wording deliberately does not claim the remaining ops are blocked yet; those
   // gates land with the Freeze (reorder) and Pause (withdraw/repay/activation/…)
   // follow-ups, and the final freeze/pause wording is owned by design.
-  protocolStatus: {
-    frozen: {
-      title: "Protocol is frozen",
-      // Non-specific about which actions: gating is per-scope, so naming
-      // "deposits and borrows" can be inaccurate (e.g. an aave-only freeze
-      // leaves deposits working). Exits are always preserved under a freeze, so
-      // that reassurance is safe to state. The per-action buttons are the
-      // precise source of truth.
-      body: "Some new actions are temporarily restricted while the protocol is frozen. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
-    },
-    paused: {
-      title: "Protocol is paused",
-      // Non-specific for the same reason — under a per-scope pause the exact set
-      // of blocked actions varies. Each affected button explains itself.
-      body: "Some actions are temporarily unavailable while the protocol is paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
-    },
-  },
-  // v3 (Premium Design) freeze/pause banners, behind ENABLE_V3_UI. A flat
-  // sibling (not nested under protocolStatus) so `COPY.protocolStatus` stays a
-  // clean Record<ProtocolStatus>. Same per-scope accuracy constraint as the v2
-  // copy above applies here: gating is per-scope, so the wording is deliberately
-  // non-specific — an aave-only freeze leaves deposits working, so naming
-  // specific actions would be inaccurate. Keyed by ProtocolStatus.
+  // Per-scope accuracy constraint: gating is per-scope, so the wording is
+  // deliberately non-specific — an aave-only freeze leaves deposits working, so
+  // naming specific actions would be inaccurate. Keyed by ProtocolStatus.
   protocolStatusV3: {
     frozen: {
       title: "Protocol is soft-paused",
@@ -1787,10 +1658,7 @@ export const COPY = {
         "Consider consolidating smaller BTC Vaults into fewer larger ones — fewer BTC Vaults means lower fees and better optimization.",
     },
     maxVaults: {
-      title: "Maximum BTC Vaults reached",
-      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body
-      // keeps. Separate key so the v2 title above is untouched with the flag
-      // off, and so both retire in one edit when v2 goes.
+      // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body keeps.
       titleV3: "Maximum vaults reached",
       detail: (cap: number) =>
         `This position already has the maximum number of BTC Vaults (${cap}).`,

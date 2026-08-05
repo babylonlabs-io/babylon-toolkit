@@ -7,7 +7,6 @@ import { setDebugHealthFactorOverride } from "@/dev/debugPositionStore";
 import { DashboardPage } from "../DashboardPage";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: false,
   isLiquidationNotificationsEnabled: false,
   isGodModePanelEnabled: false,
   isPositionDebugPanelEnabled: false,
@@ -93,23 +92,8 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 vi.mock("../OverviewSection", () => ({
   OverviewSection: () => <div data-testid="overview-section" />,
 }));
-vi.mock("../CollateralSection", () => ({
-  CollateralSection: () => <div data-testid="collateral-section" />,
-}));
-vi.mock("../LoansSection", () => ({
-  LoansSection: () => <div data-testid="loans-section" />,
-}));
-vi.mock("../SupplyCapSection", () => ({
-  SupplyCapSection: () => <div data-testid="supply-cap" />,
-}));
 vi.mock("../MaxVaultsNotification", () => ({
   MaxVaultsNotification: () => <div data-testid="max-vaults" />,
-}));
-vi.mock("../PendingDepositSection", () => ({
-  PendingDepositSection: () => <div data-testid="pending-deposits" />,
-}));
-vi.mock("../PendingWithdrawSection", () => ({
-  PendingWithdrawSection: () => <div data-testid="pending-withdrawals" />,
 }));
 vi.mock("../PositionNotificationBanner", () => ({
   PositionNotificationBanner: () => <div data-testid="position-banner" />,
@@ -123,11 +107,9 @@ vi.mock("../DisconnectedOverview", () => ({
 vi.mock("@/components/shared", () => ({
   HeartIcon: () => null,
 }));
-vi.mock("../WithdrawFlow", () => ({ default: () => null }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  featureFlagsMock.isV3UiEnabled = false;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   pricesMock.prices = {};
@@ -135,19 +117,8 @@ beforeEach(() => {
   setDebugHealthFactorOverride(null);
 });
 
-describe("DashboardPage v3 composition", () => {
-  it("renders every legacy section when the v3 flag is off", () => {
-    render(<DashboardPage />);
-
-    expect(screen.getByTestId("collateral-section")).toBeInTheDocument();
-    expect(screen.getByTestId("loans-section")).toBeInTheDocument();
-    expect(screen.getByTestId("supply-cap")).toBeInTheDocument();
-    expect(screen.getByTestId("pending-deposits")).toBeInTheDocument();
-    expect(screen.getAllByTestId("pending-withdrawals")).toHaveLength(2);
-  });
-
-  it("shows only the overview summary in v3, hiding cap, pending, collateral, and loans while keeping safety notifications", () => {
-    featureFlagsMock.isV3UiEnabled = true;
+describe("DashboardPage composition", () => {
+  it("renders the overview summary, the risk card and the safety notifications", () => {
     featureFlagsMock.isLiquidationNotificationsEnabled = true;
 
     render(<DashboardPage />);
@@ -157,18 +128,11 @@ describe("DashboardPage v3 composition", () => {
     expect(screen.getByTestId("critical-banner")).toBeInTheDocument();
     expect(screen.getByTestId("position-banner")).toBeInTheDocument();
     expect(screen.getByText(COPY.risk.title)).toBeInTheDocument();
-
-    expect(screen.queryByTestId("collateral-section")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loans-section")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("supply-cap")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("pending-deposits")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("pending-withdrawals")).not.toBeInTheDocument();
   });
 });
 
 describe("DashboardPage risk card under a forced health factor", () => {
   beforeEach(() => {
-    featureFlagsMock.isV3UiEnabled = true;
     featureFlagsMock.isGodModePanelEnabled = true;
     pricesMock.prices = { BTC: 63488 };
     pricesMock.metadata = { BTC: { isStale: false, fetchFailed: false } };

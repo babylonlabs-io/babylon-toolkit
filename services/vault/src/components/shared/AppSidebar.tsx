@@ -7,7 +7,6 @@ import {
   Sidebar,
   SidebarBrandLockup,
   SidebarItem,
-  SmallLogo,
   VaultsIcon,
 } from "@babylonlabs-io/core-ui";
 import type { ComponentType } from "react";
@@ -16,27 +15,6 @@ import { NavLink } from "react-router";
 import { getVisibleV3NavGroups, type V3NavItemId } from "@/config/v3Navigation";
 
 import { SidebarFooter } from "./SidebarFooter";
-
-// Header's own brand mark (unchanged v2 lockup: SmallLogo + divider + Aave
-// wordmark) — kept separate from `SidebarBrandLockup` (the exact Figma
-// sidebar asset). Only rendered in v2; the v3 header shows the page title
-// instead (see RootLayout's `logo` prop), since the sidebar already carries
-// the brand.
-export function BrandLockup() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="[&_svg]:!h-8 [&_svg]:!w-auto [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
-        <SmallLogo />
-      </div>
-      <div className="h-8 w-px bg-secondary-strokeLight" />
-      <img
-        src="/images/aave-wordmark.svg"
-        alt="Aave"
-        className="h-[18px] w-[109px]"
-      />
-    </div>
-  );
-}
 
 // Icons are kept out of `config/v3Navigation.ts` (a plain data module) and
 // mapped here by id, so the router and `usePageTitle` don't have to import

@@ -1,7 +1,4 @@
-import { Notification } from "@babylonlabs-io/core-ui";
-
 import { NotificationCard } from "@/components/shared/NotificationCard";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { useDebugMaxVaultsOverride } from "@/dev/debugPositionStore";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
@@ -36,27 +33,14 @@ export function MaxVaultsNotification({
   if (!atCap || cap == null) return null;
 
   // Figma v3 §9: warning-main bar + solid chip, InfoIcon, no actions, no close.
-  if (featureFlags.isV3UiEnabled) {
-    return (
-      <NotificationCard
-        tone="too-many"
-        title={COPY.liquidationWarnings.maxVaults.titleV3}
-        data-testid={TEST_ID}
-        data-severity="yellow"
-      >
-        {COPY.liquidationWarnings.maxVaults.detail(cap)}
-      </NotificationCard>
-    );
-  }
-
   return (
-    <Notification
-      variant="warning"
-      title={COPY.liquidationWarnings.maxVaults.title}
+    <NotificationCard
+      tone="too-many"
+      title={COPY.liquidationWarnings.maxVaults.titleV3}
       data-testid={TEST_ID}
       data-severity="yellow"
     >
       {COPY.liquidationWarnings.maxVaults.detail(cap)}
-    </Notification>
+    </NotificationCard>
   );
 }

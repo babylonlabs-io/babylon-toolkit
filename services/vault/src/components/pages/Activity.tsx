@@ -2,11 +2,9 @@ import { Container, Loader } from "@babylonlabs-io/core-ui";
 import type { Hex } from "viem";
 
 import { ActivityListWithRefund } from "@/components/Activity/ActivityListWithRefund";
-import { FeatureFlags } from "@/config";
 
 import { useConnection, useETHWallet } from "../../context/wallet";
 import { useActivitiesWithPending } from "../../hooks/useActivitiesWithPending";
-import { ActivityList } from "../Activity";
 import { PAGE_CONTENT_CLASS } from "../shared/layoutClasses";
 
 export default function Activity() {
@@ -31,12 +29,8 @@ export default function Activity() {
           <div className="flex items-center justify-center py-12">
             <Loader />
           </div>
-        ) : FeatureFlags.isV3UiEnabled ? (
-          // Only v3 offers the expired deposit's refund from this page, so
-          // only v3 mounts the deposit lifecycle behind it.
-          <ActivityListWithRefund activities={rows} isConnected={isConnected} />
         ) : (
-          <ActivityList activities={rows} isConnected={isConnected} />
+          <ActivityListWithRefund activities={rows} isConnected={isConnected} />
         )}
       </div>
     </Container>

@@ -26,17 +26,12 @@ vi.mock("../../../hooks/useActivitiesWithPending", () => ({
   useActivitiesWithPending: (arg: unknown) => useActivitiesWithPendingMock(arg),
 }));
 
-const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: false,
-}));
-
 vi.mock("@/config", () => ({
-  FeatureFlags: featureFlagsMock,
   getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
   getBTCNetwork: () => "signet",
 }));
 
-// The v3 empty state pulls in the shared EmptyState, which mounts <Connect/>
+// The empty state pulls in the shared EmptyState, which mounts <Connect/>
 // (heavy wallet-connector graph). Stub it so the page stays a unit test.
 vi.mock("@/components/Wallet", () => ({
   Connect: () => <button type="button">Connect</button>,
@@ -95,7 +90,6 @@ function renderActivity() {
 describe("Activity page — wallet gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    featureFlagsMock.isV3UiEnabled = false;
     useActivitiesWithPendingMock.mockReturnValue({
       data: [],
       isLoading: false,
@@ -119,11 +113,7 @@ describe("Activity page — wallet gating", () => {
     expect(
       screen.getByText("Connect your wallet to view your activity"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        "No activity yet. Make your first deposit to get started.",
-      ),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("No activity yet")).not.toBeInTheDocument();
 
     expect(useActivitiesWithPendingMock).toHaveBeenCalledWith(undefined);
   });
@@ -145,11 +135,7 @@ describe("Activity page — wallet gating", () => {
     expect(
       screen.getByText("Connect your wallet to view your activity"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        "No activity yet. Make your first deposit to get started.",
-      ),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("No activity yet")).not.toBeInTheDocument();
 
     expect(useActivitiesWithPendingMock).toHaveBeenCalledWith(undefined);
   });
@@ -168,11 +154,7 @@ describe("Activity page — wallet gating", () => {
     renderActivity();
 
     expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "No activity yet. Make your first deposit to get started.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("No activity yet")).toBeInTheDocument();
     expect(
       screen.queryByText("Connect your wallet to view your activity"),
     ).not.toBeInTheDocument();
@@ -251,25 +233,7 @@ describe("Activity page — wallet gating", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("v2: does not mount the deposit lifecycle behind the expired-deposit refund", () => {
-    featureFlagsMock.isV3UiEnabled = false;
-    useConnectionMock.mockReturnValue({
-      isConnected: true,
-      btcConnected: true,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
-
-    renderActivity();
-
-    expect(usePendingDepositsMock).not.toHaveBeenCalled();
-  });
-
-  it("v3: mounts the deposit lifecycle so an expired deposit can offer its refund", () => {
-    featureFlagsMock.isV3UiEnabled = true;
+  it("mounts the deposit lifecycle so an expired deposit can offer its refund", () => {
     useConnectionMock.mockReturnValue({
       isConnected: true,
       btcConnected: true,

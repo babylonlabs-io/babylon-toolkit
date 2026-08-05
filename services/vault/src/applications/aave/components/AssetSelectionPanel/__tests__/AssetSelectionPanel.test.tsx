@@ -15,10 +15,9 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
 }));
 
-// The markets data route is v3-only and carries its own flag, so Market Info
-// only renders when both are on.
+// The markets data route carries its own flag, so Market Info only renders
+// when it is on.
 const featureFlagsState = vi.hoisted(() => ({
-  isV3UiEnabled: true,
   isMarketDetailPageEnabled: true,
 }));
 
@@ -104,7 +103,6 @@ function renderPanel(ui: ReactNode) {
 
 describe("AssetSelectionPanel", () => {
   beforeEach(() => {
-    featureFlagsState.isV3UiEnabled = true;
     featureFlagsState.isMarketDetailPageEnabled = true;
   });
 

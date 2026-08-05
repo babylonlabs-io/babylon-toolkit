@@ -5,14 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COPY } from "@/copy";
 import type { ActivityLog } from "@/types/activityLog";
 
-const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: false,
-}));
-
 const DESKTOP_WIDTH = 1024;
 
 vi.mock("@/config", () => ({
-  FeatureFlags: featureFlagsMock,
   getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
   getBTCNetwork: () => "signet",
 }));
@@ -43,7 +38,6 @@ vi.mock("../ExpiredWithdrawButton", () => ({
 import { ActivityList } from "../ActivityList";
 
 beforeEach(() => {
-  featureFlagsMock.isV3UiEnabled = false;
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: DESKTOP_WIDTH,
@@ -97,11 +91,6 @@ describe("ActivityList", () => {
     expect(items).toHaveLength(2);
     expect(within(items[0]).getByText("Deposit")).toBeInTheDocument();
     expect(within(items[1]).getByText("Borrow")).toBeInTheDocument();
-  });
-
-  it("renders the page title from copy", () => {
-    renderList({ activities: [], isConnected: true });
-    expect(screen.getByText("Activity")).toBeInTheDocument();
   });
 
   it("filters rows by selected type", () => {
@@ -163,16 +152,6 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the Aave logo next to the dropdown when connected", () => {
-    renderList({ activities: [], isConnected: true });
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
-  });
-
-  it("hides the Aave logo when disconnected", () => {
-    renderList({ activities: [], isConnected: false });
-    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
-  });
-
   it("resets an active filter on disconnect so the disconnected empty state shows", () => {
     const rows = [
       makeRow({ id: "a", type: "Deposit" }),
@@ -212,7 +191,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI + disconnected: renders no in-page heading and no filter row", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     renderList({ activities: [], isConnected: false });
 
     expect(
@@ -230,7 +208,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI + mobile: keeps the in-page heading visible", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 375,
@@ -244,7 +221,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI + connected: keeps the filter dropdown but drops the Aave logo the v2 header shows", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
 
@@ -258,7 +234,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI: groups rows under date-group headers (Today vs an explicit date)", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     const rows = [
       makeRow({ id: "today", type: "Deposit", date: new Date() }),
       makeRow({
@@ -276,7 +251,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI + connected + no activity: shows the shared empty state with a Deposit CTA", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     renderList({ activities: [], isConnected: true });
 
     expect(screen.getByText(COPY.activity.emptyV3Title)).toBeInTheDocument();
@@ -286,7 +260,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI + filtered to empty: distinct filtered-empty state with no CTA", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
 
@@ -297,7 +270,6 @@ describe("ActivityList", () => {
     expect(screen.queryByRole("button", { name: /deposit/i })).toBeNull();
   });
   it("v3 UI: offers Withdraw on the row whose vaultId is refundable, matching on vaultId not the row id", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     const onWithdraw = vi.fn();
     // An indexed row: its id is the event (txHash-logIndex-type), NOT the
     // vault. Matching on `id` would never fire here.
@@ -321,7 +293,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI: leaves a row alone when its vaultId is not refundable", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     const rows = [makeRow({ id: "0xabc-3-deposit", vaultId: "0xvault2" })];
 
     renderList({
@@ -335,7 +306,6 @@ describe("ActivityList", () => {
   });
 
   it("v3 UI: never matches a refundable vault id against a row id that happens to equal it", () => {
-    featureFlagsMock.isV3UiEnabled = true;
     // Row carries no vaultId (the indexer does not scope borrows to a vault),
     // but its event id collides with a refundable vault id.
     const rows = [makeRow({ id: "0xvault1", type: "Borrow" })];
