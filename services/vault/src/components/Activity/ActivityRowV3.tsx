@@ -1,6 +1,6 @@
 /**
  * ActivityRowV3
- * The v3 activity row body (behind ENABLE_V3_UI): token icon + amount, a status
+ * The activity row body: token icon + amount, a status
  * indicator, the transaction type, the tx-hash explorer link, and a time-only
  * timestamp (the calendar day lives in the group header), with an optional
  * action slot pinned right. Renders the columns only — the caller supplies the

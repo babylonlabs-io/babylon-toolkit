@@ -8,5 +8,6 @@
 export * from "./activation";
 export * from "./deposit";
 export * from "./htlc";
+export * from "./participants";
 export * from "./pegout";
 export * from "./refund";

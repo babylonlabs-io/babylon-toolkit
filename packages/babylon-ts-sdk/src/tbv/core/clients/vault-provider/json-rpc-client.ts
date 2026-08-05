@@ -34,7 +34,7 @@ export type JsonRpcResponse<T = unknown> =
 
 /**
  * Injects bearer tokens into requests for auth-gated methods, and is
- * notified on auth-expired responses so it can invalidate its cache.
+ * notified when the server rejects a bearer so it can invalidate its cache.
  *
  * The `JsonRpcClient` is agnostic to which methods are auth-gated —
  * the provider's `getToken(method)` decides. Returning `null` means
@@ -81,8 +81,9 @@ export interface JsonRpcClientConfig {
   /**
    * Per-request bearer-token source. A non-null return attaches
    * `Authorization: Bearer <token>`; `null` skips auth. `call`
-   * additionally retries once on wire `auth_expired` (invalidate +
-   * refetch + retry). `callRaw` skips reactive refresh.
+   * additionally retries once when the server rejects the bearer
+   * (invalidate + refetch + retry) — see {@link isAuthRejectedError}.
+   * `callRaw` skips reactive refresh.
    */
   tokenProvider?: BearerTokenProvider;
 }
@@ -160,24 +161,52 @@ function defaultRetryableFor(method: string): boolean {
 }
 
 /**
- * Token-expired marker the server emits in `error.data.kind`. When
- * present on a wire-origin error, the client invalidates its cached
- * token and retries the request once with a freshly-acquired bearer.
+ * JSON-RPC error code the vault provider returns for every bearer-token
+ * rejection: expired, not-yet-valid, missing bearer, invalid signature,
+ * invalid claims, invalid structure, subject mismatch, issuer mismatch.
+ * All eight variants collapse onto this one code, distinguished only by
+ * message text — see btc-vault `crates/btc-auth/src/rpc.rs`
+ * (`auth_error_to_rpc_error`). Operationally they all mean the same
+ * thing: this bearer is dead, mint a new one.
  *
- * Kept in sync with btc-vault's auth middleware. Absence of the marker
- * means the server does not support reactive refresh yet; we fall back
- * to proactive-only refresh via `BearerTokenProvider.getToken()` TTL
- * checks.
+ * Numerically equal to {@link JSON_RPC_ERROR_CODES.NETWORK}, which this
+ * client throws for local network failures. `source` is what separates
+ * them — see {@link isAuthRejectedError}.
  */
-export const AUTH_EXPIRED_DATA_KIND = "auth_expired";
+export const AUTH_REJECTED_RPC_CODE = -32001;
 
-function isAuthExpiredError(error: unknown): boolean {
-  if (!(error instanceof JsonRpcError)) return false;
-  if (error.source !== "wire") return false;
-  const data = error.data;
-  if (data === null || typeof data !== "object") return false;
-  const kind = (data as { kind?: unknown }).kind;
-  return kind === AUTH_EXPIRED_DATA_KIND;
+/**
+ * True when `error` is the vault provider rejecting our bearer token.
+ *
+ * Classified on the error code, which is the only thing the server
+ * guarantees: its auth errors carry `data: null` unconditionally
+ * (`rpc_error` passes `None::<()>`), so any predicate keyed on an
+ * `error.data` field can never match a real response.
+ *
+ * `source === "wire"` is load-bearing: this client reuses -32001
+ * internally as {@link JSON_RPC_ERROR_CODES.NETWORK}, always with
+ * source "local".
+ *
+ * Known, bounded collision: the vault-provider proxy reuses -32001 for
+ * "Provider not found". A call to a deregistered provider therefore
+ * costs one wasted token-mint round-trip, which fails against the same
+ * registry check and surfaces the same message.
+ */
+export function isAuthRejectedError(error: unknown): boolean {
+  return (
+    error instanceof JsonRpcError &&
+    error.source === "wire" &&
+    error.code === AUTH_REJECTED_RPC_CODE
+  );
+}
+
+/**
+ * Per-`call` record of whether a bearer was actually attached to the
+ * request. Scoped to one `call` (not client state) so concurrent
+ * requests can't observe each other's auth state.
+ */
+interface AttemptAuthState {
+  bearerAttached: boolean;
 }
 
 /**
@@ -212,12 +241,16 @@ export class JsonRpcClient {
     this.tokenProvider = config.tokenProvider;
   }
 
-  private async buildHeaders(method: string): Promise<Record<string, string>> {
+  private async buildHeaders(
+    method: string,
+    authState?: AttemptAuthState,
+  ): Promise<Record<string, string>> {
     const headers: Record<string, string> = { ...this.headers };
     if (this.tokenProvider) {
       const token = await this.tokenProvider.getToken(method);
       if (token) {
         headers.Authorization = `Bearer ${token}`;
+        if (authState) authState.bearerAttached = true;
       }
     }
     return headers;
@@ -226,9 +259,9 @@ export class JsonRpcClient {
   /**
    * Make a JSON-RPC request with optional retry for safe methods.
    *
-   * If the request fails with a wire-origin `auth_expired` error and a
-   * `tokenProvider` is configured, the client invalidates its cached
-   * token and retries the request once with a freshly-acquired bearer.
+   * If the server rejects the bearer token and a `tokenProvider` is
+   * configured, the client invalidates its cached token and retries the
+   * request once with a freshly-acquired bearer.
    *
    * @param method - The RPC method name
    * @param params - The method parameters
@@ -241,20 +274,40 @@ export class JsonRpcClient {
     params: TParams,
     signal?: AbortSignal,
   ): Promise<TResult> {
+    const authState: AttemptAuthState = { bearerAttached: false };
     try {
-      return await this.callOnce<TParams, TResult>(method, params, signal);
+      return await this.callOnce<TParams, TResult>(
+        method,
+        params,
+        signal,
+        authState,
+      );
     } catch (error) {
-      // The auth-expired retry fires for ALL methods, including mutating
-      // ones. This is intentional and safe: the server's auth middleware
-      // validates the bearer token BEFORE dispatching to the method
-      // handler, so an `auth_expired` error means the handler never ran
-      // and no state was mutated. Confirmed against btc-vault at
-      // `crates/btc-auth/src/middleware/jsonrpc.rs` — token validation
-      // is pre-handler only. The `retryableFor` guard on
-      // HTTP-transient-error retries doesn't apply here because that
-      // guard is about retrying after a request the server may have
-      // started processing; auth_expired is categorically different.
-      if (this.tokenProvider && isAuthExpiredError(error)) {
+      // The re-auth retry fires for ALL methods, including mutating ones.
+      // This is intentional and safe: the server's auth middleware rejects
+      // the request BEFORE dispatching to the method handler, so a
+      // rejected bearer means the handler never ran and no state was
+      // mutated. Confirmed against btc-vault
+      // `crates/btc-auth/src/middleware/jsonrpc.rs` — `unauthorized_response`
+      // returns without ever calling `service.call(req)`, in both `call`
+      // and `batch`. The `retryableFor` guard on HTTP-transient-error
+      // retries doesn't apply here because that guard is about retrying
+      // after a request the server may have started processing.
+      //
+      // `bearerAttached` keeps this off methods that sent no token — most
+      // importantly the token-issuing calls themselves, which would
+      // otherwise burn a round-trip re-minting against the proxy's
+      // colliding -32001 "Provider not found".
+      //
+      // Bounded to one retry: the retried call is not wrapped in this
+      // handler. If the freshly-minted token is rejected too, the problem
+      // is the pinned server key rather than the token, and that surfaces
+      // instead of looping.
+      if (
+        this.tokenProvider &&
+        authState.bearerAttached &&
+        isAuthRejectedError(error)
+      ) {
         this.tokenProvider.invalidate();
         return await this.callOnce<TParams, TResult>(method, params, signal);
       }
@@ -266,8 +319,14 @@ export class JsonRpcClient {
     method: string,
     params: TParams,
     signal: AbortSignal | undefined,
+    authState?: AttemptAuthState,
   ): Promise<TResult> {
-    const response = await this.fetchWithRetry(method, params, signal);
+    const response = await this.fetchWithRetry(
+      method,
+      params,
+      signal,
+      authState,
+    );
 
     let jsonResponse: unknown;
     try {
@@ -347,6 +406,7 @@ export class JsonRpcClient {
     method: string,
     params: TParams,
     callerSignal?: AbortSignal,
+    authState?: AttemptAuthState,
   ): Promise<Response> {
     const requestId = ++this.requestId;
     const maxRetries = this.retryableFor(method) ? this.retries : 0;
@@ -379,7 +439,7 @@ export class JsonRpcClient {
         // Build headers per-attempt so the token provider can return a
         // freshly-acquired bearer after a prior invalidate() on this
         // request (retry loop path) without plumbing state through.
-        const headers = await this.buildHeaders(method);
+        const headers = await this.buildHeaders(method, authState);
 
         const response = await fetch(this.baseUrl, {
           method: "POST",

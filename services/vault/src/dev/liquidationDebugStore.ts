@@ -10,6 +10,12 @@
  * position to reach — no collateral, collateral without a loan, and the chart.
  * `auto` (the default, and the only value production can ever see) leaves them
  * derived from the live position.
+ *
+ * The position override below is a separate concern: it sets the
+ * `/liquidations` page's own stat-card figures (collateral BTC, debt, health
+ * factor) directly, without needing a real position or a Position
+ * Notifications Manual Mode cascade. `enabled: false` (the default, and the
+ * only value production can ever see) leaves it null, i.e. live.
  */
 
 import { useSyncExternalStore } from "react";
@@ -73,4 +79,72 @@ export function resolveLiquidationCardState(
     case "auto":
       return live;
   }
+}
+
+/** The `/liquidations` page's stat-card figures, set directly from the panel. */
+export interface LiquidationPositionOverride {
+  collateralBtc: number;
+  debtUsd: number;
+  healthFactor: number;
+}
+
+// Representative sample position — a realistic starting point, NOT protocol
+// parameters.
+const DEFAULT_POSITION_COLLATERAL_BTC = 1;
+const DEFAULT_POSITION_DEBT_USD = 45_000;
+const DEFAULT_POSITION_HEALTH_FACTOR = 1.2;
+
+let positionOverrideEnabled = false;
+let positionOverrideValues: LiquidationPositionOverride = {
+  collateralBtc: DEFAULT_POSITION_COLLATERAL_BTC,
+  debtUsd: DEFAULT_POSITION_DEBT_USD,
+  healthFactor: DEFAULT_POSITION_HEALTH_FACTOR,
+};
+
+export function setLiquidationPositionOverrideEnabled(enabled: boolean) {
+  if (positionOverrideEnabled === enabled) return;
+  positionOverrideEnabled = enabled;
+  for (const listener of listeners) listener();
+}
+
+export function setLiquidationPositionOverrideValues(
+  values: LiquidationPositionOverride,
+) {
+  positionOverrideValues = values;
+  for (const listener of listeners) listener();
+}
+
+function getPositionOverrideEnabled() {
+  return positionOverrideEnabled;
+}
+
+function getPositionOverrideValues() {
+  return positionOverrideValues;
+}
+
+export function useLiquidationPositionOverrideEnabled(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    getPositionOverrideEnabled,
+    getPositionOverrideEnabled,
+  );
+}
+
+export function useLiquidationPositionOverrideValues(): LiquidationPositionOverride {
+  return useSyncExternalStore(
+    subscribe,
+    getPositionOverrideValues,
+    getPositionOverrideValues,
+  );
+}
+
+/**
+ * The position override for consumers: null means use the live (or cascade)
+ * figures. Mock is all-or-nothing, like the rest of god mode — a consumer
+ * never blends `positionOverrideValues` with live data.
+ */
+export function useLiquidationPositionOverride(): LiquidationPositionOverride | null {
+  const enabled = useLiquidationPositionOverrideEnabled();
+  const values = useLiquidationPositionOverrideValues();
+  return enabled ? values : null;
 }

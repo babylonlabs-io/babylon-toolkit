@@ -7,7 +7,6 @@ vi.mock("@/hooks/useVaultCountCap", () => ({
 }));
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isV3UiEnabled: false,
   isGodModePanelEnabled: true,
 }));
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
@@ -28,27 +27,10 @@ const BELOW_CAP = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  featureFlagsMock.isV3UiEnabled = false;
   setDebugMaxVaultsOverride(null);
 });
 
 describe("MaxVaultsNotification", () => {
-  it("renders the cap warning when the position is at the cap", () => {
-    mockUseVaultCountCap.mockReturnValue({
-      isAtCap: true,
-      maxVaults: 10,
-      currentCount: 10,
-      capUnavailable: false,
-    });
-
-    render(<MaxVaultsNotification connectedAddress="0xuser" />);
-
-    expect(screen.getByText("Maximum BTC Vaults reached")).toBeInTheDocument();
-    expect(
-      screen.getByText(/maximum number of BTC Vaults \(10\)/),
-    ).toBeInTheDocument();
-  });
-
   it("renders nothing below the cap", () => {
     mockUseVaultCountCap.mockReturnValue({
       isAtCap: false,
@@ -77,27 +59,6 @@ describe("MaxVaultsNotification", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
-  });
-
-  it("keeps the v2 card (no v3 tone) while the v3 flag is off", () => {
-    mockUseVaultCountCap.mockReturnValue({
-      isAtCap: true,
-      maxVaults: 10,
-      currentCount: 10,
-      capUnavailable: false,
-    });
-
-    const { container } = render(
-      <MaxVaultsNotification connectedAddress="0xuser" />,
-    );
-
-    expect(container.querySelector("[data-tone]")).toBeNull();
-  });
-});
-
-describe("MaxVaultsNotification v3", () => {
-  beforeEach(() => {
-    featureFlagsMock.isV3UiEnabled = true;
   });
 
   it("renders the too-many tone card with no actions and no close control", () => {

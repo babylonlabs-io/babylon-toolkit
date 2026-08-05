@@ -11,27 +11,13 @@ import {
 
 import { COPY } from "@/copy";
 
-/**
- * Wallet-connector error code emitted by BTC providers when the user rejects
- * a signing prompt. Mirrors `ERROR_CODES.CONNECTION_REJECTED` from
- * `@babylonlabs-io/wallet-connector`. Inlined to avoid pulling the full
- * wallet-connector bundle into this file (and its test transform); the
- * constant is the public contract - if it ever changes upstream, this string
- * must change too.
- */
-const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
-
-export function isWalletRejectionError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code: unknown }).code === WALLET_CONNECTION_REJECTED_CODE
-  );
-}
+import {
+  isUserCancellationFrame,
+  isWalletRejectionError,
+} from "./userCancellation";
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
-  USER_REJECTED: 4001,
   UNAUTHORIZED: 4100,
   PROVIDER_DISCONNECTED: 4900,
   CHAIN_DISCONNECTED: 4901,
@@ -147,13 +133,12 @@ export function classifyError(err: unknown): ErrorKind | null {
     };
 
     // User rejection — MUST stay first within the frame; see precedence (a).
-    if (
-      obj.code === EIP1193.USER_REJECTED ||
-      obj.name === "UserRejectedRequestError"
-    ) {
-      return "user-rejection";
-    }
-    if (isWalletRejectionError(cur)) return "user-rejection";
+    // Shared with the telemetry-side drop so the two cannot drift: a wording
+    // this recognises but the classifier did not used to (e.g. "Connection to
+    // Keystone was canceled") was dropped from Sentry while still rendering
+    // generic error copy. `isUserCancellationFrame` deliberately does not walk
+    // `cause` — the walk here is what enforces precedence (b).
+    if (isUserCancellationFrame(cur)) return "user-rejection";
 
     // Insufficient ETH for gas + value
     if (obj.name === "InsufficientFundsError") return "insufficient-funds";
@@ -298,21 +283,29 @@ export function mapVpRpcError(error: JsonRpcError): {
   if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
     return vp.requestTimeout;
   }
-  // -32001: proxy "Provider not found" (message-specific) vs FE client "Network error" (generic)
-  if (
-    error.code === JSON_RPC_ERROR_CODES.NETWORK &&
-    error.message.toLowerCase().includes("provider not found")
-  ) {
-    return vp.providerNotFound;
-  }
+  // -32001 has three distinct producers. `source` separates the SDK's own
+  // network failure (always "local") from the two wire producers; the
+  // proxy's single -32001 emitter has one fixed message ("Provider not
+  // found"), so anything else arriving over the wire is the daemon
+  // rejecting our bearer.
   if (error.code === JSON_RPC_ERROR_CODES.NETWORK) {
-    return vp.connectionFailed;
+    if (error.source !== "wire") {
+      return vp.connectionFailed;
+    }
+    if (error.message.toLowerCase().includes("provider not found")) {
+      return vp.providerNotFound;
+    }
+    return vp.sessionExpired;
   }
-  // Proxy-specific: VP request timed out at the proxy level
+  // -32002 / -32003 collide the same way, but undecidably: the proxy sends
+  // them for transport failures and the daemon sends them for NonceReplay /
+  // UnauthorizedCaller during token issuance, both over the wire and with
+  // free-form messages. The proxy's meanings are the common case, so they
+  // stay — disambiguating would mean matching message text, which is the
+  // classification bug this mapping just stopped doing.
   if (error.code === JSON_RPC_ERROR_CODES.PROXY_TIMEOUT) {
     return vp.providerTimeout;
   }
-  // Proxy-specific: VP unreachable, DNS failure, or response too large
   if (error.code === JSON_RPC_ERROR_CODES.PROXY_UNAVAILABLE) {
     return vp.providerUnavailable;
   }
@@ -511,28 +504,13 @@ export function formatPayoutSignatureError(error: unknown): {
         message: "Please reconnect your Bitcoin wallet to continue.",
       };
     }
-    if (
-      error.message.includes("Vault or pegin transaction not found") ||
-      error.message.includes("not found on-chain")
-    ) {
+    // Produced by the registry reader: "Vault <id> not found on-chain or has
+    // no pegin transaction".
+    if (error.message.includes("not found on-chain")) {
       return {
         title: "Deposit not found",
         message:
           "The deposit transaction could not be found. It may have been processed already.",
-      };
-    }
-    if (error.message.includes("Failed to sign Payout transaction")) {
-      return {
-        title: "Signing failed",
-        message:
-          "Failed to sign the payout transaction. Please try again or reconnect your wallet.",
-      };
-    }
-    if (error.message.includes("Failed to batch sign payout transactions")) {
-      return {
-        title: "Batch signing failed",
-        message:
-          "Failed to sign payout transactions. Please try again or reconnect your wallet.",
       };
     }
     // Contract call errors (viem) — surface a meaningful message instead of swallowing

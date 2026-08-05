@@ -50,6 +50,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   hexToUint8Array: vi.fn(() => new Uint8Array(32)),
   isWotsMismatchError: vi.fn(() => false),
   isRegisteredVaultVersionMismatchError: vi.fn(() => false),
+  isParticipantKeyDriftError: vi.fn(() => false),
   parseFundingOutpointsFromTx: mockParseFundingOutpointsFromTx,
   stripHexPrefix: vi.fn((hex: string) => hex.replace(/^0x/, "")),
   uint8ArrayToHex: vi.fn(() => "00".repeat(32)),

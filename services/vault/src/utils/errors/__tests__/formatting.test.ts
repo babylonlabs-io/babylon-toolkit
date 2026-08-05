@@ -22,6 +22,7 @@ import {
   formatErrorDiagnostics,
   formatErrorMessage,
   formatPayoutSignatureError,
+  mapVpRpcError,
   sanitizeErrorMessage,
 } from "../formatting";
 
@@ -223,6 +224,28 @@ describe("Error Formatting", () => {
         code: "CONNECTION_REJECTED",
       });
       expect(sanitizeErrorMessage(err)).toMatch(/Transaction rejected/);
+    });
+
+    it.each(["Connection to Keystone was canceled", "Proposal expired"])(
+      "classifies the telemetry-suppressed wording %#: %s",
+      (message) => {
+        // These were dropped from Sentry as cancellations while the classifier
+        // still returned null, so the depositor got generic copy for an error
+        // we had already decided was a cancellation. One shared vocabulary now.
+        expect(sanitizeErrorMessage(new Error(message))).toMatch(
+          /Transaction rejected/,
+        );
+      },
+    );
+
+    it("keeps the outermost category when an inner frame is a cancellation", () => {
+      // Precedence (b): depth-first, outermost wins. The shared predicate is
+      // per-frame precisely so it cannot reach past this.
+      const err = Object.assign(new Error("Insufficient funds for gas"), {
+        cause: new Error("User rejected the request"),
+      });
+
+      expect(sanitizeErrorMessage(err)).not.toMatch(/Transaction rejected/);
     });
 
     it("does not collapse non-rejection errors", () => {
@@ -548,6 +571,44 @@ describe("Error Formatting", () => {
     it("collapses Safari 'Importing a module script failed'", () => {
       const err = new TypeError("Importing a module script failed.");
       expect(sanitizeErrorMessage(err)).toMatch(/out of date/i);
+    });
+  });
+
+  describe("mapVpRpcError", () => {
+    // -32001 has three producers: the SDK's own network failure (local),
+    // the proxy's "Provider not found", and the daemon rejecting our
+    // bearer. Each must reach different copy.
+    it("reads a local -32001 as a connectivity failure", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(-32001, "Network error: Failed to fetch", "local"),
+      );
+      expect(result.title).toBe("Connection failed");
+    });
+
+    it("reads a wire -32001 saying 'Provider not found' as a deregistered provider", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(-32001, "Provider not found", "wire"),
+      );
+      expect(result.title).toBe("Vault provider not found");
+    });
+
+    it("reads any other wire -32001 as an expired session, not a connectivity failure", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(-32001, "invalid token signature", "wire"),
+      );
+      expect(result.title).toBe("Session expired");
+      expect(result.message).toContain("reload the page");
+    });
+
+    it("reads a wire -32001 token expiry as an expired session", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(
+          -32001,
+          "token expired at 1754300000 (now: 1754300400)",
+          "wire",
+        ),
+      );
+      expect(result.title).toBe("Session expired");
     });
   });
 

@@ -17,7 +17,7 @@ const SHELL_TESTID = "modal-shell";
 // `getNetworkConfigBTC` is read at module scope by the token registry, which
 // this tree reaches through `@/routes`.
 vi.mock("@/config", () => ({
-  FeatureFlags: { isV3UiEnabled: true },
+  FeatureFlags: {},
   getNetworkConfigBTC: () => ({ icon: "btc-icon.svg", coinSymbol: "vBTC" }),
 }));
 

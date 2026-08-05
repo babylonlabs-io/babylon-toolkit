@@ -7,6 +7,7 @@
  * @module clients/mempool/mempoolApi
  */
 
+import { combineAbortSignals } from "../../utils/abortSignals";
 import {
   BITCOIN_ADDRESS_RE,
   HEX_RE,
@@ -46,15 +47,20 @@ async function fetchWithTimeout(
   const signals = [controller.signal, options?.signal].filter(
     Boolean,
   ) as AbortSignal[];
+  const combined = combineAbortSignals(signals);
 
   try {
-    // Don't clear timeout here — let it cover body consumption by callers
+    // Don't clear timeout here — let it cover body consumption by callers.
+    // For the same reason the composed signal keeps its listeners attached on
+    // the success path: detaching them would stop the timeout from aborting a
+    // stalled body read.
     return await fetch(url, {
       ...options,
-      signal: AbortSignal.any(signals),
+      signal: combined.signal,
     });
   } catch (error) {
     clearTimeout(timeoutId);
+    combined.cleanup();
     if (
       error != null &&
       typeof error === "object" &&

@@ -220,6 +220,11 @@ export default tseslint.config(
       // derivation, so the populated layout (incl. degraded price/liquidity
       // cells) can be reviewed without live devnet reserve state.
       "src/components/pages/BorrowingMarketsData/index.tsx",
+      // v3 /liquidations: reads the manual-mode override the same way
+      // DashboardPage reads it for the overview card, so the page's whole
+      // cascade (and every position stat above it) can be driven from the
+      // god-mode panel without a wallet.
+      "src/components/pages/Liquidations/index.tsx",
       // v3 /activity: merges demo activity rows into the feed (display-only —
       // never polled, never written to the pending-activity storage).
       "src/hooks/useActivitiesWithPending.ts",

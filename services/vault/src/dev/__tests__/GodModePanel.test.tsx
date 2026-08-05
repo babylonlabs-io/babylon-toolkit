@@ -14,21 +14,24 @@ import { ContractStatus, PeginAction } from "@/models/peginStateMachine";
 import {
   ACTIVATED_SCENARIO_INDEX,
   ACTIVATION_CONFIRMING_SCENARIO_INDEX,
-  ACTIVITY_SCENARIOS,
+  activityScenarios,
   buildActivitiesDemo,
   buildCollateralsDemo,
   buildDepositsDemo,
   buildLoansDemo,
   buildWithdrawalsDemo,
   COLLATERAL_SCENARIOS,
+  type DemoBorrowSymbol,
   type DemoItem,
   DEPOSIT_SCENARIOS,
   getDemoStepperBatch,
-  LOAN_SCENARIOS,
+  loanScenarios,
   READY_TO_ACTIVATE_SCENARIO_INDEX,
   resetDemoState,
+  setDemoBorrowSymbol,
   setDemoItemState,
   submitDemoVaultActivation,
+  useDemoBorrowSymbol,
   useDemoItems,
   WITHDRAWAL_SCENARIOS,
 } from "../demoDeposit";
@@ -38,6 +41,10 @@ const mockSetTheme = vi.hoisted(() => vi.fn());
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: mockSetTheme }),
 }));
+
+/** Default borrowed-asset symbol — matches the store's default, so tests that
+ *  don't exercise the selector see the same scenario shape as before. */
+const TEST_SYMBOL: DemoBorrowSymbol = "USDC";
 
 /** First DEPOSIT_SCENARIOS index whose built polling result exposes `action`. */
 function scenarioIndexWithAction(action: PeginAction): number {
@@ -163,11 +170,13 @@ describe("demoDeposit builders", () => {
   });
 
   it("builds loan rows the v3 Loans page can render, every one action-inert", () => {
-    const borrowable = LOAN_SCENARIOS.findIndex((s) => s.isBorrowable);
-    const repayOnly = LOAN_SCENARIOS.findIndex((s) => !s.isBorrowable);
+    const scenarios = loanScenarios(TEST_SYMBOL);
+    const borrowable = scenarios.findIndex((s) => s.isBorrowable);
+    const repayOnly = scenarios.findIndex((s) => !s.isBorrowable);
     const demo = buildLoansDemo(
       [loanItem(1, borrowable, "1500"), loanItem(2, repayOnly, "500")],
       false,
+      TEST_SYMBOL,
     );
 
     expect(demo.rows.map((row) => row.amount)).toEqual(["1500", "500"]);
@@ -184,17 +193,23 @@ describe("demoDeposit builders", () => {
   });
 
   it("drops the liquidity and APR reads for the scenarios that mock them missing", () => {
-    const noLiquidity = LOAN_SCENARIOS.findIndex((s) => !s.hasLiquidity);
-    const noRate = LOAN_SCENARIOS.findIndex((s) => !s.hasBorrowRate);
+    const scenarios = loanScenarios(TEST_SYMBOL);
+    const noLiquidity = scenarios.findIndex((s) => !s.hasLiquidity);
+    const noRate = scenarios.findIndex((s) => !s.hasBorrowRate);
 
     const [liquidityRow] = buildLoansDemo(
       [loanItem(1, noLiquidity, "100")],
       false,
+      TEST_SYMBOL,
     ).rows;
     expect(liquidityRow.availableLiquidity).toBeNull();
     expect(liquidityRow.utilizationBps).toBeNull();
 
-    const [rateRow] = buildLoansDemo([loanItem(2, noRate, "100")], false).rows;
+    const [rateRow] = buildLoansDemo(
+      [loanItem(2, noRate, "100")],
+      false,
+      TEST_SYMBOL,
+    ).rows;
     expect(rateRow.borrowRate).toBeUndefined();
   });
 
@@ -202,18 +217,27 @@ describe("demoDeposit builders", () => {
     const demo = buildLoansDemo(
       [depositItem(1, 0), loanItem(2, 0, "10")],
       true,
+      TEST_SYMBOL,
     );
     expect(demo.rows).toHaveLength(1);
     expect(demo.hideReal).toBe(true);
   });
 
+  it("denominates loan rows in whichever asset the panel selects", () => {
+    const usdc = buildLoansDemo([loanItem(1, 0, "100")], false, "USDC").rows;
+    const dai = buildLoansDemo([loanItem(1, 0, "100")], false, "DAI").rows;
+    expect(usdc[0].symbol).toBe("USDC");
+    expect(dai[0].symbol).toBe("DAI");
+  });
+
   it("builds one activity row per mock, covering both row kinds", () => {
-    const groupIndex = ACTIVITY_SCENARIOS.findIndex((s) =>
+    const groupIndex = activityScenarios(TEST_SYMBOL).findIndex((s) =>
       s.key.startsWith("act-liquidation"),
     );
     const demo = buildActivitiesDemo(
       [activityItem(1, 0, "0.25"), activityItem(2, groupIndex, "0.75")],
       false,
+      TEST_SYMBOL,
     );
 
     expect(demo.rows).toHaveLength(2);
@@ -236,10 +260,13 @@ describe("demoDeposit builders", () => {
     vi.useFakeTimers();
     vi.setSystemTime(fixedNow);
     try {
-      for (const [index, scenario] of ACTIVITY_SCENARIOS.entries()) {
+      for (const [index, scenario] of activityScenarios(
+        TEST_SYMBOL,
+      ).entries()) {
         const [row] = buildActivitiesDemo(
           [activityItem(index + 1, index)],
           false,
+          TEST_SYMBOL,
         ).rows;
         expect(row.date.getTime()).toBe(
           fixedNow.getTime() - scenario.daysAgo * 24 * 60 * 60 * 1000,
@@ -253,10 +280,11 @@ describe("demoDeposit builders", () => {
   // Regression: borrow / repay rows used to hard-code their debt figure, so
   // the panel's amount control was inert for exactly those two scenarios.
   it("drives every activity scenario's headline amount from the item", () => {
-    for (const [index, scenario] of ACTIVITY_SCENARIOS.entries()) {
+    for (const [index, scenario] of activityScenarios(TEST_SYMBOL).entries()) {
       const [row] = buildActivitiesDemo(
         [activityItem(index + 1, index, "3.5")],
         false,
+        TEST_SYMBOL,
       ).rows;
       const shown =
         row.kind === "liquidationGroup" ? row.summary.collateral : row.amount;
@@ -265,10 +293,32 @@ describe("demoDeposit builders", () => {
     }
   });
 
+  it("denominates debt-typed activity rows in whichever asset the panel selects", () => {
+    const borrowIndex = activityScenarios(TEST_SYMBOL).findIndex(
+      (s) => s.key === "act-borrow",
+    );
+    const usdcRow = buildActivitiesDemo(
+      [activityItem(1, borrowIndex, "50")],
+      false,
+      "USDC",
+    ).rows[0];
+    const wethRow = buildActivitiesDemo(
+      [activityItem(1, borrowIndex, "50")],
+      false,
+      "WETH",
+    ).rows[0];
+    if (usdcRow.kind !== "row" || wethRow.kind !== "row") {
+      throw new Error("expected a flat activity row for act-borrow");
+    }
+    expect(usdcRow.amount.symbol).toBe("USDC");
+    expect(wethRow.amount.symbol).toBe("WETH");
+  });
+
   it("ignores items of other types when building the activity feed", () => {
     const demo = buildActivitiesDemo(
       [depositItem(1, 0), activityItem(2, 0)],
       true,
+      TEST_SYMBOL,
     );
     expect(demo.rows).toHaveLength(1);
     expect(demo.hideReal).toBe(true);
@@ -473,7 +523,9 @@ describe("GodModePanel", () => {
       target: { value: "loan" },
     });
 
-    expect(screen.getByText(LOAN_SCENARIOS[0].label)).toBeInTheDocument();
+    expect(
+      screen.getByText(loanScenarios(TEST_SYMBOL)[0].label),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("spinbutton", { name: "Mock 1 amount (USDC)" }),
     ).toBeInTheDocument();
@@ -486,7 +538,9 @@ describe("GodModePanel", () => {
       target: { value: "activity" },
     });
 
-    expect(screen.getByText(ACTIVITY_SCENARIOS[0].label)).toBeInTheDocument();
+    expect(
+      screen.getByText(activityScenarios(TEST_SYMBOL)[0].label),
+    ).toBeInTheDocument();
   });
 
   // The amount field must name the unit of the value the selected scenario
@@ -499,10 +553,9 @@ describe("GodModePanel", () => {
 
     // Two scenarios with different denominations — the field must follow the
     // selected one, whatever the network's collateral symbol happens to be.
-    const collateralUnit = ACTIVITY_SCENARIOS[0].unit;
-    const debtIndex = ACTIVITY_SCENARIOS.findIndex(
-      (s) => s.unit !== collateralUnit,
-    );
+    const scenarios = activityScenarios(TEST_SYMBOL);
+    const collateralUnit = scenarios[0].unit;
+    const debtIndex = scenarios.findIndex((s) => s.unit !== collateralUnit);
     const slider = screen.getByRole("slider", { name: "Mock 1 step" });
 
     fireEvent.change(slider, { target: { value: "0" } });
@@ -515,8 +568,50 @@ describe("GodModePanel", () => {
     fireEvent.change(slider, { target: { value: String(debtIndex) } });
     expect(
       screen.getByRole("spinbutton", {
-        name: `Mock 1 amount (${ACTIVITY_SCENARIOS[debtIndex].unit})`,
+        name: `Mock 1 amount (${scenarios[debtIndex].unit})`,
       }),
+    ).toBeInTheDocument();
+  });
+
+  it("changes the borrowed asset from the Mocks section and relabels the loan amount field", () => {
+    renderExpanded();
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
+      target: { value: "loan" },
+    });
+    expect(
+      screen.getByRole("spinbutton", { name: "Mock 1 amount (USDC)" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Borrowed asset" }), {
+      target: { value: "DAI" },
+    });
+
+    expect(
+      screen.getByRole("spinbutton", { name: "Mock 1 amount (DAI)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("relabels a debt-typed activity mock's amount field when the borrowed asset changes", () => {
+    renderExpanded();
+    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
+      target: { value: "activity" },
+    });
+    const borrowIndex = activityScenarios(TEST_SYMBOL).findIndex(
+      (s) => s.key === "act-borrow",
+    );
+    fireEvent.change(screen.getByRole("slider", { name: "Mock 1 step" }), {
+      target: { value: String(borrowIndex) },
+    });
+    expect(
+      screen.getByRole("spinbutton", { name: "Mock 1 amount (USDC)" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Borrowed asset" }), {
+      target: { value: "WETH" },
+    });
+
+    expect(
+      screen.getByRole("spinbutton", { name: "Mock 1 amount (WETH)" }),
     ).toBeInTheDocument();
   });
 
@@ -633,7 +728,24 @@ describe("demoDeposit scenario lists", () => {
     expect(DEPOSIT_SCENARIOS.length).toBeGreaterThan(0);
     expect(WITHDRAWAL_SCENARIOS.length).toBeGreaterThan(0);
     expect(COLLATERAL_SCENARIOS.length).toBeGreaterThan(0);
-    expect(LOAN_SCENARIOS.length).toBeGreaterThan(0);
-    expect(ACTIVITY_SCENARIOS.length).toBeGreaterThan(0);
+    expect(loanScenarios(TEST_SYMBOL).length).toBeGreaterThan(0);
+    expect(activityScenarios(TEST_SYMBOL).length).toBeGreaterThan(0);
+  });
+});
+
+describe("useDemoBorrowSymbol", () => {
+  beforeEach(() => {
+    resetDemoState();
+  });
+
+  it("defaults to USDC", () => {
+    const { result } = renderHook(() => useDemoBorrowSymbol());
+    expect(result.current).toBe("USDC");
+  });
+
+  it("updates when the panel sets a new selection", () => {
+    const { result } = renderHook(() => useDemoBorrowSymbol());
+    act(() => setDemoBorrowSymbol("WETH"));
+    expect(result.current).toBe("WETH");
   });
 });

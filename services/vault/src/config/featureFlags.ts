@@ -141,35 +141,17 @@ export default {
   },
 
   /**
-   * ENABLE_V3_UI feature flag
-   *
-   * Purpose: Switches the app shell from today's v2 header + top-nav +
-   * single-page dashboard over to the v3 sidebar shell and its per-page routes.
-   * Why needed: v3 is a full UI restructure landing incrementally across many
-   * PRs. The flag keeps `main` shipping v2 while v3 is built, and lets the flag
-   * be turned on per environment (devnet → testnet → mainnet) without a code
-   * change.
-   * Unlike the DISABLE_DEPOSIT / PROTOCOL_PAUSED kill-switches, this is
-   * temporary scaffolding: it is deleted together with the v2 shell once v3
-   * becomes the default.
-   * Default: false (the v2 shell renders unless explicitly set to "true")
-   */
-  get isV3UiEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_V3_UI === "true";
-  },
-
-  /**
    * LIQUIDATION_ANALYSIS_CHART feature flag
    *
    * Purpose: Gates the liquidation-analysis feature — the seizure-map chart
    * inside the overview's Liquidation Analysis card, plus the sidebar's
-   * Liquidations section and the /liquidations route (still an empty
-   * placeholder). The overview card's empty states read the live position and
-   * are not gated by this.
-   * Why needed: until the cascade is wired to `usePositionNotifications`, the
-   * only cascade available is a placeholder, and rendering it beside a real
-   * position would present fabricated liquidation prices as the user's own.
-   * The v3 flag alone is not enough — v3 is enabled on devnet/testnet.
+   * Liquidations section and the /liquidations Liquidation Dashboard. The
+   * overview card's empty states read the live position and are not gated by
+   * this.
+   * Why needed: the /liquidations page charts the live
+   * `usePositionNotifications` cascade, but the overview card's cascade is
+   * still god-mode-only, and rendering that beside a real position would
+   * present fabricated liquidation prices as the user's own.
    * Default: false (no chart unless explicitly set to "true")
    */
   get isLiquidationAnalysisChartEnabled() {
@@ -185,8 +167,7 @@ export default {
    * is unreachable by deep link too.
    * Why needed: the page's market data (APR history, interest rate model,
    * per-market rows) is not wired to a live source yet, so it would present
-   * placeholder numbers as real market conditions. The v3 flag alone is not
-   * enough — v3 is enabled on devnet/testnet.
+   * placeholder numbers as real market conditions.
    * Default: false (the page and the button are hidden unless explicitly set
    * to "true")
    */
@@ -203,8 +184,7 @@ export default {
    * Why needed: the page lists a hand-authored set of partner apps
    * (config/exploreApps.ts) rather than data from a source we can point at, so
    * until it is backed by the contributor registry it would advertise a curated
-   * directory we don't have yet. The v3 flag alone is not enough — v3 is
-   * enabled on devnet/testnet.
+   * directory we don't have yet.
    * Default: false (the section is hidden unless explicitly set to "true")
    */
   get isExploreEnabled() {

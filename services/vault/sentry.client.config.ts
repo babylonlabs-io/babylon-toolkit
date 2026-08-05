@@ -13,9 +13,46 @@ import * as Sentry from "@sentry/react";
 import { v4 as uuidv4 } from "uuid";
 
 import { getCommitHash } from "@/config";
+import {
+  hasTranslationExtensionMarkers,
+  isReactDomMutationError,
+} from "@/utils/errors/domMutationErrors";
+import { isUserCancellation } from "@/utils/errors/userCancellation";
 import { redactData, scrubSentryEvent, scrubString } from "@/utils/telemetry";
 
 const SENTRY_DEVICE_ID_KEY = "sentry_device_id";
+
+/**
+ * Errors thrown by browser extensions in the page, not by this app.
+ *
+ * Every entry was confirmed absent from our source: they come from competing
+ * wallet extensions racing over `window.ethereum` (we never write to it - the
+ * connector uses AppKit/EIP-6963 discovery), or from a wallet extension's own
+ * message channel after it reloads mid-session. None is actionable and together
+ * they crowd out real reports.
+ *
+ * `ignoreErrors` runs ahead of `beforeSend`, so anything listed here is dropped
+ * before a tag could rescue it. Only put errors here that our own code can
+ * never throw. The React DOM-mutation family is deliberately NOT here - it is
+ * classified in `beforeSend` instead, see `utils/errors/domMutationErrors.ts`.
+ */
+const THIRD_PARTY_EXTENSION_ERRORS = [
+  // Injected-provider collisions between wallet extensions
+  "Cannot redefine property: ethereum",
+  /Cannot set property ethereum of .* which has only a getter/,
+  "trap returned falsish for property 'tronlinkParams'",
+  // Extension messaging after the extension reloaded or was disabled
+  "Could not establish connection. Receiving end does not exist.",
+  "Extension context invalidated.",
+];
+
+/** The error text of an event, from either an exception or a message event. */
+function eventText(event: Sentry.ErrorEvent): string {
+  return (
+    event.exception?.values?.[0]?.value ??
+    (typeof event.message === "string" ? event.message : "")
+  );
+}
 
 const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
@@ -85,6 +122,8 @@ Sentry.init({
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
 
+  ignoreErrors: THIRD_PARTY_EXTENSION_ERRORS,
+
   beforeBreadcrumb(breadcrumb) {
     if (breadcrumb.message) {
       breadcrumb.message = scrubString(breadcrumb.message);
@@ -104,6 +143,35 @@ Sentry.init({
   // redaction hook (URL + href masking).
 
   beforeSend(event, hint) {
+    // A depositor declining or dismissing a wallet prompt is routine drop-off,
+    // not a fault. Dropped here as well as at the call sites so a cancellation
+    // reaching Sentry through a global handler (rather than logger.error) is
+    // filtered too.
+    //
+    // Exempt events the flow explicitly tagged as a partial failure. The
+    // multi-vault deposit path logs and then CONTINUES with the remaining
+    // vaults, so a depositor rejecting one prompt mid-batch leaves that vault
+    // short of recovery material while the deposit proceeds - CLAUDE.md
+    // critical-path #3 ("undersigning leaves recovery material missing for an
+    // active challenger"). The outer message does not read as a cancellation
+    // but the wrapped cause does, so an untagged drop swallows exactly the
+    // event worth keeping.
+    if (
+      isUserCancellation(hint?.originalException) &&
+      !event.tags?.partialFailure
+    ) {
+      return null;
+    }
+
+    // React DOM-mutation failures: drop only with a translation extension
+    // actually present, otherwise keep at warning so our own reconciliation
+    // bugs stay visible and the opt-out's effect stays measurable.
+    if (isReactDomMutationError(eventText(event))) {
+      if (hasTranslationExtensionMarkers()) return null;
+      event.level = "warning";
+      event.tags = { ...event.tags, domMutation: "unattributed" };
+    }
+
     event.extra = {
       ...(event.extra || {}),
       version: getCommitHash(),

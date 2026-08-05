@@ -13,6 +13,7 @@ import {
 const CASCADE: LiquidationCascade = {
   btcPrice: 88_400,
   collateralFactor: 0.5,
+  vaultsTotal: 1,
   result: {
     groups: [
       {

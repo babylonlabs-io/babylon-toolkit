@@ -23,10 +23,6 @@ export const RESERVE_QUERY_KEYS = {
   PICKER: "picker",
 } as const;
 
-export function getReserveDetailBaseRoute(isV3Enabled: boolean): string {
-  return isV3Enabled ? ROUTES.LOANS : ROUTES.OVERVIEW;
-}
-
 /**
  * Query string that opens the loan overlay's asset picker. Search-only: the
  * overlay renders over whichever page under the Aave layout is already
@@ -43,8 +39,8 @@ export function getAssetPickerSearch(tab: LoanTab) {
  * page to get there (the market data page's back link). In-page entry points
  * use `getAssetPickerSearch` instead.
  */
-export function getAssetPickerRoute(tab: LoanTab, isV3Enabled: boolean) {
-  return `${getReserveDetailBaseRoute(isV3Enabled)}${getAssetPickerSearch(tab)}`;
+export function getAssetPickerRoute(tab: LoanTab) {
+  return `${ROUTES.LOANS}${getAssetPickerSearch(tab)}`;
 }
 
 /**
@@ -80,12 +76,8 @@ export function parseReserveId(
  * symbol: the symbol comes from the indexer, so routing by it lets a
  * compromised indexer decide which reserve a link opens.
  */
-export function getReserveDetailRoute(
-  reserveId: bigint,
-  tab: LoanTab,
-  isV3Enabled: boolean,
-) {
-  return `${getReserveDetailBaseRoute(isV3Enabled)}${getReserveDetailSearch(reserveId, tab)}`;
+export function getReserveDetailRoute(reserveId: bigint, tab: LoanTab) {
+  return `${ROUTES.LOANS}${getReserveDetailSearch(reserveId, tab)}`;
 }
 
 /** Search-only form of {@link getReserveDetailRoute}; same rationale, and the

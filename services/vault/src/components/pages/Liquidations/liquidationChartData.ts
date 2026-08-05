@@ -9,7 +9,13 @@ import type {
   LiquidationGroup,
 } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
-import { formatBtcAmount, formatPriceUsd, formatUsd } from "@/utils/formatting";
+import {
+  formatBtcAmount,
+  formatBtcValue,
+  formatPriceUsd,
+  formatUsd,
+  getBtcSymbol,
+} from "@/utils/formatting";
 
 /**
  * Projects the liquidation cascade (`CalculatorResult.groups`) into the shapes
@@ -20,25 +26,48 @@ import { formatBtcAmount, formatPriceUsd, formatUsd } from "@/utils/formatting";
  *  - post-liquidation Health Factor: remaining collateral × price × CF ÷ debt.
  *    Uses the collateral factor, matching `calculate.ts`, NOT the SDK's
  *    liquidation-threshold HF.
- *  - fairness payment in wBTC: `fairnessPaymentUsd / btcPrice`.
- *  - Sacrificial vs Protected badge: no backing field exists. The first-seized
- *    group (index 0) is the sacrificial one; the rest are protected.
- *    // ponytail: index===0 heuristic — confirm the rule with design.
+ *  - fairness payment in wBTC: `fairnessPaymentUsd / group.liquidationPrice`
+ *    — the event's own trigger price, not the simulated price, since the
+ *    fairness payment is a property of that liquidation, not of wherever the
+ *    simulator currently sits.
+ *  - Sacrificial vs Protected badge: no backing field exists. `calculate.ts`
+ *    emits groups in seizure order but with a 1-based `index` field, so
+ *    "first group" is the group's POSITION in the `groups` array (position 0),
+ *    never `group.index` itself. The first-position group is the sacrificial
+ *    one; the rest are protected.
  */
 
 const TONES: LiquidationBandTone[] = ["1", "2", "3"];
+
+/** A BTC amount pre-formatted as separate parts so the card can style the
+ *  number and the unit differently without re-parsing a formatted string. */
+export interface AmountParts {
+  amount: string;
+  unit: string;
+}
 
 export interface LiquidationEventCard {
   key: string;
   title: string;
   badge: "sacrificial" | "protected";
+  /** Matches the band's colour lane — drives the card's top rule. */
+  tone: LiquidationBandTone;
+  /**
+   * The price has fallen to or through this event's trigger. Distinct from
+   * `badge`, which is the event's fixed role in the cascade (position 0 is
+   * sacrificial) and does not move with the simulator.
+   */
+  triggered: boolean;
   collateralLabel: string;
   liqPriceLabel: string;
   distanceLabel: string;
+  /** Sign of the distance, so a consumer can tint it without re-parsing
+   *  `distanceLabel`. The overview cards tint negative distances; the
+   *  dashboard-page cards tint by `badge` instead. */
   distanceNegative: boolean;
-  seizedVaults: { name: string; amountLabel: string }[];
-  targetSeizureLabel: string;
-  overSeizureLabel: string;
+  seizedVaults: ({ name: string } & AmountParts)[];
+  targetSeizure: AmountParts;
+  overSeizure: AmountParts;
   collateralLiquidatedLabel: string;
   debtRepaidLabel: string;
   liquidatorProfitLabel: string;
@@ -54,6 +83,7 @@ export interface LiquidationChartData {
   priceAxis: PriceAxisTick[];
   shareAxisTicks: { fraction: number; label: string }[];
   cards: LiquidationEventCard[];
+  summary: LiquidationSimulationSummary;
 }
 
 export interface LiquidationChartOptions {
@@ -68,6 +98,8 @@ export interface LiquidationChartOptions {
    * instead of re-flowing the axis on every step.
    */
   livePrice?: number;
+  /** Vaults in the position, for the header counts. See the summary below. */
+  vaultsTotal: number;
 }
 
 /** Header figures for the analysis section at a (simulated) price. */
@@ -81,22 +113,42 @@ export interface LiquidationSimulationSummary {
 }
 
 /**
+ * The whole position's collateral, which the groups alone do not describe:
+ * `calculate()` stops emitting groups the moment the remaining debt clears, so
+ * any vault it never had to consume has no group at all. What it does leave is
+ * the last group's `btcRemainingAfter` — the collateral still standing once the
+ * cascade is exhausted — so the true total is the seized run plus that tail.
+ */
+function positionCollateralBtc(result: CalculatorResult): number {
+  const groups = result.groups;
+  const inGroups = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
+  return inGroups + (groups[groups.length - 1]?.btcRemainingAfter ?? 0);
+}
+
+/**
  * What the cascade looks like at `btcPrice`: a group is seized once the price
  * is at or below its trigger — the same rule that flips a band's `state`.
+ *
+ * Normalised against the whole position, never against the emitted groups —
+ * otherwise a position whose cascade ends early reads "100% seized / 0 BTC"
+ * while the position card directly above still shows the surviving collateral.
  */
 export function buildSimulationSummary(
   result: CalculatorResult,
   btcPrice: number,
+  /** Vaults in the position. Not derivable: an unconsumed vault has no group. */
+  vaultsTotal: number,
 ): LiquidationSimulationSummary {
-  const groups = result.groups;
-  const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
-  const seized = groups.filter((g) => btcPrice <= g.liquidationPrice);
+  const totalBtc = positionCollateralBtc(result);
+  const seized = result.groups.filter((g) => btcPrice <= g.liquidationPrice);
   const seizedBtc = seized.reduce((sum, g) => sum + g.combinedBtc, 0);
   return {
     vaultsLiquidated: seized.reduce((sum, g) => sum + g.vaults.length, 0),
-    vaultsTotal: groups.reduce((sum, g) => sum + g.vaults.length, 0),
+    vaultsTotal,
     seizedPct: totalBtc > 0 ? Math.round((seizedBtc / totalBtc) * 100) : 0,
-    collateralRemainingLabel: formatBtcAmount(totalBtc - seizedBtc),
+    collateralRemainingLabel: formatBtcAmount(
+      Math.max(0, totalBtc - seizedBtc),
+    ),
   };
 }
 
@@ -106,7 +158,8 @@ export function buildSimulationSummary(
  */
 const AXIS_FLOOR_MARGIN = 0.05;
 
-/** Bottom of the price axis: just under the last trigger, or 0 with no events. */
+/** Bottom of the price axis: just under the last trigger, or 0 with no events.
+ *  Also the simulator's lower bound. */
 export function axisFloorPrice(result: CalculatorResult): number {
   const triggers = result.groups.map((g) => g.liquidationPrice);
   if (triggers.length === 0) return 0;
@@ -144,18 +197,23 @@ export function compressedShareBoundaries(shares: number[]): number[] {
 const toneFor = (index: number): LiquidationBandTone =>
   TONES[index % TONES.length];
 
+// Explicit `+`: a trigger ABOVE the current price is one the cascade has
+// already passed, and without a sign "18.1%" is indistinguishable from the
+// "-18.1%" of an event still that far away.
 function formatSignedPct(pct: number): string {
-  return `${pct.toFixed(1)}%`;
+  return `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`;
 }
 
-function hfAfter(
-  group: LiquidationGroup,
-  btcPrice: number,
-  cf: number,
-): string {
+/** Splits a BTC amount into the parts a card styles separately, rather than
+ *  handing it a pre-formatted string to re-split. */
+function toAmountParts(btc: number, sign: "" | "+" = ""): AmountParts {
+  return { amount: `${sign}${formatBtcValue(btc)}`, unit: getBtcSymbol() };
+}
+
+function hfAfter(group: LiquidationGroup, cf: number): string {
   if (group.debtRemainingAfter <= 0) return "∞";
   return (
-    (group.btcRemainingAfter * btcPrice * cf) /
+    (group.btcRemainingAfter * group.liquidationPrice * cf) /
     group.debtRemainingAfter
   ).toFixed(3);
 }
@@ -169,6 +227,7 @@ function toCard(
   group: LiquidationGroup,
   position: number,
   cf: number,
+  btcPrice: number,
 ): LiquidationEventCard {
   const sacrificial = position === 0;
   const fairness = group.isFullLiquidation
@@ -185,29 +244,38 @@ function toCard(
     key: String(position),
     title: COPY.liquidations.eventTitle(position + 1),
     badge: sacrificial ? "sacrificial" : "protected",
+    // Same rule as a band's `state`, so a card and its band can never
+    // disagree about whether the event has fired.
+    triggered: btcPrice <= group.liquidationPrice,
+    tone: toneFor(position),
     collateralLabel: formatBtcAmount(group.combinedBtc),
     liqPriceLabel: formatPriceUsd(group.liquidationPrice),
     distanceLabel: formatSignedPct(group.distancePct),
     distanceNegative: group.distancePct < 0,
     seizedVaults: group.vaults.map((v) => ({
       name: v.name,
-      amountLabel: formatBtcAmount(v.btc),
+      ...toAmountParts(v.btc),
     })),
-    targetSeizureLabel: formatBtcAmount(group.targetSeizureBtc),
-    overSeizureLabel: `+${formatBtcAmount(group.overSeizureBtc)}`,
+    targetSeizure: toAmountParts(group.targetSeizureBtc),
+    overSeizure: toAmountParts(group.overSeizureBtc, "+"),
     collateralLiquidatedLabel: formatBtcAmount(group.combinedBtc),
     debtRepaidLabel: formatUsd(group.debtRepaid),
     liquidatorProfitLabel: formatUsd(group.liquidatorProfitUsd),
     fairness,
     btcRemainingLabel: formatBtcAmount(group.btcRemainingAfter),
     debtRemainingLabel: formatUsd(group.debtRemainingAfter),
-    hfAfterLabel: hfAfter(group, group.liquidationPrice, cf),
+    hfAfterLabel: hfAfter(group, cf),
   };
 }
 
 export function buildLiquidationChartData(
   result: CalculatorResult,
-  { btcPrice, collateralFactor, livePrice }: LiquidationChartOptions,
+  {
+    btcPrice,
+    collateralFactor,
+    livePrice,
+    vaultsTotal,
+  }: LiquidationChartOptions,
 ): LiquidationChartData {
   const groups = result.groups;
   const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
@@ -303,10 +371,21 @@ export function buildLiquidationChartData(
     }),
   ];
 
+  // Header figures, bundled here so they can never be paired with a different
+  // price than the bands. Deliberately the SAME `buildSimulationSummary` the
+  // overview card uses: two definitions of "seized" would print two different
+  // percentages for one position. `combinedBtc` IS the seized amount
+  // (`calculate.ts` sets it from the prefix sum of the seized vaults), so
+  // summing `targetSeizureBtc + overSeizureBtc` instead would overstate the
+  // share whenever the seizure loop exits on its tolerance slack — enough to
+  // print ">100% seized" beside a 100% share axis.
+  const summary = buildSimulationSummary(result, btcPrice, vaultsTotal);
+
   return {
     bands,
     priceAxis,
     shareAxisTicks,
-    cards: groups.map((g, i) => toCard(g, i, collateralFactor)),
+    cards: groups.map((g, i) => toCard(g, i, collateralFactor, btcPrice)),
+    summary,
   };
 }

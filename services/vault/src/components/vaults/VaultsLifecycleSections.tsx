@@ -224,10 +224,14 @@ function PendingRow({
 
       {/* Primary action or details */}
       {actionStatus.type === "available" ? (
+        // This control's data-testid is a real-wallet E2E hook
+        // (e2e/real/actions/resume.ts) — carry it over if you move or rename
+        // the element. It replaces the v2 pending-deposit card's resume CTA.
         <button
           type="button"
           onClick={() => routeAction(actionStatus.action.action)}
           className={PRIMARY_ROW_BUTTON_CLASS}
+          data-testid="pending-deposit-resume-cta"
         >
           {actionStatus.action.label}
         </button>

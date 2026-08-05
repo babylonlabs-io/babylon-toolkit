@@ -27,8 +27,8 @@ import { PositionNotificationsDebugPanel } from "./PositionNotificationsDebugPan
 export function GodModeMount() {
   return (
     <GodModePanel>
-      {featureFlags.isV3UiEnabled && <LiquidationAnalysisDebugPanel />}
-      {featureFlags.isV3UiEnabled && <MarketDataDebugPanel />}
+      <LiquidationAnalysisDebugPanel />
+      <MarketDataDebugPanel />
       {featureFlags.isLiquidationNotificationsEnabled &&
         featureFlags.isPositionDebugPanelEnabled && (
           <PositionNotificationsDebugPanel />

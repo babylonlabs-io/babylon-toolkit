@@ -22,6 +22,12 @@ export interface LiquidationCascade {
   result: CalculatorResult;
   btcPrice: number;
   collateralFactor: number;
+  /**
+   * Vaults in the position. Not derivable from `result`: `calculate()` stops
+   * emitting groups once the debt clears, so a vault it never consumed has no
+   * group and would otherwise vanish from the "x/y vaults" count.
+   */
+  vaultsTotal: number;
 }
 
 interface LiquidationAnalysisSectionProps {
@@ -102,6 +108,7 @@ function LiquidationChartPanel({
         btcPrice: effectivePrice,
         collateralFactor: cascade.collateralFactor,
         livePrice: cascade.btcPrice,
+        vaultsTotal: cascade.vaultsTotal,
       }),
     [cascade, effectivePrice],
   );
@@ -215,7 +222,11 @@ export function LiquidationAnalysisSection({
   const summary = useMemo(
     () =>
       showChart && cascade
-        ? buildSimulationSummary(cascade.result, effectivePrice)
+        ? buildSimulationSummary(
+            cascade.result,
+            effectivePrice,
+            cascade.vaultsTotal,
+          )
         : null,
     [showChart, cascade, effectivePrice],
   );

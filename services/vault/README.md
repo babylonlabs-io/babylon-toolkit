@@ -95,11 +95,11 @@ Create a `.env` file with the following variables:
   - Default: `false` (banner hidden unless explicitly set to `"true"`)
   - Takes precedence over `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` when both are set
 
-- `NEXT_PUBLIC_FF_ENABLE_MARKET_DETAIL_PAGE` - Shows the borrowing market detail page (`/markets/:reserveId`) and the Market Info button in the borrow asset picker (requires `NEXT_PUBLIC_FF_ENABLE_V3_UI`)
+- `NEXT_PUBLIC_FF_ENABLE_MARKET_DETAIL_PAGE` - Shows the borrowing market detail page (`/markets/:reserveId`) and the Market Info button in the borrow asset picker
   - Default: `false` (the route redirects to `/` and the button is hidden unless explicitly set to `"true"`)
   - Off until the market data (APR history, interest rate model, per-market rows) is served live rather than from placeholders
 
-- `NEXT_PUBLIC_FF_ENABLE_EXPLORE` - Shows the Explore section: the `/explore` page and its sidebar entry (requires `NEXT_PUBLIC_FF_ENABLE_V3_UI`)
+- `NEXT_PUBLIC_FF_ENABLE_EXPLORE` - Shows the Explore section: the `/explore` page and its sidebar entry
   - Default: `false` (the route redirects to `/` and the nav item is hidden unless explicitly set to `"true"`)
   - Off until the partner list is backed by the contributor registry rather than a hand-authored seed list
 

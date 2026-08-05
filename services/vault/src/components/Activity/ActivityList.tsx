@@ -1,20 +1,17 @@
-import { Avatar, Heading, useIsMobile } from "@babylonlabs-io/core-ui";
+import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { ListRowCard } from "@/components/shared/ListRow";
-import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 import { useMidnightTick } from "@/hooks/useMidnightTick";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
 import { formatActivityDateGroup } from "@/utils/formatting";
 
-import { ActivityCard } from "./ActivityCard";
 import { ActivityEmptyState } from "./ActivityEmptyState";
 import { ActivityRowV3 } from "./ActivityRowV3";
 import { ExpiredWithdrawButton } from "./ExpiredWithdrawButton";
 import { FilterDropdown } from "./FilterDropdown";
-import { LiquidationGroupCard } from "./LiquidationGroupCard";
 import { LiquidationGroupCardV3 } from "./LiquidationGroupCardV3";
 
 interface ActivityDateGroup {
@@ -47,10 +44,6 @@ function groupByDate(
   return ordered;
 }
 
-// Single-app surface today. When multi-app ships this becomes an app picker
-// fed from the applications registry. v3 drops it from the header entirely.
-const AAVE_LOGO_URL = "/images/aave.svg";
-
 // Only the ActivityTypes that appear as filter options in the Figma menu.
 // `Redeem` and `Pending Deposit` rows still render in the list but are not
 // directly filterable. `claim_expired` is remapped to a refunded Deposit
@@ -64,7 +57,7 @@ interface ActivityListProps {
   isConnected: boolean;
   /** Vault ids of expired deposits whose HTLC refund is still outstanding —
    *  those rows get the Withdraw action. Matched against a row's `vaultId`,
-   *  never its `id` (see ActivityLog). Omitted by the v2 surface. */
+   *  never its `id` (see ActivityLog). */
   refundableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
 }
@@ -76,14 +69,13 @@ export function ActivityList({
   onWithdraw,
 }: ActivityListProps) {
   const isMobile = useIsMobile();
-  const isV3 = FeatureFlags.isV3UiEnabled;
-  // v3 desktop replaces this in-page heading with the persistent header's
-  // page title; v3 mobile has no header title slot (Header only shows it on
-  // desktop), so the heading must stay to avoid a page with no title at all.
-  const hideHeading = isV3 && !isMobile;
+  // Desktop replaces this in-page heading with the persistent header's page
+  // title; mobile has no header title slot (Header only shows it on desktop),
+  // so the heading must stay to avoid a page with no title at all.
+  const hideHeading = !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
 
-  // Re-render at local midnight so the v3 "Today" / "Yesterday" date-group
+  // Re-render at local midnight so the "Today" / "Yesterday" date-group
   // headers stay correct on a page left open overnight (the feed doesn't poll).
   useMidnightTick();
 
@@ -118,16 +110,14 @@ export function ActivityList({
           )}
           {isConnected && (
             <div className="flex items-center gap-4">
-              {/* v3 drops the app logo from the header; v2 keeps it. */}
-              {!isV3 && <Avatar url={AAVE_LOGO_URL} alt="Aave" size="small" />}
               <FilterDropdown
                 value={filter}
                 placeholder={COPY.activity.filterAll}
                 options={FILTER_OPTIONS}
                 onChange={setFilter}
-                // v3 moves the trigger to the left of the row, so the menu
-                // opens rightward from it; v2 keeps it right-aligned.
-                align={isV3 ? "start" : "end"}
+                // The trigger sits to the left of the row, so the menu opens
+                // rightward from it.
+                align="start"
               />
             </div>
           )}
@@ -139,10 +129,10 @@ export function ActivityList({
           isConnected={isConnected}
           isFiltered={filter !== null}
         />
-      ) : isV3 ? (
-        // v3: rows grouped under date headers. Each row is its own card, the
-        // same one the Vaults tab uses — except a liquidation, whose child
-        // events share one card with divider-separated rows.
+      ) : (
+        // Rows grouped under date headers. Each row is its own card, the same
+        // one the Vaults tab uses — except a liquidation, whose child events
+        // share one card with divider-separated rows.
         <div className="flex flex-col gap-6">
           {groupByDate(visible, new Date()).map((group) => (
             <div key={group.label} className="flex flex-col gap-3">
@@ -176,24 +166,6 @@ export function ActivityList({
               </ul>
             </div>
           ))}
-        </div>
-      ) : (
-        // v2 scroll container: min-h keeps the card substantial when there are
-        // only a handful of rows; max-h caps tall histories so the page never
-        // grows arbitrarily. Only the row list scrolls — the title + filter
-        // sit outside the container and stay pinned.
-        <div className="max-h-[600px] min-h-[240px] overflow-y-auto">
-          <ul role="list" className="flex flex-col gap-4">
-            {visible.map((r) => (
-              <li key={r.id}>
-                {r.kind === "liquidationGroup" ? (
-                  <LiquidationGroupCard row={r} />
-                ) : (
-                  <ActivityCard row={r} />
-                )}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

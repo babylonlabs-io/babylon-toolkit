@@ -1,13 +1,6 @@
-import {
-  Button,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  ResponsiveDialog,
-} from "@babylonlabs-io/core-ui";
+import { Button } from "@babylonlabs-io/core-ui";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
-import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 
 import { ReorderSuccessIcon } from "./ReorderSuccessIcon";
@@ -21,33 +14,6 @@ export function ReorderSuccessModal({
   isOpen,
   onClose,
 }: ReorderSuccessModalProps) {
-  // v2 keeps the ResponsiveDialog bottom-sheet; only v3 uses the full-screen
-  // shell + centered card.
-  if (!FeatureFlags.isV3UiEnabled) {
-    return (
-      <ResponsiveDialog open={isOpen} onClose={onClose}>
-        <DialogHeader title={COPY.reorder.successTitle} onClose={onClose} />
-        <DialogBody>
-          <ReorderSuccessIcon className="mx-auto my-3 text-accent-primary" />
-          <p className="py-3 text-center text-accent-secondary">
-            {COPY.reorder.successText}
-          </p>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            variant="contained"
-            color="secondary"
-            size="large"
-            fluid
-            onClick={onClose}
-          >
-            {COPY.reorder.doneButton}
-          </Button>
-        </DialogFooter>
-      </ResponsiveDialog>
-    );
-  }
-
   return (
     <V3ModalShell
       open={isOpen}

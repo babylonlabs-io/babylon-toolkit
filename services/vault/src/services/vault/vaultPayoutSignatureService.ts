@@ -18,8 +18,9 @@
  */
 
 import {
-  getSortedXOnlyPubkeys,
-  processPublicKeyToXOnly,
+  assertVaultProviderHintAccepted,
+  canonicalizeBtcPubkey,
+  resolveParticipantKeysAtEpochs,
   stripHexPrefix,
   type Network,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -27,12 +28,15 @@ import type { Address, Hex } from "viem";
 
 import {
   getVaultFromChain,
+  getVaultKeyEpochsFromChain,
   getVaultProviderBtcPubkeyFromChain,
 } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
+  getOperationKeyReader,
   getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
+  getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
@@ -84,6 +88,20 @@ export interface SigningContext {
    * Forwarded to `buildPayoutPsbt` to cap the VP-claimer commission output.
    */
   commissionBps: number;
+  /**
+   * Tx-graph fee rate (sat/vB) from the vault's locked offchain params
+   * version — the rate the VP built the graph with. Bounds every payout's
+   * implicit fee (device fee-bound model).
+   */
+  protocolFeeRate: bigint;
+
+  /**
+   * RFC-006 keeper payout destinations at the vault's frozen
+   * `appKeeperKeyEpoch`, keyed by lowercased x-only operation pubkey.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** RFC-006 VP commission destination at the vault's frozen `vpKeyEpoch`. */
+  vpCommissionScriptPubKey: string;
 }
 
 export interface PreparedSigningData {
@@ -101,28 +119,41 @@ export interface PayoutSigningProgress {
 }
 
 /**
- * Resolve vault provider's BTC public key.
- * Reads the authoritative value from BTCVaultRegistry and treats the provided
- * value only as an untrusted hint that must match.
+ * Resolve a vault provider's *registration* BTC public key.
+ *
+ * Reads the authoritative value from BTCVaultRegistry and treats the caller's
+ * value only as an untrusted hint. The hint never influences the result — it is
+ * returned from chain either way — so its job is to catch a wrong VP address or
+ * a stale indexer view, not to supply key material.
+ *
+ * Under RFC-006 the hint is accepted against *either* the registration key or
+ * the provider's current operation key — the policy owned by
+ * `assertVaultProviderHintAccepted`, which the deposit and refund paths share.
+ * Comparing only against the registration key would hard-fail payout signing
+ * for every depositor of a rotated provider the day the indexer starts serving
+ * operation keys.
+ *
+ * The returned registration key is only used as the genesis fallback for
+ * epoch-based resolution; the keys actually signed with come from
+ * `resolveParticipantKeysAtEpochs`.
  */
 export async function resolveVaultProviderBtcPubkey(
   address: Address,
   btcPubKey?: string,
 ): Promise<string> {
-  const onChainBtcPubkey = processPublicKeyToXOnly(
+  const registrationBtcPubkey = canonicalizeBtcPubkey(
     await getVaultProviderBtcPubkeyFromChain(address),
-  ).toLowerCase();
+  );
 
-  if (btcPubKey) {
-    const hintedBtcPubkey = processPublicKeyToXOnly(btcPubKey).toLowerCase();
-    if (hintedBtcPubkey !== onChainBtcPubkey) {
-      throw new Error(
-        `Vault provider BTC pubkey mismatch for ${address}: indexer hint does not match on-chain registry`,
-      );
-    }
-  }
+  await assertVaultProviderHintAccepted({
+    vaultProviderEthAddress: address,
+    hintBtcPubkey: btcPubKey,
+    registrationBtcPubkey,
+    readCurrentOperationBtcPubkey: () =>
+      getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(address),
+  });
 
-  return onChainBtcPubkey;
+  return registrationBtcPubkey;
 }
 
 /**
@@ -200,17 +231,46 @@ export async function prepareSigningContext(
     );
   }
 
-  const vaultProviderBtcPubkey = await resolveVaultProviderBtcPubkey(
+  const registrationVpBtcPubkey = await resolveVaultProviderBtcPubkey(
     vault.vaultProvider,
     vaultProviderBtcPubKey,
   );
 
-  const vaultKeeperBtcPubkeys = getSortedXOnlyPubkeys(
-    vaultKeepers.map((vk) => vk.btcPubKey),
+  // RFC-006. This vault froze its key epochs at creation, so it must be signed
+  // with the keys bonded *then* — not whatever the operators hold now. The
+  // rosters above are already at the vault's frozen membership versions, which
+  // is what supplies the genesis fallback for keepers and challengers.
+  const operationKeyReader = await getOperationKeyReader();
+  const epochs = await getVaultKeyEpochsFromChain(vaultId as Hex);
+  const query = {
+    vaultProviderEthAddress: vault.vaultProvider,
+    vaultProviderGenesisBtcPubkey: `0x${registrationVpBtcPubkey}` as Hex,
+    applicationEntryPoint: vault.applicationEntryPoint,
+    vaultKeepers,
+    universalChallengers,
+  };
+
+  const [participantKeys, payoutScripts] = await Promise.all([
+    resolveParticipantKeysAtEpochs({ operationKeyReader, query, epochs }),
+    operationKeyReader.getPayoutScriptsAtEpochs(query, epochs),
+  ]);
+
+  const vaultProviderBtcPubkey =
+    participantKeys.vaultProvider.operationBtcPubkey;
+  const vaultKeeperBtcPubkeys = participantKeys.vaultKeeperOperationKeysSorted;
+  const universalChallengerBtcPubkeys =
+    participantKeys.universalChallengerOperationKeysSorted;
+
+  // Keyed by the *operation* key, which is what arrives as `claimer_pubkey`.
+  // Built from the roster-ordered pairs, never by index-joining a sorted
+  // array — a rotated key sorts somewhere else.
+  const vkClaimerPayoutScriptPubKeys = Object.fromEntries(
+    participantKeys.vaultKeepers.map((keeper, i) => [
+      keeper.operationBtcPubkey.toLowerCase(),
+      payoutScripts.vaultKeepers[i],
+    ]),
   );
-  const universalChallengerBtcPubkeys = getSortedXOnlyPubkeys(
-    universalChallengers.map((uc) => uc.btcPubKey),
-  );
+  const vpCommissionScriptPubKey = payoutScripts.vaultProvider;
 
   return {
     context: {
@@ -229,6 +289,10 @@ export async function prepareSigningContext(
       network: getBTCNetworkForWASM(),
       registeredPayoutScriptPubKey,
       commissionBps: vault.vaultProviderCommissionBps,
+      // Version-locked graph-build rate — same fetch as timelockAssert above.
+      protocolFeeRate: offchainParams.feeRate,
+      vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey,
     },
     vaultProviderAddress: vault.vaultProvider,
   };

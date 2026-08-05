@@ -1,8 +1,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  AUTH_EXPIRED_DATA_KIND,
-  JsonRpcError,
+  isAuthRejectedError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useRef, useState } from "react";
@@ -89,32 +88,6 @@ interface PrimeContext {
   vaultId: Hex;
   unsignedPrePeginTxHex: string;
   btcWallet: BitcoinWallet;
-}
-
-/**
- * Returns true when the failure looks like the VP rejected the request
- * because the bearer token was missing, malformed, or expired - i.e.
- * the request can succeed if we re-prime the registry and retry.
- *
- * The structured `auth_expired` marker is the only contractually-defined
- * signal; missing-bearer rejections currently come through as a free-form
- * message, so we accept that case heuristically.
- */
-function isAuthFailure(err: unknown): boolean {
-  if (!(err instanceof JsonRpcError)) return false;
-  if (err.source !== "wire") return false;
-
-  const data = err.data;
-  if (
-    data !== null &&
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    (data as { kind?: unknown }).kind === AUTH_EXPIRED_DATA_KIND
-  ) {
-    return true;
-  }
-
-  return /bearer/i.test(err.message);
 }
 
 export function useArtifactDownload(options?: {
@@ -475,7 +448,12 @@ export function useArtifactDownload(options?: {
             continue;
           }
 
-          if (!primeAttempted && isAuthFailure(err)) {
+          // Artifact download goes through `callRaw`, which deliberately
+          // skips the client's reactive re-auth (the body may be unbounded,
+          // so it is never parsed to detect an auth error). This is that
+          // recovery, done by hand: re-prime the token registry once and
+          // retry the stream.
+          if (!primeAttempted && isAuthRejectedError(err)) {
             primeAttempted = true;
             try {
               const primed = await tryPrimeAndRetry();

@@ -27,7 +27,6 @@ import {
 import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { useDemoMarketData } from "@/dev/demoMarketData";
 import { getAssetPickerRoute, getMarketSlug, MARKET_PARAM } from "@/routes";
@@ -345,12 +344,7 @@ export default function BorrowingMarketsData() {
               // This URL is shareable: opened directly there is no in-app entry
               // to go back to, and history back would leave the app.
               location.key === "default"
-                ? navigate(
-                    getAssetPickerRoute(
-                      LOAN_TAB.BORROW,
-                      featureFlags.isV3UiEnabled,
-                    ),
-                  )
+                ? navigate(getAssetPickerRoute(LOAN_TAB.BORROW))
                 : navigate(-1)
             }
             className="flex w-fit cursor-pointer items-center gap-2 text-base leading-[1.5] tracking-[0.15px] text-accent-secondary transition-colors hover:text-accent-primary"

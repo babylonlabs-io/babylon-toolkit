@@ -27,7 +27,10 @@
  *    "Transaction failed" title (preserves prior behavior, no info hidden).
  */
 
-import { isRegisteredVaultVersionMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  isParticipantKeyDriftError,
+  isRegisteredVaultVersionMismatchError,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type ReactNode } from "react";
 
@@ -36,10 +39,10 @@ import { COPY } from "@/copy";
 import {
   classifyError,
   formatErrorDiagnostics,
-  isWalletRejectionError,
   mapVpRpcError,
   sanitizeErrorMessage,
 } from "./formatting";
+import { isUserCancellation, isWalletRejectionError } from "./userCancellation";
 
 export interface DepositErrorContent {
   title: string;
@@ -114,6 +117,14 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.versionMismatch;
   }
 
+  // 3b. RFC-006 participant key drift. Distinct from the version mismatch
+  // above: retrying cannot help, because the registered vault is bonded to
+  // keys the prepared Pre-PegIn does not use. The copy says so rather than
+  // inviting a retry.
+  if (isParticipantKeyDriftError(err)) {
+    return ERRORS.participantKeyDrift;
+  }
+
   const msg = lowerMessage(err);
 
   // 4. Wallet account changed mid-flow (WOTS-vs-PoP key guard).
@@ -179,16 +190,13 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   // 6. Wallet signing rejection. The coded path (step 1) misses rejections that
   // happen inside the broadcast step, because that catch re-wraps them in a
-  // fresh Error (losing the code). Match the phrasing before the broadcast
-  // bucket so "Failed to broadcast ...: user rejected" reads as a rejection.
-  // Scope to wallet phrases ("user rejected/denied/cancelled") so unrelated
-  // "access denied"/"permission denied" errors don't get mislabeled.
-  if (
-    msg.includes("user rejected") ||
-    msg.includes("user denied") ||
-    msg.includes("user cancelled") ||
-    msg.includes("user canceled")
-  ) {
+  // fresh Error (losing the code). Checked before the broadcast bucket so
+  // "Failed to broadcast ...: user rejected" reads as a rejection.
+  //
+  // Shares its vocabulary with the Sentry-side drop rather than keeping a local
+  // wording list: a cancellation that telemetry correctly suppressed used to
+  // fall through to generic copy here, which is the same drift on the UX side.
+  if (isUserCancellation(err)) {
     return ERRORS.signingRejected;
   }
 

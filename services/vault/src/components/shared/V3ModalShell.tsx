@@ -6,9 +6,6 @@
  * button on the left and the network chip + settings menu on the right, both
  * aligned to the same content column the page uses. The card itself is
  * centered and capped at `contentClassName`.
- *
- * Pre-v3 it falls back to the plain centered `FullScreenDialog` those flows
- * used before, so the v2 look is unchanged.
  */
 
 import {
@@ -22,7 +19,6 @@ import { twJoin } from "tailwind-merge";
 
 import { NetworkBadge } from "@/components/shared/NetworkBadge";
 import { MODAL_TOP_BAR_GUTTER_CLASS } from "@/components/shared/layoutClasses";
-import { FeatureFlags } from "@/config";
 import { COPY } from "@/copy";
 
 interface V3ModalShellProps {
@@ -43,21 +39,6 @@ export function V3ModalShell({
   children,
 }: V3ModalShellProps) {
   const { theme, setTheme } = useTheme();
-
-  if (!FeatureFlags.isV3UiEnabled) {
-    return (
-      <FullScreenDialog
-        open={open}
-        onClose={onClose}
-        disableEscapeClose={disableEscapeClose}
-        className="items-center justify-center p-6"
-      >
-        <div className={twJoin("mx-auto w-full", contentClassName)}>
-          {children}
-        </div>
-      </FullScreenDialog>
-    );
-  }
 
   return (
     <FullScreenDialog

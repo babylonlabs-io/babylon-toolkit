@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
 import { useSyncPendingVaults } from "@/applications/aave/context";
@@ -23,7 +23,6 @@ import {
   useDebugManualParams,
   useDebugPositionOverride,
 } from "@/dev/debugPositionStore";
-import { useDemoCollateral, useDemoWithdrawal } from "@/dev/demoDeposit";
 import {
   resolveLiquidationCardState,
   useLiquidationDebugState,
@@ -31,9 +30,7 @@ import {
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
-import { usePegoutPolling } from "@/hooks/usePegoutPolling";
 import { usePrices } from "@/hooks/usePrices";
-import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import {
   formatBasisPointsAsPercent,
   formatBtcAmount,
@@ -42,27 +39,18 @@ import {
   formatUsdValue,
 } from "@/utils/formatting";
 
-import { CollateralSection } from "./CollateralSection";
 import { CriticalLiquidationTopBanner } from "./CriticalLiquidationTopBanner";
 import { DisconnectedOverview } from "./DisconnectedOverview";
 import { LiquidationAnalysisSection } from "./LiquidationAnalysisSection";
-import { LoansSection } from "./LoansSection";
 import { MaxVaultsNotification } from "./MaxVaultsNotification";
 import { OverviewSection } from "./OverviewSection";
-import { PendingDepositSection } from "./PendingDepositSection";
-import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import { PositionNotificationBanner } from "./PositionNotificationBanner";
 import { RiskSection } from "./RiskSection";
-import { SupplyCapSection } from "./SupplyCapSection";
-import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
-
-  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
-  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
 
   // Dev-only banner override driven by the position-notifications section of
   // the god-mode panel (see debugPositionStore). Always null in production, so
@@ -86,13 +74,13 @@ export function DashboardPage() {
             result: debugResultOverride,
             btcPrice: debugManualParams.btcPrice,
             collateralFactor: debugManualParams.CF,
+            vaultsTotal: debugManualParams.vaults.length,
           }
         : null,
     [debugManualMode, debugResultOverride, debugManualParams],
   );
   const {
     collateralBtc,
-    displayCollateralBtc,
     collateralValueUsd,
     debtValueUsd,
     maxTotalDebtUsd,
@@ -105,7 +93,6 @@ export function DashboardPage() {
     hasLoans,
     hasCollateral,
     hasDisplayCollateral,
-    collateralVaults,
     isBorrowCapacityLoading,
     borrowCapacityError,
   } = useDashboardState(isConnected ? address : undefined);
@@ -114,7 +101,7 @@ export function DashboardPage() {
     borrowedAssets,
   });
 
-  const { snapshot: capSnapshot, isLoading: isCapLoading } = useApplicationCap(
+  const { snapshot: capSnapshot } = useApplicationCap(
     isConnected ? address : undefined,
   );
 
@@ -130,85 +117,9 @@ export function DashboardPage() {
   // uses: the debug override when set, otherwise the live calculation.
   const criticalBannerResult = debugResultOverride ?? positionNotifications;
 
-  const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
+  const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
-  const { pegoutStatuses } = usePegoutPolling({
-    redeemedVaults,
-  });
-
-  // Every redeemed vault shows its staged progress until it leaves the redeemed
-  // set on-chain (payout settles / vault closes). The in-progress/completed
-  // split below routes the terminal "Payout sent" state to the Withdrawals
-  // section; everything else (incl. "Blocked") stays under Pending Withdrawals.
-  //
-  // God-mode demo withdrawal (dev only; null unless the panel is on). Merged in
-  // here — and the real rows hidden when `hideReal` is set — so the demo renders
-  // in the real withdrawal sections. Inert in production.
-  const demoWithdrawal = useDemoWithdrawal();
-  const pendingWithdrawVaults = useMemo(() => {
-    if (!demoWithdrawal) return redeemedVaults;
-    return [
-      ...demoWithdrawal.vaults,
-      ...(demoWithdrawal.hideReal ? [] : redeemedVaults),
-    ];
-  }, [redeemedVaults, demoWithdrawal]);
-  const withdrawPegoutStatuses = useMemo(() => {
-    if (!demoWithdrawal) return pegoutStatuses;
-    const merged = new Map(demoWithdrawal.hideReal ? [] : pegoutStatuses);
-    for (const [id, status] of demoWithdrawal.statuses) merged.set(id, status);
-    return merged;
-  }, [pegoutStatuses, demoWithdrawal]);
-
-  // God-mode demo collateral (dev only; null unless the panel is on). Merged
-  // into the Collateral section's list, with the real rows hidden when
-  // `hideReal` is set. Inert in production.
-  const demoCollateral = useDemoCollateral();
-  const collateralVaultsWithDemo = useMemo(() => {
-    if (!demoCollateral) return collateralVaults;
-    return [
-      ...demoCollateral.vaults,
-      ...(demoCollateral.hideReal ? [] : collateralVaults),
-    ];
-  }, [collateralVaults, demoCollateral]);
-  const showCollateral =
-    hasDisplayCollateral || (demoCollateral?.vaults.length ?? 0) > 0;
-  // When the demo changes the collateral list (adds a row or hides the real
-  // ones), the header's DISPLAY total must reflect the rendered list —
-  // otherwise it reads "0 sBTC" above a demo card. Only the display string is
-  // demo-aware: the financial `collateralBtc` prop passed below stays the pure
-  // on-chain value, so real-vault withdraw eligibility and projected-HF math
-  // never see demo amounts.
-  const demoAffectsCollateral =
-    demoCollateral !== null &&
-    (demoCollateral.vaults.length > 0 || demoCollateral.hideReal);
-  const totalAmountBtcShown = demoAffectsCollateral
-    ? formatBtcAmount(
-        collateralVaultsWithDemo.reduce(
-          (sum, vault) => sum + vault.amountBtc,
-          0,
-        ),
-      )
-    : formatBtcAmount(displayCollateralBtc);
-
-  // A "Payout sent" withdrawal is terminal success — the depositor's BTC is on
-  // its way — so it belongs under "Withdrawals", not "Pending Withdrawals".
-  // Everything still advancing (incl. the "Blocked" error state) stays pending.
-  const { inProgressWithdrawVaults, completedWithdrawVaults } = useMemo(() => {
-    const inProgressWithdrawVaults: typeof pendingWithdrawVaults = [];
-    const completedWithdrawVaults: typeof pendingWithdrawVaults = [];
-    for (const vault of pendingWithdrawVaults) {
-      const payoutSent =
-        withdrawPegoutStatuses.get(vault.id)?.response?.claimer?.status ===
-        ClaimerPegoutStatusValue.PAYOUT_BROADCAST;
-      if (payoutSent) {
-        completedWithdrawVaults.push(vault);
-      } else {
-        inProgressWithdrawVaults.push(vault);
-      }
-    }
-    return { inProgressWithdrawVaults, completedWithdrawVaults };
-  }, [pendingWithdrawVaults, withdrawPegoutStatuses]);
 
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
@@ -228,7 +139,6 @@ export function DashboardPage() {
     liquidationDebugState,
     { hasCollateral: hasDisplayCollateral, hasLoans },
   );
-  const showOverview = featureFlags.isV3UiEnabled || hasOverviewData;
 
   const availableMeterPercent =
     maxTotalDebtUsd > 0 ? availableToBorrowUsd / maxTotalDebtUsd : 0;
@@ -304,21 +214,8 @@ export function DashboardPage() {
       ? formatBasisPointsAsPercent(collateralFactorBps)
       : COPY.common.emptyValue;
 
-  const handleOpenWithdraw = useCallback(() => {
-    setIsWithdrawOpen(true);
-  }, []);
-
-  // Clear the list selection whenever the dialog closes (cancel or
-  // post-success) so stale checkboxes don't linger on the dashboard.
-  const handleCloseWithdraw = useCallback(() => {
-    setIsWithdrawOpen(false);
-    setSelectedVaultIds([]);
-  }, []);
-
-  // The cascade banner's slot differs by UI version: v3 places it between the
-  // Position and Risk sections (Figma 10204-45310), v2 keeps it above Overview
-  // alongside the other notifications. Same element either way — declared once
-  // so the two slots can't drift apart.
+  // The cascade banner sits between the Position and Risk sections (Figma
+  // 10204-45310).
   const cascadeBanner = liquidationNotificationsEnabled ? (
     <PositionNotificationBanner
       connectedAddress={address}
@@ -343,13 +240,9 @@ export function DashboardPage() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
-        {!featureFlags.isV3UiEnabled && (
-          <SupplyCapSection snapshot={capSnapshot} isLoading={isCapLoading} />
-        )}
-
-        {/* Notifications sit between the supply cap and Overview per Figma
-            (frame 6508-114810). The critical top banner, the max-vaults notice,
-            and the cascade banner share this slot. */}
+        {/* Notifications sit above Overview per Figma (frame 6508-114810). The
+            critical top banner, the max-vaults notice, and the cascade banner
+            share this slot. */}
         {liquidationNotificationsEnabled && (
           <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
@@ -360,115 +253,45 @@ export function DashboardPage() {
             all-pending position still surfaces it. */}
         <MaxVaultsNotification connectedAddress={address} />
 
-        {!featureFlags.isV3UiEnabled && cascadeBanner}
+        <OverviewSection
+          totalCollateralValue={totalCollateralValue}
+          totalBorrowed={totalBorrowed}
+          availableToBorrow={availableToBorrow}
+          collateralBtc={collateralBtcText}
+          availableMeterPercent={availableMeterPercent}
+          borrowCapacityLoading={isBorrowCapacityLoading}
+          borrowCapacityError={borrowCapacityError}
+          borrowedMeterPercent={borrowedMeterPercent}
+          onDeposit={openDeposit}
+          onBorrow={openBorrowPicker}
+          onRepay={openRepay}
+          canBorrow={canBorrow}
+          canRepay={hasLoans}
+        />
 
-        {showOverview && (
-          <OverviewSection
-            healthFactor={shownHealthFactor}
-            healthFactorStatus={shownHealthFactorStatus}
-            totalCollateralValue={totalCollateralValue}
-            totalBorrowed={totalBorrowed}
-            liquidationPrice={liquidationPrice}
-            btcPrice={btcPrice}
-            pctToLiquidation={pctToLiquidation}
-            availableToBorrow={availableToBorrow}
-            collateralBtc={collateralBtcText}
-            availableMeterPercent={availableMeterPercent}
-            borrowCapacityLoading={isBorrowCapacityLoading}
-            borrowCapacityError={borrowCapacityError}
-            borrowedMeterPercent={borrowedMeterPercent}
-            onDeposit={openDeposit}
-            onBorrow={openBorrowPicker}
-            onRepay={openRepay}
-            canBorrow={canBorrow}
-            canRepay={hasLoans}
-          />
-        )}
+        {cascadeBanner}
 
-        {featureFlags.isV3UiEnabled && cascadeBanner}
+        <RiskSection
+          healthFactor={shownHealthFactor}
+          healthFactorStatus={shownHealthFactorStatus}
+          hasPosition={hasOverviewData || healthFactorOverride !== null}
+          liquidationPriceText={liquidationPrice}
+          btcPriceText={btcPrice}
+          pctToLiquidationText={pctToLiquidation}
+          collateralFactorText={collateralFactorText}
+          collateralFactorLoading={isBorrowCapacityLoading}
+          btcPriceUsd={usableBtcPriceUsd}
+          liquidationPriceUsd={liquidationPriceUsd}
+        />
 
-        {featureFlags.isV3UiEnabled && (
-          <RiskSection
-            healthFactor={shownHealthFactor}
-            healthFactorStatus={shownHealthFactorStatus}
-            hasPosition={hasOverviewData || healthFactorOverride !== null}
-            liquidationPriceText={liquidationPrice}
-            btcPriceText={btcPrice}
-            pctToLiquidationText={pctToLiquidation}
-            collateralFactorText={collateralFactorText}
-            collateralFactorLoading={isBorrowCapacityLoading}
-            btcPriceUsd={usableBtcPriceUsd}
-            liquidationPriceUsd={liquidationPriceUsd}
-          />
-        )}
-
-        {featureFlags.isV3UiEnabled && (
-          <LiquidationAnalysisSection
-            hasCollateral={liquidationCardState.hasCollateral}
-            hasLoans={liquidationCardState.hasLoans}
-            onDeposit={openDeposit}
-            onBorrow={openBorrowPicker}
-            cascade={liquidationCascade}
-          />
-        )}
-
-        {!featureFlags.isV3UiEnabled && (
-          <>
-            <PendingDepositSection />
-
-            <PendingWithdrawSection
-              pendingWithdrawVaults={inProgressWithdrawVaults}
-              pegoutStatuses={withdrawPegoutStatuses}
-            />
-
-            <PendingWithdrawSection
-              title={COPY.pegout.section.completedTitle}
-              pendingWithdrawVaults={completedWithdrawVaults}
-              pegoutStatuses={withdrawPegoutStatuses}
-            />
-
-            <CollateralSection
-              totalAmountBtc={totalAmountBtcShown}
-              collateralVaults={collateralVaultsWithDemo}
-              hasCollateral={showCollateral}
-              isConnected={isConnected}
-              collateralBtc={collateralBtc}
-              currentHealthFactor={healthFactor}
-              selectedVaultIds={selectedVaultIds}
-              onSelectedVaultIdsChange={setSelectedVaultIds}
-              onWithdraw={handleOpenWithdraw}
-              onDeposit={openDeposit}
-            />
-
-            <LoansSection
-              hasLoans={hasLoans}
-              hasCollateral={hasCollateral}
-              isConnected={isConnected}
-              borrowedAssets={borrowedAssets}
-              onBorrow={openBorrowPicker}
-              onRepay={openRepay}
-            />
-          </>
-        )}
+        <LiquidationAnalysisSection
+          hasCollateral={liquidationCardState.hasCollateral}
+          hasLoans={liquidationCardState.hasLoans}
+          onDeposit={openDeposit}
+          onBorrow={openBorrowPicker}
+          cascade={liquidationCascade}
+        />
       </div>
-
-      {/* Withdraw Flow.
-          Safety invariant: this MUST receive the raw on-chain `collateralVaults`,
-          never `collateralVaultsWithDemo`. WithdrawFlow signs a real withdraw
-          transaction, so passing the demo-merged list would let a god-mode mock
-          row (fake vaultId) — or a hidden-real scenario — enter the real signing
-          path. The CollateralSection above is the only surface that takes the
-          demo-merged list, and it filters `displayOnly` rows out of every action.
-          WithdrawFlow also filters `displayOnly` internally as defense-in-depth. */}
-      <WithdrawFlow
-        open={isWithdrawOpen}
-        onClose={handleCloseWithdraw}
-        collateralVaults={collateralVaults}
-        collateralBtc={collateralBtc}
-        collateralValueUsd={collateralValueUsd}
-        currentHealthFactor={healthFactor}
-        preSelectedVaultIds={selectedVaultIds}
-      />
     </Container>
   );
 }

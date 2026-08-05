@@ -5,13 +5,14 @@
  * of the VaultRegistryReader interface.
  */
 
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import type { Abi, Address, Hex, PublicClient } from "viem";
 
-import { hexToUint8Array } from "../../primitives/utils/bitcoin";
 import { BTCVaultRegistryABI } from "../../contracts/abis/BTCVaultRegistry.abi";
+import { BTCVaultRegistryKeyEpochsABI } from "../../contracts/abis/BTCVaultRegistryKeyEpochs.abi";
+import { assertOnChainBtcPubkey } from "./onChainBtcPubkey";
 import { assertValidOffchainParamsVersion } from "./protocol-params-validation";
 import type {
+  KeyEpochs,
   OnChainBtcPubkey,
   VaultBasicInfo,
   VaultData,
@@ -86,6 +87,45 @@ function mapVaultProtocolInfo(result: RawVaultProtocolInfo): VaultProtocolInfo {
 }
 
 /**
+ * Exclusive upper bound for a `uint64` epoch.
+ *
+ * viem does not range-check a decoded `uint64`, so a misaligned decode can
+ * hand back a value far larger than the field can hold. Rejecting those is
+ * cheap defence in depth against reading the extended ABI on a registry that
+ * predates RFC-006 — but it is only a backstop, and a weak one: a misaligned
+ * decode can also land on a small, plausible-looking integer that this range
+ * accepts. Correctness rests on only ever pointing at an RFC-006 registry.
+ * See `BTCVaultRegistryKeyEpochs.abi.ts`.
+ */
+const UINT64_EXCLUSIVE_UPPER_BOUND = 1n << 64n;
+
+function assertEpochInRange(
+  value: bigint,
+  field: string,
+  vaultId: Hex,
+): bigint {
+  if (value < 0n || value >= UINT64_EXCLUSIVE_UPPER_BOUND) {
+    throw new Error(
+      `getBtcVaultProtocolInfo returned ${field}=${value} for vault ${vaultId}, ` +
+        `outside the uint64 range — the registry may predate RFC-006`,
+    );
+  }
+  return value;
+}
+
+function mapKeyEpochs(result: KeyEpochs, vaultId: Hex): KeyEpochs {
+  return {
+    vpKeyEpoch: assertEpochInRange(result.vpKeyEpoch, "vpKeyEpoch", vaultId),
+    appKeeperKeyEpoch: assertEpochInRange(
+      result.appKeeperKeyEpoch,
+      "appKeeperKeyEpoch",
+      vaultId,
+    ),
+    ucKeyEpoch: assertEpochInRange(result.ucKeyEpoch, "ucKeyEpoch", vaultId),
+  };
+}
+
+/**
  * Concrete vault registry reader using viem.
  *
  * Usage:
@@ -115,19 +155,75 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       functionName: "getVaultProviderBTCKey",
       args: [vpAddress],
     })) as Hex;
-    const lowered = result.toLowerCase();
-    if (!/^0x[0-9a-f]{64}$/.test(lowered)) {
-      throw new Error(
-        `getVaultProviderBTCKey returned an unexpected value (vp=${vpAddress}, length ${lowered.length}, prefix "${lowered.slice(0, 2)}")`,
-      );
-    }
-    const stripped = lowered.slice(2);
-    if (!ecc.isXOnlyPoint(hexToUint8Array(stripped))) {
-      throw new Error(
-        `getVaultProviderBTCKey returned a value that is not on the secp256k1 curve (vp=${vpAddress})`,
-      );
-    }
-    return stripped as OnChainBtcPubkey;
+    return assertOnChainBtcPubkey(
+      result,
+      `getVaultProviderBTCKey (vp=${vpAddress})`,
+    );
+  }
+
+  /**
+   * Read a vault provider's *current* RFC-006 operation BTC key.
+   *
+   * Falls back on-chain to the registration key when the provider has never
+   * rotated, so this returns the same value as `getVaultProviderBtcPubKey`
+   * until the first rotation.
+   *
+   * This is the key the VP's server signs its BIP-322 auth tokens with — a
+   * live per-operator identity, not a per-vault binding, so the auth pin uses
+   * the current key rather than any vault's frozen epoch.
+   */
+  async getCurrentVaultProviderOperationBtcKey(
+    vpAddress: Address,
+  ): Promise<OnChainBtcPubkey> {
+    const result = (await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryABI,
+      functionName: "getCurrentOperationBtcKey",
+      args: [vpAddress],
+    })) as Hex;
+    return assertOnChainBtcPubkey(
+      result,
+      `getCurrentOperationBtcKey (vp=${vpAddress})`,
+    );
+  }
+
+  /**
+   * Read a vault's frozen RFC-006 operation-key epochs.
+   *
+   * Reads `getBtcVaultProtocolInfo` through the **extended** ABI, which is only
+   * valid against an RFC-006 registry: against one that predates RFC-006 this
+   * call does not fail for a populated vault, it silently returns three words
+   * of tail data as epochs. Nothing here can detect that, so the guarantee is a
+   * deployment one — every network this ships to has the RFC-006 getters, and
+   * mainnet is a fresh RFC-006 deploy. See `BTCVaultRegistryKeyEpochs.abi.ts`.
+   */
+  async getVaultKeyEpochs(vaultId: Hex): Promise<KeyEpochs> {
+    const result = (await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryKeyEpochsABI,
+      functionName: "getBtcVaultProtocolInfo",
+      args: [vaultId],
+    })) as unknown as KeyEpochs;
+
+    return mapKeyEpochs(result, vaultId);
+  }
+
+  async getVaultKeyEpochsBatch(vaultIds: readonly Hex[]): Promise<KeyEpochs[]> {
+    if (vaultIds.length === 0) return [];
+
+    const results = await this.publicClient.multicall({
+      contracts: vaultIds.map((vaultId) => ({
+        address: this.contractAddress,
+        abi: BTCVaultRegistryKeyEpochsABI as Abi,
+        functionName: "getBtcVaultProtocolInfo" as const,
+        args: [vaultId] as const,
+      })),
+      allowFailure: false,
+    });
+
+    return results.map((info, i) =>
+      mapKeyEpochs(info as unknown as KeyEpochs, vaultIds[i]),
+    );
   }
 
   async getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo> {
@@ -168,21 +264,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     });
 
     return results.map((info, i) => {
-      const result = info as unknown as {
-        depositorSignedPeginTx: Hex;
-        universalChallengersVersion: number;
-        appVaultKeepersVersion: number;
-        offchainParamsVersion: number;
-        verifiedAt: bigint;
-        depositorWotsPkHash: Hex;
-        hashlock: Hex;
-        htlcVout: number;
-        depositorPopSignature: Hex;
-        prePeginTxHash: Hex;
-        vaultProviderCommissionBps: number;
-        claimExpiredUntil: bigint;
-        vaultCoreVersion: number;
-      };
+      const result = info as unknown as RawVaultProtocolInfo;
       if (
         !result.depositorSignedPeginTx ||
         result.depositorSignedPeginTx === "0x"
@@ -191,23 +273,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
           `Vault ${vaultIds[i]} not found on-chain or has no pegin transaction`,
         );
       }
-      const offchainParamsVersion = Number(result.offchainParamsVersion);
-      assertValidOffchainParamsVersion(offchainParamsVersion);
-      return {
-        depositorSignedPeginTx: result.depositorSignedPeginTx,
-        universalChallengersVersion: result.universalChallengersVersion,
-        appVaultKeepersVersion: result.appVaultKeepersVersion,
-        offchainParamsVersion,
-        verifiedAt: result.verifiedAt,
-        depositorWotsPkHash: result.depositorWotsPkHash,
-        hashlock: result.hashlock,
-        htlcVout: result.htlcVout,
-        depositorPopSignature: result.depositorPopSignature,
-        prePeginTxHash: result.prePeginTxHash,
-        vaultProviderCommissionBps: result.vaultProviderCommissionBps,
-        claimExpiredUntil: result.claimExpiredUntil,
-        vaultCoreVersion: result.vaultCoreVersion,
-      };
+      return mapVaultProtocolInfo(result);
     });
   }
 
