@@ -1,24 +1,25 @@
 export { VaultProviderRpcClient } from "./api";
 export type { VaultProviderRpcClientOptions } from "./api";
+export * from "./auth";
+export type { BatchResultEntry } from "./batchAttribution";
 export {
-  AUTH_EXPIRED_DATA_KIND,
+  batchPollByProvider,
+  type BatchPollByProviderOptions,
+} from "./batchPoll";
+export {
+  AUTH_REJECTED_RPC_CODE,
+  JSON_RPC_ERROR_CODES,
   JsonRpcClient,
   JsonRpcError,
-  JSON_RPC_ERROR_CODES,
+  isAuthRejectedError,
 } from "./json-rpc-client";
 export type {
   BearerTokenProvider,
   JsonRpcClientConfig,
   JsonRpcErrorSource,
 } from "./json-rpc-client";
+export * from "./types";
 export {
   VpResponseValidationError,
   validateRequestDepositorClaimerArtifactsResponse,
 } from "./validators";
-export type { BatchResultEntry } from "./batchAttribution";
-export {
-  batchPollByProvider,
-  type BatchPollByProviderOptions,
-} from "./batchPoll";
-export * from "./types";
-export * from "./auth";

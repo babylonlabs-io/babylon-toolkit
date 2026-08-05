@@ -126,9 +126,10 @@ export async function fetchAndDownloadArtifacts(
   // The caller (useArtifactDownload) primes the bearer before invoking
   // this service when the registry is cold, so peek() returns the active
   // provider and the request goes out with a valid Authorization header
-  // for this auth-gated RPC. `callRaw` does not reactively refresh on
-  // `auth_expired`, so a token that expires mid-download bubbles up as
-  // an error and the caller's auth-failure retry path handles re-priming.
+  // for this auth-gated RPC. `callRaw` does not reactively refresh when the
+  // server rejects the bearer, so a token that goes stale mid-download
+  // bubbles up as an error and the caller's auth-failure retry path handles
+  // re-priming.
   const tokenProvider = vpTokenRegistry.peek(normalizedPeginTxid);
 
   const client = new JsonRpcClient({

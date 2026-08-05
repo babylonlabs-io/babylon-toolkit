@@ -518,9 +518,11 @@ describe("useArtifactDownload — prime then fetch", () => {
 
     fetchMock
       .mockRejectedValueOnce(
-        new JsonRpcError(-32001, "auth expired", "wire", {
-          kind: "auth_expired",
-        }),
+        new JsonRpcError(
+          -32001,
+          "token expired at 1754300000 (now: 1754300400)",
+          "wire",
+        ),
       )
       .mockResolvedValueOnce(OUTCOME);
     ensureAuthMock.mockResolvedValueOnce(
@@ -538,7 +540,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     await waitFor(() => expect(result.current.downloaded).toBe(true));
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
     // Upfront prime skipped (hot cache); ensureAuth called only on the
-    // retry path after auth_expired.
+    // retry path after the bearer was rejected.
     expect(ensureAuthMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -574,8 +576,10 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("does not prime on a non-auth wire error", async () => {
     seedHotCache();
+    // -32603, not -32001: the daemon reserves -32001 for bearer
+    // rejections, so a wire -32001 is by definition an auth failure.
     fetchMock.mockRejectedValueOnce(
-      new JsonRpcError(-32001, "internal error", "wire"),
+      new JsonRpcError(-32603, "internal error", "wire"),
     );
 
     const { result } = renderHook(() => useArtifactDownload({ primeContext }));
