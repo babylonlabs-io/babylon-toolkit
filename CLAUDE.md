@@ -219,6 +219,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ## SECURITY
 
+- **Security models live next to the code they describe.** A security-critical component carries a `SECURITY_MODEL.md` at its root, stating what that component must protect, against whom, and under which assumptions. Before changing a component, read the nearest `SECURITY_MODEL.md` at or above the files you are touching, and treat its invariants as constraints on the change rather than as a checklist to satisfy afterwards. Coverage is being added component by component — the absence of a model is not evidence that a component is uncritical.
 - **Never log sensitive key material** — no `console.log` of private keys, derived secrets, or signing data.
 - **Wallet inputs**: Validate all data received from wallet APIs before use.
 - **GraphQL/RPC responses**: Never trust external data for security decisions without validation.
