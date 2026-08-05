@@ -328,7 +328,7 @@ export function DepositForm({
         tooltip={COPY.deposit.form.pendingConfirmationTooltip}
         attachToChildren
       >
-        <InfoIcon size={16} className="text-secondary-strokeDark" />
+        <InfoIcon size={16} className="text-accent-secondary" />
       </Hint>
     </span>
   ) : null;

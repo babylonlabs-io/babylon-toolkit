@@ -29,7 +29,7 @@ const STATUS_COLORS = {
 } as const;
 
 const ICON_COLOR = {
-  default: "text-secondary-strokeDark",
+  default: "text-accent-secondary",
   warning: "text-warning-main",
   error: "text-error-main",
 } as const;
