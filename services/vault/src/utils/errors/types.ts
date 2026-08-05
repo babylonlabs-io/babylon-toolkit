@@ -121,12 +121,46 @@ export class ActivationNotPossibleError extends Error {
   }
 }
 
-export const isError451 = (error: unknown): boolean => {
+/** HTTP 451 — the data plane is geo-blocked for this client. */
+export const HTTP_GEO_BLOCKED = 451;
+
+/** Bounds of the HTTP status range, used to reject unrelated numeric fields. */
+const HTTP_STATUS_MIN = 100;
+const HTTP_STATUS_MAX = 599;
+
+const isHttpStatus = (value: unknown): value is number =>
+  Number.isInteger(value) &&
+  (value as number) >= HTTP_STATUS_MIN &&
+  (value as number) <= HTTP_STATUS_MAX;
+
+/**
+ * Pull an HTTP status off the error shapes that actually reach the app:
+ * graphql-request's `ClientError` (`response.status`) and viem's
+ * `HttpRequestError` (`status`).
+ *
+ * `response.status` wins when both are present - it is the more specific shape,
+ * and a bare top-level `status` is the one that collides with unrelated fields
+ * (a contract receipt status, a socket state, a wrapped daemon status). The
+ * range check rejects those regardless of which key they arrive under, so a
+ * receipt `status: 1` is never read as an HTTP status.
+ */
+export const httpStatusOf = (error: unknown): number | undefined => {
   if (!error || typeof error !== "object") {
-    return false;
+    return undefined;
   }
-  const maybeWithStatus = error as { status?: unknown };
-  return (
-    typeof maybeWithStatus.status === "number" && maybeWithStatus.status === 451
-  );
+  const { status, response } = error as {
+    status?: unknown;
+    response?: { status?: unknown };
+  };
+  if (isHttpStatus(response?.status)) return response.status;
+  if (isHttpStatus(status)) return status;
+  return undefined;
 };
+
+/**
+ * The single 451 predicate. Reads `response.status` as well as the top-level
+ * `status` so a graphql-request `ClientError` is recognised - the geo-block
+ * reaches the app through both shapes.
+ */
+export const isError451 = (error: unknown): boolean =>
+  httpStatusOf(error) === HTTP_GEO_BLOCKED;

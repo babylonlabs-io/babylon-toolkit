@@ -1100,6 +1100,12 @@ export function useDepositFlow(
               logger.error(
                 error instanceof Error ? error : new Error(String(error)),
                 {
+                  // Tagged so the Sentry-side cancellation drop keeps it: the
+                  // loop continues to the next vault, so a rejected prompt here
+                  // leaves THIS vault without its WOTS key while the deposit
+                  // proceeds. That partial state is the reportable event even
+                  // though the cause is a user cancellation.
+                  tags: { partialFailure: "multi-vault" },
                   data: {
                     context:
                       "[Multi-Vault] Failed to submit WOTS key for vault",
@@ -1246,6 +1252,10 @@ export function useDepositFlow(
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {
+                // See the WOTS site above: the loop continues, so a rejected
+                // prompt leaves this vault under-signed while the deposit
+                // proceeds. Exempt from the cancellation drop.
+                tags: { partialFailure: "multi-vault" },
                 data: {
                   context:
                     "[Multi-Vault] Failed to sign or submit payouts for vault",

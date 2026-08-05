@@ -226,6 +226,28 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage(err)).toMatch(/Transaction rejected/);
     });
 
+    it.each(["Connection to Keystone was canceled", "Proposal expired"])(
+      "classifies the telemetry-suppressed wording %#: %s",
+      (message) => {
+        // These were dropped from Sentry as cancellations while the classifier
+        // still returned null, so the depositor got generic copy for an error
+        // we had already decided was a cancellation. One shared vocabulary now.
+        expect(sanitizeErrorMessage(new Error(message))).toMatch(
+          /Transaction rejected/,
+        );
+      },
+    );
+
+    it("keeps the outermost category when an inner frame is a cancellation", () => {
+      // Precedence (b): depth-first, outermost wins. The shared predicate is
+      // per-frame precisely so it cannot reach past this.
+      const err = Object.assign(new Error("Insufficient funds for gas"), {
+        cause: new Error("User rejected the request"),
+      });
+
+      expect(sanitizeErrorMessage(err)).not.toMatch(/Transaction rejected/);
+    });
+
     it("does not collapse non-rejection errors", () => {
       const err = new Error("execution reverted: bad signature");
       expect(sanitizeErrorMessage(err)).toBe(

@@ -11,27 +11,13 @@ import {
 
 import { COPY } from "@/copy";
 
-/**
- * Wallet-connector error code emitted by BTC providers when the user rejects
- * a signing prompt. Mirrors `ERROR_CODES.CONNECTION_REJECTED` from
- * `@babylonlabs-io/wallet-connector`. Inlined to avoid pulling the full
- * wallet-connector bundle into this file (and its test transform); the
- * constant is the public contract - if it ever changes upstream, this string
- * must change too.
- */
-const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
-
-export function isWalletRejectionError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code: unknown }).code === WALLET_CONNECTION_REJECTED_CODE
-  );
-}
+import {
+  isUserCancellationFrame,
+  isWalletRejectionError,
+} from "./userCancellation";
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
-  USER_REJECTED: 4001,
   UNAUTHORIZED: 4100,
   PROVIDER_DISCONNECTED: 4900,
   CHAIN_DISCONNECTED: 4901,
@@ -147,13 +133,12 @@ export function classifyError(err: unknown): ErrorKind | null {
     };
 
     // User rejection — MUST stay first within the frame; see precedence (a).
-    if (
-      obj.code === EIP1193.USER_REJECTED ||
-      obj.name === "UserRejectedRequestError"
-    ) {
-      return "user-rejection";
-    }
-    if (isWalletRejectionError(cur)) return "user-rejection";
+    // Shared with the telemetry-side drop so the two cannot drift: a wording
+    // this recognises but the classifier did not used to (e.g. "Connection to
+    // Keystone was canceled") was dropped from Sentry while still rendering
+    // generic error copy. `isUserCancellationFrame` deliberately does not walk
+    // `cause` — the walk here is what enforces precedence (b).
+    if (isUserCancellationFrame(cur)) return "user-rejection";
 
     // Insufficient ETH for gas + value
     if (obj.name === "InsufficientFundsError") return "insufficient-funds";
