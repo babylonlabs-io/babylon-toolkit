@@ -11,7 +11,6 @@ import {
   getFlagDisabledV3SectionPaths,
   getVisibleV3NavGroups,
   isV3SectionEnabled,
-  V3_GUARDED_ROUTE_PATHS,
 } from "../v3Navigation";
 
 const featureFlagsMock = vi.hoisted(() => ({
@@ -105,17 +104,6 @@ describe("getFlagDisabledV3SectionPaths", () => {
     featureFlagsMock.isExploreEnabled = false;
 
     expect(getFlagDisabledV3SectionPaths()).toEqual([
-      "liquidations",
-      "explore",
-    ]);
-  });
-});
-
-describe("V3_GUARDED_ROUTE_PATHS", () => {
-  it("lists every v3 section except the root and activity, as bare segments", () => {
-    expect(V3_GUARDED_ROUTE_PATHS).toEqual([
-      "vaults",
-      "loans",
       "liquidations",
       "explore",
     ]);

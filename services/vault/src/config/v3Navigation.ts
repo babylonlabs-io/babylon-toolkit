@@ -97,12 +97,6 @@ const toBareSegment = (item: V3NavItem): string => item.path.slice(1);
 const guardableV3NavItems = (): readonly V3NavItem[] =>
   V3_NAV_ITEMS.filter((item) => !UNGUARDED_V3_PATHS.includes(item.path));
 
-// Every v3 section, guarded as a whole subtree while the v3 shell flag is off
-// so a direct load or stale deep link redirects to the v2 dashboard instead of
-// falling through to the 404 route.
-export const V3_GUARDED_ROUTE_PATHS: readonly string[] =
-  guardableV3NavItems().map(toBareSegment);
-
 /**
  * The subset of sections whose own flag currently disables them — what the
  * router guards while the v3 shell is on, so a deep link into a hidden
