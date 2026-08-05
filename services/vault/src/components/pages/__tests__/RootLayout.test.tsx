@@ -29,7 +29,6 @@ vi.mock("@/config", () => ({
   FeatureFlags: featureFlagsMock,
   getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
   getBTCNetwork: () => networkMock.value,
-  shouldDisplayTestingMsg: () => false,
 }));
 
 // A plain useContext consumer with no Provider mounted always sees the

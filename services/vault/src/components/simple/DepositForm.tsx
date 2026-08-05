@@ -13,8 +13,10 @@ import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
 import { SplitTooLowHint } from "./SplitTooLowHint";
 import { SuggestedDepositContainer } from "./SuggestedDepositContainer";
-import { type TwoVaultSplitProps } from "./UtxoSplitSelector";
-import { UtxoSplitSelectorV3 } from "./UtxoSplitSelectorV3";
+import {
+  UtxoSplitSelectorV3,
+  type TwoVaultSplitProps,
+} from "./UtxoSplitSelectorV3";
 import {
   VaultProviderSelectorV3,
   type VaultProviderSelectorProps,

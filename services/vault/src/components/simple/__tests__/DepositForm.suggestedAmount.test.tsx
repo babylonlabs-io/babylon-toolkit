@@ -32,11 +32,8 @@ vi.mock("@/services/deposit", () => ({
 vi.mock("../DepositFeesBreakdown", () => ({
   DepositFeesBreakdown: () => null,
 }));
-vi.mock("../VaultProviderSelector", () => ({
-  VaultProviderSelector: () => null,
-}));
-vi.mock("@/components/ApplicationLogo", () => ({
-  ApplicationLogo: () => null,
+vi.mock("../VaultProviderSelectorV3", () => ({
+  VaultProviderSelectorV3: () => null,
 }));
 vi.mock("@/components/shared", () => ({
   DepositButton: ({ children }: { children: React.ReactNode }) => (

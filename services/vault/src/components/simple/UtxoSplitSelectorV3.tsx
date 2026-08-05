@@ -4,10 +4,7 @@ import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
-/**
- * Split state driving the picker. Declared here (rather than imported from the
- * v2 file) so the v2 selector can be deleted whole when ENABLE_V3_UI retires.
- */
+/** Split state driving the picker. */
 export interface TwoVaultSplitProps {
   isEnabled: boolean;
   onChange: (checked: boolean) => void;

@@ -92,23 +92,8 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 vi.mock("../OverviewSection", () => ({
   OverviewSection: () => <div data-testid="overview-section" />,
 }));
-vi.mock("../CollateralSection", () => ({
-  CollateralSection: () => <div data-testid="collateral-section" />,
-}));
-vi.mock("../LoansSection", () => ({
-  LoansSection: () => <div data-testid="loans-section" />,
-}));
-vi.mock("../SupplyCapSection", () => ({
-  SupplyCapSection: () => <div data-testid="supply-cap" />,
-}));
 vi.mock("../MaxVaultsNotification", () => ({
   MaxVaultsNotification: () => <div data-testid="max-vaults" />,
-}));
-vi.mock("../PendingDepositSection", () => ({
-  PendingDepositSection: () => <div data-testid="pending-deposits" />,
-}));
-vi.mock("../PendingWithdrawSection", () => ({
-  PendingWithdrawSection: () => <div data-testid="pending-withdrawals" />,
 }));
 vi.mock("../PositionNotificationBanner", () => ({
   PositionNotificationBanner: () => <div data-testid="position-banner" />,
@@ -122,7 +107,6 @@ vi.mock("../DisconnectedOverview", () => ({
 vi.mock("@/components/shared", () => ({
   HeartIcon: () => null,
 }));
-vi.mock("../WithdrawFlow", () => ({ default: () => null }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -134,7 +118,7 @@ beforeEach(() => {
 });
 
 describe("DashboardPage composition", () => {
-  it("shows only the overview summary, hiding cap, pending, collateral, and loans while keeping safety notifications", () => {
+  it("renders the overview summary, the risk card and the safety notifications", () => {
     featureFlagsMock.isLiquidationNotificationsEnabled = true;
 
     render(<DashboardPage />);
@@ -144,12 +128,6 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("critical-banner")).toBeInTheDocument();
     expect(screen.getByTestId("position-banner")).toBeInTheDocument();
     expect(screen.getByText(COPY.risk.title)).toBeInTheDocument();
-
-    expect(screen.queryByTestId("collateral-section")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loans-section")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("supply-cap")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("pending-deposits")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("pending-withdrawals")).not.toBeInTheDocument();
   });
 });
 
