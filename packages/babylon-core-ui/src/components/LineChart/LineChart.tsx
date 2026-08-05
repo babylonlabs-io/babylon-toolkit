@@ -165,6 +165,14 @@ export function LineChart({
     setPointerX(Math.min(layout.plotWidth, Math.max(0, event.clientX - left)));
   };
 
+  // A touch pointer is destroyed on lift, so the browser fires pointerleave
+  // immediately after pointerup — clearing there would make a tap flash the
+  // readout and lose it. Touch readouts persist until the next tap moves them;
+  // mouse hover keeps the usual leave-to-clear.
+  const releasePointer = (event: React.PointerEvent<SVGRectElement>) => {
+    if (event.pointerType === "mouse") setPointerX(null);
+  };
+
   if (collapsed) return null;
 
   const hoverPx = hover === null ? null : xScale(hover.x);
@@ -283,7 +291,7 @@ export function LineChart({
               fill="transparent"
               onPointerDown={trackPointer}
               onPointerMove={trackPointer}
-              onPointerLeave={() => setPointerX(null)}
+              onPointerLeave={releasePointer}
               onPointerCancel={() => setPointerX(null)}
               data-testid="line-chart-hit"
             />

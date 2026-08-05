@@ -81,9 +81,12 @@
 }
 
 /* ---- Hover ----------------------------------------------------------- */
+/* `pan-y` keeps vertical page scrolling working when a finger lands on the
+ * chart — the plot is tall enough to swallow a scroll gesture otherwise — while
+ * reserving horizontal movement for dragging the readout along the series. */
 .bbn-line-chart__hit {
   cursor: crosshair;
-  touch-action: none;
+  touch-action: pan-y;
 }
 .bbn-line-chart__crosshair {
   stroke: var(--bbn-chart-axis-text);

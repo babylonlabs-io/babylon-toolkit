@@ -75,12 +75,12 @@ describe("LineChart", () => {
     expect(hover?.y).toBeCloseTo(20, 5);
   });
 
-  it("clears the hover when the pointer leaves", () => {
+  it("clears the hover when the mouse leaves", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
     hoverAt(474);
-    fireEvent.pointerLeave(hitArea());
+    fireEvent.pointerLeave(hitArea(), { pointerType: "mouse" });
 
     expect(onHoverChange).toHaveBeenLastCalledWith(null);
   });
@@ -89,9 +89,43 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    fireEvent.pointerDown(hitArea(), { clientX: 474 });
+    fireEvent.pointerDown(hitArea(), { clientX: 474, pointerType: "touch" });
 
     expect(onHoverChange.mock.calls.at(-1)?.[0]?.x).toBeCloseTo(50, 5);
+  });
+
+  it("keeps the tapped readout when the finger lifts", () => {
+    // Touch pointers are destroyed on lift, so the browser fires pointerleave
+    // straight after pointerup; clearing there would flash the readout away.
+    const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
+    renderChart({ onHoverChange });
+
+    fireEvent.pointerDown(hitArea(), { clientX: 474, pointerType: "touch" });
+    fireEvent.pointerUp(hitArea(), { clientX: 474, pointerType: "touch" });
+    fireEvent.pointerLeave(hitArea(), { pointerType: "touch" });
+
+    expect(onHoverChange.mock.calls.at(-1)?.[0]?.x).toBeCloseTo(50, 5);
+  });
+
+  it("moves the tapped readout to the next tap", () => {
+    const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
+    renderChart({ onHoverChange });
+
+    fireEvent.pointerDown(hitArea(), { clientX: 237, pointerType: "touch" });
+    fireEvent.pointerLeave(hitArea(), { pointerType: "touch" });
+    fireEvent.pointerDown(hitArea(), { clientX: 711, pointerType: "touch" });
+
+    expect(onHoverChange.mock.calls.at(-1)?.[0]?.x).toBeCloseTo(75, 5);
+  });
+
+  it("clears the readout when a touch interaction is cancelled", () => {
+    const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
+    renderChart({ onHoverChange });
+
+    fireEvent.pointerDown(hitArea(), { clientX: 474, pointerType: "touch" });
+    fireEvent.pointerCancel(hitArea(), { pointerType: "touch" });
+
+    expect(onHoverChange).toHaveBeenLastCalledWith(null);
   });
 
   it("renders the caller's tooltip for the hovered position", () => {

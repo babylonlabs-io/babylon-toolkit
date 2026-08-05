@@ -20,10 +20,13 @@ function rateCurve(kink: number, baseApr: number, slopeBefore: number, slopeAfte
 const DAY_MS = 86_400_000;
 const HISTORY_START_MS = 1_752_000_000_000;
 
-/** A rate history that drifts inside a narrow band well clear of zero. */
+/** A rate history that drifts inside a narrow band well clear of zero. Long
+ * ranges are sampled rather than drawn per day, the way a real feed would be. */
 function rateHistory(days: number): LineChartPoint[] {
-  return Array.from({ length: days }, (_, i) => ({
-    x: HISTORY_START_MS + i * DAY_MS,
+  const count = Math.max(2, Math.min(days, 180));
+  const step = (days * DAY_MS) / (count - 1);
+  return Array.from({ length: count }, (_, i) => ({
+    x: HISTORY_START_MS + i * step,
     y: 3.9 + Math.sin(i / 4) * 0.55 + Math.sin(i / 11) * 0.35,
   }));
 }
@@ -155,26 +158,41 @@ export const HoverAnywhere: Story = {
   },
 };
 
-interface HistoryArgs {
-  days: number;
-}
+/** The timeframes in the design, in order, with 1W the opening choice. */
+const TIMEFRAMES = [
+  { label: "1D", days: 1 },
+  { label: "1W", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "6M", days: 182 },
+  { label: "1Y", days: 365 },
+  { label: "All", days: 1460 },
+];
+const DEFAULT_TIMEFRAME = "1W";
 
 /**
- * The **C3 shape**: a stepped line over a time axis with a *fitted* y domain —
- * the rate never approaches zero, so the axis fills with the band it actually
- * occupies. Hover snaps to the datum and the tooltip names its date and value.
- * The timeframe selector belongs to the host, which re-feeds `data` on change.
+ * The **C3 shape**, laid out as the borrow-rate-history design has it: a stepped
+ * line over a time axis with a *fitted* y domain, horizontal-only gridlines, and
+ * hover that snaps to a datum and names its date and rate.
+ *
+ * Everything outside the plot — the heading, the range figure that tracks the
+ * selected period, and the timeframe buttons — belongs to the host, which
+ * re-feeds `data`. It is reproduced here only to show the primitive carrying
+ * the design; core-ui ships none of it.
  */
-export const RateHistory: StoryObj<HistoryArgs> = {
-  args: { days: 30 },
-  argTypes: { days: { control: { type: "inline-radio" }, options: [7, 30, 90] } },
-  parameters: { controls: { include: ["days"] } },
-  render: ({ days }) => <RateHistoryStory days={days} />,
+export const RateHistory: StoryObj = {
+  parameters: { controls: { disable: true } },
+  render: () => <RateHistoryStory />,
 };
 
-function RateHistoryStory({ days }: HistoryArgs) {
-  const [timeframe, setTimeframe] = useState(days);
-  const data = useMemo(() => rateHistory(timeframe), [timeframe]);
+function RateHistoryStory() {
+  const [timeframe, setTimeframe] = useState(DEFAULT_TIMEFRAME);
+  const days = TIMEFRAMES.find((t) => t.label === timeframe)?.days ?? 7;
+  const data = useMemo(() => rateHistory(days), [days]);
+
+  const bounds = useMemo(() => {
+    const values = data.map((p) => p.y);
+    return { min: Math.min(...values), max: Math.max(...values) };
+  }, [data]);
 
   const timeTicks = useMemo(
     () =>
@@ -187,41 +205,50 @@ function RateHistoryStory({ days }: HistoryArgs) {
 
   // A fitted axis is the app's to label: it derives ticks from the same values
   // it feeds the chart.
-  const rateTicks = useMemo(() => {
-    const values = data.map((p) => p.y);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    return Array.from({ length: 4 }, (_, i) => {
-      const value = min + ((max - min) * i) / 3;
-      return { value, label: formatPercent(value) };
-    });
-  }, [data]);
+  const rateTicks = useMemo(
+    () =>
+      Array.from({ length: 3 }, (_, i) => {
+        const value = bounds.min + ((bounds.max - bounds.min) * i) / 2;
+        return { value, label: formatPercent(value) };
+      }),
+    [bounds],
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        {[7, 30, 90].map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => setTimeframe(option)}
-            style={{
-              padding: "0.25rem 0.75rem",
-              borderRadius: "999px",
-              border: "1px solid var(--bbn-chart-surface-stroke)",
-              background: option === timeframe ? "var(--bbn-chart-surface-stroke)" : "transparent",
-              color: "var(--bbn-chart-surface-text)",
-              cursor: "pointer",
-            }}
-          >
-            {option}D
-          </button>
-        ))}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+        <div>
+          <div style={{ fontSize: "0.75rem", color: "var(--bbn-chart-surface-muted)" }}>Borrow APR</div>
+          <div style={{ fontSize: "1.5rem", color: "var(--bbn-chart-surface-text)" }}>
+            {`${formatPercent(bounds.min)} - ${formatPercent(bounds.max)}`}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "0.25rem" }}>
+          {TIMEFRAMES.map(({ label }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setTimeframe(label)}
+              style={{
+                padding: "0.25rem 0.625rem",
+                borderRadius: "0.375rem",
+                border: "none",
+                background: label === timeframe ? "var(--bbn-chart-surface-stroke)" : "transparent",
+                color:
+                  label === timeframe ? "var(--bbn-chart-surface-text)" : "var(--bbn-chart-surface-muted)",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       <LineChart
         data={data}
         interpolation="step"
         hoverMode="nearest"
+        grid={{ lines: "horizontal", style: "solid" }}
         xTicks={timeTicks}
         yTicks={rateTicks}
         ariaLabel="Borrow APR over time"
