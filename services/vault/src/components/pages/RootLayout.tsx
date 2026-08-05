@@ -4,7 +4,6 @@ import {
   Heading,
   Loader,
   MobileLogo,
-  SidebarBrandLockup,
   StandardSettingsMenu,
   Text,
   useIsMobile,
@@ -21,6 +20,7 @@ import { Outlet, useLocation } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { AppSidebar, V3MobileNavigation } from "@/components/shared/AppSidebar";
+import { BrandLockup } from "@/components/shared/BrandLockup";
 import { EntryFooter } from "@/components/shared/EntryFooter";
 import {
   ENTRY_CONTENT_CLASS,
@@ -227,7 +227,7 @@ export default function RootLayout() {
             }
             logo={
               isEntryLayout ? (
-                <SidebarBrandLockup className="text-black dark:text-white" />
+                <BrandLockup />
               ) : (
                 <Heading
                   variant="h5"

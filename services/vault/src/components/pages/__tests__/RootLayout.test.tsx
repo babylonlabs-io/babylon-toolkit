@@ -166,6 +166,10 @@ describe("RootLayout — header wiring", () => {
 
     expect(document.querySelector("aside")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    // Aave rides in as its own image so it keeps its brand colours rather than
+    // inheriting the Babylon wordmark's `currentColor`. It appears nowhere
+    // else on this screen, so it also pins the lockup to the header.
+    expect(screen.getByAltText("Aave")).toBeInTheDocument();
     // Without a sidebar column to fill, the navbar takes the capped entry box.
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),

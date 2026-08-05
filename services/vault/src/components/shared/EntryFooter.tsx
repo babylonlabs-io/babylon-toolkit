@@ -1,8 +1,8 @@
 import {
   DiscordIcon,
   LinkedinIcon,
+  LogoMark,
   MailIcon,
-  SidebarBrandLockup,
   TelegramIcon,
   XIcon,
 } from "@babylonlabs-io/core-ui";
@@ -43,11 +43,7 @@ export function EntryFooter() {
         className={`${ENTRY_CONTENT_CLASS} flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between sm:gap-4`}
       >
         <div className="flex flex-col gap-3">
-          <SidebarBrandLockup
-            height={24}
-            width="auto"
-            className="text-secondary-main dark:text-accent-primary"
-          />
+          <LogoMark className="h-6 w-auto text-secondary-main dark:text-accent-primary" />
           <p className="text-sm tracking-[0.17px] text-accent-secondary">
             {COPY.footer.copyright(new Date().getFullYear())}
           </p>
