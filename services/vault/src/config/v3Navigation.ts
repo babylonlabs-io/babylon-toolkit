@@ -54,9 +54,8 @@ const V3_NAV_GROUPS: readonly V3NavItem[][] = [
 export const V3_NAV_ITEMS: readonly V3NavItem[] = V3_NAV_GROUPS.flat();
 
 /**
- * Sections that carry their own feature flag on top of the v3 shell flag, so
- * they can stay hidden while v3 is already on in devnet/testnet. Sections
- * absent from this map ship with the v3 shell.
+ * Sections that carry their own feature flag, so they can stay hidden while the
+ * rest of the nav ships. Sections absent from this map are always visible.
  *
  * The values are thunks, not booleans: they defer each flag read past this
  * module's evaluation, so flipping a flag (in a test, or between renders)
@@ -88,7 +87,7 @@ export function getVisibleV3NavGroups(): readonly V3NavItem[][] {
 }
 
 // Sections that are never guarded as a subtree: the root (always routed) and
-// /activity (a real page in both shells).
+// /activity (a real page, never flag-gated).
 const UNGUARDED_V3_PATHS: readonly string[] = ["/", "/activity"];
 
 // Bare segment (no leading slash) to match router.tsx's `${path}/*` pattern.
@@ -99,8 +98,8 @@ const guardableV3NavItems = (): readonly V3NavItem[] =>
 
 /**
  * The subset of sections whose own flag currently disables them — what the
- * router guards while the v3 shell is on, so a deep link into a hidden
- * section redirects like the section root does.
+ * router guards, so a deep link into a hidden section redirects like the
+ * section root does.
  */
 export function getFlagDisabledV3SectionPaths(): readonly string[] {
   return guardableV3NavItems()
