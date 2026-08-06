@@ -265,27 +265,28 @@ const MOCK_ETH_WALLET = {
 const MOCK_DEPOSITOR_PUBKEY = "ab".repeat(32);
 
 const MOCK_DEPOSIT_TERMS: DepositTerms = {
-  baseFeeRate: 10n,
-  peginCsvTimelock: 100,
-  payoutTimelock: 100,
-  htlcRefundTimelock: 50,
+  vaultCoreVersion: 1,
+  protocolFeeRate: 10n,
+  timelockPegin: 100,
+  timelockAssert: 100,
+  timelockRefund: 50,
   prepeginTxid: "1".repeat(64),
   prepeginMaxFee: 2000n,
-  keeperPks: ["aa".repeat(32)],
-  challengerPks: ["bb".repeat(32)],
+  vaultKeeperBtcPubkeys: ["aa".repeat(32)],
+  universalChallengerBtcPubkeys: ["bb".repeat(32)],
   vaults: [
     {
       htlcVout: 0,
-      vaultProviderPk: "cc".repeat(32),
-      vaultAmount: 100000n,
+      vaultProviderBtcPubkey: "cc".repeat(32),
+      peginAmount: 100000n,
       commissionFee: 2500n,
       depositorClaimValue: 20000n,
       peginMaxFee: 800n,
     },
     {
       htlcVout: 1,
-      vaultProviderPk: "cc".repeat(32),
-      vaultAmount: 100000n,
+      vaultProviderBtcPubkey: "cc".repeat(32),
+      peginAmount: 100000n,
       commissionFee: 2500n,
       depositorClaimValue: 20000n,
       peginMaxFee: 800n,

@@ -37,6 +37,8 @@ import {
   MAX_VP_COMMISSION_BPS_EXCLUSIVE,
   NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
   PAYOUT_ANCHOR_DUST_SATS,
+  PAYOUT_TX_LOCKTIME,
+  PAYOUT_TX_VERSION,
   PEGIN_VAULT_OUTPUT_INDEX,
   VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
 } from "./constants";
@@ -106,9 +108,16 @@ export interface PayoutParams {
   universalChallengerBtcPubkeys: string[];
 
   /**
-   * CSV timelock in blocks for the PegIn output.
+   * CSV timelock in blocks for the PegIn output (btc-vault `timelock_pegin`);
+   * payout input 0's sequence.
    */
   timelockPegin: number;
+
+  /**
+   * CSV timelock in blocks on the Assert:0 payout leaf (btc-vault
+   * `timelock_assert`); payout input 1's sequence.
+   */
+  timelockAssert: number;
 
   /**
    * Bitcoin network
@@ -209,7 +218,7 @@ export interface PayoutPsbtResult {
  * @throws If previous output is not found for either input
  * @throws If sum of output values exceeds sum of input values (invalid tx)
  * @throws If the implicit fee (inputs − outputs) is outside the fee band —
- *   below the floor or above the extended device ceiling (see
+ *   below the floor or above the fee-band ceiling (see
  *   {@link assertPayoutFeeInBand})
  * @throws If `protocolFeeRate`, a participant count, or `councilSize` is
  *   outside the accepted input domain (see {@link assertPayoutFeeBandDomain})
@@ -242,6 +251,22 @@ export async function buildPayoutPsbt(
         `inputs, got ${payoutTx.ins.length}`,
     );
   }
+  // btc-vault builds every payout with these literals (payout.rs:154-155);
+  // the sighash commits to them, so refuse rather than sign a foreign shape.
+  if (payoutTx.version !== PAYOUT_TX_VERSION) {
+    throw new Error(
+      `Payout transaction version ${payoutTx.version} must be ` +
+        `${PAYOUT_TX_VERSION}; refusing to sign payout.`,
+    );
+  }
+  if (payoutTx.locktime !== PAYOUT_TX_LOCKTIME) {
+    throw new Error(
+      `Payout transaction locktime ${payoutTx.locktime} must be ` +
+        `${PAYOUT_TX_LOCKTIME}; refusing to sign payout.`,
+    );
+  }
+  // Input sequences carry the CSV timelocks (payout.rs:108,119). Each is
+  // checked after its own outpoint resolves so a wrong prevout reports itself.
   const peginPrevOut = requirePrevOut(
     payoutTx.ins[0],
     0,
@@ -249,6 +274,13 @@ export async function buildPayoutPsbt(
     "PegIn",
     PEGIN_VAULT_OUTPUT_INDEX,
   );
+  if (payoutTx.ins[0].sequence !== params.timelockPegin) {
+    throw new Error(
+      `Payout input 0 sequence ${payoutTx.ins[0].sequence} must equal the ` +
+        `PegIn CSV timelock ${params.timelockPegin}; refusing to sign payout.`,
+    );
+  }
+
   const assertPrevOut = requirePrevOut(
     payoutTx.ins[1],
     1,
@@ -256,6 +288,12 @@ export async function buildPayoutPsbt(
     "Assert",
     ASSERT_PAYOUT_OUTPUT_INDEX,
   );
+  if (payoutTx.ins[1].sequence !== params.timelockAssert) {
+    throw new Error(
+      `Payout input 1 sequence ${payoutTx.ins[1].sequence} must equal the ` +
+        `Assert CSV timelock ${params.timelockAssert}; refusing to sign payout.`,
+    );
+  }
   // Assert:0's value is deliberately NOT validated: the taproot sighash
   // commits to input 1's amount and outpoint, so a misstated value yields a
   // signature invalid against the real Assert tx — nothing to protect. (The

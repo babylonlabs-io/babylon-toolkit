@@ -159,19 +159,20 @@ function createCapabilityWallet(
 }
 
 const DEPOSIT_TERMS: DepositTerms = {
-  baseFeeRate: 2n,
-  peginCsvTimelock: 144,
-  payoutTimelock: 144,
-  htlcRefundTimelock: 4320,
+  vaultCoreVersion: 1,
+  protocolFeeRate: 2n,
+  timelockPegin: 144,
+  timelockAssert: 144,
+  timelockRefund: 4320,
   prepeginTxid: "1".repeat(64),
   prepeginMaxFee: 1500n,
-  keeperPks: [VK_PUBKEY],
-  challengerPks: [CHALLENGER_PK],
+  vaultKeeperBtcPubkeys: [VK_PUBKEY],
+  universalChallengerBtcPubkeys: [CHALLENGER_PK],
   vaults: [
     {
       htlcVout: 0,
-      vaultProviderPk: VP_PUBKEY,
-      vaultAmount: 500_000n,
+      vaultProviderBtcPubkey: VP_PUBKEY,
+      peginAmount: 500_000n,
       commissionFee: 12_500n,
       depositorClaimValue: 20_000n,
       peginMaxFee: 800n,
@@ -670,7 +671,61 @@ describe("runDepositorPresignFlow", () => {
       expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
     });
 
-    it("throws when depositTerms.baseFeeRate diverges from the context's version-locked rate", async () => {
+    it("throws when the approved terms carry different participant keys than the context", async () => {
+      // An RFC-006 operation-key rotation bumps only a key EPOCH — every
+      // roster/params version stays put — so verifyRegisteredVaultVersions
+      // cannot see it. The seam must catch the divergence itself, or an
+      // approving wallet authorises a set it does not sign against.
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: {
+            ...createSigningContext(),
+            vaultKeeperBtcPubkeys: ["ab".repeat(32)],
+          },
+          depositTerms: DEPOSIT_TERMS,
+        }),
+      ).rejects.toThrow(/vaultKeeperBtcPubkeys/);
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+    });
+
+    it("throws when no approved vault group names the signing context's vault provider", async () => {
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: {
+            ...createSigningContext(),
+            vaultProviderBtcPubkey: "cd".repeat(32),
+          },
+          depositTerms: DEPOSIT_TERMS,
+        }),
+      ).rejects.toThrow(/vaultProviderBtcPubkey/);
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+    });
+
+    it("throws when depositTerms.protocolFeeRate diverges from the context's version-locked rate", async () => {
       // The approved terms and the payout bound must share one graph-build
       // rate; divergence means a params-version drift bug, not a user error.
       const wallet = createMockWallet();
@@ -687,9 +742,9 @@ describe("runDepositorPresignFlow", () => {
           peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
           signingContext: { ...createSigningContext(), protocolFeeRate: 3n },
-          depositTerms: DEPOSIT_TERMS, // baseFeeRate: 2n
+          depositTerms: DEPOSIT_TERMS, // protocolFeeRate: 2n
         }),
-      ).rejects.toThrow(/baseFeeRate/);
+      ).rejects.toThrow(/protocolFeeRate/);
 
       expect(
         presignClient.requestDepositorPresignTransactions,

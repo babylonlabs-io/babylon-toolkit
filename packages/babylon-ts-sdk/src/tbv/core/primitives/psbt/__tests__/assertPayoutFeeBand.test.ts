@@ -44,7 +44,7 @@ describe("assertPayoutFeeBandDomain", () => {
     ).toThrow(/protocolFeeRate must be in/);
   });
 
-  it("accepts the device-range rate boundaries 1 and u32 max", () => {
+  it("accepts the sanity-range rate boundaries 1 and u32 max", () => {
     expect(() =>
       assertPayoutFeeBandDomain({ ...BASE_PARAMS, protocolFeeRate: 1n }),
     ).not.toThrow();
@@ -56,48 +56,57 @@ describe("assertPayoutFeeBandDomain", () => {
     ).not.toThrow();
   });
 
-  it("rejects participant counts of 0 and 33 for either role", () => {
+  it("rejects participant counts of 0 and above each role's bound", () => {
     expect(() =>
       assertPayoutFeeBandDomain({ ...BASE_PARAMS, numVaultKeepers: 0 }),
-    ).toThrow(/device range/);
+    ).toThrow(/supported range/);
     expect(() =>
-      assertPayoutFeeBandDomain({ ...BASE_PARAMS, numVaultKeepers: 33 }),
-    ).toThrow(/device range/);
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, numVaultKeepers: 257 }),
+    ).toThrow(/supported range/);
     expect(() =>
       assertPayoutFeeBandDomain({
         ...BASE_PARAMS,
         numUniversalChallengers: 0,
       }),
-    ).toThrow(/device range/);
+    ).toThrow(/supported range/);
     expect(() =>
       assertPayoutFeeBandDomain({
         ...BASE_PARAMS,
-        numUniversalChallengers: 33,
+        numUniversalChallengers: 1501,
       }),
-    ).toThrow(/device range/);
+    ).toThrow(/supported range/);
   });
 
   it("rejects non-integer participant counts", () => {
     expect(() =>
       assertPayoutFeeBandDomain({ ...BASE_PARAMS, numVaultKeepers: 1.5 }),
-    ).toThrow(/device range/);
+    ).toThrow(/supported range/);
     expect(() =>
       assertPayoutFeeBandDomain({
         ...BASE_PARAMS,
         numUniversalChallengers: NaN,
       }),
-    ).toThrow(/device range/);
+    ).toThrow(/supported range/);
   });
 
-  it("accepts the device-range count boundaries 1 and 32", () => {
+  it("accepts keepers up to the model limit and challengers up to the contract max", () => {
     expect(() =>
       assertPayoutFeeBandDomain({
         ...BASE_PARAMS,
-        numVaultKeepers: 32,
-        numUniversalChallengers: 32,
+        numVaultKeepers: 256,
+        numUniversalChallengers: 1500,
       }),
     ).not.toThrow();
     expect(() => assertPayoutFeeBandDomain(BASE_PARAMS)).not.toThrow();
+  });
+
+  it("rejects a councilSize above the floor model limit", () => {
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: 257 }),
+    ).toThrow(/councilSize must be an integer/);
+    expect(() =>
+      assertPayoutFeeBandDomain({ ...BASE_PARAMS, councilSize: 256 }),
+    ).not.toThrow();
   });
 
   it("rejects a councilSize of 0 or a non-integer", () => {
@@ -208,7 +217,8 @@ describe("assertPayoutFeeInBand", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
-  // 324 WASM floor calls (~4s alone; longer under a parallel full-repo run).
+  // 40 WASM floor calls (20 corners x floor + assert); the 1500-challenger
+  // corner dominates the runtime.
   it(
     "keeps the band non-empty (floor <= ceiling) across the domain corners",
     { timeout: 30_000 },
@@ -218,41 +228,54 @@ describe("assertPayoutFeeInBand", () => {
       // above the ceiling would brick every payout of that shape with CI
       // green. Both ends scale linearly with rate, so rate 1 covers all rates.
       const params = { ...BASE_PARAMS, protocolFeeRate: 1n };
+      // Small rosters carry the measured minimum slack (the taptree depth
+      // step makes slack non-monotone there), so they are pinned explicitly
+      // alongside each axis maximum.
+      const corners: Array<{
+        n: number;
+        m: number;
+        out0Len: number;
+        out1Len: number | undefined;
+        councilSize: number;
+      }> = [
+        { n: 1, m: 1, out0Len: 1, out1Len: undefined, councilSize: 1 },
+        { n: 1, m: 1, out0Len: 34, out1Len: 34, councilSize: 3 },
+        { n: 1, m: 2, out0Len: 34, out1Len: 34, councilSize: 3 },
+        { n: 2, m: 1, out0Len: 128, out1Len: 34, councilSize: 3 },
+        { n: 2, m: 2, out0Len: 128, out1Len: undefined, councilSize: 3 },
+        { n: 3, m: 3, out0Len: 34, out1Len: 34, councilSize: 3 },
+        { n: 32, m: 32, out0Len: 34, out1Len: 34, councilSize: 3 },
+        { n: 256, m: 1, out0Len: 34, out1Len: 34, councilSize: 3 },
+        { n: 1, m: 1500, out0Len: 34, out1Len: 34, councilSize: 3 },
+        { n: 1, m: 1, out0Len: 34, out1Len: 34, councilSize: 256 },
+      ];
       for (const vaultCoreVersion of [1, 2]) {
-        for (const n of [1, 2, 32]) {
-          for (const m of [1, 2, 32]) {
-            for (const out0Len of [1, 34, 128]) {
-              for (const out1Len of [34, 128, undefined]) {
-                for (const councilSize of [1, 100]) {
-                  const shape = {
-                    ...params,
-                    vaultCoreVersion,
-                    numVaultKeepers: n,
-                    numUniversalChallengers: m,
-                    councilSize,
-                  };
-                  const floor = await computePayoutFeeFloor(
-                    vaultCoreVersion,
-                    n,
-                    m,
-                    n,
-                    councilSize,
-                    out0Len,
-                    out1Len,
-                    1n,
-                  );
-                  // A floor above the ceiling would throw here.
-                  await expect(
-                    assertPayoutFeeInBand(shape, {
-                      implicitFeeSats: Number(floor),
-                      out0Len,
-                      out1Len,
-                    }),
-                  ).resolves.toBeUndefined();
-                }
-              }
-            }
-          }
+        for (const { n, m, out0Len, out1Len, councilSize } of corners) {
+          const shape = {
+            ...params,
+            vaultCoreVersion,
+            numVaultKeepers: n,
+            numUniversalChallengers: m,
+            councilSize,
+          };
+          const floor = await computePayoutFeeFloor(
+            vaultCoreVersion,
+            n,
+            m,
+            n,
+            councilSize,
+            out0Len,
+            out1Len,
+            1n,
+          );
+          // A floor above the ceiling would throw here.
+          await expect(
+            assertPayoutFeeInBand(shape, {
+              implicitFeeSats: Number(floor),
+              out0Len,
+              out1Len,
+            }),
+          ).resolves.toBeUndefined();
         }
       }
     },

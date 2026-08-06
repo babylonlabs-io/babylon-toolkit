@@ -323,6 +323,7 @@ describe("signDepositorGraph", () => {
       vaultKeeperBtcPubkeys: ctx.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: ctx.universalChallengerBtcPubkeys,
       timelockPegin: ctx.timelockPegin,
+      timelockAssert: ctx.timelockAssert,
       network: ctx.network,
       claimerBtcPubkey: ctx.depositorBtcPubkey,
       registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
