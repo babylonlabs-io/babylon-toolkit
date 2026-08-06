@@ -131,8 +131,8 @@ export interface DepositWalletState {
   /**
    * True when the silent lock poll flagged the BTC wallet as locked. The CTA is
    * already promoted to a recovery action via `hasWalletConnectionError`; this
-   * relabels it "Unlock wallet" (vs "Reconnect Wallet" for a liveness failure)
-   * so the button matches what the user must do.
+   * relabels it "Unlock Wallet to Deposit" (vs "Reconnect Wallet" for a
+   * liveness failure) so the button matches what the user must do.
    */
   isWalletLocked?: boolean;
   /**
@@ -387,14 +387,14 @@ export function DepositForm({
   });
 
   // A locked wallet reuses the same recovery CTA as a liveness failure (both
-  // reconnect on click), but reads "Unlock wallet" so the action matches the
-  // cause. `getDepositCtaState` already handled `disabled`; only the label
-  // differs here.
+  // reconnect on click), but reads "Unlock Wallet to Deposit" so the action
+  // matches the cause. `getDepositCtaState` already handled `disabled`; only
+  // the label differs here.
   const ctaLabel =
     isWalletLocked && hasWalletConnectionError
       ? isReconnectingWallet
         ? COPY.wallet.locked.unlocking
-        : COPY.wallet.locked.unlockButton
+        : COPY.wallet.locked.unlockToDepositButton
       : cta.label;
 
   return (
@@ -492,8 +492,9 @@ export function DepositForm({
       <VaultProviderSelectorV3 {...providerSelectorProps} />
 
       {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
-          ("Unlock wallet") is the affordance. A liveness failure still surfaces
-          its detail string so the user sees the underlying cause. */}
+          ("Unlock Wallet to Deposit") is the affordance. A liveness failure
+          still surfaces its detail string so the user sees the underlying
+          cause. */}
       {hasWalletConnectionError &&
         !isWalletLocked &&
         walletConnectionErrorMessage && (
