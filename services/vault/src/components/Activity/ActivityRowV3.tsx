@@ -12,7 +12,10 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
-import { LIST_ROW_COLUMN_CLASS } from "@/components/shared/ListRow";
+import {
+  LIST_ROW_ACTION_SLOT_CLASS,
+  LIST_ROW_COLUMN_CLASS,
+} from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
 import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
@@ -117,7 +120,10 @@ export function ActivityRowLayout({
   return (
     <div className="flex w-full flex-wrap items-center gap-4">
       <div className={`${COLUMN_CLASS} gap-2`}>
-        <Avatar url={icon} alt={iconAlt} size="medium" />
+        {/* `.bbn-avatar` is inline-flex with no shrink-0 of its own, and this
+            cell can now shrink to its 120px floor — without this a long amount
+            squashes the circle into an ellipse. */}
+        <Avatar url={icon} alt={iconAlt} size="medium" className="shrink-0" />
         <span
           className={`min-w-0 truncate ${CELL_TEXT_CLASS} text-accent-primary`}
         >
@@ -148,9 +154,14 @@ export function ActivityRowLayout({
         {time}
       </span>
 
-      {action && (
-        <div className="ml-auto flex shrink-0 items-center">{action}</div>
-      )}
+      {/* Reserved even when there is no action. Only refundable expired
+          deposits get a button and liquidation-group children never do, so
+          without the empty slot those rows would hand the button's width back
+          to the five cells and start their columns tens of pixels off the rows
+          around them. */}
+      <div className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center`}>
+        {action}
+      </div>
     </div>
   );
 }

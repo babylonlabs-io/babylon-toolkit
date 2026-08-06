@@ -24,27 +24,42 @@ import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
  * the action button drops onto a second line. 120px is the floor below which
  * wrapping is preferable to squashing.
  */
-export const LIST_ROW_COLUMN_CLASS = "min-w-[120px] shrink grow basis-[144px]";
+export const LIST_ROW_COLUMN_CLASS = "min-w-[120px] grow basis-[144px]";
 
 /**
  * The leading cell — a logo beside a two-line amount / sub-line block. Its
  * basis fits the longest sub-line the rows produce (the refund-maturity
- * notice, measured at 343px in the app's 12px face) plus the 32px logo and its
- * 8px gap, so that copy reads in full rather than ellipsing. It takes a double
- * share of any remaining slack, and gives width back proportionally when the
- * viewport is too narrow for every cell to sit at its basis.
+ * notice from `COPY.vaults.statusHints.refundMaturing`, measured at 343px in
+ * the app's 12px face) plus the 32px logo and its 8px gap, so that copy reads
+ * in full rather than ellipsing. It takes a double share of any remaining
+ * slack.
+ *
+ * That 343px is one measurement of an interpolated string — the block count,
+ * the hours and the block/blocks plural all vary — so a longer combination
+ * ellipses again. `copy.ts` points back here for that reason; re-measure both
+ * together.
  */
 export const LIST_ROW_LEADING_COLUMN_CLASS =
-  "min-w-[120px] shrink grow-[2] basis-[384px]";
+  "min-w-[120px] grow-[2] basis-[384px]";
 
 /**
- * Trailing action cell. Rows whose action is conditional reserve it anyway, so
- * a row without a button still lines its cells up with the rows that have one.
- * The width matches `ROW_BUTTON_MIN_WIDTH_PX`, spelled literally because
- * Tailwind only emits classes it can find as whole strings in the source.
+ * Trailing action cell. Every lifecycle and activity row routes its action
+ * through this slot — including rows that have no action at all — and the slot
+ * neither grows nor shrinks. That is what keeps the columns aligned: the slack
+ * the data cells divide is `card width - gaps - bases - 168`, identical in
+ * every row, so a row whose button says "Broadcast Pre-Pegin" starts its
+ * columns in the same place as one that says "Withdraw" or has no button.
+ *
+ * Sizing an auto-width slot to its own button instead would hand each row a
+ * different amount of slack and skew that row's columns by tens of pixels.
+ *
+ * The 168px basis is the widest 36px row action rounded up: "Broadcast
+ * Pre-Pegin" measures 167px at `text-sm` + `tracking-[0.17px]` + `px-4` in Px
+ * Grotesk Regular. Adding a longer label to `COPY.pegin.primaryAction` or
+ * `COPY.vaults.actions` means re-measuring and widening this.
  */
 export const LIST_ROW_ACTION_SLOT_CLASS =
-  "flex min-w-[120px] shrink-0 justify-end";
+  "flex shrink-0 grow-0 basis-[168px] justify-end";
 
 /**
  * Every lifecycle row stands the same height so the Pending / Active /
@@ -53,21 +68,32 @@ export const LIST_ROW_ACTION_SLOT_CLASS =
  * bar, sits shorter than its neighbours. The tallest cell is two lines (a 24px
  * amount over a 20px sub-line); this is that 44px plus the card's 16px padding
  * and 1px border on each side, since the box is border-box.
+ *
+ * Applied per row rather than inside `ListRowCard`, because that card is also
+ * the Activity list's and Active Loans' row. Those are single-line rows that
+ * sit at ~70px, and pinning them to 78px would silently retitle two other
+ * pages' layout.
  */
 export const LIST_ROW_MIN_HEIGHT_CLASS = "min-h-[78px]";
 
-/** Bordered row card shared by the vault and loan lists. */
+/**
+ * Bordered row card shared by the vault, activity and loan lists. `className`
+ * carries per-surface layout — the vault lifecycle rows pass
+ * `LIST_ROW_MIN_HEIGHT_CLASS`; the single-line lists pass nothing.
+ */
 export function ListRowCard({
   children,
   testId,
+  className = "",
 }: {
   children: ReactNode;
   testId?: string;
+  className?: string;
 }) {
   return (
     <div
       data-testid={testId}
-      className={`${CARD_SHELL_CLASS} ${LIST_ROW_MIN_HEIGHT_CLASS} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`}
+      className={`${CARD_SHELL_CLASS} flex flex-wrap items-center gap-x-4 gap-y-3 p-4 ${className}`}
     >
       {children}
     </div>

@@ -8,18 +8,20 @@ interface ApplicationLogoProps {
   shape?: "circle" | "rounded";
 }
 
-// `shrink-0` on every size: the logo sits beside truncating text in flex rows,
-// where without it flexbox squashes the circle into an ellipse instead of
-// letting the text shrink.
 const SIZE_CLASSES: Record<
   NonNullable<ApplicationLogoProps["size"]>,
   string
 > = {
-  xs: "h-4 w-4 shrink-0",
-  sm: "h-6 w-6 shrink-0",
-  small: "h-8 w-8 shrink-0",
-  large: "h-10 w-10 shrink-0",
+  xs: "h-4 w-4",
+  sm: "h-6 w-6",
+  small: "h-8 w-8",
+  large: "h-10 w-10",
 };
+
+// A layout invariant rather than a size, so it sits outside SIZE_CLASSES: the
+// logo sits beside truncating text in flex rows, where without it flexbox
+// squashes the circle into an ellipse instead of letting the text shrink.
+const LOGO_LAYOUT_CLASS = "shrink-0";
 
 const FALLBACK_TEXT_CLASSES: Record<
   NonNullable<ApplicationLogoProps["size"]>,
@@ -39,7 +41,7 @@ export function ApplicationLogo({
 }: ApplicationLogoProps) {
   const [imageError, setImageError] = useState(false);
 
-  const sizeClasses = SIZE_CLASSES[size];
+  const sizeClasses = `${SIZE_CLASSES[size]} ${LOGO_LAYOUT_CLASS}`;
   const shapeClasses = shape === "circle" ? "rounded-full" : "rounded-2xl";
 
   if (imageError || !logoUrl) {

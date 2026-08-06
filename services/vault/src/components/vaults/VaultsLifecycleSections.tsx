@@ -237,34 +237,39 @@ function PendingRow({
         )}
       </div>
 
-      {/* Primary action or details */}
-      {actionStatus.type === "available" ? (
-        // This control's data-testid is a real-wallet E2E hook
-        // (e2e/real/actions/resume.ts) — carry it over if you move or rename
-        // the element. It replaces the v2 pending-deposit card's resume CTA.
-        <button
-          type="button"
-          onClick={() => routeAction(actionStatus.action.action)}
-          className={PRIMARY_ROW_BUTTON_CLASS}
-          data-testid="pending-deposit-resume-cta"
-        >
-          {actionStatus.action.label}
-        </button>
-      ) : actionStatus.type === "disabled" ? (
-        <Hint tooltip={actionStatus.tooltip} attachToChildren>
-          <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
-            {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
+      {/* Primary action or details. Pending labels are the widest the rows
+          produce ("Broadcast Pre-Pegin"), which is what the slot's fixed basis
+          is sized to — routing them through it keeps this row's columns level
+          with the Active and Inactive rows. */}
+      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+        {actionStatus.type === "available" ? (
+          // This control's data-testid is a real-wallet E2E hook
+          // (e2e/real/actions/resume.ts) — carry it over if you move or rename
+          // the element. It replaces the v2 pending-deposit card's resume CTA.
+          <button
+            type="button"
+            onClick={() => routeAction(actionStatus.action.action)}
+            className={PRIMARY_ROW_BUTTON_CLASS}
+            data-testid="pending-deposit-resume-cta"
+          >
+            {actionStatus.action.label}
           </button>
-        </Hint>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onOpenDetails(activity.id)}
-          className={NEUTRAL_ROW_BUTTON_CLASS}
-        >
-          {COPY.vaults.actions.viewDetails}
-        </button>
-      )}
+        ) : actionStatus.type === "disabled" ? (
+          <Hint tooltip={actionStatus.tooltip} attachToChildren>
+            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+              {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
+            </button>
+          </Hint>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpenDetails(activity.id)}
+            className={NEUTRAL_ROW_BUTTON_CLASS}
+          >
+            {COPY.vaults.actions.viewDetails}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -295,7 +300,7 @@ function InactiveRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <ListRowCard>
+    <ListRowCard className={LIST_ROW_MIN_HEIGHT_CLASS}>
       {/* Amount + refund maturity */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}

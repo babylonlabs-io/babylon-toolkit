@@ -16,8 +16,10 @@ import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import {
+  LIST_ROW_ACTION_SLOT_CLASS,
   LIST_ROW_COLUMN_CLASS,
   LIST_ROW_LEADING_COLUMN_CLASS,
+  LIST_ROW_MIN_HEIGHT_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
@@ -48,7 +50,7 @@ function ActiveVaultRow({
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
 
   return (
-    <ListRowCard>
+    <ListRowCard className={LIST_ROW_MIN_HEIGHT_CLASS}>
       {/* Amount + liquidation ordinal */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
@@ -120,19 +122,21 @@ function ActiveVaultRow({
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => onWithdraw(vault.vaultId)}
-        disabled={
-          isWithdrawDisabled ||
-          !vault.inUse ||
-          vault.displayOnly ||
-          vault.isActivating
-        }
-        className={NEUTRAL_ROW_BUTTON_CLASS}
-      >
-        {COPY.vaults.actions.withdraw}
-      </button>
+      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+        <button
+          type="button"
+          onClick={() => onWithdraw(vault.vaultId)}
+          disabled={
+            isWithdrawDisabled ||
+            !vault.inUse ||
+            vault.displayOnly ||
+            vault.isActivating
+          }
+          className={NEUTRAL_ROW_BUTTON_CLASS}
+        >
+          {COPY.vaults.actions.withdraw}
+        </button>
+      </div>
     </ListRowCard>
   );
 }
