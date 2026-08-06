@@ -113,16 +113,21 @@ export async function getVaultKeyEpochsFromChain(
 }
 
 /**
- * Read a vault provider's registered BTC public key from BTCVaultRegistry,
- * returning a 0x-prefixed `Hex` string for compatibility with existing
- * callers (the SDK reader returns the 64-char lowercase form without the
- * prefix; this wrapper re-attaches `0x`).
+ * Read a vault provider's *genesis* (registration) BTC public key from
+ * BTCVaultRegistry, returning a 0x-prefixed `Hex` string for compatibility with
+ * existing callers (the SDK reader returns the 64-char lowercase form without
+ * the prefix; this wrapper re-attaches `0x`).
+ *
+ * This is the key that seeds epoch-based resolution, never the key to sign or
+ * build with — see `getVaultProviderGenesisBtcPubKey` in the SDK.
  */
-export async function getVaultProviderBtcPubkeyFromChain(
+export async function getVaultProviderGenesisBtcPubkeyFromChain(
   vaultProvider: Address,
 ): Promise<Hex> {
   const xOnly =
-    await getVaultRegistryReader().getVaultProviderBtcPubKey(vaultProvider);
+    await getVaultRegistryReader().getVaultProviderGenesisBtcPubKey(
+      vaultProvider,
+    );
   return `0x${xOnly}` as Hex;
 }
 

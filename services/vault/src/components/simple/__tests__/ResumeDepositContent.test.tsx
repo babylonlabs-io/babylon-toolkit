@@ -273,7 +273,7 @@ function readerWith(prePeginTxHash: string) {
         prePeginTxHash,
       },
     }),
-    getVaultProviderBtcPubKey: vi.fn().mockResolvedValue(null),
+    getVaultProviderGenesisBtcPubKey: vi.fn().mockResolvedValue(null),
     getVaultBasicInfo: vi.fn(),
     getVaultProtocolInfo: vi.fn(),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;

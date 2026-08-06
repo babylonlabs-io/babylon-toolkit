@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { Address, Hex } from "viem";
+import { describe, expect, it, vi } from "vitest";
 
 import { ViemVaultRegistryReader } from "../vault-registry-reader";
 
@@ -47,7 +47,7 @@ function createMockPublicClient(overrides?: {
       if (functionName === "getBtcVaultProtocolInfo") {
         return overrides?.protocolInfoResult ?? MOCK_PROTOCOL_INFO_RESULT;
       }
-      if (functionName === "getVaultProviderBTCKey") {
+      if (functionName === "getOperationBtcKeyAtEpoch") {
         return overrides?.vpBtcKeyResult;
       }
       if (functionName === "getVaultProviderCommission") {
@@ -70,8 +70,7 @@ function createMockPublicClient(overrides?: {
           }
           if (c.functionName === "getBtcVaultProtocolInfo") {
             const id = c.args?.[0] as Hex | undefined;
-            const byId =
-              id && overrides?.protocolInfoByVaultId?.get(id);
+            const byId = id && overrides?.protocolInfoByVaultId?.get(id);
             return (
               byId ?? overrides?.protocolInfoResult ?? MOCK_PROTOCOL_INFO_RESULT
             );
@@ -202,7 +201,7 @@ describe("ViemVaultRegistryReader", () => {
     );
   });
 
-  it("getVaultProviderBtcPubKey returns the prefix-stripped lowercase hex for a valid x-only point", async () => {
+  it("getVaultProviderGenesisBtcPubKey returns the prefix-stripped lowercase hex for a valid x-only point", async () => {
     const publicClient = createMockPublicClient({
       vpBtcKeyResult: `0x${VALID_XONLY_HEX}` as Hex,
     });
@@ -211,11 +210,56 @@ describe("ViemVaultRegistryReader", () => {
       MOCK_ADDRESS,
     );
 
-    const key = await reader.getVaultProviderBtcPubKey(MOCK_ADDRESS);
+    const key = await reader.getVaultProviderGenesisBtcPubKey(MOCK_ADDRESS);
     expect(key).toBe(VALID_XONLY_HEX);
   });
 
-  it("getVaultProviderBtcPubKey throws on a malformed (non-hex / wrong length) value", async () => {
+  // The genesis key is read as "the operation key at epoch 0" because
+  // vault-contracts-aave-v4#539 removes the dedicated `getVaultProviderBTCKey`
+  // getter. Both halves matter and neither is checked by the assertions above:
+  // the wrong function name reverts on selector mismatch once #539 deploys, and
+  // a non-zero epoch would silently return a *rotated* key, which would then be
+  // used as the genesis fallback for epoch resolution.
+  it("getVaultProviderGenesisBtcPubKey reads getOperationBtcKeyAtEpoch at epoch 0", async () => {
+    const publicClient = createMockPublicClient({
+      vpBtcKeyResult: `0x${VALID_XONLY_HEX}` as Hex,
+    });
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getVaultProviderGenesisBtcPubKey(MOCK_ADDRESS);
+
+    expect(publicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: "getOperationBtcKeyAtEpoch",
+        args: [MOCK_ADDRESS, 0n],
+      }),
+    );
+  });
+
+  // A registry that predates RFC-006 has no `getOperationBtcKeyAtEpoch`, so the
+  // read reverts rather than returning a plausible-looking key. That is the
+  // intended failure: every caller of this method also resolves keys through
+  // `OperationKeyReader`, so all of them already require an RFC-006 registry.
+  it("getVaultProviderGenesisBtcPubKey surfaces a revert from a pre-RFC-006 registry", async () => {
+    const publicClient = {
+      readContract: vi.fn(async () => {
+        throw new Error('Unknown function: "getOperationBtcKeyAtEpoch"');
+      }),
+    };
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(
+      reader.getVaultProviderGenesisBtcPubKey(MOCK_ADDRESS),
+    ).rejects.toThrow(/getOperationBtcKeyAtEpoch/);
+  });
+
+  it("getVaultProviderGenesisBtcPubKey throws on a malformed (non-hex / wrong length) value", async () => {
     const publicClient = createMockPublicClient({
       vpBtcKeyResult: "0xdeadbeef" as Hex,
     });
@@ -225,11 +269,11 @@ describe("ViemVaultRegistryReader", () => {
     );
 
     await expect(
-      reader.getVaultProviderBtcPubKey(MOCK_ADDRESS),
+      reader.getVaultProviderGenesisBtcPubKey(MOCK_ADDRESS),
     ).rejects.toThrow(/unexpected value/);
   });
 
-  it("getVaultProviderBtcPubKey throws when the bytes32 is not a valid x-only secp256k1 point", async () => {
+  it("getVaultProviderGenesisBtcPubKey throws when the bytes32 is not a valid x-only secp256k1 point", async () => {
     // 32-byte all-zeros is well-formed bytes32 but not on the curve.
     // Without the curve check, this would have branded as a trusted
     // OnChainBtcPubkey and degraded into a generic BIP-322 verify
@@ -243,7 +287,7 @@ describe("ViemVaultRegistryReader", () => {
     );
 
     await expect(
-      reader.getVaultProviderBtcPubKey(MOCK_ADDRESS),
+      reader.getVaultProviderGenesisBtcPubKey(MOCK_ADDRESS),
     ).rejects.toThrow(/not on the secp256k1 curve/);
   });
 
@@ -255,9 +299,9 @@ describe("ViemVaultRegistryReader", () => {
         MOCK_ADDRESS,
       );
 
-      await expect(reader.getVaultProviderCommission(MOCK_ADDRESS)).resolves.toBe(
-        150,
-      );
+      await expect(
+        reader.getVaultProviderCommission(MOCK_ADDRESS),
+      ).resolves.toBe(150);
     });
 
     it("accepts the inclusive 0 lower bound", async () => {
@@ -267,9 +311,9 @@ describe("ViemVaultRegistryReader", () => {
         MOCK_ADDRESS,
       );
 
-      await expect(reader.getVaultProviderCommission(MOCK_ADDRESS)).resolves.toBe(
-        0,
-      );
+      await expect(
+        reader.getVaultProviderCommission(MOCK_ADDRESS),
+      ).resolves.toBe(0);
     });
 
     it("accepts the inclusive 9999 upper bound", async () => {
@@ -279,13 +323,15 @@ describe("ViemVaultRegistryReader", () => {
         MOCK_ADDRESS,
       );
 
-      await expect(reader.getVaultProviderCommission(MOCK_ADDRESS)).resolves.toBe(
-        9999,
-      );
+      await expect(
+        reader.getVaultProviderCommission(MOCK_ADDRESS),
+      ).resolves.toBe(9999);
     });
 
     it("throws when the contract value exceeds 9999 (signals wrong address or ABI drift)", async () => {
-      const publicClient = createMockPublicClient({ vpCommissionResult: 10000 });
+      const publicClient = createMockPublicClient({
+        vpCommissionResult: 10000,
+      });
       const reader = new ViemVaultRegistryReader(
         publicClient as never,
         MOCK_ADDRESS,
@@ -348,8 +394,14 @@ describe("ViemVaultRegistryReader", () => {
     it("returns versions in input order via a single multicall", async () => {
       const publicClient = createMockPublicClient({
         protocolInfoByVaultId: new Map([
-          [VAULT_ID_A, { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 7 }],
-          [VAULT_ID_B, { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 3 }],
+          [
+            VAULT_ID_A,
+            { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 7 },
+          ],
+          [
+            VAULT_ID_B,
+            { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 3 },
+          ],
         ]),
       });
       const reader = new ViemVaultRegistryReader(
@@ -386,7 +438,10 @@ describe("ViemVaultRegistryReader", () => {
           [VAULT_ID_A, MOCK_PROTOCOL_INFO_RESULT],
           [
             VAULT_ID_B,
-            { ...MOCK_PROTOCOL_INFO_RESULT, depositorSignedPeginTx: "0x" as Hex },
+            {
+              ...MOCK_PROTOCOL_INFO_RESULT,
+              depositorSignedPeginTx: "0x" as Hex,
+            },
           ],
         ]),
       });
