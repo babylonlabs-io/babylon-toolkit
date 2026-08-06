@@ -58,12 +58,13 @@ export function EmergencyWithdrawConfirmContent({
   // sign into a genuinely inactive application.
   const applicationActive = useVaultApplicationActive(vaultId);
   const applicationInactive = applicationActive === false;
+  const activateAndRedeemPaused = isActivateAndRedeemBlocked(gate);
   const canWithdraw =
     acknowledged &&
     !withdrawing &&
     !errorTerminal &&
     !applicationInactive &&
-    !isActivateAndRedeemBlocked(gate);
+    !activateAndRedeemPaused;
 
   return (
     <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight bg-surface px-6 pb-6 pt-10 dark:border-secondary-strokeDark">
@@ -110,7 +111,21 @@ export function EmergencyWithdrawConfirmContent({
 
       <div className="flex flex-col gap-4">
         {/* Explains the withheld confirm button. Ordered before `error` so a
-            live blocker outranks a stale message from an earlier attempt. */}
+            live blocker outranks a stale message from an earlier attempt.
+            Protocol pause first: it is protocol-scope, so it outranks the
+            application-scope registration check below.
+
+            The pause needs its own callout because `canWithdraw` gates on it
+            but nothing else surfaces it — `COPY.pegin.activateAndRedeemPaused`
+            is otherwise only set by the click handler behind this very button,
+            which a paused gate has already disabled. Silently disabling the
+            confirm on a modal whose user believes their BTC is stuck is the
+            worst place to leave an unexplained dead control. */}
+        {activateAndRedeemPaused && (
+          <Callout variant="warning">
+            {COPY.pegin.activateAndRedeemPaused}
+          </Callout>
+        )}
         {applicationInactive && (
           <Callout variant="warning">
             {COPY.deposit.emergencyWithdraw.applicationInactive}

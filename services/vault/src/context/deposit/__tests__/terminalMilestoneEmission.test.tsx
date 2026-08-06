@@ -36,6 +36,11 @@ vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
 vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
   useActivationDeadlineGate: () => new Set<string>(),
 }));
+// Same reason as the deadline gate: react-query plus a chain read. Empty set is
+// also the production fail-open default.
+vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
+  useStuckVaultChainConfirm: () => new Set<string>(),
+}));
 
 vi.mock("../../ProtocolParamsContext", () => ({
   useProtocolParamsContext: () => ({

@@ -54,6 +54,7 @@ function makeInputs(
     requiredDepth: 6,
     refundTimelock: 10,
     activationDeadlinePassed: false,
+    stuckStateConfirmedOnChain: false,
     isLoading: false,
     optimisticStatuses: new Map(),
     optimisticRefundBroadcastAt: new Map(),
@@ -153,6 +154,7 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     const result = computeDepositPollingResult(
       makeInputs({
         activity: makeVerifiedActivity(),
+        stuckStateConfirmedOnChain: true,
         htlcRefundByDepositId: new Map([
           [
             VAULT_ID.toLowerCase(),
@@ -169,6 +171,38 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
       PeginAction.ACTIVATE_AND_REDEEM,
     ]);
     expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+  });
+
+  it("does not flag the stuck state when the chain has not confirmed it", () => {
+    // The indexer-lag case, and the reason the on-chain confirm exists. The
+    // BTC evidence here is IDENTICAL to the test above — the VP's sweep is what
+    // activation looks like on the BTC side — so the only thing separating a
+    // healthy activated deposit from a genuinely stuck one is whether the chain
+    // still reports VERIFIED. Without this gate a second device (or a cleared
+    // profile, having no local reveal marker) rendered "Activation incomplete"
+    // and fired a signing prompt on a perfectly healthy deposit.
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        stuckStateConfirmedOnChain: false,
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            {
+              spent: true,
+              confirmed: false,
+              spendingTxid: PEGIN_TX.slice("0x".length),
+            },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.ACTIVATE_AND_REDEEM,
+    );
+    expect(result.peginState.displayLabel).not.toBe(
       PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
     );
   });

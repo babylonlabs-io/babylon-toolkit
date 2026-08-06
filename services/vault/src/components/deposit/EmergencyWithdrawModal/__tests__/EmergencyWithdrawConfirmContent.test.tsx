@@ -102,4 +102,39 @@ describe("EmergencyWithdrawConfirmContent — application-status gate", () => {
 
     expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
   });
+
+  it("explains the withheld action under a protocol-scope pause", () => {
+    // The disabled button used to be the whole story: the copy existed but was
+    // only set by the click handler behind the button the pause had already
+    // disabled, so a depositor who believes their BTC is stuck saw a dead
+    // control with no reason given.
+    gateMock.value = { protocol: "paused", aave: null };
+    renderConfirm();
+
+    expect(
+      screen.getByText(COPY.pegin.activateAndRedeemPaused),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the pause explanation when nothing is paused", () => {
+    gateMock.value = { protocol: null, aave: null };
+    renderConfirm();
+
+    expect(
+      screen.queryByText(COPY.pegin.activateAndRedeemPaused),
+    ).not.toBeInTheDocument();
+  });
+
+  it("is not affected by an application-scope pause", () => {
+    // `isActivateAndRedeemBlocked` is protocol-scope only; an aave pause must
+    // neither withhold the exit nor render the protocol-pause callout.
+    gateMock.value = { protocol: null, aave: "paused" };
+    renderConfirm();
+    acknowledge();
+
+    expect(screen.getByTestId("emergency-withdraw-button")).toBeEnabled();
+    expect(
+      screen.queryByText(COPY.pegin.activateAndRedeemPaused),
+    ).not.toBeInTheDocument();
+  });
 });

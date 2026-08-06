@@ -20,6 +20,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import type { Hex } from "viem";
 
 import { useDemoDeposit } from "@/dev/demoDeposit";
 import { logger } from "@/infrastructure";
@@ -31,6 +32,7 @@ import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningR
 import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
+import { useStuckVaultChainConfirm } from "../../hooks/useStuckVaultChainConfirm";
 import {
   ContractStatus,
   LocalStorageStatus,
@@ -273,7 +275,10 @@ export function PeginPollingProvider({
             return false;
           // Once this device has submitted the reveal (CONFIRMED), a spend is
           // the expected VP sweep, not the stuck state — and the display
-          // ignores the probe anyway, so skip the request.
+          // ignores the probe anyway, so skip the request. This is a local
+          // request-saving shortcut ONLY: it is per-device, so it says nothing
+          // on a second device or a cleared profile. What actually decides the
+          // stuck state is the on-chain confirmation below.
           if (
             status === ContractStatus.VERIFIED &&
             localStatusById.get(a.id) === LocalStorageStatus.CONFIRMED
@@ -300,6 +305,34 @@ export function PeginPollingProvider({
     htlcRefundOutpoints,
     HTLC_REFUND_QUERY_KEY,
   );
+
+  // Tier-1 stuck suspects: VERIFIED (per the indexer) with the HTLC proven
+  // swept by the pegin tx. Cheap — it reuses the probe above and adds no
+  // request. Tier 2 confirms each against the chain, because that BTC evidence
+  // is equally consistent with a healthy deposit whose activation the indexer
+  // has not caught up to yet.
+  const stuckSuspectIds = useMemo(() => {
+    const ids: Hex[] = [];
+    for (const a of activities) {
+      if (
+        ((a.contractStatus ?? 0) as ContractStatus) !== ContractStatus.VERIFIED
+      )
+        continue;
+      const spend = htlcRefundByDepositId.get(a.id);
+      if (spend?.spent !== true) continue;
+      const peginTxCanonical = canonicalizeTxid(a.peginTxHash);
+      if (
+        peginTxCanonical === undefined ||
+        canonicalizeTxid(spend.spendingTxid) !== peginTxCanonical
+      ) {
+        continue;
+      }
+      ids.push(a.id);
+    }
+    return ids;
+  }, [activities, htlcRefundByDepositId]);
+
+  const stuckConfirmedIds = useStuckVaultChainConfirm(stuckSuspectIds);
 
   // Persist newly-confirmed observations and drop them from the next
   // poll set. Side effects sit outside the updater so StrictMode's
@@ -502,6 +535,9 @@ export function PeginPollingProvider({
         activationDeadlinePassed: activationDeadlinePassedIds.has(
           activity.id.toLowerCase(),
         ),
+        stuckStateConfirmedOnChain: stuckConfirmedIds.has(
+          activity.id.toLowerCase(),
+        ),
         isLoading,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
@@ -525,6 +561,7 @@ export function PeginPollingProvider({
       getRequiredPrePeginDepth,
       getOffchainParamsByVersion,
       activationDeadlinePassedIds,
+      stuckConfirmedIds,
       isLoading,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
