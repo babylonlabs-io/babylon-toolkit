@@ -22,7 +22,13 @@ import type { Address, Hex } from "viem";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { getActionStatus } from "@/components/deposit/actionStatus";
 import { CopyableHash } from "@/components/shared/CopyableHash";
-import { ListRowCard } from "@/components/shared/ListRow";
+import {
+  LIST_ROW_ACTION_SLOT_CLASS,
+  LIST_ROW_COLUMN_CLASS,
+  LIST_ROW_LEADING_COLUMN_CLASS,
+  LIST_ROW_MIN_HEIGHT_CLASS,
+  ListRowCard,
+} from "@/components/shared/ListRow";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import {
   NEUTRAL_ROW_BUTTON_CLASS,
@@ -147,9 +153,13 @@ function PendingRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4">
+    <div
+      className={`${LIST_ROW_MIN_HEIGHT_CLASS} flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4`}
+    >
       {/* Amount + step position */}
-      <div className="flex w-[180px] shrink-0 items-center gap-2">
+      <div
+        className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
+      >
         <ApplicationLogo
           logoUrl={provider?.iconUrl ?? null}
           name={providerName}
@@ -171,7 +181,7 @@ function PendingRow({
       </div>
 
       {/* Status + progress */}
-      <div className="flex w-[180px] shrink-0 flex-col gap-1">
+      <div className={`flex flex-col gap-1 ${LIST_ROW_COLUMN_CLASS}`}>
         {peginState ? (
           <span className="flex items-center gap-1">
             <span
@@ -203,7 +213,7 @@ function PendingRow({
       </div>
 
       {/* Provider */}
-      <div className="flex w-[180px] shrink-0 items-center gap-2">
+      <div className={`flex items-center gap-2 ${LIST_ROW_COLUMN_CLASS}`}>
         <ApplicationLogo
           logoUrl={provider?.iconUrl ?? null}
           name={providerName}
@@ -215,7 +225,9 @@ function PendingRow({
       </div>
 
       {/* Transaction hash */}
-      <div className="flex min-w-[180px] flex-1 items-center [&_a]:underline">
+      <div
+        className={`flex items-center [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
+      >
         {hash && (
           <CopyableHash
             hash={hash}
@@ -285,7 +297,9 @@ function InactiveRow({
   return (
     <ListRowCard>
       {/* Amount + refund maturity */}
-      <div className="flex w-[180px] shrink-0 items-center gap-2">
+      <div
+        className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
+      >
         <ApplicationLogo
           logoUrl={provider?.iconUrl ?? null}
           name={providerName}
@@ -302,7 +316,7 @@ function InactiveRow({
       </div>
 
       {/* Status */}
-      <div className="flex w-[180px] shrink-0 items-center">
+      <div className={`flex items-center ${LIST_ROW_COLUMN_CLASS}`}>
         {peginState ? (
           <span className="flex items-center gap-1">
             <span
@@ -324,7 +338,7 @@ function InactiveRow({
       </div>
 
       {/* Provider */}
-      <div className="flex w-[180px] shrink-0 items-center gap-2">
+      <div className={`flex items-center gap-2 ${LIST_ROW_COLUMN_CLASS}`}>
         <ApplicationLogo
           logoUrl={provider?.iconUrl ?? null}
           name={providerName}
@@ -336,7 +350,9 @@ function InactiveRow({
       </div>
 
       {/* Transaction hash */}
-      <div className="flex min-w-[180px] flex-1 items-center [&_a]:underline">
+      <div
+        className={`flex items-center [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
+      >
         {hash && (
           <CopyableHash
             hash={hash}
@@ -346,22 +362,26 @@ function InactiveRow({
         )}
       </div>
 
-      {isRefundAvailable && (
-        <button
-          type="button"
-          onClick={() => onRefund(activity.id)}
-          className={PRIMARY_ROW_BUTTON_CLASS}
-        >
-          {COPY.vaults.actions.withdraw}
-        </button>
-      )}
-      {blockedTooltip && (
-        <Hint tooltip={blockedTooltip} attachToChildren>
-          <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+      {/* Reserved even when the refund is neither available nor blocked, so an
+          actionless row still aligns with the rows that carry a button. */}
+      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+        {isRefundAvailable && (
+          <button
+            type="button"
+            onClick={() => onRefund(activity.id)}
+            className={PRIMARY_ROW_BUTTON_CLASS}
+          >
             {COPY.vaults.actions.withdraw}
           </button>
-        </Hint>
-      )}
+        )}
+        {blockedTooltip && (
+          <Hint tooltip={blockedTooltip} attachToChildren>
+            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+              {COPY.vaults.actions.withdraw}
+            </button>
+          </Hint>
+        )}
+      </div>
     </ListRowCard>
   );
 }

@@ -15,7 +15,11 @@ import type { ReactNode } from "react";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
-import { ListRowCard } from "@/components/shared/ListRow";
+import {
+  LIST_ROW_COLUMN_CLASS,
+  LIST_ROW_LEADING_COLUMN_CLASS,
+  ListRowCard,
+} from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -46,7 +50,9 @@ function ActiveVaultRow({
   return (
     <ListRowCard>
       {/* Amount + liquidation ordinal */}
-      <div className="flex w-[180px] shrink-0 items-center gap-2">
+      <div
+        className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
+      >
         <ApplicationLogo
           logoUrl={vault.providerIconUrl ?? null}
           name={vault.providerName}
@@ -67,7 +73,7 @@ function ActiveVaultRow({
       </div>
 
       {/* Status */}
-      <div className="flex w-[180px] shrink-0 items-center">
+      <div className={`flex items-center ${LIST_ROW_COLUMN_CLASS}`}>
         {vault.isActivating ? (
           <span className="flex items-center gap-2 text-sm text-accent-secondary">
             <Loader size={16} />
@@ -90,7 +96,7 @@ function ActiveVaultRow({
       </div>
 
       {/* Provider */}
-      <div className="flex w-[180px] shrink-0 items-center gap-2">
+      <div className={`flex items-center gap-2 ${LIST_ROW_COLUMN_CLASS}`}>
         <ApplicationLogo
           logoUrl={vault.providerIconUrl ?? null}
           name={vault.providerName}
@@ -102,7 +108,9 @@ function ActiveVaultRow({
       </div>
 
       {/* Transaction hash */}
-      <div className="flex min-w-[180px] flex-1 items-center [&_a]:underline">
+      <div
+        className={`flex items-center [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
+      >
         {hash && (
           <CopyableHash
             hash={hash}

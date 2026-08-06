@@ -8,14 +8,17 @@ interface ApplicationLogoProps {
   shape?: "circle" | "rounded";
 }
 
+// `shrink-0` on every size: the logo sits beside truncating text in flex rows,
+// where without it flexbox squashes the circle into an ellipse instead of
+// letting the text shrink.
 const SIZE_CLASSES: Record<
   NonNullable<ApplicationLogoProps["size"]>,
   string
 > = {
-  xs: "h-4 w-4",
-  sm: "h-6 w-6",
-  small: "h-8 w-8",
-  large: "h-10 w-10",
+  xs: "h-4 w-4 shrink-0",
+  sm: "h-6 w-6 shrink-0",
+  small: "h-8 w-8 shrink-0",
+  large: "h-10 w-10 shrink-0",
 };
 
 const FALLBACK_TEXT_CLASSES: Record<

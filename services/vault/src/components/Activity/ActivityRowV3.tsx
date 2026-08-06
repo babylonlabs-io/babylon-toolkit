@@ -12,6 +12,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
+import { LIST_ROW_COLUMN_CLASS } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
 import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
@@ -20,9 +21,9 @@ import { formatActivityTime } from "@/utils/formatting";
 import { ActivityHashLink } from "./ActivityHashLink";
 import { STATUS_DOT } from "./statusDot";
 
-/** Fixed column width shared by every cell, so rows line up across cards
- *  regardless of amount length (Figma: 180px). */
-const COLUMN_CLASS = "flex w-[180px] shrink-0 items-center";
+/** Column shared by every cell, so rows line up across cards regardless of
+ *  amount length. */
+const COLUMN_CLASS = `flex items-center ${LIST_ROW_COLUMN_CLASS}`;
 
 /** Figma body 2 — every cell's text except the deferred USD sub-line. */
 const CELL_TEXT_CLASS = "text-sm leading-[1.43] tracking-[0.17px]";
