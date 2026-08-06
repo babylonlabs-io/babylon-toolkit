@@ -32,6 +32,24 @@ const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
 const STALE_TIME_MS = 5 * 60 * 1000;
 const RETRY_COUNT = 3;
 
+/**
+ * React Query options for the peg-in configuration multicall. Single source of
+ * truth for the key, shared by this blocking provider and the non-blocking
+ * `usePeginPollingProtocolParams`, so both resolve from one fetch.
+ */
+export function pegInConfigQueryOptions() {
+  return {
+    queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "pegInConfig"] as const,
+    queryFn: async (): Promise<PegInConfiguration> => {
+      const reader = await getProtocolParamsReader();
+      return reader.getPegInConfiguration();
+    },
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    retry: RETRY_COUNT,
+  };
+}
+
 interface ProtocolParamsContextValue {
   /** Peg-in configuration from contract */
   config: PegInConfiguration;
@@ -75,16 +93,7 @@ export function ProtocolParamsProvider({
     data: configData,
     isLoading: configLoading,
     error: configError,
-  } = useQuery({
-    queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "pegInConfig"],
-    queryFn: async () => {
-      const reader = await getProtocolParamsReader();
-      return reader.getPegInConfiguration();
-    },
-    staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
-    retry: RETRY_COUNT,
-  });
+  } = useQuery(pegInConfigQueryOptions());
 
   const {
     data: ucData,

@@ -31,6 +31,7 @@ import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidation
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
+import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
 import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
@@ -261,46 +262,53 @@ export default function RootLayout() {
             <GeoBlockState />
           ) : (
             <ActivatingVaultsProvider>
-              {/* Intentionally in the content branch (not the top stack like
+              {/* The app's only PeginPollingProvider mount. Deliberately inside
+                  the content branch — a geo-blocked session renders no deposit
+                  UI and must not poll — and deliberately above both <Outlet>
+                  and <SimpleDeposit>, which are siblings: any provider mounted
+                  on a route would miss the deposit flow. */}
+              <AppPeginPollingProvider>
+                {/* Intentionally in the content branch (not the top stack like
                   NoticeBanner): a geo-blocked session is already fully blocked
                   from transacting and sees the geo-block screen, so it doesn't
                   need the status banner the way it still needs operator notices. */}
-              <ProtocolStatusBanner />
-              <Outlet
-                context={
-                  {
-                    openDeposit,
-                  } satisfies RootLayoutContext
-                }
-              />
-              {/* On config failure, suppress the default panel (would leak
+                <ProtocolStatusBanner />
+                <Outlet
+                  context={
+                    {
+                      openDeposit,
+                    } satisfies RootLayoutContext
+                  }
+                />
+                {/* On config failure, suppress the default panel (would leak
                   into page chrome) and instead surface an error modal only
                   when the user has actually opened the deposit dialog, so
                   the click has a visible recovery path. */}
-              <AaveConfigProvider
-                errorFallback={
-                  <FullScreenDialog
+                <AaveConfigProvider
+                  errorFallback={
+                    <FullScreenDialog
+                      open={isDepositOpen}
+                      onClose={closeDeposit}
+                      className="items-center justify-center p-6"
+                    >
+                      <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
+                        <Text variant="body1" className="font-medium">
+                          {COPY.common.somethingWentWrong.heading}
+                        </Text>
+                        <Text variant="body2" className="text-accent-secondary">
+                          {COPY.common.somethingWentWrong.body}
+                        </Text>
+                      </div>
+                    </FullScreenDialog>
+                  }
+                >
+                  <SimpleDeposit
                     open={isDepositOpen}
                     onClose={closeDeposit}
-                    className="items-center justify-center p-6"
-                  >
-                    <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
-                      <Text variant="body1" className="font-medium">
-                        {COPY.common.somethingWentWrong.heading}
-                      </Text>
-                      <Text variant="body2" className="text-accent-secondary">
-                        {COPY.common.somethingWentWrong.body}
-                      </Text>
-                    </div>
-                  </FullScreenDialog>
-                }
-              >
-                <SimpleDeposit
-                  open={isDepositOpen}
-                  onClose={closeDeposit}
-                  initialAmountBtc={initialDepositAmountBtc}
-                />
-              </AaveConfigProvider>
+                    initialAmountBtc={initialDepositAmountBtc}
+                  />
+                </AaveConfigProvider>
+              </AppPeginPollingProvider>
             </ActivatingVaultsProvider>
           )}
           {isEntryLayout && <EntryFooter />}

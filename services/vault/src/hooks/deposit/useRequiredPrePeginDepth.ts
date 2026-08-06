@@ -6,10 +6,20 @@ import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
  * Stable resolver for the required Pre-PegIn confirmation depth
  * (`minPrepeginDepth`): pinned to the deposit's registered offchain-params
  * version when given, or the latest version otherwise (pre-sign, where the
- * deposit has no registered version yet). Single source of this rule — also
- * consumed by `PeginPollingContext.getRequiredPrePeginDepth`.
+ * deposit has no registered version yet).
+ *
+ * The BLOCKING half, for components that render under
+ * `ProtocolParamsProvider` and are typed against a guaranteed `number`.
+ * `usePeginPollingProtocolParams.resolveRequiredPrePeginDepth` is the
+ * non-blocking twin, and the two now deliberately DIVERGE on a registered
+ * version missing from the params: the polling twin withholds (`undefined`),
+ * because the at-depth conclusion it feeds is persisted (`confirmedTxids`);
+ * this one keeps the latest-version fallback, because its consumers only
+ * display the depth and persist nothing from it. why two hooks: sharing the
+ * loading model would widen this return to `undefined` for three components
+ * that legitimately cannot receive it.
  */
-export function useRequiredPrePeginDepthResolver(): (
+function useRequiredPrePeginDepthResolver(): (
   offchainParamsVersion?: number,
 ) => number {
   const { config, getOffchainParamsByVersion } = useProtocolParamsContext();

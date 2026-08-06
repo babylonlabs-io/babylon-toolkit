@@ -6,10 +6,10 @@
  * and "Inactive Vaults" (one row per refundable-expired deposit — inactive is
  * the v3 name for expired — whose Withdraw action performs the HTLC refund).
  * `children` (the Active Vaults section) renders between them, giving the
- * page's Pending → Active → Inactive order while both polling-backed lists
- * stay under the single ProtocolParamsProvider + PeginPollingProvider this
- * component mounts (exactly like the v2 PendingDepositSection) — row state
- * and CTAs derive from the polling result, so god-mode demo rows work
+ * page's Pending → Active → Inactive order. Polling state comes from the app's
+ * single AppPeginPollingProvider (mounted in RootLayout); this component mounts
+ * only the ProtocolParamsProvider its own children need — row state and CTAs
+ * derive from the polling result, so god-mode demo rows work
  * unchanged. `deposits` arrives from the page's single `usePendingDeposits`
  * call (shared with the emptiness hook) so the broadcast/refund modal state
  * is instantiated once.
@@ -37,10 +37,7 @@ import {
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
-import {
-  PeginPollingProvider,
-  useDepositPollingResult,
-} from "@/context/deposit/PeginPollingContext";
+import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { getDemoStepperBatch } from "@/dev/demoDeposit";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
@@ -382,9 +379,7 @@ export function VaultsLifecycleSections({
     pendingActivities,
     expiredActivities,
     allActivities,
-    pendingPegins,
     vaultProviders,
-    btcPublicKey,
     ethAddress,
     broadcastModal,
     refundModal,
@@ -453,86 +448,80 @@ export function VaultsLifecycleSections({
 
   return (
     <ProtocolParamsProvider>
-      <PeginPollingProvider
-        activities={allActivities}
-        pendingPegins={pendingPegins}
-        btcPublicKey={btcPublicKey}
-      >
-        {pendingActivities.length > 0 && (
-          <section className="w-full space-y-2">
-            <div className="flex items-center gap-3">
-              <Heading
-                variant="h6"
-                as="h2"
-                className="font-normal text-accent-primary"
-              >
-                {COPY.vaults.sections.pendingDepositsTitle}{" "}
-                <span className="text-accent-secondary">
-                  {COPY.vaults.sections.count(pendingActivities.length)}
-                </span>
-              </Heading>
-              <Loader size={16} className="text-accent-primary" />
-            </div>
-            <div className="space-y-2">
-              {pendingActivities.map((activity) => (
-                <PendingRow
-                  key={activity.id}
-                  activity={activity}
-                  vaultProviders={vaultProviders}
-                  onOpenDetails={handleOpenDetails}
-                  onBroadcast={handleBroadcast}
-                  onRefund={handleRefund}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {children}
-
-        {expiredActivities.length > 0 && (
-          <section className="w-full space-y-3">
+      {pendingActivities.length > 0 && (
+        <section className="w-full space-y-2">
+          <div className="flex items-center gap-3">
             <Heading
               variant="h6"
               as="h2"
               className="font-normal text-accent-primary"
             >
-              {COPY.vaults.sections.inactiveVaultsTitle}{" "}
+              {COPY.vaults.sections.pendingDepositsTitle}{" "}
               <span className="text-accent-secondary">
-                {COPY.vaults.sections.count(expiredActivities.length)}
+                {COPY.vaults.sections.count(pendingActivities.length)}
               </span>
             </Heading>
-            <div className="space-y-2">
-              {expiredActivities.map((activity) => (
-                <InactiveRow
-                  key={activity.id}
-                  activity={activity}
-                  vaultProviders={vaultProviders}
-                  onRefund={handleRefund}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        <PendingDepositModals
-          broadcastModal={broadcastModal}
-          refundModal={refundModal}
-          ethAddress={ethAddress}
-        />
-
-        {viewingBatch && ethAddress && (
-          <V3ModalShell open onClose={handleViewingClose}>
-            <div className="mx-auto w-full max-w-[520px]">
-              <PostDepositContinuationContent
-                vaultIds={viewingBatch}
-                depositorEthAddress={ethAddress as Address}
-                onClose={handleViewingClose}
+            <Loader size={16} className="text-accent-primary" />
+          </div>
+          <div className="space-y-2">
+            {pendingActivities.map((activity) => (
+              <PendingRow
+                key={activity.id}
+                activity={activity}
+                vaultProviders={vaultProviders}
+                onOpenDetails={handleOpenDetails}
+                onBroadcast={handleBroadcast}
+                onRefund={handleRefund}
               />
-            </div>
-          </V3ModalShell>
-        )}
-      </PeginPollingProvider>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {children}
+
+      {expiredActivities.length > 0 && (
+        <section className="w-full space-y-3">
+          <Heading
+            variant="h6"
+            as="h2"
+            className="font-normal text-accent-primary"
+          >
+            {COPY.vaults.sections.inactiveVaultsTitle}{" "}
+            <span className="text-accent-secondary">
+              {COPY.vaults.sections.count(expiredActivities.length)}
+            </span>
+          </Heading>
+          <div className="space-y-2">
+            {expiredActivities.map((activity) => (
+              <InactiveRow
+                key={activity.id}
+                activity={activity}
+                vaultProviders={vaultProviders}
+                onRefund={handleRefund}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <PendingDepositModals
+        broadcastModal={broadcastModal}
+        refundModal={refundModal}
+        ethAddress={ethAddress}
+      />
+
+      {viewingBatch && ethAddress && (
+        <V3ModalShell open onClose={handleViewingClose}>
+          <div className="mx-auto w-full max-w-[520px]">
+            <PostDepositContinuationContent
+              vaultIds={viewingBatch}
+              depositorEthAddress={ethAddress as Address}
+              onClose={handleViewingClose}
+            />
+          </div>
+        </V3ModalShell>
+      )}
     </ProtocolParamsProvider>
   );
 }

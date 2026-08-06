@@ -1,4 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
@@ -111,6 +118,26 @@ export function PostDepositContinuationView({
 }: PostDepositContinuationViewProps) {
   const { refetch, getPollingResult } = usePeginPolling();
   const navigate = useNavigate();
+
+  // Refresh the VP poll on open. This used to happen for free: the modal
+  // mounted its own provider, whose query key was scoped to the viewed batch,
+  // so opening it always produced a cache miss and a fresh fetch. Sharing the
+  // app-wide provider means the key no longer changes — and the poll may
+  // already have halted (`refetchInterval` stops once every deposit reports
+  // PendingDepositorSignatures), so without this the user can open the modal
+  // onto a stale snapshot and never see the action they came for.
+  //
+  // One-shot on mount, through a ref. `refetch` is re-created whenever the
+  // provider's context value recomputes — which a refetch itself causes — so
+  // depending on it turns this into a self-sustaining loop at network latency
+  // (refetch → new data → new context identity → effect → refetch), defeating
+  // the `refetchInterval: false` halt the polling design relies on. The ref
+  // keeps the call on the latest refetch without making its identity a dep.
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+  useEffect(() => {
+    refetchRef.current();
+  }, []);
 
   const handleGoToDashboard = useCallback(() => {
     navigate("/", { replace: true });

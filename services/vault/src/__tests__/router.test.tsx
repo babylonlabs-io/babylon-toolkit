@@ -181,8 +181,6 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   usePendingDeposits: () => ({
     expiredActivities: [],
     allActivities: [],
-    pendingPegins: [],
-    btcPublicKey: undefined,
     ethAddress: undefined,
     broadcastModal: {},
     refundModal: { handleRefundClick: vi.fn() },

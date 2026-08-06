@@ -53,10 +53,15 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
   useActivationDeadlineGate: () => new Set<string>(),
 }));
 
-vi.mock("../../ProtocolParamsContext", () => ({
-  useProtocolParamsContext: () => ({
-    config: { offchainParams: { minPrepeginDepth: 6 } },
-    getOffchainParamsByVersion: () => undefined,
+// The provider reads params through the non-blocking hook, not the blocking
+// context — stub it so the provider renders in isolation.
+vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({
+  usePeginPollingProtocolParams: () => ({
+    ready: true,
+    error: null,
+    pegInActivationTimeout: undefined,
+    resolveRequiredPrePeginDepth: () => 6,
+    resolveRefundTimelock: () => undefined,
   }),
 }));
 
@@ -172,29 +177,20 @@ describe("daemon terminal emission through the polling provider", () => {
     expect(mockEvent).not.toHaveBeenCalled();
   });
 
-  it("emits once when co-mounted providers observe the same transition", () => {
-    const NestedTree = () => (
-      <PeginPollingProvider
-        activities={[pendingActivity()]}
-        pendingPegins={[]}
-        btcPublicKey={BTC_PUBKEY}
-      >
-        <PeginPollingProvider
-          activities={[pendingActivity()]}
-          pendingPegins={[]}
-          btcPublicKey={BTC_PUBKEY}
-        >
-          <div />
-        </PeginPollingProvider>
-      </PeginPollingProvider>
-    );
-
+  it("does not re-emit an already-reported terminal after a provider remount", () => {
+    // Tracking is module-scoped because the single provider still unmounts
+    // (RootLayout's geo-block branch, wallet churn). Provider-local tracking
+    // would treat the remount as a first observation and emit again.
     pollingQueryState.polledIds = [VAULT_ID];
     pollingQueryState.errors = new Map();
-    const { rerender } = render(<NestedTree />);
+    const first = render(<Tree />);
 
     pollingQueryState.errors = terminalErrors(DaemonStatus.AML_REJECTED);
-    rerender(<NestedTree />);
+    first.rerender(<Tree />);
+    expect(mockEvent).toHaveBeenCalledTimes(1);
+
+    first.unmount();
+    render(<Tree />);
     expect(mockEvent).toHaveBeenCalledTimes(1);
   });
 });

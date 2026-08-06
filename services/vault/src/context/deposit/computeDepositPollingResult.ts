@@ -67,8 +67,28 @@ export interface DepositPollingInputs {
    * after the txid leaves the poll set.
    */
   refundedHtlcVaultIds: Set<string>;
-  /** Per-vault min depth, pre-resolved from `offchainParamsVersion`. */
-  requiredDepth: number;
+  /**
+   * Per-vault min depth, pre-resolved from `offchainParamsVersion`.
+   * `undefined` while the protocol params are still loading (or failed) — the
+   * confirmation conclusion is then withheld rather than defaulted, so a
+   * deposit can never read as at-depth on an unknown threshold.
+   */
+  requiredDepth: number | undefined;
+  /**
+   * Protocol-param load failure. Surfaced on every deposit's `error` when no
+   * more specific per-deposit error exists, so a params outage suppresses
+   * actions on every deposit rather than being dropped.
+   *
+   * why this is suppression, not display: `error`'s readers are
+   * `getActionStatus`, which collapses to `noAction`, and the signing
+   * notifications, which mute — so this withholds every CTA and nudge rather
+   * than rendering a message. That is the intended posture. Depth
+   * and `tRefund` maturity gate Broadcast and Refund, and offering an action
+   * derived from params we could not read is worse than offering none. The
+   * user-facing surface for a params outage is `ProtocolParamsProvider`'s own
+   * error panel, which gates on a superset of these same query keys.
+   */
+  protocolParamsError: Error | null;
   /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
   refundTimelock: number | undefined;
   /**
@@ -117,6 +137,7 @@ export function computeDepositPollingResult(
     htlcRefundByDepositId,
     refundedHtlcVaultIds,
     requiredDepth,
+    protocolParamsError,
     refundTimelock,
     activationDeadlinePassed,
     isLoading,
@@ -173,9 +194,21 @@ export function computeDepositPollingResult(
   const confirmations = prePeginCanonical
     ? prePeginConfirmationsByTxid.get(prePeginCanonical)
     : undefined;
+  // An unknown `requiredDepth` can only withhold "confirmed", never assert it:
+  // comparing against a defaulted threshold would claim protocol depth the
+  // chain may not have reached.
+  //
+  // why `cachedAtDepth` short-circuits ahead of that guard, while the count
+  // below withholds on the same input: the two are not the same claim. A cache
+  // entry was only ever written while the threshold WAS known, and depth never
+  // rewinds — so the boolean stays sound without re-reading it. The number is
+  // not recoverable that way: reporting one would mean inventing the very
+  // threshold we are missing. Deliberate asymmetry, not an oversight.
   const prePeginBroadcastConfirmed =
     cachedAtDepth ||
-    (confirmations !== undefined && confirmations >= requiredDepth);
+    (confirmations !== undefined &&
+      requiredDepth !== undefined &&
+      confirmations >= requiredDepth);
   // Chain ground truth that the Pre-PegIn was broadcast at all: a present
   // confirmation entry — or a cached at-depth observation — means the tx is on
   // the network. Independent of localStorage, so every tab converges on the
@@ -260,12 +293,16 @@ export function computeDepositPollingResult(
   // is past depth. Treat that as "at least requiredDepth" so consumers don't
   // see a regression.
   const reportedConfirmations =
-    confirmations ?? (cachedAtDepth ? requiredDepth : null);
+    confirmations ??
+    (cachedAtDepth && requiredDepth !== undefined ? requiredDepth : null);
 
   return {
     depositId,
     loading: isLoading,
-    error: errors?.get(depositId) ?? null,
+    // A per-deposit VP error is more specific, so it wins; the params failure
+    // is the fallback so an outage suppresses actions on every deposit
+    // rather than being dropped (see the input doc above).
+    error: errors?.get(depositId) ?? protocolParamsError,
     peginState,
     isOwnedByCurrentWallet,
     depositorBtcPubkey: activity.depositorBtcPubkey,

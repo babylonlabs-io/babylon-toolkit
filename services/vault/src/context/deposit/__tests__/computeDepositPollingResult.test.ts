@@ -4,6 +4,7 @@ import {
   computeDepositPollingResult,
   type DepositPollingInputs,
 } from "@/context/deposit/computeDepositPollingResult";
+import { COPY } from "@/copy";
 import {
   ContractStatus,
   LocalStorageStatus,
@@ -51,6 +52,7 @@ function makeInputs(
     htlcRefundByDepositId: new Map(),
     refundedHtlcVaultIds: new Set(),
     requiredDepth: 6,
+    protocolParamsError: null,
     refundTimelock: 10,
     activationDeadlinePassed: false,
     isLoading: false,
@@ -140,6 +142,96 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     expect(result.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
     );
+  });
+});
+
+describe("computeDepositPollingResult — unresolved protocol params", () => {
+  function makePendingActivity(): VaultActivity {
+    return {
+      ...makeExpiredActivity(),
+      displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+      contractStatus: ContractStatus.PENDING,
+    };
+  }
+
+  it("never reports the Pre-PegIn at depth while the required depth is unknown", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makePendingActivity(),
+        matureRefundTxids: new Set(),
+        // 100 confirmations would clear any real threshold. Guards against a
+        // future `requiredDepth ?? SOME_DEFAULT`: today an undefined threshold
+        // already fails the comparison via NaN, so this pins the invariant
+        // rather than the mechanism.
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, 100]]),
+        confirmedTxids: new Set(),
+        requiredDepth: undefined,
+        pendingIngestion: new Set([VAULT_ID]),
+      }),
+    );
+    expect(result.requiredPrePeginDepth).toBeUndefined();
+    expect(result.peginState.message).not.toBe(
+      COPY.pegin.messages.prePeginIngesting,
+    );
+  });
+
+  it("reports no confirmation count from a cached at-depth txid while the required depth is unknown", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makePendingActivity(),
+        matureRefundTxids: new Set(),
+        confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+        requiredDepth: undefined,
+      }),
+    );
+    expect(result.prePeginConfirmations).toBeNull();
+  });
+
+  it("still reports a cached at-depth txid as confirmed while the required depth is unknown", () => {
+    // The deliberate other half of the case above, previously uncovered. The
+    // cache entry was only written while the threshold WAS known and depth
+    // never rewinds, so the boolean stays sound — only the count is
+    // unrecoverable. Pinned via the state machine's ingesting branch, which
+    // fires solely on `prePeginBroadcastConfirmed`.
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makePendingActivity(),
+        matureRefundTxids: new Set(),
+        confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+        requiredDepth: undefined,
+        pendingIngestion: new Set([VAULT_ID]),
+      }),
+    );
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.prePeginIngesting,
+    );
+    expect(result.prePeginConfirmations).toBeNull();
+  });
+
+  it("surfaces a protocol-params failure as the deposit error", () => {
+    const paramsError = new Error("protocol params unavailable");
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makePendingActivity(),
+        matureRefundTxids: new Set(),
+        requiredDepth: undefined,
+        protocolParamsError: paramsError,
+      }),
+    );
+    expect(result.error).toBe(paramsError);
+  });
+
+  it("prefers a per-deposit polling error over the protocol-params failure", () => {
+    const depositError = new Error("provider unreachable");
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makePendingActivity(),
+        matureRefundTxids: new Set(),
+        errors: new Map([[VAULT_ID, depositError]]),
+        protocolParamsError: new Error("protocol params unavailable"),
+      }),
+    );
+    expect(result.error).toBe(depositError);
   });
 });
 

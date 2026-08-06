@@ -12,7 +12,11 @@ import {
 } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
-import { PeginPollingProvider, usePeginPolling } from "../PeginPollingContext";
+import {
+  PeginPollingProvider,
+  resetPeginPollingProviderCount,
+  usePeginPolling,
+} from "../PeginPollingContext";
 import {
   markWotsSubmitted,
   resetOptimisticDepositState,
@@ -81,11 +85,29 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
 
 const mockVersionedParams = new Map<number, { tRefund: number }>();
 
-vi.mock("../../ProtocolParamsContext", () => ({
-  useProtocolParamsContext: () => ({
-    config: { offchainParams: { minPrepeginDepth: 6 } },
-    getOffchainParamsByVersion: (v: number) => mockVersionedParams.get(v),
-  }),
+// The provider reads params through the non-blocking hook (it mounts above the
+// routes owning the blocking ProtocolParamsProvider), so stub that hook rather
+// than the context. Function identities are module-stable, which matters: the
+// provider memoizes on them and churning refs would re-fire its effects.
+// `ready`/`error` are mutated by the unresolved-params tests below.
+const mockProtocolParams = {
+  ready: true,
+  error: null as Error | null,
+  pegInActivationTimeout: undefined as bigint | undefined,
+  resolveRequiredPrePeginDepth: (): number | undefined =>
+    mockProtocolParams.ready ? 6 : undefined,
+  resolveRefundTimelock: (v?: number): number | undefined =>
+    v !== undefined ? mockVersionedParams.get(v)?.tRefund : undefined,
+};
+
+// Captures the `enabled` argument so the provider's gate wiring is asserted
+// here, not only at the hook level.
+const mockParamsEnabledCalls: boolean[] = [];
+vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({
+  usePeginPollingProtocolParams: (enabled: boolean) => {
+    mockParamsEnabledCalls.push(enabled);
+    return mockProtocolParams;
+  },
 }));
 
 const ACTIVITY_ID = "0xpegin" as Hex;
@@ -120,6 +142,7 @@ function renderProvider() {
 
 describe("PeginPollingContext", () => {
   beforeEach(() => {
+    mockParamsEnabledCalls.length = 0;
     mockQueryResult.errors = undefined;
     mockQueryResult.needsWotsKey = undefined;
     mockQueryResult.pendingIngestion = undefined;
@@ -137,11 +160,16 @@ describe("PeginPollingContext", () => {
       refundByDepositId: new Map(),
     });
     mockVersionedParams.clear();
+    mockProtocolParams.ready = true;
+    mockProtocolParams.error = null;
     // The persistent confirmed-txid cache leaks across tests otherwise.
     localStorage.clear();
     // Optimistic completions are app-scoped, so they outlive any single
     // provider — and therefore any single test.
     resetOptimisticDepositState();
+    // Same for the provider mount counter: a test that throws on a second
+    // mount leaves the count non-zero and would trip the next test.
+    resetPeginPollingProviderCount();
   });
 
   // Restored here, not at the end of each timer test: a failing assertion would
@@ -216,14 +244,13 @@ describe("PeginPollingContext", () => {
     );
   });
 
-  it("hides Sign Payouts on the dashboard when the signing modal's own nested provider records the completion", () => {
-    // The reported bug. The dashboard mounts a provider over every activity;
-    // the continuation modal mounts a second one, nested, scoped to the viewed
-    // batch — and the payout signing hook runs under THAT one. While the
-    // optimistic status was per-provider state, the dashboard row that offered
-    // the button never learned the signing had succeeded, so "Sign Payouts"
-    // stayed live for the rest of the session (the VP poll halts once every
-    // deposit reports PendingDepositorSignatures, so nothing else corrected it).
+  it("hides Sign Payouts on the dashboard row when the signing modal records the completion", () => {
+    // The reported bug, now structurally impossible: the modal and the row used
+    // to sit under two different providers, so a completion recorded by the
+    // modal never reached the row and "Sign Payouts" stayed live for the rest
+    // of the session. With one provider they share state — this pins that the
+    // row actually re-renders on the write rather than reading a stale
+    // memoized snapshot.
     const OTHER_ID = "0xpeginOther" as Hex;
     const OTHER_ACTIVITY: VaultActivity = { ...ACTIVITY, id: OTHER_ID };
     mockQueryResult.pendingDepositorSignatures = new Set([
@@ -233,21 +260,21 @@ describe("PeginPollingContext", () => {
 
     // Captured per render: `getPollingResult` is memoized on the provider's
     // inputs, so an assertion holding the pre-action context object would read
-    // the pre-action snapshot and pass regardless of the fix.
+    // the pre-action snapshot and pass regardless.
     const captured: {
-      outer?: PeginPollingContextValue;
-      nested?: PeginPollingContextValue;
+      row?: PeginPollingContextValue;
+      modal?: PeginPollingContextValue;
     } = {};
-    function CaptureOuter() {
-      captured.outer = usePeginPolling();
+    function DashboardRow() {
+      captured.row = usePeginPolling();
       return null;
     }
-    function CaptureNested() {
-      captured.nested = usePeginPolling();
+    function SigningModal() {
+      captured.modal = usePeginPolling();
       return null;
     }
-    const outerActions = (id: string) =>
-      captured.outer?.getPollingResult(id)?.peginState.availableActions;
+    const rowActions = (id: string) =>
+      captured.row?.getPollingResult(id)?.peginState.availableActions;
 
     render(
       <PeginPollingProvider
@@ -255,31 +282,25 @@ describe("PeginPollingContext", () => {
         pendingPegins={[]}
         btcPublicKey={BTC_PUBKEY}
       >
-        <CaptureOuter />
-        <PeginPollingProvider
-          activities={[ACTIVITY]}
-          pendingPegins={[]}
-          btcPublicKey={BTC_PUBKEY}
-        >
-          <CaptureNested />
-        </PeginPollingProvider>
+        <DashboardRow />
+        <SigningModal />
       </PeginPollingProvider>,
     );
 
-    expect(outerActions(ACTIVITY_ID)).toContain(
+    expect(rowActions(ACTIVITY_ID)).toContain(
       PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     );
 
     act(() => {
-      captured.nested?.setOptimisticStatus(
+      captured.modal?.setOptimisticStatus(
         ACTIVITY_ID,
         LocalStorageStatus.PAYOUT_SIGNED,
       );
     });
 
-    expect(outerActions(ACTIVITY_ID)).toEqual([PeginAction.NONE]);
+    expect(rowActions(ACTIVITY_ID)).toEqual([PeginAction.NONE]);
     // The sibling the user has not signed keeps its button.
-    expect(outerActions(OTHER_ID)).toContain(
+    expect(rowActions(OTHER_ID)).toContain(
       PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     );
   });
@@ -942,5 +963,165 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.availableActions).toEqual([
       PeginAction.REFUND_HTLC,
     ]);
+  });
+
+  it("reports the deposit as loading while the protocol params are unresolved", () => {
+    // The provider now reads params non-blockingly, so an unresolved depth
+    // must present as "still loading" rather than a settled unknown — a card
+    // that renders a resolved state off missing params misreports progress.
+    mockProtocolParams.ready = false;
+
+    const { result } = renderProvider();
+
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+    expect(status?.loading).toBe(true);
+    expect(status?.requiredPrePeginDepth).toBeUndefined();
+  });
+
+  it("throws in dev when a second provider mounts alongside the first", () => {
+    // The guardrail. Two providers fork polling and optimistic-completion
+    // state, so an action completed under one stops hiding its button under
+    // the other — silent at runtime, and exactly the bug this tree was
+    // collapsed to remove. Siblings count, not just nesting.
+    const Tree = () => (
+      <>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+      </>
+    );
+
+    expect(() => render(<Tree />)).toThrow(
+      /PeginPollingProvider instances are mounted at once/,
+    );
+  });
+
+  it("gates the params reads on having deposits to evaluate", () => {
+    // The wiring half of the hook-level "fires no contract read while
+    // disabled" test: the provider must pass `activities.length > 0`, or the
+    // gate exists but nothing ever flips it.
+    const withDeposits = renderProvider();
+    expect(mockParamsEnabledCalls.at(-1)).toBe(true);
+    // Unmount before the empty-activities mount — the single-provider
+    // invariant (rightly) throws on two live providers.
+    withDeposits.unmount();
+
+    mockParamsEnabledCalls.length = 0;
+    render(
+      <PeginPollingProvider
+        activities={[]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <div />
+      </PeginPollingProvider>,
+    );
+    expect(mockParamsEnabledCalls.at(-1)).toBe(false);
+  });
+
+  it("recovers after the dev double-mount throw without a counter reset", () => {
+    // The throw happens inside an effect setup, which never registers its
+    // cleanup — so the offending mount's increment must be undone before
+    // throwing. Otherwise the counter stays elevated for the session and a
+    // CORRECTED tree (the second render here) keeps tripping the invariant
+    // on every HMR update until a full reload.
+    const Doubled = () => (
+      <>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <div />
+        </PeginPollingProvider>
+      </>
+    );
+    expect(() => render(<Doubled />)).toThrow(
+      /PeginPollingProvider instances are mounted at once/,
+    );
+
+    const Single = () => (
+      <PeginPollingProvider
+        activities={[ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <div />
+      </PeginPollingProvider>
+    );
+    expect(() => render(<Single />)).not.toThrow();
+  });
+
+  it("allows a provider to remount after the previous one unmounts", () => {
+    // The counter must not leak across mounts — RootLayout swaps its whole
+    // content subtree for the geo-block branch, so a legitimate remount would
+    // otherwise trip the invariant on the second visit.
+    const Tree = () => (
+      <PeginPollingProvider
+        activities={[ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <div />
+      </PeginPollingProvider>
+    );
+
+    render(<Tree />).unmount();
+    expect(() => render(<Tree />)).not.toThrow();
+  });
+
+  it("surfaces a protocol-params load failure on the deposit result", () => {
+    // Without this the params query could fail and every row would sit on
+    // "confirming" forever with nothing surfaced to the user.
+    const paramsError = new Error("protocol params unavailable");
+    mockProtocolParams.ready = false;
+    mockProtocolParams.error = paramsError;
+
+    const { result } = renderProvider();
+
+    expect(result.current.getPollingResult(ACTIVITY_ID)?.error).toBe(
+      paramsError,
+    );
+  });
+
+  it("reports a protocol-params failure as failed, not as still loading", () => {
+    // The queries have exhausted their retries, so `ready` can never flip. A
+    // result asserting `loading` beside that error would park every consumer on
+    // the loading branch forever — the frozen row this seam exists to prevent.
+    mockProtocolParams.ready = false;
+    mockProtocolParams.error = new Error("protocol params unavailable");
+
+    const { result } = renderProvider();
+
+    expect(result.current.getPollingResult(ACTIVITY_ID)?.loading).toBe(false);
+  });
+
+  it("still reports loading while the params are merely resolving", () => {
+    // The other half of the same rule: unresolved is not failed, and a cold
+    // load must not read as a settled "depth unknown".
+    mockProtocolParams.ready = false;
+    mockProtocolParams.error = null;
+
+    const { result } = renderProvider();
+
+    expect(result.current.getPollingResult(ACTIVITY_ID)?.loading).toBe(true);
   });
 });

@@ -47,11 +47,11 @@ export function createDaemonTerminalTracking(): DaemonTerminalTracking {
 }
 
 /**
- * App-scoped tracking shared by every mounted `PeginPollingProvider`, for the
- * same reason `terminalMilestones` shares its store: several providers can
- * observe the same vault at once, and the once-per-transition guarantee must
- * key to the vault, not to a provider instance. In-memory by design — a reload
- * resets it so the seeding rule re-suppresses prior-session terminals.
+ * App-scoped tracking, for the same reason `terminalMilestones` shares its
+ * store: the provider unmounts (geo-block branch, wallet churn) and the
+ * once-per-transition guarantee must key to the vault, not to a provider
+ * instance. In-memory by design — a reload resets it so the seeding rule
+ * re-suppresses prior-session terminals.
  */
 const sharedTracking = createDaemonTerminalTracking();
 
