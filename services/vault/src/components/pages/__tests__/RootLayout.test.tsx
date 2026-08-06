@@ -108,9 +108,9 @@ vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => {
 
 import RootLayout from "../RootLayout";
 
-function renderRootLayout() {
+function renderRootLayout(path = "/") {
   return render(
-    <MemoryRouter initialEntries={["/"]}>
+    <MemoryRouter initialEntries={[path]}>
       <RootLayout />
     </MemoryRouter>,
   );
@@ -128,6 +128,7 @@ beforeEach(() => {
 describe("RootLayout — header wiring", () => {
   it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
     networkMock.value = "mainnet";
+    walletMock.connected = true;
 
     renderRootLayout();
 
@@ -143,6 +144,7 @@ describe("RootLayout — header wiring", () => {
 
   it("signet: shows the page-title h1 and the NetworkBadge", () => {
     networkMock.value = "signet";
+    walletMock.connected = true;
 
     renderRootLayout();
 
@@ -151,6 +153,49 @@ describe("RootLayout — header wiring", () => {
     // Proves the NetworkBadge wiring reaches the DOM under realistic v3
     // conditions, not just that the JSX slot is reachable.
     expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
+  });
+
+  it("disconnected: drops the sidebar and page title for the entry chrome", () => {
+    walletMock.connected = true;
+    const { unmount } = renderRootLayout();
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    unmount();
+
+    walletMock.connected = false;
+    const { container } = renderRootLayout();
+
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    // Aave rides in as its own image so it keeps its brand colours rather than
+    // inheriting the Babylon wordmark's `currentColor`. It appears nowhere
+    // else on this screen, so it also pins the lockup to the header.
+    expect(screen.getByAltText("Aave")).toBeInTheDocument();
+    // Without a sidebar column to fill, the navbar takes the capped entry box.
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).toBeInTheDocument();
+  });
+
+  it("disconnected: keeps the legal links reachable via the entry footer", () => {
+    const { container } = renderRootLayout();
+
+    // The sidebar normally carries these, and it is gone on this screen.
+    const footer = container.querySelector("footer");
+    expect(footer).toHaveTextContent(COPY.nav.termsOfUse);
+    expect(footer).toHaveTextContent(COPY.nav.privacyPolicy);
+    expect(container.querySelectorAll("footer")).toHaveLength(1);
+  });
+
+  it("keeps the shell on the other routes while disconnected", () => {
+    // Only the landing is the entry frame. /vaults and /activity render
+    // disconnected states on purpose, and dropping the sidebar there would
+    // leave a desktop visitor with no navigation at all.
+    const { container } = renderRootLayout("/vaults");
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the critical-banner portal slot mounted across the mobile breakpoint", () => {

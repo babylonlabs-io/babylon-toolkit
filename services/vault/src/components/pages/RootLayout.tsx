@@ -16,11 +16,16 @@ import {
   useRef,
   useState,
 } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { AppSidebar, V3MobileNavigation } from "@/components/shared/AppSidebar";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import { BrandLockup } from "@/components/shared/BrandLockup";
+import { EntryFooter } from "@/components/shared/EntryFooter";
+import {
+  ENTRY_CONTENT_CLASS,
+  PAGE_CONTENT_CLASS,
+} from "@/components/shared/layoutClasses";
 import { SidebarFooter } from "@/components/shared/SidebarFooter";
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import { FeatureFlags } from "@/config";
@@ -78,9 +83,15 @@ export default function RootLayout() {
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
   const pageTitle = usePageTitle();
-  const showV3Sidebar = !isMobileView;
+  const { pathname } = useLocation();
 
   const isWalletConnected = btcConnected && ethConnected;
+  // One signal for "is this the entry frame", so the sidebar and the chrome
+  // that replaces it can never disagree. The other routes render disconnected
+  // states on purpose and keep their shell — without it a disconnected desktop
+  // visitor to /vaults would have no navigation at all.
+  const isEntryLayout = !isWalletConnected && pathname === "/";
+  const showV3Sidebar = !isMobileView && !isEntryLayout;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
@@ -211,15 +222,21 @@ export default function RootLayout() {
             // `PAGE_CONTENT_CLASS` overrides the `container` width core-ui's
             // Header applies by default, so the navbar shares the same content
             // box as the page body and footer.
-            containerClassName={PAGE_CONTENT_CLASS}
+            containerClassName={
+              isEntryLayout ? ENTRY_CONTENT_CLASS : PAGE_CONTENT_CLASS
+            }
             logo={
-              <Heading
-                variant="h5"
-                as="h1"
-                className="font-normal text-accent-primary"
-              >
-                {pageTitle}
-              </Heading>
+              isEntryLayout ? (
+                <BrandLockup />
+              ) : (
+                <Heading
+                  variant="h5"
+                  as="h1"
+                  className="font-normal text-accent-primary"
+                >
+                  {pageTitle}
+                </Heading>
+              )
             }
             mobileLogo={
               <div className="[&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
@@ -286,7 +303,8 @@ export default function RootLayout() {
               </AaveConfigProvider>
             </ActivatingVaultsProvider>
           )}
-          {isMobileView && (
+          {isEntryLayout && <EntryFooter />}
+          {isMobileView && !isEntryLayout && (
             // No page-level footer on desktop (the sidebar's own bottom block
             // covers it) but mobile has no sidebar at all, and
             // `V3MobileNavigation`'s copy of this block only renders inside

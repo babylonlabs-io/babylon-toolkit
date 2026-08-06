@@ -8,7 +8,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import type { ComponentType } from "react";
 
-import { SOCIAL_LINK_URLS } from "@/config/socialLinks";
+import { LEGAL_LINK_URLS, SOCIAL_LINK_URLS } from "@/config/socialLinks";
 import { COPY } from "@/copy";
 
 interface SidebarSocialLink {
@@ -55,16 +55,16 @@ export function SidebarFooter() {
       </div>
       <p className="w-full text-sm tracking-[0.17px] text-accent-secondary">
         <a
-          href="https://babylonlabs.io/terms-of-use"
+          href={LEGAL_LINK_URLS.termsOfUse}
           target="_blank"
           rel="noopener noreferrer"
           className="transition-colors hover:text-accent-primary"
         >
           {COPY.nav.termsOfUse}
         </a>
-        {" - "}
+        {COPY.footer.legalSeparator}
         <a
-          href="https://babylonlabs.io/privacy-policy"
+          href={LEGAL_LINK_URLS.privacyPolicy}
           target="_blank"
           rel="noopener noreferrer"
           className="transition-colors hover:text-accent-primary"

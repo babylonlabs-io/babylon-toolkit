@@ -1233,6 +1233,13 @@ export const COPY = {
     // components/shared/NetworkBadge.tsx).
     networkBadge: "Testnet",
   },
+  // Entry-screen footer (components/shared/EntryFooter.tsx). The legal link
+  // labels it renders are the shared `nav` ones.
+  footer: {
+    copyright: (year: number) =>
+      `© ${year} Babylon Labs. All rights reserved.`,
+    legalSeparator: " - ",
+  },
   // v3 Explore page (components/pages/Explore.tsx). Per-app names/descriptions
   // are dataset content and live in config/exploreApps.ts, not here.
   explore: {
@@ -1342,23 +1349,37 @@ export const COPY = {
     liquidationPriceLabel: "Liquidation price",
     pctToLiquidationLabel: "% to liquidation",
     disconnected: {
-      heroTitle: "Native Bitcoin backed borrowing",
+      // Only the dot of the first "i" in Bitcoin is orange. `dotless` (U+0131)
+      // is the same glyph minus its tittle — the app paints it over `dotted` in
+      // the heading color, leaving just the dot orange, which is how the Figma
+      // headline was drawn. Both share one advance width, so nothing shifts.
+      heroTitle: {
+        lead: "Borrow against native ",
+        accentWord: {
+          before: "B",
+          dotted: "i",
+          dotless: "ı",
+          after: "tcoin,",
+        },
+        rest: " trustlessly.",
+      },
       heroBody:
-        "Powered by Babylon Trustless Bitcoin Vault protocol, collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave V4.",
+        "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave V4.",
       connectButton: "Connect Wallet",
+      aprHeading: "Current Borrowing Rates",
+      aprSuffix: "p.a.",
       aprLabels: {
-        usdt: "USDT APR",
-        usdc: "USDC APR",
-        wbtc: "WBTC APR",
+        usdt: "USDT",
+        usdc: "USDC",
+        wbtc: "WBTC",
       },
       stats: {
-        capLabel: "Cap",
+        tvlLabel: "TVL:",
+        capLabel: "Deposit Cap:",
         capValue: (deposited: string, total: string) =>
-          `${deposited}/${total} Bitcoin`,
+          `${deposited}/${total} BTC`,
         capUncapped: "Uncapped",
-        maxCfLabel: "Max CF",
-        loanProcessTimeLabel: "Loan process time",
-        loanProcessTimeValue: "~3 hours",
+        maxCfLabel: "Borrow up to:",
       },
       features: {
         competitiveRates: {
@@ -1374,11 +1395,11 @@ export const COPY = {
           body: "for any loan position backed by multiple trustless Bitcoin vaults.",
         },
         selfCustodial: {
-          title: "Self-custodial and native",
+          title: "Native, trustless, and self-custodial",
           body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault — with no third party or signing quorum able to move or rehypothecate it.",
         },
         trustless: {
-          title: "Trustless, permissionless execution",
+          title: "Verifiable, permissionless execution",
           body: "Collateral rules are enforced by code and cryptographic proofs — not by discretionary gatekeepers, committees, or off-chain liquidation decisions.",
         },
       },

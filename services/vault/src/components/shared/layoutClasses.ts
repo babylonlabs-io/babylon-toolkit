@@ -28,6 +28,15 @@ export const MODAL_TOP_BAR_GUTTER_CLASS = "mx-10 md:mx-[120px]";
  */
 export const PAGE_CONTENT_CLASS = "!w-auto !max-w-none !px-0 mx-10";
 
+/**
+ * Content box of the entry screen, which hides the sidebar and so has no column
+ * to fill. 1280px cap with the 40px gutter puts the content at Figma's 1200px
+ * wide, 120px from each edge of the 1440 frame. Shared by the navbar, the page
+ * body and the footer so the three stay aligned; the header's own divider sits
+ * outside this box and stays full-bleed.
+ */
+export const ENTRY_CONTENT_CLASS = "!w-auto !max-w-[1280px] !px-10 mx-auto";
+
 /** Width + vertical padding for the dashboard section summary cards. */
 export const SUMMARY_CARD_CLASS = "w-full border-0 !py-[34px]";
 

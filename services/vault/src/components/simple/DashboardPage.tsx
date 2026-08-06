@@ -12,7 +12,10 @@ import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import {
+  ENTRY_CONTENT_CLASS,
+  PAGE_CONTENT_CLASS,
+} from "@/components/shared/layoutClasses";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -101,7 +104,7 @@ export function DashboardPage() {
     borrowedAssets,
   });
 
-  const { snapshot: capSnapshot } = useApplicationCap(
+  const { snapshot: capSnapshot, error: capError } = useApplicationCap(
     isConnected ? address : undefined,
   );
 
@@ -231,8 +234,8 @@ export function DashboardPage() {
       // `my-auto` completes the Container's built-in `mx-auto` to a full
       // `margin: auto`, vertically centering the disconnected landing screen in
       // the remaining viewport height.
-      <Container className={`${PAGE_CONTENT_CLASS} my-auto pb-6`}>
-        <DisconnectedOverview capSnapshot={capSnapshot} />
+      <Container className={`${ENTRY_CONTENT_CLASS} my-auto pb-6`}>
+        <DisconnectedOverview capSnapshot={capSnapshot} capError={capError} />
       </Container>
     );
   }

@@ -5,7 +5,6 @@ interface FeatureCardProps {
   icon: ReactNode;
   title: string;
   body: string;
-  extra?: ReactNode;
   expandable?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
@@ -15,7 +14,6 @@ export function FeatureCard({
   icon,
   title,
   body,
-  extra,
   expandable = false,
   expanded = false,
   onToggle,
@@ -34,32 +32,27 @@ export function FeatureCard({
         >
           {body}
         </span>
-        {extra && showFull && <div className="mt-2">{extra}</div>}
       </div>
       {expandable && (
         <ChevronRightIcon
           size={18}
           variant="secondary"
-          className={`mt-1 shrink-0 transition-transform ${expanded ? "-rotate-90" : ""}`}
+          className={`mt-1 shrink-0 transition-transform duration-[var(--motion-duration-icon)] ease-[var(--motion-ease-icon)] ${expanded ? "-rotate-90" : ""}`}
         />
       )}
     </div>
   );
 
-  return (
-    <div className="rounded bg-secondary-highlight">
-      {expandable ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          className="w-full p-3 text-left"
-        >
-          {content}
-        </button>
-      ) : (
-        <div className="p-3">{content}</div>
-      )}
-    </div>
+  return expandable ? (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className="w-full p-3 text-left"
+    >
+      {content}
+    </button>
+  ) : (
+    <div className="p-3">{content}</div>
   );
 }
