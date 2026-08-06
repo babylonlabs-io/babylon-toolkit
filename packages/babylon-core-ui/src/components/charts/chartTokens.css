@@ -1,0 +1,29 @@
+/* Neutral chart chrome shared by every chart family (gridlines, axis text,
+ * tooltip/callout surfaces). Series and semantic colours stay with each chart.
+ *
+ * These live at :root rather than on the chart element because hover popovers
+ * render in a portal outside the chart subtree and must still inherit them.
+ * The dark selector must list every signal a consumer sets — `.dark`,
+ * `data-mode`, `data-theme` — since matching only one leaves a dark app drawing
+ * light gridlines. */
+:root {
+  --bbn-chart-gridline: #e5e5e5;
+  --bbn-chart-axis-text: #666666;
+  --bbn-chart-surface: #ffffff;
+  --bbn-chart-surface-text: #111111;
+  --bbn-chart-surface-muted: #666666;
+  --bbn-chart-surface-stroke: #e5e5e5;
+  --bbn-chart-surface-stroke-strong: #c4c4c4;
+}
+
+:root.dark,
+:root[data-mode="dark"],
+:root[data-theme="dark"] {
+  --bbn-chart-gridline: #2f2f2f;
+  --bbn-chart-axis-text: #b0b0b0;
+  --bbn-chart-surface: #202020;
+  --bbn-chart-surface-text: #ffffff;
+  --bbn-chart-surface-muted: #b0b0b0;
+  --bbn-chart-surface-stroke: #2f2f2f;
+  --bbn-chart-surface-stroke-strong: #5a5a5a;
+}

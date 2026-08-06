@@ -10,6 +10,8 @@
  *                 empty renders the frame + band gutter without marks.
  */
 
+import type { ChartAxisTick, ChartGridConfig } from "../charts/types";
+
 /** Band colour lane. Maps to the `--liq-band-*` tokens in the chart CSS. */
 export type LiquidationBandTone = "1" | "2" | "3";
 
@@ -75,23 +77,12 @@ export type LiquidationChartVariant = "full" | "compact";
  * adjacent ticks. Order top→bottom (descending value); band `priceTop`/
  * `priceBottom` should coincide with tick values.
  */
-export interface PriceAxisTick {
-  value: number;
-  label: string;
-}
+export type PriceAxisTick = ChartAxisTick;
 
 /** An x-axis tick placed at an explicit fraction [0,1] of the plot. */
 export interface ShareAxisTick {
   fraction: number;
   label: string;
-}
-
-/** Background grid configuration, shared by both charts. */
-export interface ChartGridConfig {
-  /** Which gridlines render. Default `"both"`. */
-  lines?: "both" | "horizontal" | "none";
-  /** Gridline stroke style. Default `"dashed"`. */
-  style?: "dashed" | "dotted" | "solid";
 }
 
 interface LiquidationChartBase {

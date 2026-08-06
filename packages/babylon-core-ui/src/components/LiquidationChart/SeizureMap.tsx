@@ -6,10 +6,11 @@ import { Text } from "@visx/text";
 import { twJoin } from "tailwind-merge";
 import "./LiquidationChart.css";
 import { BandLayer, type BandRect } from "./BandLayer";
-import { ChartFrame, useChartLayout } from "./ChartFrame";
-import { BAND_RADIUS_PX, LEGEND_GAP_PX, LEGEND_PAD_X_PX, type ChartLayout } from "./chartGeometry";
+import { ChartFrame } from "./ChartFrame";
+import { BAND_RADIUS_PX, LEGEND_GAP_PX, LEGEND_PAD_X_PX } from "./chartGeometry";
+import { useChartLayout, type ChartLayout } from "../charts/chartLayout";
 import { createSegmentedPriceScale } from "./priceScale";
-import { chartFont, truncateToWidth } from "./textMeasure";
+import { chartFont, truncateToWidth } from "../charts/textMeasure";
 import type { LiquidationBand, SeizureMapProps } from "./types";
 
 /** Collateral-share legend strip above the plot (0.6 BTC / 0.4 BTC / …).

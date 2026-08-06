@@ -9,10 +9,10 @@ import {
   SAFEZONE_LINE_GAP_PX,
   SAFEZONE_PAD_X_PX,
   SAFEZONE_PAD_Y_PX,
-  TEXT_LINE_HEIGHT,
 } from "./chartGeometry";
+import { TEXT_LINE_HEIGHT } from "../charts/chartLayout";
 import type { PriceScale } from "./priceScale";
-import { chartFont, truncateToWidth } from "./textMeasure";
+import { chartFont, truncateToWidth } from "../charts/textMeasure";
 import type { LiquidationBand, SafeZone } from "./types";
 
 export interface SeizureGutterProps {

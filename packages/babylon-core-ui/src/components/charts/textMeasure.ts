@@ -8,7 +8,7 @@
 
 const ELLIPSIS = "…";
 
-/** Matches `.bbn-liq-chart`'s font stack; a mismatch would drift every width. */
+/** Matches the chart font stack in CSS; a mismatch would drift every width. */
 export function chartFont(fontSizePx: number): string {
   return `${fontSizePx}px "Px Grotesk", sans-serif`;
 }

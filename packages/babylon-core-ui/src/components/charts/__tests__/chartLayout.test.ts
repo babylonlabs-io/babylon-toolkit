@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeChartLayout } from "../chartGeometry";
+import { computeChartLayout } from "../chartLayout";
 
 describe("computeChartLayout", () => {
   it("resolves the reference layout at the 1016px design width", () => {
