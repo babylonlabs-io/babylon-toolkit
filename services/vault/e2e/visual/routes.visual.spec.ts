@@ -15,7 +15,6 @@
 import type { Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, test } from "../fixtures";
 import { mockEthRpc, mockGraphql } from "../fixtures/networkRoutes";
@@ -27,10 +26,7 @@ import {
   VISUAL_VIEWPORTS,
 } from "./targets";
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-
-const OUTPUT_DIR =
-  process.env.VISUAL_OUT_DIR ?? path.join(currentDir, "__captures__");
+import { VISUAL_OUTPUT_DIR as OUTPUT_DIR } from "../../playwright.visual.config";
 
 /**
  * Nothing may leave the machine during a capture. The mocks below cover

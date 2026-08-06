@@ -20,17 +20,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const VISUAL_PORT = 6007;
 
-/** Where the static Storybook is built to, and served from. */
-export const STORYBOOK_STATIC_DIR =
-  process.env.STORYBOOK_STATIC_DIR ?? path.join(__dirname, "storybook-static");
+/**
+ * Where the static Storybook is built to, and served from.
+ *
+ * A plain constant rather than an env override: `.github/scripts/
+ * visual-capture.sh` builds with a hardcoded `-o storybook-static`, so an
+ * override would move where the spec and preview server *look* without
+ * moving where the build *writes* - breaking the capture instead of
+ * redirecting it. The spec imports this so the path is defined once.
+ */
+export const STORYBOOK_STATIC_DIR = path.join(__dirname, "storybook-static");
 
 export default defineConfig({
   testDir: path.join(__dirname, "visual"),
   testMatch: "**/*.visual.spec.ts",
-  fullyParallel: false,
-  // Stories are independent, so parallelism is safe here - unlike the
-  // vault capture, which shares one dev server. Kept modest so the
-  // machine's load does not affect render timing.
+  // Stories are independent, so parallelism is safe here - unlike the vault
+  // capture, which shares one dev server. This must be true to have any
+  // effect: with it false Playwright parallelises per FILE, and every story
+  // comes from the single spec below, so the run was silently single-worker.
+  fullyParallel: true,
+  // Kept modest so the machine's load does not affect render timing.
   workers: 2,
   retries: 0,
   forbidOnly: false,
@@ -42,7 +51,10 @@ export default defineConfig({
     headless: true,
     baseURL: `http://localhost:${VISUAL_PORT}`,
     // Triggers the global animation/transition reset in src/index.css.
-    reducedMotion: "reduce",
+    // MUST sit under `contextOptions`: `reducedMotion` is not a top-level
+    // `use` option, so Playwright silently ignores it there and every story
+    // was being photographed with animations still running.
+    contextOptions: { reducedMotion: "reduce" },
     colorScheme: "light",
     deviceScaleFactor: 1,
     trace: "off",

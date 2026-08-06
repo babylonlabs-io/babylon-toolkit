@@ -20,11 +20,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
+import { STORYBOOK_STATIC_DIR } from "../playwright.visual.config";
 
-const STORYBOOK_STATIC_DIR =
-  process.env.STORYBOOK_STATIC_DIR ??
-  path.join(currentDir, "..", "storybook-static");
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 const OUTPUT_DIR =
   process.env.VISUAL_OUT_DIR ?? path.join(currentDir, "__captures__");
@@ -161,8 +159,20 @@ for (const storyId of storyIds) {
     // permanently empty. Checking for *any* painted element then fails on
     // stories that intentionally render nothing (TopBanner's `Hidden`).
     // `sb-show-main` is correct for all three.
+    // Waits for ANY terminal mode, not just the successful one. Storybook's
+    // `showMode` removes every other mode class as it adds one, so a story
+    // that throws never gets `sb-show-main` — gating on that alone made this
+    // time out after the full 20s and left the error check below unreachable,
+    // turning an actionable message into an opaque timeout.
     await page.waitForFunction(
-      () => document.body.classList.contains("sb-show-main"),
+      () => {
+        const { classList } = document.body;
+        return (
+          classList.contains("sb-show-main") ||
+          classList.contains("sb-show-errordisplay") ||
+          classList.contains("sb-show-nopreview")
+        );
+      },
       undefined,
       { timeout: STORY_RENDER_TIMEOUT_MS },
     );

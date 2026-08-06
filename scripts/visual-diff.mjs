@@ -18,6 +18,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
@@ -30,11 +31,29 @@ import { PNG } from "pngjs";
 const PIXEL_MATCH_THRESHOLD = 0.1;
 
 /**
- * Changed pixels below this fraction of the image are reported but do
- * not mark the run as changed. Guards against a stray subpixel without
- * hiding anything a reviewer would notice.
+ * Changed pixels below this fraction of the image are reported but do not
+ * mark the run as changed. Guards against a stray subpixel without hiding
+ * anything a reviewer would notice.
+ *
+ * A ratio alone loses sensitivity as a page grows: at 1280x4000 it absorbs
+ * ~512 pixels, about a 24x24 icon. `MIN_CHANGED_PIXELS` is the floor that
+ * holds sensitivity constant regardless of capture height, and the effective
+ * cutoff is the larger of the two.
  */
 const CHANGED_RATIO_TOLERANCE = 0.0001;
+
+/**
+ * Absolute floor, in pixels, below which a difference is treated as noise no
+ * matter how large the image. Sized well under a glyph or icon: real diffs
+ * measured on this harness's own runs landed at 0.090%-0.569% of the frame,
+ * hundreds to thousands of pixels, so there is ample headroom above this.
+ */
+const MIN_CHANGED_PIXELS = 24;
+
+/** The cutoff a capture must exceed to count as changed. */
+export function changedPixelCutoff(width, height) {
+  return Math.max(MIN_CHANGED_PIXELS, CHANGED_RATIO_TOLERANCE * width * height);
+}
 
 const STATUS = {
   UNCHANGED: "unchanged",
@@ -44,7 +63,7 @@ const STATUS = {
   SIZE_CHANGED: "size-changed",
 };
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = new Map();
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
@@ -83,7 +102,7 @@ async function readPng(file) {
   return PNG.sync.read(await fs.readFile(file));
 }
 
-async function compareOne(name, baselineDir, candidateDir, outDir) {
+export async function compareOne(name, baselineDir, candidateDir, outDir) {
   const baseline = await readPng(path.join(baselineDir, name));
   const candidate = await readPng(path.join(candidateDir, name));
 
@@ -113,7 +132,7 @@ async function compareOne(name, baselineDir, candidateDir, outDir) {
   );
 
   const changedRatio = changedPixels / (width * height);
-  const changed = changedRatio > CHANGED_RATIO_TOLERANCE;
+  const changed = changedPixels > changedPixelCutoff(width, height);
 
   if (changed) {
     await fs.writeFile(path.join(outDir, "diff", name), PNG.sync.write(diff));
@@ -310,7 +329,13 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error.message}\n`);
-  process.exitCode = 1;
-});
+// Only run as a CLI. Importing this module (the unit tests do) must not
+// execute a diff.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    // Stack, not just message: a PNG.sync.read failure on a truncated
+    // capture is near-undiagnosable from the message alone.
+    process.stderr.write(`${error.stack ?? error.message}\n`);
+    process.exitCode = 1;
+  });
+}

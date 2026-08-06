@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MOCK_ENV_VARS } from "./playwright.config";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -22,30 +24,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const VISUAL_PORT = 5177;
 
-/** Where captured PNGs land. CI sets this per side (baseline vs candidate). */
+/**
+ * Where captured PNGs land. CI sets this per side (baseline vs candidate).
+ * Exported so `e2e/visual/routes.visual.spec.ts` imports it rather than
+ * recomputing the same default.
+ */
 export const VISUAL_OUTPUT_DIR =
   process.env.VISUAL_OUT_DIR ?? path.join(__dirname, "e2e/visual/__captures__");
 
 /**
- * Same mock backend the e2e config pins, so no screen reaches a live
- * host. Feature flags are forced ON: the v3 shell and its sections are
- * the surface worth protecting, and a flag that flips between the two
- * sides would otherwise read as a visual regression.
+ * The e2e config's mock backend, so no screen reaches a live host, plus the
+ * capture-only overrides. Spread rather than copied: a hand-maintained second
+ * copy would drift silently, and the capture would still pass — against a
+ * different app than the e2e suite tests.
+ *
+ * Feature flags are forced ON because the v3 shell and its sections are the
+ * surface worth protecting, and a flag that flipped between the two sides
+ * would read as a visual regression.
  */
 const VISUAL_ENV_VARS = {
-  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY:
-    "0x0000000000000000000000000000000000000001",
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER: "0x0000000000000000000000000000000000000002",
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG:
-    "0x0000000000000000000000000000000000000003",
-  NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: "http://localhost:9999/graphql",
-  NEXT_PUBLIC_TBV_VP_PROXY_URL: "http://localhost:9998",
-  NEXT_PUBLIC_ETH_RPC_URL: "http://localhost:9997/rpc",
-  NEXT_PUBLIC_MEMPOOL_API: "http://localhost:9996/mempool",
-  NEXT_PUBLIC_REOWN_PROJECT_ID: "test-project-id-12345",
-  NEXT_PUBLIC_E2E_MODE: "1",
-  // Sentry off: a capture run must not transmit anything.
+  ...MOCK_ENV_VARS,
+  // Sentry off: a capture run must not transmit anything. The e2e suite
+  // needs the opposite (it asserts on tunnelled events).
   NEXT_PUBLIC_SENTRY_DSN: "",
+  NEXT_PUBLIC_SENTRY_TUNNEL_URL: "",
   NEXT_PUBLIC_FF_ENABLE_V3_UI: "true",
   NEXT_PUBLIC_FF_ENABLE_EXPLORE: "true",
   NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART: "true",
@@ -69,8 +71,12 @@ export default defineConfig({
   use: {
     headless: true,
     baseURL: `http://localhost:${VISUAL_PORT}`,
-    // Triggers core-ui's global animation/transition reset.
-    reducedMotion: "reduce",
+    // Triggers core-ui's global animation/transition reset. MUST sit under
+    // `contextOptions`: `reducedMotion` is not a top-level `use` option, so
+    // Playwright silently ignores it there and every route was being
+    // photographed with animations still running — which is also what left
+    // `waitForVisualStability` chasing motion for its full timeout.
+    contextOptions: { reducedMotion: "reduce" },
     // Pin both: the OS/browser default would otherwise decide, and the
     // app themes off `prefers-color-scheme`.
     colorScheme: "light",

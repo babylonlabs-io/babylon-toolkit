@@ -33,12 +33,24 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin "${{ github.base_ref }}"
-          # Compare against the merge-base, NOT origin/main's head. Using
-          # main's head would attribute every UI change merged by someone
-          # else while this PR was open to this PR.
+          # On `pull_request`, actions/checkout gives us refs/pull/N/merge —
+          # the merge commit — so this resolves to the base branch's TIP, not
+          # to the PR's true merge-base. That is deliberate and is the
+          # property we want: comparing the merge commit against the base tip
+          # isolates this PR's own contribution, because anything merged by
+          # someone else while the PR was open renders identically on both
+          # sides and cancels out. Do not "fix" this to a true merge-base
+          # without re-reasoning about that; it would silently start
+          # attributing other people's UI changes to this PR.
           MERGE_BASE="$(git merge-base "origin/${{ github.base_ref }}" HEAD)"
           echo "merge_base=${MERGE_BASE}" >> "$GITHUB_OUTPUT"
+          # Checked back out after the baseline capture. This is the merge
+          # commit, which is what must be restored to leave the tree as found.
           echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # Reported to humans instead of head_sha: the merge commit appears
+          # in none of the PR's own commits, so citing it sends readers
+          # looking for a SHA they will never find in the branch.
+          echo "report_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
           echo "Baseline will be computed from ${MERGE_BASE}"
 
       - name: Setup Node.js
@@ -81,13 +93,20 @@ jobs:
           cp services/vault/playwright.visual.config.ts "$H/"
           cp -R packages/babylon-core-ui/visual "$H/core-ui-visual"
           cp packages/babylon-core-ui/playwright.visual.config.ts "$H/core-ui-playwright.visual.config.ts"
-          cp scripts/visual-diff.mjs "$H/"
+          # NOTE: visual-diff.mjs is deliberately NOT stashed. The diff step
+          # runs after "Restore PR head", so it already reads the tracked
+          # copy from the working tree; a stashed copy would never be read.
           # The runner script itself. Easy to forget, and forgetting it fails
           # the baseline side with a bare "No such file or directory": the
           # script does not exist at the merge-base either.
           cp .github/scripts/visual-capture.sh "$H/"
 
+      # Advisory check: one story that never settles must not cost the whole
+      # report. The diff step reports whichever side is missing instead, and
+      # the summary/comment branch on whether the comparison actually ran.
       - name: Capture candidate (PR head)
+        id: capture-candidate
+        continue-on-error: true
         env:
           CAPTURE_ROOT: ${{ runner.temp }}/visual/candidate
         run: ./.github/scripts/visual-capture.sh
@@ -120,6 +139,8 @@ jobs:
       # are rebuilt from the checked-out source. A PR that only bumps an
       # external UI dependency will not show a diff.
       - name: Capture baseline (merge-base)
+        id: capture-baseline
+        continue-on-error: true
         env:
           CAPTURE_ROOT: ${{ runner.temp }}/visual/baseline
         run: ./.github/scripts/visual-capture.sh
@@ -133,12 +154,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "${{ runner.temp }}/visual"
           TOTAL_CHANGED=0
+          COMPARED=0
           for SURFACE in vault storybook; do
             BASE="${{ runner.temp }}/visual/baseline/${SURFACE}"
             CAND="${{ runner.temp }}/visual/candidate/${SURFACE}"
             OUT="${{ runner.temp }}/visual/report/${SURFACE}"
-            [ -d "$CAND" ] || { echo "No candidate captures for ${SURFACE}, skipping."; continue; }
+            # Either capture may have been cut short (both are
+            # continue-on-error), so name the missing side rather than
+            # letting the diff die on a bare ENOENT.
+            if [ ! -d "$CAND" ] || [ -z "$(ls -A "$CAND" 2>/dev/null)" ]; then
+              echo "No candidate captures for ${SURFACE} - capture did not complete." \
+                | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              continue
+            fi
+            if [ ! -d "$BASE" ] || [ -z "$(ls -A "$BASE" 2>/dev/null)" ]; then
+              echo "No baseline captures for ${SURFACE} - nothing to compare against." \
+                | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              continue
+            fi
+            COMPARED=$((COMPARED + 1))
             echo "### ${SURFACE}" | tee -a "${{ runner.temp }}/visual/diff-output.txt"
             node scripts/visual-diff.mjs \
               --baseline "$BASE" --candidate "$CAND" --out "$OUT" \
@@ -149,6 +185,9 @@ jobs:
             TOTAL_CHANGED=$((TOTAL_CHANGED + N))
           done
           echo "changed_count=${TOTAL_CHANGED}" >> "$GITHUB_OUTPUT"
+          # Distinguishes "compared, nothing changed" from "compared nothing".
+          # Without it a zero count reads as a clean run either way.
+          echo "compared_surfaces=${COMPARED}" >> "$GITHUB_OUTPUT"
 
       - name: Upload visual report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
@@ -160,20 +199,33 @@ jobs:
 
       - name: Summarise
         if: always()
+        env:
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
+          CHANGED: ${{ steps.diff.outputs.changed_count }}
+          COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
         shell: bash
         run: |
           {
             echo "## Visual regression"
             echo ""
-            echo "Baseline \`${{ steps.refs.outputs.merge_base }}\` (merge-base) vs candidate \`${{ steps.refs.outputs.head_sha }}\`."
+            echo "Baseline \`${{ steps.refs.outputs.merge_base }}\` vs candidate \`${{ steps.refs.outputs.report_sha }}\`."
             echo ""
-            if [ "${{ steps.diff.outputs.changed_count }}" = "0" ]; then
-              echo ":white_check_mark: No visual changes detected."
-            else
-              echo ":framed_picture: **${{ steps.diff.outputs.changed_count }} screen(s) changed.**"
+            # Branch on whether a comparison happened at all. An unset or
+            # empty CHANGED must never render as ":white_check_mark:" —
+            # "nothing was compared" is not "nothing changed".
+            if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
+              echo ":warning: The capture or comparison did not complete - no visual comparison was made."
               echo ""
               echo '```'
-              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              echo '```'
+            elif [ "${CHANGED}" = "0" ]; then
+              echo ":white_check_mark: No visual changes detected."
+            else
+              echo ":framed_picture: **${CHANGED} screen(s) changed.**"
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -181,11 +233,17 @@ jobs:
       # Sticky comment: edits the previous one instead of stacking one per
       # push. Uses the preinstalled gh CLI rather than adding a third-party
       # action, per the repo's supply-chain policy.
+      # Skipped on fork PRs: `pull_request` hands them a read-only token
+      # regardless of the `permissions:` block above, so the POST would 403
+      # and fail an advisory check for every external contributor. The job
+      # summary carries the same content for those runs.
       - name: Comment on the PR
-        if: always()
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
           CHANGED: ${{ steps.diff.outputs.changed_count }}
+          COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
@@ -197,7 +255,16 @@ jobs:
             echo "$MARKER"
             echo "### Visual regression"
             echo ""
-            if [ "${CHANGED:-0}" = "0" ]; then
+            # `${CHANGED:-0}` substitutes on empty as well as unset, so a
+            # skipped or failed diff step used to collapse to 0 and post an
+            # affirmative "no visual changes". Claiming that when nothing was
+            # compared is worse than staying quiet, so the outcome is checked
+            # first.
+            if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
+              echo ":warning: The capture or comparison did not complete - no visual comparison was made."
+              echo ""
+              echo "[Open the run](${RUN_URL}) to see which step failed."
+            elif [ "${CHANGED}" = "0" ]; then
               echo ":white_check_mark: No visual changes against the merge-base."
             else
               echo ":framed_picture: **${CHANGED} screen(s) changed** against the merge-base."
