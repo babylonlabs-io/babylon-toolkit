@@ -21,7 +21,7 @@ import type { Address, Hex } from "viem";
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
-  getVaultProviderBtcPubkeyFromChain,
+  getVaultProviderGenesisBtcPubkeyFromChain,
 } from "@/clients/eth-contract/btc-vault-registry/query";
 import {
   getOperationKeyReader,
@@ -87,7 +87,7 @@ export async function verifyResumeParticipantKeys(params: {
       challengerReader.getUniversalChallengersByVersion(
         vault.universalChallengersVersion,
       ),
-      getVaultProviderBtcPubkeyFromChain(vault.vaultProvider as Address),
+      getVaultProviderGenesisBtcPubkeyFromChain(vault.vaultProvider as Address),
       getVaultKeyEpochsFromChain(vaultId),
     ]);
 

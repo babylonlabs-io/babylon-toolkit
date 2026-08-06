@@ -53,7 +53,7 @@ function buildRegistryReader(
     getVaultProtocolInfo: vi.fn(),
     getProtocolInfoBatch,
     getVaultData: vi.fn(),
-    getVaultProviderBtcPubKey: vi.fn(),
+    getVaultProviderGenesisBtcPubKey: vi.fn(),
     getPegInFee: vi.fn(),
     getVaultProviderCommission: vi.fn(),
     getOffchainParamsVersionsByVaultIds: vi.fn(),

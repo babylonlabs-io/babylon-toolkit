@@ -36,7 +36,7 @@ vi.mock("@/utils/rpc", async (importOriginal) => ({
 
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
-    getVaultProviderBtcPubKey: vi.fn(async () => "ab".repeat(32)),
+    getVaultProviderGenesisBtcPubKey: vi.fn(async () => "ab".repeat(32)),
   })),
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
