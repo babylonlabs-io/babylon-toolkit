@@ -1222,6 +1222,28 @@ export const COPY = {
       },
       empty: "No borrow markets available.",
     },
+    // Borrow APR history + interest rate model charts (Figma node
+    // 10088-61056). Labels follow this file's sentence-case rule;
+    // "Utilisation" is respelled to the American form this file mandates.
+    charts: {
+      borrowAprLabel: "Borrow APR",
+      // Header caption and the IRM card's legend entry — one string so the
+      // two can't drift apart in case.
+      utilizationRateLabel: "Utilization rate",
+      utilizationRateTooltip:
+        "The share of supplied liquidity currently borrowed. Higher utilization moves the market up this curve, raising the borrow rate.",
+      ranges: { d1: "1D", w1: "1W", m1: "1M", m6: "6M", y1: "1Y", all: "All" },
+      rateRange: (min: string, max: string) => `${min} – ${max}`,
+      currentCallout: (pct: string) => `Current ${pct}`,
+      optimalCallout: (pct: string) => `Optimal (Kink) ${pct}`,
+      calloutApr: (pct: string) => `APR ~ ${pct}`,
+      historyAriaLabel: (symbol: string) => `${symbol} borrow APR history`,
+      irmAriaLabel: (symbol: string) =>
+        `${symbol} borrow rate against utilization`,
+      chartUnavailable:
+        "Chart data is unavailable right now. Please try again shortly.",
+      historyEmpty: "No rate history yet for this market.",
+    },
   },
   nav: {
     overview: "Overview",

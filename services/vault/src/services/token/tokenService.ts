@@ -85,13 +85,29 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     decimals: 6,
     icon: TOKEN_ICONS.USDC,
   },
-  // USDC - Vault Devnet
-  "0xc137E7382AA220D59Cc25f76f9aD72De962020Db": {
-    address: "0xc137E7382AA220D59Cc25f76f9aD72De962020Db" as Address,
+  // USDC - Vault Devnet (2026-08 redeploy)
+  "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48": {
+    address: "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address,
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
     icon: TOKEN_ICONS.USDC,
+  },
+  // USDT - Vault Devnet (2026-08 redeploy)
+  "0xCFf21358114814258635524588f74521762A6c04": {
+    address: "0xCFf21358114814258635524588f74521762A6c04" as Address,
+    symbol: "USDT",
+    name: "Tether USD",
+    decimals: 6,
+    icon: TOKEN_ICONS.USDT,
+  },
+  // WBTC - Vault Devnet (2026-08 redeploy)
+  "0x504579d0424B7B7cB4b17e16626f6A2f67bCa054": {
+    address: "0x504579d0424B7B7cB4b17e16626f6A2f67bCa054" as Address,
+    symbol: "WBTC",
+    name: "Wrapped BTC",
+    decimals: 8,
+    icon: TOKEN_ICONS.WBTC,
   },
   // USDT
   "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {

@@ -71,6 +71,12 @@ const mockUseAaveBorrowAprs = vi.fn();
 const mockUseAaveReserveLiquidity = vi.fn();
 const mockUseAaveReservesPrices = vi.fn();
 const mockUseVaultSplitParams = vi.fn();
+// This suite isn't about the two chart cards (see BorrowRateHistoryCard.test.tsx
+// / InterestRateModelCard.test.tsx for their own behavior) — stubbed to their
+// empty/unavailable states so mounting the real page doesn't need a chart data
+// fixture or a LineChart mock here too.
+const mockUseBorrowRateHistory = vi.fn();
+const mockUseInterestRateModelCurve = vi.fn();
 vi.mock("@/applications/aave/hooks", () => ({
   useVerifiedReserveIdentity: (args: unknown) =>
     mockUseVerifiedReserveIdentity(args),
@@ -78,6 +84,8 @@ vi.mock("@/applications/aave/hooks", () => ({
   useAaveReserveLiquidity: () => mockUseAaveReserveLiquidity(),
   useAaveReservesPrices: () => mockUseAaveReservesPrices(),
   useVaultSplitParams: () => mockUseVaultSplitParams(),
+  useBorrowRateHistory: () => mockUseBorrowRateHistory(),
+  useInterestRateModelCurve: () => mockUseInterestRateModelCurve(),
 }));
 
 const mockUseDemoMarketData = vi.fn();
@@ -115,6 +123,20 @@ describe("BorrowingMarketsData", () => {
     mockUseAaveReservesPrices.mockReturnValue({ pricesByReserveId: {} });
     mockUseVaultSplitParams.mockReturnValue({ params: null });
     mockUseDemoMarketData.mockReturnValue(null);
+    mockUseBorrowRateHistory.mockReturnValue({
+      points: [],
+      isLoading: false,
+      error: null,
+    });
+    mockUseInterestRateModelCurve.mockReturnValue({
+      curve: null,
+      kinkUtilizationPercent: null,
+      currentUtilizationPercent: null,
+      currentAprPercent: null,
+      maxAprPercent: null,
+      isLoading: false,
+      error: null,
+    });
   });
 
   it("verifies the reserve the id resolves to, against its on-chain underlying", () => {

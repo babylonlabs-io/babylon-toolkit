@@ -3,10 +3,10 @@
  *
  * Everything on the page reads from the same three batched Hub queries over
  * `borrowableReserves`: the stats bar and the collateral card show the routed
- * symbol's slice, the table shows every reserve. The two charts are still
- * placeholders — the borrow-APR chart needs a rate time series and the
- * interest-rate-model chart needs the IRM curve parameters, and no source in
- * the app exposes either today.
+ * symbol's slice, the table shows every reserve. The two charts fetch their
+ * own data independently of that batch: `BorrowRateHistoryCard` queries the
+ * indexer for a rate time series and `InterestRateModelCard` reads the
+ * on-chain IRM curve — both keyed off the page's own `selectedReserve`.
  */
 
 import { Avatar, Container, Heading, Text } from "@babylonlabs-io/core-ui";
@@ -43,15 +43,11 @@ import {
 
 import type { BorrowMarketRow } from "./BorrowMarketsTable";
 import { BorrowMarketsTable } from "./BorrowMarketsTable";
+import { BorrowRateHistoryCard } from "./BorrowRateHistoryCard";
 import { CollateralInfoCard } from "./CollateralInfoCard";
+import { InterestRateModelCard } from "./InterestRateModelCard";
 import type { MarketStat } from "./MarketStatsBar";
 import { MarketStatsBar } from "./MarketStatsBar";
-
-/** Figma's card chrome and heights, so the page's rhythm is already right
- *  when the real charts land. */
-const CHART_CARD_CLASS = "w-full rounded-2xl bg-background-secondary";
-const BORROW_APR_CHART_HEIGHT_CLASS = "h-[300px]";
-const INTEREST_RATE_MODEL_CHART_HEIGHT_CLASS = "h-[392px]";
 
 /** Every USD figure here sits beside an always-uppercase token amount. */
 const UPPERCASE_MAGNITUDE_SUFFIX = true;
@@ -293,6 +289,18 @@ export default function BorrowingMarketsData() {
       ? COPY.common.emptyValue
       : formatBasisPointsAsPercent(effectiveCollateralFactor * BPS_SCALE);
 
+  // Same derivation the stats bar's "Market utilization" figure reads —
+  // reused rather than re-fetched so the IRM card's header always agrees
+  // with the stats bar above it.
+  const marketUtilizationValue = useMemo(() => {
+    const key = selectedReserve?.reserveId.toString();
+    const liquidity =
+      key === undefined ? null : effectiveLiquidityByReserveId[key];
+    return liquidity?.utilizationBps == null
+      ? COPY.common.emptyValue
+      : formatBasisPointsAsPercent(liquidity.utilizationBps);
+  }, [selectedReserve, effectiveLiquidityByReserveId]);
+
   const centered = (message: string) => (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="flex items-center justify-center py-12">
@@ -399,10 +407,14 @@ export default function BorrowingMarketsData() {
             assetName={COPY.marketData.collateral.assetName}
             collateralFactor={collateralFactor}
           />
-          <div
-            className={`${CHART_CARD_CLASS} ${BORROW_APR_CHART_HEIGHT_CLASS}`}
-            data-testid="market-section-borrow-apr-chart"
-          />
+          <div data-testid="market-section-borrow-apr-chart">
+            {selectedReserve !== null && (
+              <BorrowRateHistoryCard
+                reserveId={selectedReserve.reserveId}
+                symbol={symbol}
+              />
+            )}
+          </div>
         </section>
 
         <section
@@ -413,9 +425,13 @@ export default function BorrowingMarketsData() {
             title={COPY.marketData.interestRateModel.title}
             description={COPY.marketData.interestRateModel.description}
           />
-          <div
-            className={`${CHART_CARD_CLASS} ${INTEREST_RATE_MODEL_CHART_HEIGHT_CLASS}`}
-          />
+          {selectedReserve !== null && (
+            <InterestRateModelCard
+              reserve={selectedReserve}
+              utilizationValue={marketUtilizationValue}
+              symbol={symbol}
+            />
+          )}
         </section>
 
         <section

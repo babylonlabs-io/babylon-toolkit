@@ -7,7 +7,7 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import { useParentSize } from "@visx/responsive";
-import { getFontEpoch, subscribeFontEpoch } from "./textMeasure";
+import { AXIS_LETTER_SPACING_PX, chartFont, getFontEpoch, measureText, subscribeFontEpoch } from "./textMeasure";
 
 /** The plot's default aspect ratio (was `aspect-ratio: 1016 / 350`). */
 export const DEFAULT_PLOT_ASPECT_RATIO = 1016 / 350;
@@ -50,6 +50,27 @@ export const X_AXIS_MARGIN_TOP_PX = 6; // xaxis margin-top 0.375rem
 const LEGEND_PAD_Y_PX = 6; // legend-seg padding 0.375rem
 const LEGEND_MARGIN_BOTTOM_PX = 12; // top-legend margin-bottom 0.75rem
 
+/** Figma frames' `gap-[24px]` between the flush-left y-axis label column and
+ * the plot (see {@link measureYAxisGutter}). */
+export const Y_AXIS_LABEL_PLOT_GAP_PX = 24;
+
+/** The y-axis font size a given chart width implies. Shared by the fluid
+ * layout and the measured-gutter path so both agree on what size the tick
+ * labels actually render at. */
+function resolveAxisFontPx(chartWidth: number): number {
+  return resolveFluid(FONT_AXIS, chartWidth, rootFontPx());
+}
+
+/** Measures the flush-left y-axis label column: the widest tick label at this
+ * chart's axis font size, plus {@link Y_AXIS_LABEL_PLOT_GAP_PX}. No labels
+ * means no column — the plot spans the full chart width. */
+function measureYAxisGutter(chartWidth: number, labels: readonly string[]): number {
+  if (labels.length === 0) return 0;
+  const font = chartFont(resolveAxisFontPx(chartWidth));
+  const widest = Math.max(...labels.map((label) => measureText(label, font, AXIS_LETTER_SPACING_PX)));
+  return widest + Y_AXIS_LABEL_PLOT_GAP_PX;
+}
+
 /** Approximates a `line-height: normal` line box for Px Grotesk. */
 export const TEXT_LINE_HEIGHT = 1.2;
 
@@ -74,11 +95,14 @@ export function computeChartLayout(input: {
   hasXAxis: boolean;
   /** Plot width / plot height. Defaults to {@link DEFAULT_PLOT_ASPECT_RATIO}. */
   aspectRatio?: number;
+  /** Replaces the fluid gutter clamp when provided (see
+   * {@link measureYAxisGutter}); absent keeps the fluid clamp. */
+  gutterPx?: number;
 }): ChartLayout {
-  const { chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio = DEFAULT_PLOT_ASPECT_RATIO } = input;
+  const { chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio = DEFAULT_PLOT_ASPECT_RATIO, gutterPx } = input;
   const remPx = rootFontPx();
-  const gutter = resolveFluid(GUTTER, chartWidth, remPx);
-  const fontAxis = resolveFluid(FONT_AXIS, chartWidth, remPx);
+  const gutter = gutterPx ?? resolveFluid(GUTTER, chartWidth, remPx);
+  const fontAxis = resolveAxisFontPx(chartWidth);
   const fontLabel = resolveFluid(FONT_LABEL, chartWidth, remPx);
   const fontAmount = resolveFluid(FONT_AMOUNT, chartWidth, remPx);
 
@@ -115,6 +139,11 @@ export function useChartLayout(input: {
   hasTopLegend: boolean;
   hasXAxis: boolean;
   aspectRatio?: number;
+  /** y-axis tick label text. When provided (even as an empty array), the
+   * gutter is measured from these labels instead of the fluid clamp — pass
+   * `undefined` to keep the fluid gutter (the default for charts that don't
+   * render a flush-left label column). */
+  yAxisLabels?: readonly string[];
 }): {
   parentRef: (node: HTMLDivElement | null) => void;
   layout: ChartLayout;
@@ -126,18 +155,21 @@ export function useChartLayout(input: {
     initialSize: { width: FALLBACK_CHART_WIDTH_PX },
   });
   // Re-render when a webfont finishes loading so text measured against the
-  // fallback font is redone with the real metrics (see textMeasure.ts).
-  useSyncExternalStore(subscribeFontEpoch, getFontEpoch, getFontEpoch);
+  // fallback font is redone with the real metrics (see textMeasure.ts). The
+  // epoch is also a dependency of the layout memo below: measureYAxisGutter
+  // reads measureText, whose cache the font load invalidates outside React's
+  // dependency tracking.
+  const fontEpoch = useSyncExternalStore(subscribeFontEpoch, getFontEpoch, getFontEpoch);
   // `width` starts at the fallback (initialSize) and only becomes 0 when the
   // ResizeObserver reports a genuinely collapsed container — hidden tab,
   // zero-width flex child. Rendering the fallback there would paint a 1016px
   // chart across the siblings (the SVG overflows visibly), so collapse instead.
   const collapsed = width <= 0;
   const chartWidth = collapsed ? FALLBACK_CHART_WIDTH_PX : width;
-  const { axisSide, hasTopLegend, hasXAxis, aspectRatio } = input;
-  const layout = useMemo(
-    () => computeChartLayout({ chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio }),
-    [chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio],
-  );
+  const { axisSide, hasTopLegend, hasXAxis, aspectRatio, yAxisLabels } = input;
+  const layout = useMemo(() => {
+    const gutterPx = yAxisLabels === undefined ? undefined : measureYAxisGutter(chartWidth, yAxisLabels);
+    return computeChartLayout({ chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio, gutterPx });
+  }, [chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio, yAxisLabels, fontEpoch]);
   return { parentRef, layout, collapsed };
 }

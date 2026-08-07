@@ -22,7 +22,7 @@ const RAY = 10n ** 27n;
 const PERCENT_SCALE = 100;
 
 /** Converts a RAY-scaled rate to a percent number (e.g. 3.7 for 3.7%). */
-function rateRayToPercent(rateRay: bigint): number {
+export function rateRayToPercent(rateRay: bigint): number {
   return (Number(rateRay) / Number(RAY)) * PERCENT_SCALE;
 }
 
@@ -128,7 +128,7 @@ const HUB_RATE_ABI = [
   },
 ] as const;
 
-const IR_STRATEGY_ABI = [
+export const IR_STRATEGY_ABI = [
   {
     type: "function",
     name: "calculateInterestRate",
@@ -143,6 +143,109 @@ const IR_STRATEGY_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
+
+/** The totals snapshot the Hub feeds its rate strategy, plus the strategy address. */
+export interface HubAssetTotals {
+  liquidity: bigint;
+  /** getAssetOwed[0] — the strategy curve uses `drawn`; the premium is ignored. */
+  drawn: bigint;
+  swept: bigint;
+  /**
+   * Deficit in asset units. The Hub stores it RAY-scaled and feeds
+   * `deficitRay.fromRayUp()` (ceil-divide by RAY) into the rate call.
+   */
+  deficit: bigint;
+  irStrategy: Address;
+}
+
+export type HubAssetTotalsResult =
+  | { totals: HubAssetTotals; error: null }
+  | { totals: null; error: Error };
+
+/**
+ * One multicall reading the exact figures the Hub itself hands its
+ * interest-rate strategy: liquidity, drawn, swept, deficit and the strategy
+ * address. Shared by `getProjectedBorrowAprPercentsSafe` and the IRM curve
+ * reader (aaveIrm.ts) so both rate computations provably start from the same
+ * denominator. Reads are isolated with `allowFailure`; any revert or
+ * network-level throw comes back as an error rather than a throw.
+ */
+export async function readHubAssetTotalsSafe(
+  hub: Address,
+  assetIdArg: bigint,
+): Promise<HubAssetTotalsResult> {
+  const publicClient = ethClient.getPublicClient();
+
+  let totals;
+  try {
+    totals = await publicClient.multicall({
+      contracts: [
+        {
+          address: hub,
+          abi: HUB_RATE_ABI as Abi,
+          functionName: "getAssetLiquidity" as const,
+          args: [assetIdArg] as const,
+        },
+        {
+          address: hub,
+          abi: HUB_RATE_ABI as Abi,
+          functionName: "getAssetOwed" as const,
+          args: [assetIdArg] as const,
+        },
+        {
+          address: hub,
+          abi: HUB_RATE_ABI as Abi,
+          functionName: "getAssetSwept" as const,
+          args: [assetIdArg] as const,
+        },
+        {
+          address: hub,
+          abi: HUB_RATE_ABI as Abi,
+          functionName: "getAssetDeficitRay" as const,
+          args: [assetIdArg] as const,
+        },
+        {
+          address: hub,
+          abi: HUB_RATE_ABI as Abi,
+          functionName: "getAssetConfig" as const,
+          args: [assetIdArg] as const,
+        },
+      ],
+      allowFailure: true,
+    });
+  } catch (err) {
+    return {
+      totals: null,
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
+  }
+
+  const [liquidityCall, owedCall, sweptCall, deficitCall, configCall] = totals;
+  if (
+    liquidityCall.status !== "success" ||
+    owedCall.status !== "success" ||
+    sweptCall.status !== "success" ||
+    deficitCall.status !== "success" ||
+    configCall.status !== "success"
+  ) {
+    return {
+      totals: null,
+      error: new Error("Hub asset totals read reverted"),
+    };
+  }
+
+  const { irStrategy } = configCall.result as { irStrategy: Address };
+  return {
+    totals: {
+      liquidity: liquidityCall.result as bigint,
+      drawn: (owedCall.result as readonly bigint[])[0],
+      swept: sweptCall.result as bigint,
+      deficit: ceilDivRay(deficitCall.result as bigint),
+      irStrategy,
+    },
+    error: null,
+  };
+}
 
 /** Identifies one Hub asset to read reserve totals for. */
 export interface AssetLiquidityRequest {
@@ -320,72 +423,11 @@ export async function getProjectedBorrowAprPercentsSafe({
   const publicClient = ethClient.getPublicClient();
   const assetIdArg = BigInt(assetId);
 
-  let totals;
-  try {
-    totals = await publicClient.multicall({
-      contracts: [
-        {
-          address: hub,
-          abi: HUB_RATE_ABI as Abi,
-          functionName: "getAssetLiquidity" as const,
-          args: [assetIdArg] as const,
-        },
-        {
-          address: hub,
-          abi: HUB_RATE_ABI as Abi,
-          functionName: "getAssetOwed" as const,
-          args: [assetIdArg] as const,
-        },
-        {
-          address: hub,
-          abi: HUB_RATE_ABI as Abi,
-          functionName: "getAssetSwept" as const,
-          args: [assetIdArg] as const,
-        },
-        {
-          address: hub,
-          abi: HUB_RATE_ABI as Abi,
-          functionName: "getAssetDeficitRay" as const,
-          args: [assetIdArg] as const,
-        },
-        {
-          address: hub,
-          abi: HUB_RATE_ABI as Abi,
-          functionName: "getAssetConfig" as const,
-          args: [assetIdArg] as const,
-        },
-      ],
-      allowFailure: true,
-    });
-  } catch (err) {
-    return {
-      ...NULL_PROJECTION,
-      error: err instanceof Error ? err : new Error(String(err)),
-    };
+  const totalsRead = await readHubAssetTotalsSafe(hub, assetIdArg);
+  if (totalsRead.totals === null) {
+    return { ...NULL_PROJECTION, error: totalsRead.error };
   }
-
-  const [liquidityCall, owedCall, sweptCall, deficitCall, configCall] = totals;
-  if (
-    liquidityCall.status !== "success" ||
-    owedCall.status !== "success" ||
-    sweptCall.status !== "success" ||
-    deficitCall.status !== "success" ||
-    configCall.status !== "success"
-  ) {
-    return {
-      ...NULL_PROJECTION,
-      error: new Error("Hub asset totals read reverted"),
-    };
-  }
-
-  const liquidity = liquidityCall.result as bigint;
-  // getAssetOwed returns [drawn, premium]; the strategy curve uses `drawn`.
-  const drawn = (owedCall.result as readonly bigint[])[0];
-  const swept = sweptCall.result as bigint;
-  // The strategy takes the deficit in asset units; the Hub stores it RAY-scaled
-  // and feeds `deficitRay.fromRayUp()` (ceil-divide by RAY) into the rate call.
-  const deficit = ceilDivRay(deficitCall.result as bigint);
-  const { irStrategy } = configCall.result as { irStrategy: Address };
+  const { liquidity, drawn, swept, deficit, irStrategy } = totalsRead.totals;
 
   // Borrowing moves the drawn amount out of liquidity, so the denominator
   // (liquidity + drawn + swept) is invariant. A borrow can't exceed available

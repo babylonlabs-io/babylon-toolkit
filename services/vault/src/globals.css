@@ -32,6 +32,12 @@ html {
    * fully liquidated dot. Distinct from --risk-amber, which reads as caution
    * rather than a liquidation that already happened. */
   --risk-orange: 248 97 42;
+  /* C2 interest-rate-model chart (Figma 10088-61091): the curve/legend green
+   * and the marker/legend orange. Both values come off the dark frame — when
+   * the design ships light-theme values, override them in the .light block
+   * below. */
+  --chart-irm-series: #518665;
+  --chart-irm-marker: #ce6533;
   /* Motion spec — Modals (Figma 7831:25100 §1) */
   --motion-duration-modal: 220ms;
   --motion-duration-modal-out: 180ms;

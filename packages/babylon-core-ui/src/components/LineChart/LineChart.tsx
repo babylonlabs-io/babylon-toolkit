@@ -6,12 +6,7 @@ import { Bar, Line } from "@visx/shape";
 import { Text } from "@visx/text";
 import { twJoin } from "tailwind-merge";
 import "./LineChart.css";
-import {
-  AXIS_LABEL_GAP_PX,
-  TEXT_LINE_HEIGHT,
-  X_AXIS_MARGIN_TOP_PX,
-  useChartLayout,
-} from "../charts/chartLayout";
+import { TEXT_LINE_HEIGHT, X_AXIS_MARGIN_TOP_PX, useChartLayout } from "../charts/chartLayout";
 import { AXIS_LETTER_SPACING_PX, chartFont, measureText } from "../charts/textMeasure";
 import { layoutCallouts, type CalloutBox } from "./calloutLayout";
 import { buildLinePath, fitDomain, nearestIndex, normalizeSeries, valueAtX } from "./lineSeries";
@@ -72,11 +67,15 @@ export function LineChart({
 }: LineChartProps) {
   const series = useMemo(() => normalizeSeries(data), [data]);
   const hasXAxis = Boolean(xTicks?.length);
+  // Passed even when empty so the gutter is measured from the actual labels
+  // (flush-left column) rather than the fluid clamp other chart families use.
+  const yAxisLabels = useMemo(() => yTicks?.map((tick) => tick.label) ?? [], [yTicks]);
   const { parentRef, layout, collapsed } = useChartLayout({
     axisSide: "left",
     hasTopLegend: false,
     hasXAxis,
     aspectRatio,
+    yAxisLabels,
   });
 
   const resolvedXDomain = useMemo(() => xDomain ?? fitDomain(series.map((p) => p.x)), [xDomain, series]);
@@ -301,9 +300,9 @@ export function LineChart({
             <Text
               key={`y-${tick.value}`}
               className="bbn-line-chart__axis-text"
-              x={layout.gutter - AXIS_LABEL_GAP_PX}
+              x={0}
               y={layout.plotTop + yScale(tick.value)}
-              textAnchor="end"
+              textAnchor="start"
               verticalAnchor="middle"
               fontSize={layout.fontAxis}
               aria-hidden

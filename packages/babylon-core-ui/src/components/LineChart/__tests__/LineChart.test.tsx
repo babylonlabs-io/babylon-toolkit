@@ -1,13 +1,23 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_PLOT_ASPECT_RATIO } from "../../charts/chartLayout";
+import { DEFAULT_PLOT_ASPECT_RATIO, Y_AXIS_LABEL_PLOT_GAP_PX } from "../../charts/chartLayout";
+import { AXIS_LETTER_SPACING_PX } from "../../charts/textMeasure";
 import { LineChart } from "../LineChart";
 import type { LineChartHover, LineChartProps } from "../types";
 
 // The chart renders from the deterministic fallback width (see setup.ts):
-// chartWidth 1016 → gutter 68, plotWidth 948. jsdom reports a zeroed client
-// rect for the hit area, so clientX reads straight through as the plot-local x.
-const PLOT_WIDTH = 948;
+// chartWidth 1016. None of the tests below pass yTicks, so the y-axis label
+// column is empty and the gutter collapses to 0 (see chartLayout.ts) — the
+// plot spans the full chart width. jsdom reports a zeroed client rect for the
+// hit area, so clientX reads straight through as the plot-local x.
+const PLOT_WIDTH = 1016;
+
+// jsdom has no canvas backend; the test canvas stub in setup.ts measures text
+// at a fixed 7px per character so gutter-sizing assertions stay exact.
+const TEST_CHAR_WIDTH_PX = 7;
+function measuredLabelWidth(label: string): number {
+  return label.length * TEST_CHAR_WIDTH_PX + label.length * AXIS_LETTER_SPACING_PX;
+}
 
 const series = [
   { x: 0, y: 0 },
@@ -25,7 +35,7 @@ function hitArea() {
 
 /** Pointer at `px` from the plot's left edge. Whole pixels only — jsdom
  * coerces MouseEvent coordinates to integers. With an x domain of [0, 100]
- * over 948px, the quarter marks 237 / 474 / 711 land on 25 / 50 / 75. */
+ * over 1016px, the quarter marks 254 / 508 / 762 land on 25 / 50 / 75. */
 function hoverAt(px: number) {
   fireEvent.pointerMove(hitArea(), { clientX: px });
 }
@@ -48,7 +58,7 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    hoverAt(237);
+    hoverAt(254);
 
     const hover = onHoverChange.mock.calls.at(-1)?.[0];
     expect(hover?.x).toBeCloseTo(25, 5);
@@ -59,7 +69,7 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ hoverMode: "nearest", onHoverChange });
 
-    hoverAt(237);
+    hoverAt(254);
 
     expect(onHoverChange.mock.calls.at(-1)?.[0]).toMatchObject({ x: 0, y: 0, index: 0 });
   });
@@ -68,7 +78,7 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    hoverAt(711);
+    hoverAt(762);
 
     const hover = onHoverChange.mock.calls.at(-1)?.[0];
     expect(hover?.point).toEqual({ x: 50, y: 10 });
@@ -79,7 +89,7 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    hoverAt(474);
+    hoverAt(508);
     fireEvent.pointerLeave(hitArea(), { pointerType: "mouse" });
 
     expect(onHoverChange).toHaveBeenLastCalledWith(null);
@@ -89,7 +99,7 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    fireEvent.pointerDown(hitArea(), { clientX: 474, pointerType: "touch" });
+    fireEvent.pointerDown(hitArea(), { clientX: 508, pointerType: "touch" });
 
     expect(onHoverChange.mock.calls.at(-1)?.[0]?.x).toBeCloseTo(50, 5);
   });
@@ -100,8 +110,8 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    fireEvent.pointerDown(hitArea(), { clientX: 474, pointerType: "touch" });
-    fireEvent.pointerUp(hitArea(), { clientX: 474, pointerType: "touch" });
+    fireEvent.pointerDown(hitArea(), { clientX: 508, pointerType: "touch" });
+    fireEvent.pointerUp(hitArea(), { clientX: 508, pointerType: "touch" });
     fireEvent.pointerLeave(hitArea(), { pointerType: "touch" });
 
     expect(onHoverChange.mock.calls.at(-1)?.[0]?.x).toBeCloseTo(50, 5);
@@ -111,9 +121,9 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    fireEvent.pointerDown(hitArea(), { clientX: 237, pointerType: "touch" });
+    fireEvent.pointerDown(hitArea(), { clientX: 254, pointerType: "touch" });
     fireEvent.pointerLeave(hitArea(), { pointerType: "touch" });
-    fireEvent.pointerDown(hitArea(), { clientX: 711, pointerType: "touch" });
+    fireEvent.pointerDown(hitArea(), { clientX: 762, pointerType: "touch" });
 
     expect(onHoverChange.mock.calls.at(-1)?.[0]?.x).toBeCloseTo(75, 5);
   });
@@ -122,7 +132,7 @@ describe("LineChart", () => {
     const onHoverChange = vi.fn<(hover: LineChartHover | null) => void>();
     renderChart({ onHoverChange });
 
-    fireEvent.pointerDown(hitArea(), { clientX: 474, pointerType: "touch" });
+    fireEvent.pointerDown(hitArea(), { clientX: 508, pointerType: "touch" });
     fireEvent.pointerCancel(hitArea(), { pointerType: "touch" });
 
     expect(onHoverChange).toHaveBeenLastCalledWith(null);
@@ -131,7 +141,7 @@ describe("LineChart", () => {
   it("renders the caller's tooltip for the hovered position", () => {
     renderChart({ renderTooltip: (hover) => <span>{`value ${hover.y.toFixed(1)}`}</span> });
 
-    hoverAt(474);
+    hoverAt(508);
 
     expect(screen.getByText("value 10.0")).toBeInTheDocument();
   });
@@ -185,5 +195,45 @@ describe("LineChart", () => {
   it("renders an empty series without crashing", () => {
     const { container } = render(<LineChart data={[]} />);
     expect(container.querySelector(".bbn-line-chart__series")?.getAttribute("d")).toBe("");
+  });
+
+  it("left-aligns y-axis tick labels flush with the chart's left edge", () => {
+    const { container } = renderChart({
+      yTicks: [{ value: 0, label: "0%" }, { value: 30, label: "30%" }],
+    });
+
+    // No xTicks in this render, so every `.bbn-line-chart__axis-text` is a
+    // y-axis label.
+    const axisTexts = Array.from(container.querySelectorAll(".bbn-line-chart__axis-text"));
+    expect(axisTexts).toHaveLength(2);
+    for (const text of axisTexts) {
+      expect(text).toHaveAttribute("x", "0");
+      expect(text).toHaveAttribute("text-anchor", "start");
+    }
+  });
+
+  it("sizes the gutter to the widest y-axis label plus the fixed label-to-plot gap", () => {
+    const widestLabel = "100.0%";
+    const { container } = renderChart({
+      yTicks: [{ value: 0, label: "0%" }, { value: 100, label: widestLabel }],
+    });
+
+    const expectedGutter = measuredLabelWidth(widestLabel) + Y_AXIS_LABEL_PLOT_GAP_PX;
+
+    // The plot's <Group left={layout.plotLeft}> — axisSide "left" puts
+    // plotLeft at the gutter — renders as an SVG translate.
+    const plotGroup = container.querySelector("g.visx-group");
+    const translateLeft = Number(plotGroup?.getAttribute("transform")?.match(/translate\(([\d.]+),/)?.[1]);
+    expect(translateLeft).toBeCloseTo(expectedGutter, 5);
+
+    expect(Number(hitArea().getAttribute("width"))).toBeCloseTo(1016 - expectedGutter, 5);
+  });
+
+  it("collapses the gutter to zero and spans the full width when yTicks is empty", () => {
+    const { container } = renderChart({ yTicks: [] });
+
+    const plotGroup = container.querySelector("g.visx-group");
+    expect(plotGroup?.getAttribute("transform")).toBe("translate(0, 0)");
+    expect(Number(hitArea().getAttribute("width"))).toBe(1016);
   });
 });
