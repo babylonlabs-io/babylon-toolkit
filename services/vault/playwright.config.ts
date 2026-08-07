@@ -7,7 +7,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT_MISSING_ENV = 5173;
 const PORT_FULL_ENV = 5175;
 
-const MOCK_ENV_VARS = {
+/**
+ * Mock backend the e2e suite pins so no spec reaches a live host. Exported
+ * because `playwright.visual.config.ts` spreads it: two hand-maintained
+ * copies would drift, and the capture would still pass — just against a
+ * different app than the one under test.
+ */
+export const MOCK_ENV_VARS = {
   NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY:
     "0x0000000000000000000000000000000000000001",
   NEXT_PUBLIC_TBV_AAVE_ADAPTER: "0x0000000000000000000000000000000000000002",
@@ -44,6 +50,12 @@ export default defineConfig({
   // expect and crashes discovery with a `Symbol($$jest-matchers-object)`
   // collision.
   testMatch: "**/*.spec.ts",
+  // The visual captures are a separate surface with their own config
+  // (`playwright.visual.config.ts`): different port, forced feature flags,
+  // reducedMotion, no retries. Without this they also match `testMatch`
+  // above and run inside the behavioural suite, where `waitForVisualStability`
+  // chases live animations for its full timeout and then retries twice.
+  testIgnore: "**/visual/**",
   fullyParallel: false,
   forbidOnly: false,
   retries: 2,

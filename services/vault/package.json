@@ -25,7 +25,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
     "e2e:env": "node scripts/e2e-env.mjs",
-    "e2e:cli": "pnpm exec tsx e2e/real/cli.ts"
+    "e2e:cli": "pnpm exec tsx e2e/real/cli.ts",
+    "visual:capture": "playwright test --config=playwright.visual.config.ts"
   },
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
@@ -58,7 +59,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
-    "@playwright/test": "^1.55.1",
+    "@playwright/test": "1.56.1",
     "@sentry/vite-plugin": "^2.22.6",
     "@tanstack/react-query-devtools": "5.28.14",
     "@testing-library/jest-dom": "6.5.0",

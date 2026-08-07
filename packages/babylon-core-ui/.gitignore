@@ -1,0 +1,6 @@
+# Storybook build output (the visual-regression capture's input) and the
+# captures themselves. There are no committed baseline images - the
+# baseline is recomputed from the PR's merge-base on every CI run.
+storybook-static/
+visual/__captures__/
+visual/.playwright-output/

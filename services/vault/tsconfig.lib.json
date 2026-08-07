@@ -24,5 +24,11 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "e2e/fixtures", "e2e/pages", "sentry.client.config.ts"]
+  "include": [
+    "src",
+    "e2e/fixtures",
+    "e2e/pages",
+    "e2e/visual",
+    "sentry.client.config.ts"
+  ]
 }

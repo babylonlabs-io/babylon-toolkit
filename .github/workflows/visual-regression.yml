@@ -1,0 +1,330 @@
+name: Visual regression
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Advisory to begin with: this reports and comments, it does not fail the
+# build. Promote it to blocking (add --fail-on-change to the diff step)
+# once its noise floor is proven on real PRs.
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          # Full history so the merge-base with main is resolvable. The
+          # baseline is computed from that commit, not from a stored file.
+          fetch-depth: 0
+
+      - name: Resolve merge-base
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          # On `pull_request`, actions/checkout gives us refs/pull/N/merge —
+          # the merge commit — so this resolves to the base branch's TIP, not
+          # to the PR's true merge-base. That is deliberate and is the
+          # property we want: comparing the merge commit against the base tip
+          # isolates this PR's own contribution, because anything merged by
+          # someone else while the PR was open renders identically on both
+          # sides and cancels out. Do not "fix" this to a true merge-base
+          # without re-reasoning about that; it would silently start
+          # attributing other people's UI changes to this PR.
+          MERGE_BASE="$(git merge-base "origin/${{ github.base_ref }}" HEAD)"
+          echo "merge_base=${MERGE_BASE}" >> "$GITHUB_OUTPUT"
+          # Checked back out after the baseline capture. This is the merge
+          # commit, which is what must be restored to leave the tree as found.
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # Reported to humans instead of head_sha: the merge commit appears
+          # in none of the PR's own commits, so citing it sends readers
+          # looking for a SHA they will never find in the branch.
+          echo "report_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          echo "Baseline will be computed from ${MERGE_BASE}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: '24.2.0'
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Resolve pnpm store path
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 https://github.com/actions/cache/releases/tag/v4.3.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install Playwright browser
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      # Stash the capture harness BEFORE any checkout juggling. The two
+      # sides must be photographed by the SAME harness, otherwise a change
+      # to the harness itself reads as an app change. It also solves the
+      # bootstrap problem: the merge-base does not have these files at all
+      # until this PR merges.
+      - name: Stash capture harness
+        run: |
+          set -euo pipefail
+          H="${{ runner.temp }}/harness"
+          mkdir -p "$H"
+          cp -R services/vault/e2e/visual "$H/vault-visual"
+          cp services/vault/playwright.visual.config.ts "$H/"
+          # The visual config imports MOCK_ENV_VARS from playwright.config.ts,
+          # and that export only exists on the PR side. Left unstashed, the
+          # baseline side loads the merge-base copy: the import either fails
+          # outright or resolves to undefined and boots the vault server
+          # with no mock env. Either way the vault baseline is lost.
+          cp services/vault/playwright.config.ts "$H/"
+          cp -R packages/babylon-core-ui/visual "$H/core-ui-visual"
+          cp packages/babylon-core-ui/playwright.visual.config.ts "$H/core-ui-playwright.visual.config.ts"
+          # NOTE: visual-diff.mjs is deliberately NOT stashed. The diff step
+          # runs after "Restore PR head", so it already reads the tracked
+          # copy from the working tree; a stashed copy would never be read.
+          # The runner script itself. Easy to forget, and forgetting it fails
+          # the baseline side with a bare "No such file or directory": the
+          # script does not exist at the merge-base either.
+          cp .github/scripts/visual-capture.sh "$H/"
+
+      # Advisory check: one story that never settles must not cost the whole
+      # report. The diff step reports whichever side is missing instead, and
+      # the summary/comment branch on whether the comparison actually ran.
+      - name: Capture candidate (PR head)
+        id: capture-candidate
+        continue-on-error: true
+        env:
+          CAPTURE_ROOT: ${{ runner.temp }}/visual/candidate
+        run: ./.github/scripts/visual-capture.sh
+
+      - name: Check out merge-base source
+        run: git checkout --force "${{ steps.refs.outputs.merge_base }}"
+
+      - name: Restore capture harness onto merge-base
+        run: |
+          set -euo pipefail
+          H="${{ runner.temp }}/harness"
+          rm -rf services/vault/e2e/visual packages/babylon-core-ui/visual
+          mkdir -p services/vault/e2e packages/babylon-core-ui .github/scripts
+          cp -R "$H/vault-visual" services/vault/e2e/visual
+          cp "$H/playwright.visual.config.ts" services/vault/
+          cp "$H/playwright.config.ts" services/vault/
+          cp -R "$H/core-ui-visual" packages/babylon-core-ui/visual
+          cp "$H/core-ui-playwright.visual.config.ts" packages/babylon-core-ui/playwright.visual.config.ts
+          cp "$H/visual-capture.sh" .github/scripts/visual-capture.sh
+          chmod +x .github/scripts/visual-capture.sh
+
+      # Deliberately NOT reinstalling here. The harness needs tooling this PR
+      # adds (core-ui gains @playwright/test), which the merge-base lockfile
+      # would prune - the baseline could then never run. Keeping HEAD's
+      # node_modules also means both sides are photographed by an identical
+      # instrument, which is the property this whole design is built on.
+      #
+      # The trade-off, stated plainly: the baseline renders merge-base SOURCE
+      # against HEAD's external npm packages. Workspace changes (core-ui,
+      # ts-sdk, wallet-connector) are still compared correctly because those
+      # are rebuilt from the checked-out source. A PR that only bumps an
+      # external UI dependency will not show a diff.
+      - name: Capture baseline (merge-base)
+        id: capture-baseline
+        continue-on-error: true
+        env:
+          CAPTURE_ROOT: ${{ runner.temp }}/visual/baseline
+        run: ./.github/scripts/visual-capture.sh
+
+      - name: Restore PR head
+        if: always()
+        run: git checkout --force "${{ steps.refs.outputs.head_sha }}"
+
+      - name: Compare baseline against candidate
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/visual"
+          TOTAL_CHANGED=0
+          COMPARED=0
+          MISSING=""
+          for SURFACE in vault storybook; do
+            BASE="${{ runner.temp }}/visual/baseline/${SURFACE}"
+            CAND="${{ runner.temp }}/visual/candidate/${SURFACE}"
+            OUT="${{ runner.temp }}/visual/report/${SURFACE}"
+            # Either capture may have been cut short (both are
+            # continue-on-error), so name the missing side rather than
+            # letting the diff die on a bare ENOENT.
+            if [ ! -d "$CAND" ] || [ -z "$(ls -A "$CAND" 2>/dev/null)" ]; then
+              echo "No candidate captures for ${SURFACE} - capture did not complete." \
+                | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              MISSING="${MISSING}${MISSING:+ }${SURFACE}"
+              continue
+            fi
+            if [ ! -d "$BASE" ] || [ -z "$(ls -A "$BASE" 2>/dev/null)" ]; then
+              echo "No baseline captures for ${SURFACE} - nothing to compare against." \
+                | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              MISSING="${MISSING}${MISSING:+ }${SURFACE}"
+              continue
+            fi
+            COMPARED=$((COMPARED + 1))
+            echo "### ${SURFACE}" | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+            node scripts/visual-diff.mjs \
+              --baseline "$BASE" --candidate "$CAND" --out "$OUT" \
+              --baseline-ref "${{ steps.refs.outputs.merge_base }}" \
+              --candidate-ref "${{ steps.refs.outputs.head_sha }}" \
+              | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+            N="$(node -e "console.log(require('${OUT}/summary.json').changedCount)")"
+            TOTAL_CHANGED=$((TOTAL_CHANGED + N))
+          done
+          echo "changed_count=${TOTAL_CHANGED}" >> "$GITHUB_OUTPUT"
+          # Distinguishes "compared, nothing changed" from "compared nothing".
+          # Without it a zero count reads as a clean run either way.
+          echo "compared_surfaces=${COMPARED}" >> "$GITHUB_OUTPUT"
+          # Names every surface that produced no comparison. A run-level
+          # count alone is not enough: one surface capturing empty on both
+          # sides would hide behind the other's COMPARED and read as green.
+          echo "missing_surfaces=${MISSING}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload visual report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        if: always()
+        with:
+          name: visual-report
+          path: ${{ runner.temp }}/visual/report
+          retention-days: 14
+
+      - name: Summarise
+        if: always()
+        env:
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
+          CHANGED: ${{ steps.diff.outputs.changed_count }}
+          COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
+          MISSING: ${{ steps.diff.outputs.missing_surfaces }}
+        shell: bash
+        run: |
+          {
+            echo "## Visual regression"
+            echo ""
+            echo "Baseline \`${{ steps.refs.outputs.merge_base }}\` vs candidate \`${{ steps.refs.outputs.report_sha }}\`."
+            echo ""
+            # Branch on whether a comparison happened at all. An unset or
+            # empty CHANGED must never render as ":white_check_mark:" —
+            # "nothing was compared" is not "nothing changed".
+            if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
+              echo ":warning: The capture or comparison did not complete - no visual comparison was made."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              echo '```'
+            # Every surface must have compared, not just the run overall. A
+            # surface that captured empty on BOTH sides produces no
+            # comparison at all, and folding that into the other surface's
+            # green would report "no changes" for screens nobody looked at.
+            elif [ -n "${MISSING}" ]; then
+              echo ":warning: No comparisons were produced for: ${MISSING}. The result below covers the remaining surface(s) only - this run is not a full comparison."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              echo '```'
+            elif [ "${CHANGED}" = "0" ]; then
+              echo ":white_check_mark: No visual changes detected."
+            else
+              echo ":framed_picture: **${CHANGED} screen(s) changed.**"
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Sticky comment: edits the previous one instead of stacking one per
+      # push. Uses the preinstalled gh CLI rather than adding a third-party
+      # action, per the repo's supply-chain policy.
+      # Skipped on fork PRs: `pull_request` hands them a read-only token
+      # regardless of the `permissions:` block above, so the POST would 403
+      # and fail an advisory check for every external contributor. The job
+      # summary carries the same content for those runs.
+      - name: Comment on the PR
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
+          CHANGED: ${{ steps.diff.outputs.changed_count }}
+          COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
+          MISSING: ${{ steps.diff.outputs.missing_surfaces }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          MARKER="<!-- visual-regression-report -->"
+          BODY_FILE="${{ runner.temp }}/visual/comment.md"
+          mkdir -p "$(dirname "$BODY_FILE")"
+          {
+            echo "$MARKER"
+            echo "### Visual regression"
+            echo ""
+            # `${CHANGED:-0}` substitutes on empty as well as unset, so a
+            # skipped or failed diff step used to collapse to 0 and post an
+            # affirmative "no visual changes". Claiming that when nothing was
+            # compared is worse than staying quiet, so the outcome is checked
+            # first.
+            if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
+              echo ":warning: The capture or comparison did not complete - no visual comparison was made."
+              echo ""
+              echo "[Open the run](${RUN_URL}) to see which step failed."
+            # Per-surface gate, same reasoning as the summary: a surface
+            # that captured empty on both sides must be named, not folded
+            # into the other surface's green.
+            elif [ -n "${MISSING}" ]; then
+              echo ":warning: No comparisons were produced for: ${MISSING}. The remaining surface(s) alone do not make this a clean run."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              echo '```'
+              echo ""
+              echo "[Open the run](${RUN_URL}) to see why that capture came up empty."
+            elif [ "${CHANGED}" = "0" ]; then
+              echo ":white_check_mark: No visual changes against the merge-base."
+            else
+              echo ":framed_picture: **${CHANGED} screen(s) changed** against the merge-base."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              echo '```'
+              echo ""
+              echo "[Open the run](${RUN_URL}#artifacts), download **visual-report**, and open \`index.html\` for the before / after / diff view."
+              echo ""
+              echo "If these changes are intentional there is nothing to update - this repo stores no baseline images. The baseline is recomputed from the merge-base on every run."
+            fi
+          } > "$BODY_FILE"
+
+          EXISTING="$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq "map(select(.body | startswith(\"$MARKER\"))) | .[0].id // empty")"
+
+          if [ -n "$EXISTING" ]; then
+            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/${EXISTING}" \
+              -F body=@"$BODY_FILE" > /dev/null
+            echo "Updated existing comment ${EXISTING}."
+          else
+            gh api --method POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -F body=@"$BODY_FILE" > /dev/null
+            echo "Posted a new comment."
+          fi

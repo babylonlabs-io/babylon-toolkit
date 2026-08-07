@@ -18,7 +18,10 @@ const sampleValidators: ValidatorRow[] = Array.from({ length: 15 }, (_, i) => {
         ),
         name: `Validator ${index}`,
         apr: `${25 + (index % 6)}.${(index * 7) % 100}`.padEnd(6, "0") + "%", // simple varied APR
-        votingPower: `${(Math.random() * 1).toFixed(6)} sBTC`,
+        // Derived from the index, not Math.random(): the story is snapshotted
+        // by the visual-regression capture, and a random value would differ on
+        // every run and report a change that isn't one.
+        votingPower: `0.${String((index * 137) % 1_000_000).padStart(6, "0")} sBTC`,
         commission: `${2 + (index % 5)}%`,
     } as ValidatorRow;
 });
