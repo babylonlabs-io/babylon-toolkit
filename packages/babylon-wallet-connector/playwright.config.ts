@@ -77,9 +77,5 @@ export default defineConfig({
     url: baseURL,
     timeout: 120 * 1000,
     reuseExistingServer: true,
-    env: {
-      E2E_WALLET_MNEMONIC: process.env.E2E_WALLET_MNEMONIC!,
-      E2E_WALLET_PASSWORD: process.env.E2E_WALLET_PASSWORD!,
-    },
   },
 });
