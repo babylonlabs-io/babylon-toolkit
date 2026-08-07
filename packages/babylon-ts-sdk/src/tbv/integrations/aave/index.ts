@@ -123,3 +123,9 @@ export type {
 
 // Export ABIs for application registration
 export { default as AaveIntegrationAdapterABI } from "./clients/abis/AaveIntegrationAdapter.abi.json";
+// Reverts on the withdraw/borrow paths originate inside the Aave Core Spoke or
+// the per-position proxy, not the adapter. Without these ABIs their custom
+// errors decode to nothing, so ordinary conditions (health-factor floor, dust
+// rule, frozen reserve) surface as "Execution reverted for an unknown reason."
+export { default as AaveSpokeABI } from "./clients/abis/AaveSpoke.abi.json";
+export { default as AaveAdapterPositionProxyABI } from "./clients/abis/AaveAdapterPositionProxy.abi.json";

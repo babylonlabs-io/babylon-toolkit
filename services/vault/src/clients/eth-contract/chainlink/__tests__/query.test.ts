@@ -69,8 +69,21 @@ const FRESH_AGE_SECONDS = 10n;
 /** answeredInRound value representing an incomplete oracle round */
 const INCOMPLETE_ANSWERED_IN_ROUND = 99n;
 
-/** Two hours in seconds — exceeds the 1-hour staleness threshold */
+/** Two hours in seconds — exceeds the heartbeat-plus-grace staleness threshold */
 const TWO_HOURS_SECONDS = 7200n;
+
+/**
+ * Past the 3600s heartbeat but inside the 600s grace window. This is the tail
+ * of every normal heartbeat cycle and must NOT be reported as stale — reporting
+ * it was what made staleness the highest-volume event in the project.
+ */
+const JUST_PAST_HEARTBEAT_SECONDS = 3900n;
+
+/** Client clock behind chain time by more than the tolerated skew (300s). */
+const LARGE_CLOCK_SKEW_SECONDS = 600n;
+
+/** Client clock behind chain time by less than the tolerated skew. */
+const SMALL_CLOCK_SKEW_SECONDS = 30n;
 
 function makeRoundData(
   overrides: Partial<ChainlinkRoundData> = {},
@@ -223,6 +236,9 @@ describe("getTokenPrices", () => {
 
     expect(logger.event).toHaveBeenCalledWith(
       expect.stringContaining("incomplete round"),
+      expect.objectContaining({
+        tags: expect.objectContaining({ staleReason: "incomplete-round" }),
+      }),
     );
   });
 
@@ -237,9 +253,63 @@ describe("getTokenPrices", () => {
 
     await getTokenPrices(["BTC"]);
 
+    // The age lives in structured data, not the message: interpolating it made
+    // every distinct value its own Sentry issue.
     expect(logger.event).toHaveBeenCalledWith(
-      expect.stringContaining("hours old"),
+      "Chainlink price data is stale. Using last known price.",
+      expect.objectContaining({
+        tags: expect.objectContaining({ staleReason: "age" }),
+        ageHours: "2.0",
+      }),
     );
+  });
+
+  it("does not report a feed that is past its heartbeat but inside the grace window", async () => {
+    const { logger } = await import("@/infrastructure");
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - JUST_PAST_HEARTBEAT_SECONDS,
+      }),
+    );
+
+    const { metadata } = await getTokenPrices(["BTC"]);
+
+    expect(metadata["BTC"].isStale).toBe(false);
+    expect(logger.event).not.toHaveBeenCalled();
+  });
+
+  it("reports clock skew separately when the client clock is far behind chain time", async () => {
+    const { logger } = await import("@/infrastructure");
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds + LARGE_CLOCK_SKEW_SECONDS,
+      }),
+    );
+
+    const { metadata } = await getTokenPrices(["BTC"]);
+
+    expect(metadata["BTC"].isStale).toBe(true);
+    expect(logger.event).toHaveBeenCalledWith(
+      expect.stringContaining("clock is behind chain time"),
+      expect.objectContaining({
+        tags: expect.objectContaining({ staleReason: "clock-skew" }),
+      }),
+    );
+  });
+
+  it("treats a small clock skew as fresh rather than failing the feed", async () => {
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds + SMALL_CLOCK_SKEW_SECONDS,
+      }),
+    );
+
+    const { metadata } = await getTokenPrices(["BTC"]);
+
+    expect(metadata["BTC"].isStale).toBe(false);
   });
 
   it("marks metadata as stale when data exceeds max age", async () => {

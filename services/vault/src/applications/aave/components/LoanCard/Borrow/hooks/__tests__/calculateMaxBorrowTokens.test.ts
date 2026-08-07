@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BORROW_CAPACITY_HEADROOM,
   BPS_SCALE,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "../../../../../constants";
@@ -19,7 +20,8 @@ describe("calculateMaxBorrowTokens", () => {
     });
 
     const expectedUsd =
-      (10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW;
+      ((10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
+      (1 - BORROW_CAPACITY_HEADROOM);
     expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
   });
 
@@ -34,7 +36,9 @@ describe("calculateMaxBorrowTokens", () => {
     });
 
     const expectedUsd =
-      (10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW - 2000;
+      ((10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
+        (1 - BORROW_CAPACITY_HEADROOM) -
+      2000;
     expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
   });
 
@@ -49,7 +53,8 @@ describe("calculateMaxBorrowTokens", () => {
     });
 
     const expectedUsd =
-      (10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW;
+      ((10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
+      (1 - BORROW_CAPACITY_HEADROOM);
     expect(result).toBe(Math.floor((expectedUsd / 2) * 1e6) / 1e6);
   });
 
@@ -126,7 +131,8 @@ describe("calculateMaxBorrowTokens", () => {
     });
 
     const expectedUsd =
-      (10000 * 7500) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW;
+      ((10000 * 7500) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
+      (1 - BORROW_CAPACITY_HEADROOM);
     expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
   });
 
