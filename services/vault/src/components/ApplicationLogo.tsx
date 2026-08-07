@@ -18,6 +18,11 @@ const SIZE_CLASSES: Record<
   large: "h-10 w-10",
 };
 
+// A layout invariant rather than a size, so it sits outside SIZE_CLASSES: the
+// logo sits beside truncating text in flex rows, where without it flexbox
+// squashes the circle into an ellipse instead of letting the text shrink.
+const LOGO_LAYOUT_CLASS = "shrink-0";
+
 const FALLBACK_TEXT_CLASSES: Record<
   NonNullable<ApplicationLogoProps["size"]>,
   string
@@ -36,7 +41,7 @@ export function ApplicationLogo({
 }: ApplicationLogoProps) {
   const [imageError, setImageError] = useState(false);
 
-  const sizeClasses = SIZE_CLASSES[size];
+  const sizeClasses = `${SIZE_CLASSES[size]} ${LOGO_LAYOUT_CLASS}`;
   const shapeClasses = shape === "circle" ? "rounded-full" : "rounded-2xl";
 
   if (imageError || !logoUrl) {

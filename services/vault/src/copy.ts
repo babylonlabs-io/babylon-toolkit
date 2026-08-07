@@ -152,6 +152,9 @@ export const COPY = {
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       refundComplete:
         "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
+      // Longest sub-line the lifecycle rows render, so it sizes
+      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx).
+      // Lengthening it here ellipses that cell unless the basis moves too.
       refundMaturing: (blocks: number, hours: number) =>
         `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
