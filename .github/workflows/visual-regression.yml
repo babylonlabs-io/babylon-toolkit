@@ -91,6 +91,12 @@ jobs:
           mkdir -p "$H"
           cp -R services/vault/e2e/visual "$H/vault-visual"
           cp services/vault/playwright.visual.config.ts "$H/"
+          # The visual config imports MOCK_ENV_VARS from playwright.config.ts,
+          # and that export only exists on the PR side. Left unstashed, the
+          # baseline side loads the merge-base copy: the import either fails
+          # outright or resolves to undefined and boots the vault server
+          # with no mock env. Either way the vault baseline is lost.
+          cp services/vault/playwright.config.ts "$H/"
           cp -R packages/babylon-core-ui/visual "$H/core-ui-visual"
           cp packages/babylon-core-ui/playwright.visual.config.ts "$H/core-ui-playwright.visual.config.ts"
           # NOTE: visual-diff.mjs is deliberately NOT stashed. The diff step
@@ -122,6 +128,7 @@ jobs:
           mkdir -p services/vault/e2e packages/babylon-core-ui .github/scripts
           cp -R "$H/vault-visual" services/vault/e2e/visual
           cp "$H/playwright.visual.config.ts" services/vault/
+          cp "$H/playwright.config.ts" services/vault/
           cp -R "$H/core-ui-visual" packages/babylon-core-ui/visual
           cp "$H/core-ui-playwright.visual.config.ts" packages/babylon-core-ui/playwright.visual.config.ts
           cp "$H/visual-capture.sh" .github/scripts/visual-capture.sh
@@ -157,6 +164,7 @@ jobs:
           mkdir -p "${{ runner.temp }}/visual"
           TOTAL_CHANGED=0
           COMPARED=0
+          MISSING=""
           for SURFACE in vault storybook; do
             BASE="${{ runner.temp }}/visual/baseline/${SURFACE}"
             CAND="${{ runner.temp }}/visual/candidate/${SURFACE}"
@@ -167,11 +175,13 @@ jobs:
             if [ ! -d "$CAND" ] || [ -z "$(ls -A "$CAND" 2>/dev/null)" ]; then
               echo "No candidate captures for ${SURFACE} - capture did not complete." \
                 | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              MISSING="${MISSING}${MISSING:+ }${SURFACE}"
               continue
             fi
             if [ ! -d "$BASE" ] || [ -z "$(ls -A "$BASE" 2>/dev/null)" ]; then
               echo "No baseline captures for ${SURFACE} - nothing to compare against." \
                 | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              MISSING="${MISSING}${MISSING:+ }${SURFACE}"
               continue
             fi
             COMPARED=$((COMPARED + 1))
@@ -188,6 +198,10 @@ jobs:
           # Distinguishes "compared, nothing changed" from "compared nothing".
           # Without it a zero count reads as a clean run either way.
           echo "compared_surfaces=${COMPARED}" >> "$GITHUB_OUTPUT"
+          # Names every surface that produced no comparison. A run-level
+          # count alone is not enough: one surface capturing empty on both
+          # sides would hide behind the other's COMPARED and read as green.
+          echo "missing_surfaces=${MISSING}" >> "$GITHUB_OUTPUT"
 
       - name: Upload visual report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
@@ -203,6 +217,7 @@ jobs:
           DIFF_OUTCOME: ${{ steps.diff.outcome }}
           CHANGED: ${{ steps.diff.outputs.changed_count }}
           COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
+          MISSING: ${{ steps.diff.outputs.missing_surfaces }}
         shell: bash
         run: |
           {
@@ -215,6 +230,16 @@ jobs:
             # "nothing was compared" is not "nothing changed".
             if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
               echo ":warning: The capture or comparison did not complete - no visual comparison was made."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              echo '```'
+            # Every surface must have compared, not just the run overall. A
+            # surface that captured empty on BOTH sides produces no
+            # comparison at all, and folding that into the other surface's
+            # green would report "no changes" for screens nobody looked at.
+            elif [ -n "${MISSING}" ]; then
+              echo ":warning: No comparisons were produced for: ${MISSING}. The result below covers the remaining surface(s) only - this run is not a full comparison."
               echo ""
               echo '```'
               cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
@@ -244,6 +269,7 @@ jobs:
           DIFF_OUTCOME: ${{ steps.diff.outcome }}
           CHANGED: ${{ steps.diff.outputs.changed_count }}
           COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
+          MISSING: ${{ steps.diff.outputs.missing_surfaces }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
@@ -264,6 +290,17 @@ jobs:
               echo ":warning: The capture or comparison did not complete - no visual comparison was made."
               echo ""
               echo "[Open the run](${RUN_URL}) to see which step failed."
+            # Per-surface gate, same reasoning as the summary: a surface
+            # that captured empty on both sides must be named, not folded
+            # into the other surface's green.
+            elif [ -n "${MISSING}" ]; then
+              echo ":warning: No comparisons were produced for: ${MISSING}. The remaining surface(s) alone do not make this a clean run."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              echo '```'
+              echo ""
+              echo "[Open the run](${RUN_URL}) to see why that capture came up empty."
             elif [ "${CHANGED}" = "0" ]; then
               echo ":white_check_mark: No visual changes against the merge-base."
             else

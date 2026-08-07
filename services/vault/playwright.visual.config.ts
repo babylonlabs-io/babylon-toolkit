@@ -6,6 +6,23 @@ import { MOCK_ENV_VARS } from "./playwright.config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// The import above resolves against whichever `playwright.config.ts` sits on
+// disk, and only versions of that file that export the const will do. An ESM
+// load of an older copy fails loudly on its own, but under CJS interop a
+// missing export is not an error: it arrives as `undefined`, `{ ...undefined }`
+// spreads to `{}`, and the dev server silently boots with no mock env - so
+// guard that case loudly here.
+if ((MOCK_ENV_VARS as unknown) === undefined) {
+  throw new Error(
+    "MOCK_ENV_VARS imported from ./playwright.config is undefined - the " +
+      "playwright.config.ts on disk does not export it. In CI this means " +
+      "the visual-regression workflow restored playwright.visual.config.ts " +
+      "onto the merge-base without also restoring playwright.config.ts: " +
+      "stash and restore both files together in the 'Stash capture harness' " +
+      "step of .github/workflows/visual-regression.yml.",
+  );
+}
+
 /**
  * Visual capture config - deliberately separate from `playwright.config.ts`.
  *
