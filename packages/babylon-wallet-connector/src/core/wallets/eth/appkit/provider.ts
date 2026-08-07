@@ -54,6 +54,21 @@ export class AppKitProvider implements IETHProvider {
 
   constructor(config: ETHConfig) {
     this.config = config;
+    this.ensureEventWatchers();
+  }
+
+  /**
+   * Attach the wagmi watchers exactly once, and only when the shared config
+   * exists. The provider is now constructed unconditionally (it no longer
+   * waits on an injected `window.ethereum`), so construction must not throw
+   * when AppKit init has not run or has fallen back — that would take down the
+   * BTC connector alongside the ETH one. `connectWallet` re-checks and still
+   * surfaces the actionable "AppKit ETH not initialized" error, and calling
+   * this again there picks the watchers up if init landed late.
+   */
+  private ensureEventWatchers(): void {
+    if (this.unwatchFunctions.length > 0) return;
+    if (!hasSharedWagmiConfig()) return;
     this.setupEventWatchers();
   }
 
@@ -122,6 +137,8 @@ export class AppKitProvider implements IETHProvider {
   async connectWallet(): Promise<void> {
     try {
       const config = this.getWagmiConfig();
+      // Init may have completed after this provider was constructed.
+      this.ensureEventWatchers();
 
       // First check if already connected (from previous session)
       const currentAccount = getAccount(config);

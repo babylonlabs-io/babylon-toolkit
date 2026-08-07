@@ -24,7 +24,13 @@ const metadata: WalletMetadata<IETHProvider, ETHConfig> = {
   name: WALLET_PROVIDER_NAME,
   icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=",
   docs: "https://docs.reown.com/appkit/overview",
-  wallet: "ethereum", // Global identifier for Ethereum providers
+  // No `wallet` global: AppKit reaches wallets through its own EIP-6963,
+  // WalletConnect and hardware transports, none of which require an injected
+  // `window.ethereum`. Gating on that global made every user without an EVM
+  // browser extension (Safari, WalletConnect-QR, hardware-only) fail with
+  // "Provider not found" before the AppKit modal could open — and ETH is a
+  // required chain for deposit. Mirrors the BTC AppKit entry.
+  wallet: undefined,
   createProvider: (_wallet: any, config: ETHConfig) => new AppKitProvider(config),
   networks: [
     Network.MAINNET, // ETH mainnet (chainId: 1)
