@@ -97,6 +97,9 @@ export function getActionStatus(
 }
 
 const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [
+  // The stuck-state recovery outranks everything: the deposit cannot progress
+  // any other way once the peg-in was swept without activation.
+  PeginAction.ACTIVATE_AND_REDEEM,
   PeginAction.ACTIVATE_VAULT,
   PeginAction.SIGN_PAYOUT_TRANSACTIONS,
   PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
@@ -112,6 +115,8 @@ const ACTION_REQUIRED_BADGE_LABELS: Record<PeginAction, string> = {
   [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]:
     COPY.pegin.actionRequiredBadges.SIGN_AND_BROADCAST_TO_BITCOIN,
   [PeginAction.ACTIVATE_VAULT]: COPY.pegin.actionRequiredBadges.ACTIVATE_VAULT,
+  [PeginAction.ACTIVATE_AND_REDEEM]:
+    COPY.pegin.actionRequiredBadges.ACTIVATE_AND_REDEEM,
   [PeginAction.REFUND_HTLC]: COPY.pegin.actionRequiredBadges.REFUND_HTLC,
   [PeginAction.NONE]: "",
 };

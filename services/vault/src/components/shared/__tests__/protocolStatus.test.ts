@@ -12,6 +12,7 @@ vi.mock("@/config/featureFlags", () => ({
 
 import {
   composeGateState,
+  isActivateAndRedeemBlocked,
   isActivationBlocked,
   isBorrowBlocked,
   isDepositBlocked,
@@ -140,6 +141,14 @@ describe("exit gating — blocks only on PAUSE (Freeze preserves exits)", () => 
     expect(isRepayBlocked(gate(null, "paused"))).toBe(true);
     // Protocol-only pause must keep repay available — the user can still de-risk.
     expect(isRepayBlocked(gate("paused", null))).toBe(false);
+  });
+
+  it("activate-and-redeem is blocked ONLY by a protocol pause (not an aave pause)", () => {
+    expect(isActivateAndRedeemBlocked(gate(null, null))).toBe(false);
+    expect(isActivateAndRedeemBlocked(gate("paused", null))).toBe(true);
+    // An aave-scope pause is exactly what the escape hatch exists to escape.
+    expect(isActivateAndRedeemBlocked(gate(null, "paused"))).toBe(false);
+    expect(isActivateAndRedeemBlocked(gate("frozen", "frozen"))).toBe(false);
   });
 });
 

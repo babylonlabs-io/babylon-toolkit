@@ -22,6 +22,14 @@ const EMPTY_CONFIRMED: VaultActivity[] = [];
 export interface UseActivationStateProps {
   activity: VaultActivity;
   depositorEthAddress: string;
+  /**
+   * Escape hatch mode: reveal the secret via
+   * `activateVaultWithSecretAndRedeem` (no application activation). The vault
+   * is redeemed rather than turned into collateral, so the optimistic
+   * Collateral-section row is skipped — the optimistic CONFIRMED status still
+   * applies (the reveal was submitted; the indexer flips to REDEEMED next).
+   */
+  redeemImmediately?: boolean;
 }
 
 export interface UseActivationStateResult {
@@ -40,6 +48,7 @@ export interface UseActivationStateResult {
 export function useActivationState({
   activity,
   depositorEthAddress,
+  redeemImmediately,
 }: UseActivationStateProps): UseActivationStateResult {
   const {
     activating: vaultActivating,
@@ -79,6 +88,7 @@ export function useActivationState({
           vaultId: activity.id,
           secretHex,
           depositorEthAddress,
+          redeemImmediately,
           pendingPegin,
           updatePendingPeginStatus,
           onRefetchActivities: () => {
@@ -93,10 +103,16 @@ export function useActivationState({
             // Collateral section while the Aave indexer catches up (~15s gap).
             // Skip a bogus row if the amount can't be parsed to a positive BTC
             // value — the indexer-driven row will still appear within seconds.
+            // Never in escape-hatch mode: an activate-and-redeem vault is
+            // redeemed in the same transaction and never becomes collateral.
             const amountBtc = parseFloat(
               activity.collateral.amount.replace(/,/g, ""),
             );
-            if (Number.isFinite(amountBtc) && amountBtc > 0) {
+            if (
+              !redeemImmediately &&
+              Number.isFinite(amountBtc) &&
+              amountBtc > 0
+            ) {
               addActivatingVault({
                 vaultId: activity.id,
                 depositorEthAddress,
@@ -119,6 +135,7 @@ export function useActivationState({
     [
       activity,
       depositorEthAddress,
+      redeemImmediately,
       pendingPegins,
       updatePendingPeginStatus,
       vaultHandleActivation,

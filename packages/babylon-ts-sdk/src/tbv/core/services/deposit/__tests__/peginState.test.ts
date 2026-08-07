@@ -71,6 +71,22 @@ describe("peginProtocolState", () => {
       const state = getPeginProtocolState(ContractStatus.VERIFIED);
       expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
     });
+
+    it("offers only ACTIVATE_AND_REDEEM when the HTLC is spent", () => {
+      const state = getPeginProtocolState(ContractStatus.VERIFIED, {
+        htlcSpentByPeginTx: true,
+      });
+      expect(state.availableActions).toEqual([
+        PeginAction.ACTIVATE_AND_REDEEM,
+      ]);
+    });
+
+    it("keeps ACTIVATE_VAULT when htlcSpentByPeginTx is false", () => {
+      const state = getPeginProtocolState(ContractStatus.VERIFIED, {
+        htlcSpentByPeginTx: false,
+      });
+      expect(state.availableActions).toEqual([PeginAction.ACTIVATE_VAULT]);
+    });
   });
 
   // ==========================================================================

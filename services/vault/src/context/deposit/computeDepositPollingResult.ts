@@ -97,6 +97,14 @@ export interface DepositPollingInputs {
    * suspect, the RPC failed, or the vault isn't on chain yet.
    */
   activationDeadlinePassed: boolean;
+  /**
+   * VERIFIED only: the chain CONFIRMS this vault is still unactivated, so the
+   * BTC-side stuck evidence can be trusted. Defaults false (fail-safe) when the
+   * read has not returned, failed, or the chain already reports the vault
+   * ACTIVE — the indexer-lag case, where the deposit is healthy and must render
+   * normally. See `useStuckVaultChainConfirm`.
+   */
+  stuckStateConfirmedOnChain: boolean;
   isLoading: boolean;
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
@@ -140,6 +148,7 @@ export function computeDepositPollingResult(
     protocolParamsError,
     refundTimelock,
     activationDeadlinePassed,
+    stuckStateConfirmedOnChain,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
@@ -267,6 +276,33 @@ export function computeDepositPollingResult(
     refundMaturityState === "mature" &&
     refundSettlement === undefined;
 
+  // Stuck-state signal (VERIFIED only): the HTLC outpoint was spent BY THE
+  // PEGIN TX — the VP swept the deposit while the vault has not activated,
+  // meaning the secret was revealed and the collateral moved without the
+  // depositor receiving anything. The spender must be proven, not inferred:
+  // a spent HTLC can equally be the depositor's own CSV refund (the ETH-side
+  // VERIFIED status says nothing about BTC-side timing), and offering the
+  // secret-revealing escape hatch against a refund would burn the secret for
+  // a vault whose funds already came back. A missing `spendingTxid` fails
+  // safe for the same reason: no hatch on ambiguous evidence.
+  // Live probe only: confirmed spends of VERIFIED vaults are deliberately
+  // never added to the refunded cache (see PeginPollingContext).
+  //
+  // `stuckStateConfirmedOnChain` is required, not merely corroborating. The
+  // `contractStatus` above is the INDEXER's, and a successful activation that
+  // the indexer has not yet picked up still reads VERIFIED — with BTC evidence
+  // indistinguishable from the stuck case, because the VP's sweep is what
+  // activation looks like on the BTC side. Trusting the indexer alone raised a
+  // false "Activation incomplete" (and a signing prompt) on any device that had
+  // not written the local reveal marker.
+  const peginTxCanonical = canonicalizeTxid(activity.peginTxHash);
+  const htlcSpentByPeginTx =
+    contractStatus === ContractStatus.VERIFIED &&
+    stuckStateConfirmedOnChain &&
+    liveRefund?.spent === true &&
+    peginTxCanonical !== undefined &&
+    canonicalizeTxid(liveRefund.spendingTxid) === peginTxCanonical;
+
   const peginState = getPeginState(contractStatus, {
     localStatus,
     transactionsReady,
@@ -278,6 +314,7 @@ export function computeDepositPollingResult(
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
     activationDeadlinePassed,
+    htlcSpentByPeginTx,
     canRefund,
     refundMaturityState,
     refundMaturesInBlocks,

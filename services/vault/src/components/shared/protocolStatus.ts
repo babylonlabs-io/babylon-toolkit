@@ -99,6 +99,29 @@ export function isActivationBlocked(gate: ProtocolGateState): boolean {
   return gate.protocol === "paused" || gate.aave === "paused";
 }
 
+/**
+ * The activate-and-redeem escape hatch is an EXIT blocked ONLY by a
+ * protocol-scope pause: `activateVaultWithSecretAndRedeem` never touches the
+ * application adapter, and an aave-scope pause is precisely the situation the
+ * hatch exists to escape — blocking on it would disable the recovery when it
+ * is most needed.
+ *
+ * This gate covers governance SCOPE only. The registry also requires the
+ * vault's own application registration to be Active on the redeem path
+ * (`ApplicationNotActive`); that is per-vault rather than per-scope, so it is
+ * read by `useVaultApplicationActive` and applied at the confirm screen.
+ *
+ * Both are point-in-time. Neither closes the window between a passing check
+ * and the transaction mining — a registration deactivated after the check
+ * still mines a reverting tx with the secret in public calldata. What the
+ * checks buy is not offering an action that cannot succeed; the enforcement
+ * that actually refuses to sign is `executeWrite`'s mandatory pre-broadcast
+ * simulation.
+ */
+export function isActivateAndRedeemBlocked(gate: ProtocolGateState): boolean {
+  return gate.protocol === "paused";
+}
+
 /** Repay is an aave-scope EXIT blocked ONLY by an aave pause (not protocol). */
 export function isRepayBlocked(gate: ProtocolGateState): boolean {
   return gate.aave === "paused";
