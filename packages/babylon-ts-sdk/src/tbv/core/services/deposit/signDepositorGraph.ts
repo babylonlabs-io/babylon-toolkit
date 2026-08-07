@@ -255,6 +255,7 @@ async function collectDepositorGraphPsbts(
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,
     assertTxHex: depositorGraph.assert_tx.tx_hex,
+    timelockAssert: ctx.timelockAssert,
     depositorBtcPubkey: ctx.depositorBtcPubkey,
     vaultProviderBtcPubkey: ctx.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: ctx.vaultKeeperBtcPubkeys,
@@ -517,7 +518,7 @@ export interface DepositorGraphSigningContext {
   timelockPegin: number;
   /**
    * Tx-graph fee rate (sat/vB) from the locked offchain params version —
-   * bounds the depositor-claimer payout's implicit fee (device fee-bound model).
+   * bounds the depositor-claimer payout's implicit fee (payout fee band).
    */
   protocolFeeRate: bigint;
   /**

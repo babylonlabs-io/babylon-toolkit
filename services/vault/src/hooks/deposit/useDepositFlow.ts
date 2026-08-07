@@ -549,6 +549,7 @@ export function useDepositFlow(
             universalChallengerBtcPubkeys:
               validatedKeys.universalChallengerBtcPubkeysSorted,
             timelockPegin,
+            timelockAssert: Number(config.offchainParams.timelockAssert),
             timelockRefund,
             councilQuorum: config.offchainParams.councilQuorum,
             councilSize: config.offchainParams.securityCouncilKeys.length,

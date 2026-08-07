@@ -95,6 +95,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     commissionBps: 100,
     vaultKeeperBtcPubkeys: ["keeper1"],
     universalChallengerBtcPubkeys: ["challenger1"],
+    timelockAssert: 100,
     timelockPegin: 100,
     timelockRefund: 50,
     councilQuorum: 2,
@@ -103,14 +104,15 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
   };
 
   const mockDepositTerms: DepositTerms = {
-    baseFeeRate: 10n,
-    peginCsvTimelock: 100,
-    payoutTimelock: 100,
-    htlcRefundTimelock: 50,
+    vaultCoreVersion: 1,
+    protocolFeeRate: 10n,
+    timelockPegin: 100,
+    timelockAssert: 100,
+    timelockRefund: 50,
     prepeginTxid: "txhash123",
     prepeginMaxFee: 1000n,
-    keeperPks: ["keeper1"],
-    challengerPks: ["challenger1"],
+    vaultKeeperBtcPubkeys: ["keeper1"],
+    universalChallengerBtcPubkeys: ["challenger1"],
     vaults: [],
   };
 

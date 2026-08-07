@@ -87,7 +87,7 @@ export interface PayoutSigningContext {
   /**
    * Tx-graph fee rate (sat/vB) from the locked offchain params version —
    * `getOffchainParamsByVersion(...).feeRate`, the rate the VP built the
-   * graph with. Bounds every payout's implicit fee (device fee-bound model).
+   * graph with. Bounds every payout's implicit fee (payout fee band).
    */
   protocolFeeRate: bigint;
 
@@ -181,6 +181,76 @@ function normalizeClaimerPubkey(pubkey: string): string {
 }
 
 /**
+ * Assert the approved terms describe the graph we will actually sign. An
+ * RFC-006 key rotation bumps only a key epoch, so no version comparison can
+ * catch it; `verifyRegisteredParticipantKeys` is the app-side pin, and this
+ * keeps the seam self-contained for external providers (#2109).
+ *
+ * @throws If the terms and the signing context disagree
+ */
+function assertDepositTermsMatchSigningContext(
+  terms: DepositTerms,
+  context: PayoutSigningContext,
+): void {
+  const refuse = (field: string, a: unknown, b: unknown): never => {
+    throw new Error(
+      `Deposit terms ${field} (${String(a)}) does not match the vault's ` +
+        `version-locked signing context (${String(b)}); refusing to sign ` +
+        `payouts against terms that describe a different graph.`,
+    );
+  };
+
+  if (terms.protocolFeeRate !== context.protocolFeeRate) {
+    refuse("protocolFeeRate", terms.protocolFeeRate, context.protocolFeeRate);
+  }
+
+  // Set, not sequence: btc-vault sorts every roster and rejects duplicates
+  // (crates/vault/src/lib.rs:249, :339), so a permutation is not drift.
+  const canonical = (keys: readonly string[]) =>
+    keys.map(normalizeClaimerPubkey).sort();
+  const sameSet = (a: readonly string[], b: readonly string[]) => {
+    const x = canonical(a);
+    const y = canonical(b);
+    return x.length === y.length && x.every((k, i) => k === y[i]);
+  };
+
+  if (!sameSet(terms.vaultKeeperBtcPubkeys, context.vaultKeeperBtcPubkeys)) {
+    refuse(
+      "vaultKeeperBtcPubkeys",
+      terms.vaultKeeperBtcPubkeys.join(","),
+      context.vaultKeeperBtcPubkeys.join(","),
+    );
+  }
+  if (
+    !sameSet(
+      terms.universalChallengerBtcPubkeys,
+      context.universalChallengerBtcPubkeys,
+    )
+  ) {
+    refuse(
+      "universalChallengerBtcPubkeys",
+      terms.universalChallengerBtcPubkeys.join(","),
+      context.universalChallengerBtcPubkeys.join(","),
+    );
+  }
+
+  // Membership, not equality: `DepositTermsVaultGroup` carries a per-vault VP
+  // key, so a batch may legitimately span providers. What matters is that the
+  // vault this flow signs for was covered by what the depositor approved.
+  const contextVp = normalizeClaimerPubkey(context.vaultProviderBtcPubkey);
+  const approvedVps = terms.vaults.map((v) =>
+    normalizeClaimerPubkey(v.vaultProviderBtcPubkey),
+  );
+  if (!approvedVps.includes(contextVp)) {
+    refuse(
+      "vaults[].vaultProviderBtcPubkey",
+      approvedVps.join(",") || "<no vaults>",
+      context.vaultProviderBtcPubkey,
+    );
+  }
+}
+
+/**
  * Reject VP-supplied `response.txs` whose non-depositor claimer set does not
  * exactly equal `{vaultProviderBtcPubkey} ∪ vaultKeeperBtcPubkeys`.
  *
@@ -260,6 +330,7 @@ function buildPayoutSigningInput(
     universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
     depositorBtcPubkey: context.depositorBtcPubkey,
     timelockPegin: context.timelockPegin,
+    timelockAssert: context.timelockAssert,
     registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
     claimerBtcPubkey: tx.claimerPubkeyXOnly,
     commissionBps: context.commissionBps,
@@ -361,25 +432,11 @@ export async function runDepositorPresignFlow(
 
   signal?.throwIfAborted();
 
-  // Approval-capable wallets must approve the deposit terms before any signing
-  // call they authorize, including the Phase 3/4 payout and depositor-graph signing below.
-  // The terms the depositor approved must carry the same graph-build rate the
-  // payout bound will enforce — a mismatch means a params-version drift bug.
-  // Only the rate is checked: the other shared fields (keys, timelocks) come
-  // from the same append-only versioned reads and are already pinned upstream
-  // by verifyRegisteredVaultVersions, so they cannot drift under current flows.
-  // Fresh-flow only: the resume path passes no depositTerms, where the rate is
-  // correct-by-construction (read from the vault's stamped params version).
-  if (
-    depositTerms !== undefined &&
-    depositTerms.baseFeeRate !== signingContext.protocolFeeRate
-  ) {
-    throw new Error(
-      `Deposit terms baseFeeRate (${depositTerms.baseFeeRate} sat/vB) does not ` +
-        `match the vault's version-locked protocolFeeRate ` +
-        `(${signingContext.protocolFeeRate} sat/vB); refusing to sign payouts ` +
-        `against terms built from a different params version.`,
-    );
+  // Approval-capable wallets must approve before any signing call they
+  // authorize, and the terms must match what we sign. Fresh-flow only — the
+  // resume path passes no depositTerms.
+  if (depositTerms !== undefined) {
+    assertDepositTermsMatchSigningContext(depositTerms, signingContext);
   }
 
   if (supportsDepositApproval(btcWallet)) {
@@ -390,6 +447,8 @@ export async function runDepositorPresignFlow(
           "rebuild is not wired yet.",
       );
     }
+    // The provider validates its own device envelope inside
+    // approveDepositTerms (DepositTermsApprover contract, #2109).
     await btcWallet.approveDepositTerms(depositTerms);
   }
 

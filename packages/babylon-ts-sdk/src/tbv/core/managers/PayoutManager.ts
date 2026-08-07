@@ -79,6 +79,8 @@ interface SignPayoutBaseParams {
    * CSV timelock in blocks for the PegIn output.
    */
   timelockPegin: number;
+  /** btc-vault `timelock_assert`; payout input 1's sequence. */
+  timelockAssert: number;
 
   /**
    * Depositor's BTC public key (x-only, 64-char hex). This MUST be the
@@ -241,6 +243,7 @@ export class PayoutManager {
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
       timelockPegin: params.timelockPegin,
+      timelockAssert: params.timelockAssert,
       network: this.config.network,
       claimerBtcPubkey: params.claimerBtcPubkey,
       registeredPayoutScriptPubKey: params.registeredPayoutScriptPubKey,
@@ -346,6 +349,7 @@ export class PayoutManager {
         vaultKeeperBtcPubkeys: tx.vaultKeeperBtcPubkeys,
         universalChallengerBtcPubkeys: tx.universalChallengerBtcPubkeys,
         timelockPegin: tx.timelockPegin,
+        timelockAssert: tx.timelockAssert,
         network: this.config.network,
         claimerBtcPubkey: tx.claimerBtcPubkey,
         registeredPayoutScriptPubKey: tx.registeredPayoutScriptPubKey,

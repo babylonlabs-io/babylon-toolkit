@@ -29,6 +29,16 @@ export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
  */
 export const PAYOUT_ANCHOR_DUST_SATS = 546;
 
+/**
+ * Payout transaction literals btc-vault builds deterministically
+ * (`crates/vault/src/transactions/payout.rs`: `Version::TWO`,
+ * `LockTime::ZERO`). The depositor's signature commits to both, so a
+ * VP-supplied payout that deviates would produce a signature over a
+ * transaction the protocol never constructs.
+ */
+export const PAYOUT_TX_VERSION = 2;
+export const PAYOUT_TX_LOCKTIME = 0;
+
 /** VP-claimer payout output count: [depositor payout, VP commission, CPFP anchor]. */
 export const VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 3;
 
@@ -46,7 +56,7 @@ export const CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER = 2;
 
 /**
  * Exclusive upper bound on VP commission (bps). Matches
- * `BTCVaultRegistry._validateCommission` (`commissionBps >= 10000` reverts).
+ * `VPKeyRegistryLogic.sol` (`commissionBps >= 10000` reverts).
  * The minimum is version-locked (`minVpCommissionBps`) and enforced upstream,
  * not here.
  */

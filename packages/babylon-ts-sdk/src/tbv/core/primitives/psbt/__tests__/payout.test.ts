@@ -15,7 +15,7 @@ import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import { deriveBip86ScriptPubKeyHex } from "../../utils/bitcoin";
-import { PAYOUT_ANCHOR_DUST_SATS } from "../constants";
+import { PAYOUT_ANCHOR_DUST_SATS, PAYOUT_TX_VERSION } from "../constants";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
@@ -52,9 +52,15 @@ const REGISTERED_PAYOUT_SCRIPT_HEX = createDummyP2WPKH("a").toString("hex");
  */
 const TEST_COMMISSION_BPS = 500;
 
+/** PegIn CSV timelock used by the fixtures; equals baseParams.timelockPegin. */
+const TEST_TIMELOCK_PEGIN = 100;
+
+/** Assert:0 payout-leaf CSV; equals baseParams.timelockAssert. */
+const TEST_TIMELOCK_ASSERT = 144;
+
 /**
  * Default graph-build fee rate for tests. With N=1 keeper + M=1 challenger the
- * device fee bound is `10 * (500 + 55*2) = 6_100` sats — above the canonical
+ * fee-band ceiling is `10 * (500 + 55*2) = 6_100` sats — above the canonical
  * 5_000-sat fixture fee, so accepting tests stay green.
  */
 const TEST_PROTOCOL_FEE_RATE = 10n;
@@ -176,7 +182,7 @@ function createTestAssertTransaction(): string {
  *   outs[2]: CPFP anchor — 546 sats (`PAYOUT_ANCHOR_DUST_SATS`)
  *
  * Inputs are pegin (100_000) + claim (50_000) = 150_000; outputs sum to
- * 145_000 → implicit fee = 5_000, under the device bound (6_100 at rate 10).
+ * 145_000 → implicit fee = 5_000, under the ceiling (6_100 at rate 10).
  *
  * 2 inputs are required because Taproot SIGHASH_DEFAULT commits to all
  * prevouts.
@@ -188,12 +194,23 @@ function createTestPayoutTransaction(
   const peginTx = Transaction.fromHex(peginTxHex);
   const assertTx = Transaction.fromHex(assertTxHex);
   const tx = new Transaction();
+  // Mirror btc-vault's payout literals (transactions/payout.rs): version 2,
+  // locktime 0, input 0 sequence = the PegIn CSV timelock.
+  tx.version = PAYOUT_TX_VERSION;
 
   // Input 0: Spend from pegin output (depositor must sign this)
-  tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+  tx.addInput(
+    Buffer.from(peginTx.getId(), "hex").reverse(),
+    0,
+    TEST_TIMELOCK_PEGIN,
+  );
 
   // Input 1: Spend from assert output (after challenge path)
-  tx.addInput(Buffer.from(assertTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+  tx.addInput(
+    Buffer.from(assertTx.getId(), "hex").reverse(),
+    0,
+    TEST_TIMELOCK_ASSERT,
+  );
 
   // outs[0]: depositor payout
   tx.addOutput(
@@ -220,6 +237,7 @@ function baseParams(overrides: Partial<PayoutParams>): PayoutParams {
     vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
     universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
     timelockPegin: 100,
+    timelockAssert: TEST_TIMELOCK_ASSERT,
     network: "signet" as Network,
     claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
     registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -277,6 +295,7 @@ describe("buildPayoutPsbt", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -334,6 +353,7 @@ describe("buildPayoutPsbt", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: TEST_TIMELOCK_ASSERT,
           network,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -352,7 +372,7 @@ describe("buildPayoutPsbt", () => {
       }
     });
 
-    it("should preserve transaction version and locktime", async () => {
+    it("carries btc-vault's pinned version and locktime into the PSBT", async () => {
       const peginTxHex = createTestPeginTransaction();
       const assertTxHex = createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
@@ -370,6 +390,7 @@ describe("buildPayoutPsbt", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -415,6 +436,7 @@ describe("buildPayoutPsbt", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -443,15 +465,16 @@ describe("buildPayoutPsbt", () => {
       const assertTx = Transaction.fromHex(assertTxHex);
 
       const wrongTx = new Transaction();
+      wrongTx.version = PAYOUT_TX_VERSION;
       wrongTx.addInput(
         Buffer.from(peginTx.getId(), "hex").reverse(),
         1, // Correct PegIn txid, wrong vout
-        SEQUENCE_MAX,
+        TEST_TIMELOCK_PEGIN,
       );
       wrongTx.addInput(
         Buffer.from(assertTx.getId(), "hex").reverse(),
         0,
-        SEQUENCE_MAX,
+        TEST_TIMELOCK_ASSERT,
       );
       wrongTx.addOutput(createDummyP2WPKH("f"), Number(TEST_PAYOUT_VALUE));
       const payoutTxHex = wrongTx.toHex();
@@ -466,6 +489,7 @@ describe("buildPayoutPsbt", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -493,15 +517,16 @@ describe("buildPayoutPsbt", () => {
       const assertTxHex = assertTx.toHex();
 
       const wrongTx = new Transaction();
+      wrongTx.version = PAYOUT_TX_VERSION;
       wrongTx.addInput(
         Buffer.from(peginTx.getId(), "hex").reverse(),
         0,
-        SEQUENCE_MAX,
+        TEST_TIMELOCK_PEGIN,
       );
       wrongTx.addInput(
         Buffer.from(assertTx.getId(), "hex").reverse(),
         1, // Correct Assert txid, wrong vout
-        SEQUENCE_MAX,
+        TEST_TIMELOCK_ASSERT,
       );
       wrongTx.addOutput(createDummyP2WPKH("f"), Number(TEST_PAYOUT_VALUE));
       const payoutTxHex = wrongTx.toHex();
@@ -516,6 +541,7 @@ describe("buildPayoutPsbt", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -548,6 +574,7 @@ describe("buildPayoutPsbt", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
@@ -910,11 +937,16 @@ describe("buildPayoutPsbt — per-role output validation", () => {
     const peginTx = Transaction.fromHex(peginTxHex);
     const assertTx = Transaction.fromHex(assertTxHex);
     const tx = new Transaction();
-    tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+    tx.version = PAYOUT_TX_VERSION;
+    tx.addInput(
+      Buffer.from(peginTx.getId(), "hex").reverse(),
+      0,
+      TEST_TIMELOCK_PEGIN,
+    );
     tx.addInput(
       Buffer.from(assertTx.getId(), "hex").reverse(),
       0,
-      SEQUENCE_MAX,
+      TEST_TIMELOCK_ASSERT,
     );
     for (const out of outputs) tx.addOutput(out.script, out.value);
     return tx.toHex();
@@ -1401,11 +1433,16 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     const peginTx = Transaction.fromHex(peginTxHex);
     const assertTx = Transaction.fromHex(assertTxHex);
     const tx = new Transaction();
-    tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+    tx.version = PAYOUT_TX_VERSION;
+    tx.addInput(
+      Buffer.from(peginTx.getId(), "hex").reverse(),
+      0,
+      TEST_TIMELOCK_PEGIN,
+    );
     tx.addInput(
       Buffer.from(assertTx.getId(), "hex").reverse(),
       0,
-      SEQUENCE_MAX,
+      TEST_TIMELOCK_ASSERT,
     );
     for (const out of outputs) tx.addOutput(out.script, out.value);
     return tx.toHex();
@@ -1429,9 +1466,9 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     ]);
   }
 
-  it("rejects a payout whose implicit fee exceeds the device bound (value-burn variant)", async () => {
+  it("rejects a payout whose implicit fee exceeds the fee-band ceiling (value-burn variant)", async () => {
     // Inputs = TEST_PEGIN_VALUE (100_000) + TEST_CLAIM_VALUE (50_000) = 150_000.
-    // Bound = 10 sat/vB * (500 + 55*(1+1)) = 6_100 sats. Deflate the depositor
+    // Ceiling = 10 sat/vB * (500 + 55*(1+1)) = 6_100 sats. Deflate the depositor
     // output so the fee is 50_000 → trip the bound. Keep the canonical
     // VP-claimer 3-output shape so role validation passes before the fee check.
     const peginTxHex = createTestPeginTransaction();
@@ -1446,7 +1483,7 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
   it("small vault + 32/32 participants: accepts a protocol-correct fee the old 10% cap refused", async () => {
     // The #2105 scenario: 500_000-sat vault, N=M=32, 15 sat/vB. The VP's fee
     // (rate x exact vsize ≈ 53_160, here 58_000 to sit above the old cap) is
-    // within the device bound 15 * (500 + 55*64) = 60_300, but exceeds 10% of
+    // within the fee-band ceiling 15 * (500 + 55*64) = 60_300, but exceeds 10% of
     // the 550_000-sat input total (55_000) — the old cap rejected it.
     const smallVaultPegin = (() => {
       const tx = new Transaction();
@@ -1564,8 +1601,8 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
   });
 
   it("extends the ceiling by measured script excess for a 128-byte registered script", async () => {
-    // Contract-legal 128-byte registered payout script: the flat device bound
-    // (6_100) would reject a legitimate fee; the extended ceiling admits it.
+    // Contract-legal 128-byte registered payout script: the unextended flat
+    // ceiling (6_100) would reject a legitimate fee; the extended ceiling admits it.
     const bigScript = Buffer.alloc(128, 0x51);
     const peginTxHex = createTestPeginTransaction();
     const assertTxHex = createTestAssertTransaction();
@@ -1596,7 +1633,84 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
-  it("rejects participant counts outside the device range", async () => {
+  it("builds a v2 payout — the graph version must reach the connector", async () => {
+    // Every other payout fixture is vaultCoreVersion 1. btc-vault keeps
+    // separate per-version connector code (vault-wasm tx_graph.rs v1 vs v2),
+    // so a version that never varies in tests would let a hardcoded 1 pass.
+    const peginTxHex = createTestPeginTransaction();
+    const assertTxHex = createTestAssertTransaction();
+    const payoutTxHex = makePayoutWithFee(peginTxHex, assertTxHex, 5_000);
+
+    const v1 = await buildPayoutPsbt(
+      baseParams({ payoutTxHex, assertTxHex, peginTxHex, vaultCoreVersion: 1 }),
+    );
+    const v2 = await buildPayoutPsbt(
+      baseParams({ payoutTxHex, assertTxHex, peginTxHex, vaultCoreVersion: 2 }),
+    );
+    expect(v1.psbtHex).toBeDefined();
+    expect(v2.psbtHex).toBeDefined();
+    // Observed invariant at the current pins (a0ad5503 / d7e33b26): the
+    // PAYOUT connector is version-invariant — v1 and v2 differ in the PegIn
+    // shape (TRUC, P2A anchor, Assert marker), not in the payout leaf. Pin it
+    // so a future graph version that DOES change the payout connector
+    // surfaces here instead of silently changing what the depositor signs.
+    const leafOf = (hex: string) =>
+      Psbt.fromHex(hex).data.inputs[0].tapLeafScript?.[0].script.toString(
+        "hex",
+      );
+    expect(leafOf(v2.psbtHex)).toBe(leafOf(v1.psbtHex));
+  });
+
+  it("rejects a payout whose tx literals differ from btc-vault's construction", async () => {
+    // btc-vault builds every payout with version 2, locktime 0, input 0
+    // sequence = the PegIn CSV and input 1 sequence = the Assert CSV
+    // (transactions/payout.rs). The depositor's sighash commits to all four.
+    const peginTxHex = createTestPeginTransaction();
+    const assertTxHex = createTestAssertTransaction();
+    const peginTx = Transaction.fromHex(peginTxHex);
+    const assertTx = Transaction.fromHex(assertTxHex);
+
+    const build = (mutate: (tx: Transaction) => void) => {
+      const tx = new Transaction();
+      tx.version = 2;
+      tx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        0,
+        TEST_TIMELOCK_PEGIN,
+      );
+      tx.addInput(
+        Buffer.from(assertTx.getId(), "hex").reverse(),
+        0,
+        TEST_TIMELOCK_ASSERT,
+      );
+      const inputTotal = Number(TEST_PEGIN_VALUE) + Number(TEST_CLAIM_VALUE);
+      tx.addOutput(
+        createDummyP2WPKH("a"),
+        inputTotal - 5_000 - 1_000 - PAYOUT_ANCHOR_DUST_SATS,
+      );
+      tx.addOutput(createDummyP2WPKH("e"), 1_000);
+      tx.addOutput(createDummyP2WPKH("c"), PAYOUT_ANCHOR_DUST_SATS);
+      mutate(tx);
+      return baseParams({ payoutTxHex: tx.toHex(), assertTxHex, peginTxHex });
+    };
+
+    await expect(
+      buildPayoutPsbt(build((tx) => (tx.version = 1))),
+    ).rejects.toThrow(/version 1 must be 2/);
+    await expect(
+      buildPayoutPsbt(build((tx) => (tx.locktime = 800_000))),
+    ).rejects.toThrow(/locktime 800000 must be 0/);
+    await expect(
+      buildPayoutPsbt(build((tx) => (tx.ins[0].sequence = SEQUENCE_MAX))),
+    ).rejects.toThrow(/input 0 sequence .* must equal the PegIn CSV timelock/);
+    await expect(
+      buildPayoutPsbt(build((tx) => (tx.ins[1].sequence = SEQUENCE_MAX))),
+    ).rejects.toThrow(/input 1 sequence .* must equal the Assert CSV timelock/);
+    // Sanity: the unmutated fixture passes, so each rejection is the mutation.
+    await expect(buildPayoutPsbt(build(() => {}))).resolves.toBeDefined();
+  });
+
+  it("rejects participant counts outside each role's supported range", async () => {
     const peginTxHex = createTestPeginTransaction();
     const assertTxHex = createTestAssertTransaction();
     const payoutTxHex = makePayoutWithFee(peginTxHex, assertTxHex, 5_000);
@@ -1605,17 +1719,23 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     await expect(
       buildPayoutPsbt({
         ...params,
-        vaultKeeperBtcPubkeys: generateXOnlyKeys(33, 3_000),
+        // Wiring only — the bound itself is unit-tested in
+        // assertPayoutFeeBand.test.ts; 257 real keys cost ~3.6s to generate.
+        vaultKeeperBtcPubkeys: Array.from({ length: 257 }, (_, i) =>
+          i.toString(16).padStart(64, "0"),
+        ),
         vkClaimerPayoutScriptPubKeys: DEFAULT_VK_PAYOUT_SCRIPTS,
         vpCommissionScriptPubKey: CANONICAL_VP_COMMISSION_SCRIPT_HEX,
       }),
-    ).rejects.toThrow(/device range/);
+    ).rejects.toThrow(/supported range/);
     await expect(
       buildPayoutPsbt({
         ...params,
-        universalChallengerBtcPubkeys: generateXOnlyKeys(33, 4_000),
+        universalChallengerBtcPubkeys: Array.from({ length: 1501 }, (_, i) =>
+          (i + 1).toString(16).padStart(64, "0"),
+        ),
       }),
-    ).rejects.toThrow(/device range/);
+    ).rejects.toThrow(/supported range/);
   });
 
   it("rejects a councilSize outside the accepted domain", async () => {
@@ -1638,7 +1758,7 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     await expect(
       buildPayoutPsbt({ ...params, protocolFeeRate: 0n }),
     ).rejects.toThrow(/protocolFeeRate must be in/);
-    // The device's intent parser rejects base_fee_rate > UINT32_MAX.
+    // Sanity cap: far above the contract's own [1, 1000] fee-rate range.
     await expect(
       buildPayoutPsbt({ ...params, protocolFeeRate: 0x1_0000_0000n }),
     ).rejects.toThrow(/protocolFeeRate must be in/);
@@ -1666,6 +1786,7 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
+        timelockAssert: TEST_TIMELOCK_ASSERT,
         network: "signet" as Network,
         claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT_HEX,
