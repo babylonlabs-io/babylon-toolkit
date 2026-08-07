@@ -1,24 +1,71 @@
-import { useCallback } from "react";
+import { useId, useMemo } from "react";
+import { GridColumns } from "@visx/grid";
+import { scaleLinear } from "@visx/scale";
+import { Bar } from "@visx/shape";
+import { Text } from "@visx/text";
 import { twJoin } from "tailwind-merge";
 import "./LiquidationChart.css";
-import { BandLayer } from "./BandLayer";
-import { PriceFrame } from "./PriceFrame";
-import { segmentedFraction, pct } from "./scale";
+import { BandLayer, type BandRect } from "./BandLayer";
+import { ChartFrame } from "./ChartFrame";
+import { BAND_RADIUS_PX, LEGEND_GAP_PX, LEGEND_PAD_X_PX } from "./chartGeometry";
+import { useChartLayout, type ChartLayout } from "../charts/chartLayout";
+import { createSegmentedPriceScale } from "./priceScale";
+import { chartFont, truncateToWidth } from "../charts/textMeasure";
 import type { LiquidationBand, SeizureMapProps } from "./types";
 
-/** Collateral-share legend strip above the plot (0.6 BTC / 0.4 BTC / …). */
-function ShareLegend({ bands }: { bands: LiquidationBand[] }) {
+/** Collateral-share legend strip above the plot (0.6 BTC / 0.4 BTC / …).
+ * A liquidated band's segment dims and swaps its amount for `liquidatedLabel`. */
+function ShareLegend({
+  bands,
+  shareScale,
+  layout,
+  liquidatedLabel,
+}: {
+  bands: LiquidationBand[];
+  shareScale: (share: number) => number;
+  layout: ChartLayout;
+  liquidatedLabel?: string;
+}) {
+  const clipBaseId = useId();
   return (
     <>
-      {bands.map((band) => (
-        <span
-          key={band.key}
-          className={`bbn-liq-legend-seg bbn-liq-legend-seg--tone-${band.tone}`}
-          style={{ width: pct(band.shareEnd - band.shareStart) }}
-        >
-          {band.amountLabel}
-        </span>
-      ))}
+      {bands.map((band, index) => {
+        const x = shareScale(band.shareStart);
+        const isLast = index === bands.length - 1;
+        const width = Math.max(0, shareScale(band.shareEnd) - x - (isLast ? 0 : LEGEND_GAP_PX));
+        const liquidated = band.state === "liquidated";
+        const text = liquidated && liquidatedLabel ? liquidatedLabel : band.amountLabel;
+        const clipId = `${clipBaseId}-${index}`;
+        return (
+          <g key={band.key} className={twJoin("bbn-liq-legend__seg", liquidated && "bbn-liq-legend__seg--liquidated")}>
+            <clipPath id={clipId}>
+              <rect x={x} y={0} width={width} height={layout.legendHeight} />
+            </clipPath>
+            <Bar
+              className={`bbn-liq-legend__rect bbn-liq-legend__rect--tone-${band.tone}`}
+              x={x}
+              y={0}
+              width={width}
+              height={layout.legendHeight}
+              rx={BAND_RADIUS_PX}
+            />
+            {/* Clipped like the band text: measurement-less environments
+                (no canvas) skip truncation, and the clip is the backstop. */}
+            <g clipPath={`url(#${clipId})`} pointerEvents="none">
+              <Text
+                className="bbn-liq-legend__text"
+                x={x + width / 2}
+                y={layout.legendHeight / 2}
+                textAnchor="middle"
+                verticalAnchor="middle"
+                fontSize={layout.fontLabel}
+              >
+                {truncateToWidth(text, chartFont(layout.fontLabel), width - 2 * LEGEND_PAD_X_PX)}
+              </Text>
+            </g>
+          </g>
+        );
+      })}
     </>
   );
 }
@@ -38,17 +85,42 @@ export function SeizureMap({
   priceLineColor,
   priceLineLabelColor,
   hideBandLabels,
-  onBandClick,
-  bandClickHint,
+  liquidatedLabel,
   className,
 }: SeizureMapProps) {
   const compact = variant === "compact";
-  const priceToFraction = useCallback((price: number) => segmentedFraction(priceAxis, price), [priceAxis]);
+  const hasTopLegend = !compact && showShareLegend && bands.length > 0;
+  const hasXAxis = !compact && Boolean(shareAxisTicks?.length || shareAxisLabels?.length);
+  const { parentRef, layout, collapsed } = useChartLayout({ axisSide: "left", hasTopLegend, hasXAxis });
+
+  const priceScale = useMemo(
+    () => createSegmentedPriceScale(priceAxis, layout.plotHeight),
+    [priceAxis, layout.plotHeight],
+  );
+  const shareScale = useMemo(
+    () => scaleLinear<number>({ domain: [0, 1], range: [0, layout.plotWidth], clamp: true }),
+    [layout.plotWidth],
+  );
+
+  if (collapsed) return null;
+
+  const bandRect = (b: LiquidationBand): BandRect => {
+    const x = shareScale(b.shareStart);
+    const y = priceScale(b.priceTop);
+    return {
+      x,
+      y,
+      width: Math.max(0, shareScale(b.shareEnd) - x),
+      height: Math.max(0, priceScale(b.priceBottom) - y),
+    };
+  };
 
   return (
-    <PriceFrame
+    <ChartFrame
+      parentRef={parentRef}
+      layout={layout}
       priceAxis={priceAxis}
-      priceToFraction={priceToFraction}
+      priceScale={priceScale}
       currentPrice={currentPrice}
       currentPriceLabel={currentPriceLabel}
       xAxisLabels={compact ? undefined : shareAxisLabels}
@@ -58,22 +130,31 @@ export function SeizureMap({
       priceLineCaption={priceLineCaption}
       priceLineColor={priceLineColor}
       priceLineLabelColor={priceLineLabelColor}
-      variant={variant}
-      className={twJoin(hideBandLabels && "bbn-liq-chart--no-band-labels", className)}
-      topLegend={compact || !showShareLegend ? undefined : <ShareLegend bands={bands} />}
+      className={className}
+      topLegend={
+        hasTopLegend ? (
+          <ShareLegend bands={bands} shareScale={shareScale} layout={layout} liquidatedLabel={liquidatedLabel} />
+        ) : undefined
+      }
     >
-      {/* Vertical gridlines at the band boundaries. */}
-      {[0, ...bands.map((b) => b.shareEnd)].map((f) => (
-        <span key={f} className="bbn-liq-chart__vgridline" style={{ left: pct(f) }} aria-hidden />
-      ))}
+      {(grid?.lines ?? "both") === "both" ? (
+        <GridColumns
+          className="bbn-liq-grid"
+          scale={shareScale}
+          height={layout.plotHeight}
+          tickValues={[0, ...bands.map((b) => b.shareEnd)]}
+          aria-hidden
+        />
+      ) : null}
       <BandLayer
         bands={bands}
-        priceToFraction={priceToFraction}
-        bandX={(b) => ({ left: b.shareStart, width: b.shareEnd - b.shareStart })}
+        bandRect={bandRect}
+        fontLabel={layout.fontLabel}
+        fontAmount={layout.fontAmount}
         compact={compact}
-        onBandClick={onBandClick}
-        bandClickHint={bandClickHint}
+        hideBandLabels={Boolean(hideBandLabels)}
+        liquidatedLabel={liquidatedLabel}
       />
-    </PriceFrame>
+    </ChartFrame>
   );
 }

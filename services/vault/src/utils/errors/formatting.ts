@@ -11,27 +11,13 @@ import {
 
 import { COPY } from "@/copy";
 
-/**
- * Wallet-connector error code emitted by BTC providers when the user rejects
- * a signing prompt. Mirrors `ERROR_CODES.CONNECTION_REJECTED` from
- * `@babylonlabs-io/wallet-connector`. Inlined to avoid pulling the full
- * wallet-connector bundle into this file (and its test transform); the
- * constant is the public contract - if it ever changes upstream, this string
- * must change too.
- */
-const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
-
-export function isWalletRejectionError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code: unknown }).code === WALLET_CONNECTION_REJECTED_CODE
-  );
-}
+import {
+  isUserCancellationFrame,
+  isWalletRejectionError,
+} from "./userCancellation";
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
-  USER_REJECTED: 4001,
   UNAUTHORIZED: 4100,
   PROVIDER_DISCONNECTED: 4900,
   CHAIN_DISCONNECTED: 4901,
@@ -58,6 +44,16 @@ const INSUFFICIENT_GAS_FUNDS_PATTERN =
 // (X pegin + Y fee), have Z sats" — exclude it from the ETH match so we
 // don't collapse the sats info the user needs.
 const BTC_FUNDS_GUARD_PATTERN = /\bsats\b|\bpegin\b/i;
+
+// revm's `HaltReason::OutOfFunds` — "Out of funds to pay for the call"
+// (revm crates/context/interface/src/result.rs) — reaches us through the
+// Babylon EVM RPC as `Details: EVM error: OutOfFunds` on eth_estimateGas.
+// It means the sender can't cover value + gas, but shares no wording with the
+// geth-style messages above, so without this it classifies as a transient
+// `rpc-error` and the user is told to wait and retry. Kept out of
+// `matchesInsufficientGasFundsMessage` because the BTC sats guard is
+// irrelevant here — this string never appears in the UTXO selector's error.
+const EVM_OUT_OF_FUNDS_PATTERN = /\bout ?of ?funds?\b/i;
 
 export function matchesInsufficientGasFundsMessage(msg: string): boolean {
   if (BTC_FUNDS_GUARD_PATTERN.test(msg)) return false;
@@ -137,19 +133,24 @@ export function classifyError(err: unknown): ErrorKind | null {
     };
 
     // User rejection — MUST stay first within the frame; see precedence (a).
-    if (
-      obj.code === EIP1193.USER_REJECTED ||
-      obj.name === "UserRejectedRequestError"
-    ) {
-      return "user-rejection";
-    }
-    if (isWalletRejectionError(cur)) return "user-rejection";
+    // Shared with the telemetry-side drop so the two cannot drift: a wording
+    // this recognises but the classifier did not used to (e.g. "Connection to
+    // Keystone was canceled") was dropped from Sentry while still rendering
+    // generic error copy. `isUserCancellationFrame` deliberately does not walk
+    // `cause` — the walk here is what enforces precedence (b).
+    if (isUserCancellationFrame(cur)) return "user-rejection";
 
     // Insufficient ETH for gas + value
     if (obj.name === "InsufficientFundsError") return "insufficient-funds";
     if (
       typeof obj.message === "string" &&
       matchesInsufficientGasFundsMessage(obj.message)
+    ) {
+      return "insufficient-funds";
+    }
+    if (
+      typeof obj.message === "string" &&
+      EVM_OUT_OF_FUNDS_PATTERN.test(obj.message)
     ) {
       return "insufficient-funds";
     }
@@ -282,21 +283,29 @@ export function mapVpRpcError(error: JsonRpcError): {
   if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
     return vp.requestTimeout;
   }
-  // -32001: proxy "Provider not found" (message-specific) vs FE client "Network error" (generic)
-  if (
-    error.code === JSON_RPC_ERROR_CODES.NETWORK &&
-    error.message.toLowerCase().includes("provider not found")
-  ) {
-    return vp.providerNotFound;
-  }
+  // -32001 has three distinct producers. `source` separates the SDK's own
+  // network failure (always "local") from the two wire producers; the
+  // proxy's single -32001 emitter has one fixed message ("Provider not
+  // found"), so anything else arriving over the wire is the daemon
+  // rejecting our bearer.
   if (error.code === JSON_RPC_ERROR_CODES.NETWORK) {
-    return vp.connectionFailed;
+    if (error.source !== "wire") {
+      return vp.connectionFailed;
+    }
+    if (error.message.toLowerCase().includes("provider not found")) {
+      return vp.providerNotFound;
+    }
+    return vp.sessionExpired;
   }
-  // Proxy-specific: VP request timed out at the proxy level
+  // -32002 / -32003 collide the same way, but undecidably: the proxy sends
+  // them for transport failures and the daemon sends them for NonceReplay /
+  // UnauthorizedCaller during token issuance, both over the wire and with
+  // free-form messages. The proxy's meanings are the common case, so they
+  // stay — disambiguating would mean matching message text, which is the
+  // classification bug this mapping just stopped doing.
   if (error.code === JSON_RPC_ERROR_CODES.PROXY_TIMEOUT) {
     return vp.providerTimeout;
   }
-  // Proxy-specific: VP unreachable, DNS failure, or response too large
   if (error.code === JSON_RPC_ERROR_CODES.PROXY_UNAVAILABLE) {
     return vp.providerUnavailable;
   }
@@ -304,6 +313,98 @@ export function mapVpRpcError(error: JsonRpcError): {
     title: vp.rejected.title,
     message: vp.rejected.message(error.code),
   };
+}
+
+/**
+ * viem builds `Error.message` by joining `shortMessage`, `metaMessages`, a docs
+ * link and `details` (viem `errors/base.ts`). `metaMessages` is the request
+ * dump — `TransactionExecutionError` puts "Request Arguments:" with the full
+ * calldata there — while `details` carries the node's own text. Read the parts
+ * so the user sees the diagnosis without the hex.
+ */
+function readViemMessage(err: unknown): string | null {
+  if (err === null || typeof err !== "object") return null;
+  // viem's BaseError constructor defines all three of these, so requiring them
+  // together keeps an unrelated SDK error that merely carries a `shortMessage`
+  // from having its own (possibly richer) `message` discarded.
+  if (
+    !("shortMessage" in err) ||
+    !("details" in err) ||
+    !("metaMessages" in err)
+  ) {
+    return null;
+  }
+  const { shortMessage, details, code } = err as {
+    shortMessage?: unknown;
+    details?: unknown;
+    code?: unknown;
+  };
+  if (typeof shortMessage !== "string" || !shortMessage) return null;
+
+  const parts = [shortMessage];
+  if (
+    typeof details === "string" &&
+    details &&
+    !shortMessage.includes(details)
+  ) {
+    parts.push(details);
+  }
+  if (typeof code === "number" && Number.isFinite(code)) {
+    parts.push(`(code ${code})`);
+  }
+  return parts.join(" ");
+}
+
+/** Upper bound on copied diagnostics; viem messages can run to many KB. */
+const MAX_DIAGNOSTICS_CHARS = 4000;
+
+/**
+ * The full error text for the "copy details" affordance — everything
+ * {@link sanitizeErrorMessage} deliberately withholds from the UI, including
+ * viem's request dump, so a reporter can paste one block instead of a
+ * screenshot.
+ */
+export function formatErrorDiagnostics(err: unknown): string {
+  if (typeof err === "string") return clampDiagnostics(err);
+  if (!(err instanceof Error)) return clampDiagnostics(stringifyUnknown(err));
+
+  const { shortMessage, details, code } = err as {
+    shortMessage?: unknown;
+    details?: unknown;
+    code?: unknown;
+  };
+  // Summary first, raw message last: viem puts the request dump ahead of
+  // `details`, so clamping the raw text alone would drop the very fields a
+  // triager reads.
+  const summary = [`name: ${err.name}`];
+  if (typeof shortMessage === "string" && shortMessage) {
+    summary.push(`shortMessage: ${shortMessage}`);
+  }
+  if (typeof details === "string" && details) {
+    summary.push(`details: ${details}`);
+  }
+  if (typeof code === "number" || typeof code === "string") {
+    summary.push(`code: ${code}`);
+  }
+
+  return clampDiagnostics([...summary, "", err.message].join("\n"));
+}
+
+function stringifyUnknown(err: unknown): string {
+  try {
+    // JSON.stringify returns undefined for undefined, functions and symbols.
+    return JSON.stringify(err) ?? String(err);
+  } catch {
+    // Circular or otherwise unserializable — String() still identifies it.
+    return String(err);
+  }
+}
+
+function clampDiagnostics(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.length > MAX_DIAGNOSTICS_CHARS
+    ? `${trimmed.slice(0, MAX_DIAGNOSTICS_CHARS - 1)}…`
+    : trimmed;
 }
 
 /**
@@ -321,6 +422,8 @@ export function mapVpRpcError(error: JsonRpcError): {
 export function sanitizeErrorMessage(err: unknown): string {
   const kind = classifyError(err);
   if (kind) return FRIENDLY_MESSAGES[kind];
+  const viemMessage = readViemMessage(err);
+  if (viemMessage) return viemMessage;
   if (err instanceof Error) {
     return err.message && err.message !== "[object Object]"
       ? err.message
@@ -401,28 +504,13 @@ export function formatPayoutSignatureError(error: unknown): {
         message: "Please reconnect your Bitcoin wallet to continue.",
       };
     }
-    if (
-      error.message.includes("Vault or pegin transaction not found") ||
-      error.message.includes("not found on-chain")
-    ) {
+    // Produced by the registry reader: "Vault <id> not found on-chain or has
+    // no pegin transaction".
+    if (error.message.includes("not found on-chain")) {
       return {
         title: "Deposit not found",
         message:
           "The deposit transaction could not be found. It may have been processed already.",
-      };
-    }
-    if (error.message.includes("Failed to sign Payout transaction")) {
-      return {
-        title: "Signing failed",
-        message:
-          "Failed to sign the payout transaction. Please try again or reconnect your wallet.",
-      };
-    }
-    if (error.message.includes("Failed to batch sign payout transactions")) {
-      return {
-        title: "Batch signing failed",
-        message:
-          "Failed to sign payout transactions. Please try again or reconnect your wallet.",
       };
     }
     // Contract call errors (viem) — surface a meaningful message instead of swallowing

@@ -67,6 +67,7 @@ import {
   type Network,
   type PrePeginParams,
 } from "../primitives";
+import { MAX_VP_COMMISSION_BPS_EXCLUSIVE } from "../primitives/psbt/constants";
 import {
   ensureHexPrefix,
   hexToUint8Array,
@@ -102,7 +103,8 @@ const NO_REFERRAL_CODE = 0;
  * commission by up to this amount between read and submit without forcing
  * a re-quote. Capped by {@link MAX_ACCEPTABLE_COMMISSION_BPS_CAP}.
  *
- * Contract check is strict `>` (PeginLogic.sol:182-190), so +25 allows up
+ * Contract check is strict `>` (PeginLogic.sol `VaultProviderCommissionExceeded`
+ * revert), so +25 allows up
  * to +25 bps of drift.
  */
 const COMMISSION_BPS_HEADROOM = 25;
@@ -113,6 +115,33 @@ const COMMISSION_BPS_HEADROOM = 25;
  * `9999` is the maximum useful cap.
  */
 const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
+
+/**
+ * The commission ceiling submitted as registration calldata and mirrored
+ * into `DepositTerms.commissionFee`: quoted + drift headroom, capped.
+ * Single source for both consumers — feed it the SAME quoted bps at prepare
+ * and register time so device-accept stays coextensive with contract-accept.
+ */
+function capMaxAcceptableCommissionBps(bps: number): number {
+  // Validate the raw quote before headroom shifts its domain — a negative
+  // quote must throw here, not become a small "legal" ceiling.
+  // Reject an out-of-range quote outright — clamping it to 9999 would turn a
+  // bad read into a 99.99% ceiling, the exact failure the cap exists to stop.
+  if (
+    !Number.isInteger(bps) ||
+    bps < 0 ||
+    bps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
+  ) {
+    throw new Error(
+      `Quoted commissionBps must be an integer in ` +
+        `[0, ${MAX_VP_COMMISSION_BPS_EXCLUSIVE}), got ${bps}`,
+    );
+  }
+  return Math.min(
+    bps + COMMISSION_BPS_HEADROOM,
+    MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+  );
+}
 
 /**
  * 32-byte zero hex used as a placeholder during the sizing pass for any
@@ -208,8 +237,9 @@ export interface PreparePeginParams {
   vaultProviderBtcPubkey: string;
 
   /**
-   * VP commission in basis points; feeds the deposit terms' per-vault
-   * commissionFee (floor(vaultAmount * bps / 10_000)).
+   * VP commission quoted for this deposit (bps). Capped to the approval
+   * ceiling before it sizes the terms' commissionFee, so the user approves
+   * the most the VP can take — not the quote.
    */
   commissionBps: number;
 
@@ -229,6 +259,14 @@ export interface PreparePeginParams {
    * CSV timelock in blocks for the PegIn vault output.
    */
   timelockPegin: number;
+  /**
+   * btc-vault `timelock_assert` (t2) — the Assert:0 payout-leaf CSV. Carried
+   * into DepositTerms as its own field. Production collapses the two: the SDK
+   * derives timelockPegin from the same on-chain timelockAssert
+   * (`protocol-params-reader.ts` deriveTimelockPegin), mirroring vaultd
+   * (`pegin_validation.rs`). The terms never assume that identity.
+   */
+  timelockAssert: number;
 
   /**
    * CSV timelock in blocks for the Pre-PegIn HTLC refund path.
@@ -454,7 +492,11 @@ export interface RegisterPeginParams {
    */
   htlcVout: number;
 
-  /** VP commission (bps) shown to the user — bounds maxAcceptableCommissionBps. See #1691. */
+  /**
+   * Bounds the registration's maxAcceptableCommissionBps (#1691). REQUIRED
+   * when the wallet approved terms — the ceiling must anchor to the approved
+   * quote. Optional otherwise; falls back to chain-current.
+   */
   quotedCommissionBps?: number;
 }
 
@@ -980,16 +1022,20 @@ export class PeginManager {
     // peginMaxFee reuses assertWasmPeginSizing's already-asserted minPeginFee
     // (via prePeginResult) instead of recomputing it.
     const depositTerms = buildDepositTerms({
+      vaultCoreVersion: params.vaultCoreVersion,
       protocolFeeRate: params.protocolFeeRate,
       timelockPegin: params.timelockPegin,
+      timelockAssert: params.timelockAssert,
       timelockRefund: params.timelockRefund,
       prepeginTxid: prePeginTxid,
       prepeginMaxFee: sizing.fee,
-      vaultProviderPk: vaultProviderBtcPubkey,
-      keeperPks: vaultKeeperBtcPubkeys,
-      challengerPks: universalChallengerBtcPubkeys,
-      commissionBps: params.commissionBps,
-      vaultAmounts: params.amounts,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      maxAcceptableCommissionBps: capMaxAcceptableCommissionBps(
+        params.commissionBps,
+      ),
+      peginAmounts: params.amounts,
       depositorClaimValue: prePeginResult.depositorClaimValue,
       peginMaxFee: prePeginResult.minPeginFee,
     });
@@ -1579,6 +1625,20 @@ export class PeginManager {
     vaultProvider: Address,
     quotedCommissionBps?: number,
   ): Promise<number> {
+    // Approval-capable wallets froze the ceiling on-device at prepare time
+    // (DepositTerms.commissionFee from the quoted bps). The chain-current
+    // fallback could exceed that approved ceiling, letting registration
+    // admit a commission the device would refuse to pay out — require the
+    // same quote instead.
+    if (
+      quotedCommissionBps === undefined &&
+      supportsDepositApproval(this.config.btcWallet)
+    ) {
+      throw new Error(
+        "quotedCommissionBps is required when the wallet approved deposit " +
+          "terms: the registration ceiling must anchor to the approved quote.",
+      );
+    }
     let currentBps: number;
     try {
       const reader = new ViemVaultRegistryReader(
@@ -1602,16 +1662,10 @@ export class PeginManager {
             `Please refresh to see the new commission and try again.`,
         );
       }
-      return Math.min(
-        quotedCommissionBps + COMMISSION_BPS_HEADROOM,
-        MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
-      );
+      return capMaxAcceptableCommissionBps(quotedCommissionBps);
     }
 
-    return Math.min(
-      currentBps + COMMISSION_BPS_HEADROOM,
-      MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
-    );
+    return capMaxAcceptableCommissionBps(currentBps);
   }
 
   /**

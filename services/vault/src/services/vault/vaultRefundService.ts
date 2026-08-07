@@ -13,10 +13,10 @@
 
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import {
+  assertVaultProviderHintAccepted,
   getNetworkFees,
-  getSortedXOnlyPubkeys,
-  processPublicKeyToXOnly,
   pushTx,
+  resolveParticipantKeysAtEpochs,
   stripHexPrefix,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
@@ -33,8 +33,12 @@ import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import { fetchHtlcSpend } from "../../clients/btc/outspend";
-import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
+  getVaultFromChain,
+  getVaultKeyEpochsFromChain,
+} from "../../clients/eth-contract/btc-vault-registry/query";
+import {
+  getOperationKeyReader,
   getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
@@ -381,6 +385,7 @@ async function readVaultForRefund(
 
 async function readPrePeginContext(
   vault: VaultRefundData,
+  vaultId: Hex,
 ): Promise<RefundPrePeginContext> {
   const [protocolReader, keeperReader, challengerReader] = await Promise.all([
     getProtocolParamsReader(),
@@ -429,26 +434,47 @@ async function readPrePeginContext(
   // value. A stale or compromised indexer could otherwise substitute a
   // different key and produce a refund signed against a Taproot script tree
   // that doesn't match the actual vault.
-  const indexerXOnly = processPublicKeyToXOnly(
-    vaultProvider.btcPubKey,
-  ).toLowerCase();
-  if (indexerXOnly !== vaultProviderOnChainPubkey.toLowerCase()) {
-    throw new Error(
-      `Indexer vault provider key for ${vault.vaultProvider} does not match on-chain registry. Aborting refund.`,
-    );
-  }
+  //
+  // RFC-006. Accepted against the registration key *or* the provider's current
+  // operation key, the shared policy the deposit and payout paths apply. This
+  // is the recovery path of last resort, with BTC already committed, and the
+  // trigger is an indexer deploy rather than one of ours — comparing against
+  // the registration key alone would strand every depositor of a rotated
+  // provider with no workaround.
+  await assertVaultProviderHintAccepted({
+    vaultProviderEthAddress: vault.vaultProvider as Address,
+    hintBtcPubkey: vaultProvider.btcPubKey,
+    registrationBtcPubkey: vaultProviderOnChainPubkey,
+    readCurrentOperationBtcPubkey: () =>
+      getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(
+        vault.vaultProvider as Address,
+      ),
+    context: "Aborting refund.",
+  });
 
-  const vaultKeeperPubkeys = getSortedXOnlyPubkeys(
-    vaultKeepers.map((vk) => vk.btcPubKey),
-  );
-  const universalChallengerPubkeys = getSortedXOnlyPubkeys(
-    universalChallengersList.map((uc) => uc.btcPubKey),
-  );
+  // RFC-006. A refund rebuilds this vault's Pre-PegIn script tree, so it must
+  // use the keys bonded at the vault's frozen epochs — not whatever the
+  // operators hold now. The rosters above are already at the vault's frozen
+  // membership versions, which supply the genesis fallback.
+  const participantKeys = await resolveParticipantKeysAtEpochs({
+    operationKeyReader: await getOperationKeyReader(),
+    query: {
+      vaultProviderEthAddress: vault.vaultProvider as Address,
+      vaultProviderGenesisBtcPubkey: `0x${vaultProviderOnChainPubkey}` as Hex,
+      applicationEntryPoint: vault.applicationEntryPoint,
+      vaultKeepers,
+      universalChallengers: universalChallengersList,
+    },
+    epochs: await getVaultKeyEpochsFromChain(vaultId),
+  });
+
+  const vaultKeeperPubkeys = participantKeys.vaultKeeperOperationKeysSorted;
 
   return {
-    vaultProviderPubkey: vaultProviderOnChainPubkey,
+    vaultProviderPubkey: participantKeys.vaultProvider.operationBtcPubkey,
     vaultKeeperPubkeys,
-    universalChallengerPubkeys,
+    universalChallengerPubkeys:
+      participantKeys.universalChallengerOperationKeysSorted,
     timelockRefund: offchainParams.tRefund,
     feeRate: offchainParams.feeRate,
     minPeginFeeRate: offchainParams.minPeginFeeRate,
@@ -556,7 +582,7 @@ export async function buildAndBroadcastRefundTransaction(
       const data = await readVaultForRefund(vaultId, depositorAddress);
       return { ...data, depositorBtcPubkey };
     },
-    readPrePeginContext: (vault) => readPrePeginContext(vault),
+    readPrePeginContext: (vault) => readPrePeginContext(vault, vaultId as Hex),
     feeRate,
     signPsbt: (psbtHex, options) =>
       btcWalletProvider.signPsbt(psbtHex, options),

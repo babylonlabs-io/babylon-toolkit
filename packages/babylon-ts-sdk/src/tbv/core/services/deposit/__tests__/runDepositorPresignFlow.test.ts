@@ -13,7 +13,10 @@ import type {
   DepositTermsApprover,
 } from "../../../deposit-terms";
 import type { PeginStatusReader, PresignClient } from "../interfaces";
-import { runDepositorPresignFlow, type PayoutSigningContext } from "../runDepositorPresignFlow";
+import {
+  runDepositorPresignFlow,
+  type PayoutSigningContext,
+} from "../runDepositorPresignFlow";
 
 // ---------------------------------------------------------------------------
 // Mocks — we test the orchestration, not PSBT internals or PayoutManager
@@ -28,6 +31,7 @@ vi.mock("../signDepositorGraph", () => ({
   })),
 }));
 
+const capturedPayoutInputs = vi.hoisted(() => [] as Record<string, unknown>[]);
 vi.mock("../../../managers/PayoutManager", () => {
   return {
     PayoutManager: class MockPayoutManager {
@@ -35,6 +39,7 @@ vi.mock("../../../managers/PayoutManager", () => {
         return true;
       }
       async signPayoutTransactionsBatch(inputs: unknown[]) {
+        capturedPayoutInputs.push(...(inputs as Record<string, unknown>[]));
         return (inputs as unknown[]).map(() => ({
           payoutSignature: "mock_payout_sig",
         }));
@@ -49,10 +54,8 @@ vi.mock("../../../managers/PayoutManager", () => {
 vi.mock("../../../primitives/utils/bitcoin", () => ({
   processPublicKeyToXOnly: (pk: string) =>
     pk.startsWith("0x") ? pk.slice(2) : pk.length === 66 ? pk.slice(2) : pk,
-  stripHexPrefix: (s: string) =>
-    s.startsWith("0x") ? s.slice(2) : s,
-  deriveBip86ScriptPubKeyHex: (xOnlyPubkey: string) =>
-    `0x5120${xOnlyPubkey}`,
+  stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
+  deriveBip86ScriptPubKeyHex: (xOnlyPubkey: string) => `0x5120${xOnlyPubkey}`,
 }));
 
 vi.mock("bitcoinjs-lib", () => ({
@@ -73,16 +76,13 @@ const VP_PUBKEY = "e".repeat(64);
 const VK_PUBKEY = "f".repeat(64);
 const CHALLENGER_PK = "c".repeat(64);
 
-function createMockStatusReader(
-  statuses: DaemonStatus[],
-): PeginStatusReader {
+function createMockStatusReader(statuses: DaemonStatus[]): PeginStatusReader {
   let callIdx = 0;
   return {
     getPeginStatus: vi.fn(
       async (): Promise<GetPeginStatusResponse> => ({
         pegin_txid: VALID_TXID,
-        status:
-          statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
+        status: statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
         progress: {},
         health_info: "ok",
       }),
@@ -130,8 +130,7 @@ function createMockPresignClient(
   return {
     requestDepositorPresignTransactions: vi.fn(async () => ({
       txs: response?.txs ?? [vpClaimer, vkClaimer],
-      depositor_graph:
-        response?.depositor_graph ?? defaultDepositorGraph,
+      depositor_graph: response?.depositor_graph ?? defaultDepositorGraph,
     })),
     submitDepositorPresignatures: vi.fn(async () => {}),
   };
@@ -160,19 +159,20 @@ function createCapabilityWallet(
 }
 
 const DEPOSIT_TERMS: DepositTerms = {
-  baseFeeRate: 2n,
-  peginCsvTimelock: 144,
-  payoutTimelock: 144,
-  htlcRefundTimelock: 4320,
+  vaultCoreVersion: 1,
+  protocolFeeRate: 2n,
+  timelockPegin: 144,
+  timelockAssert: 144,
+  timelockRefund: 4320,
   prepeginTxid: "1".repeat(64),
   prepeginMaxFee: 1500n,
-  keeperPks: [VK_PUBKEY],
-  challengerPks: [CHALLENGER_PK],
+  vaultKeeperBtcPubkeys: [VK_PUBKEY],
+  universalChallengerBtcPubkeys: [CHALLENGER_PK],
   vaults: [
     {
       htlcVout: 0,
-      vaultProviderPk: VP_PUBKEY,
-      vaultAmount: 500_000n,
+      vaultProviderBtcPubkey: VP_PUBKEY,
+      peginAmount: 500_000n,
       commissionFee: 12_500n,
       depositorClaimValue: 20_000n,
       peginMaxFee: 800n,
@@ -182,6 +182,13 @@ const DEPOSIT_TERMS: DepositTerms = {
 
 function createSigningContext(): PayoutSigningContext {
   return {
+    // Un-rotated operator set: the registry backfills BIP-86, so these match
+    // what local derivation would produce. Threaded through to buildPayoutPsbt,
+    // which is mocked here — the values only need to be well-formed.
+    vkClaimerPayoutScriptPubKeys: {
+      [VK_PUBKEY.toLowerCase()]: `0x5120${VK_PUBKEY}`,
+    },
+    vpCommissionScriptPubKey: `0x5120${VP_PUBKEY}`,
     vaultCoreVersion: 1,
     peginTxHex: "01000000" + "00".repeat(60),
     vaultProviderBtcPubkey: VP_PUBKEY,
@@ -195,6 +202,7 @@ function createSigningContext(): PayoutSigningContext {
     network: "Testnet4" as never,
     registeredPayoutScriptPubKey: "0x5120" + DEPOSITOR_PK,
     commissionBps: 50,
+    protocolFeeRate: 2n,
   };
 }
 
@@ -227,9 +235,7 @@ describe("runDepositorPresignFlow", () => {
     expect(
       presignClient.requestDepositorPresignTransactions,
     ).not.toHaveBeenCalled();
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
   it("skips when VP is in PENDING_ACKS", async () => {
@@ -268,9 +274,7 @@ describe("runDepositorPresignFlow", () => {
     expect(
       presignClient.requestDepositorPresignTransactions,
     ).not.toHaveBeenCalled();
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
   it("fetches presign txs, signs, and submits when VP is ready", async () => {
@@ -296,9 +300,7 @@ describe("runDepositorPresignFlow", () => {
       undefined, // signal
     );
 
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).toHaveBeenCalledOnce();
+    expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
 
     // Verify the submission includes depositor's own claimer signatures
     const submitCall = (
@@ -333,9 +335,7 @@ describe("runDepositorPresignFlow", () => {
     await vi.advanceTimersByTimeAsync(15_000);
     await resultPromise;
 
-    expect(
-      presignClient.submitDepositorPresignatures,
-    ).toHaveBeenCalledOnce();
+    expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
   });
 
   it("calls onProgress callback", async () => {
@@ -418,9 +418,9 @@ describe("runDepositorPresignFlow", () => {
       presignClient.submitDepositorPresignatures as ReturnType<typeof vi.fn>
     ).mock.calls[0][0];
     expect(submitCall.signatures[DEPOSITOR_PK]).toBeDefined();
-    expect(
-      submitCall.signatures[DEPOSITOR_PK].payout_signature,
-    ).toBe("depositor_payout_sig");
+    expect(submitCall.signatures[DEPOSITOR_PK].payout_signature).toBe(
+      "depositor_payout_sig",
+    );
   });
 
   it("throws when already aborted", async () => {
@@ -530,9 +530,7 @@ describe("runDepositorPresignFlow", () => {
         depositorEntry,
       ]);
       await promise;
-      expect(
-        presignClient.submitDepositorPresignatures,
-      ).toHaveBeenCalledOnce();
+      expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
     });
 
     it("filters out an uppercase-hex depositor entry consistently with the assertion", async () => {
@@ -579,6 +577,39 @@ describe("runDepositorPresignFlow", () => {
       expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
       expect(wallet.signPsbts).not.toHaveBeenCalled();
     });
+  });
+
+  it("threads every payout signing-input field from the context", async () => {
+    // The batch inputs are built by buildPayoutSigningInput — a hardcoded
+    // field there (rate, councilSize, timelock, keys) must fail here.
+    capturedPayoutInputs.length = 0;
+    const reader = createMockStatusReader([
+      DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+    ]);
+    const context = createSigningContext();
+
+    await runDepositorPresignFlow({
+      statusReader: reader,
+      presignClient: createMockPresignClient(),
+      btcWallet: createMockWallet(),
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      signingContext: context,
+    });
+
+    expect(capturedPayoutInputs.length).toBeGreaterThan(0);
+    for (const input of capturedPayoutInputs) {
+      expect(input).toMatchObject({
+        vaultCoreVersion: context.vaultCoreVersion,
+        vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+        timelockPegin: context.timelockPegin,
+        registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
+        commissionBps: context.commissionBps,
+        protocolFeeRate: context.protocolFeeRate,
+        councilSize: context.councilMembers.length,
+      });
+    }
   });
 
   describe("deposit terms approval", () => {
@@ -637,8 +668,86 @@ describe("runDepositorPresignFlow", () => {
       expect(
         presignClient.requestDepositorPresignTransactions,
       ).not.toHaveBeenCalled();
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+    });
+
+    it("throws when the approved terms carry different participant keys than the context", async () => {
+      // An RFC-006 operation-key rotation bumps only a key EPOCH — every
+      // roster/params version stays put — so verifyRegisteredVaultVersions
+      // cannot see it. The seam must catch the divergence itself, or an
+      // approving wallet authorises a set it does not sign against.
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: {
+            ...createSigningContext(),
+            vaultKeeperBtcPubkeys: ["ab".repeat(32)],
+          },
+          depositTerms: DEPOSIT_TERMS,
+        }),
+      ).rejects.toThrow(/vaultKeeperBtcPubkeys/);
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+    });
+
+    it("throws when no approved vault group names the signing context's vault provider", async () => {
+      const wallet = createCapabilityWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: {
+            ...createSigningContext(),
+            vaultProviderBtcPubkey: "cd".repeat(32),
+          },
+          depositTerms: DEPOSIT_TERMS,
+        }),
+      ).rejects.toThrow(/vaultProviderBtcPubkey/);
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+    });
+
+    it("throws when depositTerms.protocolFeeRate diverges from the context's version-locked rate", async () => {
+      // The approved terms and the payout bound must share one graph-build
+      // rate; divergence means a params-version drift bug, not a user error.
+      const wallet = createMockWallet();
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: { ...createSigningContext(), protocolFeeRate: 3n },
+          depositTerms: DEPOSIT_TERMS, // protocolFeeRate: 2n
+        }),
+      ).rejects.toThrow(/protocolFeeRate/);
+
       expect(
-        presignClient.submitDepositorPresignatures,
+        presignClient.requestDepositorPresignTransactions,
       ).not.toHaveBeenCalled();
     });
 
@@ -683,9 +792,7 @@ describe("runDepositorPresignFlow", () => {
 
       // The proof is the flow completing above without throwing — it would
       // throw a TypeError if src tried to call the absent method.
-      expect(
-        presignClient.submitDepositorPresignatures,
-      ).toHaveBeenCalledOnce();
+      expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
     });
   });
 });

@@ -31,7 +31,10 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
-import { markWotsSubmitted } from "@/context/deposit/optimisticDepositState";
+import {
+  hasWotsSubmissionRecord,
+  markWotsSubmitted,
+} from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import {
   DepositFlowStep,
@@ -54,6 +57,7 @@ import {
   getPeginDisplayStep,
 } from "@/models/peginStateMachine";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
+import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -271,10 +275,33 @@ export function ResumeWotsContent({
     null;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
-  // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
-  // first render must show processing — not a false-success banner from
-  // `isComplete = !loading && !error`.
-  const [loading, setLoading] = useState(true);
+  // A submission already recorded for this deposit means the user has been
+  // through this step in this session, so this mount is the suppression TTL
+  // lapsing and re-offering the action — not a first visit. Auto-submitting
+  // there would fire a wallet prompt at an idle open modal with no user
+  // gesture behind it, so a re-offer waits for an explicit click instead.
+  // Read once at mount: `markWotsSubmitted` below flips it, and re-reading
+  // would swap the component into the wrong mode mid-flight.
+  //
+  // Deliberately gated even when the user just clicked the re-offered row
+  // action — where that click was already a gesture and this costs a second
+  // one. A re-offer means the VP is still asking after a submission this
+  // session watched resolve, so something may genuinely be wrong; making the
+  // user confirm the fresh wallet popup on that abnormal path is worth more
+  // than the click it saves, and it spares the mount site from having to
+  // report whether this render is a fresh open or a branch swap under an
+  // already-open modal.
+  const [isReoffer] = useState(() => hasWotsSubmissionRecord(activity.id));
+
+  // `started` false parks DepositProgressView on its pre-sign entry state,
+  // where the CTA calls `onSign` — the same seam DepositSignContent uses.
+  const [started, setStarted] = useState(!isReoffer);
+
+  // Starts true on the auto-submit path: useRunOnce fires handleSubmit on
+  // mount, so the first render must show processing — not a false-success
+  // banner from `isComplete = !loading && !error`. A re-offer has not
+  // submitted anything yet, so it starts idle.
+  const [loading, setLoading] = useState(!isReoffer);
   const [error, setError] = useState<string | null>(null);
 
   // Track mount for setState guards after the long async chain below.
@@ -329,15 +356,15 @@ export function ResumeWotsContent({
 
       // Best-effort priming: VP pubkey fetch can fail without blocking the
       // resume flow because submitWotsPublicKey re-derives on cache miss.
-      const pinnedServerPubkeyPromise = reader
-        .getVaultProviderBtcPubKey(providerAddress as Address)
-        .catch((err: unknown) => {
-          logger.warn("Failed to fetch VP pubkey for registry priming", {
-            peginTxHash,
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return null;
+      const pinnedServerPubkeyPromise = resolveVpAuthPinnedPubkey(
+        providerAddress as Address,
+      ).catch((err: unknown) => {
+        logger.warn("Failed to fetch VP pubkey for registry priming", {
+          peginTxHash,
+          error: err instanceof Error ? err.message : String(err),
         });
+        return null;
+      });
 
       // Indexer-supplied tx is untrusted. Verify against on-chain
       // prePeginTxHash before deriveVaultRoot fires the wallet popup.
@@ -470,7 +497,18 @@ export function ResumeWotsContent({
   // wallet before its account hydrates: in that case useRunOnce (one-shot)
   // would defer rather than fire into the "not connected" guard. When there is
   // genuinely no provider it fires, so the real "not connected" error surfaces.
-  useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
+  //
+  // `!isReoffer` keeps the auto-run to a first visit; a re-offer submits only
+  // through `handleStart`, behind a click.
+  useRunOnce(
+    handleSubmit,
+    !isReoffer && (!btcWalletProvider || Boolean(connectedBtcAddress)),
+  );
+
+  const handleStart = useCallback(() => {
+    setStarted(true);
+    void handleSubmit();
+  }, [handleSubmit]);
 
   // Reconcile the displayed step with the polled VP status instead of trusting
   // local `loading`/`error` alone. Without this the modal computes its step
@@ -496,7 +534,13 @@ export function ResumeWotsContent({
   // status confirms acceptance. Then the modal sits on the next step as a
   // closeable background wait ("Close & continue later"), matching the other
   // resume waits — no separate success banner needed.
-  const advanced = (!loading && !error) || pastWots;
+  //
+  // `started` gates the local half: a re-offer sits idle (not loading, no
+  // error) until the user clicks, and without this that idle state would read
+  // as "submit resolved" and skip the step entirely. `pastWots` is unguarded
+  // — the VP confirming acceptance advances regardless of what this instance
+  // did.
+  const advanced = pastWots || (started && !loading && !error);
   const renderStep = advanced
     ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
     : DepositFlowStep.SUBMIT_WOTS_KEYS;
@@ -540,6 +584,8 @@ export function ResumeWotsContent({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error ? handleSubmit : undefined}
+      started={started}
+      onSign={handleStart}
       btcConfirmationDetail={btcConfirmationDetail}
       wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
       offchainParamsVersion={activity.offchainParamsVersion}

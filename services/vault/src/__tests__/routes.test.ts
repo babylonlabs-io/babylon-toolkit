@@ -8,25 +8,42 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getReserveDetailRoute, parseReserveId } from "../routes";
+import {
+  getMarketDataRoute,
+  getReserveDetailRoute,
+  parseReserveId,
+} from "../routes";
+
+/** Mainnet USDC — present in the address-keyed token registry. */
+const REGISTERED_USDC = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
 
 describe("getReserveDetailRoute", () => {
-  it("writes the reserve id into the v2 route", () => {
-    expect(getReserveDetailRoute(5n, "borrow", false)).toBe(
-      "/?reserve=5&tab=borrow",
-    );
-  });
-
-  it("writes the reserve id into the v3 route", () => {
-    expect(getReserveDetailRoute(5n, "repay", true)).toBe(
+  it("writes the reserve id into the route", () => {
+    expect(getReserveDetailRoute(5n, "repay")).toBe(
       "/loans?reserve=5&tab=repay",
     );
   });
 
   it("preserves a large reserve id exactly", () => {
-    expect(getReserveDetailRoute(18446744073709551617n, "borrow", true)).toBe(
+    expect(getReserveDetailRoute(18446744073709551617n, "borrow")).toBe(
       "/loans?reserve=18446744073709551617&tab=borrow",
     );
+  });
+});
+
+describe("getMarketDataRoute", () => {
+  it("names a registered token by its symbol", () => {
+    expect(getMarketDataRoute(0n, REGISTERED_USDC)).toBe("/markets/usdc");
+  });
+
+  it("falls back to the reserve id for an unregistered token", () => {
+    expect(
+      getMarketDataRoute(7n, "0x1111111111111111111111111111111111111111"),
+    ).toBe("/markets/7");
+  });
+
+  it("falls back to the reserve id when the underlying is unknown", () => {
+    expect(getMarketDataRoute(7n)).toBe("/markets/7");
   });
 });
 

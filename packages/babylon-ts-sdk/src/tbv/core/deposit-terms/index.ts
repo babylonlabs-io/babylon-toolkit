@@ -7,5 +7,6 @@
  *
  * @module deposit-terms
  */
-export * from "./depositTerms";
 export * from "./buildDepositTerms";
+export * from "./depositTerms";
+export * from "./depositTermsErrors";

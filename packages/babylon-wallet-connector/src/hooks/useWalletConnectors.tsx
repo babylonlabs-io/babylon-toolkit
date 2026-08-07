@@ -4,6 +4,7 @@ import { useChainProviders } from "@/context/Chain.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
 import { HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
 import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import { useWidgetState } from "./useWidgetState";
@@ -20,11 +21,13 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
   if (!provider?.getWalletProviderName || !provider?.getWalletProviderIcon) return wallet;
 
   const [name, icon] = await Promise.all([provider.getWalletProviderName(), provider.getWalletProviderIcon()]);
+  const firstParty = resolveFirstPartyIcon(name || wallet.name);
 
   return {
     id: wallet.id,
     name: name || wallet.name,
-    icon: icon || wallet.icon,
+    icon: firstParty?.icon || icon || wallet.icon,
+    iconBackground: firstParty?.iconBackground,
     docs: wallet.docs,
     installed: wallet.installed,
     provider: wallet.provider,

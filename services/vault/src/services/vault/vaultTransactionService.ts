@@ -55,6 +55,8 @@ export interface PreparePeginParams {
   universalChallengerBtcPubkeys: string[];
   /** CSV timelock in blocks for the PegIn vault output */
   timelockPegin: number;
+  /** btc-vault `timelock_assert` (t2); carried into DepositTerms as its own field. */
+  timelockAssert: number;
   /** CSV timelock in blocks for the Pre-PegIn HTLC refund path */
   timelockRefund: number;
   /** M in M-of-N council multisig */
@@ -211,6 +213,7 @@ export async function preparePeginTransaction(
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
       timelockPegin: params.timelockPegin,
+      timelockAssert: params.timelockAssert,
       timelockRefund: params.timelockRefund,
       protocolFeeRate: params.protocolFeeRate,
       minPeginFeeRate: params.minPeginFeeRate,

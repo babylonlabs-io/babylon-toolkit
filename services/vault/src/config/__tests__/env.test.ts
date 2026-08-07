@@ -60,12 +60,8 @@ describe("validateRequiredAddress", () => {
 
   it("includes the env var name in the error message", () => {
     const errors: string[] = [];
-    validateRequiredAddress(
-      "0x1234",
-      "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
-      errors,
-    );
-    expect(errors[0]).toContain("NEXT_PUBLIC_TBV_AAVE_CONTROLLER");
+    validateRequiredAddress("0x1234", "NEXT_PUBLIC_TBV_AAVE_ADAPTER", errors);
+    expect(errors[0]).toContain("NEXT_PUBLIC_TBV_AAVE_ADAPTER");
   });
 });
 

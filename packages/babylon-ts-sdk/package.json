@@ -133,7 +133,7 @@
     "viem": "^2.38.2",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.3.0",
-    "vitest": "^4.0.8"
+    "vitest": "4.0.9"
   },
   "publishConfig": {
     "access": "public",

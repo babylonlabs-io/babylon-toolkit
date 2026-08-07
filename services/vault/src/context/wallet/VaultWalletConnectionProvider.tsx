@@ -21,6 +21,7 @@ import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
 import { logger } from "@/infrastructure";
+import { isUserCancellation } from "@/utils/errors/userCancellation";
 
 // Vault deposits need the BTC wallet's `deriveContextHash` (docs/specs/derive-context-hash.md).
 // ALWAYS_DISABLED_WALLETS keeps non-conforming adapters (appkit/injectable/ledger) permanently out
@@ -222,8 +223,8 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   );
 
   const onError = useCallback((error: Error) => {
-    // User rejections are expected, don't log them
-    if (error?.message?.includes("rejected")) {
+    // Declining or dismissing a wallet prompt is routine drop-off, not a fault.
+    if (isUserCancellation(error)) {
       return;
     }
     logger.error(error, { data: { context: "Wallet connection error" } });

@@ -18,10 +18,43 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   },
 }));
 
+// Un-rotated operator set: each participant's bonded key at the vault's frozen
+// epochs is its roster key, so resolution is a pass-through and these cases
+// stay about the refund adapter wiring.
+const mockResolveParticipantKeysAtEpochs = vi.hoisted(() =>
+  vi.fn(async (...args: unknown[]) => {
+    const q = (
+      args[0] as {
+        query: {
+          vaultProviderGenesisBtcPubkey: string;
+          vaultKeepers: { btcPubKey: string }[];
+          universalChallengers: { btcPubKey: string }[];
+        };
+      }
+    ).query;
+    const strip = (k: string) => (k.startsWith("0x") ? k.slice(2) : k);
+    return {
+      vaultProvider: {
+        operationBtcPubkey: strip(q.vaultProviderGenesisBtcPubkey),
+      },
+      vaultKeepers: q.vaultKeepers.map((k) => ({
+        operationBtcPubkey: strip(k.btcPubKey),
+      })),
+      vaultKeeperOperationKeysSorted: q.vaultKeepers
+        .map((k) => strip(k.btcPubKey))
+        .sort(),
+      universalChallengerOperationKeysSorted: q.universalChallengers
+        .map((c) => strip(c.btcPubKey))
+        .sort(),
+    };
+  }),
+);
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   getNetworkFees: vi.fn().mockResolvedValue({ halfHourFee: 10 }),
   pushTx: vi.fn().mockResolvedValue("broadcast_txid"),
+  resolveParticipantKeysAtEpochs: (...args: unknown[]) =>
+    mockResolveParticipantKeysAtEpochs(...args),
 }));
 
 vi.mock("../../../clients/btc/config", () => ({
@@ -38,6 +71,11 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
+  getVaultKeyEpochsFromChain: vi.fn().mockResolvedValue({
+    vpKeyEpoch: 0n,
+    appKeeperKeyEpoch: 0n,
+    ucKeyEpoch: 0n,
+  }),
 }));
 
 vi.mock("../../../config/pegin", () => ({
@@ -48,6 +86,7 @@ const mockGetOffchainParamsByVersion = vi.fn();
 const mockGetVaultKeepersByVersion = vi.fn();
 const mockGetUniversalChallengersByVersion = vi.fn();
 const mockGetVaultProviderBtcPubKey = vi.fn();
+const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
 // Lean sibling pre-filter used by discoverBatch. Defaults to deriving
 // prePeginTxHash from the same getVaultFromChain fixtures each test
 // configures, so sibling scenarios keep one source of truth. Tests that
@@ -79,9 +118,12 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn().mockReturnValue({
     getVaultProviderBtcPubKey: (...args: unknown[]) =>
       mockGetVaultProviderBtcPubKey(...args),
+    getCurrentVaultProviderOperationBtcKey: (...args: unknown[]) =>
+      mockGetCurrentVaultProviderOperationBtcKey(...args),
     getProtocolInfoBatch: (ids: readonly string[]) =>
       mockGetProtocolInfoBatch(ids),
   }),
+  getOperationKeyReader: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("../fetchVaultProviders", () => ({
@@ -146,6 +188,10 @@ const OFFCHAIN_PARAMS = {
 // 32 bytes as bare lowercase x-only hex. Both must agree for the cross-check.
 const VP_BTC_PUBKEY_X_ONLY = "f".repeat(64);
 const VAULT_PROVIDER = { btcPubKey: `0x${VP_BTC_PUBKEY_X_ONLY}` };
+/** The key a rotated provider's operation getter returns. */
+const VP_ROTATED_BTC_PUBKEY_X_ONLY = "e".repeat(64);
+/** Matches neither candidate — a stale or poisoned indexer. */
+const VP_UNRELATED_BTC_PUBKEY_X_ONLY = "d".repeat(64);
 const VAULT_KEEPERS = [{ btcPubKey: "vk1" }, { btcPubKey: "vk2" }];
 const UNIVERSAL_CHALLENGERS = [{ btcPubKey: "uc1" }];
 // Funded Pre-PegIn tx whose HTLC output (vout 0, matching ON_CHAIN_VAULT
@@ -207,6 +253,11 @@ describe("vaultRefundService - adapter wiring", () => {
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
     mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
+    // Default: an un-rotated provider, whose current operation key is its
+    // registration key. The rotation cases below override this.
+    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
+      VP_BTC_PUBKEY_X_ONLY,
+    );
     mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
     mockGetUniversalChallengersByVersion.mockResolvedValue(
       UNIVERSAL_CHALLENGERS,
@@ -416,12 +467,16 @@ describe("vaultRefundService - adapter wiring", () => {
     );
   });
 
-  // Audit #216: indexer-provided VP key is cross-checked against the
-  // on-chain registry. A stale or compromised indexer that substitutes a
-  // different key must not produce a refund signed against a wrong Taproot
-  // script tree.
-  it("throws when indexer VP pubkey does not match the on-chain registry", async () => {
-    mockGetVaultProviderBtcPubKey.mockResolvedValue("a".repeat(64));
+  // The indexer-provided VP key is cross-checked against the chain. A stale or
+  // compromised indexer that substitutes a key the registry cannot account for
+  // must not produce a refund signed against a wrong Taproot script tree.
+  it("throws when the indexer VP pubkey matches neither on-chain key", async () => {
+    (fetchVaultProviderById as Mock).mockResolvedValue({
+      btcPubKey: `0x${VP_UNRELATED_BTC_PUBKEY_X_ONLY}`,
+    });
+    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
+      VP_ROTATED_BTC_PUBKEY_X_ONLY,
+    );
 
     await expect(
       buildAndBroadcastRefundTransaction({
@@ -431,7 +486,54 @@ describe("vaultRefundService - adapter wiring", () => {
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
       }),
-    ).rejects.toThrow(/does not match on-chain registry/);
+    ).rejects.toThrow(/Aborting refund/);
+  });
+
+  // RFC-006. Once the indexer catches up to a rotation it serves the operation
+  // key while the registration getter still returns the original. Rejecting
+  // that would strand every depositor of a rotated provider on the recovery
+  // path of last resort, triggered by an indexer deploy rather than one of ours.
+  it("accepts an indexer VP pubkey matching the current operation key", async () => {
+    (fetchVaultProviderById as Mock).mockResolvedValue({
+      btcPubKey: `0x${VP_ROTATED_BTC_PUBKEY_X_ONLY}`,
+    });
+    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
+      VP_ROTATED_BTC_PUBKEY_X_ONLY,
+    );
+
+    await expect(
+      buildAndBroadcastRefundTransaction({
+        vaultId: VAULT_ID,
+        depositorAddress: DEPOSITOR_ADDRESS,
+        btcWalletProvider: BTC_WALLET_PROVIDER,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        feeRate: 10,
+      }),
+    ).resolves.toBe("broadcast_txid");
+
+    // The registration key still seeds epoch resolution — accepting the hint
+    // must not swap which key the script tree is rebuilt from.
+    expect(mockResolveParticipantKeysAtEpochs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({
+          vaultProviderGenesisBtcPubkey: `0x${VP_BTC_PUBKEY_X_ONLY}`,
+        }),
+      }),
+    );
+  });
+
+  // The operation-key read is a fallback, not a second unconditional RPC on
+  // every refund.
+  it("does not read the operation key when the hint matches registration", async () => {
+    await buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
   });
 
   it("uses the on-chain VP pubkey in the returned refund context", async () => {

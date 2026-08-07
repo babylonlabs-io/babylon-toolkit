@@ -3,8 +3,6 @@
  * Keeping these in one place stops the values drifting between components.
  */
 
-import featureFlags from "@/config/featureFlags";
-
 /**
  * Horizontal inset of a full-screen modal's top bar. Figma's shared Header
  * component puts its content 120px from each edge, unchanged across the 1440
@@ -23,15 +21,21 @@ export const MODAL_TOP_BAR_GUTTER_CLASS = "mx-10 md:mx-[120px]";
  * container; `!` overrides core-ui `<Container>`/`Header`'s default `container`
  * width so the navbar and body stay the same width.
  *
- * v2 caps the box at 1080px (the entry screen's 180px side margins on a 1440
- * frame). v3 fills the column beside the sidebar with a flat 40px gutter, as a
- * margin rather than padding so the content itself keeps the full width —
- * `!w-auto` is what lets the margin shrink the box, since `container` would
- * otherwise hold it at `width: 100%` and overflow by the gutter.
+ * Fills the column beside the sidebar with a flat 40px gutter, as a margin
+ * rather than padding so the content itself keeps the full width — `!w-auto` is
+ * what lets the margin shrink the box, since `container` would otherwise hold it
+ * at `width: 100%` and overflow by the gutter.
  */
-export const PAGE_CONTENT_CLASS = featureFlags.isV3UiEnabled
-  ? "!w-auto !max-w-none !px-0 mx-10"
-  : "!max-w-[1080px] px-5 sm:px-5";
+export const PAGE_CONTENT_CLASS = "!w-auto !max-w-none !px-0 mx-10";
+
+/**
+ * Content box of the entry screen, which hides the sidebar and so has no column
+ * to fill. 1280px cap with the 40px gutter puts the content at Figma's 1200px
+ * wide, 120px from each edge of the 1440 frame. Shared by the navbar, the page
+ * body and the footer so the three stay aligned; the header's own divider sits
+ * outside this box and stays full-bleed.
+ */
+export const ENTRY_CONTENT_CLASS = "!w-auto !max-w-[1280px] !px-10 mx-auto";
 
 /** Width + vertical padding for the dashboard section summary cards. */
 export const SUMMARY_CARD_CLASS = "w-full border-0 !py-[34px]";

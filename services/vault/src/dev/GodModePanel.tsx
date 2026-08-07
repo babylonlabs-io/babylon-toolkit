@@ -26,6 +26,7 @@ import {
 import { createPortal } from "react-dom";
 
 import type { ProtocolStatus } from "@/components/shared/protocolStatus";
+import { clearArtifactDownloadReceipts } from "@/utils/artifactDownloadStorage";
 
 import {
   DEBUG_FORCED_MAX_VAULTS,
@@ -41,12 +42,19 @@ import {
   useDebugProtocolStatusOverride,
 } from "./debugPositionStore";
 import {
+  DEMO_ARTIFACT_SCENARIO_LABELS,
+  DEMO_ARTIFACT_SCENARIOS,
+  type DemoArtifactScenario,
   setArtifactDownloadMockEnabled,
+  setArtifactDownloadScenario,
   useArtifactDownloadMockEnabled,
+  useArtifactDownloadScenario,
 } from "./demoArtifactDownload";
 import {
   addDemoItem,
   amountUnitFor,
+  DEMO_BORROW_SYMBOL_OPTIONS,
+  type DemoBorrowSymbol,
   type DemoCta,
   type DemoItem,
   type DemoType,
@@ -56,12 +64,14 @@ import {
   itemSectionHint,
   removeDemoItem,
   scenariosForType,
+  setDemoBorrowSymbol,
   setDemoEnabled,
   setDemoHideReal,
   setDemoItemAmount,
   setDemoItemBatched,
   setDemoItemState,
   setDemoItemType,
+  useDemoBorrowSymbol,
   useDemoEnabled,
   useDemoHideReal,
   useDemoItems,
@@ -122,7 +132,8 @@ const DEPOSIT_SEGMENTS: {
 ];
 
 function ItemRow({ item, index }: { item: DemoItem; index: number }) {
-  const scenarios = scenariosForType(item.type);
+  const borrowSymbol = useDemoBorrowSymbol();
+  const scenarios = scenariosForType(item.type, borrowSymbol);
   const total = scenarios.length;
   // Deposits pick a "mode" (Normal / Expired / Different wallet); the slider and
   // dropdown then scrub within that mode's segment. Other types are one flat
@@ -252,7 +263,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
       </div>
 
       <label className="flex items-center justify-between gap-2 text-xs">
-        <span>Amount ({amountUnitFor(item)})</span>
+        <span>Amount ({amountUnitFor(item, borrowSymbol)})</span>
         <input
           type="number"
           min="0"
@@ -260,7 +271,7 @@ function ItemRow({ item, index }: { item: DemoItem; index: number }) {
           value={item.amount}
           onChange={(e) => setDemoItemAmount(item.key, e.target.value)}
           className="w-28 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs"
-          aria-label={`Mock ${position} amount (${amountUnitFor(item)})`}
+          aria-label={`Mock ${position} amount (${amountUnitFor(item, borrowSymbol)})`}
         />
       </label>
 
@@ -287,6 +298,9 @@ function DemoControls() {
   const hideReal = useDemoHideReal();
   const items = useDemoItems();
   const mockArtifactDownload = useArtifactDownloadMockEnabled();
+  const artifactScenario = useArtifactDownloadScenario();
+  const [clearedReceipts, setClearedReceipts] = useState<number | null>(null);
+  const borrowSymbol = useDemoBorrowSymbol();
 
   return (
     <div className="space-y-3">
@@ -310,6 +324,45 @@ function DemoControls() {
         />
       </label>
 
+      {/* The mock drives the real validator and file sink, so these pick what
+          a hostile or broken vault provider sends back. */}
+      <label
+        className={`flex items-center justify-between gap-2 text-sm ${
+          mockArtifactDownload ? "" : "opacity-40"
+        }`}
+      >
+        <span>Artifact response</span>
+        <select
+          disabled={!mockArtifactDownload}
+          value={artifactScenario}
+          onChange={(e) =>
+            setArtifactDownloadScenario(e.target.value as DemoArtifactScenario)
+          }
+          className="rounded bg-neutral-800 px-2 py-1 text-xs"
+        >
+          {DEMO_ARTIFACT_SCENARIOS.map((scenario) => (
+            <option key={scenario} value={scenario}>
+              {DEMO_ARTIFACT_SCENARIO_LABELS[scenario]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/* A satisfied gate hides the card's download button, so re-testing the
+          flow against the same vault needs the receipts gone. */}
+      <button
+        type="button"
+        onClick={() => {
+          const cleared = clearArtifactDownloadReceipts();
+          setClearedReceipts(cleared);
+        }}
+        className="w-full rounded bg-neutral-800 px-2 py-1 text-left text-sm hover:bg-neutral-700"
+      >
+        {clearedReceipts === null
+          ? "Clear artifact receipts"
+          : `Cleared ${clearedReceipts} artifact receipt(s) — reload`}
+      </button>
+
       <fieldset
         disabled={!enabled}
         className={`space-y-3 border-0 p-0 ${enabled ? "" : "opacity-40"}`}
@@ -321,6 +374,27 @@ function DemoControls() {
             checked={hideReal}
             onChange={(e) => setDemoHideReal(e.target.checked)}
           />
+        </label>
+
+        {/* Drives both the loan mock's row and the debt-denominated activity
+            mocks (Borrow / Repay / liquidation), so a loan and its matching
+            activity row never disagree about the asset. */}
+        <label className="flex items-center justify-between gap-2 text-sm">
+          <span>Borrowed asset (loan + activity rows)</span>
+          <select
+            value={borrowSymbol}
+            onChange={(e) =>
+              setDemoBorrowSymbol(e.target.value as DemoBorrowSymbol)
+            }
+            className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs"
+            aria-label="Borrowed asset"
+          >
+            {DEMO_BORROW_SYMBOL_OPTIONS.map((symbol) => (
+              <option key={symbol} value={symbol}>
+                {symbol}
+              </option>
+            ))}
+          </select>
         </label>
 
         {items.map((item, index) => (

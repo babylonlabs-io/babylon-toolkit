@@ -43,14 +43,15 @@ export function createTerminalMilestoneTracking(): TerminalMilestoneTracking {
 }
 
 /**
- * App-scoped tracking shared by every mounted `PeginPollingProvider`.
+ * App-scoped tracking, keyed to the vault id rather than to a provider
+ * instance.
  *
- * Several providers observe the same vault at once: the dashboard section polls
- * every activity, while the continuation modal mounts its own provider scoped to
- * the viewed batch — nested inside that section, or as a sibling under the root
- * layout. Per-provider tracking emits each terminal once per provider, so the
- * once-per-vault guarantee is keyed to the vault id here rather than to a
- * provider instance, and holds however many providers are mounted.
+ * The app mounts one `PeginPollingProvider`, but it still unmounts — RootLayout
+ * swaps the whole content subtree for the geo-block branch, and wallet churn
+ * remounts it. Provider-local tracking would re-seed on every remount and, per
+ * the seeding rule above, silently suppress rather than emit — under-reporting
+ * with no signal. Keying to the vault makes the once-per-vault guarantee hold
+ * across remounts.
  *
  * In-memory by design: a reload must reset it, so that the seeding rule above
  * re-suppresses prior-session completions rather than replaying them.

@@ -7,6 +7,62 @@ Callers own the wallet; services own the orchestration.
 
 ## Classes
 
+### ParticipantKeyDriftError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L52)
+
+Participant operation keys drifted between building the Bitcoin artifacts
+and the vault freezing its epochs.
+
+A *sibling* of `RegisteredVaultVersionMismatchError`, never a subclass, and
+the distinction is load-bearing. On a version mismatch the orchestrator drops
+the local pending-pegin record, because the on-chain `prePeginTxHash` is
+still the authoritative copy of the transaction and a later resume can safely
+broadcast it from the indexer.
+
+Key drift breaks exactly that assumption. The registered hash commits to a
+transaction whose scripts embed the *pre-rotation* keys, while the vault
+froze the *post-rotation* epoch — so every counterparty resolves a different
+funding output and the deposit can never activate. Dropping the record would
+discard `buildParticipantOperationKeys`, the only thing that lets the resume
+path re-detect the drift; the next attempt would fall back to the indexer's
+copy, pass the hash check, and broadcast the very transaction this refused,
+locking BTC until the refund timelock.
+
+So: callers must keep the pending record when they catch this.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new ParticipantKeyDriftError(message): ParticipantKeyDriftError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L53)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`ParticipantKeyDriftError`](#participantkeydrifterror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### RegisteredVaultVersionMismatchError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L23)
@@ -664,11 +720,45 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 
 VP commission (bps) from `BTCVaultRegistry`; caps the VP-claimer payout commission output.
 
+##### protocolFeeRate
+
+```ts
+protocolFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L92)
+
+Tx-graph fee rate (sat/vB) from the locked offchain params version —
+`getOffchainParamsByVersion(...).feeRate`, the rate the VP built the
+graph with. Bounds every payout's implicit fee (payout fee band).
+
+##### vkClaimerPayoutScriptPubKeys
+
+```ts
+vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L98)
+
+RFC-006 resolved keeper payout destinations at the vault's frozen
+`appKeeperKeyEpoch`, keyed by lowercased x-only operation pubkey.
+
+##### vpCommissionScriptPubKey
+
+```ts
+vpCommissionScriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:103](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L103)
+
+RFC-006 resolved VP commission destination at the vault's frozen
+`vpKeyEpoch`.
+
 ***
 
 ### RunDepositorPresignFlowParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:89](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L89)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L106)
 
 #### Properties
 
@@ -678,7 +768,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 statusReader: PeginStatusReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L91)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L108)
 
 VP client implementing the status reader interface
 
@@ -688,7 +778,7 @@ VP client implementing the status reader interface
 presignClient: PresignClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L93)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L110)
 
 VP client implementing the presign transaction flow interface
 
@@ -698,7 +788,7 @@ VP client implementing the presign transaction flow interface
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L112)
 
 Bitcoin wallet for signing
 
@@ -708,7 +798,7 @@ Bitcoin wallet for signing
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L114)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars)
 
@@ -718,7 +808,7 @@ BTC pegin transaction ID (unprefixed hex, 64 chars)
 depositorPk: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L116)
 
 Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 
@@ -728,7 +818,7 @@ Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 signingContext: PayoutSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L101)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L118)
 
 Signing context built from on-chain data
 
@@ -738,7 +828,7 @@ Signing context built from on-chain data
 optional depositTerms: DepositTerms;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:123](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L123)
 
 Required for approval-capable wallets; fresh flows thread
 PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
@@ -749,7 +839,7 @@ PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
 optional timeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L125)
 
 Maximum polling timeout in milliseconds (default: 20 min)
 
@@ -759,7 +849,7 @@ Maximum polling timeout in milliseconds (default: 20 min)
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L110)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:127](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L127)
 
 AbortSignal for cancellation
 
@@ -769,7 +859,7 @@ AbortSignal for cancellation
 optional onProgress: (completed, total) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L129)
 
 Optional progress callback (completed claimers, total claimers)
 
@@ -791,7 +881,7 @@ Optional progress callback (completed claimers, total claimers)
 
 ### DepositorGraphSigningContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:495](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L495)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:500](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L500)
 
 Authoritative inputs required to construct the depositor's Payout AND every
 per-challenger NoPayout PSBT locally. Every field here must come from
@@ -806,7 +896,7 @@ directly into the Taproot sighash.
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:501](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L501)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:506](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L506)
 
 Vault core (tx-graph) version the vault was registered under — the
 vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
@@ -818,7 +908,7 @@ Selects which graph's connector scripts every PSBT is rebuilt with.
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:503](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L503)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:508](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L508)
 
 Raw pegin BTC transaction hex (provides the depositor's signed prevout)
 
@@ -828,7 +918,7 @@ Raw pegin BTC transaction hex (provides the depositor's signed prevout)
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:505](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L505)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:510](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L510)
 
 Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 
@@ -838,7 +928,7 @@ Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:507](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L507)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:512](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L512)
 
 Vault provider's BTC public key (x-only hex, no prefix)
 
@@ -848,7 +938,7 @@ Vault provider's BTC public key (x-only hex, no prefix)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:509](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L509)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:514](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L514)
 
 Sorted vault keeper BTC public keys (x-only hex, no prefix)
 
@@ -858,7 +948,7 @@ Sorted vault keeper BTC public keys (x-only hex, no prefix)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:511](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L511)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:516](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L516)
 
 Sorted universal challenger BTC public keys (x-only hex, no prefix)
 
@@ -868,9 +958,20 @@ Sorted universal challenger BTC public keys (x-only hex, no prefix)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:513](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L513)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:518](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L518)
 
 Pegin CSV timelock from the locked offchain params version (blocks)
+
+##### protocolFeeRate
+
+```ts
+protocolFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:523](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L523)
+
+Tx-graph fee rate (sat/vB) from the locked offchain params version —
+bounds the depositor-claimer payout's implicit fee (payout fee band).
 
 ##### timelockAssert
 
@@ -878,7 +979,7 @@ Pegin CSV timelock from the locked offchain params version (blocks)
 timelockAssert: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:519](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L519)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:529](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L529)
 
 Assert CSV timelock from the locked offchain params version (blocks).
 Sourced from the on-chain ProtocolParams contract via
@@ -890,7 +991,7 @@ Sourced from the on-chain ProtocolParams contract via
 councilMembers: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:525](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L525)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:535](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L535)
 
 Security council member x-only public keys (hex, no prefix). Sourced from
 the on-chain ProtocolParams contract via
@@ -902,7 +1003,7 @@ the on-chain ProtocolParams contract via
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:530](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L530)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:540](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L540)
 
 M-of-N council quorum threshold. Sourced from the on-chain ProtocolParams
 contract via `ViemProtocolParamsReader.getOffchainParamsByVersion(...).councilQuorum`.
@@ -913,7 +1014,7 @@ contract via `ViemProtocolParamsReader.getOffchainParamsByVersion(...).councilQu
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:532](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L532)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:542](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L542)
 
 BTC network (Mainnet, Testnet, etc.)
 
@@ -923,17 +1024,40 @@ BTC network (Mainnet, Testnet, etc.)
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:538](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L538)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:548](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L548)
 
 On-chain registered depositor payout scriptPubKey (hex, with or without
 0x prefix). Used to assert the VP-advertised payout transaction pays to
 the depositor's registered address before the wallet produces a signature.
 
+##### vkClaimerPayoutScriptPubKeys
+
+```ts
+vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:555](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L555)
+
+RFC-006 operator payout destinations. Forwarded to `buildPayoutPsbt` for
+shape completeness only: this graph is signed under the
+`depositor-as-claimer` role, whose payout has two outputs and reads
+neither the keeper map nor the VP commission destination.
+
+##### vpCommissionScriptPubKey
+
+```ts
+vpCommissionScriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:557](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L557)
+
+See [vkClaimerPayoutScriptPubKeys](#vkclaimerpayoutscriptpubkeys-1) — unused for this role.
+
 ***
 
 ### SignDepositorGraphParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:541](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L541)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:560](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L560)
 
 #### Properties
 
@@ -943,7 +1067,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositor
 depositorGraph: DepositorGraphTransactions;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:543](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L543)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:562](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L562)
 
 The depositor graph from VP response
 
@@ -953,7 +1077,7 @@ The depositor graph from VP response
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:545](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L545)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:564](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L564)
 
 Bitcoin wallet for signing
 
@@ -963,7 +1087,7 @@ Bitcoin wallet for signing
 signingContext: DepositorGraphSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:547](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L547)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:566](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L566)
 
 Authoritative inputs used to rebuild every PSBT locally
 
@@ -1049,7 +1173,7 @@ AbortSignal for cancellation
 
 ### ValidateOnChainParticipantKeysParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L10)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L19)
 
 #### Properties
 
@@ -1059,7 +1183,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultRegistryReader: VaultRegistryReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:11](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L11)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L20)
 
 ##### vaultKeeperReader
 
@@ -1067,7 +1191,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultKeeperReader: VaultKeeperReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:12](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L12)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L21)
 
 ##### universalChallengerReader
 
@@ -1075,7 +1199,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 universalChallengerReader: UniversalChallengerReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:13](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L13)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L22)
 
 ##### vaultProviderEthAddress
 
@@ -1083,7 +1207,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultProviderEthAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:14](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L14)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L23)
 
 ##### applicationEntryPoint
 
@@ -1091,7 +1215,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 applicationEntryPoint: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L15)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L24)
 
 ##### expectedVaultProviderBtcPubkey
 
@@ -1099,7 +1223,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedVaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L25)
 
 ##### expectedVaultKeeperBtcPubkeys
 
@@ -1107,7 +1231,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedVaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L26)
 
 ##### expectedUniversalChallengerBtcPubkeys
 
@@ -1115,13 +1239,71 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedUniversalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L18)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:27](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L27)
+
+##### operationKeyReader
+
+```ts
+operationKeyReader: OperationKeyReader;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L32)
+
+RFC-006. Participant keys are resolved to their *current operation* keys,
+and those are what the returned key fields carry.
+
+##### onIndexerServingOperationKeys()?
+
+```ts
+optional onIndexerServingOperationKeys: (message) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L38)
+
+Optional observer for the case where the indexer hint matched the
+operation keys rather than the registration keys — i.e. the indexer is
+ahead of us, not wrong. Called at most once.
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+`void`
+
+##### onIndexerHintsInconsistent()?
+
+```ts
+optional onIndexerHintsInconsistent: (message) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L47)
+
+Optional observer for the case where the indexer is serving a half-applied
+view — one role explainable only by the registration keys, another only by
+the operation keys. That blocks every deposit for the provider until the
+indexer converges, and "Refresh and try again" cannot help, so the block
+needs to be visible rather than showing up only as user reports. Called
+immediately before the throw.
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+`void`
 
 ***
 
 ### ValidatedOnChainParticipantKeys
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L50)
 
 #### Properties
 
@@ -1131,7 +1313,9 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultProviderBtcPubkeyXOnly: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L52)
+
+The VP key to build with: its current operation key.
 
 ##### vaultKeeperBtcPubkeysSorted
 
@@ -1139,7 +1323,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultKeeperBtcPubkeysSorted: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L53)
 
 ##### universalChallengerBtcPubkeysSorted
 
@@ -1147,7 +1331,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 universalChallengerBtcPubkeysSorted: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L54)
 
 ##### expectedAppVaultKeepersVersion
 
@@ -1155,7 +1339,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedAppVaultKeepersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L55)
 
 ##### expectedUniversalChallengersVersion
 
@@ -1163,7 +1347,48 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedUniversalChallengersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L26)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L56)
+
+##### registrationKeys
+
+```ts
+registrationKeys: object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L62)
+
+The registration / roster keys, sorted. These are what indexer hints are
+compared against first, and they stay available for diagnostics after
+resolution.
+
+###### vaultProvider
+
+```ts
+vaultProvider: string;
+```
+
+###### vaultKeepers
+
+```ts
+vaultKeepers: string[];
+```
+
+###### universalChallengers
+
+```ts
+universalChallengers: string[];
+```
+
+##### participantKeys
+
+```ts
+participantKeys: ParticipantKeySet;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L71)
+
+The full resolution, including the admin↔key pairing. Feeds the
+post-registration read-after-mine verification.
 
 ***
 
@@ -1374,6 +1599,51 @@ Protocol maximum deposit per vault (satoshis)
 
 ***
 
+### VerifyRegisteredParticipantKeysParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L70)
+
+#### Properties
+
+##### vaultRegistryReader
+
+```ts
+vaultRegistryReader: VaultRegistryReader;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L71)
+
+##### operationKeyReader
+
+```ts
+operationKeyReader: OperationKeyReader;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L72)
+
+##### vaultIds
+
+```ts
+vaultIds: readonly `0x${string}`[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L73)
+
+##### expected
+
+```ts
+expected: ParticipantKeySet;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L80)
+
+The exact key set the BTC artifacts were built with. Its `query` supplies
+the rosters to re-resolve against — deliberately reused rather than
+accepted as a separate argument, so the two can never disagree and a
+roster that moved since the build cannot be misreported as a key drift.
+
+***
+
 ### VerifyRegisteredVaultVersionsParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:5](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L5)
@@ -1501,6 +1771,244 @@ optional signal: AbortSignal;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L31)
 
 AbortSignal for cancellation
+
+***
+
+### HintMatch
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L48)
+
+Which of the two legitimate on-chain candidates a role's hint matched.
+
+Both true means the role never rotated, so the hint constrains nothing.
+Both false means the hint is not explainable by any state the chain is in.
+
+#### Properties
+
+##### registration
+
+```ts
+registration: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L49)
+
+##### operation
+
+```ts
+operation: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L50)
+
+***
+
+### AssertVaultProviderHintAcceptedParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L105)
+
+#### Properties
+
+##### vaultProviderEthAddress
+
+```ts
+vaultProviderEthAddress: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:107](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L107)
+
+Vault provider's admin address, named in the error.
+
+##### hintBtcPubkey?
+
+```ts
+optional hintBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L109)
+
+The untrusted hint. Absent means there is nothing to cross-check.
+
+##### registrationBtcPubkey
+
+```ts
+registrationBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:111](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L111)
+
+The vault provider's registration key, already read from chain.
+
+##### readCurrentOperationBtcPubkey()
+
+```ts
+readCurrentOperationBtcPubkey: () => Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:119](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L119)
+
+Reads the vault provider's *current* operation key.
+
+Invoked only when the hint fails against the registration key, so a
+provider that never rotated — and an indexer that has not caught up — cost
+no extra RPC. Callers must not pre-read this.
+
+###### Returns
+
+`Promise`\<`string`\>
+
+##### context?
+
+```ts
+optional context: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L125)
+
+Sentence appended to the error naming what was aborted, e.g.
+`"Aborting refund."`. The shared half of the message says which keys
+failed to match; this says which operation the user just lost.
+
+***
+
+### ResolvedParticipant
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L16)
+
+One operator's resolved identity: who it is, and which key it signs with.
+
+#### Properties
+
+##### adminAddress
+
+```ts
+adminAddress: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L21)
+
+The operator's admin ETH address — its stable identity and the lookup key
+for its operation-key history. This is the roster entry's `ethAddress`.
+
+##### genesisBtcPubkey
+
+```ts
+genesisBtcPubkey: OnChainBtcPubkey;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L28)
+
+The operator's genesis BTC key: its roster entry / registration key.
+x-only, lowercase, no `0x`. Retained because indexer hints are still
+expressed in these, and because a keeper's genesis is the fallback the
+`...OrGenesis` getters resolve to.
+
+##### operationBtcPubkey
+
+```ts
+operationBtcPubkey: OnChainBtcPubkey;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L34)
+
+The operation key this resolution produced — the key that actually goes
+into the Bitcoin scripts. Equals `genesisBtcPubkey` until the operator
+rotates.
+
+##### rotated
+
+```ts
+rotated: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L36)
+
+Whether the operation key differs from the genesis key.
+
+***
+
+### ParticipantKeySet
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L53)
+
+Every participant's resolved operation key for one vault (or one about to be
+created).
+
+The pairs are the source of truth; the sorted arrays are derived from them.
+Never invert that. Rotation changes a key, and therefore changes where it
+lands in the lexicographic sort, so an index-join from a sorted array back
+to a roster entry is wrong the moment anyone rotates.
+
+#### Properties
+
+##### vaultProvider
+
+```ts
+vaultProvider: ResolvedParticipant;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L54)
+
+##### vaultKeepers
+
+```ts
+vaultKeepers: ResolvedParticipant[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L55)
+
+##### universalChallengers
+
+```ts
+universalChallengers: ResolvedParticipant[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L56)
+
+##### vaultKeeperOperationKeysSorted
+
+```ts
+vaultKeeperOperationKeysSorted: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L58)
+
+Sorted keeper operation keys — what script construction consumes.
+
+##### universalChallengerOperationKeysSorted
+
+```ts
+universalChallengerOperationKeysSorted: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L60)
+
+Sorted challenger operation keys — what script construction consumes.
+
+##### resolvedAt
+
+```ts
+resolvedAt: KeyResolutionMode;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L62)
+
+Provenance of this resolution.
+
+##### query
+
+```ts
+query: OperationKeyQuery;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L71)
+
+The rosters and addresses this set was resolved against.
+
+Carried so a later re-resolution — notably the post-registration
+read-after-mine check — reuses the *same* roster rather than re-deriving
+one that may since have moved, which would report a roster drift as a key
+drift.
 
 ***
 
@@ -1944,6 +2452,25 @@ Reason why a vault expired
 
 ***
 
+### KeyResolutionMode
+
+```ts
+type KeyResolutionMode = 
+  | {
+  mode: "current";
+}
+  | {
+  mode: "epochs";
+  epochs: KeyEpochs;
+};
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L40)
+
+How a [ParticipantKeySet](#participantkeyset) was resolved. Carried for diagnostics.
+
+***
+
 ### BtcBroadcaster()
 
 ```ts
@@ -2159,7 +2686,7 @@ boundary-equal block is NOT expired. All values are Ethereum block numbers.
 function runDepositorPresignFlow(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:313](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L313)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:403](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L403)
 
 Poll for payout transactions, sign them, sign the depositor graph,
 and submit all signatures to the vault provider.
@@ -2188,7 +2715,7 @@ Error on timeout, abort, signing failure, or RPC error
 function signDepositorGraph(params): Promise<DepositorAsClaimerPresignatures>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:559](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L559)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:578](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L578)
 
 Sign all depositor graph transactions and assemble into presignatures.
 
@@ -2242,7 +2769,7 @@ Error on timeout, abort, or RPC error
 function validateOnChainParticipantKeys(params): Promise<ValidatedOnChainParticipantKeys>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L76)
 
 #### Parameters
 
@@ -2448,6 +2975,46 @@ performed by the caller before invoking this function.
 
 ***
 
+### isParticipantKeyDriftError()
+
+```ts
+function isParticipantKeyDriftError(err): err is ParticipantKeyDriftError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L61)
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is ParticipantKeyDriftError`
+
+***
+
+### verifyRegisteredParticipantKeys()
+
+```ts
+function verifyRegisteredParticipantKeys(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L97)
+
+#### Parameters
+
+##### params
+
+[`VerifyRegisteredParticipantKeysParams`](#verifyregisteredparticipantkeysparams)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
 ### isRegisteredVaultVersionMismatchError()
 
 ```ts
@@ -2587,6 +3154,197 @@ true if SHA-256(secret) matches the hashlock
 #### Throws
 
 if secret or hashlock is not exactly 32 bytes
+
+***
+
+### isHintAccepted()
+
+```ts
+function isHintAccepted(match): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L60)
+
+The accept-either policy itself.
+
+Kept as a named function rather than inlined at each call site so that
+changing the policy is a one-line change in one file, and so a reader can
+find every path governed by it.
+
+#### Parameters
+
+##### match
+
+[`HintMatch`](#hintmatch)
+
+#### Returns
+
+`boolean`
+
+***
+
+### matchKeyHint()
+
+```ts
+function matchKeyHint(
+   hint, 
+   registrationKey, 
+   operationKey): HintMatch;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L65)
+
+Match a single hinted key against both candidates.
+
+#### Parameters
+
+##### hint
+
+`string`
+
+##### registrationKey
+
+`string`
+
+##### operationKey
+
+`string`
+
+#### Returns
+
+[`HintMatch`](#hintmatch)
+
+***
+
+### matchKeySetHint()
+
+```ts
+function matchKeySetHint(
+   hints, 
+   registrationKeys, 
+   operationKeys): HintMatch;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L85)
+
+Match a hinted key *set* against both candidate sets.
+
+Compared as whole sets, never as per-element membership of the union: a
+roster holding one registration key and one operation key is an indexer that
+is halfway through applying a rotation, and union membership would wave that
+through. Order is normalized, so this is set equality and not list equality.
+
+#### Parameters
+
+##### hints
+
+readonly `string`[]
+
+##### registrationKeys
+
+readonly `string`[]
+
+##### operationKeys
+
+readonly `string`[]
+
+#### Returns
+
+[`HintMatch`](#hintmatch)
+
+***
+
+### assertVaultProviderHintAccepted()
+
+```ts
+function assertVaultProviderHintAccepted(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:135](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L135)
+
+Assert an indexer-hinted vault provider key is one the chain can explain.
+
+Resolves silently when there is no hint, or when the hint matches either
+candidate. Throws otherwise — the caller's key material is unaffected either
+way, since resolution is chain-only.
+
+#### Parameters
+
+##### params
+
+[`AssertVaultProviderHintAcceptedParams`](#assertvaultproviderhintacceptedparams)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### resolveCurrentParticipantKeys()
+
+```ts
+function resolveCurrentParticipantKeys(params): Promise<ParticipantKeySet>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts#L154)
+
+Resolve every participant's *current* operation key.
+
+Use for a peg-in being built now. Issues no epoch read, so it never touches
+the extended `getBtcVaultProtocolInfo` ABI.
+
+#### Parameters
+
+##### params
+
+###### operationKeyReader
+
+[`OperationKeyReader`](clients.md#operationkeyreader)
+
+###### query
+
+[`OperationKeyQuery`](clients.md#operationkeyquery)
+
+#### Returns
+
+`Promise`\<[`ParticipantKeySet`](#participantkeyset)\>
+
+***
+
+### resolveParticipantKeysAtEpochs()
+
+```ts
+function resolveParticipantKeysAtEpochs(params): Promise<ParticipantKeySet>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts:172](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts#L172)
+
+Resolve every participant's operation key bonded at a vault's frozen epochs.
+
+Use for every existing-vault path: resume, payout signing, refund. The
+rosters in `query` must be read at the vault's frozen *membership* versions,
+because those roster keys are the genesis the keeper/challenger getters fall
+back to.
+
+#### Parameters
+
+##### params
+
+###### operationKeyReader
+
+[`OperationKeyReader`](clients.md#operationkeyreader)
+
+###### query
+
+[`OperationKeyQuery`](clients.md#operationkeyquery)
+
+###### epochs
+
+[`KeyEpochs`](clients.md#keyepochs)
+
+#### Returns
+
+`Promise`\<[`ParticipantKeySet`](#participantkeyset)\>
 
 ***
 

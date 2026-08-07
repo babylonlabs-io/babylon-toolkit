@@ -26,8 +26,8 @@ import { useDemoDeposit } from "@/dev/demoDeposit";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
+import { usePeginPollingProtocolParams } from "../../hooks/deposit/usePeginPollingProtocolParams";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
-import { useRequiredPrePeginDepthResolver } from "../../hooks/deposit/useRequiredPrePeginDepth";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
 import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
@@ -57,7 +57,6 @@ import type {
 } from "../../types/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
-import { useProtocolParamsContext } from "../ProtocolParamsContext";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
 import {
@@ -125,6 +124,59 @@ const PeginPollingContext = createContext<PeginPollingContextValue | null>(
 );
 
 /**
+ * Live `PeginPollingProvider` mounts. Module-level so the invariant below
+ * catches siblings as well as nesting — a `useContext` check would only see a
+ * provider above it, and two providers mounted side by side fork state just as
+ * badly as two nested ones.
+ */
+let mountedProviderCount = 0;
+
+/** Only ever exceeded by a second mount; see {@link useSingleProviderInvariant}. */
+const MAX_CONCURRENT_PROVIDERS = 1;
+
+/**
+ * Fails loudly in development if a second provider mounts.
+ *
+ * Two providers fork both the VP poll and the optimistic-completion reads, so
+ * an action completed under one is invisible to a row rendered under the other.
+ * That is silent at runtime and produces a UI that keeps offering an action the
+ * user already performed — the bug this tree was collapsed to remove.
+ *
+ * Throws in dev so it cannot be ignored; logs in production, where crashing a
+ * depositor mid-flow over a structural invariant would be the worse outcome.
+ * StrictMode is safe: its setup → cleanup → setup for one component nets to 1.
+ */
+function useSingleProviderInvariant(): void {
+  useEffect(() => {
+    mountedProviderCount += 1;
+    if (mountedProviderCount > MAX_CONCURRENT_PROVIDERS) {
+      const message =
+        `${mountedProviderCount} PeginPollingProvider instances are mounted at once. ` +
+        "The app must mount exactly one, via AppPeginPollingProvider — a second " +
+        "instance forks polling and optimistic-completion state, so a completed " +
+        "action stops hiding its own button.";
+      if (import.meta.env.DEV) {
+        // An effect setup that throws never registers its cleanup, so undo
+        // this mount's increment first — otherwise the counter stays elevated
+        // for the rest of the session and a corrected tree keeps tripping the
+        // invariant on every HMR update until a full reload.
+        mountedProviderCount -= 1;
+        throw new Error(message);
+      }
+      logger.error(new Error(message), { tags: { area: "pegin-polling" } });
+    }
+    return () => {
+      mountedProviderCount -= 1;
+    };
+  }, []);
+}
+
+/** Test-only: reset the mount counter between renders. */
+export function resetPeginPollingProviderCount(): void {
+  mountedProviderCount = 0;
+}
+
+/**
  * Centralized Peg-In Polling Provider
  *
  * Manages a single polling loop for all pending deposits instead of
@@ -136,19 +188,21 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
 }: PeginPollingProviderProps) {
+  useSingleProviderInvariant();
+
   // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
   // is on and the panel toggle is enabled). When present, its ids resolve to
   // controlled results below instead of the live polling decision tree.
   const demo = useDemoDeposit();
 
   // Optimistic step completions (for immediate UI feedback after an action).
-  // App-scoped, not provider-scoped: the modal that drives an action mounts its
-  // own provider, so per-instance state never reached the dashboard row that
-  // offered the button. See `optimisticDepositState`.
+  // App-scoped, not provider-scoped: the writers run outside the context
+  // surface, and the provider itself still unmounts (geo-block branch, wallet
+  // churn). See `optimisticDepositState`.
   const {
     statuses: optimisticStatuses,
     refundBroadcastAt: optimisticRefundBroadcastAt,
-    wotsSubmitted,
+    wotsSubmittedAt,
   } = useSyncExternalStore(
     subscribeToOptimisticDepositState,
     getOptimisticDepositState,
@@ -174,12 +228,21 @@ export function PeginPollingProvider({
   // VP activation tx, absent during PENDING). PENDING gates on min-depth;
   // EXPIRED gates on `tRefund` for the Refund action. Each has its own
   // cache (depth/maturity never rewinds → drop cached txids from polling).
-  const { config, getOffchainParamsByVersion } = useProtocolParamsContext();
+  // Non-blocking: this provider is mounted above the routes that own the
+  // blocking ProtocolParamsProvider, so it reads the same queries directly
+  // rather than depending on a context that renders a spinner in place of its
+  // children. Params resolve to `undefined` until loaded — never a default.
+  // Gated on having deposits to evaluate: the provider mounts app-wide, and
+  // ungated queries would bill two multicalls to every session on page load,
+  // connected or not — the pre-hoist footprint only paid them when a pending
+  // section actually rendered.
+  const params = usePeginPollingProtocolParams(activities.length > 0);
   // Tiered (Tier-1 estimate → Tier-2 chain confirm) activation-deadline gate.
   // Lowercased ids of VERIFIED vaults confirmed past their activation window.
+  // Fails safe on an undefined timeout (gate stays closed until params land).
   const activationDeadlinePassedIds = useActivationDeadlineGate(
     activities,
-    config.pegInActivationTimeout,
+    params.pegInActivationTimeout,
   );
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
@@ -197,9 +260,9 @@ export function PeginPollingProvider({
     loadRefundedHtlcVaultIds,
   );
 
-  const resolveRequiredPrePeginDepth = useRequiredPrePeginDepthResolver();
+  const { resolveRequiredPrePeginDepth, resolveRefundTimelock } = params;
   const getRequiredPrePeginDepth = useCallback(
-    (activity: VaultActivity): number =>
+    (activity: VaultActivity): number | undefined =>
       resolveRequiredPrePeginDepth(activity.offchainParamsVersion),
     [resolveRequiredPrePeginDepth],
   );
@@ -370,10 +433,7 @@ export function PeginPollingProvider({
       prePeginConfirmationsByTxid,
       matureRefundTxids,
       (a) => (a.contractStatus ?? 0) === ContractStatus.EXPIRED,
-      (a) =>
-        a.offchainParamsVersion !== undefined
-          ? getOffchainParamsByVersion(a.offchainParamsVersion)?.tRefund
-          : undefined,
+      (a) => resolveRefundTimelock(a.offchainParamsVersion),
     );
     if (newlyMature.length === 0) return;
     newlyMature.forEach(addMatureRefundTxid);
@@ -386,7 +446,7 @@ export function PeginPollingProvider({
     prePeginConfirmationsByTxid,
     activities,
     matureRefundTxids,
-    getOffchainParamsByVersion,
+    resolveRefundTimelock,
   ]);
 
   // Persist vaults whose HTLC spend has confirmed and drop them from the next
@@ -427,10 +487,12 @@ export function PeginPollingProvider({
   // deposit.completed — once per vault as its contractStatus transitions. The
   // detector seeds already-terminal vaults on first observation, so a dashboard
   // load never emits a burst for prior-session completions. Tracking is
-  // app-scoped rather than per-provider: the continuation modal mounts a second
-  // provider over the same vault, and per-instance tracking would count every
-  // terminal twice. It is a plain module store, not state — emitting telemetry
-  // must not trigger a re-render.
+  // app-scoped rather than per-provider: the provider legitimately unmounts
+  // and remounts (geo-block branch, wallet churn), and per-instance tracking
+  // would re-count a terminal on every remount. (It also predates the
+  // single-provider invariant above, when the continuation modal mounted a
+  // second provider over the same vault.) It is a plain module store, not
+  // state — emitting telemetry must not trigger a re-render.
   useEffect(() => {
     const milestones = collectTerminalMilestones(
       activities,
@@ -514,10 +576,9 @@ export function PeginPollingProvider({
       if (!activity) return undefined;
       // Strict: a since-lowered latest `tRefund` could mark a vault
       // mature early → Bitcoin rejects with `non-BIP68-final`.
-      const refundTimelock =
-        activity.offchainParamsVersion !== undefined
-          ? getOffchainParamsByVersion(activity.offchainParamsVersion)?.tRefund
-          : undefined;
+      const refundTimelock = resolveRefundTimelock(
+        activity.offchainParamsVersion,
+      );
       return computeDepositPollingResult({
         activity,
         pendingPegins,
@@ -538,10 +599,16 @@ export function PeginPollingProvider({
         stuckStateConfirmedOnChain: stuckConfirmedIds.has(
           activity.id.toLowerCase(),
         ),
-        isLoading,
+        // Params still resolving is a loading state, not a resolved "depth
+        // unknown" — otherwise a cold load reads as a stalled deposit. A params
+        // *failure* is not: the queries have exhausted their retries and will
+        // not resolve, so latching `loading` beside the error would park every
+        // row on a spinner forever. Failed params present as failed.
+        isLoading: isLoading || (!params.ready && !params.error),
+        protocolParamsError: params.error,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
-        wotsSubmitted,
+        wotsSubmittedAt,
         btcPublicKey,
       });
     },
@@ -559,13 +626,15 @@ export function PeginPollingProvider({
       htlcRefundByDepositId,
       refundedHtlcVaultIds,
       getRequiredPrePeginDepth,
-      getOffchainParamsByVersion,
+      resolveRefundTimelock,
       activationDeadlinePassedIds,
       stuckConfirmedIds,
       isLoading,
+      params.ready,
+      params.error,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
-      wotsSubmitted,
+      wotsSubmittedAt,
       btcPublicKey,
     ],
   );
@@ -614,16 +683,6 @@ export function usePeginPolling() {
 }
 
 /**
- * Non-throwing variant: returns the context if available, else `null`.
- * Use this when a component might render outside the dashboard's
- * PeginPollingProvider (e.g. the active deposit flow modal), so it can
- * gracefully fall back instead of crashing.
- */
-export function usePeginPollingOptional(): PeginPollingContextValue | null {
-  return useContext(PeginPollingContext) ?? null;
-}
-
-/**
  * Hook to get polling result for a specific deposit
  *
  * Convenience hook that wraps getPollingResult.
@@ -635,19 +694,20 @@ export function useDepositPollingResult(depositId: string) {
 
 /**
  * Returns the first deposit-polling result that is indexed for any of the
- * given deposit ids, or `undefined` if none are indexed (or the polling
- * context isn't mounted). Multi-vault batches share one broadcast txid so
- * any indexed sibling carries the same confirmation count — picking the
- * first indexed one avoids missing the data when one sibling is still
- * propagating through the indexer.
+ * given deposit ids, or `undefined` if none are indexed. Multi-vault batches
+ * share one broadcast txid so any indexed sibling carries the same
+ * confirmation count — picking the first indexed one avoids missing the data
+ * when one sibling is still propagating through the indexer.
+ *
+ * A deposit is unindexed in the moments right after broadcast, before the
+ * indexer has it; callers fall back to a direct mempool read there.
  */
-export function useOptionalDepositPollingResult(
+export function useFirstIndexedDepositPollingResult(
   depositIds: readonly string[],
 ): DepositPollingResult | undefined {
-  const polling = usePeginPollingOptional();
-  if (!polling) return undefined;
+  const { getPollingResult } = usePeginPolling();
   for (const id of depositIds) {
-    const result = polling.getPollingResult(id);
+    const result = getPollingResult(id);
     if (result) return result;
   }
   return undefined;

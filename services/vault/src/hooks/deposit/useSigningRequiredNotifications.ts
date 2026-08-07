@@ -58,7 +58,18 @@ export function useSigningRequiredNotifications(
     const out: Array<{ key: string; copy: BrowserNotificationCopy }> = [];
     for (const activity of activities) {
       const result = getPollingResult(activity.id);
-      if (!result || result.loading || !result.isOwnedByCurrentWallet) continue;
+      // `error` for the same reason as `loading`: the continuation UI's
+      // `getActionStatus` collapses an errored result to `noAction`, so the
+      // CTA the notification would point at is suppressed — a params outage
+      // sets `error` on every deposit, and nudging into a dead end is worse
+      // than staying quiet until the conclusion is trustworthy again.
+      if (
+        !result ||
+        result.loading ||
+        result.error ||
+        !result.isOwnedByCurrentWallet
+      )
+        continue;
       // Skip deposits the continuation UI won't offer an action for, so we
       // never nudge an action the user can't actually take there. Exception:
       // the stuck-state withdraw (activate-and-redeem) renders as a warning —

@@ -7,37 +7,14 @@ import {
   Sidebar,
   SidebarBrandLockup,
   SidebarItem,
-  SmallLogo,
   VaultsIcon,
 } from "@babylonlabs-io/core-ui";
 import type { ComponentType } from "react";
 import { NavLink } from "react-router";
 
-import featureFlags from "@/config/featureFlags";
-import { V3_NAV_GROUPS, type V3NavItemId } from "@/config/v3Navigation";
+import { getVisibleV3NavGroups, type V3NavItemId } from "@/config/v3Navigation";
 
 import { SidebarFooter } from "./SidebarFooter";
-
-// Header's own brand mark (unchanged v2 lockup: SmallLogo + divider + Aave
-// wordmark) — kept separate from `SidebarBrandLockup` (the exact Figma
-// sidebar asset). Only rendered in v2; the v3 header shows the page title
-// instead (see RootLayout's `logo` prop), since the sidebar already carries
-// the brand.
-export function BrandLockup() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="[&_svg]:!h-8 [&_svg]:!w-auto [&_svg]:!text-secondary-main dark:[&_svg]:!text-accent-primary">
-        <SmallLogo />
-      </div>
-      <div className="h-8 w-px bg-secondary-strokeLight" />
-      <img
-        src="/images/aave-wordmark.svg"
-        alt="Aave"
-        className="h-[18px] w-[109px]"
-      />
-    </div>
-  );
-}
 
 // Icons are kept out of `config/v3Navigation.ts` (a plain data module) and
 // mapped here by id, so the router and `usePageTitle` don't have to import
@@ -54,18 +31,12 @@ const V3_NAV_ICONS: Record<
   explore: ExploreIcon,
 };
 
-// /liquidations is still an empty placeholder with no page, so it hides
-// behind the same flag that gates the analysis chart rather than advertising
-// a dead end. /explore now has a real page, so it shows for all v3 users
-// (the sidebar itself only renders under v3 — see RootLayout).
-const LIQUIDATION_ANALYSIS_NAV_IDS = new Set<V3NavItemId>(["liquidations"]);
-
 function V3NavLinks() {
-  const groups = featureFlags.isLiquidationAnalysisChartEnabled
-    ? V3_NAV_GROUPS
-    : V3_NAV_GROUPS.map((group) =>
-        group.filter((item) => !LIQUIDATION_ANALYSIS_NAV_IDS.has(item.id)),
-      ).filter((group) => group.length > 0);
+  // Which sections a flag currently hides is decided by `V3_SECTION_FLAG_GATES`
+  // in config/v3Navigation.ts, shared with the router's guards so a hidden
+  // section is never advertised as a dead end. The sidebar itself only renders
+  // under v3 — see RootLayout.
+  const groups = getVisibleV3NavGroups();
 
   return (
     <>

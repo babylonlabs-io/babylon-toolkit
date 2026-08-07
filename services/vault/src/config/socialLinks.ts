@@ -14,3 +14,13 @@ export const SOCIAL_LINK_URLS = {
   discord: "https://discord.gg/babylonglobal",
   x: "https://x.com/babylonlabs_io",
 } as const;
+
+/**
+ * Legal page URLs, shared for the same reason as the social links above: the
+ * vault renders this pair in both the entry footer and the sidebar's own
+ * footer, and they must not drift apart.
+ */
+export const LEGAL_LINK_URLS = {
+  termsOfUse: "https://babylonlabs.io/terms-of-use",
+  privacyPolicy: "https://babylonlabs.io/privacy-policy",
+} as const;

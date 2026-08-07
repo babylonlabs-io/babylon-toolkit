@@ -1,77 +1,152 @@
-import { useMemo } from "react";
-import { BandLayer } from "./BandLayer";
-import { pct } from "./scale";
+import { useId, useMemo } from "react";
+import { Bar } from "@visx/shape";
+import { Group } from "@visx/group";
+import { Text } from "@visx/text";
+import { BandLayer, type BandRect } from "./BandLayer";
+import {
+  BAND_RADIUS_PX,
+  SAFEZONE_BORDER_PX,
+  SAFEZONE_LINE_GAP_PX,
+  SAFEZONE_PAD_X_PX,
+  SAFEZONE_PAD_Y_PX,
+} from "./chartGeometry";
+import { TEXT_LINE_HEIGHT } from "../charts/chartLayout";
+import type { PriceScale } from "./priceScale";
+import { chartFont, truncateToWidth } from "../charts/textMeasure";
 import type { LiquidationBand, SafeZone } from "./types";
-
-/** Minimum band height (plot fraction) so a band stays visible/hoverable. */
-const MIN_BAND_FRAC = 0.06;
 
 export interface SeizureGutterProps {
   bands: LiquidationBand[];
-  /** price → vertical fraction [0,1] within the plot. */
-  priceToFraction: (price: number) => number;
-  /** Gutter width as a fraction of the plot. */
+  priceScale: PriceScale;
+  /** The (simulated) price; blocks the price line has passed render dimmed. */
+  currentPrice: number;
+  /** Gutter width in px. */
   width: number;
+  /** Plot height in px, for the clip rect. */
+  plotHeight: number;
+  fontAxis: number;
+  fontLabel: number;
+  fontAmount: number;
   safeZone?: SafeZone;
   compact: boolean;
-  onBandClick?: (key: string) => void;
-  bandClickHint?: string;
+  hideBandLabels: boolean;
+  liquidatedLabel?: string;
 }
 
 /**
  * The pluggable seizure-map column inside the Timeline: safe zone on top,
- * then the liquidation bands. Each band's TOP is anchored exactly at its
- * trigger price; bands extend downward (with a minimum height) and anything
- * past the plot floor is clipped by this wrapper — events below the visible
- * price domain are simply out of frame. Extend the price axis to reveal them.
+ * then the liquidation bands. Blocks tile from each trigger down to the next
+ * (the last one bottoms out at the plot floor), so with the Timeline's
+ * span-weighted scale every block edge carries its trigger's level line. An
+ * event triggering below the axis floor collapses out of frame — extend the
+ * axis to reveal it.
  */
 export function SeizureGutter({
   bands,
-  priceToFraction,
+  priceScale,
+  currentPrice,
   width,
+  plotHeight,
+  fontAxis,
+  fontLabel,
+  fontAmount,
   safeZone,
   compact,
-  onBandClick,
-  bandClickHint,
+  hideBandLabels,
+  liquidatedLabel,
 }: SeizureGutterProps) {
+  const clipId = useId();
+
   const bandGeom = useMemo(() => {
     const geoms = new Map<string, { top: number; height: number }>();
-    let cursor = 0;
-    for (const b of bands) {
-      // Anchor at the true price; `cursor` only prevents overlap when a
-      // previous band's minimum height ran past this band's trigger.
-      const top = Math.max(priceToFraction(b.priceTop), cursor);
-      const bottom = Math.max(priceToFraction(b.priceBottom), top + MIN_BAND_FRAC);
-      geoms.set(b.key, { top, height: bottom - top });
-      cursor = bottom;
-    }
+    bands.forEach((b, i) => {
+      const top = priceScale(b.priceTop);
+      const bottom = i + 1 < bands.length ? priceScale(bands[i + 1].priceTop) : plotHeight;
+      geoms.set(b.key, { top, height: Math.max(0, bottom - top) });
+    });
     return geoms;
-  }, [bands, priceToFraction]);
+  }, [bands, priceScale, plotHeight]);
 
   const firstBandTop = bands.length ? (bandGeom.get(bands[0].key)?.top ?? 0) : 0;
+  const bandRect = (b: LiquidationBand): BandRect => {
+    const geom = bandGeom.get(b.key) ?? { top: 0, height: 0 };
+    return { x: 0, y: geom.top, width, height: geom.height };
+  };
+
+  // A block reads as passed once the price LINE crosses its top edge — this
+  // matches `state` for on-axis triggers and also covers events clamped
+  // below the axis floor.
+  const priceLineY = priceScale(currentPrice);
+  const isBlockPassed = (b: LiquidationBand): boolean => {
+    if (b.state === "liquidated") return true;
+    const geom = bandGeom.get(b.key);
+    return geom ? priceLineY > geom.top : false;
+  };
+
+  // Safe-zone text stack: title always; the detail lines render whenever the
+  // full stack fits the box's content area (height minus padding and border),
+  // and drop together when it would overflow.
+  const showSafeZone = Boolean(safeZone) && bands.length > 0;
+  const safeZoneContentHeight = firstBandTop - 2 * (SAFEZONE_PAD_Y_PX + SAFEZONE_BORDER_PX);
+  const titleHeight = Math.round(fontLabel * TEXT_LINE_HEIGHT);
+  const safeLineHeight = Math.round(fontAxis * TEXT_LINE_HEIGHT);
+  const fullStackHeight = titleHeight + (safeZone?.lines.length ?? 0) * (safeLineHeight + SAFEZONE_LINE_GAP_PX);
+  const safeLines = showSafeZone && safeZone && fullStackHeight <= safeZoneContentHeight ? safeZone.lines : [];
+  const safeStackHeight = titleHeight + safeLines.length * (safeLineHeight + SAFEZONE_LINE_GAP_PX);
+  const safeMaxTextWidth = width - 2 * SAFEZONE_PAD_X_PX;
 
   return (
-    <div className="bbn-liq-gutter" style={{ width: pct(width) }}>
-      {safeZone && bands.length ? (
-        <div className="bbn-liq-safezone" style={{ height: pct(firstBandTop) }}>
-          <span className="bbn-liq-safezone__title">{safeZone.title}</span>
-          {safeZone.lines.map((line) => (
-            <span key={line} className="bbn-liq-safezone__line">
-              {line}
-            </span>
-          ))}
-        </div>
+    <Group clipPath={`url(#${clipId})`}>
+      <clipPath id={clipId}>
+        <rect x={0} y={0} width={width} height={plotHeight} />
+      </clipPath>
+
+      {showSafeZone && safeZone ? (
+        <g>
+          <Bar className="bbn-liq-safezone__rect" x={0} y={0} width={width} height={firstBandTop} rx={BAND_RADIUS_PX} />
+          <g pointerEvents="none">
+            <Text
+              className="bbn-liq-safezone__title"
+              x={width / 2}
+              y={(firstBandTop - safeStackHeight) / 2}
+              textAnchor="middle"
+              verticalAnchor="start"
+              fontSize={fontLabel}
+            >
+              {truncateToWidth(safeZone.title, chartFont(fontLabel), safeMaxTextWidth)}
+            </Text>
+            {safeLines.map((line, i) => (
+              <Text
+                key={line}
+                className="bbn-liq-safezone__line"
+                x={width / 2}
+                y={
+                  (firstBandTop - safeStackHeight) / 2 +
+                  titleHeight +
+                  SAFEZONE_LINE_GAP_PX +
+                  i * (safeLineHeight + SAFEZONE_LINE_GAP_PX)
+                }
+                textAnchor="middle"
+                verticalAnchor="start"
+                fontSize={fontAxis}
+              >
+                {truncateToWidth(line, chartFont(fontAxis), safeMaxTextWidth)}
+              </Text>
+            ))}
+          </g>
+        </g>
       ) : null}
 
       <BandLayer
         bands={bands}
-        priceToFraction={priceToFraction}
-        bandX={() => ({ left: 0, width: 1 })}
-        bandY={(b) => bandGeom.get(b.key) ?? { top: 0, height: 0 }}
+        bandRect={bandRect}
+        fontLabel={fontLabel}
+        fontAmount={fontAmount}
         compact={compact}
-        onBandClick={onBandClick}
-        bandClickHint={bandClickHint}
+        hideBandLabels={hideBandLabels}
+        liquidatedLabel={liquidatedLabel}
+        isDimmed={isBlockPassed}
       />
-    </div>
+    </Group>
   );
 }

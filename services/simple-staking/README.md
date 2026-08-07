@@ -72,7 +72,6 @@ Create a `.env` file with the following variables:
   - Example: `https://babylon-testnet-api.nodes.guru/`
 - `NEXT_PUBLIC_BABYLON_EXPLORER` - Babylon block explorer URL
   - Example: `https://testnet.babylon.explorers.guru`
-- `NEXT_PUBLIC_ETH_RPC_URL` - Ethereum RPC URL override
 - `NEXT_PUBLIC_REOWN_PROJECT_ID` - Reown (WalletConnect) project ID for wallet integration
 - `NEXT_PUBLIC_SIDECAR_API_URL` - Sidecar API service base URL
 - `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)

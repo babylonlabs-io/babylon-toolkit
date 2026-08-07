@@ -9,16 +9,20 @@ import {
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import {
+  EstimateGasExecutionError,
   HttpRequestError,
   InsufficientFundsError,
   RpcRequestError,
+  TransactionRejectedRpcError,
   UserRejectedRequestError,
 } from "viem";
 import { describe, expect, it } from "vitest";
 
 import {
+  formatErrorDiagnostics,
   formatErrorMessage,
   formatPayoutSignatureError,
+  mapVpRpcError,
   sanitizeErrorMessage,
 } from "../formatting";
 
@@ -83,6 +87,82 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage("a string error")).toBe("a string error");
     });
 
+    it("omits viem's request dump and keeps the node's detail and code", () => {
+      // Shape of viem's TransactionExecutionError: the calldata lives in
+      // `metaMessages`, which `message` concatenates but the user must not see.
+      const err = Object.assign(
+        new Error(
+          "An unknown RPC error occurred.\n\nRequest Arguments:\n  chain: Sepolia (id: 11155111)\n  data: 0x68d177ac0000000000000000\n\nDetails: header not found",
+        ),
+        {
+          shortMessage: "An unknown RPC error occurred.",
+          details: "header not found",
+          metaMessages: ["Request Arguments:", "  data: 0x68d177ac000000"],
+          code: -32000,
+        },
+      );
+
+      const message = sanitizeErrorMessage(err);
+
+      expect(message).toBe(
+        "An unknown RPC error occurred. header not found (code -32000)",
+      );
+      expect(message).not.toContain("0x68d177ac");
+      expect(message).not.toContain("Request Arguments");
+    });
+
+    it("does not repeat details already contained in the short message", () => {
+      const err = Object.assign(new Error("ignored"), {
+        shortMessage: "Execution reverted: insufficient balance.",
+        details: "insufficient balance",
+        metaMessages: undefined,
+      });
+
+      expect(sanitizeErrorMessage(err)).toBe(
+        "Execution reverted: insufficient balance.",
+      );
+    });
+
+    it("reads a real captured Babylon testnet estimateGas failure as insufficient ETH", () => {
+      // Rebuilt from a console capture (viem@2.38.2) with the real viem
+      // classes so the shape can't drift: EstimateGasExecutionError →
+      // TransactionRejectedRpcError → RpcRequestError, carrying
+      // `Details: EVM error: OutOfFunds`. revm's HaltReason::OutOfFunds means
+      // "out of funds to pay for the call", so this must not read as a
+      // transient RPC blip the user should wait out.
+      const calldata: `0x${string}` = `0x68d177ac${"00".repeat(1600)}`;
+      const rpc = new RpcRequestError({
+        body: { method: "eth_estimateGas", params: [{ data: calldata }] },
+        error: { code: -32003, message: "EVM error: OutOfFunds" },
+        url: "https://eth-rpc-dapp.testnet.babylonlabs.io",
+      });
+      const err = new EstimateGasExecutionError(
+        new TransactionRejectedRpcError(rpc),
+        {
+          account: {
+            address: "0x6E5D5AEFf3850940A6F15c4835521F5C56E38555",
+          } as never,
+          to: "0xE976a4f2B90E64A9A9374453bC526e67625cC750",
+          value: 10000000000000002n,
+          data: calldata,
+        },
+      );
+
+      // The raw message is thousands of characters of request dump.
+      expect(err.message.length).toBeGreaterThan(3000);
+      expect(sanitizeErrorMessage(err)).toMatch(/Not enough ETH/);
+    });
+
+    it("keeps the full message of a non-viem error that carries a shortMessage", () => {
+      // Only viem's BaseError shape (shortMessage + details + metaMessages)
+      // gets trimmed; anything else keeps whatever context it wrote.
+      const err = Object.assign(new Error("Vault X failed because of Y"), {
+        shortMessage: "Request failed",
+      });
+
+      expect(sanitizeErrorMessage(err)).toBe("Vault X failed because of Y");
+    });
+
     it("returns 'Unknown error' for non-Error objects without string message", () => {
       expect(sanitizeErrorMessage({ key: "value" })).toBe("Unknown error");
       expect(sanitizeErrorMessage(42)).toBe("Unknown error");
@@ -144,6 +224,28 @@ describe("Error Formatting", () => {
         code: "CONNECTION_REJECTED",
       });
       expect(sanitizeErrorMessage(err)).toMatch(/Transaction rejected/);
+    });
+
+    it.each(["Connection to Keystone was canceled", "Proposal expired"])(
+      "classifies the telemetry-suppressed wording %#: %s",
+      (message) => {
+        // These were dropped from Sentry as cancellations while the classifier
+        // still returned null, so the depositor got generic copy for an error
+        // we had already decided was a cancellation. One shared vocabulary now.
+        expect(sanitizeErrorMessage(new Error(message))).toMatch(
+          /Transaction rejected/,
+        );
+      },
+    );
+
+    it("keeps the outermost category when an inner frame is a cancellation", () => {
+      // Precedence (b): depth-first, outermost wins. The shared predicate is
+      // per-frame precisely so it cannot reach past this.
+      const err = Object.assign(new Error("Insufficient funds for gas"), {
+        cause: new Error("User rejected the request"),
+      });
+
+      expect(sanitizeErrorMessage(err)).not.toMatch(/Transaction rejected/);
     });
 
     it("does not collapse non-rejection errors", () => {
@@ -472,6 +574,44 @@ describe("Error Formatting", () => {
     });
   });
 
+  describe("mapVpRpcError", () => {
+    // -32001 has three producers: the SDK's own network failure (local),
+    // the proxy's "Provider not found", and the daemon rejecting our
+    // bearer. Each must reach different copy.
+    it("reads a local -32001 as a connectivity failure", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(-32001, "Network error: Failed to fetch", "local"),
+      );
+      expect(result.title).toBe("Connection failed");
+    });
+
+    it("reads a wire -32001 saying 'Provider not found' as a deregistered provider", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(-32001, "Provider not found", "wire"),
+      );
+      expect(result.title).toBe("Vault provider not found");
+    });
+
+    it("reads any other wire -32001 as an expired session, not a connectivity failure", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(-32001, "invalid token signature", "wire"),
+      );
+      expect(result.title).toBe("Session expired");
+      expect(result.message).toContain("reload the page");
+    });
+
+    it("reads a wire -32001 token expiry as an expired session", () => {
+      const result = mapVpRpcError(
+        new JsonRpcError(
+          -32001,
+          "token expired at 1754300000 (now: 1754300400)",
+          "wire",
+        ),
+      );
+      expect(result.title).toBe("Session expired");
+    });
+  });
+
   describe("formatPayoutSignatureError", () => {
     it("maps PEGIN_NOT_FOUND (4001) to a transient-syncing message", () => {
       const error = new JsonRpcError(
@@ -583,6 +723,59 @@ describe("Error Formatting", () => {
       expect(formatPayoutSignatureError(rejection).title).toBe(
         "Signing rejected",
       );
+    });
+  });
+
+  describe("formatErrorDiagnostics", () => {
+    it("keeps viem's full message, including the request dump the UI hides", () => {
+      const err = Object.assign(
+        new Error(
+          "An unknown RPC error occurred.\n\nRequest Arguments:\n  data: 0x68d177ac",
+        ),
+        { name: "TransactionExecutionError", code: -32000 },
+      );
+
+      const text = formatErrorDiagnostics(err);
+
+      expect(text).toContain("TransactionExecutionError");
+      expect(text).toContain("0x68d177ac");
+      expect(text).toContain("code: -32000");
+    });
+
+    it("truncates runaway messages", () => {
+      const text = formatErrorDiagnostics(new Error("x".repeat(9000)));
+
+      expect(text.length).toBeLessThanOrEqual(4000);
+      expect(text.endsWith("\u2026")).toBe(true);
+    });
+
+    it("keeps details and code when the raw message is clamped away", () => {
+      // viem orders the request dump before `details`, so a summary appended
+      // after the message would be the first thing truncation discarded.
+      const err = Object.assign(new Error(`0x${"ab".repeat(5000)}`), {
+        name: "TransactionExecutionError",
+        shortMessage: "An unknown RPC error occurred.",
+        details: "header not found",
+        metaMessages: ["Request Arguments:"],
+        code: -32000,
+      });
+
+      const text = formatErrorDiagnostics(err);
+
+      expect(text).toContain("details: header not found");
+      expect(text).toContain("code: -32000");
+      expect(text.length).toBeLessThanOrEqual(4000);
+    });
+
+    it("describes non-Error throws without crashing", () => {
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+
+      expect(formatErrorDiagnostics("plain string")).toBe("plain string");
+      expect(formatErrorDiagnostics(circular)).toBe("[object Object]");
+      // JSON.stringify yields undefined for these \u2014 it must not be trimmed.
+      expect(formatErrorDiagnostics(undefined)).toBe("undefined");
+      expect(formatErrorDiagnostics(() => {})).toContain("=>");
     });
   });
 });

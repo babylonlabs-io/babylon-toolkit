@@ -20,10 +20,7 @@ import { isProblematicVaultProvider } from "@/utils/sortVaultProviders";
 
 const FORM_COPY = COPY.deposit.form;
 
-/**
- * Props for both the v2 (`VaultProviderSelector`) and v3 pickers. Declared
- * here so the v2 file can be deleted whole when ENABLE_V3_UI retires.
- */
+/** Props for the vault-provider picker. */
 export interface VaultProviderSelectorProps {
   providers: VaultProviderListItem[];
   isLoadingProviders: boolean;

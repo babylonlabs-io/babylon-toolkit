@@ -48,7 +48,7 @@ export const WalletMenuSettingItem: React.FC<WalletMenuSettingItemProps> = ({
                 attachToChildren={true}
                 offset={[20, 8]}
               >
-                <span className="inline-block align-middle text-secondary-strokeDark cursor-pointer ml-1">
+                <span className="inline-block align-middle text-accent-secondary cursor-pointer ml-1">
                   {infoIcon}
                 </span>
               </Hint>

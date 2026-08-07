@@ -25,6 +25,7 @@ import {
 } from "../../primitives/psbt/__tests__/constants";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import { PAYOUT_ANCHOR_DUST_SATS } from "../../primitives/psbt/constants";
+import { deriveBip86ScriptPubKeyHex } from "../../primitives/utils/bitcoin";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // These tests inject synthetic signatures into otherwise-real payout PSBTs to
@@ -49,6 +50,18 @@ const TEST_KEYS = {
 
 /** Valid P2WPKH scriptPubKey for payout output address validation tests */
 const TEST_PAYOUT_SCRIPT_PUBKEY = P2WPKH_PREFIX + "d".repeat(40);
+
+/**
+ * VP commission destination of the test payout transactions (outs[1]), and the
+ * keeper payout map for an un-rotated operator set where the registry backfills
+ * BIP-86 — the same bytes local derivation would produce.
+ */
+const TEST_VP_COMMISSION_SCRIPT = createDummyP2WPKH("e").toString("hex");
+const TEST_VK_PAYOUT_SCRIPTS: Readonly<Record<string, string>> = {
+  [TEST_KEYS.VAULT_KEEPER_1.toLowerCase()]: deriveBip86ScriptPubKeyHex(
+    TEST_KEYS.VAULT_KEEPER_1,
+  ),
+};
 
 describe("PayoutManager", () => {
   beforeAll(async () => {
@@ -147,7 +160,7 @@ describe("PayoutManager", () => {
      *   outs[1]: VP commission
      *   outs[2]: CPFP anchor (546 sats)
      * Implicit fee = inputs (150_000) − outputs (145_000) = 5_000 = 3.3%,
-     * comfortably under the 10% bound in `buildPayoutPsbt`.
+     * comfortably under the fee-band ceiling in `buildPayoutPsbt`.
      */
     function createTestPayoutTransaction(
       peginTxHex: string,
@@ -156,17 +169,12 @@ describe("PayoutManager", () => {
       const peginTx = Transaction.fromHex(peginTxHex);
       const assertTx = Transaction.fromHex(assertTxHex);
       const tx = new Transaction();
+      // btc-vault payout literals (transactions/payout.rs): version 2,
+      // locktime 0, input 0 sequence = the PegIn CSV timelock (100 here).
+      tx.version = 2;
 
-      tx.addInput(
-        Buffer.from(peginTx.getId(), "hex").reverse(),
-        0,
-        SEQUENCE_MAX,
-      );
-      tx.addInput(
-        Buffer.from(assertTx.getId(), "hex").reverse(),
-        0,
-        SEQUENCE_MAX,
-      );
+      tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, 100);
+      tx.addInput(Buffer.from(assertTx.getId(), "hex").reverse(), 0, 144);
       // outs[0]: depositor payout — registered scriptPubKey ("d") at vout 0
       tx.addOutput(
         createDummyP2WPKH("d"),
@@ -239,10 +247,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         },
         {
           vaultCoreVersion: 1,
@@ -253,10 +266,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         },
       ]);
 
@@ -302,10 +320,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow(
@@ -348,10 +371,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow();
@@ -409,10 +437,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
           {
             vaultCoreVersion: 1,
@@ -423,10 +456,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow("Expected 2 signed PSBTs but received 1");
@@ -486,10 +524,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
           {
             vaultCoreVersion: 1,
@@ -500,10 +543,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow("Expected 2 signed PSBTs but received 3");
@@ -529,7 +577,7 @@ describe("PayoutManager", () => {
      *   outs[1]: VP commission
      *   outs[2]: CPFP anchor (546 sats)
      * Implicit fee = inputs (150_000) − outputs (145_000) = 5_000 = 3.3%,
-     * comfortably under the 10% bound in `buildPayoutPsbt`.
+     * comfortably under the fee-band ceiling in `buildPayoutPsbt`.
      */
     function createTestPayoutTransaction(
       peginTxHex: string,
@@ -538,17 +586,12 @@ describe("PayoutManager", () => {
       const peginTx = Transaction.fromHex(peginTxHex);
       const assertTx = Transaction.fromHex(assertTxHex);
       const tx = new Transaction();
+      // btc-vault payout literals (transactions/payout.rs): version 2,
+      // locktime 0, input 0 sequence = the PegIn CSV timelock (100 here).
+      tx.version = 2;
 
-      tx.addInput(
-        Buffer.from(peginTx.getId(), "hex").reverse(),
-        0,
-        SEQUENCE_MAX,
-      );
-      tx.addInput(
-        Buffer.from(assertTx.getId(), "hex").reverse(),
-        0,
-        SEQUENCE_MAX,
-      );
+      tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, 100);
+      tx.addInput(Buffer.from(assertTx.getId(), "hex").reverse(), 0, 144);
       // outs[0]: depositor payout — registered scriptPubKey ("d") at vout 0
       tx.addOutput(
         createDummyP2WPKH("d"),
@@ -589,10 +632,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: wrongScriptPubKey,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow(
         "Payout transaction output 0 does not pay the expected scriptPubKey for role vp-claimer",
@@ -628,10 +676,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: prefixedScriptPubKey,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.not.toThrow(
         "output 0 does not pay the expected scriptPubKey for role vp-claimer",
@@ -662,10 +715,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: "not-valid-hex",
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow("Invalid registeredPayoutScriptPubKey: not valid hex");
     });
@@ -682,16 +740,18 @@ describe("PayoutManager", () => {
       const peginTx = Transaction.fromHex(peginTxHex);
       const assertTx = Transaction.fromHex(assertTxHex);
       const maliciousTx = new Transaction();
+      // btc-vault payout literals so the output-count check is what fires.
+      maliciousTx.version = 2;
 
       maliciousTx.addInput(
         Buffer.from(peginTx.getId(), "hex").reverse(),
         0,
-        SEQUENCE_MAX,
+        100,
       );
       maliciousTx.addInput(
         Buffer.from(assertTx.getId(), "hex").reverse(),
         0,
-        SEQUENCE_MAX,
+        144,
       );
       // outs[0]: registered scriptPubKey, still the largest — passes the
       // index-0 check by itself but the EXTRA output below trips count.
@@ -722,10 +782,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow(/has 4 output\(s\), expected exactly 3/);
     });
@@ -781,10 +846,15 @@ describe("PayoutManager", () => {
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
+          timelockAssert: 144,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           registeredPayoutScriptPubKey: TEST_PAYOUT_SCRIPT_PUBKEY,
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
+          protocolFeeRate: 10n,
+          councilSize: 3,
+          vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+          vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
       ).rejects.toThrow(/output 0 script/);
     });
@@ -817,10 +887,15 @@ describe("PayoutManager", () => {
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
             timelockPegin: 100,
+            timelockAssert: 144,
             depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
             registeredPayoutScriptPubKey: wrongScriptPubKey,
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
+            protocolFeeRate: 10n,
+            councilSize: 3,
+            vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
+            vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
         ]),
       ).rejects.toThrow(

@@ -19,6 +19,7 @@ import {
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   validateOnChainParticipantKeys,
+  verifyRegisteredParticipantKeys,
   verifyRegisteredVaultVersions,
   type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -35,6 +36,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
 import {
+  getOperationKeyReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
   getVaultRegistryReader,
@@ -63,6 +65,7 @@ import {
   type PeginSigningProgress,
 } from "@/services/vault/vaultTransactionService";
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
+import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
   removePendingPegin,
@@ -492,20 +495,33 @@ export function useDepositFlow(
         // — both register, only one Pre-PegIn can broadcast, the other
         // strands until expiry.
 
-        const [vaultKeeperReader, universalChallengerReader] =
-          await Promise.all([
-            getVaultKeeperReader(),
-            getUniversalChallengerReader(),
-          ]);
+        const [
+          vaultKeeperReader,
+          universalChallengerReader,
+          operationKeyReader,
+        ] = await Promise.all([
+          getVaultKeeperReader(),
+          getUniversalChallengerReader(),
+          getOperationKeyReader(),
+        ]);
         const validatedKeys = await validateOnChainParticipantKeys({
           vaultRegistryReader: getVaultRegistryReader(),
           vaultKeeperReader,
           universalChallengerReader,
+          operationKeyReader,
           vaultProviderEthAddress: selectedProviders[0] as Address,
           applicationEntryPoint: selectedApplication as Address,
           expectedVaultProviderBtcPubkey: vaultProviderBtcPubkey,
           expectedVaultKeeperBtcPubkeys: vaultKeeperBtcPubkeys,
           expectedUniversalChallengerBtcPubkeys: universalChallengerBtcPubkeys,
+          onIndexerServingOperationKeys: (message) => logger.info(message),
+          onIndexerHintsInconsistent: (message) =>
+            logger.error(new Error(message), {
+              tags: {
+                component: "useDepositFlow",
+                phase: "validate-participant-keys",
+              },
+            }),
         });
 
         // Prime the peg-in signing sub-counter (one tx per vault) before the
@@ -533,6 +549,7 @@ export function useDepositFlow(
             universalChallengerBtcPubkeys:
               validatedKeys.universalChallengerBtcPubkeysSorted,
             timelockPegin,
+            timelockAssert: Number(config.offchainParams.timelockAssert),
             timelockRefund,
             councilQuorum: config.offchainParams.councilQuorum,
             councilSize: config.offchainParams.securityCouncilKeys.length,
@@ -695,6 +712,14 @@ export function useDepositFlow(
             buildUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
             buildVaultCoreVersion: config.activeVaultCoreVersion,
+            // RFC-006: pin the keys the scripts were actually built with, so a
+            // rotation landing before a later resume can't be broadcast over.
+            buildParticipantOperationKeys: {
+              vaultProvider: validatedKeys.vaultProviderBtcPubkeyXOnly,
+              vaultKeepers: validatedKeys.vaultKeeperBtcPubkeysSorted,
+              universalChallengers:
+                validatedKeys.universalChallengerBtcPubkeysSorted,
+            },
           };
           // Persist the resume record. A localStorage failure (quota /
           // private browsing) must NOT abort: the vault is already
@@ -748,6 +773,28 @@ export function useDepositFlow(
           }
           throw err;
         }
+
+        // RFC-006 read-after-mine. The vault froze its key epochs when
+        // `submitPeginRequest` executed, so an operator rotating between our
+        // key read and that execution would leave the registered vault bonded
+        // to keys other than the ones baked into the Pre-PegIn we are about to
+        // broadcast. Re-resolve against the frozen epochs and fail closed.
+        //
+        // Runs after the version check on purpose: a version mismatch has the
+        // clearer message, and re-resolving against an already-drifted roster
+        // version would report a key diff caused by a version diff.
+        //
+        // Outside the cleanup above by design. Key drift must leave the pending
+        // records in place: they hold the build-time key stamp, which is the
+        // only thing that lets a later resume re-detect the drift. Dropping
+        // them would let the resume path fall back to the indexer's copy, pass
+        // the `prePeginTxHash` check, and broadcast the Pre-PegIn this refused.
+        await verifyRegisteredParticipantKeys({
+          vaultRegistryReader: getVaultRegistryReader(),
+          operationKeyReader,
+          vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
+          expected: validatedKeys.participantKeys,
+        });
 
         // ========================================================================
         // Step 4b: Broadcast Pre-PegIn transaction to Bitcoin
@@ -827,10 +874,9 @@ export function useDepositFlow(
         // the pubkey once and seed each per-vault registry entry.
         const vpBaseUrl = getVpProxyUrl(provider.id);
         try {
-          const pinnedServerPubkey =
-            await getVaultRegistryReader().getVaultProviderBtcPubKey(
-              provider.id as Address,
-            );
+          const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
+            provider.id as Address,
+          );
           for (const r of broadcastedResults) {
             const peginTxid = stripHexPrefix(r.peginTxHash);
             primeVpTokenRegistry({
@@ -1055,6 +1101,12 @@ export function useDepositFlow(
               logger.error(
                 error instanceof Error ? error : new Error(String(error)),
                 {
+                  // Tagged so the Sentry-side cancellation drop keeps it: the
+                  // loop continues to the next vault, so a rejected prompt here
+                  // leaves THIS vault without its WOTS key while the deposit
+                  // proceeds. That partial state is the reportable event even
+                  // though the cause is a user cancellation.
+                  tags: { partialFailure: "multi-vault" },
                   data: {
                     context:
                       "[Multi-Vault] Failed to submit WOTS key for vault",
@@ -1201,6 +1253,10 @@ export function useDepositFlow(
             logger.error(
               error instanceof Error ? error : new Error(String(error)),
               {
+                // See the WOTS site above: the loop continues, so a rejected
+                // prompt leaves this vault under-signed while the deposit
+                // proceeds. Exempt from the cancellation drop.
+                tags: { partialFailure: "multi-vault" },
                 data: {
                   context:
                     "[Multi-Vault] Failed to sign or submit payouts for vault",

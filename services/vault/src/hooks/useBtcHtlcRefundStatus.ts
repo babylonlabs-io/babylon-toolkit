@@ -19,6 +19,15 @@ const STALE_TIME_MS = 55 * 1000;
 // Cap concurrency — the public mempool.space endpoint rate-limits (429s).
 const MAX_CONCURRENT_REQUESTS = 4;
 
+// Singleton for the no-data render. A fresh `new Map()` per render would mint
+// a new identity every render while the query is disabled or unloaded — the
+// common case, since this poll only runs for sessions with EXPIRED vaults —
+// and React Query's structural sharing cannot share Maps either. Every
+// downstream memo keyed on the result (the provider's `getPollingResult`
+// among them) would recompute per render, and consumers that react to it
+// identity-wise would loop.
+const EMPTY_REFUNDS = new Map<string, HtlcSpend>();
+
 /** One vault's HTLC outpoint to probe for a refund spend. */
 export interface HtlcRefundOutpoint {
   /** Vault id (the result map's key). */
@@ -101,5 +110,5 @@ export function useBtcHtlcRefundStatus(
     },
   });
 
-  return { refundByDepositId: query.data ?? new Map() };
+  return { refundByDepositId: query.data ?? EMPTY_REFUNDS };
 }

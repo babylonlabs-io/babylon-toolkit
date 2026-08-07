@@ -6,10 +6,12 @@
  *  - expiredActivities: refundable expired deposits (contractStatus 7=EXPIRED with
  *    unsignedPrePeginTx — the only indexer-sourced field required to build the
  *    refund PSBT; hashlock and htlcVout come from the on-chain contract).
- * Provides polling infrastructure, wallet state, and modal handlers for
- * broadcast/refund actions on pending and expired deposits. The post-broadcast
- * actions (WOTS, payout signing, activation, artifact download) are owned by
- * the deposit multistepper opened from the card body, not per-action modals.
+ * Provides wallet state and modal handlers for broadcast/refund actions on
+ * pending and expired deposits. The post-broadcast actions (WOTS, payout
+ * signing, activation, artifact download) are owned by the deposit
+ * multistepper opened from the card body, not per-action modals.
+ *
+ * Polling infrastructure moved to `AppPeginPollingProvider`.
  */
 
 import { useMemo } from "react";
@@ -21,17 +23,16 @@ import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
-import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
 
 export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
-  const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
 
-  const { activities, pendingPegins, refetchActivities, loading, error } =
-    useVaultDeposits(ethAddress as Address | undefined);
+  const { activities, refetchActivities, loading, error } = useVaultDeposits(
+    ethAddress as Address | undefined,
+  );
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
@@ -88,9 +89,7 @@ export function usePendingDeposits() {
     pendingActivities,
     expiredActivities,
     allActivities: activities,
-    pendingPegins,
     vaultProviders: mergedVaultProviders,
-    btcPublicKey,
     btcAddress,
     btcConnected,
     ethAddress,

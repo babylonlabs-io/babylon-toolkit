@@ -14,6 +14,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  getOptimisticDepositState,
+  resetOptimisticDepositState,
+} from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 
 import { DepositFlowStep } from "../depositFlowSteps";
@@ -36,6 +40,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   })),
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
+  getOperationKeyReader: vi.fn(async () => ({})),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -168,8 +173,15 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
     universalChallengerBtcPubkeysSorted: ["uc1pubkey"],
     expectedAppVaultKeepersVersion: 3,
     expectedUniversalChallengersVersion: 5,
+    participantKeys: {
+      vaultProvider: { operationBtcPubkey: "ab".repeat(32) },
+      vaultKeepers: [{ operationBtcPubkey: "keeper1pubkey" }],
+      vaultKeeperOperationKeysSorted: ["keeper1pubkey"],
+      universalChallengerOperationKeysSorted: ["uc1pubkey"],
+    },
   }),
   verifyRegisteredVaultVersions: vi.fn().mockResolvedValue(undefined),
+  verifyRegisteredParticipantKeys: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../depositFlowSteps", async () => {
@@ -253,27 +265,28 @@ const MOCK_ETH_WALLET = {
 const MOCK_DEPOSITOR_PUBKEY = "ab".repeat(32);
 
 const MOCK_DEPOSIT_TERMS: DepositTerms = {
-  baseFeeRate: 10n,
-  peginCsvTimelock: 100,
-  payoutTimelock: 100,
-  htlcRefundTimelock: 50,
+  vaultCoreVersion: 1,
+  protocolFeeRate: 10n,
+  timelockPegin: 100,
+  timelockAssert: 100,
+  timelockRefund: 50,
   prepeginTxid: "1".repeat(64),
   prepeginMaxFee: 2000n,
-  keeperPks: ["aa".repeat(32)],
-  challengerPks: ["bb".repeat(32)],
+  vaultKeeperBtcPubkeys: ["aa".repeat(32)],
+  universalChallengerBtcPubkeys: ["bb".repeat(32)],
   vaults: [
     {
       htlcVout: 0,
-      vaultProviderPk: "cc".repeat(32),
-      vaultAmount: 100000n,
+      vaultProviderBtcPubkey: "cc".repeat(32),
+      peginAmount: 100000n,
       commissionFee: 2500n,
       depositorClaimValue: 20000n,
       peginMaxFee: 800n,
     },
     {
       htlcVout: 1,
-      vaultProviderPk: "cc".repeat(32),
-      vaultAmount: 100000n,
+      vaultProviderBtcPubkey: "cc".repeat(32),
+      peginAmount: 100000n,
       commissionFee: 2500n,
       depositorClaimValue: 20000n,
       peginMaxFee: 800n,
@@ -445,6 +458,9 @@ describe("useDepositFlow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     depositGateMock.value = { protocol: null, aave: null };
+    // The optimistic store is module-scoped, so WOTS markers recorded by one
+    // flow outlive the test that wrote them.
+    resetOptimisticDepositState();
     await setupDefaultMocks();
   });
 
@@ -941,6 +957,41 @@ describe("useDepositFlow", () => {
         DepositFlowStep.SUBMIT_WOTS_KEYS,
         DepositFlowStep.AWAIT_VP_VERIFICATION,
       ]);
+    });
+
+    it("records a WOTS completion marker for every vault whose submission resolved", async () => {
+      // The dashboard row suppresses "Submit WOTS Key" off these markers. The
+      // resume path is covered separately; this pins the first-run path, whose
+      // marker is written per vault inside the retry loop.
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      const { wotsSubmittedAt } = getOptimisticDepositState();
+      expect(wotsSubmittedAt.has("0xVault0Id")).toBe(true);
+      expect(wotsSubmittedAt.has("0xVault1Id")).toBe(true);
+    });
+
+    it("records no WOTS completion marker for a vault whose submission failed", async () => {
+      const { submitWotsPublicKey } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      // First vault fails both attempts (retry exhausted); second succeeds.
+      vi.mocked(submitWotsPublicKey)
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
+        .mockRejectedValueOnce(new Error("WOTS derivation error"))
+        .mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      // Suppressing the button for a submission that never landed would strand
+      // the deposit with no way to retry.
+      const { wotsSubmittedAt } = getOptimisticDepositState();
+      expect(wotsSubmittedAt.has("0xVault0Id")).toBe(false);
+      expect(wotsSubmittedAt.has("0xVault1Id")).toBe(true);
     });
 
     it("waits for shared WOTS readiness before submitting any WOTS key", async () => {

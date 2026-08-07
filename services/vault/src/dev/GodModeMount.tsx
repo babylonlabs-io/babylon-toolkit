@@ -21,12 +21,14 @@ import featureFlags from "@/config/featureFlags";
 
 import { GodModePanel } from "./GodModePanel";
 import { LiquidationAnalysisDebugPanel } from "./LiquidationAnalysisDebugPanel";
+import { MarketDataDebugPanel } from "./MarketDataDebugPanel";
 import { PositionNotificationsDebugPanel } from "./PositionNotificationsDebugPanel";
 
 export function GodModeMount() {
   return (
     <GodModePanel>
-      {featureFlags.isV3UiEnabled && <LiquidationAnalysisDebugPanel />}
+      <LiquidationAnalysisDebugPanel />
+      <MarketDataDebugPanel />
       {featureFlags.isLiquidationNotificationsEnabled &&
         featureFlags.isPositionDebugPanelEnabled && (
           <PositionNotificationsDebugPanel />

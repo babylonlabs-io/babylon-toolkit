@@ -79,6 +79,8 @@ interface SignPayoutBaseParams {
    * CSV timelock in blocks for the PegIn output.
    */
   timelockPegin: number;
+  /** btc-vault `timelock_assert`; payout input 1's sequence. */
+  timelockAssert: number;
 
   /**
    * Depositor's BTC public key (x-only, 64-char hex). This MUST be the
@@ -108,6 +110,24 @@ interface SignPayoutBaseParams {
    * VP commission in basis points (`1..=9999`). Forwarded to {@link buildPayoutPsbt}.
    */
   commissionBps: number;
+
+  /**
+   * Version-locked tx-graph fee rate (sat/vB) the graph was built with.
+   * Forwarded to {@link buildPayoutPsbt} for the fee band.
+   */
+  protocolFeeRate: bigint;
+
+  /** Security council member count; forwarded to the fee floor (see PayoutParams). */
+  councilSize: number;
+
+  /**
+   * RFC-006 resolved payout destinations, keyed by lowercased x-only operation
+   * pubkey. Forwarded verbatim to {@link buildPayoutPsbt}; every VK claimer
+   * must be present.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** RFC-006 VP commission destination. Forwarded to {@link buildPayoutPsbt}. */
+  vpCommissionScriptPubKey: string;
 }
 
 /**
@@ -223,10 +243,15 @@ export class PayoutManager {
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
       timelockPegin: params.timelockPegin,
+      timelockAssert: params.timelockAssert,
       network: this.config.network,
       claimerBtcPubkey: params.claimerBtcPubkey,
       registeredPayoutScriptPubKey: params.registeredPayoutScriptPubKey,
       commissionBps: params.commissionBps,
+      protocolFeeRate: params.protocolFeeRate,
+      councilSize: params.councilSize,
+      vkClaimerPayoutScriptPubKeys: params.vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey: params.vpCommissionScriptPubKey,
     });
 
     // Sign PSBT via wallet (Taproot script-path spend, input 0 only)
@@ -324,10 +349,15 @@ export class PayoutManager {
         vaultKeeperBtcPubkeys: tx.vaultKeeperBtcPubkeys,
         universalChallengerBtcPubkeys: tx.universalChallengerBtcPubkeys,
         timelockPegin: tx.timelockPegin,
+        timelockAssert: tx.timelockAssert,
         network: this.config.network,
         claimerBtcPubkey: tx.claimerBtcPubkey,
         registeredPayoutScriptPubKey: tx.registeredPayoutScriptPubKey,
         commissionBps: tx.commissionBps,
+        protocolFeeRate: tx.protocolFeeRate,
+        councilSize: tx.councilSize,
+        vkClaimerPayoutScriptPubKeys: tx.vkClaimerPayoutScriptPubKeys,
+        vpCommissionScriptPubKey: tx.vpCommissionScriptPubKey,
       });
       psbtsToSign.push(payoutPsbt.psbtHex);
       signOptions.push(createTaprootScriptPathSignOptions(walletPubkeyRaw, 1));

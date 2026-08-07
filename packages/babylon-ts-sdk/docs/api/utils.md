@@ -54,6 +54,36 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:54]
 
 ## Interfaces
 
+### CombinedAbortSignal
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:7](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L7)
+
+#### Properties
+
+##### signal
+
+```ts
+signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:8](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L8)
+
+##### cleanup()
+
+```ts
+cleanup: () => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L10)
+
+Remove listeners from the source signals. Call once the request settles.
+
+###### Returns
+
+`void`
+
+***
+
 ### PsbtInputFields
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L16)
@@ -768,7 +798,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:45](
 function getNetwork(network): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:315](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L315)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L330)
 
 Map SDK network type to bitcoinjs-lib Network object.
 
@@ -785,6 +815,36 @@ Network type ("bitcoin", "testnet", "signet", "regtest")
 `Network`
 
 bitcoinjs-lib Network object
+
+***
+
+### combineAbortSignals()
+
+```ts
+function combineAbortSignals(signals): CombinedAbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L24)
+
+Compose several AbortSignals into one that aborts when any input aborts,
+propagating the reason of whichever fired first.
+
+Deliberately does NOT use `AbortSignal.any`: that shipped in Chrome 116 /
+Safari 17.4, newer than the browsers this SDK is consumed from, and it is a
+runtime API so no transpile step can backfill it. Calling it directly threw
+`TypeError: AbortSignal.any is not a function` before `fetch` was ever
+reached, which failed UTXO fetches, fee estimation and transaction broadcast
+outright on those browsers.
+
+#### Parameters
+
+##### signals
+
+`AbortSignal`[]
+
+#### Returns
+
+[`CombinedAbortSignal`](#combinedabortsignal)
 
 ***
 

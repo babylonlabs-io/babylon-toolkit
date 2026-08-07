@@ -11,6 +11,7 @@
 
 import {
   resolveProtocolAddresses,
+  ViemOperationKeyReader,
   ViemProtocolParamsReader,
   ViemUniversalChallengerReader,
   ViemVaultKeeperReader,
@@ -34,6 +35,7 @@ interface ResolvedReaders {
   protocolParamsReader: ViemProtocolParamsReader;
   vaultKeeperReader: ViemVaultKeeperReader;
   universalChallengerReader: ViemUniversalChallengerReader;
+  operationKeyReader: ViemOperationKeyReader;
   fetchedAt: number;
 }
 
@@ -88,6 +90,15 @@ async function getResolvedReaders(): Promise<ResolvedReaders> {
           publicClient,
           addresses.protocolParams,
         ),
+        // RFC-006 operation-key resolution spans all three registries, so it
+        // is built here alongside the others rather than constructed ad hoc —
+        // it needs the same resolved ProtocolParams / ApplicationRegistry
+        // addresses.
+        operationKeyReader: new ViemOperationKeyReader(publicClient, {
+          btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
+          applicationRegistry: addresses.applicationRegistry,
+          protocolParams: addresses.protocolParams,
+        }),
         fetchedAt: Date.now(),
       };
 
@@ -145,6 +156,17 @@ export async function getVaultKeeperReader(): Promise<ViemVaultKeeperReader> {
  */
 export async function getUniversalChallengerReader(): Promise<ViemUniversalChallengerReader> {
   return (await getResolvedReaders()).universalChallengerReader;
+}
+
+/**
+ * Get the RFC-006 operation-key reader (contract-based).
+ *
+ * Only valid against an RFC-006 registry: on one that predates RFC-006 these
+ * getters do not exist and every call reverts on selector mismatch. Unlike the
+ * extended `getBtcVaultProtocolInfo` read, that failure is loud.
+ */
+export async function getOperationKeyReader(): Promise<ViemOperationKeyReader> {
+  return (await getResolvedReaders()).operationKeyReader;
 }
 
 /**

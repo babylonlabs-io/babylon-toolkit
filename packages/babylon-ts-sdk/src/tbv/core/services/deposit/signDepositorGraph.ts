@@ -31,6 +31,7 @@ import type {
   DepositorPreSigsPerChallenger,
   PresignDataPerChallenger,
 } from "../../clients/vault-provider/types";
+import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import {
   assertPsbtUnsignedTxMatches,
   type AssertPsbtUnsignedTxMatchesParams,
@@ -44,7 +45,6 @@ import {
   extractPayoutSignature,
 } from "../../primitives/psbt/payout";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
-import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import {
   stripHexPrefix,
   uint8ArrayToHex,
@@ -250,9 +250,12 @@ async function collectDepositorGraphPsbts(
   //    buildPayoutPsbt also runs the per-role output validation.
   const builtPayout = await buildPayoutPsbt({
     vaultCoreVersion: ctx.vaultCoreVersion,
+    vkClaimerPayoutScriptPubKeys: ctx.vkClaimerPayoutScriptPubKeys,
+    vpCommissionScriptPubKey: ctx.vpCommissionScriptPubKey,
     payoutTxHex: depositorGraph.payout_tx.tx_hex,
     peginTxHex: ctx.peginTxHex,
     assertTxHex: depositorGraph.assert_tx.tx_hex,
+    timelockAssert: ctx.timelockAssert,
     depositorBtcPubkey: ctx.depositorBtcPubkey,
     vaultProviderBtcPubkey: ctx.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: ctx.vaultKeeperBtcPubkeys,
@@ -262,6 +265,8 @@ async function collectDepositorGraphPsbts(
     claimerBtcPubkey: ctx.depositorBtcPubkey,
     registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
     commissionBps: DEPOSITOR_PATH_UNUSED_COMMISSION_BPS,
+    protocolFeeRate: ctx.protocolFeeRate,
+    councilSize: ctx.councilMembers.length,
   });
   psbtHexes.push(builtPayout.psbtHex);
   signOptions.push(
@@ -512,6 +517,11 @@ export interface DepositorGraphSigningContext {
   /** Pegin CSV timelock from the locked offchain params version (blocks) */
   timelockPegin: number;
   /**
+   * Tx-graph fee rate (sat/vB) from the locked offchain params version —
+   * bounds the depositor-claimer payout's implicit fee (payout fee band).
+   */
+  protocolFeeRate: bigint;
+  /**
    * Assert CSV timelock from the locked offchain params version (blocks).
    * Sourced from the on-chain ProtocolParams contract via
    * `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockAssert`.
@@ -536,6 +546,15 @@ export interface DepositorGraphSigningContext {
    * the depositor's registered address before the wallet produces a signature.
    */
   registeredPayoutScriptPubKey: string;
+  /**
+   * RFC-006 operator payout destinations. Forwarded to `buildPayoutPsbt` for
+   * shape completeness only: this graph is signed under the
+   * `depositor-as-claimer` role, whose payout has two outputs and reads
+   * neither the keeper map nor the VP commission destination.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** See {@link vkClaimerPayoutScriptPubKeys} — unused for this role. */
+  vpCommissionScriptPubKey: string;
 }
 
 export interface SignDepositorGraphParams {

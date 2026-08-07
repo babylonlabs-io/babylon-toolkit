@@ -81,7 +81,7 @@ export function ActiveLoansList({
                   disabled={!canBorrow || !row.isBorrowable || row.displayOnly}
                   className={NEUTRAL_ROW_BUTTON_CLASS}
                 >
-                  {COPY.loans.borrowButton}
+                  {COPY.loans.borrowMoreButton}
                 </button>
                 <button
                   type="button"

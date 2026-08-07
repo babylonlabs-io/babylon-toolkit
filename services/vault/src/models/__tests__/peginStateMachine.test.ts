@@ -500,6 +500,22 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
     });
 
+    it("re-exposes refund action when the recorded timestamp is ahead of the clock", () => {
+      // A backwards wall-clock jump leaves the broadcast timestamp in the
+      // future. Elapsed then reads negative — inside the window under a bare
+      // `< TTL` for as long as the clock stays behind — so the suppression
+      // would outlast the TTL by the size of the jump.
+      const now = 1_700_000_000_000;
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: true,
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundBroadcastAt: now + 60 * 60 * 1000,
+        now,
+      });
+      expect(state.availableActions).toEqual([PeginAction.REFUND_HTLC]);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
+    });
+
     it("treats legacy REFUND_BROADCAST without timestamp as expired (allows retry)", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         canRefund: true,
@@ -814,6 +830,21 @@ describe("peginStateMachine", () => {
           ContractStatus.EXPIRED,
           LocalStorageStatus.REFUND_BROADCAST,
           now - 7 * 60 * 60 * 1000,
+          now,
+        ),
+      ).toBe(true);
+    });
+
+    it("clears REFUND_BROADCAST whose timestamp is ahead of the clock", () => {
+      // Backwards wall-clock jump: a future-dated marker reads as expired —
+      // the same guard as the action suppression — so the stale entry clears
+      // instead of surviving until the clock catches back up past it.
+      const now = 1_700_000_000_000;
+      expect(
+        shouldRemoveFromLocalStorage(
+          ContractStatus.EXPIRED,
+          LocalStorageStatus.REFUND_BROADCAST,
+          now + 60 * 60 * 1000,
           now,
         ),
       ).toBe(true);

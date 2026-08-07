@@ -1,17 +1,15 @@
-/* Liquidation charts (Seizure Map + Timeline). HTML/CSS layers, not SVG, so
- * band text truncates instead of overflowing.
+/* Liquidation charts (Seizure Map + Timeline). Marks are SVG sized in real
+ * pixels from the measured chart width (see chartGeometry.ts); this file only
+ * paints them. Geometry (positions, fonts, dropout thresholds) lives in TS.
  *
- * Responsive: the chart is a size container (container-type: inline-size); the
- * plot keeps a fixed aspect-ratio and all type scales in `cqi`, so everything
- * scales with the chart's own width rather than the viewport.
- *
- * Colour tokens live at :root (light default + dark override) because the hover
- * popover renders in a portal outside the chart subtree and must still inherit
- * them. The dark selector must list every signal a consumer sets — `.dark`,
- * `data-mode`, `data-theme` — since matching only one leaves a dark app drawing
- * light gridlines. Motion uses --motion-* tokens per docs/motion-system.md
- * (fallbacks reproduce legacy behaviour; reduced-motion handled by the global
- * reset). */
+ * Colour tokens live at :root (light default + dark override) because the
+ * band hover popover renders in a portal outside the chart subtree and must
+ * still inherit them. Neutral chrome (gridlines, axis text, surfaces) tracks
+ * the shared --bbn-chart-* tokens, which carry their own dark override.
+ * Motion uses --motion-* tokens per docs/motion-system.md (fallbacks reproduce
+ * legacy behaviour; reduced-motion handled by the global reset). */
+@import "../charts/chartTokens.css";
+
 :root {
   --liq-band-1: #bf5833;
   --liq-band-2: #355e78;
@@ -20,334 +18,163 @@
   --liq-band-text: #ffffff;
   --liq-candle-up: #34d1a6;
   --liq-candle-down: #ff5c5c;
-  --liq-gridline: #e5e5e5;
-  --liq-axis-text: #666666;
-  --liq-surface: #ffffff;
-  --liq-surface-text: #111111;
-  --liq-surface-muted: #666666;
-  --liq-surface-stroke: #e5e5e5;
-}
-
-:root.dark,
-:root[data-mode="dark"],
-:root[data-theme="dark"] {
-  --liq-gridline: #2f2f2f;
-  --liq-axis-text: #b0b0b0;
-  --liq-surface: #202020;
-  --liq-surface-text: #ffffff;
-  --liq-surface-muted: #b0b0b0;
-  --liq-surface-stroke: #2f2f2f;
-}
-
-.bbn-liq-chart {
-  --liq-gutter: clamp(3rem, 7cqi, 4.25rem);
-  --liq-band-radius: 2px;
-  --liq-font-axis: clamp(0.625rem, 1.12cqi, 0.75rem);
-  --liq-font-label: clamp(0.7rem, 1.3cqi, 0.875rem);
-  --liq-font-amount: clamp(0.75rem, 1.5cqi, 1rem);
-
-  container-type: inline-size;
-  width: 100%;
-  font-family: "Px Grotesk", sans-serif;
+  --liq-gridline: var(--bbn-chart-gridline);
+  --liq-axis-text: var(--bbn-chart-axis-text);
+  --liq-surface: var(--bbn-chart-surface);
+  --liq-surface-text: var(--bbn-chart-surface-text);
+  --liq-surface-muted: var(--bbn-chart-surface-muted);
+  --liq-surface-stroke: var(--bbn-chart-surface-stroke);
+  --liq-surface-stroke-strong: var(--bbn-chart-surface-stroke-strong);
 }
 
 /* ---- Frame ---------------------------------------------------------- */
-.bbn-liq-chart__body {
-  display: flex;
-  align-items: stretch;
+.bbn-liq-chart {
+  width: 100%;
+  font-family: "Px Grotesk", sans-serif;
 }
-.bbn-liq-chart__yaxis {
+.bbn-liq-chart__canvas {
   position: relative;
-  flex: 0 0 var(--liq-gutter);
-  width: var(--liq-gutter);
 }
-.bbn-liq-chart--axis-right .bbn-liq-chart__yaxis {
-  order: 1;
-}
-.bbn-liq-chart__yaxis-label {
-  position: absolute;
-  right: 0.5rem;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  font-size: var(--liq-font-axis);
-  letter-spacing: 0.4px;
-  color: var(--liq-axis-text);
-}
-.bbn-liq-chart--axis-right .bbn-liq-chart__yaxis-label {
-  right: auto;
-  left: 0.5rem;
-}
-/* Suppressed when a decluttered price pill sits on this tick (pill labels it). */
-.bbn-liq-chart__yaxis-label--hidden {
-  visibility: hidden;
-}
-.bbn-liq-chart__plot {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  aspect-ratio: 1016 / 350;
+/* The old HTML frame let edge labels overflow (top axis tick, price label);
+ * keep that instead of clipping at the SVG viewport. */
+.bbn-liq-chart__svg {
+  display: block;
+  overflow: visible;
 }
 
-.bbn-liq-chart__gridline {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1px dashed var(--liq-gridline);
-  pointer-events: none;
-}
-.bbn-liq-chart__vgridline {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 1px dashed var(--liq-gridline);
+.bbn-liq-axis-text {
+  fill: var(--liq-axis-text);
+  /* Sourced from AXIS_LETTER_SPACING_PX (textMeasure.ts), which also sizes
+   * the pills — the fallback only covers renders outside ChartFrame. */
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
   pointer-events: none;
 }
 
-/* Grid variants (ChartGridConfig): visibility + stroke style. */
-.bbn-liq-chart--grid-none .bbn-liq-chart__gridline,
-.bbn-liq-chart--grid-none .bbn-liq-chart__vgridline,
-.bbn-liq-chart--grid-horizontal .bbn-liq-chart__vgridline {
-  display: none;
+.bbn-liq-grid line {
+  stroke: var(--liq-gridline);
+  pointer-events: none;
 }
-.bbn-liq-chart--gridstyle-dotted .bbn-liq-chart__gridline {
-  border-top-style: dotted;
+/* Grid stroke style (ChartGridConfig); visibility is decided in JSX. */
+.bbn-liq-chart--gridstyle-dashed .bbn-liq-grid line {
+  stroke-dasharray: 3 3;
 }
-.bbn-liq-chart--gridstyle-dotted .bbn-liq-chart__vgridline {
-  border-left-style: dotted;
-}
-.bbn-liq-chart--gridstyle-solid .bbn-liq-chart__gridline {
-  border-top-style: solid;
-}
-.bbn-liq-chart--gridstyle-solid .bbn-liq-chart__vgridline {
-  border-left-style: solid;
+.bbn-liq-chart--gridstyle-dotted .bbn-liq-grid line {
+  stroke-dasharray: 1 2;
 }
 
 /* Liquidation-level markers (Timeline): dashed tone line + axis pill. */
-.bbn-liq-chart__level-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1px dashed var(--liq-gridline);
+.bbn-liq-level-line {
+  stroke: var(--liq-gridline);
+  stroke-dasharray: 3 3;
   pointer-events: none;
 }
-.bbn-liq-chart__level-line--tone-1 { border-color: var(--liq-band-1); }
-.bbn-liq-chart__level-line--tone-2 { border-color: var(--liq-band-2); }
-.bbn-liq-chart__level-line--tone-3 { border-color: var(--liq-band-3); }
+.bbn-liq-level-line--tone-1 {
+  stroke: var(--liq-band-1);
+}
+.bbn-liq-level-line--tone-2 {
+  stroke: var(--liq-band-2);
+}
+.bbn-liq-level-line--tone-3 {
+  stroke: var(--liq-band-3);
+}
 
-.bbn-liq-chart__pill {
-  position: absolute;
-  transform: translateY(-50%);
-  padding: 0.125rem 0.375rem;
-  border-radius: var(--liq-band-radius);
-  font-size: var(--liq-font-axis);
-  letter-spacing: 0.4px;
-  white-space: nowrap;
-  color: var(--liq-band-text);
-  background: var(--liq-surface-muted);
+.bbn-liq-pill__rect {
+  fill: var(--liq-surface-muted);
   pointer-events: none;
 }
-.bbn-liq-chart--axis-right .bbn-liq-chart__pill {
-  right: 0;
-  transform: translate(calc(100% + 0.25rem), -50%);
+.bbn-liq-pill__rect--tone-1 {
+  fill: var(--liq-band-1);
 }
-.bbn-liq-chart__pill--tone-1 { background: var(--liq-band-1); }
-.bbn-liq-chart__pill--tone-2 { background: var(--liq-band-2); }
-.bbn-liq-chart__pill--tone-3 { background: var(--liq-band-3); }
-.bbn-liq-chart__pill--current { background: var(--liq-price-line); }
+.bbn-liq-pill__rect--tone-2 {
+  fill: var(--liq-band-2);
+}
+.bbn-liq-pill__rect--tone-3 {
+  fill: var(--liq-band-3);
+}
+.bbn-liq-pill__rect--current {
+  fill: var(--liq-price-line);
+}
+.bbn-liq-pill__text {
+  fill: var(--liq-band-text);
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
+  pointer-events: none;
+}
 
-.bbn-liq-chart__price-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 2px solid var(--liq-price-line);
+.bbn-liq-price-line {
+  stroke: var(--liq-price-line);
+  stroke-width: 2;
   pointer-events: none;
 }
 /* Plain body text above the rule; `--liq-price-line-label` overrides the colour. */
-.bbn-liq-chart__price-line-label,
-.bbn-liq-chart__price-line-caption {
-  position: absolute;
-  bottom: 0.15rem;
-  font-size: var(--liq-font-axis);
-  letter-spacing: 0.4px;
-  color: var(--liq-price-line-label, var(--liq-surface-text));
-  white-space: nowrap;
-}
-.bbn-liq-chart__price-line-label {
-  right: 0;
-}
-.bbn-liq-chart__price-line-caption {
-  left: 0;
-}
-/* Near the top of the plot, sit under the line so the label clears the top price zone. */
-.bbn-liq-chart__price-line-label--below,
-.bbn-liq-chart__price-line-caption--below {
-  bottom: auto;
-  top: 0.15rem;
-}
-
-.bbn-liq-chart__xaxis {
-  display: flex;
-  justify-content: space-between;
-  box-sizing: border-box;
-  margin-left: var(--liq-gutter);
-  margin-top: 0.375rem;
-}
-/* Each label centred on its fraction; first and last pulled inside the plot. */
-.bbn-liq-chart__xaxis--positioned {
-  display: block;
-  position: relative;
-  height: 1.2em;
-}
-.bbn-liq-chart__xaxis--positioned .bbn-liq-chart__xaxis-label {
-  position: absolute;
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-.bbn-liq-chart__xaxis--positioned .bbn-liq-chart__xaxis-label--first {
-  transform: none;
-}
-.bbn-liq-chart__xaxis--positioned .bbn-liq-chart__xaxis-label--last {
-  transform: translateX(-100%);
-}
-.bbn-liq-chart--axis-right .bbn-liq-chart__xaxis {
-  margin-left: 0;
-  margin-right: var(--liq-gutter);
-}
-.bbn-liq-chart__xaxis-label {
-  font-size: var(--liq-font-axis);
-  letter-spacing: 0.4px;
-  color: var(--liq-axis-text);
+.bbn-liq-price-line-text {
+  fill: var(--liq-price-line-label, var(--liq-surface-text));
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
+  pointer-events: none;
 }
 
 /* ---- Top collateral-share legend (Seizure Map) --------------------- */
-.bbn-liq-chart__top-legend {
-  display: flex;
-  gap: 2px;
-  margin-left: var(--liq-gutter);
-  margin-bottom: 0.75rem;
+.bbn-liq-legend__seg {
+  transition: opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out);
 }
-.bbn-liq-legend-seg {
-  flex: 0 0 auto;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 0.375rem 0.5rem;
-  border-radius: var(--liq-band-radius);
-  text-align: center;
-  color: var(--liq-band-text);
-  font-size: var(--liq-font-label);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.bbn-liq-legend__seg--liquidated {
+  opacity: 0.32;
 }
-.bbn-liq-legend-seg--tone-1 { background: var(--liq-band-1); }
-.bbn-liq-legend-seg--tone-2 { background: var(--liq-band-2); }
-.bbn-liq-legend-seg--tone-3 { background: var(--liq-band-3); }
+.bbn-liq-legend__rect--tone-1 {
+  fill: var(--liq-band-1);
+}
+.bbn-liq-legend__rect--tone-2 {
+  fill: var(--liq-band-2);
+}
+.bbn-liq-legend__rect--tone-3 {
+  fill: var(--liq-band-3);
+}
+.bbn-liq-legend__text {
+  fill: var(--liq-band-text);
+}
 
 /* ---- Bands ---------------------------------------------------------- */
 .bbn-liq-band {
-  position: absolute;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.125rem;
-  padding: 0.25rem 0.5rem;
-  overflow: hidden;
-  color: var(--liq-band-text);
-  text-align: center;
-  /* Each band measures its own rendered height so text lines drop out
-   * (below) instead of clipping mid-glyph when the chart gets small. */
-  container-type: size;
   transition:
     opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out),
     filter var(--motion-duration-icon, 180ms) var(--motion-ease-icon, ease-out);
 }
-@container (max-height: 76px) {
-  .bbn-liq-band__sublabel {
-    display: none;
-  }
+.bbn-liq-band--liquidated {
+  opacity: 0.32;
 }
-@container (max-height: 54px) {
-  .bbn-liq-band__amount {
-    display: none;
-  }
+.bbn-liq-band--interactive:hover {
+  filter: brightness(1.06);
 }
-/* Too small for any text — the hover popover names the event instead. */
-@container (max-height: 26px) {
-  .bbn-liq-band__label {
-    display: none;
-  }
+.bbn-liq-band__rect--tone-1 {
+  fill: var(--liq-band-1);
 }
-.bbn-liq-chart--no-band-labels .bbn-liq-band__label,
-.bbn-liq-chart--no-band-labels .bbn-liq-band__sublabel,
-.bbn-liq-chart--no-band-labels .bbn-liq-band__amount {
-  display: none;
+.bbn-liq-band__rect--tone-2 {
+  fill: var(--liq-band-2);
 }
-.bbn-liq-band--tone-1 { background: var(--liq-band-1); }
-.bbn-liq-band--tone-2 { background: var(--liq-band-2); }
-.bbn-liq-band--tone-3 { background: var(--liq-band-3); }
-.bbn-liq-band--liquidated { opacity: 0.32; }
-.bbn-liq-band--interactive { cursor: pointer; }
-.bbn-liq-band--interactive:hover { filter: brightness(1.06); }
-.bbn-liq-band--interactive:focus-visible {
-  outline: 2px solid var(--liq-band-text);
-  outline-offset: -2px;
+.bbn-liq-band__rect--tone-3 {
+  fill: var(--liq-band-3);
+}
+.bbn-liq-band__text text {
+  fill: var(--liq-band-text);
 }
 
-.bbn-liq-band__label,
-.bbn-liq-band__sublabel,
-.bbn-liq-band__amount {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* ---- Candles + interaction surface (Timeline) ----------------------- */
+.bbn-liq-candle--up .bbn-liq-candle__wick {
+  stroke: var(--liq-candle-up);
 }
-.bbn-liq-band__label { font-size: var(--liq-font-label); }
-.bbn-liq-band__sublabel { font-size: var(--liq-font-label); }
-.bbn-liq-band__amount { font-size: var(--liq-font-amount); }
+.bbn-liq-candle--down .bbn-liq-candle__wick {
+  stroke: var(--liq-candle-down);
+}
+.bbn-liq-candle--up .bbn-liq-candle__body {
+  fill: var(--liq-candle-up);
+}
+.bbn-liq-candle--down .bbn-liq-candle__body {
+  fill: var(--liq-candle-down);
+}
 
-/* ---- Candles + interaction region (Timeline) ----------------------- */
-.bbn-liq-candles {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-}
-.bbn-liq-candles--interactive { cursor: crosshair; touch-action: none; }
-.bbn-liq-candles[data-dragging="true"] { cursor: grabbing; }
-
-.bbn-liq-candle__wick {
-  position: absolute;
-  width: 1px;
-  margin-left: -0.5px;
-}
-.bbn-liq-candle__body {
-  position: absolute;
-  border-radius: 1px;
-  min-height: 1px;
-}
-.bbn-liq-candle__wick--up,
-.bbn-liq-candle__body--up { background: var(--liq-candle-up); }
-.bbn-liq-candle__wick--down,
-.bbn-liq-candle__body--down { background: var(--liq-candle-down); }
-
-.bbn-liq-series {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
 .bbn-liq-series__line {
   fill: none;
   stroke: var(--liq-candle-up);
   stroke-width: 2;
-  vector-effect: non-scaling-stroke;
 }
 .bbn-liq-series__area {
   fill: var(--liq-candle-up);
@@ -355,10 +182,22 @@
   stroke: none;
 }
 
+.bbn-liq-candles__hit--interactive {
+  cursor: crosshair;
+  touch-action: none;
+}
+.bbn-liq-candles__hit[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.bbn-liq-crosshair {
+  stroke: var(--liq-axis-text);
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
 .bbn-liq-zoom {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
   display: flex;
   gap: 0.25rem;
 }
@@ -370,10 +209,10 @@
   justify-content: center;
   padding: 0;
   border: 1px solid var(--liq-surface-stroke);
-  border-radius: var(--liq-band-radius);
+  border-radius: 2px;
   background: var(--liq-surface);
   color: var(--liq-surface-text);
-  font-size: var(--liq-font-label);
+  font-size: inherit;
   cursor: pointer;
   transition: filter var(--motion-duration-icon, 180ms) var(--motion-ease-icon, ease-out);
 }
@@ -381,18 +220,8 @@
   filter: brightness(1.1);
 }
 
-.bbn-liq-crosshair {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  margin-left: -0.5px;
-  border-left: 1px dashed var(--liq-axis-text);
-  pointer-events: none;
-}
 .bbn-liq-readout {
   position: absolute;
-  top: 0.5rem;
   transform: translateX(0.5rem);
   display: flex;
   flex-direction: column;
@@ -403,10 +232,11 @@
   border-radius: 0.375rem;
   background: var(--liq-surface);
   color: var(--liq-surface-text);
-  font-size: var(--liq-font-axis);
   pointer-events: none;
 }
-.bbn-liq-readout--left { transform: translateX(calc(-100% - 0.5rem)); }
+.bbn-liq-readout--left {
+  transform: translateX(calc(-100% - 0.5rem));
+}
 .bbn-liq-readout__time {
   color: var(--liq-surface-muted);
   margin-bottom: 0.125rem;
@@ -416,53 +246,23 @@
   justify-content: space-between;
   gap: 1rem;
 }
-.bbn-liq-readout__row span:first-child { color: var(--liq-surface-muted); }
-
-/* ---- Seizure gutter (pluggable Timeline column) -------------------- */
-.bbn-liq-gutter {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  /* Bands are price-anchored; anything past the plot floor clips here. */
-  overflow: hidden;
-}
-
-/* ---- Safe-zone box in the band gutter (Timeline) ------------------- */
-.bbn-liq-safezone {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.125rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--liq-surface-stroke);
-  border-radius: var(--liq-band-radius);
-  background: var(--liq-surface);
-  text-align: center;
-  overflow: hidden;
-  container-type: size;
-}
-@container (max-height: 72px) {
-  .bbn-liq-safezone__line {
-    display: none;
-  }
-}
-.bbn-liq-safezone__title {
-  font-size: var(--liq-font-label);
-  color: var(--liq-surface-text);
-}
-.bbn-liq-safezone__line {
-  font-size: var(--liq-font-axis);
+.bbn-liq-readout__row span:first-child {
   color: var(--liq-surface-muted);
 }
 
-/* ---- Hover popover -------------------------------------------------- */
+/* ---- Safe-zone box in the band gutter (Timeline) ------------------- */
+.bbn-liq-safezone__rect {
+  fill: var(--liq-surface);
+  stroke: var(--liq-surface-stroke);
+}
+.bbn-liq-safezone__title {
+  fill: var(--liq-surface-text);
+}
+.bbn-liq-safezone__line {
+  fill: var(--liq-surface-muted);
+}
+
+/* ---- Hover popover (per the liq-event tooltip design) --------------- */
 .bbn-liq-popover .bbn-popover-content {
   padding: 0;
 }
@@ -475,68 +275,78 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-width: 14rem;
+  min-width: 15rem;
   max-width: 18rem;
-  padding: 0.875rem 1rem;
+  padding: 0.75rem;
   background: var(--liq-surface);
   border: 1px solid var(--liq-surface-stroke);
   border-radius: 0.5rem;
   color: var(--liq-surface-text);
+  font-family: "Px Grotesk", sans-serif;
   animation: bbn-liq-pop-rise var(--motion-duration-tooltip, 140ms) var(--motion-ease-dropdown-in, ease-out) both;
 }
 @keyframes bbn-liq-pop-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes bbn-liq-pop-rise {
-  from { transform: translateY(var(--motion-shift-dropdown, 4px)); }
-  to { transform: none; }
+  from {
+    transform: translateY(var(--motion-shift-dropdown, 4px));
+  }
+  to {
+    transform: none;
+  }
 }
 .bbn-liq-popover__chip {
   align-self: flex-start;
-  padding: 0.25rem 0.625rem;
+  padding: 0.1875rem 0.875rem;
+  border: 1px solid var(--liq-surface-stroke-strong);
   border-radius: 999px;
-  font-size: var(--liq-font-label);
-  color: var(--liq-band-text);
+  font-size: 0.875rem;
+  line-height: 1.43;
+  letter-spacing: 0.17px;
+  color: var(--liq-surface-text);
 }
-.bbn-liq-popover__chip--tone-1 { background: var(--liq-band-1); }
-.bbn-liq-popover__chip--tone-2 { background: var(--liq-band-2); }
-.bbn-liq-popover__chip--tone-3 { background: var(--liq-band-3); }
-
 .bbn-liq-popover__metrics {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.25rem;
   margin: 0;
 }
 .bbn-liq-popover__row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  font-size: var(--liq-font-label);
+  gap: 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1.66;
+  letter-spacing: 0.4px;
 }
-.bbn-liq-popover__row dt { color: var(--liq-surface-muted); }
+.bbn-liq-popover__row dt {
+  color: var(--liq-surface-muted);
+}
 .bbn-liq-popover__row dd {
   margin: 0;
   text-align: right;
   color: var(--liq-surface-text);
 }
 .bbn-liq-popover__row--footer {
+  margin-top: 0.25rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--liq-surface-stroke);
 }
-.bbn-liq-popover__value--tone-1 { color: var(--liq-band-1); }
-.bbn-liq-popover__value--tone-2 { color: var(--liq-band-2); }
-.bbn-liq-popover__value--tone-3 { color: var(--liq-band-3); }
-
-.bbn-liq-popover__cta {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--liq-surface-text);
-  font-size: var(--liq-font-label);
-  text-decoration: underline;
-  cursor: pointer;
+/* Element + class ties the plain `dd` rule's specificity; later order wins,
+ * so the tone tint sticks. */
+dd.bbn-liq-popover__value--tone-1 {
+  color: var(--liq-band-1);
+}
+dd.bbn-liq-popover__value--tone-2 {
+  color: var(--liq-band-2);
+}
+dd.bbn-liq-popover__value--tone-3 {
+  color: var(--liq-band-3);
 }

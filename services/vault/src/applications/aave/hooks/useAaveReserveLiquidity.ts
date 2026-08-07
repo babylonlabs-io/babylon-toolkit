@@ -34,8 +34,25 @@ export interface ReserveLiquidity {
    */
   availableLiquidity: number;
   /**
-   * Utilization (borrowed / supplied) in basis points, or null when the
-   * reserve has no supplied liquidity (utilization is undefined at 0 supply).
+   * Total drawn against this reserve (drawn + premium), in whole token units.
+   * Same `number` rationale as `availableLiquidity` — display only.
+   */
+  totalBorrowed: number;
+  /**
+   * Everything supplied to the reserve, borrowed or not
+   * (`liquidity + drawn + swept`), in whole token units — the base the Hub's
+   * rate strategy divides by.
+   */
+  suppliedLiquidity: number;
+  /**
+   * Utilization (`drawn / supplied`) in basis points, or null when the reserve
+   * has no supplied liquidity (utilization is undefined at 0 supply).
+   *
+   * Principal only, and `swept` counted as supplied: the same definition the
+   * Hub feeds its rate strategy and the vault indexer records per snapshot, so
+   * this figure, the projected post-borrow rate and the borrow-APR chart all
+   * agree. Note it is deliberately NOT `totalBorrowed / suppliedLiquidity` —
+   * that would fold accrued premium into the numerator.
    */
   utilizationBps: number | null;
 }
@@ -83,12 +100,21 @@ export function useAaveReserveLiquidity({
       results.forEach((result, i) => {
         const reserve = reserves[i];
         const key = reserve.reserveId.toString();
-        const { availableLiquidityRaw, totalOwedRaw } = result;
-        if (availableLiquidityRaw == null || totalOwedRaw == null) {
+        const { availableLiquidityRaw, drawnRaw, premiumRaw, sweptRaw } =
+          result;
+        if (
+          availableLiquidityRaw == null ||
+          drawnRaw == null ||
+          premiumRaw == null ||
+          sweptRaw == null
+        ) {
           out[key] = null;
           return;
         }
-        const suppliedRaw = availableLiquidityRaw + totalOwedRaw;
+        // The denominator the Hub feeds its rate strategy, and the one the
+        // indexer's snapshot series uses. `swept` is supplied capital that has
+        // been moved into reinvestment — still supplied, so still in the base.
+        const suppliedRaw = availableLiquidityRaw + drawnRaw + sweptRaw;
         out[key] = {
           // The Hub reports liquidity and owed in the reserve's underlying-token
           // base units, so convert with the token's decimals — the same scale
@@ -96,12 +122,20 @@ export function useAaveReserveLiquidity({
           availableLiquidity: Number(
             formatUnits(availableLiquidityRaw, reserve.token.decimals),
           ),
-          // Utilization stays in bigint until the final ratio so a large
-          // supplied total can't overflow the intermediate product.
+          totalBorrowed: Number(
+            formatUnits(drawnRaw + premiumRaw, reserve.token.decimals),
+          ),
+          suppliedLiquidity: Number(
+            formatUnits(suppliedRaw, reserve.token.decimals),
+          ),
+          // Principal only, matching the strategy curve and the indexer's
+          // series — premium is accrued interest, not drawn capital. Stays in
+          // bigint until the final ratio so a large supplied total can't
+          // overflow the intermediate product.
           utilizationBps:
             suppliedRaw === 0n
               ? null
-              : Number((totalOwedRaw * BPS_SCALE) / suppliedRaw),
+              : Number((drawnRaw * BPS_SCALE) / suppliedRaw),
         };
       });
       return out;

@@ -18,6 +18,8 @@ import { isTerminalPollingError } from "../../utils/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
+import { isWotsSubmissionWithinTtl } from "./optimisticDepositState";
+
 /** Optimistic override wins over persisted `pendingPegins` status. */
 function resolveLocalStatus(
   depositId: string,
@@ -65,8 +67,28 @@ export interface DepositPollingInputs {
    * after the txid leaves the poll set.
    */
   refundedHtlcVaultIds: Set<string>;
-  /** Per-vault min depth, pre-resolved from `offchainParamsVersion`. */
-  requiredDepth: number;
+  /**
+   * Per-vault min depth, pre-resolved from `offchainParamsVersion`.
+   * `undefined` while the protocol params are still loading (or failed) — the
+   * confirmation conclusion is then withheld rather than defaulted, so a
+   * deposit can never read as at-depth on an unknown threshold.
+   */
+  requiredDepth: number | undefined;
+  /**
+   * Protocol-param load failure. Surfaced on every deposit's `error` when no
+   * more specific per-deposit error exists, so a params outage suppresses
+   * actions on every deposit rather than being dropped.
+   *
+   * why this is suppression, not display: `error`'s readers are
+   * `getActionStatus`, which collapses to `noAction`, and the signing
+   * notifications, which mute — so this withholds every CTA and nudge rather
+   * than rendering a message. That is the intended posture. Depth
+   * and `tRefund` maturity gate Broadcast and Refund, and offering an action
+   * derived from params we could not read is worse than offering none. The
+   * user-facing surface for a params outage is `ProtocolParamsProvider`'s own
+   * error panel, which gates on a superset of these same query keys.
+   */
+  protocolParamsError: Error | null;
   /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
   refundTimelock: number | undefined;
   /**
@@ -87,13 +109,24 @@ export interface DepositPollingInputs {
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
   /**
-   * Deposits whose WOTS submission resolved in this page session. The VP poll
-   * keeps reporting `needsWotsKey` until the daemon advances, so without this
-   * the row would re-offer "Submit WOTS Key" — and a second click re-runs the
-   * whole derivation, including a fresh wallet popup, for a no-op submission.
+   * When each deposit's WOTS submission resolved in this page session. The VP
+   * poll keeps reporting `needsWotsKey` until the daemon advances, so without
+   * this the row would re-offer "Submit WOTS Key" — and a second click re-runs
+   * the whole derivation, including a fresh wallet popup, for a no-op
+   * submission. The suppression expires; see `isWotsSubmissionWithinTtl`.
    */
-  wotsSubmitted: ReadonlySet<string>;
+  wotsSubmittedAt: ReadonlyMap<string, number>;
   btcPublicKey: string | undefined;
+  /**
+   * Override `Date.now()` for every suppression TTL this compute touches
+   * (testing only): the WOTS window here, and — forwarded into
+   * `getPeginState` — the refund-broadcast window inside it. One injected
+   * clock must drive both, or a single call would judge the two TTLs at
+   * different times. Keeps this module's "pure compute" promise honest —
+   * without it the decision tree reads the wall clock transitively and needs
+   * fake timers to pin.
+   */
+  now?: number;
 }
 
 export function computeDepositPollingResult(
@@ -112,14 +145,16 @@ export function computeDepositPollingResult(
     htlcRefundByDepositId,
     refundedHtlcVaultIds,
     requiredDepth,
+    protocolParamsError,
     refundTimelock,
     activationDeadlinePassed,
     stuckStateConfirmedOnChain,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
-    wotsSubmitted,
+    wotsSubmittedAt,
     btcPublicKey,
+    now,
   } = inputs;
   const depositId = activity.id;
   const depositIdKey = depositId.toLowerCase();
@@ -148,8 +183,13 @@ export function computeDepositPollingResult(
     : (pendingDepositorSignatures?.has(depositId) ?? false);
 
   // Same shape as the payout suppression above: a step this session watched
-  // resolve outranks the poll snapshot that has not caught up yet.
-  const justSubmittedWotsThisSession = wotsSubmitted.has(depositId);
+  // resolve outranks the poll snapshot that has not caught up yet — but only
+  // for as long as daemon lag is the plausible explanation. Past the TTL a VP
+  // still asking is taken at its word, so the action comes back.
+  const justSubmittedWotsThisSession = isWotsSubmissionWithinTtl(
+    wotsSubmittedAt.get(depositId),
+    now,
+  );
   const stillNeedsWotsKey = justSubmittedWotsThisSession
     ? false
     : needsWotsKey?.has(depositId);
@@ -163,9 +203,21 @@ export function computeDepositPollingResult(
   const confirmations = prePeginCanonical
     ? prePeginConfirmationsByTxid.get(prePeginCanonical)
     : undefined;
+  // An unknown `requiredDepth` can only withhold "confirmed", never assert it:
+  // comparing against a defaulted threshold would claim protocol depth the
+  // chain may not have reached.
+  //
+  // why `cachedAtDepth` short-circuits ahead of that guard, while the count
+  // below withholds on the same input: the two are not the same claim. A cache
+  // entry was only ever written while the threshold WAS known, and depth never
+  // rewinds — so the boolean stays sound without re-reading it. The number is
+  // not recoverable that way: reporting one would mean inventing the very
+  // threshold we are missing. Deliberate asymmetry, not an oversight.
   const prePeginBroadcastConfirmed =
     cachedAtDepth ||
-    (confirmations !== undefined && confirmations >= requiredDepth);
+    (confirmations !== undefined &&
+      requiredDepth !== undefined &&
+      confirmations >= requiredDepth);
   // Chain ground truth that the Pre-PegIn was broadcast at all: a present
   // confirmation entry — or a cached at-depth observation — means the tx is on
   // the network. Independent of localStorage, so every tab converges on the
@@ -269,6 +321,7 @@ export function computeDepositPollingResult(
     refundSettlement,
     vpTerminalError,
     refundBroadcastAt,
+    now,
   });
 
   // Coalesce cached at-depth observations into the live count: once a tx
@@ -277,12 +330,16 @@ export function computeDepositPollingResult(
   // is past depth. Treat that as "at least requiredDepth" so consumers don't
   // see a regression.
   const reportedConfirmations =
-    confirmations ?? (cachedAtDepth ? requiredDepth : null);
+    confirmations ??
+    (cachedAtDepth && requiredDepth !== undefined ? requiredDepth : null);
 
   return {
     depositId,
     loading: isLoading,
-    error: errors?.get(depositId) ?? null,
+    // A per-deposit VP error is more specific, so it wins; the params failure
+    // is the fallback so an outage suppresses actions on every deposit
+    // rather than being dropped (see the input doc above).
+    error: errors?.get(depositId) ?? protocolParamsError,
     peginState,
     isOwnedByCurrentWallet,
     depositorBtcPubkey: activity.depositorBtcPubkey,

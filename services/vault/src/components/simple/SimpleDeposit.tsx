@@ -196,10 +196,9 @@ function SimpleDepositContent({
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
-  const suggestedAmountSats =
-    initialAmountBtc && FeatureFlags.isV3UiEnabled
-      ? depositService.parseBtcToSatoshis(initialAmountBtc)
-      : null;
+  const suggestedAmountSats = initialAmountBtc
+    ? depositService.parseBtcToSatoshis(initialAmountBtc)
+    : null;
   const allowSplit =
     !isSupplementalDeposit &&
     !isSplitCapReached &&
@@ -303,19 +302,7 @@ function SimpleDepositContent({
     setOverlappingPendingVaultCount(null);
     resetDeposit();
     resetForm();
-    // v2 pre-fills the suggested amount for supplemental deposits opened from a
-    // notification. v3 offers it via SuggestedDepositContainer instead so the
-    // user selects it; plain opens start blank.
-    if (initialAmountBtc && !FeatureFlags.isV3UiEnabled) {
-      setFormData({ amountBtc: initialAmountBtc });
-    }
-  }, [
-    setIsTwoVaultSplit,
-    resetDeposit,
-    resetForm,
-    initialAmountBtc,
-    setFormData,
-  ]);
+  }, [setIsTwoVaultSplit, resetDeposit, resetForm]);
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
@@ -440,9 +427,9 @@ function SimpleDepositContent({
   };
 
   const showForm = !renderedStep || renderedStep === DepositStep.FORM;
-  const headerApp = FeatureFlags.isV3UiEnabled
-    ? applications.find((a) => a.id === effectiveSelectedApplication)
-    : undefined;
+  const headerApp = applications.find(
+    (a) => a.id === effectiveSelectedApplication,
+  );
   const stepKey = renderedStep ?? "form";
 
   return (
@@ -497,8 +484,6 @@ function SimpleDepositContent({
                   feeRows,
                 }}
                 providerState={{
-                  applications,
-                  selectedApplication: effectiveSelectedApplication,
                   providers,
                   isLoadingProviders,
                   selectedProvider: formData.selectedProvider,
@@ -509,9 +494,9 @@ function SimpleDepositContent({
                   isWalletConnected,
                   // A click-time liveness failure OR the proactive lock poll
                   // promotes the CTA to the reconnect/unlock action. A lock
-                  // relabels the CTA to "Unlock wallet" (see DepositForm) instead
-                  // of showing a red inline string; a liveness failure keeps its
-                  // detail message.
+                  // relabels the CTA to "Unlock Wallet to Deposit" (see
+                  // DepositForm) instead of showing a red inline string; a
+                  // liveness failure keeps its detail message.
                   hasWalletConnectionError:
                     Boolean(walletConnectionError) ||
                     isBtcWalletLocked ||

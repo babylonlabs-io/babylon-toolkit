@@ -5,13 +5,15 @@ import {
   Outlet,
   Route,
   Routes,
-  useLocation,
   useOutletContext,
   useSearchParams,
 } from "react-router";
 
 import featureFlags from "@/config/featureFlags";
-import { V3_GUARDED_ROUTE_PATHS } from "@/config/v3Navigation";
+import {
+  getFlagDisabledV3SectionPaths,
+  isV3SectionEnabled,
+} from "@/config/v3Navigation";
 
 import { AAVE_APP_ID } from "./applications/aave/config";
 import { LOAN_TAB } from "./applications/aave/constants";
@@ -24,12 +26,7 @@ import NotFound from "./components/pages/not-found";
 import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
-import {
-  getReserveDetailBaseRoute,
-  MARKET_RESERVE_PARAM,
-  RESERVE_QUERY_KEYS,
-  ROUTES,
-} from "./routes";
+import { MARKET_PARAM, RESERVE_QUERY_KEYS, ROUTES } from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -38,6 +35,9 @@ const LoansPage = lazyWithRetry(() => import("./components/pages/Loans"));
 const ExplorePage = lazyWithRetry(() => import("./components/pages/Explore"));
 const BorrowingMarketsDataPage = lazyWithRetry(
   () => import("./components/pages/BorrowingMarketsData"),
+);
+const Liquidations = lazyWithRetry(
+  () => import("./components/pages/Liquidations"),
 );
 const DashboardPage = lazyWithRetry(() =>
   import("./components/simple/DashboardPage").then((m) => ({
@@ -60,9 +60,10 @@ const LoanFlowOverlay = lazyWithRetry(() =>
   importLoanFlowOverlay().then((m) => ({ default: m.LoanFlowOverlay })),
 );
 
-// Guarded as whole subtrees, so a v3 deep link redirects rather than 404s.
-// See `config/v3Navigation.ts` for the guard list (derived from the
-// sidebar's nav items so it can't silently drift from the six sections).
+// Guarded as whole subtrees, so a deep link into a section its own flag hides
+// redirects rather than 404s. See `config/v3Navigation.ts` for the list
+// (derived from the sidebar's nav items so it can't silently drift from the
+// six sections).
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -82,7 +83,6 @@ const GodModePanelSlot = () =>
 
 const AaveOverlayLayout = () => {
   const outletContext = useOutletContext<RootLayoutContext>();
-  const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const reserveId = searchParams.get(RESERVE_QUERY_KEYS.RESERVE_ID);
   const tab =
@@ -117,17 +117,21 @@ const AaveOverlayLayout = () => {
           <Suspense fallback={<RouteFallback />}>
             <Outlet context={outletContext} />
           </Suspense>
-          {(reserveId || picker) &&
-            pathname ===
-              getReserveDetailBaseRoute(featureFlags.isV3UiEnabled) && (
-              <Suspense fallback={null}>
-                <LoanFlowOverlay
-                  picker={picker}
-                  reserveId={reserveId}
-                  tab={tab}
-                />
-              </Suspense>
-            )}
+          {/* No pathname condition: the flow opens over whichever page under
+              this layout the depositor is on (Overview, Vaults, Loans, a
+              market page), so the entry points never have to navigate to a
+              fixed route and paint it behind the dialog first. This element
+              only exists inside the Aave layout, so the params cannot open it
+              from an unrelated route. */}
+          {(reserveId || picker) && (
+            <Suspense fallback={null}>
+              <LoanFlowOverlay
+                picker={picker}
+                reserveId={reserveId}
+                tab={tab}
+              />
+            </Suspense>
+          )}
           {/* One god-mode panel for every tab under this layout (Overview,
               Vaults, Loans) — mounted here, not per page, so it is present on
               all three and keeps its open/position state across navigation.
@@ -166,88 +170,86 @@ const ActivityWithProviders = () => (
   </AaveConfigProvider>
 );
 
-// /liquidations: v3 shell + the liquidation-analysis flag, so the section is
-// unreachable by deep link while its sidebar entry is hidden.
-const V3Placeholder = () =>
-  featureFlags.isV3UiEnabled &&
-  featureFlags.isLiquidationAnalysisChartEnabled ? (
-    <div data-testid="v3-placeholder" />
-  ) : (
-    <Navigate to={ROUTES.OVERVIEW} replace />
-  );
+export const Router = () => {
+  // Read per render, not at module scope: the flags decide which subtrees are
+  // guarded, and a flag can differ between renders (see v3Navigation.ts).
+  const guardedSubtreePaths = getFlagDisabledV3SectionPaths();
 
-export const Router = () => (
-  <Routes>
-    <Route element={<RootLayout />}>
-      <Route element={<AaveOverlayLayout />}>
-        <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
-        {/* Registered only when the v3 flag is on: with no exact /vaults
-            route, the flag-off subtree guard below catches the bare path
-            (a splat matches zero segments) and redirects before any
-            provider mounts. Nesting a flag-off redirect here instead would
-            make it wait on AaveConfigProvider's blocking config fetch. */}
-        {featureFlags.isV3UiEnabled && (
+  return (
+    <Routes>
+      <Route element={<RootLayout />}>
+        <Route element={<AaveOverlayLayout />}>
+          <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
           <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
-        )}
-        <Route
-          path={ROUTES.LOANS}
-          element={
-            featureFlags.isV3UiEnabled ? (
+          <Route
+            path={ROUTES.LOANS}
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <LoansPage />
               </Suspense>
-            ) : (
-              <Navigate to={ROUTES.OVERVIEW} replace />
-            )
-          }
-        />
+            }
+          />
+          <Route
+            path={`${ROUTES.MARKETS}/:${MARKET_PARAM}`}
+            element={
+              featureFlags.isMarketDetailPageEnabled ? (
+                <Suspense fallback={<RouteFallback />}>
+                  <BorrowingMarketsDataPage />
+                </Suspense>
+              ) : (
+                <Navigate to={ROUTES.OVERVIEW} replace />
+              )
+            }
+          />
+          {/* Under AaveOverlayLayout (like /loans): the page reads
+              `useDashboardState` / `usePositionNotifications`, both of which
+              need the Aave config this layout provides. */}
+          <Route
+            path={ROUTES.LIQUIDATIONS}
+            element={
+              isV3SectionEnabled("liquidations") ? (
+                <Suspense fallback={<RouteFallback />}>
+                  <Liquidations />
+                </Suspense>
+              ) : (
+                <Navigate to={ROUTES.OVERVIEW} replace />
+              )
+            }
+          />
+        </Route>
+        {/* Explore is a static page with no Aave providers or reserve overlay,
+            so it sits directly under RootLayout (like /activity), not under
+            AaveOverlayLayout. Gated on its own flag (like /liquidations); the
+            subtree guards below cover /explore/* while that flag is off. */}
         <Route
-          path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
+          path={ROUTES.EXPLORE}
           element={
-            featureFlags.isV3UiEnabled ? (
+            isV3SectionEnabled("explore") ? (
               <Suspense fallback={<RouteFallback />}>
-                <BorrowingMarketsDataPage />
+                <ExplorePage />
               </Suspense>
             ) : (
               <Navigate to={ROUTES.OVERVIEW} replace />
             )
           }
         />
-      </Route>
-      <Route path={ROUTES.LIQUIDATIONS} element={<V3Placeholder />} />
-      {/* Explore is a v3-only static page with no Aave providers or reserve
-          overlay, so it sits directly under RootLayout (like /activity), not
-          under AaveOverlayLayout. Gated like /loans; the flag-off subtree
-          guard below also covers /explore/* via V3_GUARDED_ROUTE_PATHS. */}
-      <Route
-        path={ROUTES.EXPLORE}
-        element={
-          featureFlags.isV3UiEnabled ? (
+        <Route
+          path={ROUTES.ACTIVITY}
+          element={
             <Suspense fallback={<RouteFallback />}>
-              <ExplorePage />
+              <ActivityWithProviders />
             </Suspense>
-          ) : (
-            <Navigate to={ROUTES.OVERVIEW} replace />
-          )
-        }
-      />
-      <Route
-        path={ROUTES.ACTIVITY}
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <ActivityWithProviders />
-          </Suspense>
-        }
-      />
-    </Route>
-    {!featureFlags.isV3UiEnabled &&
-      V3_GUARDED_ROUTE_PATHS.map((path) => (
+          }
+        />
+      </Route>
+      {guardedSubtreePaths.map((path) => (
         <Route
           key={path}
           path={`/${path}/*`}
           element={<Navigate to={ROUTES.OVERVIEW} replace />}
         />
       ))}
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};

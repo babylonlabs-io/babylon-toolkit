@@ -502,7 +502,14 @@ function isRefundBroadcastWithinTtl(
 ): boolean {
   if (refundBroadcastAt === undefined) return false;
   const currentTime = now ?? Date.now();
-  return currentTime - refundBroadcastAt < REFUND_BROADCAST_SUPPRESSION_MS;
+  const elapsedMs = currentTime - refundBroadcastAt;
+  // A timestamp ahead of the clock (backwards wall-clock jump after the
+  // broadcast was recorded) reads as negative elapsed — inside the window
+  // under a bare `< TTL` for as long as the clock stays behind, so the
+  // suppression would outlast the TTL by the size of the jump. Expired is
+  // the safe reading, same as the missing-timestamp case above: the user
+  // can always retry, and a duplicate broadcast is rejected by the network.
+  return elapsedMs >= 0 && elapsedMs < REFUND_BROADCAST_SUPPRESSION_MS;
 }
 
 interface DisplayInfo {

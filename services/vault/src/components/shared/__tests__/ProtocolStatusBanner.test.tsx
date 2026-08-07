@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const featureFlagsMock = vi.hoisted(() => ({
   noticeBannerMessage: undefined as string | undefined,
-  isV3UiEnabled: false,
   // The god-mode override the banner reads is itself gated on this flag.
   isGodModePanelEnabled: true,
 }));
@@ -29,75 +28,12 @@ import { ProtocolStatusBanner } from "../ProtocolStatusBanner";
 
 beforeEach(() => {
   featureFlagsMock.noticeBannerMessage = undefined;
-  featureFlagsMock.isV3UiEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = true;
   gateMock.value = { protocol: null, aave: null };
   setDebugProtocolStatusOverride(null);
 });
 
 describe("ProtocolStatusBanner", () => {
-  it("renders nothing when no scope has a status", () => {
-    const { container } = render(<ProtocolStatusBanner />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("shows the frozen card with no external link when a scope is frozen", () => {
-    gateMock.value = { protocol: "frozen", aave: null };
-
-    render(<ProtocolStatusBanner />);
-
-    expect(screen.getByText("Protocol is frozen")).toBeInTheDocument();
-    expect(
-      screen.getByText(/temporarily restricted while the protocol is frozen/),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("shows the paused card when a scope is paused", () => {
-    gateMock.value = { protocol: "paused", aave: null };
-
-    render(<ProtocolStatusBanner />);
-
-    expect(screen.getByText("Protocol is paused")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Debt continues accruing interest/),
-    ).toBeInTheDocument();
-    // The `halted` variant is assertive: it must expose role="alert" (vs the
-    // frozen `paused` variant's role="status").
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-  });
-
-  it("summarizes the most severe scope (pause wins over a concurrent freeze)", () => {
-    gateMock.value = { protocol: "frozen", aave: "paused" };
-
-    render(<ProtocolStatusBanner />);
-
-    expect(screen.getByText("Protocol is paused")).toBeInTheDocument();
-    expect(screen.queryByText("Protocol is frozen")).not.toBeInTheDocument();
-  });
-
-  it("overrides the body with NEXT_PUBLIC_NOTICE_BANNER_MESSAGE when set", () => {
-    gateMock.value = { protocol: "frozen", aave: null };
-    featureFlagsMock.noticeBannerMessage = "Maintenance until 14:00 UTC.";
-
-    render(<ProtocolStatusBanner />);
-
-    expect(
-      screen.getByText(/Maintenance until 14:00 UTC\./),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/New deposits and borrows are disabled/),
-    ).not.toBeInTheDocument();
-    // The freeform override renders on its own, with no appended docs link.
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-});
-
-describe("ProtocolStatusBanner v3", () => {
-  beforeEach(() => {
-    featureFlagsMock.isV3UiEnabled = true;
-  });
-
   it("renders nothing when no scope has a status", () => {
     const { container } = render(<ProtocolStatusBanner />);
     expect(container).toBeEmptyDOMElement();

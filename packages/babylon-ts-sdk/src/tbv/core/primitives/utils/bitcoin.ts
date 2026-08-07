@@ -13,8 +13,8 @@
  * @module primitives/utils/bitcoin
  */
 
-import { Buffer } from "buffer";
 import { networks, payments } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { Hex } from "viem";
@@ -117,9 +117,7 @@ export function uint8ArrayToHex(bytes: Uint8Array): string {
  * @param input - Transaction input with a `hash` field (Buffer or Uint8Array)
  * @returns Prevout txid as a hex string (big-endian, no 0x prefix)
  */
-export function inputTxidHex(input: {
-  hash: Buffer | Uint8Array;
-}): string {
+export function inputTxidHex(input: { hash: Buffer | Uint8Array }): string {
   return uint8ArrayToHex(new Uint8Array(input.hash).slice().reverse());
 }
 
@@ -194,6 +192,23 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
 }
 
 /**
+ * Normalize a public key to the one form two keys can be compared in:
+ * lowercase x-only hex, no `0x`.
+ *
+ * `processPublicKeyToXOnly` returns already-x-only input untouched, so it
+ * preserves case on that path — comparing its output directly is a latent
+ * false mismatch for any source that serves uppercase hex. Every comparison
+ * site therefore has to pair it with `.toLowerCase()`, and that pairing is
+ * what this function exists to stop people re-deriving by hand.
+ *
+ * @param publicKeyHex - x-only, compressed, or uncompressed key, `0x` optional
+ * @throws If the key is not valid hex or has an unexpected length
+ */
+export function canonicalizeBtcPubkey(publicKeyHex: string): string {
+  return processPublicKeyToXOnly(publicKeyHex).toLowerCase();
+}
+
+/**
  * Validate hex string format.
  *
  * Checks that the string contains only valid hexadecimal characters (0-9, a-f, A-F)
@@ -250,8 +265,8 @@ export function validateWalletPubkey(
   if (walletPubkeyXOnly.toLowerCase() !== depositorPubkey.toLowerCase()) {
     throw new Error(
       `Wallet public key does not match vault depositor. ` +
-      `Expected: ${depositorPubkey}, Got: ${walletPubkeyXOnly}. ` +
-      `Please connect the wallet that was used to create this vault.`
+        `Expected: ${depositorPubkey}, Got: ${walletPubkeyXOnly}. ` +
+        `Please connect the wallet that was used to create this vault.`,
     );
   }
 
@@ -291,7 +306,7 @@ export function formatSatoshisToBtc(satoshis: bigint): string {
  * missed, instead of letting bitcoinjs-lib throw its generic
  * "No ECC Library provided" error deep in a call stack.
  */
-function assertEccInitialized(): void {
+export function assertEccInitialized(): void {
   try {
     payments.p2tr({ internalPubkey: Buffer.alloc(32, 1) });
   } catch (e) {
@@ -418,9 +433,7 @@ export function deriveNativeSegwitAddress(
     network: getNetwork(network),
   });
   if (!address) {
-    throw new Error(
-      "Failed to derive native segwit address from public key",
-    );
+    throw new Error("Failed to derive native segwit address from public key");
   }
   return address;
 }

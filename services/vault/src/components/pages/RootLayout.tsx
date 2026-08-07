@@ -1,14 +1,10 @@
 import {
-  Footer,
   FullScreenDialog,
   Header,
   Heading,
   Loader,
   MobileLogo,
-  Nav,
-  type SocialLink,
   StandardSettingsMenu,
-  TestingBanner,
   Text,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
@@ -20,27 +16,22 @@ import {
   useRef,
   useState,
 } from "react";
-import { BsDiscord, BsGithub, BsLinkedin } from "react-icons/bs";
-import { FaXTwitter } from "react-icons/fa6";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { twJoin } from "tailwind-merge";
 
-import { DepositButton } from "@/components/shared";
+import { AppSidebar, V3MobileNavigation } from "@/components/shared/AppSidebar";
+import { BrandLockup } from "@/components/shared/BrandLockup";
+import { EntryFooter } from "@/components/shared/EntryFooter";
 import {
-  AppSidebar,
-  BrandLockup,
-  V3MobileNavigation,
-} from "@/components/shared/AppSidebar";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+  ENTRY_CONTENT_CLASS,
+  PAGE_CONTENT_CLASS,
+} from "@/components/shared/layoutClasses";
 import { SidebarFooter } from "@/components/shared/SidebarFooter";
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
-import {
-  FeatureFlags,
-  getNetworkConfigBTC,
-  shouldDisplayTestingMsg,
-} from "@/config";
+import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
+import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
 import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
@@ -58,10 +49,7 @@ import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NetworkBadge } from "../shared/NetworkBadge";
 import { NoticeBanner } from "../shared/NoticeBanner";
-import {
-  isDepositBlocked,
-  resolveBannerStatus,
-} from "../shared/protocolStatus";
+import { resolveBannerStatus } from "../shared/protocolStatus";
 import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
@@ -69,46 +57,6 @@ import { Connect } from "../Wallet";
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
 }
-
-const btcConfig = getNetworkConfigBTC();
-
-function MailIcon({ size = 32, title }: { size?: number; title?: string }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 27 22"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label={title}
-    >
-      {title ? <title>{title}</title> : null}
-      <path
-        d="M2.66667 21.3333C1.93333 21.3333 1.30578 21.0724 0.784 20.5507C0.262222 20.0289 0.000888889 19.4009 0 18.6667V2.66667C0 1.93333 0.261333 1.30578 0.784 0.784C1.30667 0.262222 1.93422 0.000888889 2.66667 0H24C24.7333 0 25.3613 0.261333 25.884 0.784C26.4067 1.30667 26.6676 1.93422 26.6667 2.66667V18.6667C26.6667 19.4 26.4058 20.028 25.884 20.5507C25.3622 21.0733 24.7342 21.3342 24 21.3333H2.66667ZM13.3333 12L24 5.33333V2.66667L13.3333 9.33333L2.66667 2.66667V5.33333L13.3333 12Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-// Footer social links, ordered to match the TBV Figma footer.
-const FOOTER_SOCIAL_LINKS: SocialLink[] = [
-  { name: "GitHub", url: "https://github.com/babylonlabs-io", Icon: BsGithub },
-  {
-    name: "LinkedIn",
-    url: "https://www.linkedin.com/company/babylon-labs-official",
-    Icon: BsLinkedin,
-  },
-  { name: "Email", url: "mailto:contact@babylonlabs.io", Icon: MailIcon },
-  { name: "Discord", url: "https://discord.gg/babylonglobal", Icon: BsDiscord },
-  { name: "X", url: "https://x.com/babylonlabs_io", Icon: FaXTwitter },
-];
-
-// Shifts the footer's social/copyright block in from the viewport edge by
-// however much the 1080px `PAGE_CONTENT_CLASS` box is currently inset, so it
-// starts at the same x-position as the navbar/body instead of the raw edge.
-const FOOTER_SOCIAL_MARGIN_CLASS = "md:ml-[max(0px,calc((100vw-1080px)/2))]";
 
 // Stacking order of the two full-bleed top banners.
 // core-ui's Dialog / FullScreenDialog render at `z-50` (backdrop `z-40`) from a
@@ -126,53 +74,6 @@ const FOOTER_SOCIAL_MARGIN_CLASS = "md:ml-[max(0px,calc((100vw-1080px)/2))]";
 const CRITICAL_BANNER_Z_CLASS = "z-[60]";
 const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 
-function AppNavLink({
-  to,
-  children,
-}: {
-  to: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <NavLink
-      to={to}
-      end={to === "/"}
-      className={({ isActive }) =>
-        twJoin(
-          "flex h-10 w-fit items-center justify-center whitespace-nowrap text-center",
-          isActive ? "text-accent-primary" : "text-accent-secondary",
-        )
-      }
-    >
-      {children}
-    </NavLink>
-  );
-}
-
-/**
- * Desktop navigation component
- */
-function DesktopNavigation() {
-  return (
-    <Nav>
-      <AppNavLink to="/">Dashboard</AppNavLink>
-      <AppNavLink to="/activity">Activity</AppNavLink>
-    </Nav>
-  );
-}
-
-/**
- * Mobile navigation component
- */
-function MobileNavigation() {
-  return (
-    <div className="flex flex-col gap-4 p-4">
-      <AppNavLink to="/">Dashboard</AppNavLink>
-      <AppNavLink to="/activity">Activity</AppNavLink>
-    </div>
-  );
-}
-
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
@@ -183,9 +84,15 @@ export default function RootLayout() {
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
   const pageTitle = usePageTitle();
-  const showV3Sidebar = FeatureFlags.isV3UiEnabled && !isMobileView;
+  const { pathname } = useLocation();
 
   const isWalletConnected = btcConnected && ethConnected;
+  // One signal for "is this the entry frame", so the sidebar and the chrome
+  // that replaces it can never disagree. The other routes render disconnected
+  // states on purpose and keep their shell — without it a disconnected desktop
+  // visitor to /vaults would have no navigation at all.
+  const isEntryLayout = !isWalletConnected && pathname === "/";
+  const showV3Sidebar = !isMobileView && !isEntryLayout;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
@@ -235,18 +142,6 @@ export default function RootLayout() {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  // The disconnected dashboard landing (DisconnectedOverview / "Native Bitcoin
-  // backed borrowing") is vertically centered via `my-auto` on its Container.
-  // On that screen only, drop the footer's top margins (the wrapper's `mt-auto`
-  // and the Footer's own `mt-24`) so the footer sits directly below the centered
-  // content instead of competing for the free vertical space. Scoped to the
-  // dashboard route so an unlogged /activity keeps its sticky footer, and to
-  // the non-geo branch: geo-loading/geo-blocked render short content instead of
-  // the centered Container, so the footer must keep `mt-auto` to stay at the
-  // viewport bottom.
-  const { pathname } = useLocation();
-  const isDisconnectedLanding =
-    !isWalletConnected && pathname === "/" && !isGeoBlocked && !isGeoLoading;
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [initialDepositAmountBtc, setInitialDepositAmountBtc] = useState<
     string | undefined
@@ -267,16 +162,12 @@ export default function RootLayout() {
   }, []);
 
   // Sidebar-agnostic: rendered unconditionally as the content column's first
-  // child (see below). v2/mobile never show the sidebar, so the content
-  // column is full-width there and this looks identical to the pre-sidebar
-  // layout; on v3 desktop the sidebar is a flex sibling of the content
-  // column, not a descendant, so banner height here never pushes the
-  // sidebar's `sticky top-0 h-svh` position down or clips its footer.
+  // child (see below). Mobile never shows the sidebar, so the content column is
+  // full-width there; on desktop the sidebar is a flex sibling of the content
+  // column, not a descendant, so banner height here never pushes the sidebar's
+  // `sticky top-0 h-svh` position down or clips its footer.
   const operationalBanners = (
     <>
-      <TestingBanner
-        visible={!FeatureFlags.isV3UiEnabled && shouldDisplayTestingMsg()}
-      />
       {/* Intentionally not gated on `isGeoBlocked`: an operator notice
           describes a service-wide condition and renders in the top banner
           stack (above the geo-block screen), so geo-blocked sessions must
@@ -300,32 +191,20 @@ export default function RootLayout() {
       }
     >
       <div ref={topBannerRef}>
-        {/* v3 portal target for the critical near-liquidation banner. It lives
-            in this wrapper — a sibling ABOVE the sidebar/content row — so the
-            red bar spans the entire window width including the side nav, per
-            Figma §D / node 10204-45613, and so the wrapper's height measurement
-            above covers it too (no second mechanism needed).
-
-            The full-bleed placement is a v3 design change, but the banner
-            itself is gated on the liquidation-notifications flag, so the slot is
-            flag-switched rather than moved outright: with v3 off it stays where
-            it has always been, first child of the content column.
-            `isV3UiEnabled` is a build-time constant, so exactly one of the two
-            slots exists for the life of the app and neither can be
-            unmounted/remounted at runtime — which matters because the consumer
+        {/* Portal target for the critical near-liquidation banner. It lives in
+            this wrapper — a sibling ABOVE the sidebar/content row — so the red
+            bar spans the entire window width including the side nav, per Figma
+            §D / node 10204-45613, and so the wrapper's height measurement above
+            covers it too (no second mechanism needed). The consumer
             (`CriticalLiquidationTopBanner`) resolves this node once on mount via
-            `getElementById` and holds the reference; a node that came and went
-            (e.g. across the 768px `showV3Sidebar` breakpoint) would leave the
-            portal silently writing into a detached element. Owned by the
-            dashboard (where the Aave data + debug override live) but portaled
-            here so it renders above the header and above the deposit-disabled
-            banner. */}
-        {FeatureFlags.isV3UiEnabled && (
-          <div
-            id={CRITICAL_BANNER_SLOT_ID}
-            className={twJoin("sticky top-0", CRITICAL_BANNER_Z_CLASS)}
-          />
-        )}
+            `getElementById` and holds the reference, so it must stay mounted for
+            the life of the app. Owned by the dashboard (where the Aave data +
+            debug override live) but portaled here so it renders above the header
+            and above the deposit-disabled banner. */}
+        <div
+          id={CRITICAL_BANNER_SLOT_ID}
+          className={twJoin("sticky top-0", CRITICAL_BANNER_Z_CLASS)}
+        />
         <div
           className={twJoin("sticky top-0", DEPOSIT_DISABLED_BANNER_Z_CLASS)}
         >
@@ -335,23 +214,22 @@ export default function RootLayout() {
       <div className="flex min-w-0 flex-1">
         {showV3Sidebar && <AppSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
-          {!FeatureFlags.isV3UiEnabled && <div id={CRITICAL_BANNER_SLOT_ID} />}
           {operationalBanners}
           <Header
             size="md"
-            // v3 adds the Figma top-bar divider (border-b) and sits the page
-            // content 24px below it (mb-6). v2 keeps the default mb-20.
-            className={
-              FeatureFlags.isV3UiEnabled
-                ? "mb-6 border-b border-secondary-strokeLight"
-                : undefined
-            }
+            // The Figma top-bar divider (border-b) sits the page content 24px
+            // below it (mb-6).
+            className="mb-6 border-b border-secondary-strokeLight"
             // `PAGE_CONTENT_CLASS` overrides the `container` width core-ui's
             // Header applies by default, so the navbar shares the same content
             // box as the page body and footer.
-            containerClassName={PAGE_CONTENT_CLASS}
+            containerClassName={
+              isEntryLayout ? ENTRY_CONTENT_CLASS : PAGE_CONTENT_CLASS
+            }
             logo={
-              FeatureFlags.isV3UiEnabled ? (
+              isEntryLayout ? (
+                <BrandLockup />
+              ) : (
                 <Heading
                   variant="h5"
                   as="h1"
@@ -359,8 +237,6 @@ export default function RootLayout() {
                 >
                   {pageTitle}
                 </Heading>
-              ) : (
-                <BrandLockup />
               )
             }
             mobileLogo={
@@ -368,34 +244,10 @@ export default function RootLayout() {
                 <MobileLogo />
               </div>
             }
-            navigation={
-              FeatureFlags.isV3UiEnabled ? undefined : <DesktopNavigation />
-            }
-            mobileNavigation={
-              FeatureFlags.isV3UiEnabled ? (
-                <V3MobileNavigation />
-              ) : (
-                <MobileNavigation />
-              )
-            }
+            mobileNavigation={<V3MobileNavigation />}
             rightActions={
               <div className="flex items-center gap-4">
-                {FeatureFlags.isV3UiEnabled && <NetworkBadge />}
-                {!FeatureFlags.isV3UiEnabled &&
-                  isWalletConnected &&
-                  !isDepositOpen &&
-                  !isGeoBlocked &&
-                  !isAddressBlocked && (
-                    <DepositButton
-                      data-testid="deposit-button"
-                      variant="outlined"
-                      rounded
-                      disabled={isDepositBlocked(gate)}
-                      onClick={() => openDeposit()}
-                    >
-                      Deposit {btcConfig.coinSymbol}
-                    </DepositButton>
-                  )}
+                <NetworkBadge />
                 <Connect />
                 <StandardSettingsMenu theme={theme} setTheme={setTheme} />
               </div>
@@ -410,83 +262,59 @@ export default function RootLayout() {
             <GeoBlockState />
           ) : (
             <ActivatingVaultsProvider>
-              {/* Intentionally in the content branch (not the top stack like
+              {/* The app's only PeginPollingProvider mount. Deliberately inside
+                  the content branch — a geo-blocked session renders no deposit
+                  UI and must not poll — and deliberately above both <Outlet>
+                  and <SimpleDeposit>, which are siblings: any provider mounted
+                  on a route would miss the deposit flow. */}
+              <AppPeginPollingProvider>
+                {/* Intentionally in the content branch (not the top stack like
                   NoticeBanner): a geo-blocked session is already fully blocked
                   from transacting and sees the geo-block screen, so it doesn't
                   need the status banner the way it still needs operator notices. */}
-              <ProtocolStatusBanner />
-              <Outlet
-                context={
-                  {
-                    openDeposit,
-                  } satisfies RootLayoutContext
-                }
-              />
-              {/* On config failure, suppress the default panel (would leak
+                <ProtocolStatusBanner />
+                <Outlet
+                  context={
+                    {
+                      openDeposit,
+                    } satisfies RootLayoutContext
+                  }
+                />
+                {/* On config failure, suppress the default panel (would leak
                   into page chrome) and instead surface an error modal only
                   when the user has actually opened the deposit dialog, so
                   the click has a visible recovery path. */}
-              <AaveConfigProvider
-                errorFallback={
-                  <FullScreenDialog
+                <AaveConfigProvider
+                  errorFallback={
+                    <FullScreenDialog
+                      open={isDepositOpen}
+                      onClose={closeDeposit}
+                      className="items-center justify-center p-6"
+                    >
+                      <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
+                        <Text variant="body1" className="font-medium">
+                          {COPY.common.somethingWentWrong.heading}
+                        </Text>
+                        <Text variant="body2" className="text-accent-secondary">
+                          {COPY.common.somethingWentWrong.body}
+                        </Text>
+                      </div>
+                    </FullScreenDialog>
+                  }
+                >
+                  <SimpleDeposit
                     open={isDepositOpen}
                     onClose={closeDeposit}
-                    className="items-center justify-center p-6"
-                  >
-                    <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
-                      <Text variant="body1" className="font-medium">
-                        {COPY.common.somethingWentWrong.heading}
-                      </Text>
-                      <Text variant="body2" className="text-accent-secondary">
-                        {COPY.common.somethingWentWrong.body}
-                      </Text>
-                    </div>
-                  </FullScreenDialog>
-                }
-              >
-                <SimpleDeposit
-                  open={isDepositOpen}
-                  onClose={closeDeposit}
-                  initialAmountBtc={initialDepositAmountBtc}
-                />
-              </AaveConfigProvider>
+                    initialAmountBtc={initialDepositAmountBtc}
+                  />
+                </AaveConfigProvider>
+              </AppPeginPollingProvider>
             </ActivatingVaultsProvider>
           )}
-          {!FeatureFlags.isV3UiEnabled && (
-            <div className={isDisconnectedLanding ? "mt-0" : "mt-auto"}>
-              {/* The footer bar background is full-bleed, and per Figma its content is too:
-                  the social/copyright block's left edge lines up with the navbar/body's
-                  1080px `PAGE_CONTENT_CLASS` box, but the logo sits close to the true
-                  viewport edge rather than being boxed into that same 1080px cap.
-                  `[&>div]:!max-w-none` drops the Footer's default `container` cap so the
-                  row can span the full width; `[&>div]:!px-5` keeps the page's standard
-                  20px edge inset on the left (and on the right below `md`).
-                  `[&>div]:md:!pr-[90px]` widens the right inset at `md`+ to match Figma's
-                  footer-specific right margin exactly. `FOOTER_SOCIAL_MARGIN_CLASS` (passed
-                  via `socialClassName`) pushes the social block in from the left edge by the
-                  same amount the 1080px box is inset at the current viewport width, so it
-                  lines up with the navbar/body starting point instead of the raw edge.
-                  `!bg-secondary-main` + `before:!bg-secondary-main` swap the light-
-                  mode background (and its decorative top-edge pseudo) from the
-                  default teal to brand orange; dark mode keeps `primary-main`.
-                  Only rendered in v2 — the v3 Figma frame has no page-level footer at
-                  all (confirmed via Dev Mode MCP metadata on node 10084:22951): the
-                  sidebar's own bottom block (social + Terms/Privacy) fully replaces it. */}
-              <Footer
-                socialLinks={FOOTER_SOCIAL_LINKS}
-                copyrightYear={new Date().getFullYear()}
-                className={twJoin(
-                  "!bg-secondary-main before:!bg-secondary-main dark:!bg-primary-main dark:before:!bg-primary-main [&>div]:!max-w-none [&>div]:!px-5 [&>div]:md:!pr-[90px]",
-                  // Override the Footer's baked-in `mt-24` on the disconnected landing.
-                  isDisconnectedLanding && "!mt-0",
-                )}
-                socialClassName={FOOTER_SOCIAL_MARGIN_CLASS}
-              />
-            </div>
-          )}
-          {FeatureFlags.isV3UiEnabled && isMobileView && (
-            // v3 has no page-level footer on desktop (the sidebar's own
-            // bottom block covers it) but mobile has no sidebar at all, and
+          {isEntryLayout && <EntryFooter />}
+          {isMobileView && !isEntryLayout && (
+            // No page-level footer on desktop (the sidebar's own bottom block
+            // covers it) but mobile has no sidebar at all, and
             // `V3MobileNavigation`'s copy of this block only renders inside
             // the collapsed hamburger menu — a mobile user who never opens
             // it would otherwise have no path to the social/legal links

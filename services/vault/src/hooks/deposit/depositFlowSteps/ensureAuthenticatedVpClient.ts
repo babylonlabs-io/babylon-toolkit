@@ -28,6 +28,7 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {
@@ -90,7 +91,7 @@ export async function ensureAuthenticatedVpClient(
     root.fill(0);
     root = null;
 
-    const pinnedServerPubkey = await reader.getVaultProviderBtcPubKey(
+    const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
       params.providerAddress as Address,
     );
 

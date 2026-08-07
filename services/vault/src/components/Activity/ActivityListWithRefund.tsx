@@ -3,17 +3,20 @@
  * HTLC refund.
  *
  * Split out of the page so it is the v3 branch alone that mounts the deposit
- * lifecycle: `usePendingDeposits`, the polling providers and the refund
- * modals. v2 renders ActivityList directly and keeps its original behaviour —
- * a refundable-expired deposit still reads "Pending" there, and none of this
+ * lifecycle: `usePendingDeposits`, the protocol params and the refund modals.
+ * v2 renders ActivityList directly and keeps its original behaviour — a
+ * refundable-expired deposit still reads "Pending" there, and none of this
  * scaffolding is instantiated.
+ *
+ * Peg-in polling is NOT mounted here: `AppPeginPollingProvider` sits above
+ * `<Outlet>` in RootLayout, so this subtree already has it. A second mount
+ * would fork the polling and optimistic-completion state.
  */
 
 import { useCallback, useMemo } from "react";
 
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
-import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import type { ActivityRow } from "@/types/activityLog";
 
@@ -30,9 +33,6 @@ export function ActivityListWithRefund({
 }: ActivityListWithRefundProps) {
   const {
     expiredActivities,
-    allActivities,
-    pendingPegins,
-    btcPublicKey,
     ethAddress,
     broadcastModal,
     refundModal,
@@ -81,19 +81,13 @@ export function ActivityListWithRefund({
 
   return (
     <ProtocolParamsProvider>
-      <PeginPollingProvider
-        activities={allActivities}
-        pendingPegins={pendingPegins}
-        btcPublicKey={btcPublicKey}
-      >
-        {list}
-        <PendingDepositModals
-          broadcastModal={broadcastModal}
-          refundModal={refundModal}
-          emergencyWithdrawModal={emergencyWithdrawModal}
-          ethAddress={ethAddress}
-        />
-      </PeginPollingProvider>
+      {list}
+      <PendingDepositModals
+        broadcastModal={broadcastModal}
+        refundModal={refundModal}
+        emergencyWithdrawModal={emergencyWithdrawModal}
+        ethAddress={ethAddress}
+      />
     </ProtocolParamsProvider>
   );
 }

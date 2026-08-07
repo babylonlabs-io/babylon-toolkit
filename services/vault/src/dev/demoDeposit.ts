@@ -495,7 +495,18 @@ export interface LoanScenario extends BaseScenario {
   hasBorrowRate: boolean;
 }
 
-const DEMO_LOAN_SYMBOL = "USDC";
+/** Assets the panel can pretend the demo borrow position is denominated in.
+ *  Real reserves come from chain and aren't enumerable at build time, so this
+ *  is a fixed dev list, not a live read. */
+export type DemoBorrowSymbol = "USDC" | "USDT" | "DAI" | "WETH";
+export const DEMO_BORROW_SYMBOL_OPTIONS: readonly DemoBorrowSymbol[] = [
+  "USDC",
+  "USDT",
+  "DAI",
+  "WETH",
+];
+const DEFAULT_DEMO_BORROW_SYMBOL: DemoBorrowSymbol = "USDC";
+
 const DEMO_LOAN_BORROW_RATE = "5.861%";
 const DEMO_LOAN_AVAILABLE_LIQUIDITY = 1_250_000;
 /** 64.20% utilization. */
@@ -504,44 +515,49 @@ const DEMO_LOAN_UTILIZATION_BPS = 6420;
  *  strings, so this can never collide with one. */
 const DEMO_LOAN_RESERVE_PREFIX = "demo-reserve-";
 
-export const LOAN_SCENARIOS: LoanScenario[] = [
-  {
-    key: "loan-borrowable",
-    label: "Borrowable reserve",
-    expectedCta: "none",
-    symbol: DEMO_LOAN_SYMBOL,
-    hasLiquidity: true,
-    isBorrowable: true,
-    hasBorrowRate: true,
-  },
-  {
-    key: "loan-repay-only",
-    label: "Repay only (reserve frozen)",
-    expectedCta: "none",
-    symbol: DEMO_LOAN_SYMBOL,
-    hasLiquidity: true,
-    isBorrowable: false,
-    hasBorrowRate: true,
-  },
-  {
-    key: "loan-no-liquidity-read",
-    label: "Liquidity / utilization unavailable",
-    expectedCta: "none",
-    symbol: DEMO_LOAN_SYMBOL,
-    hasLiquidity: false,
-    isBorrowable: true,
-    hasBorrowRate: true,
-  },
-  {
-    key: "loan-apr-pending",
-    label: "Borrow APR pending",
-    expectedCta: "none",
-    symbol: DEMO_LOAN_SYMBOL,
-    hasLiquidity: true,
-    isBorrowable: true,
-    hasBorrowRate: false,
-  },
-];
+/** Every loan scenario shares the panel's selected borrowed asset, so this is
+ *  a function of that selection rather than a frozen list — the selector
+ *  would otherwise appear to do nothing. */
+export function loanScenarios(symbol: DemoBorrowSymbol): LoanScenario[] {
+  return [
+    {
+      key: "loan-borrowable",
+      label: "Borrowable reserve",
+      expectedCta: "none",
+      symbol,
+      hasLiquidity: true,
+      isBorrowable: true,
+      hasBorrowRate: true,
+    },
+    {
+      key: "loan-repay-only",
+      label: "Repay only (reserve frozen)",
+      expectedCta: "none",
+      symbol,
+      hasLiquidity: true,
+      isBorrowable: false,
+      hasBorrowRate: true,
+    },
+    {
+      key: "loan-no-liquidity-read",
+      label: "Liquidity / utilization unavailable",
+      expectedCta: "none",
+      symbol,
+      hasLiquidity: false,
+      isBorrowable: true,
+      hasBorrowRate: true,
+    },
+    {
+      key: "loan-apr-pending",
+      label: "Borrow APR pending",
+      expectedCta: "none",
+      symbol,
+      hasLiquidity: true,
+      isBorrowable: true,
+      hasBorrowRate: false,
+    },
+  ];
+}
 
 // --- Activity-log scenarios (v3 Activity page) -----------------------------
 
@@ -565,7 +581,6 @@ export interface ActivityScenario extends BaseScenario {
 const DEMO_ACTIVITY_ID_PREFIX = "demo-activity-";
 /** What an activity row actually renders for BTC amounts. */
 const ACTIVITY_BTC_UNIT = VAULT_COLLATERAL_ASSET.symbol;
-const DEMO_ACTIVITY_DEBT_SYMBOL = "USDC";
 /** Debt figure shown BESIDE the seized collateral on a liquidation card. A
  *  liquidation row has two amounts and the panel drives only one (the
  *  collateral, its headline), so this second one stays a fixed sample. */
@@ -573,10 +588,6 @@ const DEMO_LIQUIDATION_DEBT_AMOUNT = "12,500.00";
 /** BTC txids render without the 0x prefix; EVM event hashes with it. */
 const DEMO_ACTIVITY_BTC_TXID = "b7".repeat(32);
 const DEMO_ACTIVITY_ETH_TX = `0x${"e7".repeat(32)}`;
-
-function demoDebtIcon(): string {
-  return getCurrencyIconWithFallback(undefined, DEMO_ACTIVITY_DEBT_SYMBOL);
-}
 
 /** Flat log row shared by every non-liquidation scenario. */
 function demoActivityLog(
@@ -605,190 +616,197 @@ function demoBtcAmount(amount: string) {
   return { value: amount, symbol: VAULT_COLLATERAL_ASSET.symbol };
 }
 
-/** Borrow / repay rows are denominated in the debt asset, so the panel's
- *  amount drives them directly. */
-function demoDebtAmount(amount: string) {
-  return { value: amount, symbol: DEMO_ACTIVITY_DEBT_SYMBOL };
-}
-
-function demoLiquidationDebtAmount() {
-  return {
+/** Borrow / repay / liquidation rows are denominated in the panel's selected
+ *  borrowed asset, so the whole list is a function of that selection rather
+ *  than a frozen list — the selector would otherwise appear to do nothing. */
+export function activityScenarios(
+  symbol: DemoBorrowSymbol,
+): ActivityScenario[] {
+  const debtIcon = getCurrencyIconWithFallback(undefined, symbol);
+  /** Borrow / repay rows are denominated in the debt asset, so the panel's
+   *  amount drives them directly. */
+  const demoDebtAmount = (amount: string) => ({ value: amount, symbol });
+  const demoLiquidationDebtAmount = () => ({
     value: DEMO_LIQUIDATION_DEBT_AMOUNT,
-    symbol: DEMO_ACTIVITY_DEBT_SYMBOL,
-  };
+    symbol,
+  });
+
+  return [
+    {
+      key: "act-deposit",
+      label: "Deposit (confirmed)",
+      expectedCta: "none",
+      daysAgo: 0,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: "Deposit",
+          amount: demoBtcAmount(amount),
+          chain: "BTC",
+        }),
+    },
+    {
+      key: "act-deposit-pending",
+      label: "Deposit (pending, spinner)",
+      expectedCta: "none",
+      daysAgo: 0,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: PENDING_DEPOSIT_TYPE,
+          amount: demoBtcAmount(amount),
+          chain: "BTC",
+          isPending: true,
+          transactionHash: "",
+        }),
+    },
+    {
+      key: "act-deposit-expired",
+      label: "Deposit (expired, refunded)",
+      expectedCta: "none",
+      daysAgo: 1,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: "Deposit",
+          amount: demoBtcAmount(amount),
+          chain: "BTC",
+          isExpired: true,
+        }),
+    },
+    {
+      key: "act-withdraw",
+      label: "Withdraw",
+      expectedCta: "none",
+      daysAgo: 1,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: "Withdraw",
+          amount: demoBtcAmount(amount),
+          chain: "BTC",
+        }),
+    },
+    {
+      key: "act-borrow",
+      label: "Borrow",
+      expectedCta: "none",
+      daysAgo: 2,
+      unit: symbol,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: "Borrow",
+          amount: demoDebtAmount(amount),
+          chain: "ETH",
+          tokenIcon: debtIcon,
+        }),
+    },
+    {
+      key: "act-repay",
+      label: "Repay",
+      expectedCta: "none",
+      daysAgo: 2,
+      unit: symbol,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: "Repay",
+          amount: demoDebtAmount(amount),
+          chain: "ETH",
+          tokenIcon: debtIcon,
+        }),
+    },
+    {
+      key: "act-redeem",
+      label: "Redeem",
+      expectedCta: "none",
+      daysAgo: 5,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) =>
+        demoActivityLog(id, date, {
+          type: "Redeem",
+          amount: demoBtcAmount(amount),
+          chain: "ETH",
+        }),
+    },
+    {
+      key: "act-liquidation-partial",
+      label: "Partially liquidated (group)",
+      expectedCta: "none",
+      daysAgo: 5,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) => ({
+        kind: "liquidationGroup",
+        id,
+        date,
+        type: "Partially Liquidated",
+        tokenIcons: [VAULT_COLLATERAL_ASSET.icon, debtIcon],
+        summary: {
+          collateral: demoBtcAmount(amount),
+          debt: demoLiquidationDebtAmount(),
+        },
+        children: [
+          {
+            id: `${id}-collateral`,
+            label: COPY.activity.liquidation.collateralLabel,
+            amount: demoBtcAmount(amount),
+            tokenIcon: VAULT_COLLATERAL_ASSET.icon,
+            chain: "ETH",
+            transactionHash: DEMO_ACTIVITY_ETH_TX,
+            date,
+          },
+          {
+            id: `${id}-loan`,
+            label: COPY.activity.liquidation.repaidLabel,
+            amount: demoLiquidationDebtAmount(),
+            tokenIcon: debtIcon,
+            chain: "ETH",
+            transactionHash: DEMO_ACTIVITY_ETH_TX,
+            date,
+          },
+        ],
+        transactionHash: DEMO_ACTIVITY_ETH_TX,
+      }),
+    },
+    {
+      key: "act-liquidation-full",
+      label: "Fully liquidated (group, no repay)",
+      expectedCta: "none",
+      daysAgo: 6,
+      unit: ACTIVITY_BTC_UNIT,
+      build: (id, date, amount) => ({
+        kind: "liquidationGroup",
+        id,
+        date,
+        type: "Fully Liquidated",
+        tokenIcons: [VAULT_COLLATERAL_ASSET.icon, ""],
+        summary: { collateral: demoBtcAmount(amount), debt: null },
+        children: [
+          {
+            id: `${id}-collateral`,
+            label: COPY.activity.liquidation.collateralLabel,
+            amount: demoBtcAmount(amount),
+            tokenIcon: VAULT_COLLATERAL_ASSET.icon,
+            chain: "ETH",
+            transactionHash: DEMO_ACTIVITY_ETH_TX,
+            date,
+          },
+        ],
+        transactionHash: DEMO_ACTIVITY_ETH_TX,
+      }),
+    },
+  ];
 }
 
-export const ACTIVITY_SCENARIOS: ActivityScenario[] = [
-  {
-    key: "act-deposit",
-    label: "Deposit (confirmed)",
-    expectedCta: "none",
-    daysAgo: 0,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: "Deposit",
-        amount: demoBtcAmount(amount),
-        chain: "BTC",
-      }),
-  },
-  {
-    key: "act-deposit-pending",
-    label: "Deposit (pending, spinner)",
-    expectedCta: "none",
-    daysAgo: 0,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: PENDING_DEPOSIT_TYPE,
-        amount: demoBtcAmount(amount),
-        chain: "BTC",
-        isPending: true,
-        transactionHash: "",
-      }),
-  },
-  {
-    key: "act-deposit-expired",
-    label: "Deposit (expired, refunded)",
-    expectedCta: "none",
-    daysAgo: 1,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: "Deposit",
-        amount: demoBtcAmount(amount),
-        chain: "BTC",
-        isExpired: true,
-      }),
-  },
-  {
-    key: "act-withdraw",
-    label: "Withdraw",
-    expectedCta: "none",
-    daysAgo: 1,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: "Withdraw",
-        amount: demoBtcAmount(amount),
-        chain: "BTC",
-      }),
-  },
-  {
-    key: "act-borrow",
-    label: "Borrow",
-    expectedCta: "none",
-    daysAgo: 2,
-    unit: DEMO_ACTIVITY_DEBT_SYMBOL,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: "Borrow",
-        amount: demoDebtAmount(amount),
-        chain: "ETH",
-        tokenIcon: demoDebtIcon(),
-      }),
-  },
-  {
-    key: "act-repay",
-    label: "Repay",
-    expectedCta: "none",
-    daysAgo: 2,
-    unit: DEMO_ACTIVITY_DEBT_SYMBOL,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: "Repay",
-        amount: demoDebtAmount(amount),
-        chain: "ETH",
-        tokenIcon: demoDebtIcon(),
-      }),
-  },
-  {
-    key: "act-redeem",
-    label: "Redeem",
-    expectedCta: "none",
-    daysAgo: 5,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) =>
-      demoActivityLog(id, date, {
-        type: "Redeem",
-        amount: demoBtcAmount(amount),
-        chain: "ETH",
-      }),
-  },
-  {
-    key: "act-liquidation-partial",
-    label: "Partially liquidated (group)",
-    expectedCta: "none",
-    daysAgo: 5,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) => ({
-      kind: "liquidationGroup",
-      id,
-      date,
-      type: "Partially Liquidated",
-      tokenIcons: [VAULT_COLLATERAL_ASSET.icon, demoDebtIcon()],
-      summary: {
-        collateral: demoBtcAmount(amount),
-        debt: demoLiquidationDebtAmount(),
-      },
-      children: [
-        {
-          id: `${id}-collateral`,
-          label: COPY.activity.liquidation.collateralLabel,
-          amount: demoBtcAmount(amount),
-          tokenIcon: VAULT_COLLATERAL_ASSET.icon,
-          chain: "ETH",
-          transactionHash: DEMO_ACTIVITY_ETH_TX,
-          date,
-        },
-        {
-          id: `${id}-loan`,
-          label: COPY.activity.liquidation.repaidLabel,
-          amount: demoLiquidationDebtAmount(),
-          tokenIcon: demoDebtIcon(),
-          chain: "ETH",
-          transactionHash: DEMO_ACTIVITY_ETH_TX,
-          date,
-        },
-      ],
-      transactionHash: DEMO_ACTIVITY_ETH_TX,
-    }),
-  },
-  {
-    key: "act-liquidation-full",
-    label: "Fully liquidated (group, no repay)",
-    expectedCta: "none",
-    daysAgo: 6,
-    unit: ACTIVITY_BTC_UNIT,
-    build: (id, date, amount) => ({
-      kind: "liquidationGroup",
-      id,
-      date,
-      type: "Fully Liquidated",
-      tokenIcons: [VAULT_COLLATERAL_ASSET.icon, ""],
-      summary: { collateral: demoBtcAmount(amount), debt: null },
-      children: [
-        {
-          id: `${id}-collateral`,
-          label: COPY.activity.liquidation.collateralLabel,
-          amount: demoBtcAmount(amount),
-          tokenIcon: VAULT_COLLATERAL_ASSET.icon,
-          chain: "ETH",
-          transactionHash: DEMO_ACTIVITY_ETH_TX,
-          date,
-        },
-      ],
-      transactionHash: DEMO_ACTIVITY_ETH_TX,
-    }),
-  },
-];
-
-/** Scenario list for a given mock type (drives the panel's state select). */
-export function scenariosForType(type: DemoType): BaseScenario[] {
+/** Scenario list for a given mock type (drives the panel's state select).
+ *  `borrowSymbol` only affects the loan / activity lists. */
+export function scenariosForType(
+  type: DemoType,
+  borrowSymbol: DemoBorrowSymbol,
+): BaseScenario[] {
   if (type === "withdrawal") return WITHDRAWAL_SCENARIOS;
   if (type === "collateral") return COLLATERAL_SCENARIOS;
-  if (type === "loan") return LOAN_SCENARIOS;
-  if (type === "activity") return ACTIVITY_SCENARIOS;
+  if (type === "loan") return loanScenarios(borrowSymbol);
+  if (type === "activity") return activityScenarios(borrowSymbol);
   return DEPOSIT_SCENARIOS;
 }
 
@@ -799,10 +817,13 @@ export function scenariosForType(type: DemoType): BaseScenario[] {
  * BTC. Kept here rather than in the panel so it can't drift from the scenario
  * that renders the value.
  */
-export function amountUnitFor(item: DemoItem): DemoAmountUnit {
-  if (item.type === "loan") return DEMO_LOAN_SYMBOL;
+export function amountUnitFor(
+  item: DemoItem,
+  borrowSymbol: DemoBorrowSymbol,
+): DemoAmountUnit {
+  if (item.type === "loan") return borrowSymbol;
   if (item.type === "activity") {
-    const scenario = ACTIVITY_SCENARIOS[item.stateIndex];
+    const scenario = activityScenarios(borrowSymbol)[item.stateIndex];
     return scenario?.unit ?? ACTIVITY_BTC_UNIT;
   }
   return BTC_AMOUNT_UNIT;
@@ -1049,12 +1070,14 @@ export function buildCollateralsDemo(
 export function buildLoansDemo(
   items: DemoItem[],
   hideReal: boolean,
+  borrowSymbol: DemoBorrowSymbol,
 ): ActiveDemoLoan {
+  const scenarios = loanScenarios(borrowSymbol);
   const rows: ActiveLoanRow[] = [];
   let debtUsd = 0;
   for (const item of items) {
     if (item.type !== "loan") continue;
-    const scenario = LOAN_SCENARIOS[item.stateIndex] ?? LOAN_SCENARIOS[0];
+    const scenario = scenarios[item.stateIndex] ?? scenarios[0];
     const amount = safeAmount(item.amount);
     // The mock borrows a stablecoin, so the token amount doubles as its USD
     // value — enough for the summary to total the rendered rows.
@@ -1085,12 +1108,13 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export function buildActivitiesDemo(
   items: DemoItem[],
   hideReal: boolean,
+  borrowSymbol: DemoBorrowSymbol,
 ): ActiveDemoActivity {
+  const scenarios = activityScenarios(borrowSymbol);
   const rows: ActivityRow[] = [];
   for (const item of items) {
     if (item.type !== "activity") continue;
-    const scenario =
-      ACTIVITY_SCENARIOS[item.stateIndex] ?? ACTIVITY_SCENARIOS[0];
+    const scenario = scenarios[item.stateIndex] ?? scenarios[0];
     // Dates are relative to now (not the fixed DEMO_TIMESTAMP the card mocks
     // use) so the Today / Yesterday group headers render the way a depositor
     // would see them.
@@ -1125,6 +1149,7 @@ function makeItem(type: DemoType): DemoItem {
 let storeEnabled = false;
 let storeHideReal = false;
 let storeItems: DemoItem[] = [makeItem("deposit")];
+let storeBorrowSymbol: DemoBorrowSymbol = DEFAULT_DEMO_BORROW_SYMBOL;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -1138,8 +1163,16 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
+// The loan / activity scenario COUNT never varies with the borrowed asset, so
+// any valid symbol is safe to resolve the list length here.
 function clampState(type: DemoType, index: number): number {
-  return Math.max(0, Math.min(scenariosForType(type).length - 1, index));
+  return Math.max(
+    0,
+    Math.min(
+      scenariosForType(type, DEFAULT_DEMO_BORROW_SYMBOL).length - 1,
+      index,
+    ),
+  );
 }
 
 export function setDemoEnabled(enabled: boolean) {
@@ -1149,6 +1182,11 @@ export function setDemoEnabled(enabled: boolean) {
 
 export function setDemoHideReal(hideReal: boolean) {
   storeHideReal = hideReal;
+  emit();
+}
+
+export function setDemoBorrowSymbol(symbol: DemoBorrowSymbol) {
+  storeBorrowSymbol = symbol;
   emit();
 }
 
@@ -1269,6 +1307,7 @@ export function resetDemoState() {
   storeHideReal = false;
   itemCounter = 0;
   storeItems = [makeItem("deposit")];
+  storeBorrowSymbol = DEFAULT_DEMO_BORROW_SYMBOL;
   emit();
 }
 
@@ -1280,6 +1319,9 @@ function getHideRealSnapshot() {
 }
 function getItemsSnapshot() {
   return storeItems;
+}
+function getBorrowSymbolSnapshot() {
+  return storeBorrowSymbol;
 }
 
 export function useDemoEnabled(): boolean {
@@ -1298,6 +1340,13 @@ export function useDemoHideReal(): boolean {
 }
 export function useDemoItems(): DemoItem[] {
   return useSyncExternalStore(subscribe, getItemsSnapshot, getItemsSnapshot);
+}
+export function useDemoBorrowSymbol(): DemoBorrowSymbol {
+  return useSyncExternalStore(
+    subscribe,
+    getBorrowSymbolSnapshot,
+    getBorrowSymbolSnapshot,
+  );
 }
 
 function safeAmount(amount: string): string {
@@ -1346,13 +1395,14 @@ export function useDemoActivity(): ActiveDemoActivity | null {
   const enabled = useDemoEnabled();
   const hideReal = useDemoHideReal();
   const items = useDemoItems();
+  const borrowSymbol = useDemoBorrowSymbol();
   const flagOn = featureFlags.isGodModePanelEnabled;
   return useMemo(
     () =>
       import.meta.env.DEV && flagOn && enabled
-        ? buildActivitiesDemo(items, hideReal)
+        ? buildActivitiesDemo(items, hideReal, borrowSymbol)
         : null,
-    [flagOn, enabled, items, hideReal],
+    [flagOn, enabled, items, hideReal, borrowSymbol],
   );
 }
 
@@ -1361,13 +1411,14 @@ export function useDemoLoan(): ActiveDemoLoan | null {
   const enabled = useDemoEnabled();
   const hideReal = useDemoHideReal();
   const items = useDemoItems();
+  const borrowSymbol = useDemoBorrowSymbol();
   const flagOn = featureFlags.isGodModePanelEnabled;
   return useMemo(
     () =>
       import.meta.env.DEV && flagOn && enabled
-        ? buildLoansDemo(items, hideReal)
+        ? buildLoansDemo(items, hideReal, borrowSymbol)
         : null,
-    [flagOn, enabled, items, hideReal],
+    [flagOn, enabled, items, hideReal, borrowSymbol],
   );
 }
 

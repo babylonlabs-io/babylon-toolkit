@@ -84,7 +84,9 @@ const prePeginTamper = vi.hoisted(
   () =>
     ({ fn: null }) as {
       fn:
-        | ((r: import("../../primitives").PrePeginPsbtResult) => import("../../primitives").PrePeginPsbtResult)
+        | ((
+            r: import("../../primitives").PrePeginPsbtResult,
+          ) => import("../../primitives").PrePeginPsbtResult)
         | null;
     },
 );
@@ -227,7 +229,8 @@ const BASE_PREPARE_PEGIN_PARAMS = {
   vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
   universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
   timelockPegin: 100,
-  timelockRefund: 50,
+  timelockAssert: 100,
+  timelockRefund: 144,
   protocolFeeRate: 10n,
   minPeginFeeRate: 10n,
   mempoolFeeRate: 10,
@@ -743,14 +746,14 @@ describe("PeginManager", () => {
         // matching the "signPsbts" label asserted below.
         amounts: vaultAmounts,
         ...BASE_PREPARE_PEGIN_PARAMS,
-        // Distinct from minPeginFeeRate (10n) so a baseFeeRate assertion can
+        // Distinct from minPeginFeeRate (10n) so a protocolFeeRate assertion can
         // tell the two same-typed rates apart.
         protocolFeeRate: 12n,
       });
 
-      expect(
-        callOrder.filter((c) => c === "approveDepositTerms"),
-      ).toHaveLength(1);
+      expect(callOrder.filter((c) => c === "approveDepositTerms")).toHaveLength(
+        1,
+      );
       const deriveIdx = callOrder.indexOf("deriveContextHash");
       const approveIdx = callOrder.indexOf("approveDepositTerms");
       const signIdx = callOrder.indexOf("signPsbts");
@@ -777,20 +780,20 @@ describe("PeginManager", () => {
       // same-typed and trivially swappable (the two key lists, the three sat
       // amounts, the two rates, the two timelocks), so a partial check lets a
       // mis-wiring through silently.
-      expect(approvedTerms?.baseFeeRate).toBe(12n);
-      expect(approvedTerms?.peginCsvTimelock).toBe(
+      expect(approvedTerms?.protocolFeeRate).toBe(12n);
+      expect(approvedTerms?.timelockPegin).toBe(
         BASE_PREPARE_PEGIN_PARAMS.timelockPegin,
       );
-      expect(approvedTerms?.payoutTimelock).toBe(
-        BASE_PREPARE_PEGIN_PARAMS.timelockPegin,
+      expect(approvedTerms?.timelockAssert).toBe(
+        BASE_PREPARE_PEGIN_PARAMS.timelockAssert,
       );
-      expect(approvedTerms?.htlcRefundTimelock).toBe(
+      expect(approvedTerms?.timelockRefund).toBe(
         BASE_PREPARE_PEGIN_PARAMS.timelockRefund,
       );
-      expect(approvedTerms?.keeperPks).toEqual(
+      expect(approvedTerms?.vaultKeeperBtcPubkeys).toEqual(
         BASE_PREPARE_PEGIN_PARAMS.vaultKeeperBtcPubkeys,
       );
-      expect(approvedTerms?.challengerPks).toEqual(
+      expect(approvedTerms?.universalChallengerBtcPubkeys).toEqual(
         BASE_PREPARE_PEGIN_PARAMS.universalChallengerBtcPubkeys,
       );
       expect(approvedTerms?.prepeginMaxFee).toBe(result.transaction.fee);
@@ -816,14 +819,15 @@ describe("PeginManager", () => {
       expect(approvedTerms?.vaults).toHaveLength(2);
       approvedTerms?.vaults.forEach((vault, index) => {
         expect(vault.htlcVout).toBe(index);
-        expect(vault.vaultProviderPk).toBe(
+        expect(vault.vaultProviderBtcPubkey).toBe(
           BASE_PREPARE_PEGIN_PARAMS.vaultProviderBtcPubkey,
         );
-        expect(vault.vaultAmount).toBe(vaultAmounts[index]);
-        // floor(vaultAmount * 250 / 10_000)
+        expect(vault.peginAmount).toBe(vaultAmounts[index]);
+        // The CEILING the registration calldata carries: floor(vaultAmount *
+        // (quoted 250 + 25 headroom) / 10_000) — not the quoted commission.
         expect(vault.commissionFee).toBe(
           (vaultAmounts[index] *
-            BigInt(BASE_PREPARE_PEGIN_PARAMS.commissionBps)) /
+            BigInt(BASE_PREPARE_PEGIN_PARAMS.commissionBps + 25)) /
             10_000n,
         );
         expect(vault.peginMaxFee).toBe(expectedPeginMaxFee);
@@ -1216,6 +1220,28 @@ describe("PeginManager", () => {
       expect(result.ethTxHash.startsWith("0x")).toBe(true);
       expect(result.vaultId.startsWith("0x")).toBe(true);
       expect(result).not.toHaveProperty("btcPopSignature");
+    });
+
+    it("requires quotedCommissionBps at registration for approval-capable wallets", async () => {
+      // The device froze the commission ceiling from the quote at approval;
+      // the chain-current fallback could exceed it, so it is refused.
+      const { manager, btcWallet, popSignature } = await makeManagerWithPop();
+      (btcWallet as unknown as Record<string, unknown>).approveDepositTerms =
+        async () => {};
+
+      await expect(
+        manager.registerPeginOnChain({
+          unsignedPrePeginTx: "0100000000010000000000",
+          depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          vaultProvider: TEST_CONTRACT_ADDRESS,
+          hashlock: MOCK_HASHLOCK,
+          htlcVout: 0,
+          depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
+          depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+          popSignature,
+          // quotedCommissionBps deliberately omitted
+        }),
+      ).rejects.toThrow(/quotedCommissionBps is required/);
     });
 
     it("should throw when ETH wallet is connected to a different account than the PoP", async () => {

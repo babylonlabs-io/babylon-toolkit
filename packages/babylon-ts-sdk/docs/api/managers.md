@@ -23,7 +23,7 @@ Optional exit after the CSV timelock expires: `buildAndBroadcastRefund()` (servi
 
 ### PayoutManager
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:169](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L169)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L189)
 
 High-level manager for payout transaction signing.
 
@@ -56,7 +56,7 @@ manager and submit the signatures to the vault provider's RPC API.
 new PayoutManager(config): PayoutManager;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:177](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L177)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:197](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L197)
 
 Creates a new PayoutManager instance.
 
@@ -80,7 +80,7 @@ Manager configuration including wallet
 signPayoutTransaction(params): Promise<PayoutSignatureResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:203](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L203)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:223](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L223)
 
 Signs a Payout transaction and extracts the Schnorr signature.
 
@@ -126,7 +126,7 @@ Error if wallet operations fail or signature extraction fails
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:265](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L265)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:290](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L290)
 
 Gets the configured Bitcoin network.
 
@@ -142,7 +142,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 supportsBatchSigning(): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:274](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L274)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:299](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L299)
 
 Checks if the wallet supports batch signing (signPsbts).
 
@@ -158,7 +158,7 @@ true if batch signing is supported
 signPayoutTransactionsBatch(transactions): Promise<object[]>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:287](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L287)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:312](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L312)
 
 Batch signs multiple payout transactions (1 per claimer).
 This allows signing all transactions with a single wallet interaction.
@@ -189,7 +189,7 @@ Error if any signing operation fails
 
 ### PeginManager
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:632](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L632)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:674](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L674)
 
 #### Constructors
 
@@ -199,7 +199,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:632](
 new PeginManager(config): PeginManager;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:640](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L640)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:682](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L682)
 
 Creates a new PeginManager instance.
 
@@ -223,7 +223,7 @@ Manager configuration including wallets and contract addresses
 preparePegin(params): Promise<PreparePeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:654](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L654)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:696](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L696)
 
 Prepare a peg-in: sizing pass → vault-root derivation (one wallet
 popup) → per-vault WOTS / hashlock derivation → commit pass with
@@ -252,7 +252,7 @@ If the wallet rejects, insufficient funds, or an internal
 signAndBroadcast(params): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1062](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1062)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1108](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1108)
 
 Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
 
@@ -288,7 +288,7 @@ Error if signing or broadcasting fails
 registerPeginOnChain(params): Promise<RegisterPeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1213](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1213)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1259](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1259)
 
 Registers a peg-in on Ethereum by calling the BTCVaultRegistry contract.
 
@@ -339,7 +339,7 @@ Error if contract simulation fails (e.g., invalid signature,
 registerPeginBatchOnChain(params): Promise<RegisterPeginBatchResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1399](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1399)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1445](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1445)
 
 Register multiple pegins on Ethereum in a single transaction.
 
@@ -367,7 +367,7 @@ Batch result with per-vault IDs and single ETH tx hash
 signProofOfPossession(): Promise<PopSignature>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1711](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1711)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1765](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1765)
 
 Sign a BIP-322 BTC Proof-of-Possession binding the connected BTC
 wallet to the connected ETH account for this chain and vault
@@ -384,7 +384,7 @@ every register call in the same session.
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1767](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1767)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1821](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1821)
 
 Gets the configured Bitcoin network.
 
@@ -400,7 +400,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1776](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1776)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1830](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1830)
 
 Gets the configured BTCVaultRegistry contract address.
 
@@ -787,7 +787,7 @@ Bitcoin wallet for signing payout transactions.
 
 ### SignPayoutParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:119](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L119)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:139](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L139)
 
 Parameters for signing a Payout transaction.
 
@@ -899,13 +899,29 @@ CSV timelock in blocks for the PegIn output.
 SignPayoutBaseParams.timelockPegin
 ```
 
+##### timelockAssert
+
+```ts
+timelockAssert: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L83)
+
+btc-vault `timelock_assert`; payout input 1's sequence.
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.timelockAssert
+```
+
 ##### depositorBtcPubkey
 
 ```ts
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L92)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L94)
 
 Depositor's BTC public key (x-only, 64-char hex). This MUST be the
 key registered on-chain for the vault — typically read from
@@ -927,7 +943,7 @@ SignPayoutBaseParams.depositorBtcPubkey
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:101](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L101)
 
 The on-chain registered depositor payout scriptPubKey (hex, with or without 0x prefix).
 Used to validate that the VP-provided payout transaction actually pays to the
@@ -945,7 +961,7 @@ SignPayoutBaseParams.registeredPayoutScriptPubKey
 claimerBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L105)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:107](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L107)
 
 The claimer's x-only BTC public key for this payout (64-char hex, no prefix).
 Forwarded to [buildPayoutPsbt](primitives.md#buildpayoutpsbt) for per-role output validation.
@@ -962,7 +978,7 @@ SignPayoutBaseParams.claimerBtcPubkey
 commissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L110)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L112)
 
 VP commission in basis points (`1..=9999`). Forwarded to [buildPayoutPsbt](primitives.md#buildpayoutpsbt).
 
@@ -972,13 +988,80 @@ VP commission in basis points (`1..=9999`). Forwarded to [buildPayoutPsbt](primi
 SignPayoutBaseParams.commissionBps
 ```
 
+##### protocolFeeRate
+
+```ts
+protocolFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L118)
+
+Version-locked tx-graph fee rate (sat/vB) the graph was built with.
+Forwarded to [buildPayoutPsbt](primitives.md#buildpayoutpsbt) for the fee band.
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.protocolFeeRate
+```
+
+##### councilSize
+
+```ts
+councilSize: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:121](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L121)
+
+Security council member count; forwarded to the fee floor (see PayoutParams).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.councilSize
+```
+
+##### vkClaimerPayoutScriptPubKeys
+
+```ts
+vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:128](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L128)
+
+RFC-006 resolved payout destinations, keyed by lowercased x-only operation
+pubkey. Forwarded verbatim to [buildPayoutPsbt](primitives.md#buildpayoutpsbt); every VK claimer
+must be present.
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.vkClaimerPayoutScriptPubKeys
+```
+
+##### vpCommissionScriptPubKey
+
+```ts
+vpCommissionScriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L130)
+
+RFC-006 VP commission destination. Forwarded to [buildPayoutPsbt](primitives.md#buildpayoutpsbt).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.vpCommissionScriptPubKey
+```
+
 ##### payoutTxHex
 
 ```ts
 payoutTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:124](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L124)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:144](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L144)
 
 Payout transaction hex (unsigned).
 This is the transaction from the vault provider that needs depositor signature.
@@ -989,7 +1072,7 @@ This is the transaction from the vault provider that needs depositor signature.
 assertTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:130](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L130)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L150)
 
 Assert transaction hex.
 Payout input 1 references Assert output 0.
@@ -998,7 +1081,7 @@ Payout input 1 references Assert output 0.
 
 ### PayoutSignatureResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:136](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L136)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L156)
 
 Result of signing a payout transaction.
 
@@ -1010,7 +1093,7 @@ Result of signing a payout transaction.
 signature: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:140](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L140)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:160](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L160)
 
 64-byte Schnorr signature (128 hex characters).
 
@@ -1020,7 +1103,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:140]
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:145](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L145)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:165](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L165)
 
 Depositor's BTC public key used for signing.
 
@@ -1028,7 +1111,7 @@ Depositor's BTC public key used for signing.
 
 ### PeginManagerConfig
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:136](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L136)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:165](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L165)
 
 Configuration for the PeginManager.
 
@@ -1040,7 +1123,7 @@ Configuration for the PeginManager.
 btcNetwork: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:140](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L140)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:169](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L169)
 
 Bitcoin network to use for transactions.
 
@@ -1050,7 +1133,7 @@ Bitcoin network to use for transactions.
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:145](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L145)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:174](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L174)
 
 Bitcoin wallet for signing peg-in transactions.
 
@@ -1060,7 +1143,7 @@ Bitcoin wallet for signing peg-in transactions.
 ethWallet: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:151](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L151)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:180](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L180)
 
 Ethereum wallet for registering peg-in on-chain.
 Uses viem's WalletClient directly for proper gas estimation.
@@ -1071,7 +1154,7 @@ Uses viem's WalletClient directly for proper gas estimation.
 ethChain: Chain;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:157](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L157)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:186](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L186)
 
 Ethereum chain configuration.
 Required for proper gas estimation in contract calls.
@@ -1082,7 +1165,7 @@ Required for proper gas estimation in contract calls.
 publicClient: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:165](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L165)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:194](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L194)
 
 Public client used for read calls (`readContract`, `estimateGas`,
 `waitForTransactionReceipt`). Pass a client configured with the
@@ -1095,7 +1178,7 @@ application instead of viem's stock chain default.
 vaultContracts: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:170](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L170)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:199](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L199)
 
 Vault contract addresses.
 
@@ -1113,7 +1196,7 @@ BTCVaultRegistry contract address on Ethereum.
 mempoolApiUrl: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:182](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L182)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:211](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L211)
 
 Mempool API URL for fetching UTXO data and broadcasting transactions.
 Use MEMPOOL_API_URLS constant for standard mempool.space URLs, or provide
@@ -1123,7 +1206,7 @@ a custom URL if running your own mempool instance.
 
 ### PreparePeginParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:188](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L188)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:217](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L217)
 
 Parameters for the pegin flow (pre-pegin + pegin transactions).
 
@@ -1135,7 +1218,7 @@ Parameters for the pegin flow (pre-pegin + pegin transactions).
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:195](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L195)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:224](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L224)
 
 Vault core (tx-graph) version to build — the contract's
 `ProtocolParams.activeVaultCoreVersion()` at build time. Stamped onto
@@ -1148,7 +1231,7 @@ constructs derives from this graph version.
 amounts: readonly bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:202](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L202)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:231](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L231)
 
 Amounts to peg in per HTLC (in satoshis).
 Must have the same length as `hashlocks`.
@@ -1160,7 +1243,7 @@ For single deposits, pass a single-element array.
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:208](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L208)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:237](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L237)
 
 Vault provider's BTC public key (x-only, 64-char hex).
 Can be provided with or without "0x" prefix (will be stripped automatically).
@@ -1171,10 +1254,11 @@ Can be provided with or without "0x" prefix (will be stripped automatically).
 commissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:214](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L214)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:244](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L244)
 
-VP commission in basis points; feeds the deposit terms' per-vault
-commissionFee (floor(vaultAmount * bps / 10_000)).
+VP commission quoted for this deposit (bps). Capped to the approval
+ceiling before it sizes the terms' commissionFee, so the user approves
+the most the VP can take — not the quote.
 
 ##### vaultKeeperBtcPubkeys
 
@@ -1182,7 +1266,7 @@ commissionFee (floor(vaultAmount * bps / 10_000)).
 vaultKeeperBtcPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:220](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L220)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:250](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L250)
 
 Vault keeper BTC public keys (x-only, 64-char hex).
 Can be provided with or without "0x" prefix (will be stripped automatically).
@@ -1193,7 +1277,7 @@ Can be provided with or without "0x" prefix (will be stripped automatically).
 universalChallengerBtcPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:226](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L226)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:256](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L256)
 
 Universal challenger BTC public keys (x-only, 64-char hex).
 Can be provided with or without "0x" prefix (will be stripped automatically).
@@ -1204,9 +1288,23 @@ Can be provided with or without "0x" prefix (will be stripped automatically).
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:231](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L231)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:261](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L261)
 
 CSV timelock in blocks for the PegIn vault output.
+
+##### timelockAssert
+
+```ts
+timelockAssert: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:269](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L269)
+
+btc-vault `timelock_assert` (t2) — the Assert:0 payout-leaf CSV. Carried
+into DepositTerms as its own field. Production collapses the two: the SDK
+derives timelockPegin from the same on-chain timelockAssert
+(`protocol-params-reader.ts` deriveTimelockPegin), mirroring vaultd
+(`pegin_validation.rs`). The terms never assume that identity.
 
 ##### timelockRefund
 
@@ -1214,7 +1312,7 @@ CSV timelock in blocks for the PegIn vault output.
 timelockRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:236](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L236)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:274](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L274)
 
 CSV timelock in blocks for the Pre-PegIn HTLC refund path.
 
@@ -1224,7 +1322,7 @@ CSV timelock in blocks for the Pre-PegIn HTLC refund path.
 protocolFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:242](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L242)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:280](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L280)
 
 TX-graph fee rate in sat/vB from the contract offchain params.
 Used by WASM to size the depositor claim value (graph transactions).
@@ -1235,7 +1333,7 @@ Used by WASM to size the depositor claim value (graph transactions).
 minPeginFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:248](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L248)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:286](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L286)
 
 Minimum PegIn fee rate in sat/vB from the contract offchain params.
 Used by WASM to size the PegIn transaction fee.
@@ -1246,7 +1344,7 @@ Used by WASM to size the PegIn transaction fee.
 mempoolFeeRate: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:254](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L254)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:292](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L292)
 
 Mempool fee rate in sat/vB for funding the Pre-PegIn transaction.
 Used for UTXO selection and change calculation.
@@ -1257,7 +1355,7 @@ Used for UTXO selection and change calculation.
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:259](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L259)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:297](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L297)
 
 M in M-of-N council multisig (from contract params).
 
@@ -1267,7 +1365,7 @@ M in M-of-N council multisig (from contract params).
 councilSize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:264](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L264)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:302](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L302)
 
 N in M-of-N council multisig (from contract params).
 
@@ -1277,7 +1375,7 @@ N in M-of-N council multisig (from contract params).
 availableUTXOs: readonly UTXO[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:269](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L269)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:307](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L307)
 
 Available UTXOs from the depositor's wallet for funding the Pre-PegIn transaction.
 
@@ -1287,7 +1385,7 @@ Available UTXOs from the depositor's wallet for funding the Pre-PegIn transactio
 changeAddress: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:274](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L274)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:312](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L312)
 
 Bitcoin address for receiving change from the Pre-PegIn transaction.
 
@@ -1295,7 +1393,7 @@ Bitcoin address for receiving change from the Pre-PegIn transaction.
 
 ### PerVaultPeginData
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:281](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L281)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:319](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L319)
 
 Per-vault PegIn data derived from a shared Pre-PegIn transaction
 
@@ -1307,7 +1405,7 @@ Per-vault PegIn data derived from a shared Pre-PegIn transaction
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:283](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L283)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:321](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L321)
 
 Index of the HTLC output in the Pre-PegIn transaction (0, 1, 2, ...)
 
@@ -1317,7 +1415,7 @@ Index of the HTLC output in the Pre-PegIn transaction (0, 1, 2, ...)
 htlcValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:285](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L285)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:323](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L323)
 
 HTLC output value in satoshis
 
@@ -1327,7 +1425,7 @@ HTLC output value in satoshis
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:287](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L287)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:325](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L325)
 
 Depositor-signed PegIn transaction hex (for contract registration)
 
@@ -1337,7 +1435,7 @@ Depositor-signed PegIn transaction hex (for contract registration)
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:289](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L289)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:327](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L327)
 
 PegIn transaction ID
 
@@ -1347,7 +1445,7 @@ PegIn transaction ID
 peginInputSignature: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:291](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L291)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:329](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L329)
 
 Depositor's Schnorr signature over PegIn input (HTLC leaf 0)
 
@@ -1357,7 +1455,7 @@ Depositor's Schnorr signature over PegIn input (HTLC leaf 0)
 vaultScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:293](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L293)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:331](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L331)
 
 Vault output scriptPubKey hex
 
@@ -1365,7 +1463,7 @@ Vault output scriptPubKey hex
 
 ### PreparePeginTransaction
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:300](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L300)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:338](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L338)
 
 Broadcast-ready transaction output of [PeginManager.preparePegin](#preparepegin).
 Safe to log / persist — contains no sensitive material.
@@ -1378,7 +1476,7 @@ Safe to log / persist — contains no sensitive material.
 fundedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:306](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L306)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:344](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L344)
 
 Funded, pre-witness Pre-PegIn tx hex. Pass this for register calls'
 `unsignedPrePeginTx` — despite the contract-side name, the registry
@@ -1390,7 +1488,7 @@ stores the funded form so indexers can rebuild refund PSBTs.
 prePeginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:308](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L308)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:346](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L346)
 
 Funded Pre-PegIn transaction ID
 
@@ -1400,7 +1498,7 @@ Funded Pre-PegIn transaction ID
 perVault: PerVaultPeginData[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:310](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L310)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:348](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L348)
 
 Per-vault PegIn data — one entry per amount
 
@@ -1410,7 +1508,7 @@ Per-vault PegIn data — one entry per amount
 selectedUTXOs: UTXO[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:312](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L312)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:350](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L350)
 
 UTXOs selected to fund the Pre-PegIn transaction
 
@@ -1420,7 +1518,7 @@ UTXOs selected to fund the Pre-PegIn transaction
 fee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:314](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L314)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:352](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L352)
 
 Transaction fee in satoshis
 
@@ -1430,7 +1528,7 @@ Transaction fee in satoshis
 changeAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:316](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L316)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:354](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L354)
 
 Change amount in satoshis (if any)
 
@@ -1438,7 +1536,7 @@ Change amount in satoshis (if any)
 
 ### PreparePeginDerivedSecrets
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:324](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L324)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:362](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L362)
 
 Sensitive material derived from the wallet root. Do not log; do not
 persist beyond the activation flow. Strings are immutable in JS, so
@@ -1452,7 +1550,7 @@ lifetime is GC-only — secrets stay live until the result is dropped.
 perVaultWotsKeys: WotsBlockPublicKey[][];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:326](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L326)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:364](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L364)
 
 Per-vault WOTS block public keys (one array per vault).
 
@@ -1462,7 +1560,7 @@ Per-vault WOTS block public keys (one array per vault).
 wotsPkHashes: `0x${string}`[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:328](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L328)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:366](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L366)
 
 Per-vault keccak256 of WOTS keys, ready as `depositorWotsPkHash`.
 
@@ -1472,7 +1570,7 @@ Per-vault keccak256 of WOTS keys, ready as `depositorWotsPkHash`.
 htlcSecretHexes: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:333](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L333)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:371](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L371)
 
 Per-vault HTLC preimage hex (no 0x prefix). Re-derivable any time
 via `expandHashlockSecret(root, htlcVout)`; not persisted.
@@ -1483,7 +1581,7 @@ via `expandHashlockSecret(root, htlcVout)`; not persisted.
 authAnchorHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:344](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L344)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:382](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L382)
 
 Raw 32-byte auth-anchor preimage as 64-char lowercase hex (no `0x`).
 Sent to the VP via `auth_createDepositorToken` to obtain a bearer
@@ -1498,7 +1596,7 @@ not weaken the other derived secrets.
 
 ### PreparePeginResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:347](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L347)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:385](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L385)
 
 #### Properties
 
@@ -1508,7 +1606,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:347](
 transaction: PreparePeginTransaction;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:349](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L349)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:387](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L387)
 
 Broadcast-ready Pre-PegIn + per-vault PegIn txs. Safe to log.
 
@@ -1518,7 +1616,7 @@ Broadcast-ready Pre-PegIn + per-vault PegIn txs. Safe to log.
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:356](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L356)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:394](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L394)
 
 x-only depositor pubkey snapshot used end-to-end across sizing,
 vault-root derivation, and PSBT signing. Safe to persist; not
@@ -1531,7 +1629,7 @@ derived secrets and signed PSBTs reference the same identity.
 derivedSecrets: PreparePeginDerivedSecrets;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:358](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L358)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:396](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L396)
 
 Sensitive derived material — see [PreparePeginDerivedSecrets](#preparepeginderivedsecrets).
 
@@ -1541,7 +1639,7 @@ Sensitive derived material — see [PreparePeginDerivedSecrets](#preparepeginder
 depositTerms: DepositTerms;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:365](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L365)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:403](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L403)
 
 Protocol-level deposit terms for this Pre-PegIn. Always built, regardless
 of wallet capability — [supportsDepositApproval](deposit-terms.md#supportsdepositapproval) wallets get it via
@@ -1552,7 +1650,7 @@ reference.
 
 ### SignAndBroadcastParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:371](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L371)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:409](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L409)
 
 Parameters for signing and broadcasting a transaction.
 
@@ -1564,7 +1662,7 @@ Parameters for signing and broadcasting a transaction.
 fundedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:375](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L375)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:413](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L413)
 
 Funded Pre-PegIn transaction hex from preparePegin().
 
@@ -1574,7 +1672,7 @@ Funded Pre-PegIn transaction hex from preparePegin().
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:382](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L382)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:420](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L420)
 
 Depositor's BTC public key (x-only, 64-char hex).
 Can be provided with or without "0x" prefix.
@@ -1589,7 +1687,7 @@ optional localPrevouts: Record<string, {
 }>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:390](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L390)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:428](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L428)
 
 Optional pre-fetched prevout data for inputs not yet in the mempool.
 Key format: "txid:vout" (e.g. "abc123...def:0").
@@ -1600,7 +1698,7 @@ Useful for split transactions where outputs are unconfirmed.
 
 ### PopSignature
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:399](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L399)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:437](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L437)
 
 BIP-322 BTC Proof-of-Possession binding a depositor's BTC key to their
 Ethereum account. Produced by [PeginManager.signProofOfPossession](#signproofofpossession)
@@ -1615,7 +1713,7 @@ embedded identities are re-checked at register time.
 btcPopSignature: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:401](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L401)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:439](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L439)
 
 BIP-322 signature over the PoP message (0x-prefixed hex).
 
@@ -1625,7 +1723,7 @@ BIP-322 signature over the PoP message (0x-prefixed hex).
 depositorEthAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:403](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L403)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:441](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L441)
 
 Ethereum address the PoP was signed for.
 
@@ -1635,7 +1733,7 @@ Ethereum address the PoP was signed for.
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:405](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L405)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:443](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L443)
 
 BTC x-only public key (64-char hex, no 0x prefix).
 
@@ -1643,7 +1741,7 @@ BTC x-only public key (64-char hex, no 0x prefix).
 
 ### RegisterPeginParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:411](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L411)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:449](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L449)
 
 Parameters for registering a peg-in on Ethereum.
 
@@ -1655,7 +1753,7 @@ Parameters for registering a peg-in on Ethereum.
 unsignedPrePeginTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:418](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L418)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:456](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L456)
 
 Funded, pre-witness Pre-PegIn tx hex — pass
 [PreparePeginTransaction.fundedPrePeginTxHex](#fundedprepegintxhex) from
@@ -1668,7 +1766,7 @@ is named `unsignedPrePeginTx` but it stores the funded form.
 depositorSignedPeginTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:423](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L423)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:461](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L461)
 
 Depositor-signed PegIn transaction hex (submitted to contract; vault ID derived from this).
 
@@ -1678,7 +1776,7 @@ Depositor-signed PegIn transaction hex (submitted to contract; vault ID derived 
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:428](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L428)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:466](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L466)
 
 Vault provider's Ethereum address.
 
@@ -1688,7 +1786,7 @@ Vault provider's Ethereum address.
 hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:433](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L433)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:471](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L471)
 
 SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix).
 
@@ -1698,7 +1796,7 @@ SHA256 hashlock for HTLC activation (bytes32 hex with 0x prefix).
 optional depositorPayoutBtcAddress: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:442](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L442)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:480](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L480)
 
 Depositor's BTC payout address (e.g. bc1p..., bc1q...).
 Converted to scriptPubKey internally via bitcoinjs-lib.
@@ -1712,7 +1810,7 @@ via `btcWallet.getAddress()`.
 depositorWotsPkHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:445](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L445)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:483](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L483)
 
 Keccak256 hash of the depositor's WOTS public key (bytes32)
 
@@ -1722,7 +1820,7 @@ Keccak256 hash of the depositor's WOTS public key (bytes32)
 popSignature: PopSignature;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:448](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L448)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:486](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L486)
 
 Proof of possession from [PeginManager.signProofOfPossession](#signproofofpossession).
 
@@ -1732,7 +1830,7 @@ Proof of possession from [PeginManager.signProofOfPossession](#signproofofposses
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:455](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L455)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:493](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L493)
 
 Zero-based index of the HTLC output in the Pre-PegIn transaction that
 this PegIn spends. In a batch Pre-PegIn with N HTLC outputs, each vault
@@ -1744,15 +1842,17 @@ registration references a different htlcVout (0..N-1).
 optional quotedCommissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:458](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L458)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:500](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L500)
 
-VP commission (bps) shown to the user — bounds maxAcceptableCommissionBps. See #1691.
+Bounds the registration's maxAcceptableCommissionBps (#1691). REQUIRED
+when the wallet approved terms — the ceiling must anchor to the approved
+quote. Optional otherwise; falls back to chain-current.
 
 ***
 
 ### RegisterPeginResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:464](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L464)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:506](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L506)
 
 Result of registering a peg-in on Ethereum.
 
@@ -1764,7 +1864,7 @@ Result of registering a peg-in on Ethereum.
 ethTxHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:468](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L468)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:510](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L510)
 
 Ethereum transaction hash for the peg-in registration.
 
@@ -1774,7 +1874,7 @@ Ethereum transaction hash for the peg-in registration.
 vaultId: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:474](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L474)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:516](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L516)
 
 Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)).
 Used for contract reads/writes and indexer queries.
@@ -1785,7 +1885,7 @@ Used for contract reads/writes and indexer queries.
 peginTxHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:480](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L480)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:522](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L522)
 
 Raw Bitcoin pegin transaction hash (double-SHA256 of the signed pegin tx).
 Used for VP RPC operations which key on the BTC transaction ID.
@@ -1794,7 +1894,7 @@ Used for VP RPC operations which key on the BTC transaction ID.
 
 ### BatchPeginRequestItem
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:488](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L488)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:530](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L530)
 
 Single request in a batch pegin registration.
 All requests in a batch share the same vault provider, depositor BTC
@@ -1808,7 +1908,7 @@ pubkey, and Pre-PegIn transaction.
 depositorSignedPeginTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:490](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L490)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:532](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L532)
 
 Signed PegIn tx hex for this vault
 
@@ -1818,7 +1918,7 @@ Signed PegIn tx hex for this vault
 hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:492](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L492)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:534](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L534)
 
 SHA256 hashlock for HTLC activation (bytes32 hex)
 
@@ -1828,7 +1928,7 @@ SHA256 hashlock for HTLC activation (bytes32 hex)
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:494](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L494)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:536](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L536)
 
 Zero-based HTLC output index in the Pre-PegIn tx (unique per request)
 
@@ -1838,7 +1938,7 @@ Zero-based HTLC output index in the Pre-PegIn tx (unique per request)
 depositorPayoutBtcAddress: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:496](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L496)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:538](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L538)
 
 Depositor's BTC payout address (required — funds are sent here on payout)
 
@@ -1848,7 +1948,7 @@ Depositor's BTC payout address (required — funds are sent here on payout)
 depositorWotsPkHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:498](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L498)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:540](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L540)
 
 Keccak256 hash of the depositor's WOTS public key (bytes32)
 
@@ -1856,7 +1956,7 @@ Keccak256 hash of the depositor's WOTS public key (bytes32)
 
 ### RegisterPeginBatchParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:504](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L504)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:546](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L546)
 
 Parameters for registerPeginBatchOnChain.
 
@@ -1868,7 +1968,7 @@ Parameters for registerPeginBatchOnChain.
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:506](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L506)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:548](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L548)
 
 Vault provider address (shared across all vaults in batch)
 
@@ -1878,7 +1978,7 @@ Vault provider address (shared across all vaults in batch)
 unsignedPrePeginTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:511](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L511)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:553](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L553)
 
 Funded, pre-witness Pre-PegIn tx hex — shared across every request in
 the batch. See [RegisterPeginParams.unsignedPrePeginTx](#unsignedprepegintx).
@@ -1889,7 +1989,7 @@ the batch. See [RegisterPeginParams.unsignedPrePeginTx](#unsignedprepegintx).
 requests: BatchPeginRequestItem[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:513](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L513)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:555](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L555)
 
 Individual pegin requests (one per vault)
 
@@ -1899,7 +1999,7 @@ Individual pegin requests (one per vault)
 popSignature: PopSignature;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:515](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L515)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:557](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L557)
 
 Proof of possession from [PeginManager.signProofOfPossession](#signproofofpossession).
 
@@ -1909,7 +2009,7 @@ Proof of possession from [PeginManager.signProofOfPossession](#signproofofposses
 optional quotedCommissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:517](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L517)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:559](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L559)
 
 See [RegisterPeginParams.quotedCommissionBps](#quotedcommissionbps).
 
@@ -1917,7 +2017,7 @@ See [RegisterPeginParams.quotedCommissionBps](#quotedcommissionbps).
 
 ### BatchPeginResultItem
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:523](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L523)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:565](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L565)
 
 Per-vault result from a batch pegin registration.
 
@@ -1929,7 +2029,7 @@ Per-vault result from a batch pegin registration.
 vaultId: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:525](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L525)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:567](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L567)
 
 Derived vault ID: keccak256(abi.encode(peginTxHash, depositor))
 
@@ -1939,7 +2039,7 @@ Derived vault ID: keccak256(abi.encode(peginTxHash, depositor))
 peginTxHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:527](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L527)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:569](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L569)
 
 Raw BTC pegin transaction hash
 
@@ -1947,7 +2047,7 @@ Raw BTC pegin transaction hash
 
 ### RegisterPeginBatchResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:533](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L533)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:575](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L575)
 
 Result of registering a batch of pegins on Ethereum in a single transaction.
 
@@ -1959,7 +2059,7 @@ Result of registering a batch of pegins on Ethereum in a single transaction.
 ethTxHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:535](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L535)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:577](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L577)
 
 Ethereum transaction hash
 
@@ -1969,7 +2069,7 @@ Ethereum transaction hash
 vaults: BatchPeginResultItem[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:537](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L537)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:579](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L579)
 
 Per-vault results (same order as input requests)
 
@@ -1977,7 +2077,7 @@ Per-vault results (same order as input requests)
 
 ### EstimateSubmitPeginRequestBatchGasParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1846](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1846)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1900](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1900)
 
 #### Properties
 
@@ -1987,7 +2087,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1846]
 publicClient: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1847](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1847)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1901](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1901)
 
 ##### btcVaultRegistry
 
@@ -1995,7 +2095,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1847]
 btcVaultRegistry: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1848](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1848)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1902](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1902)
 
 ##### depositorEthAddress
 
@@ -2003,7 +2103,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1848]
 depositorEthAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1849](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1849)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1903](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1903)
 
 ##### vaultProvider
 
@@ -2011,7 +2111,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1849]
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1850](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1850)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1904](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1904)
 
 ##### batchSize
 
@@ -2019,7 +2119,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1850]
 batchSize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1851](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1851)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1905](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1905)
 
 ## Type Aliases
 
@@ -2042,7 +2142,7 @@ Using string literal union for maximum compatibility with wallet providers.
 function estimateSubmitPeginRequestBatchGas(params): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1871](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1871)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:1925](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L1925)
 
 Estimate gas for a `submitPeginRequestBatch` call before the depositor has
 signed anything. Synthesizes calldata using representative dummy bytes for

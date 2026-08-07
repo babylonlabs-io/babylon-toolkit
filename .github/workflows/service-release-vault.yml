@@ -167,7 +167,6 @@ jobs:
           SENTRY_URL: ${{ vars.SENTRY_URL }}
           SENTRY_RELEASE: ${{ github.sha }}
           SENTRY_DIST: ${{ github.run_id }}
-          SENTRY_ENVIRONMENT: ${{ matrix.environment }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           # Proxies Sentry events through our own host. Unset, events go directly to
           # Sentry's ingest host, which the CDN's connect-src does not allow.
@@ -175,23 +174,20 @@ jobs:
           NEXT_PUBLIC_RELEASE_ID: ${{ github.sha }}
           NEXT_PUBLIC_DIST_ID: ${{ github.run_id }}
           NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
-          # Analytics
-          GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
           # Feature Flags
           NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
           NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: ${{ vars.NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS }}
           NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS: ${{ vars.NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS }}
-          NEXT_PUBLIC_FF_ENABLE_V3_UI: ${{ vars.NEXT_PUBLIC_FF_ENABLE_V3_UI }}
+          NEXT_PUBLIC_FF_ENABLE_EXPLORE: ${{ vars.NEXT_PUBLIC_FF_ENABLE_EXPLORE }}
           NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART: ${{ vars.NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART }}
+          NEXT_PUBLIC_FF_ENABLE_MARKET_DETAIL_PAGE: ${{ vars.NEXT_PUBLIC_FF_ENABLE_MARKET_DETAIL_PAGE }}
           NEXT_PUBLIC_FF_DISABLE_DEPOSIT: ${{ vars.NEXT_PUBLIC_FF_DISABLE_DEPOSIT }}
           NEXT_PUBLIC_FF_DISABLE_BORROW: ${{ vars.NEXT_PUBLIC_FF_DISABLE_BORROW }}
           NEXT_PUBLIC_FF_PROTOCOL_FROZEN: ${{ vars.NEXT_PUBLIC_FF_PROTOCOL_FROZEN }}
           NEXT_PUBLIC_FF_PROTOCOL_PAUSED: ${{ vars.NEXT_PUBLIC_FF_PROTOCOL_PAUSED }}
           NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT: ${{ vars.NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT }}
-          NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: ${{ vars.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL }}
           NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS: ${{ vars.NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS }}
           # Misc
-          NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES: ${{ vars.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES }}
           NEXT_PUBLIC_NOTICE_BANNER_MESSAGE: ${{ vars.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE }}
 
       - name: Copy all index.html to fix path for activity, app/aave

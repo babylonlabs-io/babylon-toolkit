@@ -2,9 +2,8 @@ import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 import { IoInformationCircle } from "react-icons/io5";
 
-import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
-import { FeatureFlags, getNetworkConfigBTC } from "@/config";
+import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
@@ -15,11 +14,9 @@ import { FeesSection, type FeeRow } from "./FeesSection";
 import { SplitTooLowHint } from "./SplitTooLowHint";
 import { SuggestedDepositContainer } from "./SuggestedDepositContainer";
 import {
-  UtxoSplitSelector,
+  UtxoSplitSelectorV3,
   type TwoVaultSplitProps,
-} from "./UtxoSplitSelector";
-import { UtxoSplitSelectorV3 } from "./UtxoSplitSelectorV3";
-import { VaultProviderSelector } from "./VaultProviderSelector";
+} from "./UtxoSplitSelectorV3";
 import {
   VaultProviderSelectorV3,
   type VaultProviderSelectorProps,
@@ -27,19 +24,12 @@ import {
 
 const btcConfig = getNetworkConfigBTC();
 
-// v3 deposit CTA: accent-primary (#CE6533) enabled, stroke-primary (#5A5A5A)
+// Deposit CTA: accent-primary (#CE6533) enabled, stroke-primary (#5A5A5A)
 // disabled, 8px radius. core-ui's contained/primary button is slate blue with a
 // 30%-opacity disabled state, so both states are overridden here rather than in
-// the shared component. Undefined pre-v3, which leaves the core-ui styling.
-const V3_CTA_CLASSES = FeatureFlags.isV3UiEnabled
-  ? "!rounded-lg !bg-secondary-main disabled:!bg-secondary-strokeDark disabled:!opacity-100"
-  : undefined;
-
-interface Application {
-  id: string;
-  name: string;
-  logoUrl: string | null;
-}
+// the shared component.
+const V3_CTA_CLASSES =
+  "!rounded-lg !bg-secondary-main disabled:!bg-secondary-strokeDark disabled:!opacity-100";
 
 export interface DepositAmountState {
   amount: string;
@@ -117,8 +107,6 @@ export interface DepositFeeState {
 }
 
 export interface DepositProviderState {
-  applications: Application[];
-  selectedApplication: string;
   providers: VaultProviderListItem[];
   isLoadingProviders: boolean;
   selectedProvider: string;
@@ -143,8 +131,8 @@ export interface DepositWalletState {
   /**
    * True when the silent lock poll flagged the BTC wallet as locked. The CTA is
    * already promoted to a recovery action via `hasWalletConnectionError`; this
-   * relabels it "Unlock wallet" (vs "Reconnect Wallet" for a liveness failure)
-   * so the button matches what the user must do.
+   * relabels it "Unlock Wallet to Deposit" (vs "Reconnect Wallet" for a
+   * liveness failure) so the button matches what the user must do.
    */
   isWalletLocked?: boolean;
   /**
@@ -246,14 +234,8 @@ export function DepositForm({
     protocolFeeIsError = false,
     feeRows,
   } = feeState;
-  const {
-    applications,
-    selectedApplication,
-    providers,
-    isLoadingProviders,
-    selectedProvider,
-    onProviderSelect,
-  } = providerState;
+  const { providers, isLoadingProviders, selectedProvider, onProviderSelect } =
+    providerState;
   const {
     isWalletConnected,
     hasWalletConnectionError = false,
@@ -346,12 +328,10 @@ export function DepositForm({
         tooltip={COPY.deposit.form.pendingConfirmationTooltip}
         attachToChildren
       >
-        <InfoIcon size={16} className="text-secondary-strokeDark" />
+        <InfoIcon size={16} className="text-accent-secondary" />
       </Hint>
     </span>
   ) : null;
-
-  const selectedApp = applications.find((a) => a.id === selectedApplication);
 
   const maxTooltip = hasUnconfirmedBalanceOnly
     ? undefined
@@ -407,14 +387,14 @@ export function DepositForm({
   });
 
   // A locked wallet reuses the same recovery CTA as a liveness failure (both
-  // reconnect on click), but reads "Unlock wallet" so the action matches the
-  // cause. `getDepositCtaState` already handled `disabled`; only the label
-  // differs here.
+  // reconnect on click), but reads "Unlock Wallet to Deposit" so the action
+  // matches the cause. `getDepositCtaState` already handled `disabled`; only
+  // the label differs here.
   const ctaLabel =
     isWalletLocked && hasWalletConnectionError
       ? isReconnectingWallet
         ? COPY.wallet.locked.unlocking
-        : COPY.wallet.locked.unlockButton
+        : COPY.wallet.locked.unlockToDepositButton
       : cta.label;
 
   return (
@@ -438,43 +418,18 @@ export function DepositForm({
             )
           }
           sliderVariant="primary"
-          // v3 mirrors the Figma row: USD value on the left, balance + Max
-          // pill on the right. v2 keeps the Max-pill-first layout.
-          leftField={
-            FeatureFlags.isV3UiEnabled
-              ? {
-                  value: !hasAmount
-                    ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-                    : usdValue,
-                }
-              : {
-                  label: COPY.deposit.form.maxLabel,
-                  value: maxDepositLabel,
-                  // Mention the supply cap only when one exists for this user.
-                  // `effectiveRemaining` is null both when no cap applies and
-                  // while the cap read is loading; either way we omit the cap
-                  // clause until we know it's a real constraint.
-                  //
-                  // Drop the Max tooltip while the pending-confirmation note is
-                  // shown so the row carries a single info icon (the pending
-                  // one) rather than two competing tooltips.
-                  tooltip: maxTooltip,
-                }
-          }
-          rightField={
-            FeatureFlags.isV3UiEnabled
-              ? {
-                  label: COPY.deposit.form.balanceLabel,
-                  value: maxDepositLabel,
-                  tooltip: maxTooltip,
-                }
-              : {
-                  value: !hasAmount
-                    ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-                    : usdValue,
-                }
-          }
-          maxPosition={FeatureFlags.isV3UiEnabled ? "right" : "left"}
+          // Figma row: USD value on the left, balance + Max pill on the right.
+          leftField={{
+            value: !hasAmount
+              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
+              : usdValue,
+          }}
+          rightField={{
+            label: COPY.deposit.form.balanceLabel,
+            value: maxDepositLabel,
+            tooltip: maxTooltip,
+          }}
+          maxPosition="right"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
@@ -526,45 +481,20 @@ export function DepositForm({
         )}
       </Card>
 
-      {twoVaultSplit &&
-        (FeatureFlags.isV3UiEnabled ? (
-          <UtxoSplitSelectorV3
-            twoVaultSplit={twoVaultSplit}
-            expanded={openPanel === "split"}
-            onExpandedChange={setPanelExpanded("split")}
-          />
-        ) : (
-          <UtxoSplitSelector
-            twoVaultSplit={twoVaultSplit}
-            expanded={openPanel === "split"}
-            onExpandedChange={setPanelExpanded("split")}
-          />
-        ))}
-
-      {/* Aave app. v3 shows the application logo in the page header instead
-          (see SimpleDeposit), so this row is v2-only. */}
-      {!FeatureFlags.isV3UiEnabled && selectedApp && (
-        <Card variant="filled" className="flex items-center gap-3 !rounded-lg">
-          <ApplicationLogo
-            logoUrl={selectedApp.logoUrl}
-            name={selectedApp.name}
-            size="small"
-          />
-          <span className="text-sm text-accent-primary">
-            {selectedApp.name}
-          </span>
-        </Card>
+      {twoVaultSplit && (
+        <UtxoSplitSelectorV3
+          twoVaultSplit={twoVaultSplit}
+          expanded={openPanel === "split"}
+          onExpandedChange={setPanelExpanded("split")}
+        />
       )}
 
-      {FeatureFlags.isV3UiEnabled ? (
-        <VaultProviderSelectorV3 {...providerSelectorProps} />
-      ) : (
-        <VaultProviderSelector {...providerSelectorProps} />
-      )}
+      <VaultProviderSelectorV3 {...providerSelectorProps} />
 
       {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
-          ("Unlock wallet") is the affordance. A liveness failure still surfaces
-          its detail string so the user sees the underlying cause. */}
+          ("Unlock Wallet to Deposit") is the affordance. A liveness failure
+          still surfaces its detail string so the user sees the underlying
+          cause. */}
       {hasWalletConnectionError &&
         !isWalletLocked &&
         walletConnectionErrorMessage && (

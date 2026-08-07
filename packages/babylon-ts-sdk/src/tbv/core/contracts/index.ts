@@ -9,13 +9,13 @@
 
 export { ApplicationRegistryABI } from "./abis/ApplicationRegistry.abi";
 export { BTCVaultRegistryABI } from "./abis/BTCVaultRegistry.abi";
+export { BTCVaultRegistryKeyEpochsABI } from "./abis/BTCVaultRegistryKeyEpochs.abi";
 export { ProtocolParamsABI } from "./abis/ProtocolParams.abi";
 
 export {
   CONTRACT_ERRORS,
   extractErrorData,
   getContractErrorMessage,
-  isKnownContractError,
   handleContractError,
+  isKnownContractError,
 } from "./errors";
-

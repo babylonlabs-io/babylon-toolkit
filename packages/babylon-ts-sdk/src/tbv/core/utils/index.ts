@@ -4,6 +4,7 @@
  * @module utils
  */
 
+export * from "./abortSignals";
 export * from "./fee";
 export * from "./utxo";
 export * from "./transaction";

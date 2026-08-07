@@ -52,8 +52,13 @@ export function ActivateConfirmationModal({
   onConfirm,
   onAdvancedWithdraw,
 }: ActivateConfirmationModalProps) {
+  // Bound to the pegin, so a receipt stored for a different one does not
+  // satisfy the gate. When `peginTxid` is absent we cannot prove the stored
+  // receipt belongs to this deposit, so this reads as not-downloaded and the
+  // risk acknowledgement stays required — the same condition under which
+  // `canRenderCard` below is false, so the two states agree.
   const [downloaded, setDownloaded] = useState(() =>
-    hasArtifactsDownloaded(vaultId),
+    hasArtifactsDownloaded(vaultId, peginTxid ?? ""),
   );
   const [acknowledged, setAcknowledged] = useState(false);
   // Mirrors RecoveryArtifactsCard's internal `loading` flag via
@@ -63,10 +68,10 @@ export function ActivateConfirmationModal({
 
   useEffect(() => {
     if (!open) return;
-    setDownloaded(hasArtifactsDownloaded(vaultId));
+    setDownloaded(hasArtifactsDownloaded(vaultId, peginTxid ?? ""));
     setAcknowledged(false);
     setIsDownloading(false);
-  }, [open, vaultId]);
+  }, [open, vaultId, peginTxid]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
 
