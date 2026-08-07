@@ -40,6 +40,9 @@ jobs:
 
   s3_publish:
     needs: [lint_test]
+    permissions:
+      id-token: write # OIDC assume-role for AWS
+      contents: write # publish checksum manifest as a release asset (#253)
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -62,6 +65,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          # Job holds contents:write; don't leave the token in .git/config while
+          # pnpm install / build run untrusted deps.
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
@@ -145,3 +152,48 @@ jobs:
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}.tar.gz
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-files-checksum.txt
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-global-checksum.txt
+
+      # Last step: publishing the manifest must not block the S3 uploads above.
+      - name: Publish checksum manifests as write-once release assets
+        # Only real deploy refs — workflow_dispatch can run from any branch, and
+        # the public store must hold manifests only for builds that shipped.
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/v1.x' || startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Append-only per-deploy sha256 manifests for the frontend integrity
+          # checker (devops-backlog#253). Public, so the checker reads them with
+          # no credentials, from a different trust domain than the AWS serving path.
+          RELEASE_TAG=frontend-manifests
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" \
+              --title "Frontend integrity manifests" \
+              --notes "Append-only sha256 manifests for the frontend integrity checker (devops-backlog#253). Do not delete." \
+              --latest=false || true
+          for ASSET in \
+            "/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt" \
+            "/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt"; do
+            NAME="$(basename "$ASSET")"
+            URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${NAME}"
+            # Write-once, checked against the URL the checker actually reads (not
+            # the producer's asset list): survives the create race, asset-list
+            # truncation and a draft release. Builds aren't byte-reproducible
+            # (run_id embedded), so a rerun must never swap a published manifest.
+            if curl -sfIL -o /dev/null "$URL"; then
+              echo "manifest $NAME already published — keeping the original"
+            else
+              gh release upload "$RELEASE_TAG" "$ASSET"
+              curl -sfIL -o /dev/null "$URL" || { echo "::error::manifest not retrievable at $URL"; exit 1; }
+            fi
+          done
+          # Keep the release well under GitHub's 1000-asset/release cap. Only the
+          # currently-deployed sha per env is ever looked up, so older manifests
+          # are dead weight — keep the most recent 500, drop the rest. Best-effort
+          # (|| true) so a prune race across the env matrix can't fail the publish.
+          KEEP=500
+          gh release view "$RELEASE_TAG" --json assets \
+            --jq ".assets | sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].name" \
+          | while IFS= read -r OLD; do
+              [ -n "$OLD" ] && gh release delete-asset "$RELEASE_TAG" "$OLD" --yes 2>/dev/null || true
+            done || true
