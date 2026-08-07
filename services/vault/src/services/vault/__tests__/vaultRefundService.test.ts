@@ -116,7 +116,7 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
       mockGetUniversalChallengersByVersion(...args),
   }),
   getVaultRegistryReader: vi.fn().mockReturnValue({
-    getVaultProviderBtcPubKey: (...args: unknown[]) =>
+    getVaultProviderGenesisBtcPubKey: (...args: unknown[]) =>
       mockGetVaultProviderBtcPubKey(...args),
     getCurrentVaultProviderOperationBtcKey: (...args: unknown[]) =>
       mockGetCurrentVaultProviderOperationBtcKey(...args),

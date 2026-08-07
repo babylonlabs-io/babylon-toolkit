@@ -29,7 +29,7 @@ import type { Address, Hex } from "viem";
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
-  getVaultProviderBtcPubkeyFromChain,
+  getVaultProviderGenesisBtcPubkeyFromChain,
 } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
   getOperationKeyReader,
@@ -142,7 +142,7 @@ export async function resolveVaultProviderBtcPubkey(
   btcPubKey?: string,
 ): Promise<string> {
   const registrationBtcPubkey = canonicalizeBtcPubkey(
-    await getVaultProviderBtcPubkeyFromChain(address),
+    await getVaultProviderGenesisBtcPubkeyFromChain(address),
   );
 
   await assertVaultProviderHintAccepted({

@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
-  getVaultProviderBtcPubkeyFromChain: vi.fn(),
+  getVaultProviderGenesisBtcPubkeyFromChain: vi.fn(),
   getVaultKeyEpochsFromChain: vi.fn().mockResolvedValue({
     vpKeyEpoch: 0n,
     appKeeperKeyEpoch: 0n,
@@ -66,7 +66,7 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
 
 import {
   getVaultFromChain,
-  getVaultProviderBtcPubkeyFromChain,
+  getVaultProviderGenesisBtcPubkeyFromChain,
 } from "../../../clients/eth-contract/btc-vault-registry/query";
 import {
   prepareSigningContext,
@@ -85,7 +85,7 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("returns the on-chain key when the provided hint matches", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
 
@@ -95,13 +95,13 @@ describe("vaultPayoutSignatureService", () => {
       );
 
       expect(result).toBe(ON_CHAIN_VP_PUBKEY);
-      expect(getVaultProviderBtcPubkeyFromChain).toHaveBeenCalledWith(
+      expect(getVaultProviderGenesisBtcPubkeyFromChain).toHaveBeenCalledWith(
         "0xprovider",
       );
     });
 
     it("accepts a compressed hint that matches the on-chain x-only key", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
 
@@ -114,7 +114,7 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("accepts an uncompressed hint that matches the on-chain x-only key", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
 
@@ -127,20 +127,20 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("reads from chain when no hint is provided", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
 
       const result = await resolveVaultProviderBtcPubkey("0xprovider");
 
       expect(result).toBe(ON_CHAIN_VP_PUBKEY);
-      expect(getVaultProviderBtcPubkeyFromChain).toHaveBeenCalledWith(
+      expect(getVaultProviderGenesisBtcPubkeyFromChain).toHaveBeenCalledWith(
         "0xprovider",
       );
     });
 
     it("throws when the hint matches neither the registration nor the current operation key", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
       mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
@@ -159,7 +159,7 @@ describe("vaultPayoutSignatureService", () => {
     // would break payout signing for every depositor of a rotated provider,
     // triggered by an indexer deploy rather than one of ours.
     it("accepts a hint matching the current operation key after a rotation", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
       mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
@@ -178,7 +178,7 @@ describe("vaultPayoutSignatureService", () => {
 
     // The extra read is a fallback, not a second unconditional RPC.
     it("does not read the current operation key when the hint matches registration", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
 
@@ -220,7 +220,7 @@ describe("vaultPayoutSignatureService", () => {
       mockGetUniversalChallengersByVersion.mockResolvedValue([
         { btcPubKey: "uc1" },
       ]);
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
       mockResolveParticipantKeysAtEpochs.mockResolvedValue({
@@ -322,7 +322,7 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("accepts a caller-provided VP pubkey hint when it matches on-chain", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
 
@@ -334,13 +334,13 @@ describe("vaultPayoutSignatureService", () => {
       });
 
       expect(context.vaultProviderBtcPubkey).toBe(ON_CHAIN_VP_PUBKEY);
-      expect(getVaultProviderBtcPubkeyFromChain).toHaveBeenCalledWith(
+      expect(getVaultProviderGenesisBtcPubkeyFromChain).toHaveBeenCalledWith(
         ON_CHAIN_VAULT.vaultProvider,
       );
     });
 
     it("throws when a poisoned GraphQL VP pubkey hint differs from on-chain", async () => {
-      (getVaultProviderBtcPubkeyFromChain as Mock).mockResolvedValue(
+      (getVaultProviderGenesisBtcPubkeyFromChain as Mock).mockResolvedValue(
         `0x${ON_CHAIN_VP_PUBKEY}`,
       );
       // Un-rotated provider: the operation key is the registration key, so the

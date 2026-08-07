@@ -71,7 +71,7 @@ function buildReaders({
     getVaultProtocolInfo: vi.fn(),
     getProtocolInfoBatch: vi.fn(),
     getVaultData: vi.fn(),
-    getVaultProviderBtcPubKey: vi
+    getVaultProviderGenesisBtcPubKey: vi
       .fn()
       .mockResolvedValue(vpKey.toLowerCase() as OnChainBtcPubkey),
     getPegInFee: vi.fn(),
@@ -169,9 +169,8 @@ describe("validateOnChainParticipantKeys", () => {
   it("propagates the original error when the on-chain VP key read rejects", async () => {
     const readers = buildReaders();
     (
-      readers.vaultRegistryReader.getVaultProviderBtcPubKey as ReturnType<
-        typeof vi.fn
-      >
+      readers.vaultRegistryReader
+        .getVaultProviderGenesisBtcPubKey as ReturnType<typeof vi.fn>
     ).mockRejectedValue(
       new Error("Vault provider 0xVP has no registered BTC pubkey on-chain"),
     );
@@ -325,7 +324,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         getVaultProtocolInfo: vi.fn(),
         getProtocolInfoBatch: vi.fn(),
         getVaultData: vi.fn(),
-        getVaultProviderBtcPubKey: vi
+        getVaultProviderGenesisBtcPubKey: vi
           .fn()
           .mockResolvedValue(KEYS.vpGenesis as OnChainBtcPubkey),
         getPegInFee: vi.fn(),
