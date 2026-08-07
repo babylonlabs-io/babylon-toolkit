@@ -32,9 +32,17 @@ export {
 export { useAaveVaults, type UseAaveVaultsResult } from "./useAaveVaults";
 export { useActiveLoans, type ActiveLoanRow } from "./useActiveLoans";
 export {
+  useBorrowRateHistory,
+  type UseBorrowRateHistoryResult,
+} from "./useBorrowRateHistory";
+export {
   useBorrowTransaction,
   type UseBorrowTransactionResult,
 } from "./useBorrowTransaction";
+export {
+  useInterestRateModelCurve,
+  type UseInterestRateModelCurveResult,
+} from "./useInterestRateModelCurve";
 export { type UseOptimalSplitResult } from "./useOptimalSplit";
 export {
   type PositionNotificationsStatus,

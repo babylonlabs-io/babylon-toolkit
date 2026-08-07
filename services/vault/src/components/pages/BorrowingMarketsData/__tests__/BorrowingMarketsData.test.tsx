@@ -3,9 +3,13 @@
  *
  * The page turns raw hook data (liquidity, APR, oracle price, on-chain split
  * params) into the display strings shown in the stats bar, the collateral
- * card, and the markets table. Child components are real (only `core-ui` is
- * mocked, matching the sibling tests in this directory) so these tests lock
- * in the page's own formatting/routing logic, not markup.
+ * card, and the markets table. Most child components are real (only `core-ui`
+ * is mocked, matching the sibling tests in this directory) so these tests
+ * lock in the page's own formatting/routing logic, not markup. The two chart
+ * cards (`BorrowRateHistoryCard`, `InterestRateModelCard`) are the exception —
+ * stubbed here since their own internals (hooks, chart rendering, hover) are
+ * already covered by their dedicated test files; this suite only locks in
+ * that the page passes them the right props and gates them correctly.
  *
  * Routing is by on-chain reserve id, not token symbol (audit F7 — a symbol
  * comes from the indexer, so routing by it lets a compromised indexer decide
@@ -18,7 +22,7 @@
 import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Component tests mock core-ui (its dist isn't built in the test run) —
 // consistent with BorrowMarketsTable.test.tsx / CollateralInfoCard.test.tsx.
@@ -67,6 +71,29 @@ const useDemoMarketDataMock = vi.fn();
 
 vi.mock("@/dev/demoMarketData", () => ({
   useDemoMarketData: () => useDemoMarketDataMock(),
+}));
+
+// The two chart cards have their own dedicated test files (chart internals,
+// hover, hooks); here they're stubbed to lock in only the page's own wiring —
+// which props reach them and the `selectedReserve !== null` gate.
+const borrowRateHistoryCardMock = vi.fn();
+vi.mock("../BorrowRateHistoryCard", () => ({
+  BorrowRateHistoryCard: (props: { reserveId: bigint; symbol: string }) => {
+    borrowRateHistoryCardMock(props);
+    return <div data-testid="borrow-rate-history-card-stub" />;
+  },
+}));
+
+const interestRateModelCardMock = vi.fn();
+vi.mock("../InterestRateModelCard", () => ({
+  InterestRateModelCard: (props: {
+    reserve: { reserveId: bigint };
+    utilizationValue: string;
+    symbol: string;
+  }) => {
+    interestRateModelCardMock(props);
+    return <div data-testid="interest-rate-model-card-stub" />;
+  },
 }));
 
 const useAaveConfigMock = vi.fn();
@@ -249,6 +276,52 @@ function renderPage(reserveIdParam: string) {
 }
 
 describe("BorrowingMarketsData", () => {
+  beforeEach(() => {
+    borrowRateHistoryCardMock.mockClear();
+    interestRateModelCardMock.mockClear();
+  });
+
+  it("wires the routed reserve's id, config, and market-utilization figure into the two chart cards", () => {
+    setUpHooks();
+
+    renderPage("1");
+
+    expect(borrowRateHistoryCardMock).toHaveBeenCalledWith({
+      reserveId: 1n,
+      symbol: "USDC-VERIFIED",
+    });
+    expect(interestRateModelCardMock).toHaveBeenCalledWith({
+      reserve: USDC_RESERVE,
+      // Same "68%" the stats bar shows for reserve 1's utilizationBps (6800).
+      utilizationValue: "68%",
+      symbol: "USDC-VERIFIED",
+    });
+  });
+
+  // `selectedReserve` is typed `AaveReserveConfig | null`, and identity is a
+  // separate mocked read the type system can't tie back to it — this forces
+  // that decoupling (identity resolved, but no reserve matches the route) to
+  // prove the page's own null-check gates the cards rather than a non-null
+  // assertion that would crash instead of degrading.
+  it("renders neither chart card when no reserve resolves for the route", () => {
+    setUpHooks({ borrowableReserves: [] });
+
+    renderPage("1");
+
+    expect(borrowRateHistoryCardMock).not.toHaveBeenCalled();
+    expect(interestRateModelCardMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("borrow-rate-history-card-stub"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("interest-rate-model-card-stub"),
+    ).not.toBeInTheDocument();
+    // The testid wrapper itself must survive regardless (E2E hook).
+    expect(
+      screen.getByTestId("market-section-borrow-apr-chart"),
+    ).toBeInTheDocument();
+  });
+
   it("shows the routed reserve's figures in the stats bar, in uppercase compact form", () => {
     setUpHooks();
 

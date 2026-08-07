@@ -56,6 +56,35 @@ describe("computeChartLayout", () => {
     expect(layout.plotWidth).toBe(948);
   });
 
+  it("replaces the fluid gutter with gutterPx when provided", () => {
+    const layout = computeChartLayout({
+      chartWidth: 1016,
+      axisSide: "left",
+      hasTopLegend: false,
+      hasXAxis: false,
+      gutterPx: 100,
+    });
+    // The fluid clamp would give 68 here (see the 1016px reference test above);
+    // an explicit gutterPx overrides it and everything derived follows.
+    expect(layout.gutter).toBe(100);
+    expect(layout.plotLeft).toBe(100);
+    expect(layout.plotWidth).toBe(916);
+    expect(layout.plotHeight).toBeCloseTo((916 * 350) / 1016, 6);
+  });
+
+  it("spans the full chart width when gutterPx is 0 (no y-axis label column)", () => {
+    const layout = computeChartLayout({
+      chartWidth: 1016,
+      axisSide: "left",
+      hasTopLegend: false,
+      hasXAxis: false,
+      gutterPx: 0,
+    });
+    expect(layout.gutter).toBe(0);
+    expect(layout.plotLeft).toBe(0);
+    expect(layout.plotWidth).toBe(1016);
+  });
+
   it("reserves vertical space for the legend and x-axis only when present", () => {
     const bare = computeChartLayout({ chartWidth: 1016, axisSide: "left", hasTopLegend: false, hasXAxis: false });
     const withLegend = computeChartLayout({ chartWidth: 1016, axisSide: "left", hasTopLegend: true, hasXAxis: false });

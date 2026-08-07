@@ -105,4 +105,42 @@ describe("graphqlClient timeout", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
   });
+
+  it("times out on a stalled response body, not just stalled headers", async () => {
+    // Regression check: `fetch()` itself resolves right away (headers
+    // received), but reading the body never settles until the request's
+    // controlling signal aborts — exactly how a real stalled body behaves.
+    // The 30s bound must cover this too, not just the time to get a Response
+    // back.
+    mockFetch.mockImplementation(
+      (_url: string, options?: RequestInit) =>
+        new Promise((resolve) => {
+          resolve({
+            status: 200,
+            statusText: "OK",
+            headers: new Headers({ "Content-Type": "application/json" }),
+            text: () =>
+              new Promise((_resolve, reject) => {
+                options?.signal?.addEventListener("abort", () => {
+                  reject(
+                    new DOMException(
+                      "The operation was aborted.",
+                      "AbortError",
+                    ),
+                  );
+                });
+              }),
+          } as unknown as Response);
+        }),
+    );
+
+    const { graphqlClient } = await import("../client");
+
+    const promise = graphqlClient.request("{ vaults { id } }");
+    const assertion = expect(promise).rejects.toThrow(
+      /timed out after 30000ms/,
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    await assertion;
+  });
 });

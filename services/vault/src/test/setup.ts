@@ -125,6 +125,29 @@ class ResizeObserverStub {
 }
 global.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 
+// jsdom implements no PointerEvent, so @testing-library falls back to a plain
+// Event and silently drops clientX/clientY — every pointer-driven interaction
+// (e.g. LineChart hover) would read NaN coordinates. MouseEvent carries them
+// and is what React's synthetic pointer events read. Mirrors core-ui's own
+// test setup (packages/babylon-core-ui/src/test/setup.ts).
+if (
+  typeof window !== "undefined" &&
+  typeof window.PointerEvent === "undefined"
+) {
+  class PointerEventStub extends MouseEvent {
+    readonly pointerId: number;
+    readonly pointerType: string;
+
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 1;
+      this.pointerType = init.pointerType ?? "mouse";
+    }
+  }
+
+  window.PointerEvent = PointerEventStub as unknown as typeof PointerEvent;
+}
+
 // Mock crypto for testing
 if (!global.crypto) {
   global.crypto = {
