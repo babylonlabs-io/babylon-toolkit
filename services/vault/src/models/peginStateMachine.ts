@@ -206,7 +206,7 @@ const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 // Expiration helpers
 // ============================================================================
 
-const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> =
+const EXPIRATION_REASON_LABELS: Partial<Record<ExpirationReason, string>> =
   COPY.pegin.expiration.reasons;
 
 function formatExpiredTimeAgo(timestamp: number): string {

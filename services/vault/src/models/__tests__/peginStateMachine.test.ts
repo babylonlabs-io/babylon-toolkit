@@ -378,14 +378,11 @@ describe("peginStateMachine", () => {
       expect(state.message).toBe("This BTC Vault has expired.");
     });
 
-    it("shows expired with ack_timeout reason", () => {
+    it("shows only the heading for an ack_timeout expiry", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         expirationReason: "ack_timeout",
       });
-      expect(state.message).toContain("This BTC Vault has expired.");
-      expect(state.message).toContain(
-        "The vault provider did not acknowledge in time",
-      );
+      expect(state.message).toBe("This BTC Vault has expired.");
     });
 
     it("shows expired with proof_timeout reason", () => {
@@ -451,12 +448,23 @@ describe("peginStateMachine", () => {
       const now = Date.now();
       vi.useFakeTimers({ now });
       const state = getPeginState(ContractStatus.EXPIRED, {
-        expirationReason: "ack_timeout",
+        expirationReason: "proof_timeout",
         expiredAt: now - 2 * 60 * 60_000,
       });
       expect(state.message).toBe(
-        "This BTC Vault has expired. The vault provider did not acknowledge in time. Expired 2h ago.",
+        "This BTC Vault has expired. The inclusion proof was not submitted in time. Expired 2h ago.",
       );
+      vi.useRealTimers();
+    });
+
+    it("keeps the timestamp but drops the reason sentence for ack_timeout", () => {
+      const now = Date.now();
+      vi.useFakeTimers({ now });
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        expirationReason: "ack_timeout",
+        expiredAt: now - 2 * 60 * 60_000,
+      });
+      expect(state.message).toBe("This BTC Vault has expired. Expired 2h ago.");
       vi.useRealTimers();
     });
 
@@ -568,7 +576,7 @@ describe("peginStateMachine", () => {
       expect(state.refundMaturesInBlocks).toBe(24);
       // 24 blocks × 10 min = 240 min → ceil(240/60) = 4h.
       // The countdown lives only in `inlineSubtext`; `message` (tooltip)
-      // stays focused on the expired reason so the user doesn't see the
+      // stays focused on the expiry itself so the user doesn't see the
       // same sentence twice.
       expect(state.inlineSubtext).toBe(
         "Your refund will be claimable in ~24 Bitcoin blocks (~4h).",
@@ -598,7 +606,7 @@ describe("peginStateMachine", () => {
       expect(state.refundMaturityState).toBe("unknown");
       expect(state.refundMaturesInBlocks).toBeUndefined();
       // Maturing copy lives only in `inlineSubtext`; tooltip stays focused
-      // on the expired reason.
+      // on the expiry itself.
       expect(state.inlineSubtext).toBe(
         "Checking when your refund will be claimable...",
       );
