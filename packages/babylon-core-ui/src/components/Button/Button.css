@@ -7,7 +7,7 @@
 
   &-contained {
     &.bbn-btn-primary {
-      @apply text-accent-contrast bg-primary-light hover:brightness-110 disabled:bg-primary-light/30;
+      @apply text-accent-contrast bg-error-main hover:brightness-110 disabled:bg-error-main/30;
     }
 
     &.bbn-btn-secondary {
