@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BTCVaultRegistryABI } from "../../../contracts/abis/BTCVaultRegistry.abi";
 import {
   activateVault,
+  activateVaultAndRedeem,
   type EthContractWriter,
 } from "../activateVault";
 
@@ -297,5 +298,98 @@ describe("activateVault", () => {
 
       expect(result).toEqual({ transactionHash: TX_HASH });
     });
+  });
+});
+
+describe("activateVaultAndRedeem", () => {
+  let writeContract: EthContractWriter & ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    writeContract = vi
+      .fn()
+      .mockResolvedValue({ transactionHash: TX_HASH }) as EthContractWriter &
+      ReturnType<typeof vi.fn>;
+  });
+
+  it("writes activateVaultWithSecretAndRedeem with exactly vaultId and secret", async () => {
+    await activateVaultAndRedeem({
+      btcVaultRegistryAddress: REGISTRY,
+      vaultId: VAULT_ID,
+      secret: ZERO_SECRET,
+      writeContract,
+    });
+
+    expect(writeContract).toHaveBeenCalledOnce();
+    const call = writeContract.mock.calls[0][0];
+    expect(call.address).toBe(REGISTRY);
+    expect(call.abi).toBe(BTCVaultRegistryABI);
+    expect(call.functionName).toBe("activateVaultWithSecretAndRedeem");
+    expect(call.args).toEqual([VAULT_ID, ZERO_SECRET]);
+  });
+
+  it("normalises a secret without the 0x prefix", async () => {
+    await activateVaultAndRedeem({
+      btcVaultRegistryAddress: REGISTRY,
+      vaultId: VAULT_ID,
+      secret: "00".repeat(32),
+      writeContract,
+    });
+
+    expect(writeContract.mock.calls[0][0].args[1]).toBe(ZERO_SECRET);
+  });
+
+  it("calls the writer when a provided hashlock matches the secret", async () => {
+    await activateVaultAndRedeem({
+      btcVaultRegistryAddress: REGISTRY,
+      vaultId: VAULT_ID,
+      secret: ZERO_SECRET,
+      hashlock: ZERO_HASHLOCK,
+      writeContract,
+    });
+
+    expect(writeContract).toHaveBeenCalledOnce();
+  });
+
+  it("rejects and skips the writer when hashlock does not match secret", async () => {
+    const wrongHashlock = ("0x" + "11".repeat(32)) as Hex;
+
+    await expect(
+      activateVaultAndRedeem({
+        btcVaultRegistryAddress: REGISTRY,
+        vaultId: VAULT_ID,
+        secret: ZERO_SECRET,
+        hashlock: wrongHashlock,
+        writeContract,
+      }),
+    ).rejects.toThrow(/SHA256\(secret\) does not match/);
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  it("rejects a secret that is the wrong length", async () => {
+    await expect(
+      activateVaultAndRedeem({
+        btcVaultRegistryAddress: REGISTRY,
+        vaultId: VAULT_ID,
+        secret: "0xaa",
+        writeContract,
+      }),
+    ).rejects.toThrow(/secret must be 32 bytes/);
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  it("aborts before any work when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("cancelled"));
+
+    await expect(
+      activateVaultAndRedeem({
+        btcVaultRegistryAddress: REGISTRY,
+        vaultId: VAULT_ID,
+        secret: ZERO_SECRET,
+        writeContract,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("cancelled");
+    expect(writeContract).not.toHaveBeenCalled();
   });
 });

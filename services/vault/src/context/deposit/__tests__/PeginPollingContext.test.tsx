@@ -83,6 +83,18 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
   useActivationDeadlineGate: () => mockUseActivationDeadlineGate(),
 }));
 
+// Stuck-state chain confirm: same story as the deadline gate — react-query plus
+// a chain read. Default is the empty set, i.e. nothing confirmed stuck, which
+// is also the production fail-open default.
+const { mockUseStuckVaultChainConfirm } = vi.hoisted(() => ({
+  mockUseStuckVaultChainConfirm: vi.fn<() => ReadonlySet<string>>(
+    () => new Set<string>(),
+  ),
+}));
+vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
+  useStuckVaultChainConfirm: () => mockUseStuckVaultChainConfirm(),
+}));
+
 const mockVersionedParams = new Map<number, { tRefund: number }>();
 
 // The provider reads params through the non-blocking hook (it mounts above the

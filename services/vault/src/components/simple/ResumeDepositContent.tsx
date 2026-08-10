@@ -14,7 +14,6 @@ import {
   deriveVaultRoot,
   deriveWotsBlocksFromSeed,
   expandAuthAnchor,
-  expandHashlockSecret,
   expandWotsSeed,
   hexToUint8Array,
   isWotsMismatchError,
@@ -57,6 +56,7 @@ import {
   ContractStatus,
   getPeginDisplayStep,
 } from "@/models/peginStateMachine";
+import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
 import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import type { VaultActivity } from "@/types/activity";
 import {
@@ -664,59 +664,13 @@ export function ResumeActivationContent({
     setLoading(true);
     setLocalError(null);
 
-    let root: Uint8Array | null = null;
-    let secretBytes: Uint8Array | null = null;
     try {
-      // Read signing-critical inputs (depositor pubkey, htlcVout) directly
-      // from the registry. Indexer data is untrusted for derivation domain
-      // separators.
-      const reader = getVaultRegistryReader();
-      const { basic, protocol } = await reader.getVaultData(activity.id as Hex);
-      const depositorBtcPubkey = basic.depositorBtcPubKey;
-      const htlcVout = protocol.htlcVout;
-      const onChainPrePeginTxHash = protocol.prePeginTxHash;
-
-      // Indexer-supplied tx is untrusted. Verify against on-chain
-      // prePeginTxHash before deriveVaultRoot fires the wallet popup.
-      const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
-      if (
-        computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
-      ) {
-        throw new Error(
-          `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
-            `but on-chain contract has ${onChainPrePeginTxHash}. ` +
-            `Aborting to prevent potential attack.`,
-        );
-      }
-
-      const fundingOutpoints = parseFundingOutpointsFromTx(
-        activity.unsignedPrePeginTx,
-      );
-
-      // Probe the wallet before deriveVaultRoot fires the signing popup. A
-      // wallet that locked since the modal opened fails fast here with an
-      // actionable error instead of a silent no-op (no popup appears).
-      await verifyBtcWalletLiveness(btcWalletProvider, connectedBtcAddress, {
-        probeConnection: shouldProbeWalletLiveness(
-          btcConnector?.connectedWallet?.id,
-        ),
+      const secretHex = await deriveHtlcSecretHex({
+        activity,
+        btcWalletProvider,
+        connectedBtcAddress,
+        walletId: btcConnector?.connectedWallet?.id,
       });
-
-      root = await deriveVaultRoot(btcWalletProvider, {
-        depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
-        fundingOutpoints,
-      });
-
-      secretBytes = await expandHashlockSecret(root, htlcVout);
-      const secretHex = uint8ArrayToHex(secretBytes);
-
-      // Wipe before the unrelated `handleActivation` await — neither buffer
-      // is needed past secretHex extraction. Keeps live secret material out
-      // of memory while the activation state machine runs its on-chain calls.
-      secretBytes.fill(0);
-      secretBytes = null;
-      root.fill(0);
-      root = null;
 
       // Hand off to the existing activation state machine. It fetches
       // the canonical hashlock from the on-chain registry and rejects
@@ -734,10 +688,6 @@ export function ResumeActivationContent({
         setLocalError(msg);
       }
     } finally {
-      // Memory wipes run regardless of mount: secret material must not
-      // linger if the user closed the modal mid-flight.
-      root?.fill(0);
-      secretBytes?.fill(0);
       if (mountedRef.current) setLoading(false);
     }
   }, [

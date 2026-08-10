@@ -21,6 +21,7 @@ import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useDemoDeposit } from "@/dev/demoDeposit";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
+import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
@@ -79,6 +80,11 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const emergencyWithdrawModal = useEmergencyWithdrawModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+
   return {
     pendingActivities,
     expiredActivities,
@@ -94,6 +100,7 @@ export function usePendingDeposits() {
     refetchActivities,
     broadcastModal,
     refundModal,
+    emergencyWithdrawModal,
     // God-mode demo aggregate (null in production). Only the activation-walk
     // click routing reads it; every other consumer uses the real lists above.
     demo,

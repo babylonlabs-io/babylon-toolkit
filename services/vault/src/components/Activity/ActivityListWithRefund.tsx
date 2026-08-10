@@ -31,8 +31,13 @@ export function ActivityListWithRefund({
   activities,
   isConnected,
 }: ActivityListWithRefundProps) {
-  const { expiredActivities, ethAddress, broadcastModal, refundModal } =
-    usePendingDeposits();
+  const {
+    expiredActivities,
+    ethAddress,
+    broadcastModal,
+    refundModal,
+    emergencyWithdrawModal,
+  } = usePendingDeposits();
 
   // Deposits that expired before activation and have not been reclaimed yet,
   // keyed by vault id. Correlate these against a row's `vaultId` and never its
@@ -80,6 +85,7 @@ export function ActivityListWithRefund({
       <PendingDepositModals
         broadcastModal={broadcastModal}
         refundModal={refundModal}
+        emergencyWithdrawModal={emergencyWithdrawModal}
         ethAddress={ethAddress}
       />
     </ProtocolParamsProvider>

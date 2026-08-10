@@ -229,6 +229,24 @@ export const BTCVaultRegistryABI = [
   },
   {
     type: "function",
+    name: "activateVaultWithSecretAndRedeem",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "s",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "getPegInFee",
     inputs: [
       {
