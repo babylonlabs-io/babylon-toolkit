@@ -33,6 +33,12 @@ interface ActivateConfirmationModalProps {
   unsignedPrePeginTxHex?: string;
   onClose: () => void;
   onConfirm: () => void;
+  /**
+   * When present, renders the muted advanced link routing to the
+   * activate-and-redeem withdraw flow (escape hatch for a Verified vault
+   * whose activation is unavailable). See ActivationGate.
+   */
+  onAdvancedWithdraw?: () => void;
 }
 
 export function ActivateConfirmationModal({
@@ -44,6 +50,7 @@ export function ActivateConfirmationModal({
   unsignedPrePeginTxHex,
   onClose,
   onConfirm,
+  onAdvancedWithdraw,
 }: ActivateConfirmationModalProps) {
   // Bound to the pegin, so a receipt stored for a different one does not
   // satisfy the gate. When `peginTxid` is absent we cannot prove the stored
@@ -176,6 +183,17 @@ export function ActivateConfirmationModal({
               {COPY.deposit.activateConfirmation.riskAcknowledgement}
             </span>
           </label>
+        )}
+
+        {onAdvancedWithdraw && (
+          <button
+            type="button"
+            onClick={onAdvancedWithdraw}
+            className="self-center text-sm text-accent-secondary underline underline-offset-2 hover:text-accent-primary"
+            data-testid="advanced-withdraw-link"
+          >
+            {COPY.deposit.activateConfirmation.advancedWithdrawLink}
+          </button>
         )}
       </DialogBody>
 

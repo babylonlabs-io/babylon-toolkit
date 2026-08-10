@@ -32,8 +32,13 @@ export function ActivityListWithRefund({
   activities,
   isConnected,
 }: ActivityListWithRefundProps) {
-  const { expiredActivities, ethAddress, broadcastModal, refundModal } =
-    usePendingDeposits();
+  const {
+    expiredActivities,
+    ethAddress,
+    broadcastModal,
+    refundModal,
+    emergencyWithdrawModal,
+  } = usePendingDeposits();
   const { requireBtcWallet } = useRequireBtcWallet();
 
   // Deposits that expired before activation and have not been reclaimed yet,
@@ -85,6 +90,7 @@ export function ActivityListWithRefund({
       <PendingDepositModals
         broadcastModal={broadcastModal}
         refundModal={refundModal}
+        emergencyWithdrawModal={emergencyWithdrawModal}
         ethAddress={ethAddress}
       />
     </ProtocolParamsProvider>

@@ -59,6 +59,7 @@ export enum PeginAction {
   SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
   SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
   ACTIVATE_VAULT = "ACTIVATE_VAULT",
+  ACTIVATE_AND_REDEEM = "ACTIVATE_AND_REDEEM",
   REFUND_HTLC = "REFUND_HTLC",
   NONE = "NONE",
 }
@@ -144,6 +145,21 @@ export interface GetPeginStateOptions {
    * ACTIVATE_VAULT and flips the badge to Expired. Fail-safe default: false.
    */
   activationDeadlinePassed?: boolean;
+  /**
+   * VERIFIED only: the Pre-PegIn HTLC outpoint is spent on Bitcoin (mempool
+   * or block) BY THE PEGIN TRANSACTION while the vault is still Verified on
+   * Ethereum — the secret was revealed without the vault activating (e.g. a
+   * reverted activation leaked it via calldata) and the peg-in was swept.
+   * The stuck state: activation returned no collateral and the CSV refund
+   * can never broadcast. Drives the "Activation incomplete" display and the
+   * activate-and-redeem escape hatch.
+   *
+   * The deriver proves the spender (`spendingTxid` equals the PegIn txid)
+   * before setting this — a bare spend can equally be the depositor's own
+   * CSV refund, which must keep the normal flow. Fail-safe default: false
+   * (missing or ambiguous probe data keeps the normal flow).
+   */
+  htlcSpentByPeginTx?: boolean;
   /**
    * True only when the deposit can be refunded *now*: the Pre-PegIn tx
    * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
@@ -257,6 +273,8 @@ export function isRefundInFlightOrSettled(state: PeginState): boolean {
  *    a local actionable check), but selection there never needs to prefer one
  *    sibling over another for it.
  *  - `REFUND_HTLC` — a terminal escape hatch, not an in-flow next step.
+ *  - `ACTIVATE_AND_REDEEM` — like the refund, a recovery escape hatch with
+ *    its own dedicated modal (EmergencyWithdrawModal), not an in-flow step.
  */
 export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([
   PeginAction.SUBMIT_WOTS_KEY,
@@ -323,6 +341,7 @@ const SDK_TO_VAULT_ACTION: Record<string, PeginAction> = {
   [SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]:
     PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
   [SdkPeginAction.ACTIVATE_VAULT]: PeginAction.ACTIVATE_VAULT,
+  [SdkPeginAction.ACTIVATE_AND_REDEEM]: PeginAction.ACTIVATE_AND_REDEEM,
   [SdkPeginAction.REFUND_HTLC]: PeginAction.REFUND_HTLC,
 };
 
@@ -347,6 +366,7 @@ export function getPeginState(
     pendingIngestion: options.pendingIngestion,
     canRefund: options.canRefund,
     hasProviderTerminalFailure: !!options.vpTerminalError,
+    htlcSpentByPeginTx: options.htlcSpentByPeginTx,
   });
 
   const sdkActions = applyTrackingOverrides(
@@ -377,13 +397,19 @@ export function getPeginState(
         )
       : sdkActions;
   // VERIFIED past its on-chain activation deadline: the contract would revert
-  // ActivationDeadlineExpired, so strip the now-futile Activate action. UX only
-  // — confirmed by an authoritative chain read; missing/error data leaves the
-  // action in place (fail-safe). Mirrors the broadcast filter above.
+  // ActivationDeadlineExpired, so strip the now-futile actions — both the
+  // normal activation and the activate-and-redeem escape hatch run the same
+  // deadline check on-chain. UX only — confirmed by an authoritative chain
+  // read; missing/error data leaves the actions in place (fail-safe). Mirrors
+  // the broadcast filter above.
   const deadlineAdjustedActions =
     contractStatus === ContractStatus.VERIFIED &&
     options.activationDeadlinePassed === true
-      ? chainAdjustedActions.filter((a) => a !== SdkPeginAction.ACTIVATE_VAULT)
+      ? chainAdjustedActions.filter(
+          (a) =>
+            a !== SdkPeginAction.ACTIVATE_VAULT &&
+            a !== SdkPeginAction.ACTIVATE_AND_REDEEM,
+        )
       : chainAdjustedActions;
   const actions = mapActions(deadlineAdjustedActions);
   const display = getDisplay(contractStatus, actions, options);
@@ -603,12 +629,29 @@ function getDisplay(
     }
     // Activation window closed on-chain — present as terminal-expired in place
     // (the indexer flips to EXPIRED later). `warning` variant also suppresses
-    // the progress step via getPeginDisplayStep.
+    // the progress step via getPeginDisplayStep. Checked before `htlcSpentByPeginTx`:
+    // past the deadline the escape hatch reverts too, so the stuck-state
+    // display would advertise an action that is already stripped above.
     if (options.activationDeadlinePassed) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
         displayVariant: "warning",
         message: buildExpiredMessage("activation_timeout", expiredAt),
+      };
+    }
+    // Stuck state: the peg-in was swept on Bitcoin but the vault never
+    // activated (secret leaked via a reverted/foreign activation attempt).
+    // "Ready to activate" would be wrong — activation returns no collateral
+    // and the refund outpoint is gone. Explain what happened and surface the
+    // activate-and-redeem escape hatch instead. The tone is deliberately
+    // reassuring (amber warning, "not lost" copy, always-visible subtext):
+    // the state looks like lost funds but is fully recoverable.
+    if (options.htlcSpentByPeginTx) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+        displayVariant: "warning",
+        message: COPY.pegin.messages.activationIncomplete,
+        inlineSubtext: COPY.pegin.messages.activationIncompleteSubtext,
       };
     }
     return {
@@ -780,6 +823,12 @@ export function getPrimaryActionButton(state: PeginState): {
       action: PeginAction.ACTIVATE_VAULT,
     };
   }
+  if (state.availableActions.includes(PeginAction.ACTIVATE_AND_REDEEM)) {
+    return {
+      label: COPY.pegin.primaryAction.ACTIVATE_AND_REDEEM,
+      action: PeginAction.ACTIVATE_AND_REDEEM,
+    };
+  }
   if (state.availableActions.includes(PeginAction.REFUND_HTLC)) {
     return {
       label: COPY.pegin.primaryAction.REFUND_HTLC,
@@ -892,7 +941,11 @@ export function getNextLocalStatus(
       return LocalStorageStatus.PAYOUT_SIGNED;
     case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
       return LocalStorageStatus.CONFIRMING;
+    // The escape hatch also reveals the secret on-chain; CONFIRMED marks
+    // "reveal submitted, waiting for the indexer" in both modes (the
+    // contract then reports REDEEMED instead of ACTIVE).
     case PeginAction.ACTIVATE_VAULT:
+    case PeginAction.ACTIVATE_AND_REDEEM:
       return LocalStorageStatus.CONFIRMED;
     default:
       return null;

@@ -20,6 +20,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import type { Hex } from "viem";
 
 import { useDemoDeposit } from "@/dev/demoDeposit";
 import { logger } from "@/infrastructure";
@@ -31,6 +32,7 @@ import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningR
 import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
+import { useStuckVaultChainConfirm } from "../../hooks/useStuckVaultChainConfirm";
 import {
   ContractStatus,
   LocalStorageStatus,
@@ -316,17 +318,35 @@ export function PeginPollingProvider({
       PREPEGIN_CONFIRMATIONS_QUERY_KEY,
     );
 
-  // Probe whether each EXPIRED+owned vault's HTLC output is already spent
-  // (refund landed). A pure BTC refund emits no Ethereum event, so the indexer
-  // never sees it — read it from Bitcoin directly. Drop vaults already known
-  // refunded (confirmed-spend cache) from the set.
+  // Probe whether each owned EXPIRED or VERIFIED vault's HTLC output is
+  // already spent. Neither spend emits an Ethereum event, so the indexer
+  // never sees them — read Bitcoin directly. For EXPIRED vaults a spend is
+  // the refund landing; for VERIFIED vaults it is the stuck-state signal
+  // (peg-in swept without activation → activate-and-redeem escape hatch).
+  // Drop vaults already known refunded (confirmed-spend cache) from the set.
   const htlcRefundOutpoints = useMemo(
     () =>
       activities
         .filter((a) => {
           if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
             return false;
-          if ((a.contractStatus ?? 0) !== ContractStatus.EXPIRED) return false;
+          const status = (a.contractStatus ?? 0) as ContractStatus;
+          if (
+            status !== ContractStatus.EXPIRED &&
+            status !== ContractStatus.VERIFIED
+          )
+            return false;
+          // Once this device has submitted the reveal (CONFIRMED), a spend is
+          // the expected VP sweep, not the stuck state — and the display
+          // ignores the probe anyway, so skip the request. This is a local
+          // request-saving shortcut ONLY: it is per-device, so it says nothing
+          // on a second device or a cleared profile. What actually decides the
+          // stuck state is the on-chain confirmation below.
+          if (
+            status === ContractStatus.VERIFIED &&
+            localStatusById.get(a.id) === LocalStorageStatus.CONFIRMED
+          )
+            return false;
           if (refundedHtlcVaultIds.has(a.id.toLowerCase())) return false;
           return (
             !!a.prePeginTxHash &&
@@ -342,12 +362,40 @@ export function PeginPollingProvider({
           prePeginTxHash: a.prePeginTxHash as string,
           htlcVout: a.htlcVout as number,
         })),
-    [activities, btcPublicKey, refundedHtlcVaultIds],
+    [activities, btcPublicKey, refundedHtlcVaultIds, localStatusById],
   );
   const { refundByDepositId: htlcRefundByDepositId } = useBtcHtlcRefundStatus(
     htlcRefundOutpoints,
     HTLC_REFUND_QUERY_KEY,
   );
+
+  // Tier-1 stuck suspects: VERIFIED (per the indexer) with the HTLC proven
+  // swept by the pegin tx. Cheap — it reuses the probe above and adds no
+  // request. Tier 2 confirms each against the chain, because that BTC evidence
+  // is equally consistent with a healthy deposit whose activation the indexer
+  // has not caught up to yet.
+  const stuckSuspectIds = useMemo(() => {
+    const ids: Hex[] = [];
+    for (const a of activities) {
+      if (
+        ((a.contractStatus ?? 0) as ContractStatus) !== ContractStatus.VERIFIED
+      )
+        continue;
+      const spend = htlcRefundByDepositId.get(a.id);
+      if (spend?.spent !== true) continue;
+      const peginTxCanonical = canonicalizeTxid(a.peginTxHash);
+      if (
+        peginTxCanonical === undefined ||
+        canonicalizeTxid(spend.spendingTxid) !== peginTxCanonical
+      ) {
+        continue;
+      }
+      ids.push(a.id);
+    }
+    return ids;
+  }, [activities, htlcRefundByDepositId]);
+
+  const stuckConfirmedIds = useStuckVaultChainConfirm(stuckSuspectIds);
 
   // Persist newly-confirmed observations and drop them from the next
   // poll set. Side effects sit outside the updater so StrictMode's
@@ -404,10 +452,24 @@ export function PeginPollingProvider({
   // Persist vaults whose HTLC spend has confirmed and drop them from the next
   // poll set. Only confirmed spends are cached (a mempool-only spend can still
   // be replaced/reorged); the live map drives the transient "Refunding" state.
+  // EXPIRED vaults only: for them a confirmed spend IS the refund landing
+  // (terminal). A VERIFIED vault's confirmed spend is the VP sweep of the
+  // stuck state — caching it as "refunded" would mislabel the vault if it
+  // later flips to EXPIRED, so those stay in the live poll.
   useEffect(() => {
     if (htlcRefundByDepositId.size === 0) return;
+    const expiredIds = new Set(
+      activities
+        .filter(
+          (a) =>
+            ((a.contractStatus ?? 0) as ContractStatus) ===
+            ContractStatus.EXPIRED,
+        )
+        .map((a) => a.id.toLowerCase()),
+    );
     const newlyRefunded: string[] = [];
     for (const [depositId, spend] of htlcRefundByDepositId) {
+      if (!expiredIds.has(depositId)) continue;
       if (spend.confirmed && !refundedHtlcVaultIds.has(depositId)) {
         newlyRefunded.push(depositId);
       }
@@ -419,7 +481,7 @@ export function PeginPollingProvider({
       newlyRefunded.forEach((id) => next.add(id));
       return next;
     });
-  }, [htlcRefundByDepositId, refundedHtlcVaultIds]);
+  }, [htlcRefundByDepositId, refundedHtlcVaultIds, activities]);
 
   // Emit the on-chain funnel terminals — activation.verified and
   // deposit.completed — once per vault as its contractStatus transitions. The
@@ -534,6 +596,9 @@ export function PeginPollingProvider({
         activationDeadlinePassed: activationDeadlinePassedIds.has(
           activity.id.toLowerCase(),
         ),
+        stuckStateConfirmedOnChain: stuckConfirmedIds.has(
+          activity.id.toLowerCase(),
+        ),
         // Params still resolving is a loading state, not a resolved "depth
         // unknown" — otherwise a cold load reads as a stalled deposit. A params
         // *failure* is not: the queries have exhausted their retries and will
@@ -563,6 +628,7 @@ export function PeginPollingProvider({
       getRequiredPrePeginDepth,
       resolveRefundTimelock,
       activationDeadlinePassedIds,
+      stuckConfirmedIds,
       isLoading,
       params.ready,
       params.error,
