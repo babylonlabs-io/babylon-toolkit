@@ -17,7 +17,7 @@ import {
   fetchAaveAppConfig,
   type AaveConfig,
   type AaveReserveConfig,
-} from "../services";
+} from "../services/fetchConfig";
 
 interface AaveConfigContextValue {
   config: AaveConfig | null;

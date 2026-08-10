@@ -12,12 +12,11 @@
  */
 
 import {
-  assertPositiveBigintArray,
   getPrePeginHtlcConnectorInfo,
-  initWasm,
+  loadRawTbvWasm,
   tapInternalPubkey,
-  WasmPrePeginTx,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
+import { assertPositiveBigintArray } from "../../wasm/value-guards";
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 
@@ -74,7 +73,7 @@ export interface BuildRefundPsbtResult {
 export async function buildRefundPsbt(
   params: BuildRefundPsbtParams,
 ): Promise<BuildRefundPsbtResult> {
-  await initWasm();
+  const { WasmPrePeginTx } = await loadRawTbvWasm();
 
   const { prePeginParams, fundedPrePeginTxHex, htlcVout, refundFee, hashlock } =
     params;
@@ -114,7 +113,7 @@ export async function buildRefundPsbt(
     normalizedAuthAnchorHash,
   );
 
-  let fundedTx: WasmPrePeginTx | null = null;
+  let fundedTx: typeof unfundedTx | null = null;
   try {
     // Cross-check the reconstructed unfunded template against the funded
     // transaction: the WASM template's HTLC scriptPubKey at `htlcVout`

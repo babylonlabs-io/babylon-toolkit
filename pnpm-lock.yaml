@@ -351,9 +351,6 @@ importers:
 
   packages/babylon-ts-sdk:
     dependencies:
-      '@babylonlabs-io/babylon-tbv-rust-wasm':
-        specifier: workspace:*
-        version: link:../babylon-tbv-rust-wasm
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
@@ -367,6 +364,9 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
     devDependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../babylon-tbv-rust-wasm
       '@internal/eslint-config':
         specifier: workspace:*
         version: link:../../tools/eslint-config
@@ -415,9 +415,6 @@ importers:
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../babylon-core-ui
-      '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
       '@cosmjs/proto-signing':
         specifier: 0.36.0
         version: 0.36.0
@@ -451,9 +448,6 @@ importers:
       '@reown/appkit':
         specifier: 1.8.12
         version: 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
-      '@reown/appkit-adapter-bitcoin':
-        specifier: 1.8.12
-        version: 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@4.1.12)
       '@reown/appkit-adapter-wagmi':
         specifier: 1.8.12
         version: 1.8.12(@tanstack/react-query@5.90.20(react@18.3.1))(@types/react@18.3.23)(@wagmi/core@2.22.1(@tanstack/query-core@5.90.20)(@types/react@18.3.23)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)))(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12))(wagmi@2.18.1(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.20(react@18.3.1))(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12))(zod@4.1.12))(zod@4.1.12)
@@ -463,24 +457,12 @@ importers:
       '@scure/btc-signer':
         specifier: 1.8.1
         version: 1.8.1
-      '@tomo-inc/ledger-bitcoin-babylon':
-        specifier: 0.3.5-alpha.0
-        version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
-      '@tomo-inc/wallet-connect-sdk':
-        specifier: 1.0.0
-        version: 1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       bip174:
         specifier: 2.1.1
         version: 2.1.1
-      bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
       buffer:
         specifier: 6.0.3
         version: 6.0.3
-      ledger-bitcoin-babylon-boilerplate:
-        specifier: 0.2.8
-        version: 0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
       nanoevents:
         specifier: 9.1.0
         version: 9.1.0
@@ -506,6 +488,9 @@ importers:
         specifier: 2.18.1
         version: 2.18.1(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.20(react@18.3.1))(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12))(zod@4.1.12)
     devDependencies:
+      '@bitcoin-js/tiny-secp256k1-asmjs':
+        specifier: 2.2.3
+        version: 2.2.3
       '@changesets/cli':
         specifier: ^2.29.8
         version: 2.29.8(@types/node@22.17.0)
@@ -527,6 +512,9 @@ importers:
       '@playwright/test':
         specifier: 1.56.1
         version: 1.56.1
+      '@reown/appkit-adapter-bitcoin':
+        specifier: 1.8.12
+        version: 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@4.1.12)
       '@semantic-release/github':
         specifier: ^11.0.2
         version: 11.0.3(semantic-release@24.2.7(typescript@5.9.2))
@@ -560,6 +548,12 @@ importers:
       '@testing-library/react':
         specifier: 16.3.0
         version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@tomo-inc/ledger-bitcoin-babylon':
+        specifier: 0.3.5-alpha.0
+        version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
+      '@tomo-inc/wallet-connect-sdk':
+        specifier: 1.0.0
+        version: 1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@types/node':
         specifier: ^22.10.2
         version: 22.17.0
@@ -578,6 +572,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.21(postcss@8.5.6)
+      bitcoinjs-lib:
+        specifier: 6.1.7
+        version: 6.1.7
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -611,6 +608,9 @@ importers:
       jsdom:
         specifier: 20.0.3
         version: 20.0.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      ledger-bitcoin-babylon-boilerplate:
+        specifier: 0.2.8
+        version: 0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
       lint-staged:
         specifier: ^15.5.0
         version: 15.5.2

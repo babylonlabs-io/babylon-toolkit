@@ -17,6 +17,7 @@ import { useCallback, useMemo } from "react";
 
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import { useRequireBtcWallet } from "@/context/wallet";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import type { ActivityRow } from "@/types/activityLog";
 
@@ -33,6 +34,7 @@ export function ActivityListWithRefund({
 }: ActivityListWithRefundProps) {
   const { expiredActivities, ethAddress, broadcastModal, refundModal } =
     usePendingDeposits();
+  const { requireBtcWallet } = useRequireBtcWallet();
 
   // Deposits that expired before activation and have not been reclaimed yet,
   // keyed by vault id. Correlate these against a row's `vaultId` and never its
@@ -55,8 +57,11 @@ export function ActivityListWithRefund({
   );
 
   const handleWithdraw = useCallback(
-    (vaultId: string) => refundModal.handleRefundClick(vaultId),
-    [refundModal],
+    (vaultId: string) => {
+      if (!requireBtcWallet()) return;
+      refundModal.handleRefundClick(vaultId);
+    },
+    [refundModal, requireBtcWallet],
   );
 
   const list = (

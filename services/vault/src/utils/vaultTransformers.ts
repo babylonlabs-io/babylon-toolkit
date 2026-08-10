@@ -3,13 +3,14 @@
  * Converts blockchain/GraphQL vault data to UI-friendly formats
  */
 
-import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { calculatePeginTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import type { Hex } from "viem";
 
 import { getNetworkConfigBTC } from "../config";
 import { getPeginState } from "../models/peginStateMachine";
 import type { Vault, VaultActivity } from "../types";
+
+import { satoshiToBtcString } from "./btcConversion";
 
 /**
  * Derive the Pre-PegIn txid from its unsigned hex. Returns undefined when the
@@ -21,7 +22,7 @@ export function derivePrePeginTxHash(
 ): Hex | undefined {
   if (!unsignedPrePeginTx) return undefined;
   try {
-    return calculateBtcTxHash(unsignedPrePeginTx);
+    return calculatePeginTxHash(unsignedPrePeginTx);
   } catch {
     return undefined;
   }
@@ -37,7 +38,7 @@ const btcConfig = getNetworkConfigBTC();
  */
 export function transformVaultToActivity(vault: Vault): VaultActivity {
   // Convert amount from satoshis to BTC
-  const btcAmount = formatSatoshisToBtc(vault.amount);
+  const btcAmount = satoshiToBtcString(vault.amount);
 
   // Compute display label from state machine
   const state = getPeginState(vault.status, { isInUse: vault.isInUse });

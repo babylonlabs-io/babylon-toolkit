@@ -126,6 +126,7 @@ vi.mock("../../../context/wallet", () => ({
   })),
   useConnection: vi.fn(() => ({
     isConnected: true,
+    isFullyConnected: true,
     btcConnected: true,
     ethConnected: true,
   })),

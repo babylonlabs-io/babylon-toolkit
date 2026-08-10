@@ -6,7 +6,7 @@
  * Pre-PegIn depth rather than a wall-clock countdown to unschedulable blocks.
  */
 
-import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
 import { useQuery } from "@tanstack/react-query";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";

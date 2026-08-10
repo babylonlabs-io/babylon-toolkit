@@ -8,11 +8,22 @@
  * from the card body, not a per-action modal here.
  */
 
-import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
-import { RefundModal } from "@/components/deposit/RefundModal";
-import type { VaultActivity } from "@/types/activity";
+import { lazy, Suspense } from "react";
 
-import SimpleDeposit from "./SimpleDeposit";
+import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import type { VaultActivity } from "@/types/activity";
+import { ensureBtcEccInitialized } from "@/utils/btc/ensureBtcEccInitialized";
+
+const SimpleDeposit = lazy(async () => {
+  await ensureBtcEccInitialized();
+  return import("./SimpleDeposit");
+});
+const RefundModal = lazy(async () => {
+  await ensureBtcEccInitialized();
+  return import("@/components/deposit/RefundModal").then(({ RefundModal }) => ({
+    default: RefundModal,
+  }));
+});
 
 interface BroadcastModalState {
   broadcastingActivity: VaultActivity | null;
@@ -46,25 +57,29 @@ export function PendingDepositModals({
     <>
       {/* Broadcast Modal – full-screen with stepper */}
       {broadcastModal.broadcastingActivity && ethAddress && (
-        <SimpleDeposit
-          open={!!broadcastModal.broadcastingActivity}
-          resumeMode="broadcast_btc"
-          onClose={broadcastModal.handleClose}
-          onResumeSuccess={broadcastModal.handleSuccess}
-          activity={broadcastModal.broadcastingActivity}
-          batchVaultIds={broadcastModal.broadcastingBatchIds}
-          depositorEthAddress={ethAddress}
-        />
+        <Suspense fallback={null}>
+          <SimpleDeposit
+            open
+            resumeMode="broadcast_btc"
+            onClose={broadcastModal.handleClose}
+            onResumeSuccess={broadcastModal.handleSuccess}
+            activity={broadcastModal.broadcastingActivity}
+            batchVaultIds={broadcastModal.broadcastingBatchIds}
+            depositorEthAddress={ethAddress}
+          />
+        </Suspense>
       )}
 
       {/* Refund Modal */}
       {refundModal.refundingActivity && (
-        <RefundModal
-          open={!!refundModal.refundingActivity}
-          activity={refundModal.refundingActivity}
-          onClose={refundModal.handleClose}
-          onSuccess={refundModal.handleSuccess}
-        />
+        <Suspense fallback={null}>
+          <RefundModal
+            open
+            activity={refundModal.refundingActivity}
+            onClose={refundModal.handleClose}
+            onSuccess={refundModal.handleSuccess}
+          />
+        </Suspense>
       )}
 
       {/* Broadcast Success Modal */}

@@ -118,6 +118,18 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const [publicKeyNoCoord, setPublicKeyNoCoord] = useState("");
   const [address, setAddress] = useState("");
   const [locked, setLocked] = useState(false);
+  const disconnectInFlightRef = useRef(false);
+  const hasActiveSessionRef = useRef(false);
+  // Every asynchronous provider read belongs to the generation that started it.
+  // Connector/provider disconnect events advance the generation synchronously,
+  // including while the first connection is still resolving, so stale reads
+  // cannot repopulate a session that has already been cleared.
+  const sessionGenerationRef = useRef(0);
+  // A raw provider disconnect leaves the connector selected during the vault's
+  // debounce window. Explicitly re-run the connector-backed read in that case;
+  // this replaces the accidental retry previously caused by connectBTC changing
+  // identity when address/public-key state was cleared.
+  const [rawReconnectGeneration, setRawReconnectGeneration] = useState(0);
 
   // Mirrors the current provider/address for in-flight lock probes. A probe
   // (`getAccounts`) is async; by the time it resolves the session may have been
@@ -129,10 +141,26 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     address: "",
   });
 
+  const isCurrentSession = useCallback(
+    (generation: number, provider: IBTCProvider) =>
+      generation === sessionGenerationRef.current &&
+      hasActiveSessionRef.current &&
+      lockProbeContextRef.current.provider === provider,
+    [],
+  );
+
   const btcConnector = useChainConnector("BTC");
   const { open = () => {} } = useWalletConnect();
 
   const disconnect = useCallback(async () => {
+    // Invalidate pending reads before any early return. In particular, a
+    // connector can disconnect after emitting `connect` but before getAddress /
+    // getPublicKeyHex resolve, when there is not an active local session yet.
+    sessionGenerationRef.current += 1;
+    const hadActiveSession = hasActiveSessionRef.current;
+    const shouldRetryRawSession = Boolean(btcConnector?.connectedWallet);
+    hasActiveSessionRef.current = false;
+
     // Invalidate any in-flight lock probe synchronously. The ref is otherwise
     // mirrored in a passive effect that runs only after these state setters
     // commit — leaving a window where a `getAccounts` resolution lands in the
@@ -146,54 +174,86 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     setPublicKeyNoCoord("");
     setAddress("");
     setLocked(false);
+    setLoading(false);
+
+    // Extension-originated disconnects intentionally leave connectedWallet in
+    // place while the host's debounce decides whether the loss was transient.
+    // Trigger a fresh, generation-scoped read so a quick wake-up can restore raw
+    // BTC state and cancel that pending reset. A real connector disconnect clears
+    // connectedWallet before emitting and therefore never retries here.
+    if (shouldRetryRawSession) {
+      setRawReconnectGeneration((generation) => generation + 1);
+    }
+
+    if (disconnectInFlightRef.current || !hadActiveSession) return;
+    disconnectInFlightRef.current = true;
 
     try {
       await callbacks?.onDisconnect?.();
     } catch (error) {
       console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      disconnectInFlightRef.current = false;
     }
-  }, [callbacks]);
+  }, [btcConnector, callbacks]);
 
   const connectBTC = useCallback(
     async (walletProvider: IBTCProvider | null) => {
       if (!walletProvider) return;
+      const generation = ++sessionGenerationRef.current;
       setLoading(true);
 
+      let nextAddress = "";
+      let nextPublicKeyNoCoord = "";
+
       try {
-        const address = await walletProvider.getAddress();
-        if (!address) {
+        nextAddress = await walletProvider.getAddress();
+        if (generation !== sessionGenerationRef.current) return;
+        if (!nextAddress) {
           throw new Error("BTC wallet provider returned an empty address");
         }
 
         const publicKeyHex = await walletProvider.getPublicKeyHex();
+        if (generation !== sessionGenerationRef.current) return;
         if (!publicKeyHex) {
           throw new Error("BTC wallet provider returned an empty public key");
         }
 
-        const publicKeyNoCoordHex = toXOnlyPublicKeyHex(publicKeyHex);
+        nextPublicKeyNoCoord = toXOnlyPublicKeyHex(publicKeyHex);
 
-        if (!publicKeyNoCoordHex) {
+        if (!nextPublicKeyNoCoord) {
           throw new Error("Processed BTC public key (no coordinates) is empty");
         }
 
         setBTCWalletProvider(walletProvider);
-        setAddress(address);
-        setPublicKeyNoCoord(publicKeyNoCoordHex);
+        setAddress(nextAddress);
+        setPublicKeyNoCoord(nextPublicKeyNoCoord);
         setLocked(false);
         setLoading(false);
         // Mirror the new session synchronously (the passive sync effect runs
         // only after this commit) so a probe in flight from a prior session
         // resolves against the correct identity instead of this one.
-        lockProbeContextRef.current = { provider: walletProvider, address };
+        lockProbeContextRef.current = {
+          provider: walletProvider,
+          address: nextAddress,
+        };
+        hasActiveSessionRef.current = true;
 
-        await callbacks?.onConnect?.(address, publicKeyNoCoordHex);
+        await callbacks?.onConnect?.(nextAddress, nextPublicKeyNoCoord);
       } catch (error: any) {
+        // A disconnect superseded this read. The disconnect path already
+        // cleared loading/state, and reporting the obsolete provider failure
+        // would be both noisy and misleading.
+        if (generation !== sessionGenerationRef.current) return;
         setLoading(false);
-        callbacks?.onError?.(error, { address, publicKeyNoCoord });
+        callbacks?.onError?.(error, {
+          address: nextAddress,
+          publicKeyNoCoord: nextPublicKeyNoCoord,
+        });
         throw error;
       }
     },
-    [callbacks, address, publicKeyNoCoord],
+    [callbacks],
   );
 
   useEffect(() => {
@@ -211,7 +271,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     });
 
     return unsubscribe;
-  }, [btcConnector, connectBTC]);
+  }, [btcConnector, connectBTC, rawReconnectGeneration]);
 
   useEffect(() => {
     if (!btcConnector) return;
@@ -228,6 +288,8 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     if (!btcWalletProvider) return;
 
     const onAccountsChanged = async (accounts?: string[]) => {
+      const sessionProvider = btcWalletProvider;
+      let generation = sessionGenerationRef.current;
       try {
         // If accounts array is provided and empty, treat as disconnect
         if (Array.isArray(accounts) && accounts.length === 0) {
@@ -235,16 +297,24 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           return;
         }
 
+        // This account event owns the next identity resolution. Supersede an
+        // older visibility/reconnect read on the same provider so it cannot
+        // restore the previous account after this one commits.
+        generation = ++sessionGenerationRef.current;
+
         // Check if the provider already updated its state (e.g. AppKit updates
         // address/publicKey via its persistent listener before emitting accountChanged).
         // Only re-connect if the address hasn't changed yet — other providers
         // (OKX, Unisat) need connectWallet() to refresh their internal cache.
-        const currentAddress = await btcWalletProvider.getAddress();
+        const currentAddress = await sessionProvider.getAddress();
+        if (!isCurrentSession(generation, sessionProvider)) return;
         if (currentAddress === address) {
-          await btcWalletProvider.connectWallet();
+          await sessionProvider.connectWallet();
+          if (!isCurrentSession(generation, sessionProvider)) return;
         }
 
-        const newAddress = await btcWalletProvider.getAddress();
+        const newAddress = await sessionProvider.getAddress();
+        if (!isCurrentSession(generation, sessionProvider)) return;
 
         // If no address returned, treat as disconnect
         if (!newAddress) {
@@ -254,13 +324,18 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
 
         if (newAddress !== address) {
           // Also fetch the new public key (different accounts have different keys)
-          const newPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
+          const newPublicKeyHex = await sessionProvider.getPublicKeyHex();
+          if (!isCurrentSession(generation, sessionProvider)) return;
           if (!newPublicKeyHex) {
             throw new Error("BTC wallet provider returned an empty public key after account change");
           }
 
           const newPublicKeyNoCoord = toXOnlyPublicKeyHex(newPublicKeyHex);
 
+          lockProbeContextRef.current = {
+            provider: sessionProvider,
+            address: newAddress,
+          };
           setAddress(newAddress);
           setPublicKeyNoCoord(newPublicKeyNoCoord);
           // An accountsChanged event is itself proof the wallet answered, so it
@@ -273,6 +348,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           await callbacks?.onAddressChange?.(newAddress, newPublicKeyNoCoord);
         }
       } catch (error: any) {
+        if (!isCurrentSession(generation, sessionProvider)) return;
         // Connection failure during account change likely means wallet disconnected
         console.error("Error handling BTC account change:", error instanceof Error ? error.message : "Unknown error");
         callbacks?.onError?.(error);
@@ -301,7 +377,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
       }
     };
-  }, [btcWalletProvider, address, callbacks, disconnect]);
+  }, [btcWalletProvider, address, callbacks, disconnect, isCurrentSession]);
 
   // Keep the lock-probe context in sync so an in-flight `getAccounts` resolution
   // can detect that the session changed underneath it (see checkLock). This
@@ -317,6 +393,8 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   // This handles the case where user disconnects from extension while tab is in background
   const checkBTCConnection = useCallback(async () => {
     if (!btcWalletProvider) return;
+    let generation = sessionGenerationRef.current;
+    const sessionProvider = btcWalletProvider;
 
     // Non-interactive pre-check (when supported): distinguishes a silent
     // auto-lock from a real disconnect / account change WITHOUT surfacing the
@@ -326,10 +404,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     // a mere auto-lock we instead flag `locked` (the unlock banner handles it)
     // and stop here, so returning to a locked tab never forces a popup or wipes
     // the session.
-    if (typeof btcWalletProvider.getAccounts === "function") {
+    if (typeof sessionProvider.getAccounts === "function") {
       let accounts: string[] | undefined;
       try {
-        accounts = await btcWalletProvider.getAccounts();
+        accounts = await sessionProvider.getAccounts();
       } catch {
         // No silent verdict — either a transient error / asleep extension, or a
         // wallet whose getAccounts is present but unsupported (throws
@@ -346,7 +424,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         // switched while it was in flight, so a stale response can't write
         // `locked` for a session that is no longer current.
         const probeContext = lockProbeContextRef.current;
-        if (probeContext.provider !== btcWalletProvider || probeContext.address !== address) {
+        if (
+          !isCurrentSession(generation, sessionProvider) ||
+          probeContext.address !== address
+        ) {
           return;
         }
         const probe = classifyBtcAccountsProbe(accounts, address);
@@ -365,15 +446,22 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     try {
       // Try to get the current accounts from the wallet
       // If disconnected, this will fail or return empty
-      await btcWalletProvider.connectWallet();
-      const currentAddress = await btcWalletProvider.getAddress();
+      await sessionProvider.connectWallet();
+      if (!isCurrentSession(generation, sessionProvider)) return;
+      const currentAddress = await sessionProvider.getAddress();
+      if (!isCurrentSession(generation, sessionProvider)) return;
 
       if (!currentAddress) {
         // Wallet is disconnected
         disconnect();
       } else if (currentAddress !== address) {
+        // This visibility pass discovered a new identity. Claim a new
+        // generation before its public-key read/commit so any older operation
+        // on the same provider cannot overwrite it afterward.
+        generation = ++sessionGenerationRef.current;
         // Account changed while tab was in background
-        const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
+        const pubKeyHex = await sessionProvider.getPublicKeyHex();
+        if (!isCurrentSession(generation, sessionProvider)) return;
         if (!pubKeyHex) {
           // Missing public key is an error - disconnect to avoid inconsistent state
           const error = new Error("BTC wallet returned empty public key after account change");
@@ -383,16 +471,21 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
           return;
         }
         const pubKeyNoCoord = toXOnlyPublicKeyHex(pubKeyHex);
+        lockProbeContextRef.current = {
+          provider: sessionProvider,
+          address: currentAddress,
+        };
         setAddress(currentAddress);
         setPublicKeyNoCoord(pubKeyNoCoord);
         await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
       }
     } catch (error) {
+      if (!isCurrentSession(generation, sessionProvider)) return;
       // Connection check failed - wallet likely disconnected
       console.error("BTC wallet connection check failed:", error instanceof Error ? error.message : "Unknown error");
       disconnect();
     }
-  }, [btcWalletProvider, address, callbacks, disconnect]);
+  }, [btcWalletProvider, address, callbacks, disconnect, isCurrentSession]);
 
   useVisibilityCheck(checkBTCConnection, {
     enabled: Boolean(btcWalletProvider && address),
@@ -504,16 +597,24 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     if (!btcWalletProvider) {
       throw new Error("BTC Wallet not connected");
     }
+    // An explicit reconnect is the newest authority for this provider. It
+    // supersedes passive/account reads already in flight; a later disconnect or
+    // account event advances the generation again and makes this result stale.
+    const generation = ++sessionGenerationRef.current;
+    const sessionProvider = btcWalletProvider;
 
     try {
-      await btcWalletProvider.connectWallet();
+      await sessionProvider.connectWallet();
+      if (!isCurrentSession(generation, sessionProvider)) return;
 
-      const refreshedAddress = await btcWalletProvider.getAddress();
+      const refreshedAddress = await sessionProvider.getAddress();
+      if (!isCurrentSession(generation, sessionProvider)) return;
       if (!refreshedAddress) {
         throw new Error("BTC wallet provider returned an empty address");
       }
 
-      const refreshedPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      const refreshedPublicKeyHex = await sessionProvider.getPublicKeyHex();
+      if (!isCurrentSession(generation, sessionProvider)) return;
       if (!refreshedPublicKeyHex) {
         throw new Error("BTC wallet provider returned an empty public key");
       }
@@ -526,6 +627,10 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       // Always refresh the cached pubkey alongside the address. Wallets that
       // derive pubkeys lazily can return a different pubkey for the same
       // address after re-auth, and connectBTC sets both unconditionally.
+      lockProbeContextRef.current = {
+        provider: sessionProvider,
+        address: refreshedAddress,
+      };
       setAddress(refreshedAddress);
       setPublicKeyNoCoord(refreshedPublicKeyNoCoord);
       // A successful re-auth means the wallet answered an interactive prompt, so
@@ -536,11 +641,12 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         await callbacks?.onAddressChange?.(refreshedAddress, refreshedPublicKeyNoCoord);
       }
     } catch (error: unknown) {
+      if (!isCurrentSession(generation, sessionProvider)) return;
       const err = error instanceof Error ? error : new Error(String(error));
       callbacks?.onError?.(err, { address, publicKeyNoCoord });
       throw error;
     }
-  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks]);
+  }, [btcWalletProvider, address, publicKeyNoCoord, callbacks, isCurrentSession]);
 
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),
@@ -627,4 +733,3 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
 };
 
 export const useBTCWallet = () => useContext(BTCWalletContext);
-

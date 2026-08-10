@@ -1,7 +1,7 @@
 import type {
   AllOffchainParamsData,
   VersionedOffchainParams,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import { describe, expect, it } from "vitest";
 
 import { resolveTimelockAssertBlocks } from "../useOffchainParams";

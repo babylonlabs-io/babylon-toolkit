@@ -1,4 +1,4 @@
-import type { GetPegoutStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import type { GetPegoutStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
@@ -30,41 +30,44 @@ const { pollScript, mockEvent } = vi.hoisted(() => ({
 // Replace the SDK's batch poller so each poll cycle serves the scripted
 // envelope without touching the network; everything downstream of it —
 // counters, give-up thresholds, the emission effect — runs for real.
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@babylonlabs-io/ts-sdk/tbv/core/clients")
-    >();
-  return {
-    ...actual,
-    batchPollByProvider: async (opts: {
-      items: { vault: { id: string } }[];
-      onItem: (
-        item: { vault: { id: string } },
-        envelope: {
-          error: string | null;
-          result: GetPegoutStatusResponse | null;
-        },
-      ) => void;
-      onWholeBatchError: (
-        chunk: { vault: { id: string } }[],
-        error: unknown,
-      ) => void;
-    }) => {
-      const script = pollScript.current;
-      if (script === undefined) {
-        throw new Error("pollScript.current not set before a poll cycle");
-      }
-      if (script === "batch_error") {
-        opts.onWholeBatchError(opts.items, new Error("provider down"));
-        return;
-      }
-      for (const item of opts.items) {
-        opts.onItem(item, script);
-      }
-    },
-  };
-});
+vi.mock(
+  "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status")
+      >();
+    return {
+      ...actual,
+      batchPollByProvider: async (opts: {
+        items: { vault: { id: string } }[];
+        onItem: (
+          item: { vault: { id: string } },
+          envelope: {
+            error: string | null;
+            result: GetPegoutStatusResponse | null;
+          },
+        ) => void;
+        onWholeBatchError: (
+          chunk: { vault: { id: string } }[],
+          error: unknown,
+        ) => void;
+      }) => {
+        const script = pollScript.current;
+        if (script === undefined) {
+          throw new Error("pollScript.current not set before a poll cycle");
+        }
+        if (script === "batch_error") {
+          opts.onWholeBatchError(opts.items, new Error("provider down"));
+          return;
+        }
+        for (const item of opts.items) {
+          opts.onItem(item, script);
+        }
+      },
+    };
+  },
+);
 
 // The provider client is only dereferenced inside the (mocked-away) batch
 // poller, so a stub satisfies the hook.

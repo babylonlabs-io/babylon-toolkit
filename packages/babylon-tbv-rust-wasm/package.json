@@ -14,11 +14,26 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./raw": {
+      "node": {
+        "types": "./dist/raw-node.d.ts",
+        "default": "./dist/raw-node.js"
+      },
+      "default": {
+        "types": "./dist/raw.d.ts",
+        "default": "./dist/raw.js"
+      }
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
     }
   },
   "scripts": {
     "build": "tsc -b tsconfig.lib.json",
     "build-wasm": "node scripts/build-wasm.js",
+    "check:lazy": "pnpm build && node scripts/check-lazy-entries.js",
     "lint": "eslint ."
   },
   "files": [

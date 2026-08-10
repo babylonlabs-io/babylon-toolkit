@@ -25,7 +25,7 @@ const mockUniversalChallengerReaderCtor = vi.fn();
 const mockVaultRegistryReaderCtor = vi.fn();
 const mockOperationKeyReaderCtor = vi.fn();
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients/eth", () => {
   // Constructable classes must be declared inside the factory because
   // `vi.mock` is hoisted above outer-scope declarations.
   class MockProtocolParamsReader {

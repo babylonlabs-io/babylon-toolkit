@@ -19,7 +19,7 @@
  * rotated provider, including already-active ones.
  */
 
-import type { OnChainBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import type { OnChainBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import type { Address } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";

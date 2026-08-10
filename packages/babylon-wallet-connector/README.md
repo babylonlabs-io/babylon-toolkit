@@ -12,6 +12,7 @@
 - [Key Features](#key-features)
 - [Overview](#overview)
 - [Installation](#installation)
+- [Optional chains and ETH-only imports](#optional-chains-and-eth-only-imports)
 - [Version Release](#version-release)
   - [Stable version](#stable-version)
 - [Storybook](#storybook)
@@ -52,6 +53,51 @@ implementation into the webpage's `window` object before the dApp loads.
 
 ```bash
 npm i @babylonlabs-io/wallet-connector
+```
+
+Add the optional Bitcoin peers when using the package's BTC/full entry, plus
+the adapters for the wallet families you enable:
+
+```bash
+npm i bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
+npm i @reown/appkit-adapter-bitcoin # BTC AppKit
+npm i @tomo-inc/wallet-connect-sdk # Tomo
+npm i @tomo-inc/ledger-bitcoin-babylon ledger-bitcoin-babylon-boilerplate # Ledger
+```
+
+## Optional chains and ETH-only imports
+
+Every chain in `config` is shown in the connection dialog. By default all of
+them are required; pass `requiredChains` to let users confirm with a subset:
+
+```tsx
+<WalletProvider config={config} requiredChains={["ETH"]}>
+  {children}
+</WalletProvider>
+```
+
+In that example BTC remains visible as **Optional** and can be connected later.
+`useWalletConnect()` also accepts a chain for just-in-time management:
+
+```ts
+const { open, disconnect } = useWalletConnect();
+
+open("BTC"); // open directly on the BTC wallet list
+await disconnect("BTC"); // leave the confirmed ETH session intact
+```
+
+Applications that never support Bitcoin should import the isolated Ethereum
+entry. It excludes the BTC wallet implementations and adapters from its static
+module graph, and does not require the optional `bitcoinjs-lib` or
+`@bitcoin-js/tiny-secp256k1-asmjs` peers:
+
+```ts
+import {
+  WalletProvider,
+  createWalletConfig,
+  initializeAppKitModal,
+  useETHWallet,
+} from "@babylonlabs-io/wallet-connector/eth";
 ```
 
 ## 📝 Commit Format & Automated Releases

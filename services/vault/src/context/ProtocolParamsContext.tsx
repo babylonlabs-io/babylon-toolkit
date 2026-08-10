@@ -13,7 +13,7 @@ import { Loader } from "@babylonlabs-io/core-ui";
 import type {
   PegInConfiguration,
   VersionedOffchainParams,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import { useQuery } from "@tanstack/react-query";
 import {
   createContext,

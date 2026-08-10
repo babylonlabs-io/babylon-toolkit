@@ -4,7 +4,7 @@
  * Includes pre-flight simulation to catch errors before user signs.
  */
 
-import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils/eth";
 import {
   type Abi,
   type Address,
@@ -23,7 +23,7 @@ import { logger } from "@/infrastructure";
 import {
   mapViemErrorToContractError,
   tagSimulationPhase,
-} from "../../utils/errors";
+} from "../../utils/errors/contract";
 
 import { ethClient } from "./client";
 

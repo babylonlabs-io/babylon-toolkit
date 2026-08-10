@@ -1,5 +1,5 @@
-import okxLogo from "./btc/okx/logo.svg";
 import { MONOCHROME_MARK_BACKGROUND } from "./constants";
+import okxLogo from "./icons/okx.svg";
 
 /**
  * AppKit reports the connected ETH wallet's own name and icon, and for wallets

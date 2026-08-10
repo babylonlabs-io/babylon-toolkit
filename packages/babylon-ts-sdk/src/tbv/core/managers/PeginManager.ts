@@ -26,7 +26,6 @@ import { Buffer } from "buffer";
 import {
   encodeFunctionData,
   isAddressEqual,
-  zeroAddress,
   type Address,
   type Chain,
   type Hex,
@@ -46,10 +45,14 @@ import type {
   Hash,
   SignPsbtOptions,
 } from "../../../shared/wallets";
-import { ViemVaultRegistryReader } from "../clients/eth";
+import {
+  capMaxAcceptableCommissionBps,
+  ViemPeginRegistrationClient,
+  type PopSignature,
+} from "../clients/eth";
 import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
-import { BTCVaultRegistryABI, handleContractError } from "../contracts";
+import { BTCVaultRegistryABI } from "../contracts";
 import {
   buildDepositTerms,
   supportsDepositApproval,
@@ -61,15 +64,12 @@ import {
   buildPeginInputPsbt,
   buildPeginTxFromFundedPrePegin,
   buildPrePeginPsbt,
-  deriveVaultId,
   extractPeginInputSignature,
   finalizePeginInputPsbt,
   type Network,
   type PrePeginParams,
 } from "../primitives";
-import { MAX_VP_COMMISSION_BPS_EXCLUSIVE } from "../primitives/psbt/constants";
 import {
-  ensureHexPrefix,
   hexToUint8Array,
   isAddressFromPublicKey,
   stripHexPrefix,
@@ -84,7 +84,6 @@ import {
   MAX_REASONABLE_FEE_SATS,
   peginOutputCount,
   selectUtxosForPegin,
-  waitForTransactionReceiptSmartAware,
   type UTXO,
 } from "../utils";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
@@ -98,50 +97,11 @@ import {
 const NO_REFERRAL_CODE = 0;
 
 /**
- * Headroom (in basis points) added to the current VP commission to compute
- * `maxAcceptableCommissionBps` at submit time. Lets the VP raise its
- * commission by up to this amount between read and submit without forcing
- * a re-quote. Capped by {@link MAX_ACCEPTABLE_COMMISSION_BPS_CAP}.
- *
- * Contract check is strict `>` (PeginLogic.sol `VaultProviderCommissionExceeded`
- * revert), so +25 allows up
- * to +25 bps of drift.
- */
-const COMMISSION_BPS_HEADROOM = 25;
-
-/**
  * Hard ceiling for `maxAcceptableCommissionBps`. The contract enforces
  * `commissionBps < 10000`, so any value at/above that is unreachable;
  * `9999` is the maximum useful cap.
  */
 const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
-
-/**
- * The commission ceiling submitted as registration calldata and mirrored
- * into `DepositTerms.commissionFee`: quoted + drift headroom, capped.
- * Single source for both consumers — feed it the SAME quoted bps at prepare
- * and register time so device-accept stays coextensive with contract-accept.
- */
-function capMaxAcceptableCommissionBps(bps: number): number {
-  // Validate the raw quote before headroom shifts its domain — a negative
-  // quote must throw here, not become a small "legal" ceiling.
-  // Reject an out-of-range quote outright — clamping it to 9999 would turn a
-  // bad read into a 99.99% ceiling, the exact failure the cap exists to stop.
-  if (
-    !Number.isInteger(bps) ||
-    bps < 0 ||
-    bps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
-  ) {
-    throw new Error(
-      `Quoted commissionBps must be an integer in ` +
-        `[0, ${MAX_VP_COMMISSION_BPS_EXCLUSIVE}), got ${bps}`,
-    );
-  }
-  return Math.min(
-    bps + COMMISSION_BPS_HEADROOM,
-    MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
-  );
-}
 
 /**
  * 32-byte zero hex used as a placeholder during the sizing pass for any
@@ -429,21 +389,6 @@ export interface SignAndBroadcastParams {
 }
 
 /**
- * BIP-322 BTC Proof-of-Possession binding a depositor's BTC key to their
- * Ethereum account. Produced by {@link PeginManager.signProofOfPossession}
- * and reusable across every register call in the same session — the
- * embedded identities are re-checked at register time.
- */
-export interface PopSignature {
-  /** BIP-322 signature over the PoP message (0x-prefixed hex). */
-  btcPopSignature: Hex;
-  /** Ethereum address the PoP was signed for. */
-  depositorEthAddress: Address;
-  /** BTC x-only public key (64-char hex, no 0x prefix). */
-  depositorBtcPubkey: string;
-}
-
-/**
  * Parameters for registering a peg-in on Ethereum.
  */
 export interface RegisterPeginParams {
@@ -664,13 +609,6 @@ function resolveUtxoInfo(
  * @see {@link buildPrePeginPsbt} - Lower-level primitive for custom implementations
  * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md | Managers Quickstart}
  */
-/**
- * Maximum time (ms) to wait for a transaction receipt before timing out.
- * Matches the prior vault-service polling timeout so users see a clear error
- * instead of an indefinite hang when a transaction is dropped from the mempool.
- */
-const RECEIPT_TIMEOUT_MS = 120_000;
-
 export class PeginManager {
   private readonly config: PeginManagerConfig;
 
@@ -1259,177 +1197,47 @@ export class PeginManager {
   async registerPeginOnChain(
     params: RegisterPeginParams,
   ): Promise<RegisterPeginResult> {
-    const {
-      unsignedPrePeginTx,
-      depositorSignedPeginTx,
-      vaultProvider,
-      hashlock,
-      htlcVout,
-      depositorPayoutBtcAddress,
-      depositorWotsPkHash,
-      popSignature,
-    } = params;
-
-    // Step 1: Re-verify the PoP artifact against the currently connected
-    // wallets so a mid-flow account/wallet switch fails here instead of
-    // surfacing downstream as an opaque contract revert.
     if (!this.config.ethWallet.account) {
       throw new Error("Ethereum wallet account not found");
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
     if (
-      !isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)
+      !isAddressEqual(
+        params.popSignature.depositorEthAddress,
+        depositorEthAddress,
+      )
     ) {
       throw new Error(
-        `Proof of possession was signed for ${popSignature.depositorEthAddress} ` +
+        `Proof of possession was signed for ${params.popSignature.depositorEthAddress} ` +
           `but the Ethereum wallet is currently connected to ${depositorEthAddress}. ` +
           `Reconnect the original account or call signProofOfPossession() again.`,
       );
     }
-    // The raw (parity-preserving) pubkey is required to validate P2WPKH
-    // payout addresses; the x-only form on `popSignature` would let an
-    // attacker substitute the opposite-parity P2WPKH address.
-    const verifiedBtcPubkeyRaw =
-      await this.assertPopMatchesBtcWallet(popSignature);
-    const btcPopSignature = popSignature.btcPopSignature;
-
-    // Step 2: Format parameters for contract call
-    const depositorBtcPubkeyHex = ensureHexPrefix(
-      popSignature.depositorBtcPubkey,
+    const verifiedBtcPubkeyRaw = await this.assertPopMatchesBtcWallet(
+      params.popSignature,
     );
-    const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx);
-    const depositorSignedPeginTxHex = ensureHexPrefix(depositorSignedPeginTx);
-
-    // Only read the wallet address if the caller didn't supply one — avoids
-    // an unnecessary adapter prompt on the common explicit-address path.
     const resolvedPayoutAddress =
-      depositorPayoutBtcAddress ?? (await this.config.btcWallet.getAddress());
+      params.depositorPayoutBtcAddress ??
+      (await this.config.btcWallet.getAddress());
     const payoutScriptPubKey = this.resolvePayoutScriptPubKey(
       verifiedBtcPubkeyRaw,
       resolvedPayoutAddress,
     );
-
-    // Step 3: Calculate pegin tx hash and derive vault ID, then check if it already exists
-    const peginTxHash = calculateBtcTxHash(depositorSignedPeginTxHex);
-    const derivedVaultIdHex = await deriveVaultId(
-      stripHexPrefix(peginTxHash),
-      stripHexPrefix(depositorEthAddress),
+    this.assertQuotedCommissionPresentForApprovalWallet(
+      params.quotedCommissionBps,
     );
-    const vaultId = ensureHexPrefix(derivedVaultIdHex) as Hex;
-    const exists = await this.checkVaultExists(vaultId);
 
-    if (exists) {
-      throw new Error(
-        `Vault already exists (ID: ${vaultId}, peginTxHash: ${peginTxHash}). ` +
-          `Vault IDs are derived from the pegin transaction hash and depositor address. ` +
-          `To create a new vault, use different UTXOs or a different amount to generate a unique transaction.`,
-      );
-    }
-
-    // Step 4: Query required pegin fee and current VP commission from chain.
-    // Both reads happen at submit time to minimise drift between display and
-    // consequence; per the validation-layer rule, no caching.
-    const publicClient = this.config.publicClient;
-
-    let peginFee: bigint;
-    try {
-      peginFee = (await publicClient.readContract({
-        address: this.config.vaultContracts.btcVaultRegistry,
-        abi: BTCVaultRegistryABI,
-        functionName: "getPegInFee",
-        args: [vaultProvider],
-      })) as bigint;
-    } catch (error) {
-      throw new Error(
-        "Failed to query pegin fee from the contract. " +
-          "Please check your network connection and that the contract address is correct.",
-        { cause: error },
-      );
-    }
-
-    const maxAcceptableCommissionBps =
-      await this.resolveMaxAcceptableCommissionBps(
-        vaultProvider,
-        params.quotedCommissionBps,
-      );
-
-    // Step 5: Encode the contract call data
-    const callData = encodeFunctionData({
-      abi: BTCVaultRegistryABI,
-      functionName: "submitPeginRequest",
-      args: [
-        depositorEthAddress,
-        depositorBtcPubkeyHex,
-        btcPopSignature,
-        unsignedPrePeginTxHex,
-        depositorSignedPeginTxHex,
-        vaultProvider,
-        maxAcceptableCommissionBps,
-        hashlock,
-        htlcVout,
-        payoutScriptPubKey,
-        depositorWotsPkHash,
-      ],
+    return this.createRegistrationClient().registerPeginOnChain({
+      unsignedPrePeginTx: params.unsignedPrePeginTx,
+      depositorSignedPeginTx: params.depositorSignedPeginTx,
+      vaultProvider: params.vaultProvider,
+      hashlock: params.hashlock,
+      htlcVout: params.htlcVout,
+      depositorPayoutScriptPubKey: payoutScriptPubKey,
+      depositorWotsPkHash: params.depositorWotsPkHash,
+      popSignature: params.popSignature,
+      quotedCommissionBps: params.quotedCommissionBps,
     });
-
-    // Step 6: Estimate gas first to catch contract errors before showing wallet popup
-    // This ensures users see actual contract revert reasons instead of gas errors
-    // The gas estimate is then passed to sendTransaction to avoid double estimation
-    let gasEstimate: bigint;
-    try {
-      gasEstimate = await publicClient.estimateGas({
-        to: this.config.vaultContracts.btcVaultRegistry,
-        data: callData,
-        value: peginFee,
-        account: this.config.ethWallet.account.address,
-      });
-    } catch (error) {
-      // Estimation failed - handle contract error with actual revert reason
-      handleContractError(error); // always throws (return type: never)
-    }
-
-    // Step 7: Submit peg-in request to contract (estimation passed)
-    let ethTxHash: Hex;
-    try {
-      // Send transaction with pre-estimated gas to skip internal estimation
-      // Note: viem's sendTransaction uses `gas`, not `gasLimit`
-      ethTxHash = await this.config.ethWallet.sendTransaction({
-        to: this.config.vaultContracts.btcVaultRegistry,
-        data: callData,
-        value: peginFee,
-        account: this.config.ethWallet.account,
-        chain: this.config.ethChain,
-        gas: gasEstimate,
-      });
-    } catch (error) {
-      // Use proper error handler for better error messages
-      handleContractError(error); // always throws (return type: never)
-    }
-
-    // Step 8: Wait for transaction receipt and verify it was not reverted.
-    // Smart-account-aware wrapper so Safe-style multisigs work alongside
-    // Externally Owned Accounts (EOAs — wallets controlled by a single
-    // private key, e.g. MetaMask). The EOA path is unchanged.
-    const receipt = await waitForTransactionReceiptSmartAware({
-      publicClient,
-      walletAddress: this.config.ethWallet.account.address,
-      hash: ethTxHash,
-      timeout: RECEIPT_TIMEOUT_MS,
-    });
-    if (receipt.status === "reverted") {
-      handleContractError(
-        new Error(
-          `Transaction reverted. Hash: ${receipt.transactionHash}. ` +
-            `Check the transaction on block explorer for details.`,
-        ),
-      );
-    }
-
-    return {
-      ethTxHash: receipt.transactionHash,
-      vaultId,
-      peginTxHash,
-    };
   }
 
   /**
@@ -1445,191 +1253,56 @@ export class PeginManager {
   async registerPeginBatchOnChain(
     params: RegisterPeginBatchParams,
   ): Promise<RegisterPeginBatchResult> {
-    const { vaultProvider, unsignedPrePeginTx, requests, popSignature } =
-      params;
-
-    if (requests.length === 0) {
+    if (params.requests.length === 0) {
       throw new Error("Batch pegin requires at least one request");
     }
-
-    // Step 1: Re-verify the PoP (same reasoning as registerPeginOnChain).
     if (!this.config.ethWallet.account) {
       throw new Error("Ethereum wallet account not found");
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
     if (
-      !isAddressEqual(popSignature.depositorEthAddress, depositorEthAddress)
+      !isAddressEqual(
+        params.popSignature.depositorEthAddress,
+        depositorEthAddress,
+      )
     ) {
       throw new Error(
-        `Proof of possession was signed for ${popSignature.depositorEthAddress} ` +
+        `Proof of possession was signed for ${params.popSignature.depositorEthAddress} ` +
           `but the Ethereum wallet is currently connected to ${depositorEthAddress}. ` +
           `Reconnect the original account or call signProofOfPossession() again.`,
       );
     }
-    // The raw (parity-preserving) pubkey is required to validate P2WPKH
-    // payout addresses; the x-only form on `popSignature` would let an
-    // attacker substitute the opposite-parity P2WPKH address.
-    const verifiedBtcPubkeyRaw =
-      await this.assertPopMatchesBtcWallet(popSignature);
-    const btcPopSignature = popSignature.btcPopSignature;
-
-    // Step 2: Resolve per-request payout scriptPubKey. The verified pubkey
-    // comes from the just-checked PoP; `depositorPayoutBtcAddress` is
-    // required per-request, so no wallet read is needed here.
-    const resolvedPayoutScripts: Hex[] = requests.map((req) =>
+    const verifiedBtcPubkeyRaw = await this.assertPopMatchesBtcWallet(
+      params.popSignature,
+    );
+    const resolvedPayoutScripts: Hex[] = params.requests.map((request) =>
       this.resolvePayoutScriptPubKey(
         verifiedBtcPubkeyRaw,
-        req.depositorPayoutBtcAddress,
+        request.depositorPayoutBtcAddress,
       ),
     );
+    this.assertQuotedCommissionPresentForApprovalWallet(
+      params.quotedCommissionBps,
+    );
 
-    // Step 3: Pre-compute vault IDs and check for duplicates
-    const vaultResults: BatchPeginResultItem[] = [];
-    for (const req of requests) {
-      const depositorSignedPeginTxHex = ensureHexPrefix(
-        req.depositorSignedPeginTx,
-      );
-      const peginTxHash = calculateBtcTxHash(depositorSignedPeginTxHex);
-      const derivedVaultIdHex = await deriveVaultId(
-        stripHexPrefix(peginTxHash),
-        stripHexPrefix(depositorEthAddress),
-      );
-      const vaultId = ensureHexPrefix(derivedVaultIdHex) as Hex;
-      const exists = await this.checkVaultExists(vaultId);
-      if (exists) {
-        throw new Error(
-          `Vault already exists (ID: ${vaultId}, peginTxHash: ${peginTxHash}). ` +
-            `To create a new vault, use different UTXOs or a different amount.`,
-        );
-      }
-      vaultResults.push({ vaultId, peginTxHash });
-    }
-
-    // Step 4: Query pegin fee, compute total, and read current VP commission.
-    // Commission read happens at submit time per the validation-layer rule.
-    const publicClient = this.config.publicClient;
-
-    let peginFee: bigint;
-    try {
-      peginFee = (await publicClient.readContract({
-        address: this.config.vaultContracts.btcVaultRegistry,
-        abi: BTCVaultRegistryABI,
-        functionName: "getPegInFee",
-        args: [vaultProvider],
-      })) as bigint;
-    } catch (error) {
-      throw new Error(
-        "Failed to query pegin fee from the contract. " +
-          "Please check your network connection and that the contract address is correct.",
-        { cause: error },
-      );
-    }
-    const totalFee = peginFee * BigInt(requests.length);
-
-    const maxAcceptableCommissionBps =
-      await this.resolveMaxAcceptableCommissionBps(
-        vaultProvider,
-        params.quotedCommissionBps,
-      );
-
-    // Step 5: Build BatchPeginRequest[] tuple array. Depositor BTC pubkey,
-    // PoP, and Pre-PegIn tx hex are shared across the batch (carried on
-    // the top-level params / PopSignature, not per request).
-    const depositorBtcPubkeyHex = ensureHexPrefix(
-      popSignature.depositorBtcPubkey,
-    ) as Hex;
-    const unsignedPrePeginTxHex = ensureHexPrefix(unsignedPrePeginTx) as Hex;
-    const batchRequests = requests.map((req, i) => ({
-      depositorBtcPubKey: depositorBtcPubkeyHex,
-      btcPopSignature,
-      unsignedPrePeginTx: unsignedPrePeginTxHex,
-      depositorSignedPeginTx: ensureHexPrefix(
-        req.depositorSignedPeginTx,
-      ) as Hex,
-      hashlock: req.hashlock,
-      htlcVout: req.htlcVout,
-      referralCode: NO_REFERRAL_CODE,
-      depositorPayoutBtcAddress: resolvedPayoutScripts[i],
-      depositorWotsPkHash: req.depositorWotsPkHash,
-    }));
-
-    // Step 6: Encode batch call data
-    const callData = encodeFunctionData({
-      abi: BTCVaultRegistryABI,
-      functionName: "submitPeginRequestBatch",
-      args: [
-        depositorEthAddress,
-        vaultProvider,
-        maxAcceptableCommissionBps,
-        batchRequests,
-      ],
+    return this.createRegistrationClient().registerPeginBatchOnChain({
+      vaultProvider: params.vaultProvider,
+      unsignedPrePeginTx: params.unsignedPrePeginTx,
+      popSignature: params.popSignature,
+      quotedCommissionBps: params.quotedCommissionBps,
+      requests: params.requests.map((request, index) => ({
+        depositorSignedPeginTx: request.depositorSignedPeginTx,
+        hashlock: request.hashlock,
+        htlcVout: request.htlcVout,
+        depositorPayoutScriptPubKey: resolvedPayoutScripts[index],
+        depositorWotsPkHash: request.depositorWotsPkHash,
+      })),
     });
-
-    // Step 7: Estimate gas
-    let gasEstimate: bigint;
-    try {
-      gasEstimate = await publicClient.estimateGas({
-        to: this.config.vaultContracts.btcVaultRegistry,
-        data: callData,
-        value: totalFee,
-        account: this.config.ethWallet.account.address,
-      });
-    } catch (error) {
-      handleContractError(error); // always throws (return type: never)
-    }
-
-    // Step 8: Submit batch transaction
-    let ethTxHash: Hex;
-    try {
-      ethTxHash = await this.config.ethWallet.sendTransaction({
-        to: this.config.vaultContracts.btcVaultRegistry,
-        data: callData,
-        value: totalFee,
-        account: this.config.ethWallet.account,
-        chain: this.config.ethChain,
-        gas: gasEstimate,
-      });
-    } catch (error) {
-      handleContractError(error); // always throws (return type: never)
-    }
-
-    // Step 9: Wait for receipt
-    // Use the smart-account-aware wrapper so Safe-style wallets (whose
-    // `eth_sendTransaction` returns a `safeTxHash`, not a real tx hash) work
-    // alongside Externally Owned Accounts (EOAs — wallets controlled by a
-    // single private key, e.g. MetaMask). The EOA path is unchanged.
-    const receipt = await waitForTransactionReceiptSmartAware({
-      publicClient,
-      walletAddress: this.config.ethWallet.account.address,
-      hash: ethTxHash,
-      timeout: RECEIPT_TIMEOUT_MS,
-    });
-    if (receipt.status === "reverted") {
-      handleContractError(
-        new Error(
-          `Batch transaction reverted. Hash: ${receipt.transactionHash}. ` +
-            `Check the transaction on block explorer for details.`,
-        ),
-      );
-    }
-
-    return {
-      ethTxHash: receipt.transactionHash,
-      vaults: vaultResults,
-    };
   }
 
-  // Anchor to quoted+headroom when supplied (refuse if chain drifted past it);
-  // otherwise fall back to chain-current+headroom — see #1691.
-  private async resolveMaxAcceptableCommissionBps(
-    vaultProvider: Address,
+  private assertQuotedCommissionPresentForApprovalWallet(
     quotedCommissionBps?: number,
-  ): Promise<number> {
-    // Approval-capable wallets froze the ceiling on-device at prepare time
-    // (DepositTerms.commissionFee from the quoted bps). The chain-current
-    // fallback could exceed that approved ceiling, letting registration
-    // admit a commission the device would refuse to pay out — require the
-    // same quote instead.
+  ): void {
     if (
       quotedCommissionBps === undefined &&
       supportsDepositApproval(this.config.btcWallet)
@@ -1639,59 +1312,15 @@ export class PeginManager {
           "terms: the registration ceiling must anchor to the approved quote.",
       );
     }
-    let currentBps: number;
-    try {
-      const reader = new ViemVaultRegistryReader(
-        this.config.publicClient,
-        this.config.vaultContracts.btcVaultRegistry,
-      );
-      currentBps = await reader.getVaultProviderCommission(vaultProvider);
-    } catch (error) {
-      throw new Error(
-        "Failed to query vault provider commission from the contract. " +
-          "Please check your network connection and that the contract address is correct.",
-        { cause: error },
-      );
-    }
-
-    if (quotedCommissionBps !== undefined) {
-      if (currentBps > quotedCommissionBps + COMMISSION_BPS_HEADROOM) {
-        throw new Error(
-          `Vault provider commission changed since quote: quoted ${quotedCommissionBps} bps, ` +
-            `chain currently reports ${currentBps} bps (allowed drift ${COMMISSION_BPS_HEADROOM} bps). ` +
-            `Please refresh to see the new commission and try again.`,
-        );
-      }
-      return capMaxAcceptableCommissionBps(quotedCommissionBps);
-    }
-
-    return capMaxAcceptableCommissionBps(currentBps);
   }
 
-  /**
-   * Check if a vault already exists for a given vault ID.
-   *
-   * The contract returns a default struct (with `depositor === zeroAddress`)
-   * when no vault is registered, so existence is signalled in the response,
-   * not via a thrown error. RPC/network failures are propagated rather than
-   * silently treated as "vault doesn't exist", which would otherwise let
-   * downstream calls run with stale assumptions.
-   *
-   * @param vaultId - The Bitcoin transaction hash (vault ID)
-   * @returns True if vault exists, false otherwise
-   * @throws If the underlying RPC read fails
-   */
-  private async checkVaultExists(vaultId: Hex): Promise<boolean> {
-    const publicClient = this.config.publicClient;
-
-    const result = (await publicClient.readContract({
-      address: this.config.vaultContracts.btcVaultRegistry,
-      abi: BTCVaultRegistryABI,
-      functionName: "getBtcVaultBasicInfo",
-      args: [vaultId],
-    })) as { depositor: Address };
-
-    return result.depositor !== zeroAddress;
+  private createRegistrationClient(): ViemPeginRegistrationClient {
+    return new ViemPeginRegistrationClient({
+      ethWallet: this.config.ethWallet,
+      ethChain: this.config.ethChain,
+      publicClient: this.config.publicClient,
+      btcVaultRegistry: this.config.vaultContracts.btcVaultRegistry,
+    });
   }
 
   /**
@@ -1917,7 +1546,7 @@ export interface EstimateSubmitPeginRequestBatchGasParams {
  * `maxAcceptableCommissionBps` argument so the simulation does not revert on
  * the contract's commission-drift check regardless of the VP's current
  * commission. The real submit path resolves an accurate, drift-checked value
- * via {@link PeginManager.resolveMaxAcceptableCommissionBps}.
+ * via the registration client's protocol-parameter lookup.
  *
  * Throws if the contract reverts during simulation; callers should treat the
  * thrown error as "unable to estimate" and decide how to surface it.

@@ -1,6 +1,4 @@
-// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { WasmAssertPayoutNoPayoutConnector } from "./generated/vault_wasm.js";
-import { initWasm } from "./index.js";
+import { getWasmBindings } from "./wasm-loader.js";
 import type {
   AssertPayoutNoPayoutConnectorParams,
   AssertPayoutScriptInfo,
@@ -9,33 +7,25 @@ import type {
 
 /** @see btc-vault crates/vault/src/assert/payout_nopayout_connector.rs — Rust WASM bindings */
 
-let connector: InstanceType<typeof WasmAssertPayoutNoPayoutConnector> | null = null;
-let connectorKey: string | null = null;
+interface AssertPayoutNoPayoutConnector {
+  free(): void;
+  getPayoutScript(): string;
+  getPayoutControlBlock(): string;
+  getNoPayoutScript(challengerPubkey: string): string;
+  getNoPayoutControlBlock(challengerPubkey: string): string;
+}
 
 /**
- * Get or create a cached Assert Payout/NoPayout connector instance.
- *
- * The connector is reused when the same parameters are provided.
+ * Create an Assert Payout/NoPayout connector owned by one facade call.
+ * Keeping ownership local prevents concurrent calls with different params
+ * from freeing one another's WASM object between asynchronous initialization
+ * and the synchronous getter calls.
  */
-function getConnector(
+async function createConnector(
   params: AssertPayoutNoPayoutConnectorParams,
-): InstanceType<typeof WasmAssertPayoutNoPayoutConnector> {
-  const key = JSON.stringify(params);
-  if (connector && connectorKey === key) {
-    return connector;
-  }
-
-  // Invalidate the cache BEFORE freeing: if the replacement constructor
-  // throws (fail-closed version, malformed params), a freed instance must
-  // not remain cached under a still-matching key — later valid calls would
-  // hit it and fail with an opaque wasm null-pointer error.
-  const superseded = connector;
-  connector = null;
-  connectorKey = null;
-  superseded?.free();
-  // `params.txGraphVersion` is part of the JSON cache key above, so a cached
-  // connector can never serve a different version's scripts.
-  connector = new WasmAssertPayoutNoPayoutConnector(
+): Promise<AssertPayoutNoPayoutConnector> {
+  const { WasmAssertPayoutNoPayoutConnector } = await getWasmBindings();
+  return new WasmAssertPayoutNoPayoutConnector(
     params.txGraphVersion,
     params.claimer,
     params.localChallengers,
@@ -44,8 +34,6 @@ function getConnector(
     params.councilMembers,
     params.councilQuorum,
   );
-  connectorKey = key;
-  return connector;
 }
 
 /**
@@ -59,13 +47,15 @@ function getConnector(
 export async function getAssertPayoutScriptInfo(
   params: AssertPayoutNoPayoutConnectorParams,
 ): Promise<AssertPayoutScriptInfo> {
-  await initWasm();
-
-  const conn = getConnector(params);
-  return {
-    payoutScript: conn.getPayoutScript(),
-    payoutControlBlock: conn.getPayoutControlBlock(),
-  };
+  const conn = await createConnector(params);
+  try {
+    return {
+      payoutScript: conn.getPayoutScript(),
+      payoutControlBlock: conn.getPayoutControlBlock(),
+    };
+  } finally {
+    conn.free();
+  }
 }
 
 /**
@@ -82,11 +72,13 @@ export async function getAssertNoPayoutScriptInfo(
   params: AssertPayoutNoPayoutConnectorParams,
   challengerPubkey: string,
 ): Promise<AssertNoPayoutScriptInfo> {
-  await initWasm();
-
-  const conn = getConnector(params);
-  return {
-    noPayoutScript: conn.getNoPayoutScript(challengerPubkey),
-    noPayoutControlBlock: conn.getNoPayoutControlBlock(challengerPubkey),
-  };
+  const conn = await createConnector(params);
+  try {
+    return {
+      noPayoutScript: conn.getNoPayoutScript(challengerPubkey),
+      noPayoutControlBlock: conn.getNoPayoutControlBlock(challengerPubkey),
+    };
+  } finally {
+    conn.free();
+  }
 }

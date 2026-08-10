@@ -19,7 +19,7 @@ import {
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
 import type { Vault, VaultProvider } from "@/types";
-import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
+import { scriptPubKeyHexToBtcAddress } from "@/utils/btc/scriptPubKeyAddress";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatProviderDisplayName } from "@/utils/formatting";
 import { derivePrePeginTxHash } from "@/utils/vaultTransformers";

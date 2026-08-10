@@ -19,9 +19,13 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: true,
     lib: {
-      entry: path.resolve(__dirname, "src/index.tsx"),
+      entry: {
+        index: path.resolve(__dirname, "src/index.tsx"),
+        eth: path.resolve(__dirname, "src/eth.ts"),
+      },
       formats: ["es", "cjs"],
-      fileName: (format) => `index.${format}.js`,
+      fileName: (format, entryName) => `${entryName}.${format}.js`,
+      cssFileName: "wallet-connector",
     },
     rollupOptions: {
       external: [

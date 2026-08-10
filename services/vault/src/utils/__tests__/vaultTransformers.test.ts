@@ -15,8 +15,8 @@ vi.mock("../../config", () => ({
   }),
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
-  calculateBtcTxHash: (txHex: string): string => {
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients/eth", () => ({
+  calculatePeginTxHash: (txHex: string): string => {
     if (txHex === "0xvalidtx" || txHex === "validtx") {
       return "0xderivedtxid";
     }

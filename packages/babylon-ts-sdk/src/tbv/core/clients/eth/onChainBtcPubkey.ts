@@ -7,11 +7,53 @@
  * `OnChainBtcPubkey` must go through here.
  */
 
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import type { Hex } from "viem";
 
-import { hexToUint8Array } from "../../primitives/utils/bitcoin";
 import type { OnChainBtcPubkey } from "./types";
+
+/** secp256k1's base-field prime, `2^256 - 2^32 - 977`. */
+const SECP256K1_FIELD_PRIME =
+  0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2fn;
+
+/**
+ * Modular exponentiation without a crypto-library dependency.
+ *
+ * secp256k1's field prime is congruent to 3 mod 4, so an x-coordinate is on
+ * the curve iff `(x^3 + 7)^((p + 1) / 4)` squares back to `x^3 + 7` modulo
+ * p. This is the same curve-membership condition used by x-only key parsers;
+ * it deliberately does not merely validate length/range.
+ */
+function modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
+  let result = 1n;
+  let factor = base % modulus;
+  let remaining = exponent;
+
+  while (remaining > 0n) {
+    if ((remaining & 1n) === 1n) {
+      result = (result * factor) % modulus;
+    }
+    factor = (factor * factor) % modulus;
+    remaining >>= 1n;
+  }
+
+  return result;
+}
+
+function isSecp256k1XCoordinate(value: string): boolean {
+  const x = BigInt(`0x${value}`);
+  if (x >= SECP256K1_FIELD_PRIME) return false;
+
+  const ySquared =
+    (((x * x) % SECP256K1_FIELD_PRIME) * x) % SECP256K1_FIELD_PRIME;
+  const curveValue = (ySquared + 7n) % SECP256K1_FIELD_PRIME;
+  const y = modPow(
+    curveValue,
+    (SECP256K1_FIELD_PRIME + 1n) >> 2n,
+    SECP256K1_FIELD_PRIME,
+  );
+
+  return (y * y) % SECP256K1_FIELD_PRIME === curveValue;
+}
 
 /**
  * Validate a registry-returned `bytes32` as an x-only BTC pubkey and mint the
@@ -36,7 +78,7 @@ export function assertOnChainBtcPubkey(
     );
   }
   const stripped = lowered.slice(2);
-  if (!ecc.isXOnlyPoint(hexToUint8Array(stripped))) {
+  if (!isSecp256k1XCoordinate(stripped)) {
     throw new Error(
       `${label} returned a value that is not on the secp256k1 curve`,
     );

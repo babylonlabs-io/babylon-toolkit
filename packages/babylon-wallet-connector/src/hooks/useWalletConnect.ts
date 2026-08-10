@@ -1,34 +1,56 @@
 import { useCallback, useMemo } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
+import type { ChainId } from "@/core/types";
 
 import { useWidgetState } from "./useWidgetState";
 
 export function useWalletConnect() {
-  const { confirmed, chains: chainMap, selectedWallets, open: openModal, reset } = useWidgetState();
+  const {
+    confirmed,
+    chains: chainMap,
+    requiredChainIds,
+    selectedWallets,
+    open: openModal,
+    displayChains,
+    displayWallets,
+    reset,
+  } = useWidgetState();
   const connectors = useChainProviders();
 
-  const open = useCallback(() => {
-    reset?.();
-    openModal?.();
-  }, [openModal, reset]);
+  const open = useCallback(
+    (chain?: ChainId) => {
+      if (chain && chainMap[chain]) {
+        displayWallets?.(chain);
+      } else {
+        displayChains?.();
+      }
+      openModal?.();
+    },
+    [chainMap, displayChains, displayWallets, openModal],
+  );
 
-  const disconnect = useCallback(async () => {
-    for (const connector of Object.values(connectors)) {
-      if (!connector) continue;
+  const disconnect = useCallback(
+    async (chain?: ChainId) => {
+      if (chain) {
+        await connectors[chain]?.disconnect();
+        return;
+      }
 
-      await connector.disconnect();
-    }
+      for (const connector of Object.values(connectors)) {
+        if (!connector) continue;
 
-    reset?.();
-  }, [connectors, reset]);
+        await connector.disconnect();
+      }
+
+      reset?.();
+    },
+    [connectors, reset],
+  );
 
   const selected = useMemo(() => {
-    const chains = Object.values(chainMap).filter(Boolean);
-    const result = chains.map((chain) => selectedWallets[chain.id]);
-
-    return result.every(Boolean);
-  }, [chainMap, selectedWallets]);
+    return requiredChainIds.every((chainId) => Boolean(selectedWallets[chainId]));
+  }, [requiredChainIds, selectedWallets]);
 
   return {
     selected,

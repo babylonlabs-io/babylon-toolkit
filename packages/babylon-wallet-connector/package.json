@@ -18,6 +18,11 @@
       "require": "./dist/index.cjs.js",
       "import": "./dist/index.es.js"
     },
+    "./eth": {
+      "types": "./dist/eth.d.ts",
+      "require": "./dist/eth.cjs.js",
+      "import": "./dist/eth.es.js"
+    },
     "./style.css": "./dist/wallet-connector.css"
   },
   "scripts": {
@@ -52,7 +57,6 @@
   },
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
-    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@cosmjs/proto-signing": "0.36.0",
     "@cosmjs/stargate": "0.36.0",
     "@keplr-wallet/provider-extension": "0.12.272",
@@ -64,16 +68,11 @@
     "@ledgerhq/hw-transport-webhid": "6.30.6",
     "@ledgerhq/hw-transport-webusb": "6.29.10",
     "@reown/appkit": "1.8.12",
-    "@reown/appkit-adapter-bitcoin": "1.8.12",
     "@reown/appkit-adapter-wagmi": "1.8.12",
     "@scure/bip32": "1.4.0",
     "@scure/btc-signer": "1.8.1",
-    "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
-    "@tomo-inc/wallet-connect-sdk": "1.0.0",
     "bip174": "2.1.1",
-    "bitcoinjs-lib": "6.1.7",
     "buffer": "6.0.3",
-    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
     "nanoevents": "9.1.0",
     "usehooks-ts": "^3.1.1",
     "uuid": "11.1.0"
@@ -82,14 +81,41 @@
     "dist"
   ],
   "peerDependencies": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@reown/appkit-adapter-bitcoin": "1.8.12",
     "@tanstack/react-query": "^5.74.4",
+    "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
+    "@tomo-inc/wallet-connect-sdk": "1.0.0",
+    "bitcoinjs-lib": "6.1.7",
+    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tailwind-merge": "2.5.4",
     "viem": "^2.38.2",
     "wagmi": "2.18.1"
   },
+  "peerDependenciesMeta": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": {
+      "optional": true
+    },
+    "@reown/appkit-adapter-bitcoin": {
+      "optional": true
+    },
+    "@tomo-inc/ledger-bitcoin-babylon": {
+      "optional": true
+    },
+    "@tomo-inc/wallet-connect-sdk": {
+      "optional": true
+    },
+    "bitcoinjs-lib": {
+      "optional": true
+    },
+    "ledger-bitcoin-babylon-boilerplate": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@changesets/cli": "^2.29.8",
     "@chromatic-com/storybook": "^3.2.2",
     "@commitlint/cli": "^19.8.0",
@@ -97,6 +123,7 @@
     "@eslint/js": "^9.31.0",
     "@internal/eslint-config": "workspace:*",
     "@playwright/test": "1.56.1",
+    "@reown/appkit-adapter-bitcoin": "1.8.12",
     "@semantic-release/github": "^11.0.2",
     "@semantic-release/npm": "^12.0.1",
     "@storybook/addon-essentials": "^8.6.15",
@@ -108,12 +135,15 @@
     "@tanstack/react-query": "^5.74.4",
     "@testing-library/dom": "10.4.0",
     "@testing-library/react": "16.3.0",
+    "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
+    "@tomo-inc/wallet-connect-sdk": "1.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.20",
+    "bitcoinjs-lib": "6.1.7",
     "dotenv": "^16.4.7",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.8",
@@ -125,6 +155,7 @@
     "globals": "^16.3.0",
     "husky": "^9.1.7",
     "jsdom": "20.0.3",
+    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
     "lint-staged": "^15.5.0",
     "postcss": "^8.4.47",
     "prettier": "^3.6.2",

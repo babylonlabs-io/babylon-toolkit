@@ -14,11 +14,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: () => mockConnector,
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
-  // Fixed x-only output with 0x prefix so the strip behavior is observable.
-  processPublicKeyToXOnly: () => `0x${"ab".repeat(32)}`,
-}));
-
 vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));

@@ -55,17 +55,25 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
   }
 
   async disconnect() {
-    if (this._connectedWallet) {
-      const provider = this._connectedWallet.provider as DisconnectableProvider | null;
-      if (provider?.disconnect && typeof provider.disconnect === "function") {
-        try {
-          await provider.disconnect();
-        } catch {
-          // ignore provider disconnect errors
-        }
+    const connectedWallet = this._connectedWallet;
+    if (!connectedWallet) return;
+
+    // Clear first. Provider teardown can synchronously emit its own disconnect
+    // event, which may route back here through a React provider. Clearing the
+    // pointer before awaiting it makes that re-entrant call a no-op and ensures
+    // connector state never remains stale after a raw provider disconnect.
+    this._connectedWallet = null;
+    // Publish the state transition before awaiting a wallet SDK. A locked or
+    // sleeping provider may never settle, but widget/storage consumers must be
+    // able to clear this chain immediately.
+    this._ee.emit("disconnect", connectedWallet);
+    const provider = connectedWallet.provider as DisconnectableProvider | null;
+    if (provider?.disconnect && typeof provider.disconnect === "function") {
+      try {
+        await provider.disconnect();
+      } catch {
+        // ignore provider disconnect errors
       }
-      this._ee.emit("disconnect", this._connectedWallet);
-      this._connectedWallet = null;
     }
   }
 

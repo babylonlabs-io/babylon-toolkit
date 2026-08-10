@@ -1,7 +1,7 @@
 import { IBTCProvider, Network, type BTCConfig, type WalletMetadata } from "@/core/types";
 import { MONOCHROME_MARK_BACKGROUND } from "@/core/wallets/constants";
+import logo from "@/core/wallets/icons/okx.svg";
 
-import logo from "./logo.svg";
 import { OKXProvider, WALLET_PROVIDER_NAME } from "./provider";
 
 const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {

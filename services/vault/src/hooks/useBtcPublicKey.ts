@@ -1,8 +1,21 @@
-import { processPublicKeyToXOnly } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { logger } from "@/infrastructure";
+
+function processPublicKeyToXOnly(publicKeyHex: string): string {
+  const cleanHex = publicKeyHex.replace(/^0x/i, "");
+  if (!/^[0-9a-fA-F]*$/.test(cleanHex) || cleanHex.length % 2 !== 0) {
+    throw new Error(`Invalid hex characters in public key: ${publicKeyHex}`);
+  }
+  if (cleanHex.length === 64) return cleanHex;
+  if (cleanHex.length !== 66 && cleanHex.length !== 130) {
+    throw new Error(
+      `Invalid public key length: ${cleanHex.length} (expected 64, 66, or 130 hex chars)`,
+    );
+  }
+  return cleanHex.slice(2, 66);
+}
 
 interface BtcPublicKeyState {
   /**

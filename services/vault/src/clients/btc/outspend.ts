@@ -6,8 +6,9 @@
  * `outspend` endpoint.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
+
+const strip0x = (value: string) => value.replace(/^0x/i, "");
 
 export interface HtlcSpend {
   /** True when the HTLC output has been spent (in the mempool or a block). */
@@ -27,11 +28,7 @@ export async function fetchHtlcSpend(
   htlcVout: number,
   apiUrl: string,
 ): Promise<HtlcSpend> {
-  const res = await getOutspend(
-    stripHexPrefix(prePeginTxHash),
-    htlcVout,
-    apiUrl,
-  );
+  const res = await getOutspend(strip0x(prePeginTxHash), htlcVout, apiUrl);
   return {
     spent: res.spent === true,
     confirmed: res.spent === true && res.status?.confirmed === true,

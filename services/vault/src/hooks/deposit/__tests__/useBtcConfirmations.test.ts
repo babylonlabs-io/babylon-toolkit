@@ -1,7 +1,7 @@
 import {
   getTipHeight,
   getTxInfo,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -9,11 +9,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useBtcConfirmations } from "../useBtcConfirmations";
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  getTxInfo: vi.fn(),
-  getTipHeight: vi.fn(),
-}));
+vi.mock(
+  "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool",
+  async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    getTxInfo: vi.fn(),
+    getTipHeight: vi.fn(),
+  }),
+);
 
 const mockGetTxInfo = vi.mocked(getTxInfo);
 const mockGetTipHeight = vi.mocked(getTipHeight);

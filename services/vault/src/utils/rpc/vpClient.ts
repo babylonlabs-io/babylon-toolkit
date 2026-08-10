@@ -5,7 +5,7 @@
  * @module utils/rpc/vpClient
  */
 
-import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 
 import { getVpProxyUrl } from "./vpProxy";
 

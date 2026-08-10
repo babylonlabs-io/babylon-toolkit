@@ -3,10 +3,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchAaveAppConfig } from "../../services";
+import { fetchAaveAppConfig } from "../../services/fetchConfig";
 import { AaveConfigProvider, useAaveConfig } from "../AaveConfigContext";
 
-vi.mock("../../services", () => ({
+vi.mock("../../services/fetchConfig", () => ({
   fetchAaveAppConfig: vi.fn(),
 }));
 

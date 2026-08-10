@@ -1,7 +1,7 @@
 // Generic mempool confirmation poller for a set of BTC txids. Returns raw
 // counts keyed by canonical txid; the consumer applies its own threshold.
 
-import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 

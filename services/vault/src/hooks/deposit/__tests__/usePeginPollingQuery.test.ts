@@ -1,4 +1,4 @@
-import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";

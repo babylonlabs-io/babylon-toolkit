@@ -136,7 +136,7 @@ function RewardsPageContent() {
           fluid={true}
           size="large"
           color="primary"
-          onClick={openWidget}
+          onClick={() => openWidget()}
           className="mt-6"
         >
           Connect Wallet

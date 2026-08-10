@@ -1,10 +1,8 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
-import {
-  btcAddressToScriptPubKeyHex,
-  scriptPubKeyHexToBtcAddress,
-} from "../btc";
+import { btcAddressToScriptPubKeyHex } from "../btc/btcUtils";
+import { scriptPubKeyHexToBtcAddress } from "../btc/scriptPubKeyAddress";
 
 /**
  * Build the test fixture via bitcoinjs-lib's own payment helper so the script
@@ -28,8 +26,44 @@ if (!output || !EXPECTED_TESTNET_ADDRESS) {
 }
 
 const SCRIPT_HEX_PREFIXED = `0x${Buffer.from(output).toString("hex")}`;
+const TAPROOT_OUTPUT_KEY =
+  "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const TAPROOT_SCRIPT_HEX = `0x5120${TAPROOT_OUTPUT_KEY}`;
+const TAPROOT_TESTNET_ADDRESS =
+  "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
+
+const STANDARD_SCRIPT_VECTORS = [
+  {
+    name: "P2PKH",
+    hex: `76a914${Buffer.from(PUBKEY_HASH_BYTES).toString("hex")}88ac`,
+  },
+  {
+    name: "P2SH",
+    hex: `a914${Buffer.from(PUBKEY_HASH_BYTES).toString("hex")}87`,
+  },
+  {
+    name: "P2WPKH",
+    hex: `0014${Buffer.from(PUBKEY_HASH_BYTES).toString("hex")}`,
+  },
+  {
+    name: "P2WSH",
+    hex: `0020${"42".repeat(32)}`,
+  },
+] as const;
 
 describe("scriptPubKeyHexToBtcAddress", () => {
+  it.each(STANDARD_SCRIPT_VECTORS)(
+    "matches bitcoinjs-lib for $name",
+    ({ hex }) => {
+      expect(scriptPubKeyHexToBtcAddress(hex)).toBe(
+        bitcoin.address.fromOutputScript(
+          Buffer.from(hex, "hex"),
+          bitcoin.networks.testnet,
+        ),
+      );
+    },
+  );
+
   it("decodes a P2WPKH scriptPubKey hex back to its testnet address", () => {
     expect(scriptPubKeyHexToBtcAddress(SCRIPT_HEX_PREFIXED)).toBe(
       EXPECTED_TESTNET_ADDRESS,
@@ -39,6 +73,12 @@ describe("scriptPubKeyHexToBtcAddress", () => {
   it("accepts unprefixed hex (no leading 0x)", () => {
     expect(scriptPubKeyHexToBtcAddress(SCRIPT_HEX_PREFIXED.slice(2))).toBe(
       EXPECTED_TESTNET_ADDRESS,
+    );
+  });
+
+  it("decodes a P2TR output without requiring the ECC signing library", () => {
+    expect(scriptPubKeyHexToBtcAddress(TAPROOT_SCRIPT_HEX)).toBe(
+      TAPROOT_TESTNET_ADDRESS,
     );
   });
 

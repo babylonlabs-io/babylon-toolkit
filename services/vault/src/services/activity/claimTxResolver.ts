@@ -14,11 +14,10 @@
  * surfacing the unrelated EVM hash, which is the bug this module fixes.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   type GetPegoutStatusResponse,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { isAddress } from "viem";
 
 import { logger } from "@/infrastructure";
@@ -35,6 +34,7 @@ export const CLAIM_TX_RPC_TIMEOUT_MS = 10_000;
 
 /** A Bitcoin txid is 32 bytes — exactly 64 hex chars, no `0x` prefix. */
 const BTC_TXID_REGEX = /^[0-9a-f]{64}$/i;
+const strip0x = (value: string) => value.replace(/^0x/i, "");
 
 export interface RedeemVaultLookup {
   peginTxHash: string;
@@ -93,7 +93,7 @@ export async function resolveRedeemClaimTxids(
         });
         await batchPollByProvider<PerVaultEntry, GetPegoutStatusResponse>({
           items: entries,
-          getTxid: (e) => stripHexPrefix(e.peginTxHash),
+          getTxid: (e) => strip0x(e.peginTxHash),
           batchCall: (pegin_txids) =>
             rpcClient.batchGetPegoutStatus({ pegin_txids }),
           onItem: (entry, envelope) => {

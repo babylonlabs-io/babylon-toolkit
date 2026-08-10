@@ -1,4 +1,4 @@
-import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { render } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";

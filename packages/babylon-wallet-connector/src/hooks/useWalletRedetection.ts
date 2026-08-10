@@ -2,11 +2,10 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef } from "react";
 
 import { WALLET_MODAL_OPEN_EVENT } from "@/constants/walletEvents";
+import type { ChainConfigArr, ChainMetadataMap, Connectors } from "@/context/Chain.context";
 import { createWalletConnector } from "@/core";
 import type { HashMap, IProvider } from "@/core/types";
 import type { WalletConnector } from "@/core/WalletConnector";
-import metadata from "@/core/wallets";
-import type { ChainConfigArr, Connectors } from "@/context/Chain.context";
 
 import { selectRedetectReconnectTargets } from "./redetectReconnect";
 
@@ -39,6 +38,8 @@ interface UseWalletRedetectionParams {
    * wallet auto-reconnects it (see the reconnect block below).
    */
   persistent: boolean;
+  /** Metadata registry for only the chains this provider can construct. */
+  metadata: ChainMetadataMap;
 }
 
 /**
@@ -84,6 +85,7 @@ export function useWalletRedetection({
   storage,
   disabledWallets,
   persistent,
+  metadata,
 }: UseWalletRedetectionParams): void {
   // Mirror the latest connectors into a ref so the effect reads current
   // state without depending on it (which would re-run it).
@@ -136,19 +138,22 @@ export function useWalletRedetection({
       let swapIn: WalletConnector<string, IProvider, any>[] = [];
       if (stale.length > 0) {
         const rebuilt = await Promise.all(
-          stale.map((c) =>
-            createWalletConnector<string, IProvider, any>({
+          stale.map((c) => {
+            const chainMetadata = metadata[c.id as keyof typeof metadata];
+            if (!chainMetadata) return Promise.resolve(null);
+
+            return createWalletConnector<string, IProvider, any>({
               // `persistent: false` — this rebuild only re-detects providers; the
               // stored-session reconnect is done explicitly in step 2 so it can
               // also cover connectors an earlier detect-only pass already swapped in.
               persistent: false,
-              metadata: metadata[c.id as keyof typeof metadata],
+              metadata: chainMetadata,
               context,
               config: config.find((cc) => cc.chain === c.id)?.config,
               accountStorage: storage,
               disabledWallets,
-            }).catch(() => null),
-          ),
+            }).catch(() => null);
+          }),
         );
         if (cancelled) return;
 
@@ -252,5 +257,5 @@ export function useWalletRedetection({
         window.removeEventListener(WALLET_MODAL_OPEN_EVENT, redetectInteractive);
       }
     };
-  }, [connectorsBuilt, config, context, storage, disabledWallets, setConnectors, persistent]);
+  }, [connectorsBuilt, config, context, storage, disabledWallets, setConnectors, persistent, metadata]);
 }

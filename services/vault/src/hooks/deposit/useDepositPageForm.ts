@@ -219,7 +219,7 @@ export interface UseDepositPageFormResult {
 
 export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
-  const { isConnected: isWalletConnected } = useConnection();
+  const { isFullyConnected: isWalletConnected } = useConnection();
   const {
     publicKey: depositorBtcPubkey,
     error: btcPublicKeyError,
@@ -477,6 +477,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     useQuery({
       queryKey: ["supportedVaultCoreVersions"],
       queryFn: getSupportedVaultCoreVersions,
+      enabled: isWalletConnected,
       staleTime: Infinity,
       refetchOnWindowFocus: false,
     });
