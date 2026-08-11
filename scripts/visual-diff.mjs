@@ -55,7 +55,13 @@ export function changedPixelCutoff(width, height) {
   return Math.max(MIN_CHANGED_PIXELS, CHANGED_RATIO_TOLERANCE * width * height);
 }
 
-const STATUS = {
+/**
+ * The statuses a compared screen can end up in. Exported because
+ * `scripts/visual-embed.mjs` groups and captions by them: with the strings
+ * restated there, renaming one here would leave that script silently
+ * mis-captioning the screen rather than failing.
+ */
+export const STATUS = {
   UNCHANGED: "unchanged",
   CHANGED: "changed",
   ADDED: "added",

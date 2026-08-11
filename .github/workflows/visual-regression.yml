@@ -8,9 +8,41 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The floor. The capture job below runs the PR's own dependency tree - pnpm
+# lifecycle scripts, Storybook plugins, a browser - so it gets read and
+# nothing else. The write-capable token lives in the `publish` job, which
+# runs none of that. See the note on that job for what the split does and
+# does not defend against.
 permissions:
   contents: read
-  pull-requests: write
+
+env:
+  # Where the before/after images are published so that
+  # raw.githubusercontent.com can serve them into a comment; an artifact
+  # cannot be embedded in Markdown. Orphan: it shares no history with main
+  # and must never be merged anywhere. Named here because the URL baked into
+  # the comment and the branch the images are pushed to have to agree
+  # exactly, and they are built in two different jobs.
+  VISUAL_DIFF_BRANCH: visual-diffs
+
+  # The surfaces that get captured, compared and published, as one list.
+  # Adding a third means editing this and .github/scripts/visual-capture.sh,
+  # and nothing else - the diff loop, the embed step and the publish
+  # allowlist all read it from here. In the publish job it doubles as a
+  # security allowlist, which is why that job takes it from the workflow
+  # file and never from the payload it downloads.
+  VISUAL_SURFACES: vault storybook
+
+  # How much of the head sha names the published image directory. The sha is
+  # for humans reading the branch; uniqueness comes from the run id appended
+  # to it. Both are needed: GitHub proxies comment images through
+  # camo.githubusercontent.com and caches by URL, so a path that repeats
+  # serves the first render forever - and a sha alone repeats on a re-run,
+  # or on a reopen after the images were reaped, where what camo has cached
+  # may be a 404. Shared because the job that builds the URLs and the job
+  # that writes the files are different jobs, and a mismatch would 404 every
+  # image while both steps still exit 0.
+  VISUAL_SHA_PATH_LENGTH: 12
 
 # Advisory to begin with: this reports and comments, it does not fail the
 # build. Promote it to blocking (add --fail-on-change to the diff step)
@@ -18,6 +50,14 @@ permissions:
 jobs:
   visual:
     runs-on: ubuntu-latest
+
+    outputs:
+      report_sha: ${{ steps.refs.outputs.report_sha }}
+      changed_count: ${{ steps.diff.outputs.changed_count }}
+      compared_surfaces: ${{ steps.diff.outputs.compared_surfaces }}
+      missing_surfaces: ${{ steps.diff.outputs.missing_surfaces }}
+      diff_outcome: ${{ steps.diff.outcome }}
+      embed_outcome: ${{ steps.embed.outcome }}
 
     steps:
       - name: Checkout code
@@ -161,11 +201,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "${{ runner.temp }}/visual"
+          # Everything the publish job needs is assembled under one
+          # directory, and that directory is uploaded as the artifact's only
+          # path. Uploading several paths would leave the layout to
+          # upload-artifact's common-ancestor rule, and the publish job has
+          # to hardcode where it looks.
+          mkdir -p "${{ runner.temp }}/visual/payload"
           TOTAL_CHANGED=0
           COMPARED=0
           MISSING=""
-          for SURFACE in vault storybook; do
+          for SURFACE in ${VISUAL_SURFACES}; do
             BASE="${{ runner.temp }}/visual/baseline/${SURFACE}"
             CAND="${{ runner.temp }}/visual/candidate/${SURFACE}"
             OUT="${{ runner.temp }}/visual/report/${SURFACE}"
@@ -174,23 +219,23 @@ jobs:
             # letting the diff die on a bare ENOENT.
             if [ ! -d "$CAND" ] || [ -z "$(ls -A "$CAND" 2>/dev/null)" ]; then
               echo "No candidate captures for ${SURFACE} - capture did not complete." \
-                | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+                | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
               MISSING="${MISSING}${MISSING:+ }${SURFACE}"
               continue
             fi
             if [ ! -d "$BASE" ] || [ -z "$(ls -A "$BASE" 2>/dev/null)" ]; then
               echo "No baseline captures for ${SURFACE} - nothing to compare against." \
-                | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+                | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
               MISSING="${MISSING}${MISSING:+ }${SURFACE}"
               continue
             fi
             COMPARED=$((COMPARED + 1))
-            echo "### ${SURFACE}" | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+            echo "### ${SURFACE}" | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
             node scripts/visual-diff.mjs \
               --baseline "$BASE" --candidate "$CAND" --out "$OUT" \
               --baseline-ref "${{ steps.refs.outputs.merge_base }}" \
               --candidate-ref "${{ steps.refs.outputs.head_sha }}" \
-              | tee -a "${{ runner.temp }}/visual/diff-output.txt"
+              | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
             N="$(node -e "console.log(require('${OUT}/summary.json').changedCount)")"
             TOTAL_CHANGED=$((TOTAL_CHANGED + N))
           done
@@ -203,6 +248,45 @@ jobs:
           # sides would hide behind the other's COMPARED and read as green.
           echo "missing_surfaces=${MISSING}" >> "$GITHUB_OUTPUT"
 
+      # The reviewer-facing half of the change: stitch each of the
+      # most-changed screens into one before/after PNG and write the comment
+      # body that embeds them. A plain-text list of filenames and
+      # percentages is only actionable to someone willing to download and
+      # unzip the artifact below, which in practice is nobody.
+      #
+      # Gated on a clean, complete comparison. The partial and failed
+      # variants of the comment are warnings about the run itself, and
+      # illustrating them with pictures of the surface that did work would
+      # undercut the warning.
+      - name: Compose before/after images
+        id: embed
+        if: >-
+          steps.diff.outcome == 'success'
+          && steps.diff.outputs.missing_surfaces == ''
+          && steps.diff.outputs.changed_count != '0'
+        continue-on-error: true
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # The head sha, not the merge commit: it is what the published
+          # path is keyed on, and it must match what the publish job
+          # computes from the same output.
+          REPORT_SHA: ${{ steps.refs.outputs.report_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VISUAL_DIR: ${{ runner.temp }}/visual
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_DIR="${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}-${GITHUB_RUN_ID}"
+          node scripts/visual-embed.mjs \
+            --report "${VISUAL_DIR}/report" \
+            --surfaces "${VISUAL_SURFACES// /,}" \
+            --out "${VISUAL_DIR}/payload/images" \
+            --base-url "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${VISUAL_DIFF_BRANCH}/pr${PR_NUMBER}/${RUN_DIR}" \
+            --body "${VISUAL_DIR}/payload/comment-images.md" \
+            --run-url "${RUN_URL}" \
+            --candidate-ref "${REPORT_SHA}" \
+            --diff-text "${VISUAL_DIR}/payload/diff-output.txt"
+
       - name: Upload visual report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
         if: always()
@@ -210,6 +294,18 @@ jobs:
           name: visual-report
           path: ${{ runner.temp }}/visual/report
           retention-days: 14
+
+      # Transport to the publish job, not a deliverable. Kept separate from
+      # `visual-report` so the reviewer-facing artifact keeps its 14-day
+      # retention while this one expires straight away.
+      - name: Upload comment payload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        if: always()
+        with:
+          name: visual-comment-payload
+          path: ${{ runner.temp }}/visual/payload
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Summarise
         if: always()
@@ -232,7 +328,7 @@ jobs:
               echo ":warning: The capture or comparison did not complete - no visual comparison was made."
               echo ""
               echo '```'
-              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              cat "${{ runner.temp }}/visual/payload/diff-output.txt" 2>/dev/null || true
               echo '```'
             # Every surface must have compared, not just the run overall. A
             # surface that captured empty on BOTH sides produces no
@@ -242,7 +338,7 @@ jobs:
               echo ":warning: No comparisons were produced for: ${MISSING}. The result below covers the remaining surface(s) only - this run is not a full comparison."
               echo ""
               echo '```'
-              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              cat "${{ runner.temp }}/visual/payload/diff-output.txt" 2>/dev/null || true
               echo '```'
             elif [ "${CHANGED}" = "0" ]; then
               echo ":white_check_mark: No visual changes detected."
@@ -250,64 +346,312 @@ jobs:
               echo ":framed_picture: **${CHANGED} screen(s) changed.**"
               echo ""
               echo '```'
-              cat "${{ runner.temp }}/visual/diff-output.txt" 2>/dev/null || true
+              cat "${{ runner.temp }}/visual/payload/diff-output.txt" 2>/dev/null || true
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Sticky comment: edits the previous one instead of stacking one per
-      # push. Uses the preinstalled gh CLI rather than adding a third-party
-      # action, per the repo's supply-chain policy.
-      # Skipped on fork PRs: `pull_request` hands them a read-only token
-      # regardless of the `permissions:` block above, so the POST would 403
-      # and fail an advisory check for every external contributor. The job
-      # summary carries the same content for those runs.
-      - name: Comment on the PR
-        if: always() && github.event.pull_request.head.repo.full_name == github.repository
+  # The only job holding a token that can write anything, and deliberately
+  # the only one with no `actions/checkout`: the pull request's source and
+  # its dependency tree never land here, and this job runs none of it. What
+  # does cross is inert - the PNG bytes and the Markdown body out of the
+  # artifact - and both are treated as untrusted below.
+  #
+  # Be precise about what that buys. It is NOT protection against a
+  # malicious PR author - on `pull_request` the workflow file itself comes
+  # from the PR branch, so an author can move this permission wherever they
+  # like. What it protects against is the realistic threat: a compromised
+  # transitive dependency running inside the capture job, which installs and
+  # executes the PR's whole tree. That code reaches a read-only token here
+  # instead of one that can force-push over other people's branches.
+  # `main` and `release/*` are out of reach either way - the org ruleset
+  # requires signed commits and a pull request, and GITHUB_TOKEN cannot
+  # bypass it.
+  publish:
+    needs: visual
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    # `!cancelled()` rather than `always()`: a failed capture still gets a
+    # comment explaining itself, but a run cancelled by the concurrency
+    # group above does not. That cancellation means a newer push superseded
+    # this run, and letting it write would replace the report with a
+    # "capture did not complete" notice describing a commit nobody is
+    # looking at any more.
+    #
+    # Fork PRs are excluded because `pull_request` hands them a read-only
+    # token regardless of the `permissions:` block, so both the push and the
+    # comment would 403 and fail an advisory check for every external
+    # contributor - the job summary carries the same content for those runs.
+    # Dependabot is excluded for exactly the same reason and is easy to
+    # miss: its branches live in this repository, so the fork test passes,
+    # but GitHub scopes its token like a fork's.
+    if: >-
+      !cancelled()
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Download comment payload
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0 https://github.com/actions/download-artifact/releases/tag/v4.3.0
+        continue-on-error: true
+        with:
+          name: visual-comment-payload
+          path: ${{ runner.temp }}/payload
+
+      # Advisory, like everything else here: if the push fails the comment
+      # still posts, it just falls back to the text listing.
+      - name: Publish before/after images
+        id: publish
+        if: needs.visual.outputs.embed_outcome == 'success'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          DIFF_OUTCOME: ${{ steps.diff.outcome }}
-          CHANGED: ${{ steps.diff.outputs.changed_count }}
-          COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
-          MISSING: ${{ steps.diff.outputs.missing_surfaces }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_SHA: ${{ needs.visual.outputs.report_sha }}
+          EMBED_DIR: ${{ runner.temp }}/payload/images
+          WORK_DIR: ${{ runner.temp }}/visual-diffs-branch
         shell: bash
         run: |
           set -euo pipefail
+
+          # Ceiling on what one PR may add to the branch. Every `git clone`
+          # of this repository fetches every branch, so this tree lands in
+          # each developer's checkout - against a ~31MB repo, an unbounded
+          # publish would make the diff images the largest thing in it.
+          # Normal runs land far below this; tripping it means the caps in
+          # visual-embed.mjs are misconfigured, and refusing loudly beats
+          # quietly bloating everyone's clone. It bounds one PR's
+          # contribution, not the branch: what bounds the branch is the reap
+          # of closed pull requests below, so the live tree stays
+          # proportional to how many are open at once.
+          MAX_PUBLISHED_BYTES=$(( 4 * 1024 * 1024 ))
+          # The publish path is not serialised across pull requests -
+          # `concurrency` above is keyed on github.ref, which only serialises
+          # a PR against itself - so two PRs finishing together will collide.
+          MAX_PUSH_ATTEMPTS=5
+          PUSH_RETRY_BACKOFF_SECONDS=5
+          # The images were produced by a job that ran the PR's own code, so
+          # their names are attacker-controlled. Only the surface directories
+          # named above are read, and a basename outside this pattern is
+          # DROPPED rather than rewritten: a renamed file would publish at a
+          # URL the comment does not reference, which reads as a broken
+          # image rather than as a refused one.
+          #
+          # Matched with bash's =~ rather than grep: grep is line-oriented,
+          # so a filename containing a newline - legal on Linux - would pass
+          # as soon as any one of its lines matched.
+          SAFE_NAME='^[A-Za-z0-9][A-Za-z0-9._-]*\.png$'
+
+          RUN_DIR="${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}-${GITHUB_RUN_ID}"
+          PR_DIR="pr${PR_NUMBER}"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if [ ! -d "${EMBED_DIR}" ] || [ -z "$(find "${EMBED_DIR}" -name '*.png' -print -quit)" ]; then
+            echo "No composed images to publish."
+            exit 1
+          fi
+
+          TOTAL_BYTES="$(find "${EMBED_DIR}" -name '*.png' -printf '%s\n' | awk '{ n += $1 } END { print n + 0 }')"
+          if [ "${TOTAL_BYTES}" -gt "${MAX_PUBLISHED_BYTES}" ]; then
+            echo "::error::Composed images total ${TOTAL_BYTES} bytes, over the ${MAX_PUBLISHED_BYTES}-byte per-PR ceiling. Refusing to publish - check the caps in scripts/visual-embed.mjs."
+            exit 1
+          fi
+
+          # One request rather than one per directory. Best-effort on
+          # purpose: if the listing fails every directory is kept, because
+          # deleting the images of a PR that is still open is the only
+          # outcome here that actually costs a reviewer anything.
+          OPEN_PRS="${RUNNER_TEMP}/open-prs.txt"
+          REAP=1
+          if ! gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 1000 \
+               --json number --jq '.[].number' > "${OPEN_PRS}"; then
+            echo "::warning::Could not list open pull requests - keeping every published directory this run."
+            REAP=0
+          fi
+
+          ATTEMPT=1
+          while [ "${ATTEMPT}" -le "${MAX_PUSH_ATTEMPTS}" ]; do
+            # The whole read-modify-write repeats on every attempt, not just
+            # the push. The tree built below is a snapshot of the branch as
+            # it was BEFORE a competing publish landed; re-pushing it with a
+            # refreshed lease would succeed and silently delete the other
+            # PR's images.
+            rm -rf "${WORK_DIR}"
+            if git clone --quiet --depth 1 --branch "${VISUAL_DIFF_BRANCH}" --single-branch \
+                 "${REMOTE}" "${WORK_DIR}"; then
+              LEASE="$(git -C "${WORK_DIR}" rev-parse HEAD)"
+            else
+              # First run ever: the branch does not exist. An empty lease
+              # asserts exactly that, so a branch created in between by
+              # another run is a rejection rather than an overwrite.
+              rm -rf "${WORK_DIR}"
+              mkdir -p "${WORK_DIR}"
+              git -C "${WORK_DIR}" init --quiet --initial-branch="${VISUAL_DIFF_BRANCH}"
+              LEASE=""
+            fi
+
+            if [ "${REAP}" = "1" ]; then
+              for DIR in "${WORK_DIR}"/pr*/; do
+                [ -d "${DIR}" ] || continue
+                NUMBER="$(basename "${DIR}")"
+                NUMBER="${NUMBER#pr}"
+                # Anything that is not pr<digits> was not written by this
+                # job. Leave it rather than guess at it.
+                case "${NUMBER}" in ""|*[!0-9]*) continue ;; esac
+                if ! grep -qx "${NUMBER}" "${OPEN_PRS}"; then
+                  rm -rf "${DIR}"
+                  echo "Reaped pr${NUMBER} - that pull request is closed."
+                fi
+              done
+            fi
+
+            # The whole PR directory, not just this sha's: exactly one
+            # comment exists per PR and it always points at the newest push,
+            # so every earlier sha under it is already unreferenced.
+            rm -rf "${WORK_DIR:?}/${PR_DIR}"
+            for SURFACE in ${VISUAL_SURFACES}; do
+              [ -d "${EMBED_DIR}/${SURFACE}" ] || continue
+              mkdir -p "${WORK_DIR}/${PR_DIR}/${RUN_DIR}/${SURFACE}"
+              for SRC in "${EMBED_DIR}/${SURFACE}"/*.png; do
+                [ -f "${SRC}" ] || continue
+                NAME="$(basename "${SRC}")"
+                if [[ ! "${NAME}" =~ ${SAFE_NAME} ]]; then
+                  echo "::warning::Refusing to publish '${NAME}' - outside the allowed filename pattern."
+                  continue
+                fi
+                cp "${SRC}" "${WORK_DIR}/${PR_DIR}/${RUN_DIR}/${SURFACE}/${NAME}"
+              done
+            done
+
+            # Someone will find this branch in the branch list and wonder
+            # whether it is safe to delete. Answer that in the branch
+            # itself. Written with printf rather than a heredoc because a
+            # heredoc nested in this block scalar would carry the YAML
+            # indentation into the file and render as a code block.
+            printf '%s\n' \
+              '# visual-diffs' \
+              '' \
+              'Machine-written. Holds the before/after PNGs that the Visual regression' \
+              'check embeds in pull request comments, and nothing else.' \
+              '' \
+              '- Written only by `.github/workflows/visual-regression.yml`.' \
+              '- Shares no history with `main`. Never merge it anywhere.' \
+              '- Rewritten as one parentless commit per publish, so the branch has no' \
+              '  history to grow and a fresh clone transfers only the live tree.' \
+              '- `pr<number>/<head-sha>/` is deleted once that pull request closes, so' \
+              '  images in comments on closed pull requests will 404.' \
+              '- Safe to delete outright. The next run recreates it.' \
+              > "${WORK_DIR}/README.md"
+
+            git -C "${WORK_DIR}" add --all
+            TREE="$(git -C "${WORK_DIR}" write-tree)"
+            # No -p, so the commit has no parent and the force-push below
+            # replaces the branch's entire history with this one commit.
+            # That is the whole retention policy: incremental commits would
+            # keep every PNG ever published reachable, and `git clone`
+            # fetches all branches.
+            COMMIT="$(git -C "${WORK_DIR}" \
+              -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit-tree "${TREE}" -m "visual diffs for PR #${PR_NUMBER} at ${RUN_DIR}")"
+
+            # --force-with-lease, never a bare --force: a plain force would
+            # silently drop a publish that landed between the clone above
+            # and this push.
+            set +e
+            git -C "${WORK_DIR}" push --quiet \
+              --force-with-lease="${VISUAL_DIFF_BRANCH}:${LEASE}" \
+              "${REMOTE}" "${COMMIT}:refs/heads/${VISUAL_DIFF_BRANCH}"
+            PUSH_STATUS=$?
+            set -e
+
+            if [ "${PUSH_STATUS}" -eq 0 ]; then
+              echo "Published ${PR_DIR}/${RUN_DIR} on ${VISUAL_DIFF_BRANCH}."
+              exit 0
+            fi
+
+            echo "Push attempt ${ATTEMPT} lost the race - retrying."
+            sleep $(( PUSH_RETRY_BACKOFF_SECONDS * ATTEMPT ))
+            ATTEMPT=$(( ATTEMPT + 1 ))
+          done
+
+          echo "::error::Could not publish before/after images after ${MAX_PUSH_ATTEMPTS} attempts."
+          exit 1
+
+      # Sticky comment: exactly one per pull request, edited in place rather
+      # than stacked one per push, so what a reviewer reads is always this
+      # run's result. Uses the preinstalled gh CLI rather than adding a
+      # third-party action, per the repo's supply-chain policy.
+      - name: Comment on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIFF_OUTCOME: ${{ needs.visual.outputs.diff_outcome }}
+          CHANGED: ${{ needs.visual.outputs.changed_count }}
+          COMPARED: ${{ needs.visual.outputs.compared_surfaces }}
+          MISSING: ${{ needs.visual.outputs.missing_surfaces }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PAYLOAD_DIR: ${{ runner.temp }}/payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          # GitHub rejects a comment body over 65536 characters with a 422.
+          # The body is built from a capped set of screens so it lands near
+          # 8KB, but it is assembled by a job that ran the PR's own code - if
+          # it ever comes back oversized this must fall back to the text
+          # listing, not fail and leave the pull request with no report.
+          MAX_COMMENT_BYTES=60000
           MARKER="<!-- visual-regression-report -->"
-          BODY_FILE="${{ runner.temp }}/visual/comment.md"
-          mkdir -p "$(dirname "$BODY_FILE")"
+          BODY_FILE="${RUNNER_TEMP}/comment.md"
           {
             echo "$MARKER"
-            echo "### Visual regression"
-            echo ""
             # `${CHANGED:-0}` substitutes on empty as well as unset, so a
             # skipped or failed diff step used to collapse to 0 and post an
             # affirmative "no visual changes". Claiming that when nothing was
             # compared is worse than staying quiet, so the outcome is checked
             # first.
             if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
+              echo "### Visual regression"
+              echo ""
               echo ":warning: The capture or comparison did not complete - no visual comparison was made."
               echo ""
               echo "[Open the run](${RUN_URL}) to see which step failed."
-            # Per-surface gate, same reasoning as the summary: a surface
-            # that captured empty on both sides must be named, not folded
-            # into the other surface's green.
+            # Per-surface gate: a surface that captured empty on both sides
+            # must be named, not folded into the other surface's green.
             elif [ -n "${MISSING}" ]; then
+              echo "### Visual regression"
+              echo ""
               echo ":warning: No comparisons were produced for: ${MISSING}. The remaining surface(s) alone do not make this a clean run."
               echo ""
               echo '```'
-              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              cat "${PAYLOAD_DIR}/diff-output.txt" || true
               echo '```'
               echo ""
               echo "[Open the run](${RUN_URL}) to see why that capture came up empty."
             elif [ "${CHANGED}" = "0" ]; then
+              echo "### Visual regression"
+              echo ""
               echo ":white_check_mark: No visual changes against the merge-base."
+            # The body with the pictures in it, used only once the images it
+            # points at are actually being served. Composing or publishing
+            # them is allowed to fail; posting URLs that 404 is not.
+            elif [ "${PUBLISH_OUTCOME}" = "success" ] \
+              && [ -s "${PAYLOAD_DIR}/comment-images.md" ] \
+              && [ "$(wc -c < "${PAYLOAD_DIR}/comment-images.md")" -le "${MAX_COMMENT_BYTES}" ]; then
+              cat "${PAYLOAD_DIR}/comment-images.md"
             else
+              echo "### Visual regression"
+              echo ""
               echo ":framed_picture: **${CHANGED} screen(s) changed** against the merge-base."
               echo ""
               echo '```'
-              cat "${{ runner.temp }}/visual/diff-output.txt" || true
+              cat "${PAYLOAD_DIR}/diff-output.txt" || true
               echo '```'
               echo ""
               echo "[Open the run](${RUN_URL}#artifacts), download **visual-report**, and open \`index.html\` for the before / after / diff view."
@@ -316,15 +660,39 @@ jobs:
             fi
           } > "$BODY_FILE"
 
-          EXISTING="$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+          # --paginate because the default page holds 30 comments: on a
+          # busy pull request the marker scrolls off it, the lookup comes
+          # back empty and the job posts a SECOND report instead of editing
+          # the first.
+          #
+          # The first line is taken with a parameter expansion rather than
+          # `| head -n1`, which would be a trap here: --jq runs per page, so
+          # head exits after page one, gh takes SIGPIPE writing page two,
+          # and `set -o pipefail` turns that into a failed step - losing the
+          # comment on precisely the busy pull requests --paginate is for.
+          MATCHES="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
             --jq "map(select(.body | startswith(\"$MARKER\"))) | .[0].id // empty")"
+          EXISTING="${MATCHES%%$'\n'*}"
 
           if [ -n "$EXISTING" ]; then
-            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/${EXISTING}" \
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING}" \
               -F body=@"$BODY_FILE" > /dev/null
             echo "Updated existing comment ${EXISTING}."
           else
-            gh api --method POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
               -F body=@"$BODY_FILE" > /dev/null
             echo "Posted a new comment."
+          fi
+
+          # There must be exactly one of these on a pull request, and only
+          # the one patched above is current. A second can exist from a run
+          # whose lookup missed - the un-paginated lookup this replaced left
+          # some behind - and it would sit there forever showing a result
+          # from a commit that has since been rewritten. Reap rather than
+          # leave two contradictory reports.
+          if [ "${MATCHES}" != "${EXISTING}" ]; then
+            for STALE in ${MATCHES#*$'\n'}; do
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/issues/comments/${STALE}" > /dev/null
+              echo "Deleted duplicate report comment ${STALE}."
+            done
           fi
