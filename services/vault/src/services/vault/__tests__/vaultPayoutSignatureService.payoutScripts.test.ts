@@ -19,7 +19,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
 
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
-  getVaultProviderBtcPubkeyFromChain: vi.fn(),
+  getVaultProviderGenesisBtcPubkeyFromChain: vi.fn(),
   getVaultKeyEpochsFromChain: vi.fn(),
 }));
 
@@ -56,7 +56,7 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
-  getVaultProviderBtcPubkeyFromChain,
+  getVaultProviderGenesisBtcPubkeyFromChain,
 } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { prepareSigningContext } from "../vaultPayoutSignatureService";
 
@@ -96,7 +96,7 @@ beforeEach(() => {
     vaultProvider: "0xprovider",
     vaultProviderCommissionBps: 50,
   } as never);
-  vi.mocked(getVaultProviderBtcPubkeyFromChain).mockResolvedValue(
+  vi.mocked(getVaultProviderGenesisBtcPubkeyFromChain).mockResolvedValue(
     `0x${VP_KEY}` as never,
   );
   vi.mocked(getVaultKeyEpochsFromChain).mockResolvedValue({

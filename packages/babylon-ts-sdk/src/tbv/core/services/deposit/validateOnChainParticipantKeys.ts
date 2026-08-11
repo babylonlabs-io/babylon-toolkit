@@ -95,7 +95,9 @@ export async function validateOnChainParticipantKeys(
     expectedAppVaultKeepersVersion,
     expectedUniversalChallengersVersion,
   ] = await Promise.all([
-    vaultRegistryReader.getVaultProviderBtcPubKey(vaultProviderEthAddress),
+    vaultRegistryReader.getVaultProviderGenesisBtcPubKey(
+      vaultProviderEthAddress,
+    ),
     vaultKeeperReader.getCurrentVaultKeepersVersion(applicationEntryPoint),
     universalChallengerReader.getLatestUniversalChallengersVersion(),
   ]);
