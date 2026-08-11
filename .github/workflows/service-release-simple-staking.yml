@@ -190,15 +190,23 @@ jobs:
               echo "slot ${TAG} already published — trying next"
               continue
             fi
-            if gh release create "$TAG" "${FILES[@]}" \
+            if ERR=$(gh release create "$TAG" "${FILES[@]}" \
                  --title "Frontend manifest ${PREFIX}" \
                  --notes "sha256 manifest for the frontend integrity checker (devops-backlog#253). Do not delete." \
-                 --latest=false; then
+                 --latest=false 2>&1); then
               curl -sfIL -o /dev/null "$URL" || { echo "::error::manifest not retrievable at $URL"; exit 1; }
               echo "published ${TAG}"
               exit 0
             fi
-            echo "create ${TAG} lost a race — trying next slot"
+            # Advance to the next slot ONLY on a create race ("already exists").
+            # Any other failure must fail the step: skipping it would leave a
+            # numbering gap, and the checker stops at the first missing slot —
+            # the next run's higher slot would never be found (silent gap).
+            if ! grep -qi "already exists" <<<"$ERR"; then
+              echo "::error::gh release create ${TAG} failed: ${ERR}"
+              exit 1
+            fi
+            echo "slot ${TAG} already exists (lost create race) — trying next slot"
           done
           echo "::error::could not publish manifest for ${PREFIX} after 10 slots"
           exit 1
