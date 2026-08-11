@@ -74,8 +74,18 @@ export function useVaultApplicationActive(
  * revert the FE could have predicted.
  *
  * Same fail-open contract: `undefined` on a failed read means "do not block".
- * An already-cached answer resolves without an extra request — while the modal
- * is open the hook above is polling, so the cache is at most one interval old.
+ *
+ * `fetchQuery`, not `ensureQueryData`: the latter returns cached data of ANY
+ * age without consulting `staleTime`. That is fine while the modal stays open
+ * (the hook above polls), but the modal unmounts on close, and reopening it
+ * within `gcTime` would hand a fast click an answer minutes old. `fetchQuery`
+ * re-reads whenever the entry is past `staleTime` and otherwise reuses it, so
+ * the answer is at most `APPLICATION_STATUS_STALE_TIME_MS` old, and a read
+ * already in flight is shared rather than duplicated.
+ *
+ * No read makes this atomic — the user still spends seconds in a BTC wallet
+ * popup before the transaction is simulated. The point is not to act on a
+ * plainly stale answer.
  */
 export function useEnsureVaultApplicationActive(): (
   vaultId: Hex,
@@ -84,7 +94,7 @@ export function useEnsureVaultApplicationActive(): (
   return useCallback(
     async (vaultId: Hex) => {
       try {
-        return await queryClient.ensureQueryData(
+        return await queryClient.fetchQuery(
           vaultApplicationActiveQueryOptions(vaultId),
         );
       } catch {

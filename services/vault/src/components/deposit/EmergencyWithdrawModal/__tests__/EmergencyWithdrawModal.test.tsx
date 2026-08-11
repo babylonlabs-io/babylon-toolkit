@@ -79,24 +79,32 @@ const ACTIVITY: VaultActivity = {
   depositorWotsPkHash: "0x",
 } as VaultActivity;
 
-function Wrapper({ children }: { children: ReactNode }) {
-  const queryClient = useMemo(
-    () =>
-      new QueryClient({
-        // The status query pins `retry: 1`; without a zero delay the fail-open
-        // case would sit through the default backoff.
-        defaultOptions: { queries: { retryDelay: 0 } },
-      }),
-    [],
-  );
+function makeQueryClient() {
+  return new QueryClient({
+    // The status query pins `retry: 1`; without a zero delay the fail-open
+    // case would sit through the default backoff.
+    defaultOptions: { queries: { retryDelay: 0 } },
+  });
+}
+
+function Wrapper({
+  client,
+  children,
+}: {
+  client?: QueryClient;
+  children: ReactNode;
+}) {
+  const fallback = useMemo(makeQueryClient, []);
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client ?? fallback}>
+      {children}
+    </QueryClientProvider>
   );
 }
 
-function renderModal() {
+function renderModal(client?: QueryClient) {
   render(
-    <Wrapper>
+    <Wrapper client={client}>
       <EmergencyWithdrawModal
         open
         activity={ACTIVITY}
@@ -148,6 +156,29 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
       expect(handleActivation).toHaveBeenCalledOnce();
     });
     expect(deriveHtlcSecretHex).toHaveBeenCalledOnce();
+  });
+
+  it("re-reads a stale cached status instead of trusting it", async () => {
+    // Modal reopened within gcTime: the cache still holds the answer from the
+    // previous open, so the button paints enabled off a value minutes old. A
+    // click must not ride that — the application was paused in between.
+    const client = makeQueryClient();
+    client.setQueryData(
+      // Key literal on purpose: if it drifts from the hook, this test should
+      // stop seeding the cache and fail loudly rather than pass vacuously.
+      ["vaultApplicationStatus", ACTIVITY.id],
+      true,
+      { updatedAt: Date.now() - 60_000 },
+    );
+    vi.mocked(isVaultApplicationActive).mockResolvedValue(false);
+
+    renderModal(client);
+
+    await waitFor(() => {
+      expect(isVaultApplicationActive).toHaveBeenCalled();
+    });
+    expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
+    expect(handleActivation).not.toHaveBeenCalled();
   });
 
   it("still submits when the application status read fails", async () => {
