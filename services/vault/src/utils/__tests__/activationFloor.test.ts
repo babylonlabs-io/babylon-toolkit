@@ -37,7 +37,7 @@ describe("activationFloorBlocksRemaining", () => {
     ).toBe(0);
   });
 
-  it("returns 0 one block before the boundary is not reported as open", () => {
+  it("reports 1 block remaining one block before the boundary", () => {
     expect(
       activationFloorBlocksRemaining({
         currentBlock: 1149n,

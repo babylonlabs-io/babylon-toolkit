@@ -112,11 +112,10 @@ export interface PeginState {
    */
   inlineSubtext?: string;
   /**
-   * Mirrors `GetPeginStateOptions.activationFloorBlocksRemaining`, retained on
-   * the state so consumers can tell "waiting out the activation floor" from
-   * an ordinary no-action state. Without it `getActionStatus` sees only that
-   * ACTIVATE_VAULT was stripped and renders the neutral View-details button,
-   * leaving the wait unexplained.
+   * Set ONLY when the activation-floor branch rendered — i.e. the floor is the
+   * reason there is no action. Lets `getActionStatus` tell that apart from the
+   * other VERIFIED no-action states (activation submitted, deadline expired),
+   * which must keep their own presentation and their View-details control.
    */
   activationFloorBlocksRemaining?: number | null;
 }
@@ -452,14 +451,8 @@ export function getPeginState(
     contractStatus,
     localStatus: options.localStatus,
     availableActions: actions,
-    // Only meaningful for VERIFIED; the action filter above is scoped the same
-    // way, so don't let a stray value gate any other status.
-    ...(contractStatus === ContractStatus.VERIFIED
-      ? {
-          activationFloorBlocksRemaining:
-            options.activationFloorBlocksRemaining,
-        }
-      : {}),
+    // `activationFloorBlocksRemaining` rides in on `display` — set by the floor
+    // branch alone, so it marks that branch rather than every VERIFIED vault.
     ...display,
   };
 }
@@ -556,6 +549,14 @@ function isRefundBroadcastWithinTtl(
 
 interface DisplayInfo {
   displayLabel: PeginDisplayLabel;
+  /**
+   * Set only by the activation-floor branch. Living here rather than being
+   * copied from options onto every VERIFIED state is what lets consumers read
+   * it as "the floor is why there is no action" — a VERIFIED vault that is
+   * Processing or past its deadline also has no action, and must not be
+   * mistaken for one that is waiting out the floor.
+   */
+  activationFloorBlocksRemaining?: number | null;
   displayVariant: "pending" | "active" | "inactive" | "warning" | "danger";
   message?: string;
   awaitingPayoutPrep?: boolean;
@@ -705,10 +706,23 @@ function getDisplay(
     if (options.activationFloorBlocksRemaining !== undefined) {
       const blocks = options.activationFloorBlocksRemaining;
       return {
-        displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+        // NOT "Ready to activate" — it demonstrably is not, and pairing that
+        // badge with a disabled button and a countdown reads as a broken UI.
+        displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_ACTIVATION_WINDOW,
         displayVariant: "pending",
         // A null remainder means a chain read failed, so no numbers are
         // quoted — the wait is real but its length is not known.
+        activationFloorBlocksRemaining: blocks,
+        // Always-visible; `message` alone would hide the wait behind an
+        // info-icon tooltip, which is exactly the silent wait this feature
+        // exists to remove (and is unreachable on touch).
+        inlineSubtext:
+          blocks === null
+            ? COPY.pegin.messages.activationWindowSubtextUnknown
+            : COPY.pegin.messages.activationWindowSubtext(
+                blocks,
+                activationFloorMinutesRemaining(blocks),
+              ),
         message:
           blocks === null
             ? COPY.pegin.messages.activationWindowTooltip

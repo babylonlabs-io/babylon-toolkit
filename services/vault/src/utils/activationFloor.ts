@@ -38,8 +38,12 @@ export function activationFloorBlocksRemaining(params: {
 /**
  * Approximate minutes for a remaining block count, for display only.
  *
- * Rounded UP so the estimate never promises the window sooner than it opens —
- * missed slots can only stretch the real interval past `ETH_SLOT_SECONDS`.
+ * Rounded UP only to avoid under-reporting the fractional minute. Note this is
+ * a LOWER bound on the real wait, not an upper one: N blocks take at least
+ * N*`ETH_SLOT_SECONDS`, and missed slots stretch that further, so the window
+ * can open later than the estimate suggests. That is display-only slack — the
+ * gate itself compares block numbers and is unaffected.
+ *
  * A non-zero block count always reports at least 1 minute, so the text never
  * reads "~0 min" while the button is still closed.
  */

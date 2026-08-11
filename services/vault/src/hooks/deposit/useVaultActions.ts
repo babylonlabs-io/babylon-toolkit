@@ -642,7 +642,21 @@ export function useVaultActions(): UseVaultActionsReturn {
       // `simulateContract` calldata for a call the contract will refuse.
       // Skipped entirely when the feature is off — the getter does not exist
       // on every deployment yet.
-      const floorEnabled = FeatureFlags.isActivationDelayEnabled;
+      // Redeem path is exempt from the floor (see the check below), so it does
+      // not need these reads either.
+      const floorEnabled =
+        FeatureFlags.isActivationDelayEnabled && !redeemImmediately;
+      // Re-throws (so the gate still fails closed) but re-labels first: an
+      // unreadable window is an expected interruption, not a reveal failure.
+      // Without this the `activation.reveal` funnel counts every click on a
+      // misconfigured environment as a failed reveal, and the depositor sees
+      // raw viem text instead of copy we own.
+      const onFloorReadFailure = (cause: unknown): never => {
+        expectedInterruption = true;
+        throw new Error(COPY.pegin.messages.activationWindowUnavailable, {
+          cause,
+        });
+      };
       const [
         { basic: basicInfo, protocol: protocolInfo },
         freshPauseState,
@@ -651,11 +665,19 @@ export function useVaultActions(): UseVaultActionsReturn {
       ] = await Promise.all([
         reader.getVaultData(vaultId),
         getOnChainPauseState().catch(() => null),
+        // `cacheTime: 0` because viem caches getBlockNumber for ~4s by
+        // default; a stale-behind head inflates the remaining count and can
+        // gate a window that is actually open.
         floorEnabled
-          ? ethClient.getPublicClient().getBlockNumber()
+          ? ethClient
+              .getPublicClient()
+              .getBlockNumber({ cacheTime: 0 })
+              .catch(onFloorReadFailure)
           : Promise.resolve(undefined),
         floorEnabled
-          ? getProtocolParamsReader().then((r) => r.getPeginActivationDelay())
+          ? getProtocolParamsReader()
+              .then((r) => r.getPeginActivationDelay())
+              .catch(onFloorReadFailure)
           : Promise.resolve(undefined),
       ]);
 
@@ -709,11 +731,25 @@ export function useVaultActions(): UseVaultActionsReturn {
       // and `peginActivationDelay` is governance-mutable and read live by the
       // registry, so a raise between render and click would otherwise reach
       // simulation. Retryable: the floor clears purely by waiting.
-      if (
-        floorEnabled &&
-        currentBlock !== undefined &&
-        peginActivationDelay !== undefined
-      ) {
+      //
+      // NOT applied to the redeem path. `_requireActivationDelayElapsed` guards
+      // `activateVaultWithSecret` only; `activateVaultWithSecretAndRedeem` is
+      // deliberately exempt on-chain because it mints no vaultBTC and invokes
+      // no adapter callback. Gating it here would block the escape hatch the
+      // "Activation incomplete" state advertises as the way to recover BTC —
+      // for a contract call that would have succeeded.
+      if (floorEnabled) {
+        // Shaped so the absence of a value ABORTS rather than skips. Unreachable
+        // today (a failed read rejects above), but the gate must not quietly
+        // become fail-open if a future reader returns undefined instead of
+        // throwing where the getter is missing.
+        if (currentBlock === undefined || peginActivationDelay === undefined) {
+          // `throw` at the call site: TS does not narrow through a
+          // `never`-returning arrow held in a const.
+          throw onFloorReadFailure(
+            new Error("activation floor inputs missing after a settled read"),
+          );
+        }
         const blocksRemaining = activationFloorBlocksRemaining({
           currentBlock,
           verifiedAt: protocolInfo.verifiedAt,
@@ -722,7 +758,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         if (blocksRemaining > 0) {
           expectedInterruption = true;
           throw new Error(
-            COPY.pegin.messages.activationWindowOpening(
+            COPY.pegin.messages.activationWindowNotOpen(
               blocksRemaining,
               activationFloorMinutesRemaining(blocksRemaining),
             ),

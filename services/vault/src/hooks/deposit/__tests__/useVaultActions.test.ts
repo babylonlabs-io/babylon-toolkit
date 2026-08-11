@@ -9,7 +9,7 @@ import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultFromChainWithGrace } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
@@ -23,7 +23,10 @@ import {
 import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
 import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
-import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
+import {
+  activateVaultWithSecret,
+  activateVaultWithSecretAndRedeem,
+} from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 
 import { useVaultActions } from "../useVaultActions";
@@ -159,12 +162,37 @@ vi.mock("@/services/vault", () => ({
   },
 }));
 
+const mockGetPeginActivationDelay = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(0n),
+);
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
+  getProtocolParamsReader: vi.fn().mockResolvedValue({
+    getPeginActivationDelay: mockGetPeginActivationDelay,
+  }),
+}));
+
+const mockGetBlockNumber = vi.hoisted(() => vi.fn().mockResolvedValue(1_000n));
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: () => ({ getBlockNumber: mockGetBlockNumber }),
+  },
+}));
+
+// Flag holder so the floor tests can turn the feature on; plain object (not
+// vi.fn) so `vi.clearAllMocks()` cannot reset it mid-suite.
+const floorFlagMock = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/config/featureFlags", () => ({
+  default: {
+    get isActivationDelayEnabled() {
+      return floorFlagMock.enabled;
+    },
+  },
 }));
 
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
+  activateVaultWithSecretAndRedeem: vi.fn(),
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
@@ -206,6 +234,9 @@ const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
 const mockWaitForEthRegistrationDepth = vi.mocked(waitForEthRegistrationDepth);
 const mockAssertUtxosAvailable = vi.mocked(assertUtxosAvailable);
+const mockActivateVaultWithSecretAndRedeem = vi.mocked(
+  activateVaultWithSecretAndRedeem,
+);
 
 /**
  * Build a fake reader that returns a combined basic+protocol payload from
@@ -1776,5 +1807,113 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     // discard the build-version and key stamps the next attempt needs.
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(result.current.ethConfirmationDetail).toBeNull();
+  });
+});
+
+describe("useVaultActions — activation floor (peginActivationDelay)", () => {
+  // SHA-256 of 0x00..01, matching the sibling activation suite so the secret
+  // passes the hashlock check and execution actually reaches the floor gate.
+  const SECRET =
+    "0x0000000000000000000000000000000000000000000000000000000000000001";
+  const ON_CHAIN_HASHLOCK =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5";
+
+  // verifiedAt 1000 + delay 150 => activation permitted from block 1150.
+  const VERIFIED_AT = 1_000n;
+  const DELAY = 150n;
+
+  function readerAtFloor() {
+    return readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+      verifiedAt: VERIFIED_AT,
+    });
+  }
+
+  const params = {
+    vaultId: "0xvaultId" as Hex,
+    secretHex: SECRET,
+    depositorEthAddress: "0xdepositor",
+    onRefetchActivities: vi.fn(),
+    onShowSuccessModal: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: null };
+    floorFlagMock.enabled = true;
+    mockGetPeginActivationDelay.mockResolvedValue(DELAY);
+    mockGetVaultRegistryReader.mockReturnValue(readerAtFloor());
+  });
+
+  afterEach(() => {
+    floorFlagMock.enabled = false;
+  });
+
+  it("does not reveal the secret while the activation floor has not elapsed", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_100n); // 50 blocks short
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("reveals the secret once the floor is reached, inclusive of the boundary block", async () => {
+    // The contract reverts on `block.number < verifiedAt + delay`, so exactly
+    // 1150 must be accepted — an off-by-one here would strand the user a block.
+    mockGetBlockNumber.mockResolvedValue(1_150n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
+  });
+
+  it("does NOT gate the activate-and-redeem escape hatch, which the contract exempts", async () => {
+    // `_requireActivationDelayElapsed` guards `activateVaultWithSecret` only.
+    // Gating the redeem path would block the recovery route the "Activation
+    // incomplete" state advertises, for a call that would have succeeded.
+    mockGetBlockNumber.mockResolvedValue(1_100n); // still inside the window
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation({
+        ...params,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).toHaveBeenCalled();
+  });
+
+  it("aborts rather than revealing when the delay cannot be read (fail closed)", async () => {
+    mockGetBlockNumber.mockResolvedValue(9_999n); // floor long since elapsed
+    mockGetPeginActivationDelay.mockRejectedValue(new Error("RPC down"));
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("reads nothing and changes nothing when the feature flag is off", async () => {
+    floorFlagMock.enabled = false;
+    mockGetBlockNumber.mockResolvedValue(1_100n); // would be gated if enabled
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
+    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
   });
 });

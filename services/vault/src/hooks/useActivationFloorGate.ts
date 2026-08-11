@@ -120,11 +120,17 @@ export function useActivationFloorGate(
 
   return useMemo(() => {
     if (!enabled || candidateIds.length === 0) return EMPTY_GATE;
-    // No data yet — mid-flight, or the read threw. Both are unresolved, and an
-    // unresolved floor gates: the button must not open on a pending read.
-    if (!query.data) {
+    // Unresolved in any sense gates. `isError` is checked alongside missing
+    // data because React Query RETAINS the last successful result through a
+    // failed background refetch — without it, a cached "floor is open" would
+    // survive a governance raise that the failing refetch was meant to catch,
+    // and the button would stay live on a value we can no longer confirm.
+    // The cost is a briefly disabled Activate on a transient RPC blip, which
+    // the next successful poll clears; the alternative is an enabled button we
+    // cannot justify.
+    if (!query.data || query.isError) {
       return new Map(candidateIds.map((id) => [id.toLowerCase(), null]));
     }
     return query.data;
-  }, [enabled, candidateIds, query.data]);
+  }, [enabled, candidateIds, query.data, query.isError]);
 }

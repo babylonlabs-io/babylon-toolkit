@@ -105,6 +105,7 @@ Create a `.env` file with the following variables:
 
 - `NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY` - Holds Activate closed until the on-chain peg-in activation window has elapsed (`verifiedAt + peginActivationDelay`)
   - Default: `false` (no floor gate, and no contract read is issued at all)
+  - Only the mint path is gated; "Activate and redeem" stays available during the window, matching the contract's own exemption
   - Enable per environment only once its `ProtocolParams` exposes `peginActivationDelay()` — verify with `cast call <protocolParams> "peginActivationDelay()(uint256)"`. The gate fails closed, so enabling it where the getter is absent disables Activate for everyone
 
 - `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE` - The single operator message shown to depositors, placed by context (non-boolean config)

@@ -177,12 +177,18 @@ function PendingRow({
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
           <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
-            {step !== null
-              ? COPY.deposit.progress.stepPrefix(
-                  getVisualStep(step),
-                  TOTAL_VISUAL_STEPS,
-                )
-              : (peginState?.inlineSubtext ?? "")}
+            {/* Subtext wins when a state sets one: it is state-specific
+                (e.g. an activation-window countdown) and therefore more
+                informative than the generic step position. States that set it
+                and still have a step are exactly the ones that need it. */}
+            {peginState?.inlineSubtext
+              ? peginState.inlineSubtext
+              : step !== null
+                ? COPY.deposit.progress.stepPrefix(
+                    getVisualStep(step),
+                    TOTAL_VISUAL_STEPS,
+                  )
+                : ""}
           </span>
         </div>
       </div>

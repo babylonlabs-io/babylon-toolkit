@@ -6,12 +6,13 @@ import { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
-import { PeginAction, getPeginState } from "@/models/peginStateMachine";
+import {
+  LocalStorageStatus,
+  PeginAction,
+  getPeginState,
+} from "@/models/peginStateMachine";
 
-const VERIFIED = {
-  contractStatus: ContractStatus.VERIFIED,
-  transactionsReady: true,
-} as const;
+const VERIFIED = { contractStatus: ContractStatus.VERIFIED } as const;
 
 describe("activation floor in getPeginState", () => {
   it("offers Activate when the floor is not gating", () => {
@@ -43,6 +44,10 @@ describe("activation floor in getPeginState", () => {
     // the Expired badge — a healthy waiting vault must not get it.
     expect(state.displayVariant).toBe("pending");
     expect(state.displayLabel).not.toBe(COPY.pegin.labels.EXPIRED);
+    // And it must not claim readiness while the button is disabled.
+    expect(state.displayLabel).toBe(
+      COPY.pegin.labels.AWAITING_ACTIVATION_WINDOW,
+    );
   });
 
   it("quotes the remaining blocks and an approximate duration", () => {
@@ -88,5 +93,68 @@ describe("activation floor in getPeginState", () => {
 
     expect(state.displayLabel).toBe(COPY.pegin.labels.EXPIRED);
     expect(state.availableActions).not.toContain(PeginAction.ACTIVATE_VAULT);
+  });
+  it("leaves ACTIVATE_AND_REDEEM available while the floor gates ACTIVATE_VAULT", () => {
+    // The asymmetry is deliberate and load-bearing. On-chain,
+    // `_requireActivationDelayElapsed` guards `activateVaultWithSecret` only;
+    // `activateVaultWithSecretAndRedeem` is exempt because it mints no vaultBTC.
+    // A refactor that "mirrors" the deadline filter (which strips BOTH) would
+    // remove the escape hatch the Activation-incomplete state advertises, for a
+    // call the contract would have accepted.
+    const state = getPeginState(VERIFIED.contractStatus, {
+      transactionsReady: true,
+      htlcSpentByPeginTx: true,
+      activationFloorBlocksRemaining: 150,
+    });
+
+    expect(state.availableActions).not.toContain(PeginAction.ACTIVATE_VAULT);
+    expect(state.availableActions).toContain(PeginAction.ACTIVATE_AND_REDEEM);
+  });
+
+  it("does not mark a Processing vault as floor-gated", () => {
+    // VERIFIED + CONFIRMED has no action because activation was already
+    // submitted. Tagging it with the floor would put a disabled "Activate"
+    // and an "opens shortly" tooltip beside a "Processing" badge — and, via
+    // getActionStatus, replace its View-details control.
+    const state = getPeginState(VERIFIED.contractStatus, {
+      transactionsReady: true,
+      localStatus: LocalStorageStatus.CONFIRMED,
+      activationFloorBlocksRemaining: 150,
+    });
+
+    expect(state.activationFloorBlocksRemaining).toBeUndefined();
+  });
+
+  it("does not mark a deadline-expired vault as floor-gated", () => {
+    const state = getPeginState(VERIFIED.contractStatus, {
+      transactionsReady: true,
+      activationDeadlinePassed: true,
+      activationFloorBlocksRemaining: 150,
+    });
+
+    expect(state.activationFloorBlocksRemaining).toBeUndefined();
+  });
+  it("puts the wait in the always-visible subtext, not only the tooltip", () => {
+    // `message` renders behind an info icon; a depositor who never hovers — or
+    // is on touch — would see a greyed Activate and no reason for it.
+    const state = getPeginState(VERIFIED.contractStatus, {
+      transactionsReady: true,
+      activationFloorBlocksRemaining: 150,
+    });
+
+    expect(state.inlineSubtext).toBe(
+      COPY.pegin.messages.activationWindowSubtext(150, 30),
+    );
+  });
+
+  it("still shows a subtext when the remaining time is unknown", () => {
+    const state = getPeginState(VERIFIED.contractStatus, {
+      transactionsReady: true,
+      activationFloorBlocksRemaining: null,
+    });
+
+    expect(state.inlineSubtext).toBe(
+      COPY.pegin.messages.activationWindowSubtextUnknown,
+    );
   });
 });
