@@ -381,7 +381,10 @@ export function PeginPollingProvider({
         ((a.contractStatus ?? 0) as ContractStatus) !== ContractStatus.VERIFIED
       )
         continue;
-      const spend = htlcRefundByDepositId.get(a.id);
+      // Keyed lowercase by `useBtcHtlcRefundStatus`; activity ids come from the
+      // indexer unnormalized. A raw lookup that misses reads as "not swept", so
+      // the suspect never forms and the stuck card silently never appears.
+      const spend = htlcRefundByDepositId.get(a.id.toLowerCase());
       if (spend?.spent !== true) continue;
       const peginTxCanonical = canonicalizeTxid(a.peginTxHash);
       if (
