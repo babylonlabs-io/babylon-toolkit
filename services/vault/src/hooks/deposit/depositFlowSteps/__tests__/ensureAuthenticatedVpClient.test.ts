@@ -15,11 +15,16 @@ import { ensureAuthenticatedVpClient } from "../ensureAuthenticatedVpClient";
 const ON_CHAIN_PRE_PEGIN_HASH = "0xmatching_pre_pegin_hash";
 const ATTACKER_HASH = "0xattacker_chosen_hash";
 
-const mockGetVaultProviderBtcPubKey = vi.fn();
+// The auth pin resolves the VP's *current operation* key, deliberately — not
+// its genesis key, and not either-of-the-two. Accepting either would hollow out
+// the pin, which exists so a substituted server key cannot be used. See
+// `vpAuthPinnedPubkey.ts` for the reasoning before "correcting" this.
+const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
 const mockGetVaultProtocolInfo = vi.fn();
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
-    getCurrentVaultProviderOperationBtcKey: mockGetVaultProviderBtcPubKey,
+    getCurrentVaultProviderOperationBtcKey:
+      mockGetCurrentVaultProviderOperationBtcKey,
     getVaultProtocolInfo: mockGetVaultProtocolInfo,
   }),
 }));
@@ -57,7 +62,7 @@ const fakeWallet = {
 describe("ensureAuthenticatedVpClient", () => {
   beforeEach(() => {
     (vpTokenRegistry as VpTokenRegistry).clear();
-    mockGetVaultProviderBtcPubKey.mockResolvedValue(VALID_XONLY);
+    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(VALID_XONLY);
     mockGetVaultProtocolInfo.mockResolvedValue({
       prePeginTxHash: ON_CHAIN_PRE_PEGIN_HASH,
     });
@@ -88,7 +93,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(deriveVaultRoot).toHaveBeenCalledOnce();
-    expect(mockGetVaultProviderBtcPubKey).toHaveBeenCalledOnce();
+    expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledOnce();
     expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeDefined();
   });
 
@@ -108,7 +113,7 @@ describe("ensureAuthenticatedVpClient", () => {
 
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(deriveVaultRoot).not.toHaveBeenCalled();
-    expect(mockGetVaultProviderBtcPubKey).not.toHaveBeenCalled();
+    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
     expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeUndefined();
   });
 
@@ -134,6 +139,6 @@ describe("ensureAuthenticatedVpClient", () => {
 
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(mockGetVaultProtocolInfo).not.toHaveBeenCalled();
-    expect(mockGetVaultProviderBtcPubKey).not.toHaveBeenCalled();
+    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
   });
 });
