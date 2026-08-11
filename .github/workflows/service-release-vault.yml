@@ -107,10 +107,11 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
     # Prod OIDC fails on feature branches; tolerate it ONLY in the multi-env run
-    # so it can't block devnet. When prod (vault-testnet) is the single requested
-    # environment, fail loud — otherwise a scoped prod dispatch reports success
-    # while publishing nothing.
-    continue-on-error: ${{ matrix.prod == true && needs.setup.outputs.multi == 'true' }}
+    # so it can't block devnet — and only OFF real deploy refs. On main/release/
+    # tags a prod failure must fail the run: a green run with a failed prod
+    # deploy or missing integrity manifest is a silent gap (#253 review). A
+    # scoped single-prod dispatch also fails loud.
+    continue-on-error: ${{ matrix.prod == true && needs.setup.outputs.multi == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release/v1.x' && !startsWith(github.ref, 'refs/tags/') }}
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
@@ -228,10 +229,14 @@ jobs:
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
+        env:
+          # Bound via env, not interpolated into run: — git refnames accept
+          # shell metacharacters and this job holds AWS OIDC + contents:write.
+          GIT_TAG: ${{ github.ref_name }}
         run: |
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.ref_name }}.tar.gz
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.ref_name }}-files-checksum.txt
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.ref_name }}-global-checksum.txt
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}.tar.gz"
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}-files-checksum.txt"
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}-global-checksum.txt"
 
       # Last step: publishing the manifest must not block the S3 uploads above.
       - name: Publish checksum manifest as an immutable per-sha release
