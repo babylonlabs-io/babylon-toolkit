@@ -30,6 +30,7 @@ import {
   isActivateAndRedeemBlocked,
   isActivationBlocked,
 } from "@/components/shared/protocolStatus";
+import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
@@ -45,6 +46,10 @@ import {
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
 import {
+  activationFloorBlocksRemaining,
+  activationFloorMinutesRemaining,
+} from "@/utils/activationFloor";
+import {
   ActivationNotPossibleError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
@@ -54,8 +59,12 @@ import {
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getVaultFromChainWithGrace } from "../../clients/eth-contract/btc-vault-registry/query";
+import { ethClient } from "../../clients/eth-contract/client";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
-import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
+import {
+  getProtocolParamsReader,
+  getVaultRegistryReader,
+} from "../../clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -627,11 +636,28 @@ export function useVaultActions(): UseVaultActionsReturn {
       // calldata if the protocol paused in that window. A failed pause read
       // falls back to the cached gate (activation is time-critical — an RPC
       // blip must not trap a depositor whose activation deadline is near).
-      const [{ basic: basicInfo, protocol: protocolInfo }, freshPauseState] =
-        await Promise.all([
-          reader.getVaultData(vaultId),
-          getOnChainPauseState().catch(() => null),
-        ]);
+      // The activation-floor reads are deliberately NOT `.catch`-ed like the
+      // pause read below: an unreadable floor must reject rather than fall
+      // through, because proceeding would put the secret into
+      // `simulateContract` calldata for a call the contract will refuse.
+      // Skipped entirely when the feature is off — the getter does not exist
+      // on every deployment yet.
+      const floorEnabled = FeatureFlags.isActivationDelayEnabled;
+      const [
+        { basic: basicInfo, protocol: protocolInfo },
+        freshPauseState,
+        currentBlock,
+        peginActivationDelay,
+      ] = await Promise.all([
+        reader.getVaultData(vaultId),
+        getOnChainPauseState().catch(() => null),
+        floorEnabled
+          ? ethClient.getPublicClient().getBlockNumber()
+          : Promise.resolve(undefined),
+        floorEnabled
+          ? getProtocolParamsReader().then((r) => r.getPeginActivationDelay())
+          : Promise.resolve(undefined),
+      ]);
 
       const effectiveGate = freshPauseState
         ? composeGateState(freshPauseState)
@@ -676,6 +702,32 @@ export function useVaultActions(): UseVaultActionsReturn {
         // dead-end, not a transient.
         expectedInterruption = true;
         throw new Error(message);
+      }
+
+      // Activation floor, re-checked on fresh reads immediately before the
+      // secret is used. The dashboard gate can be up to a poll interval stale,
+      // and `peginActivationDelay` is governance-mutable and read live by the
+      // registry, so a raise between render and click would otherwise reach
+      // simulation. Retryable: the floor clears purely by waiting.
+      if (
+        floorEnabled &&
+        currentBlock !== undefined &&
+        peginActivationDelay !== undefined
+      ) {
+        const blocksRemaining = activationFloorBlocksRemaining({
+          currentBlock,
+          verifiedAt: protocolInfo.verifiedAt,
+          peginActivationDelay,
+        });
+        if (blocksRemaining > 0) {
+          expectedInterruption = true;
+          throw new Error(
+            COPY.pegin.messages.activationWindowOpening(
+              blocksRemaining,
+              activationFloorMinutesRemaining(blocksRemaining),
+            ),
+          );
+        }
       }
 
       // Validate secret against hashlock before sending ETH tx.

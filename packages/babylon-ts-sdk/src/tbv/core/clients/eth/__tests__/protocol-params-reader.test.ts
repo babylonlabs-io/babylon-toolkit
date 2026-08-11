@@ -40,6 +40,7 @@ function createMockPublicClient(overrides?: {
   version?: unknown;
   activeVaultCoreVersion?: unknown;
   perVersionOffchainParams?: Map<number, unknown>;
+  peginActivationDelay?: bigint;
 }) {
   return {
     readContract: vi.fn(
@@ -66,6 +67,9 @@ function createMockPublicClient(overrides?: {
         }
         if (functionName === "latestOffchainParamsVersion") {
           return overrides?.version ?? 3;
+        }
+        if (functionName === "peginActivationDelay") {
+          return overrides?.peginActivationDelay ?? 150n;
         }
         throw new Error(`Unknown function: ${functionName}`);
       },
@@ -281,6 +285,45 @@ describe("ViemProtocolParamsReader", () => {
       "latestOffchainParamsVersion",
       "activeVaultCoreVersion",
     ]);
+  });
+
+  it("getPeginActivationDelay returns the delay as a bigint", async () => {
+    const publicClient = createMockPublicClient({
+      peginActivationDelay: 150n,
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPeginActivationDelay()).resolves.toBe(150n);
+  });
+
+  it("getPeginActivationDelay returns 0 when the window is disabled", async () => {
+    const publicClient = createMockPublicClient({ peginActivationDelay: 0n });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPeginActivationDelay()).resolves.toBe(0n);
+  });
+
+  it("getPeginActivationDelay reads standalone, never through the shared multicall", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getPeginActivationDelay();
+
+    // Folding this into getPegInConfiguration's multicall would make every
+    // protocol-param read fail on deployments that predate the parameter.
+    expect(publicClient.multicall).not.toHaveBeenCalled();
+    expect(publicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "peginActivationDelay" }),
+    );
   });
 
   it("getTBVProtocolParams throws on invalid params via the auto-validator", async () => {

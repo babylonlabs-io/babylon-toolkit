@@ -66,7 +66,10 @@ export type ActionStatus = ActionAvailable | ActionDisabled | ActionNoAction;
  *    itself still dims so unowned cards are always visually distinct,
  *    even on polling error or in pure-waiting states.
  * 2. Polling error, or no action for this state → noAction.
- * 3. Otherwise → available.
+ * 3. Waiting out the on-chain activation floor → disabled (with the wait
+ *    explained). Runs after 1 and 2 so an unowned vault never advertises a
+ *    countdown, and a polling error is still reported as such.
+ * 4. Otherwise → available.
  */
 export function getActionStatus(
   pollingResult: DepositPollingResult,
@@ -90,6 +93,21 @@ export function getActionStatus(
   }
 
   if (error || !actionButton) {
+    // A vault held by the activation floor has had ACTIVATE_VAULT stripped by
+    // the state machine, so it lands here with no action. Surface it as a
+    // disabled Activate with the wait explained, rather than the neutral
+    // "View details" that `noAction` renders — otherwise the wait is silent
+    // and looks like a stuck deposit.
+    if (!error && peginState?.activationFloorBlocksRemaining !== undefined) {
+      return {
+        type: "disabled",
+        action: {
+          label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+          action: PeginAction.ACTIVATE_VAULT,
+        },
+        tooltip: COPY.pegin.messages.activationWindowTooltip,
+      };
+    }
     return { type: "noAction" };
   }
 

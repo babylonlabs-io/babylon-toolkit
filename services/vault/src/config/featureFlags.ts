@@ -210,6 +210,26 @@ export default {
   },
 
   /**
+   * ENABLE_ACTIVATION_DELAY feature flag
+   *
+   * Purpose: Gates the peg-in activation floor — reading
+   * `ProtocolParams.peginActivationDelay()` and holding Activate closed until
+   * `verifiedAt + delay` blocks have passed, as `activateVaultWithSecret`
+   * enforces on-chain.
+   * Why needed: the parameter does not exist on every deployment yet (devnet
+   * has it, testnet and staging do not). The gate fails CLOSED — an unreadable
+   * delay must not let the HTLC secret reach `simulateContract` calldata — so
+   * enabling it where the getter is absent would disable Activate for
+   * everyone. DevOps flips it per environment once the contract exposes the
+   * getter; verify with
+   * `cast call <protocolParams> "peginActivationDelay()(uint256)"`.
+   * Default: false (no floor gate, and no contract read is issued at all)
+   */
+  get isActivationDelayEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY === "true";
+  },
+
+  /**
    * NOTICE_BANNER_MESSAGE config
    *
    * Purpose: The single operator-controlled message shown to depositors. Its

@@ -35,6 +35,12 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "The BTC Vault is in an invalid status for this operation.",
   ActivationDeadlineExpired:
     "The activation deadline has passed. The BTC Vault can no longer be activated.",
+  // The opposite bound to ActivationDeadlineExpired: too early, not too late.
+  // Resolves by waiting, so the copy asks for a retry rather than closing the
+  // flow. Normally unreachable — the UI holds Activate closed for the window —
+  // so this is the fallback for a governance change mid-flow.
+  ActivationDelayNotElapsed:
+    "The BTC Vault activation window has not opened yet. Please wait a few minutes and try again.",
   InvalidSecret:
     "The secret does not match the BTC Vault's hashlock. Please verify your secret and try again.",
   InvalidHashlock: "The BTC Vault does not have a valid hashlock configured.",

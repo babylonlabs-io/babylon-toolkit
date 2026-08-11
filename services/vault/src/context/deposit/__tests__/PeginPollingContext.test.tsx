@@ -98,6 +98,12 @@ vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
     mockUseStuckVaultChainConfirm(suspectIds),
 }));
 
+// Floor gate is feature-flagged off by default; stub it so the provider renders
+// without a QueryClient, exactly as the deadline gate above is stubbed.
+vi.mock("../../../hooks/useActivationFloorGate", () => ({
+  useActivationFloorGate: () => new Map<string, number | null>(),
+}));
+
 const mockVersionedParams = new Map<number, { tRefund: number }>();
 
 // The provider reads params through the non-blocking hook (it mounts above the

@@ -656,6 +656,10 @@ export const BTCVaultRegistryABI = [
   { type: "error", name: "DuplicateHashlock", inputs: [] },
   { type: "error", name: "InvalidSecret", inputs: [] },
   { type: "error", name: "ActivationDeadlineExpired", inputs: [] },
+  // Lower bound on activation: reverts while
+  // `block.number < verifiedAt + peginActivationDelay`. Clears with time, so
+  // unlike ActivationDeadlineExpired it is retryable, not terminal.
+  { type: "error", name: "ActivationDelayNotElapsed", inputs: [] },
   { type: "error", name: "PostExpiryGraceWindowElapsed", inputs: [] },
   { type: "error", name: "CapExceeded", inputs: [] },
 ] as const;

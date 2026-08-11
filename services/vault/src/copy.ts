@@ -166,6 +166,15 @@ export const COPY = {
       // tooltip-only); same reassuring tone.
       activationIncompleteSubtext:
         "Your BTC is not lost — withdraw to receive it back.",
+      // Activation floor. Blocks lead because they are the fact the contract
+      // checks; the minutes figure is an estimate derived from slot time, so it
+      // is bracketed as approximate. Mirrors the refundMaturing shape.
+      activationWindowOpening: (blocks: number, minutes: number) =>
+        `Your BTC Vault is verified. Activation opens in ~${blocks} Ethereum ${
+          blocks === 1 ? "block" : "blocks"
+        } (~${minutes} min).`,
+      activationWindowTooltip:
+        "Activation opens a short time after verification. This is a protocol requirement.",
       inUseCannotRedeem:
         "BTC Vault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:

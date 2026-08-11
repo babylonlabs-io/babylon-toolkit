@@ -266,6 +266,18 @@ export interface ProtocolParamsReader {
   getLatestOffchainParamsVersion(): Promise<number>;
   getTimelockPeginByVersion(version: number): Promise<number>;
   getPegInConfiguration(): Promise<PegInConfiguration>;
+  /**
+   * Observation window enforced between a vault's final ACK and its
+   * activation, in ETH blocks measured from `verifiedAt`. `0` disables it.
+   *
+   * Deliberately its own read rather than a field on
+   * {@link PegInConfiguration}: the parameter is absent from deployments that
+   * predate it, so folding it into the shared multicall would make every
+   * protocol-param read fail wherever it is missing.
+   *
+   * @throws If the deployment does not expose `peginActivationDelay()`.
+   */
+  getPeginActivationDelay(): Promise<bigint>;
   fetchAllOffchainParams(
     onSkippedVersion?: OnSkippedOffchainParamsVersion,
   ): Promise<AllOffchainParamsData>;
