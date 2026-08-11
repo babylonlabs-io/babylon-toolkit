@@ -566,7 +566,7 @@ describe("peginStateMachine", () => {
 
     it("surfaces a CSV-maturing countdown when refund timelock has not elapsed", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
-        expirationReason: "ack_timeout",
+        expirationReason: "proof_timeout",
         canRefund: false,
         refundMaturityState: "maturing",
         refundMaturesInBlocks: 24,
@@ -576,7 +576,7 @@ describe("peginStateMachine", () => {
       expect(state.refundMaturesInBlocks).toBe(24);
       // 24 blocks × 10 min = 240 min → ceil(240/60) = 4h.
       // The countdown lives only in `inlineSubtext`; `message` (tooltip)
-      // stays focused on the expiry itself so the user doesn't see the
+      // stays focused on the expired reason so the user doesn't see the
       // same sentence twice.
       expect(state.inlineSubtext).toBe(
         "Your refund will be claimable in ~24 Bitcoin blocks (~4h).",
@@ -598,7 +598,7 @@ describe("peginStateMachine", () => {
 
     it("shows the generic pending message when refund maturity is unknown", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
-        expirationReason: "ack_timeout",
+        expirationReason: "proof_timeout",
         canRefund: false,
         refundMaturityState: "unknown",
       });
@@ -606,7 +606,7 @@ describe("peginStateMachine", () => {
       expect(state.refundMaturityState).toBe("unknown");
       expect(state.refundMaturesInBlocks).toBeUndefined();
       // Maturing copy lives only in `inlineSubtext`; tooltip stays focused
-      // on the expiry itself.
+      // on the expired reason.
       expect(state.inlineSubtext).toBe(
         "Checking when your refund will be claimable...",
       );
