@@ -106,6 +106,12 @@ export interface DepositTerms {
  * the first provider lands, #2109 (see `depositTermsErrors.ts`). Each
  * vendor owns its own envelope — device limits are never SDK concerns.
  *
+ * PROVIDER OBLIGATION — idempotence: `approveDepositTerms` MUST be a no-op for a
+ * byte-equal terms object on a live connection. The SDK approves once in
+ * `PeginManager.preparePegin` and again in `runDepositorPresignFlow`, and those
+ * may land on the same connection — a device that only admits one approval
+ * ceremony per session must not be driven through a second one.
+ *
  * Seam invariant: never call deriveContextHash between approveDepositTerms and
  * the last terms-bound signature of a connection — deriving while an intent is
  * loaded nullifies it on-device. Design: the SDK owns approval (mirrors its
