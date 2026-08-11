@@ -17,10 +17,7 @@ import { useVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 interface EmergencyWithdrawConfirmContentProps {
   /** True when the stuck state was detected on-chain — drives the body copy. */
   stuckStateDetected: boolean;
-  /**
-   * Vault whose application registration gates this exit. `undefined` while
-   * unknown (loading or a failed read) — see {@link useVaultApplicationActive}.
-   */
+  /** Vault whose application registration gates this exit. */
   vaultId: Hex;
   /** Reveal + redeem in flight (wallet popup or on-chain submission). */
   withdrawing: boolean;
