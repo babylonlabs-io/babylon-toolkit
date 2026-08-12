@@ -5,7 +5,8 @@
  * `challenger_presign_data` set equals `local ∪ universal`. Under RFC-006 that
  * is only correct because every key it works with arrives already resolved at
  * the vault's frozen epochs, through the context object `prepareSigningContext`
- * builds. The module itself resolves nothing.
+ * builds. The module itself resolves nothing, and nor does any module it
+ * imports directly.
  *
  * Nothing in the type system says so. If someone needing "the VP's key" reached
  * for a registry read here — the natural move, and the reason #2206 renamed the
@@ -15,7 +16,14 @@
  * recognise, which `CLAUDE.md` lists as the asymmetric-failure case on this
  * path.
  *
- * So the invariant is asserted the only way it can be: over the import list.
+ * This is a structural assertion rather than a behavioural one, deliberately.
+ * The behavioural half of the same guard lives in
+ * `services/vault/src/services/vault/__tests__/vaultPayoutSignatureService.payoutScripts.test.ts`,
+ * whose fixture rotates the VP so that resolving the registration key instead of
+ * the operation key fails a real assertion about a real return value. What that
+ * test cannot express is the *absence* of a read in a module that has no
+ * observable output tied to it — so this one asserts over the import graph, and
+ * is the only test here allowed to do that.
  */
 
 import { readFileSync } from "fs";
@@ -26,34 +34,60 @@ import { describe, expect, it } from "vitest";
 const MODULE_PATH = path.resolve(__dirname, "../signDepositorGraph.ts");
 
 /**
- * Import specifiers that would give this module contract access.
+ * Path segments that mean contract access.
  *
  * `clients/` as a whole is deliberately not banned: the module legitimately
- * imports `clients/vault-provider/types`, which is the VP's wire format, not
- * chain state.
+ * imports `clients/vault-provider/types`, which is the VP's wire format rather
+ * than chain state.
  */
-const FORBIDDEN_SEGMENTS = ["clients/eth", "contracts/"];
+const CONTRACT_STATE_SEGMENTS = ["clients/eth", "contracts/"];
 
-/** Every `from "…"` specifier in the file, `import type` included. */
-function importSpecifiers(source: string): string[] {
-  return [...source.matchAll(/\bfrom\s+["']([^"']+)["']/g)].map((m) => m[1]);
+/**
+ * Every module specifier the file pulls in, in any form.
+ *
+ * Matching only `from "…"` would leave `await import("…")` and `require("…")` as
+ * unwatched ways to reach the same registries — a plausible route in, since a
+ * dynamic import is exactly what someone would reach for to dodge a circular
+ * dependency.
+ */
+const MODULE_SPECIFIER =
+  /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)["']([^"']+)["']/g;
+
+/** The specifiers in `source` that would give the module contract access. */
+function contractStateImports(source: string): string[] {
+  return [...source.matchAll(MODULE_SPECIFIER)]
+    .map((match) => match[1])
+    .filter((specifier) =>
+      CONTRACT_STATE_SEGMENTS.some((segment) => specifier.includes(segment)),
+    );
 }
 
 describe("signDepositorGraph import boundary", () => {
   it("imports nothing that reads contract state", () => {
-    const specifiers = importSpecifiers(readFileSync(MODULE_PATH, "utf-8"));
-
-    const violations = specifiers.filter((specifier) =>
-      FORBIDDEN_SEGMENTS.some((segment) => specifier.includes(segment)),
+    expect(contractStateImports(readFileSync(MODULE_PATH, "utf-8"))).toEqual(
+      [],
     );
-
-    expect(violations).toEqual([]);
   });
 
-  it("reads a non-empty import list, so the check above cannot pass vacuously", () => {
-    const specifiers = importSpecifiers(readFileSync(MODULE_PATH, "utf-8"));
+  it("detects a contract import written as a static, type-only, dynamic or required form", () => {
+    // Guards the test above against passing vacuously: a broken pattern would
+    // report a clean file no matter what it contained. Asserted against a
+    // sample rather than the real import list, so moving a file the module
+    // legitimately imports cannot fail this.
+    const sample = [
+      `import { ViemVaultRegistryReader } from "../../clients/eth/vault-registry-reader";`,
+      `import type { KeyEpochs } from "../../clients/eth/types";`,
+      `const { BTCVaultRegistryABI } = await import("../../contracts/abis/BTCVaultRegistry.abi");`,
+      `const legacy = require("../../contracts/abis/ApplicationRegistry.abi");`,
+      `import { Transaction } from "bitcoinjs-lib";`,
+      `import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";`,
+    ].join("\n");
 
-    expect(specifiers.length).toBeGreaterThan(0);
-    expect(specifiers).toContain("../../clients/vault-provider/types");
+    expect(contractStateImports(sample)).toEqual([
+      "../../clients/eth/vault-registry-reader",
+      "../../clients/eth/types",
+      "../../contracts/abis/BTCVaultRegistry.abi",
+      "../../contracts/abis/ApplicationRegistry.abi",
+    ]);
   });
 });
