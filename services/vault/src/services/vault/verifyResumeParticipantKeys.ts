@@ -13,7 +13,7 @@
 
 import {
   ParticipantKeyDriftError,
-  processPublicKeyToXOnly,
+  canonicalizeBtcPubkey,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
@@ -36,18 +36,67 @@ export interface ExpectedParticipantOperationKeys {
   universalChallengers: string[];
 }
 
+/**
+ * Bring a stamped key into the one form the resolved side is already in.
+ *
+ * The resolved keys come from `assertOnChainBtcPubkey`, which mints lowercase
+ * x-only hex with no `0x`. The stamped keys come from localStorage, and
+ * `isValidPeginRecord` in `@/storage/peginStorage` requires that same shape of
+ * all three fields — so this is a no-op for anything written through the
+ * sanctioned path.
+ *
+ * It runs anyway so that the comparison below does not silently depend on a
+ * validator two modules away. A second writer of the stamp, or a relaxed
+ * validator, would otherwise turn an encoding difference into a phantom
+ * "keys changed" abort on a deposit whose keys are in fact identical.
+ *
+ * A key that cannot be canonicalized is reported with its field and index
+ * rather than surfacing `canonicalizeBtcPubkey`'s bare hex complaint. The
+ * resulting error is deliberately not a `ParticipantKeyDriftError`: nothing
+ * drifted, the stamp is unreadable. Either way the caller keeps the pending
+ * record and skips the broadcast.
+ */
+function canonicalizeStamped(
+  label: string,
+  key: string,
+  index?: number,
+): string {
+  try {
+    return canonicalizeBtcPubkey(key);
+  } catch (cause) {
+    const at = index === undefined ? "" : ` at index ${index}`;
+    throw new Error(
+      `Cannot verify participant keys: the stamped value for ${label}${at} is ` +
+        `not a readable BTC public key (${key}). The Pre-PegIn was not broadcast.`,
+      { cause },
+    );
+  }
+}
+
+/**
+ * Compare two key sets element-by-element, in order.
+ *
+ * Order matters: both sides are the lexicographically sorted operation-key
+ * arrays that script construction consumes, so a set that matches in a
+ * different order is still a mismatch — and this is the only place that is
+ * caught. Canonicalization below must therefore not reorder anything.
+ */
 function assertSameSet(
   label: string,
   expected: readonly string[],
   actual: readonly string[],
 ): void {
+  const expectedCanonical = expected.map((key, i) =>
+    canonicalizeStamped(label, key, i),
+  );
+
   if (
-    expected.length !== actual.length ||
-    expected.some((k, i) => k !== actual[i])
+    expectedCanonical.length !== actual.length ||
+    expectedCanonical.some((k, i) => k !== actual[i])
   ) {
     throw new ParticipantKeyDriftError(
       `Aborting Pre-PegIn broadcast: ${label} changed since this deposit was built ` +
-        `(expected [${expected.join(", ")}], got [${actual.join(", ")}]). ` +
+        `(expected [${expectedCanonical.join(", ")}], got [${actual.join(", ")}]). ` +
         `The Pre-PegIn was not broadcast; the registered ETH vault will time out ` +
         `per protocol rules.`,
     );
@@ -103,9 +152,10 @@ export async function verifyResumeParticipantKeys(params: {
     epochs,
   });
 
-  const expectedVp = processPublicKeyToXOnly(
+  const expectedVp = canonicalizeStamped(
+    "the vault provider's operation key",
     expected.vaultProvider,
-  ).toLowerCase();
+  );
   if (resolved.vaultProvider.operationBtcPubkey !== expectedVp) {
     throw new ParticipantKeyDriftError(
       `Aborting Pre-PegIn broadcast: the vault provider's operation key changed ` +

@@ -60,7 +60,17 @@ import {
 } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { prepareSigningContext } from "../vaultPayoutSignatureService";
 
-const VP_KEY = "a".repeat(64);
+/**
+ * The VP is rotated in this fixture: its registration key and the key its
+ * frozen `vpKeyEpoch` resolves to are deliberately different values.
+ *
+ * That difference is what gives "builds with the epoch-bonded participant keys"
+ * below any force. With both set to the same key, a regression that reached for
+ * the registration key — the natural mistake, since `prepareSigningContext`
+ * already reads it as the genesis fallback — would still pass.
+ */
+const VP_GENESIS_KEY = "a".repeat(64);
+const VP_OPERATION_KEY = "b".repeat(64);
 
 /**
  * Two keeper operation keys whose *roster* order is the reverse of their
@@ -97,7 +107,7 @@ beforeEach(() => {
     vaultProviderCommissionBps: 50,
   } as never);
   vi.mocked(getVaultProviderGenesisBtcPubkeyFromChain).mockResolvedValue(
-    `0x${VP_KEY}` as never,
+    `0x${VP_GENESIS_KEY}` as never,
   );
   vi.mocked(getVaultKeyEpochsFromChain).mockResolvedValue({
     vpKeyEpoch: 12n,
@@ -106,7 +116,7 @@ beforeEach(() => {
   } as never);
 
   mockResolveParticipantKeysAtEpochs.mockResolvedValue({
-    vaultProvider: { operationBtcPubkey: VP_KEY },
+    vaultProvider: { operationBtcPubkey: VP_OPERATION_KEY },
     // Roster order — index-aligned with the payout scripts below.
     vaultKeepers: [
       { operationBtcPubkey: KEEPER_ROSTER_FIRST },
@@ -147,13 +157,30 @@ describe("prepareSigningContext — registered payout scripts", () => {
     );
   });
 
-  it("builds with the epoch-bonded participant keys", async () => {
+  it("builds with the epoch-bonded participant keys, not the registration key", async () => {
     const { context } = await prepareSigningContext(signingArgs);
 
-    expect(context.vaultProviderBtcPubkey).toBe(VP_KEY);
+    expect(context.vaultProviderBtcPubkey).toBe(VP_OPERATION_KEY);
+    expect(context.vaultProviderBtcPubkey).not.toBe(VP_GENESIS_KEY);
     expect(context.vaultKeeperBtcPubkeys).toEqual([
       KEEPER_ROSTER_SECOND,
       KEEPER_ROSTER_FIRST,
     ]);
+  });
+
+  it("passes the registration key to resolution as the genesis fallback", async () => {
+    // The registration key still has one job — it is the genesis the VP's
+    // epoch lookup falls back to when the provider never rotated. A change
+    // that stopped reading it would break un-rotated providers rather than
+    // rotated ones, which is the harder failure to notice.
+    await prepareSigningContext(signingArgs);
+
+    expect(mockResolveParticipantKeysAtEpochs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({
+          vaultProviderGenesisBtcPubkey: `0x${VP_GENESIS_KEY}`,
+        }),
+      }),
+    );
   });
 });
