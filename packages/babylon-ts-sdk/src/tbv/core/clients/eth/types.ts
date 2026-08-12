@@ -144,11 +144,13 @@ export interface VaultRegistryReader {
   /**
    * Read a vault's frozen RFC-006 key epochs.
    *
-   * Uses the extended `getBtcVaultProtocolInfo` ABI. Against a registry that
-   * predates RFC-006 this returns silent garbage for a populated vault rather
-   * than throwing, so it must only be called against an RFC-006 registry —
-   * a deployment invariant, not something this call can detect. See
-   * `BTCVaultRegistryKeyEpochs.abi.ts`.
+   * Uses the extended `getBtcVaultProtocolInfo` ABI. Against a registry whose
+   * `BTCVaultProtocolInfo` struct is not extended this returns silent garbage
+   * for a populated vault rather than throwing, so it must only be called
+   * against an RFC-006 registry — a deployment invariant, not something this
+   * call can detect. A registry missing the operation-key getters altogether is
+   * the safer case: key resolution reverts downstream and these epochs are never
+   * used. See `BTCVaultRegistryKeyEpochs.abi.ts`.
    */
   getVaultKeyEpochs(vaultId: Hex): Promise<KeyEpochs>;
   /** {@link getVaultKeyEpochs} for many vaults in one multicall. */
