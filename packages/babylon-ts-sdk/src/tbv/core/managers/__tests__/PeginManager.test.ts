@@ -760,9 +760,9 @@ describe("PeginManager", () => {
       expect(deriveIdx).toBeGreaterThanOrEqual(0);
       expect(approveIdx).toBeGreaterThan(deriveIdx);
       expect(signIdx).toBeGreaterThan(approveIdx);
-      // Seam invariant (see DepositTermsApprover): NO derive between approval and the last
-      // terms-bound signature — pin every derive before approval, not just
-      // the first one.
+      // Seam invariant (see DepositTermsApprover): any derive invalidates a
+      // prior approval, so every derive inside preparePegin must precede the
+      // approval — pin the LAST derive before it, not just the first.
       expect(callOrder.lastIndexOf("deriveContextHash")).toBeLessThan(
         approveIdx,
       );

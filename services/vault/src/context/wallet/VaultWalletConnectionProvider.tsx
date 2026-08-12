@@ -36,8 +36,15 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc_v2",
 ];
 
+// `ledger_btc_vault` is the DMK-based vault provider (#2109), built ahead of
+// Ledger's firmware being final. Opt-in rather than opt-out: the env disable
+// list defaults to empty, so a new provider would otherwise be visible in any
+// environment that has not listed it.
+const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,
+  ...(featureFlags.isLedgerVaultWalletEnabled ? [] : [LEDGER_VAULT_WALLET_ID]),
   ...featureFlags.disabledBtcWallets,
 ];
 

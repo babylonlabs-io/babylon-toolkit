@@ -91,26 +91,18 @@ export interface DepositTerms {
 }
 
 /**
- * Implemented only by depositor-approval wallets (e.g. a Ledger vault provider).
- * Either a class field or a prototype method works — the deposit flow spreads
- * the wallet object but forwards this method explicitly at every wrapper site.
+ * Implemented only by depositor-approval wallets (e.g. a Ledger vault
+ * provider). Provider obligations:
  *
- * PROVIDER OBLIGATION — device envelope: implementations MUST validate the
- * terms against their own device's accepted envelope (caps, ranges, value
- * floors) BEFORE starting the approval ceremony, and reject with an error of
- * the shape `{ name: "DepositTermsRejectedError", reason: "device-envelope",
- * message: <human-readable detail> }` rather than letting the device fail
- * opaquely mid-ceremony. The shape (not a class) is the cross-package
- * contract: providers throw a structurally-conforming error from their own
- * code; the SDK will normalize it by `name` at its approval call sites when
- * the first provider lands, #2109 (see `depositTermsErrors.ts`). Each
- * vendor owns its own envelope — device limits are never SDK concerns.
+ * - Envelope: validate terms against the device's envelope BEFORE the
+ *   ceremony, rejecting with the shape `{ name: "DepositTermsRejectedError",
+ *   reason: "device-envelope", message }` (matched structurally, not by class).
+ * - Idempotence: a byte-equal re-approval MUST be a no-op while the
+ *   device-side approval is live; anything that invalidates it (a later
+ *   `deriveContextHash`, a signing failure) MUST clear the memo.
  *
- * Seam invariant: never call deriveContextHash between approveDepositTerms and
- * the last terms-bound signature of a connection — deriving while an intent is
- * loaded nullifies it on-device. Design: the SDK owns approval (mirrors its
- * deriveContextHash/signPsbts orchestration); provider-internal and app-driven
- * placements were rejected.
+ * Seam invariant: any derive invalidates a prior approval, so the SDK
+ * re-approves after every derive and before the next terms-bound signature.
  */
 export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;
