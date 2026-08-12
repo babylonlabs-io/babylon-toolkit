@@ -26,22 +26,43 @@ env:
   VISUAL_DIFF_BRANCH: visual-diffs
 
   # The surfaces that get captured, compared and published, as one list.
-  # Adding a third means editing this and .github/scripts/visual-capture.sh,
-  # and nothing else - the diff loop, the embed step and the publish
-  # allowlist all read it from here. In the publish job it doubles as a
-  # security allowlist, which is why that job takes it from the workflow
-  # file and never from the payload it downloads.
+  # The diff loop, the embed step and the publish allowlist all read it from
+  # here. In the publish job it doubles as a security allowlist, which is
+  # why that job takes it from the workflow file and never from the payload
+  # it downloads.
+  #
+  # Adding a third means editing this, .github/scripts/visual-capture.sh,
+  # and MAX_EMBEDDED_GROUPS in scripts/visual-embed.mjs. That third edit is
+  # the one that looks optional and is not: the per-surface floor is 2 and
+  # the cap on groups is 5, so three surfaces want 6 reserved slots out of
+  # 5. selectEmbeddedGroups resolves that by letting the last surface in
+  # rank order lose its reservation - silently, and that surface is the one
+  # just added. Raise the cap in the same change, or the guarantee this list
+  # is supposed to carry quietly stops holding.
   VISUAL_SURFACES: vault storybook
 
   # How much of the head sha names the published image directory. The sha is
-  # for humans reading the branch; uniqueness comes from the run id appended
-  # to it. Both are needed: GitHub proxies comment images through
-  # camo.githubusercontent.com and caches by URL, so a path that repeats
-  # serves the first render forever - and a sha alone repeats on a re-run,
-  # or on a reopen after the images were reaped, where what camo has cached
-  # may be a 404. Shared because the job that builds the URLs and the job
-  # that writes the files are different jobs, and a mismatch would 404 every
-  # image while both steps still exit 0.
+  # for humans reading the branch; uniqueness comes from the run id AND the
+  # run attempt appended to it. All three are needed: GitHub proxies comment
+  # images through camo.githubusercontent.com and caches by URL, so a path
+  # that repeats serves the first render forever - and a sha alone repeats
+  # on a re-run, or on a reopen after the images were reaped, where what
+  # camo has cached may be a 404.
+  #
+  # The attempt is not decoration. `github.run_id` is documented as not
+  # changing when a run is re-run - only `run_attempt` increments - so the
+  # id alone leaves the path byte-identical across attempts. That collides
+  # exactly where it hurts: the baseline is re-resolved per run rather than
+  # pinned, so people re-run this precisely BECAUSE main moved, attempt 2
+  # legitimately composes different pictures, and without the attempt it
+  # writes them to the URL camo already cached from attempt 1. The reviewer
+  # then reads attempt 2's percentages beside attempt 1's images, with every
+  # step still exiting 0.
+  #
+  # Shared because the job that builds the URLs and the job that writes the
+  # files are different jobs, and a mismatch would 404 every image while
+  # both steps still exit 0. The sha, the run id and the attempt all have to
+  # stay in lockstep across those two sites.
   VISUAL_SHA_PATH_LENGTH: 12
 
 # Advisory to begin with: this reports and comments, it does not fail the
@@ -115,6 +136,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+
+      # Before the browser, because it costs seconds and gates the rules the
+      # rest of this job depends on. The selection and cropping rules are
+      # invisible when they regress - a wrong crop still produces a picture,
+      # just not one of the change - so a green report is not evidence they
+      # held. Deliberately not `continue-on-error`: everything downstream is
+      # advisory, and this is the one place the job should refuse to go on.
+      - name: Test the report scripts
+        run: pnpm run visual:test
 
       - name: Install Playwright browser
         run: pnpm --filter @services/vault exec playwright install --with-deps chromium
@@ -276,7 +306,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RUN_DIR="${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}-${GITHUB_RUN_ID}"
+          RUN_DIR="${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           node scripts/visual-embed.mjs \
             --report "${VISUAL_DIR}/report" \
             --surfaces "${VISUAL_SURFACES// /,}" \
@@ -353,9 +383,24 @@ jobs:
 
   # The only job holding a token that can write anything, and deliberately
   # the only one with no `actions/checkout`: the pull request's source and
-  # its dependency tree never land here, and this job runs none of it. What
-  # does cross is inert - the PNG bytes and the Markdown body out of the
-  # artifact - and both are treated as untrusted below.
+  # its dependency tree never land here, and this job runs none of it.
+  #
+  # What crosses the boundary is an artifact the capture job wrote, and the
+  # honest description of how it is handled is narrower than "untrusted".
+  # Enforced: PNG *filenames* are matched against SAFE_NAME and dropped if
+  # they miss, the total published size is capped, and the comment body is
+  # length-checked. Not enforced: the PNG *contents* are never parsed, and
+  # the Markdown body is `cat` into the comment as written. So code running
+  # in the capture job cannot post as itself or push anywhere, but it can
+  # hand this job arbitrary Markdown to post under github-actions[bot] and
+  # arbitrary bytes named *.png to commit to a public branch. Smaller than a
+  # write token, which is what the split is for - not an airlock.
+  #
+  # Closing that gap means making the crossing payload data rather than
+  # presentation: visual-embed.mjs emitting a manifest of typed fields
+  # (screen, status, ratio, coverage) and renderBody moving to this side of
+  # the boundary. Worth doing before this check becomes blocking; out of
+  # scope for the change that introduced the images.
   #
   # Be precise about what that buys. It is NOT protection against a
   # malicious PR author - on `pull_request` the workflow file itself comes
@@ -428,7 +473,14 @@ jobs:
           # contribution, not the branch: what bounds the branch is the reap
           # of closed pull requests below, so the live tree stays
           # proportional to how many are open at once.
-          MAX_PUBLISHED_BYTES=$(( 4 * 1024 * 1024 ))
+          #
+          # Sized against what this actually produces, not against what the
+          # repo could survive: a run publishes ~10 composites, and the eight
+          # on the branch today total 77KB. A ceiling in the megabytes only
+          # trips once the branch already outweighs the repo everyone clones,
+          # which is far too late to be a runaway detector. 512KB is ~6x
+          # observed and catches a misconfigured cap on the first run.
+          MAX_PUBLISHED_BYTES=$(( 512 * 1024 ))
           # The publish path is not serialised across pull requests -
           # `concurrency` above is keyed on github.ref, which only serialises
           # a PR against itself - so two PRs finishing together will collide.
@@ -446,7 +498,7 @@ jobs:
           # as soon as any one of its lines matched.
           SAFE_NAME='^[A-Za-z0-9][A-Za-z0-9._-]*\.png$'
 
-          RUN_DIR="${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}-${GITHUB_RUN_ID}"
+          RUN_DIR="${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           PR_DIR="pr${PR_NUMBER}"
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
@@ -542,7 +594,8 @@ jobs:
               '- Shares no history with `main`. Never merge it anywhere.' \
               '- Rewritten as one parentless commit per publish, so the branch has no' \
               '  history to grow and a fresh clone transfers only the live tree.' \
-              '- `pr<number>/<head-sha>/` is deleted once that pull request closes, so' \
+              '- Laid out as `pr<number>/<short-sha>-<run-id>-<run-attempt>/`. The whole' \
+              '  `pr<number>/` directory is deleted once that pull request closes, so' \
               '  images in comments on closed pull requests will 404.' \
               '- Safe to delete outright. The next run recreates it.' \
               > "${WORK_DIR}/README.md"
@@ -598,6 +651,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PAYLOAD_DIR: ${{ runner.temp }}/payload
+          # The commit each branch of the body below names. Same output the
+          # published path is keyed on, so the sha in the text and the sha in
+          # the image URLs cannot disagree.
+          REPORT_SHA: ${{ needs.visual.outputs.report_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -607,8 +664,27 @@ jobs:
           # it ever comes back oversized this must fall back to the text
           # listing, not fail and leave the pull request with no report.
           MAX_COMMENT_BYTES=60000
+          # The text listing is the fallback, so it cannot be the thing that
+          # busts the limit. It is one line per changed screen and unbounded
+          # by anything this job controls - the cap upstream is on pictures,
+          # not on rows - and it is embedded in BOTH paths: inside the
+          # <details> of comment-images.md and directly below. Once the text
+          # alone clears the ceiling, the check above rejects the image body
+          # and the fallback exceeds it too, gh returns 422, `set -e` fails
+          # the step and the pull request gets no report at all. Not
+          # reachable at today's screen count; bounded so the sentence above
+          # is true unconditionally rather than by arithmetic that holds
+          # until someone adds screens.
+          MAX_DIFF_TEXT_BYTES=40000
           MARKER="<!-- visual-regression-report -->"
           BODY_FILE="${RUNNER_TEMP}/comment.md"
+          # Names the commit the report describes, on every branch below.
+          # A comment is rewritten in place, so without the sha a reader has
+          # no way to tell a current report from one left behind by a run
+          # that failed to update it - and these branches, the ones that
+          # fire when something went wrong, are the most likely to be that
+          # stale one.
+          AT_SHA="for \`${REPORT_SHA:0:${VISUAL_SHA_PATH_LENGTH}}\`"
           {
             echo "$MARKER"
             # `${CHANGED:-0}` substitutes on empty as well as unset, so a
@@ -619,7 +695,7 @@ jobs:
             if [ "${DIFF_OUTCOME}" != "success" ] || [ -z "${COMPARED}" ] || [ "${COMPARED}" = "0" ]; then
               echo "### Visual regression"
               echo ""
-              echo ":warning: The capture or comparison did not complete - no visual comparison was made."
+              echo ":warning: The capture or comparison did not complete ${AT_SHA} - no visual comparison was made."
               echo ""
               echo "[Open the run](${RUN_URL}) to see which step failed."
             # Per-surface gate: a surface that captured empty on both sides
@@ -627,17 +703,17 @@ jobs:
             elif [ -n "${MISSING}" ]; then
               echo "### Visual regression"
               echo ""
-              echo ":warning: No comparisons were produced for: ${MISSING}. The remaining surface(s) alone do not make this a clean run."
+              echo ":warning: No comparisons were produced ${AT_SHA} for: ${MISSING}. The remaining surface(s) alone do not make this a clean run."
               echo ""
               echo '```'
-              cat "${PAYLOAD_DIR}/diff-output.txt" || true
+              head -c "${MAX_DIFF_TEXT_BYTES}" "${PAYLOAD_DIR}/diff-output.txt" || true
               echo '```'
               echo ""
               echo "[Open the run](${RUN_URL}) to see why that capture came up empty."
             elif [ "${CHANGED}" = "0" ]; then
               echo "### Visual regression"
               echo ""
-              echo ":white_check_mark: No visual changes against the merge-base."
+              echo ":white_check_mark: No visual changes ${AT_SHA} against the merge-base."
             # The body with the pictures in it, used only once the images it
             # points at are actually being served. Composing or publishing
             # them is allowed to fail; posting URLs that 404 is not.
@@ -648,10 +724,10 @@ jobs:
             else
               echo "### Visual regression"
               echo ""
-              echo ":framed_picture: **${CHANGED} screen(s) changed** against the merge-base."
+              echo ":framed_picture: **${CHANGED} screen(s) changed** ${AT_SHA} against the merge-base."
               echo ""
               echo '```'
-              cat "${PAYLOAD_DIR}/diff-output.txt" || true
+              head -c "${MAX_DIFF_TEXT_BYTES}" "${PAYLOAD_DIR}/diff-output.txt" || true
               echo '```'
               echo ""
               echo "[Open the run](${RUN_URL}#artifacts), download **visual-report**, and open \`index.html\` for the before / after / diff view."
@@ -670,8 +746,25 @@ jobs:
           # head exits after page one, gh takes SIGPIPE writing page two,
           # and `set -o pipefail` turns that into a failed step - losing the
           # comment on precisely the busy pull requests --paginate is for.
+          #
+          # `.[]` and not `.[0]` for the same per-page reason: the filter is
+          # applied to each page separately, so taking the first match would
+          # emit one id PER PAGE and hide every duplicate that shares a page
+          # with the one being patched - which is where duplicates actually
+          # sit, consecutive runs landing adjacent. The reap below would then
+          # never fire for the case it exists for.
+          #
+          # The author filter is what keeps that reap from being dangerous.
+          # It ends in DELETE, and the marker is a public string in a public
+          # body: without this, any comment quoting the raw marker becomes a
+          # target and CI silently deletes a person's writing. Match on who
+          # wrote it, not only on what it says.
+          #
+          # Note the inner parens - `select(.body | startswith(...) and ...)`
+          # would pipe .body into the whole conjunction and compare .user
+          # against a string.
           MATCHES="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq "map(select(.body | startswith(\"$MARKER\"))) | .[0].id // empty")"
+            --jq ".[] | select((.body | startswith(\"$MARKER\")) and .user.login == \"github-actions[bot]\") | .id")"
           EXISTING="${MATCHES%%$'\n'*}"
 
           if [ -n "$EXISTING" ]; then

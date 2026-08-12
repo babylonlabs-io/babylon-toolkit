@@ -25,12 +25,14 @@
  * that the pictures are a sample rather than the whole story.
  */
 
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 
-import { parseArgs, STATUS } from "./visual-diff.mjs";
+import { escapeHtml, parseArgs, STATUS } from "./visual-diff.mjs";
 
 /**
  * How many groups get pictures, and how many screens are pictured within
@@ -449,7 +451,15 @@ function downscale(source, maxWidth) {
   return target;
 }
 
-async function writeComposite(reportDir, outDir, surface, name) {
+/**
+ * Composes one before/after picture and hands back the bytes rather than
+ * writing them.
+ *
+ * Split that way so the caller can decide not to write: it hashes what
+ * comes back to drop pixel-identical twins, and a throw here costs one
+ * screen instead of the file it would otherwise have written.
+ */
+async function composeComposite(reportDir, surface, name) {
   const baseline = await readPngIfPresent(
     path.join(reportDir, surface, "baseline", name),
   );
@@ -457,10 +467,10 @@ async function writeComposite(reportDir, outDir, surface, name) {
     path.join(reportDir, surface, "candidate", name),
   );
   const { composite, coverage } = composeBeforeAfter(baseline, candidate);
-  const target = path.join(outDir, surface, name);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, PNG.sync.write(downscale(composite, EMBED_MAX_WIDTH)));
-  return coverage;
+  return {
+    coverage,
+    bytes: PNG.sync.write(downscale(composite, EMBED_MAX_WIDTH)),
+  };
 }
 
 /**
@@ -522,7 +532,12 @@ function screenAltText(screen) {
 
 function renderGroup(group, embeddedNames, coverage, baseUrl, expanded) {
   const lines = [
-    `<details${expanded ? " open" : ""}><summary><code>${group.group}</code> - ${groupHeadline(group)}</summary>`,
+    // Escaped, not interpolated raw: the group name is a Storybook id or a
+    // route out of a capture this pull request's code drove, and it lands
+    // inside a tag. Inert today only because those ids happen to match
+    // [a-z0-9-]; that is a property of the current capture, not a guarantee
+    // this renderer gets to rely on.
+    `<details${expanded ? " open" : ""}><summary><code>${escapeHtml(group.group)}</code> - ${escapeHtml(groupHeadline(group))}</summary>`,
     "",
   ];
 
@@ -749,17 +764,57 @@ async function main() {
 
   await fs.mkdir(outDir, { recursive: true });
   const coverage = new Map();
+  // What actually got written, which is not always what was selected. A
+  // screen drops out here on a compose failure or as a duplicate, and the
+  // body has to be rendered from this rather than from `embedded` - a group
+  // that renders an image URL for a file nobody wrote is a broken image in
+  // the comment. Dropping out is not silent: renderGroup folds the screen
+  // into its "N more changed screens in this group" line and the full text
+  // listing still names it.
+  const composed = [];
+  const digests = new Map();
   for (const entry of embedded) {
-    coverage.set(
-      `${entry.surface}/${entry.screen.name}`,
-      await writeComposite(reportDir, outDir, entry.surface, entry.screen.name),
-    );
+    const key = `${entry.surface}/${entry.screen.name}`;
+
+    let picture;
+    try {
+      picture = await composeComposite(reportDir, entry.surface, entry.screen.name);
+    } catch (error) {
+      // Per screen rather than fatal. Both captures are continue-on-error,
+      // so a truncated PNG is a realistic input, and PNG.sync.read throwing
+      // out of here used to cost every picture in the run: the step exited
+      // 1, publish was skipped, and the comment quietly fell back to the
+      // text listing. Everything else in this pipeline degrades per file;
+      // this is the one place a single bad byte could take the lot.
+      process.stderr.write(`Skipping ${key}: ${error.message}\n`);
+      continue;
+    }
+
+    // Two routes can render the same picture - the same empty or
+    // unconnected state photographed twice - and they are different groups
+    // by construction, so grouping cannot catch it. Spending two of five
+    // slots on one fact is the thing the caps exist to prevent. Note this
+    // frees the slot rather than reassigning it: selection has already run,
+    // so the comment shows fewer pictures, not a different one.
+    const digest = createHash("sha256").update(picture.bytes).digest("hex");
+    const twin = digests.get(digest);
+    if (twin) {
+      process.stderr.write(`Skipping ${key}: pixel-identical to ${twin}.\n`);
+      continue;
+    }
+    digests.set(digest, key);
+
+    const target = path.join(outDir, entry.surface, entry.screen.name);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, picture.bytes);
+    coverage.set(key, picture.coverage);
+    composed.push(entry);
   }
 
   const body = renderBody({
     surfaces,
     ranked,
-    embedded,
+    embedded: composed,
     coverage,
     baseUrl: baseUrl.replace(/\/+$/, ""),
     runUrl,
@@ -769,13 +824,24 @@ async function main() {
   await fs.writeFile(bodyFile, `${body}\n`);
 
   process.stdout.write(
-    `Composed ${embedded.length} before/after image(s) into ${outDir}.\n`,
+    `Composed ${composed.length} before/after image(s) into ${outDir}.\n`,
   );
 }
 
-main().catch((error) => {
-  // Stack, not just message: a PNG.sync.read failure on a truncated capture
-  // is near-undiagnosable from the message alone.
-  process.stderr.write(`${error.stack ?? error.message}\n`);
-  process.exitCode = 1;
-});
+// The pure selection and cropping rules, exported for the unit tests in
+// `scripts/__tests__/visual-embed.test.mjs`. These three are the ones worth
+// pinning: each of their comments records a rule that was already got wrong
+// once, and each is invisible in the rendered comment when it regresses -
+// a wrong crop still produces a picture, just not of the change.
+export { changedRowBand, cropWindow, selectEmbeddedGroups };
+
+// Only run as a CLI, so importing this from a test does not compose a
+// report. visual-diff.mjs guards the same way for the same reason.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    // Stack, not just message: a PNG.sync.read failure on a truncated capture
+    // is near-undiagnosable from the message alone.
+    process.stderr.write(`${error.stack ?? error.message}\n`);
+    process.exitCode = 1;
+  });
+}

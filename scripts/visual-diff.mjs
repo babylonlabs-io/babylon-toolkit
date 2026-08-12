@@ -154,7 +154,14 @@ export async function compareOne(name, baselineDir, candidateDir, outDir) {
   };
 }
 
-function escapeHtml(value) {
+/**
+ * Exported because the comment body in `scripts/visual-embed.mjs` is
+ * assembled from the same attacker-shaped strings this report is - screen
+ * and group names come out of a capture the pull request's own code drove -
+ * and both render inside HTML tags. One implementation so a fix here cannot
+ * leave the other renderer behind.
+ */
+export function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -335,8 +342,9 @@ async function main() {
   }
 }
 
-// Only run as a CLI. Importing this module (the unit tests do) must not
-// execute a diff.
+// Only run as a CLI. Importing this module must not execute a diff -
+// `scripts/visual-embed.mjs` imports STATUS, escapeHtml and parseArgs from
+// here, and the unit tests import it too.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     // Stack, not just message: a PNG.sync.read failure on a truncated
