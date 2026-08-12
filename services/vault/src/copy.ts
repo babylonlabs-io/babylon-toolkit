@@ -207,7 +207,11 @@ export const COPY = {
     },
     expiration: {
       reasons: {
-        ack_timeout: "The vault provider did not acknowledge in time",
+        // The acknowledgment window can lapse because the depositor never
+        // finished their side (for example, never signed the payouts), not
+        // only because the vault provider was late. Naming a cause would
+        // often be wrong, so these vaults show the heading alone.
+        ack_timeout: null,
         proof_timeout: "The inclusion proof was not submitted in time",
         activation_timeout: "The BTC Vault was not activated in time",
       },
