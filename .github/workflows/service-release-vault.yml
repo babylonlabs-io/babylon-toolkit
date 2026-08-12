@@ -112,6 +112,16 @@ jobs:
     # deploy or missing integrity manifest is a silent gap (#253 review). A
     # scoped single-prod dispatch also fails loud.
     continue-on-error: ${{ matrix.prod == true && needs.setup.outputs.multi == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release/v1.x' && !startsWith(github.ref, 'refs/tags/') }}
+    # Serialize same-(env, sha) runs. Without this, git push --follow-tags or a
+    # redeploy dispatch can overlap two runs on one sha: S3 is last-write-wins
+    # while the manifest slots are first-create-wins, so the highest slot can
+    # belong to a DIFFERENT build than the bytes in S3 — a false tamper page on
+    # a clean deploy. cancel-in-progress stays false so the second run publishes
+    # its S3 write and its slot strictly after the first (a cancelled queued run
+    # writes neither store, which keeps them consistent).
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.environment }}-${{ github.sha }}
+      cancel-in-progress: false
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
@@ -240,54 +250,15 @@ jobs:
 
       # Last step: publishing the manifest must not block the S3 uploads above.
       - name: Publish checksum manifest as an immutable per-sha release
-        # Only real deploy refs — workflow_dispatch can run from any branch, and
-        # the public store must hold manifests only for builds that shipped.
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/v1.x' || startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # Per-deploy sha256 manifests for the frontend integrity checker
-          # (devops-backlog#253). One release per (service, env, sha) with both
-          # files attached at create time: this repo has Immutable Releases
-          # enabled, so assets can't be added after publish — attaching at create
-          # is the immutable-safe path, and it makes write-once a platform
-          # guarantee (published releases can't be modified) and the two-file
-          # publish atomic. No asset-cap pruning needed (2 assets per release).
-          #
-          # Same-sha rebuilds are sanctioned (tag cut on an already-built commit,
-          # redeploy dispatch, job re-run) and are NOT byte-reproducible (run_id
-          # in the bundle), so each rebuild takes the next free -rN slot. The
-          # checker probes slots upward and verifies against the highest one.
-          # NOTE: vault matrix env values are already service-prefixed
-          # (vault-testnet), so PREFIX is vault-vault-testnet-<sha>; the checker
-          # config uses env "vault-testnet" to derive the same name.
-          PREFIX="vault-${{ matrix.environment }}-${{ github.sha }}"
-          FILES=("/tmp/${PREFIX}-files-checksum.txt" "/tmp/${PREFIX}-global-checksum.txt")
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            TAG="fm-${PREFIX}"; [ "$i" -gt 1 ] && TAG="${TAG}-r${i}"
-            URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${PREFIX}-files-checksum.txt"
-            if curl -sfIL -o /dev/null "$URL"; then
-              echo "slot ${TAG} already published — trying next"
-              continue
-            fi
-            if ERR=$(gh release create "$TAG" "${FILES[@]}" \
-                 --title "Frontend manifest ${PREFIX}" \
-                 --notes "sha256 manifest for the frontend integrity checker (devops-backlog#253). Do not delete." \
-                 --latest=false 2>&1); then
-              curl -sfIL -o /dev/null "$URL" || { echo "::error::manifest not retrievable at $URL"; exit 1; }
-              echo "published ${TAG}"
-              exit 0
-            fi
-            # Advance to the next slot ONLY on a create race ("already exists").
-            # Any other failure must fail the step: skipping it would leave a
-            # numbering gap, and the checker stops at the first missing slot —
-            # the next run's higher slot would never be found (silent gap).
-            if ! grep -qi "already exists" <<<"$ERR"; then
-              echo "::error::gh release create ${TAG} failed: ${ERR}"
-              exit 1
-            fi
-            echo "slot ${TAG} already exists (lost create race) — trying next slot"
-          done
-          echo "::error::could not publish manifest for ${PREFIX} after 10 slots"
-          exit 1
+        # Only real deploy refs (a dispatch from an arbitrary branch must not
+        # notarize builds), and only envs the integrity checker monitors — the
+        # other envs would mint releases+tags nobody ever reads. Extend the env
+        # list together with the checker's targets.json. NOTE: vault matrix env
+        # values are service-prefixed (vault-testnet), so the manifest prefix is
+        # vault-vault-testnet-<sha>; the checker config uses env "vault-testnet"
+        # to derive the same name.
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/v1.x' || startsWith(github.ref, 'refs/tags/')) && contains(fromJSON('["vault-testnet"]'), matrix.environment)
+        uses: ./.github/actions/publish-integrity-manifest
+        with:
+          service: vault
+          environment: ${{ matrix.environment }}
