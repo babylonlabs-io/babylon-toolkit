@@ -33,24 +33,35 @@ export interface DmkSessionHandle {
  * listeners.
  */
 let dmkInstance: DeviceManagementKit | undefined;
+let dmkPromise: Promise<DeviceManagementKit> | undefined;
 
 /**
- * Build (or reuse) the DMK instance.
+ * Build (or reuse) the DMK instance. Memoised as a PROMISE, not the instance:
+ * a check-then-act across the dynamic imports would let two concurrent
+ * connects build two DMKs, and the loser's transport keeps live WebHID
+ * listeners forever. A failed build clears the memo (identity-guarded) so
+ * the next connect retries.
  *
  * Every `@ledgerhq/device-*` import is dynamic so a provider that ships
  * disabled stays off the bundle's critical path — DMK pulls in xstate,
  * inversify, reflect-metadata and purify-ts.
  */
-async function getDmk(): Promise<DeviceManagementKit> {
-  if (dmkInstance) return dmkInstance;
-
-  const [{ DeviceManagementKitBuilder }, { webHidTransportFactory }] = await Promise.all([
-    import("@ledgerhq/device-management-kit"),
-    import("@ledgerhq/device-transport-kit-web-hid"),
-  ]);
-
-  dmkInstance = new DeviceManagementKitBuilder().addTransport(webHidTransportFactory).build();
-  return dmkInstance;
+function getDmk(): Promise<DeviceManagementKit> {
+  if (!dmkPromise) {
+    const build = (async () => {
+      const [{ DeviceManagementKitBuilder }, { webHidTransportFactory }] = await Promise.all([
+        import("@ledgerhq/device-management-kit"),
+        import("@ledgerhq/device-transport-kit-web-hid"),
+      ]);
+      dmkInstance = new DeviceManagementKitBuilder().addTransport(webHidTransportFactory).build();
+      return dmkInstance;
+    })().catch((error) => {
+      if (dmkPromise === build) dmkPromise = undefined;
+      throw error;
+    });
+    dmkPromise = build;
+  }
+  return dmkPromise;
 }
 
 /**
@@ -136,4 +147,5 @@ export async function disconnectDmkSession(handle: DmkSessionHandle): Promise<vo
 export function closeDmk(): void {
   dmkInstance?.close();
   dmkInstance = undefined;
+  dmkPromise = undefined;
 }

@@ -7,7 +7,14 @@ import { getXOnlyPublicKeyHex } from "./derivation";
 import { createDmkApduSender } from "./dmkApduSender";
 import { connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
 import { assertDepositTermsDeviceCompatible } from "./envelope";
-import type { IntentScalars, IntentVaultGroup } from "./intentTlv";
+import {
+  encodeIntentGroup,
+  encodeIntentScalars,
+  encodeKeyBatches,
+  type IntentScalars,
+  type IntentVaultGroup,
+} from "./intentTlv";
+import logo from "./logo.svg";
 import { DepositTermsRejectedError, type DepositTerms } from "./types";
 import { approveVaultIntent, deriveContextHash, type ApduSender } from "./vaultCommands";
 
@@ -44,7 +51,7 @@ type DeviceIntentState = { phase: "idle" } | { phase: "derived" } | { phase: "in
  *
  * Ships behind `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET` (default off).
  * Covers connect, the key read, and the intent ceremony; signing needs the
- * host-side SIGN_PSBT client (#2109) — the published Bitcoin signer kit
+ * host-side SIGN_PSBT client (#2219) — the published Bitcoin signer kit
  * cannot express the vault's no-policy flows.
  */
 export class LedgerVaultProvider implements IBTCProvider {
@@ -99,7 +106,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       message:
         `${WALLET_PROVIDER_NAME} does not implement ${method} yet. This build ` +
         `covers connect and the intent ceremony only; SIGN_PSBT for the ` +
-        `vault's no-policy flows is not implemented (#2109).`,
+        `vault's no-policy flows is not implemented (#2219).`,
       wallet: WALLET_PROVIDER_NAME,
     });
   }
@@ -316,26 +323,27 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   getWalletProviderName = async (): Promise<string> => WALLET_PROVIDER_NAME;
 
-  getWalletProviderIcon = async (): Promise<string> => "";
+  getWalletProviderIcon = async (): Promise<string> => logo;
 }
 
-/** Deterministic fingerprint of the intent structure (JSON), for idempotence. */
+/**
+ * Deterministic fingerprint over the ENCODED wire bytes, for idempotence.
+ * The encoder canonicalises (rosters are sorted before the wire), so
+ * identical APDUs ⇔ identical fingerprint by construction — a caller-order
+ * permutation of the same roster must be a no-op, not a "different intent".
+ */
 function fingerprintIntent(intent: {
   scalars: IntentScalars;
   groups: IntentVaultGroup[];
   keeperPubkeys: Uint8Array[];
   challengerPubkeys: Uint8Array[];
 }): string {
-  const hex = (b: Uint8Array) => Buffer.from(b).toString("hex");
-  return JSON.stringify(
-    {
-      s: { ...intent.scalars, prepeginTxidInternal: hex(intent.scalars.prepeginTxidInternal) },
-      g: intent.groups.map((g) => ({ ...g, vaultProviderPubkey: hex(g.vaultProviderPubkey) })),
-      k: intent.keeperPubkeys.map(hex),
-      c: intent.challengerPubkeys.map(hex),
-    },
-    (_key, value) => (typeof value === "bigint" ? value.toString() : value),
-  );
+  const parts = [
+    encodeIntentScalars(intent.scalars),
+    ...intent.groups.map(encodeIntentGroup),
+    ...encodeKeyBatches(intent.keeperPubkeys, intent.challengerPubkeys),
+  ];
+  return Buffer.concat(parts.map((p) => Buffer.from(p))).toString("hex");
 }
 
 /**

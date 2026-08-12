@@ -10,10 +10,9 @@
 
 import { HDKey } from "@scure/bip32";
 
-import type { ApduSender } from "./vaultCommands";
+import { CLA_APP, type ApduSender } from "./vaultCommands";
 
 /** `GET_EXTENDED_PUBKEY` header (`commands.h`; P2 is the protocol version). */
-const CLA_BITCOIN_BASE = 0xe1;
 const INS_GET_EXTENDED_PUBKEY = 0x00;
 const P1_NONE = 0x00;
 const P2_PROTOCOL_VERSION = 0x01;
@@ -22,6 +21,14 @@ const P2_PROTOCOL_VERSION = 0x01;
 const DISPLAY_OFF = 0x00;
 
 const COMPRESSED_PUBKEY_BYTES = 33;
+
+/**
+ * Base-app bound: `get_extended_pubkey.c` rejects longer paths with
+ * SW_INCORRECT_DATA (MAX_BIP388_XPUB_DERIVATION_STEPS + 2 at the pinned
+ * `bitcoin_app_base` rev). Bounding pre-I/O also keeps the single-byte
+ * length field below from ever truncating.
+ */
+const MAX_BIP32_PATH_STEPS = 10;
 
 /**
  * Read the x-only public key at the given BIP-32 path.
@@ -37,8 +44,11 @@ export async function getXOnlyPublicKeyHex(
   path: readonly number[],
   bip32Versions: { private: number; public: number },
 ): Promise<string> {
+  if (path.length < 1 || path.length > MAX_BIP32_PATH_STEPS) {
+    throw new Error(`BIP-32 path must have 1..${MAX_BIP32_PATH_STEPS} levels, got ${path.length}`);
+  }
   const response = await send({
-    cla: CLA_BITCOIN_BASE,
+    cla: CLA_APP,
     ins: INS_GET_EXTENDED_PUBKEY,
     p1: P1_NONE,
     p2: P2_PROTOCOL_VERSION,

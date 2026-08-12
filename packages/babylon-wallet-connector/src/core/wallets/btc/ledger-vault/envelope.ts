@@ -12,12 +12,12 @@ import {
   DEVICE_MAX_PARTICIPANTS_PER_ROLE,
   DEVICE_MAX_VAULTS_PER_INTENT,
   DEVICE_MIN_DEPOSITOR_CLAIM_VALUE_SATS,
-  DEVICE_MIN_VAULT_CORE_VERSION,
   DEVICE_PAYOUT_TIMELOCK_MAX_BLOCKS,
   DEVICE_PAYOUT_TIMELOCK_MIN_BLOCKS,
   DEVICE_PEGIN_AMOUNT_DUST_MULTIPLE,
   DEVICE_PEGIN_CSV_TIMELOCK_MAX_BLOCKS,
   DEVICE_REFUND_TIMELOCK_MAX_BLOCKS,
+  DEVICE_SUPPORTED_VAULT_CORE_VERSION,
   DEVICE_TIMELOCK_MIN_BLOCKS,
   DEVICE_VAULT_DUST_LIMIT_SATS,
 } from "./deviceCaps";
@@ -37,17 +37,19 @@ function requireIntInRange(field: string, value: number, lo: number, hi: number)
  * @throws {DepositTermsRejectedError} on the first violation
  */
 export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
-  // The firmware hardcodes the v2 PegIn shape, but a v1 intent LOADS fine and
-  // only fails at PSBT time — i.e. after the user has physically approved.
-  if (terms.vaultCoreVersion < DEVICE_MIN_VAULT_CORE_VERSION) {
+  // The firmware hardcodes one PSBT shape and the intent TLV carries no
+  // version field, so ANY mismatched graph (v1 or a future v3) loads fine and
+  // only fails at PSBT time — after the user has physically approved.
+  if (terms.vaultCoreVersion !== DEVICE_SUPPORTED_VAULT_CORE_VERSION) {
     throw new DepositTermsRejectedError(
-      `${RANGE_MSG}: vaultCoreVersion ${terms.vaultCoreVersion} is below ` +
-        `${DEVICE_MIN_VAULT_CORE_VERSION}; this device cannot complete a ` +
-        `tx-graph v1 deposit.`,
+      `${RANGE_MSG}: vaultCoreVersion ${terms.vaultCoreVersion} is not ` +
+        `${DEVICE_SUPPORTED_VAULT_CORE_VERSION}; this device only supports ` +
+        `tx-graph v${DEVICE_SUPPORTED_VAULT_CORE_VERSION} deposits.`,
     );
   }
 
-  // The >= 1 floor is the contract/Rust invariant, not a device check.
+  // The >= 1 floor is enforced by both the contract and the device
+  // (vault_tlv.c:73 rejects rate == 0).
   if (terms.protocolFeeRate < 1n || terms.protocolFeeRate > DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB) {
     throw new DepositTermsRejectedError(
       `${RANGE_MSG}: protocolFeeRate ${terms.protocolFeeRate} not in ` + `[1, ${DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB}]`,
@@ -84,7 +86,10 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
   );
   requireIntInRange("vault count", terms.vaults.length, 1, DEVICE_MAX_VAULTS_PER_INTENT);
 
-  // The intent parser rejects prepegin_max_fee == 0 (vault_tlv.c:152).
+  // Raw u64 validity first, then the semantic floor — same ordering as the
+  // per-vault loop. The intent parser rejects prepegin_max_fee == 0
+  // (vault_tlv.c:152).
+  requireU64("prepeginMaxFee", terms.prepeginMaxFee);
   if (terms.prepeginMaxFee < 1n) {
     throw new DepositTermsRejectedError(`${RANGE_MSG}: prepeginMaxFee ${terms.prepeginMaxFee} must be >= 1`);
   }
@@ -135,6 +140,15 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
   const crossFieldFloor = DEVICE_PEGIN_AMOUNT_DUST_MULTIPLE * dust;
 
   for (const vault of terms.vaults) {
+    // Raw u64 validity first — semantic checks below assume in-range values,
+    // and peginMaxFee has no other check at all (the firmware accepts any
+    // u64, including 0). Out-of-range must fail with the seam's shape here,
+    // not as a raw encoder Error mid-ceremony.
+    requireU64(`vault ${vault.htlcVout} peginAmount`, vault.peginAmount);
+    requireU64(`vault ${vault.htlcVout} commissionFee`, vault.commissionFee);
+    requireU64(`vault ${vault.htlcVout} depositorClaimValue`, vault.depositorClaimValue);
+    requireU64(`vault ${vault.htlcVout} peginMaxFee`, vault.peginMaxFee);
+
     if (vault.commissionFee < dust) {
       throw new DepositTermsRejectedError(
         `${RANGE_MSG}: vault ${vault.htlcVout} commissionFee ` +
@@ -155,5 +169,13 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
           `(${vault.commissionFee + crossFieldFloor})`,
       );
     }
+  }
+}
+
+const U64_MAX = (1n << 64n) - 1n;
+
+function requireU64(field: string, value: bigint): void {
+  if (value < 0n || value > U64_MAX) {
+    throw new DepositTermsRejectedError(`${RANGE_MSG}: ${field} ${value} does not fit in an unsigned 64-bit field`);
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Binds our {@link ApduSender} seam to DMK's public raw-APDU transport;
  * every vault instruction rides this seam, including the future SIGN_PSBT
- * loop (#2109). Debugging: `globalThis.__LEDGER_VAULT_APDU_TRACE__ = true`
+ * loop (#2219). Debugging: `globalThis.__LEDGER_VAULT_APDU_TRACE__ = true`
  * logs header + status word per exchange — never payload bytes (pubkeys,
  * context preimage).
  *
@@ -140,10 +140,14 @@ export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
         sw === SW_CLA_NOT_SUPPORTED && handle.appName
           ? ` (app at connect time: "${handle.appName}"${handle.appVersion ? ` v${handle.appVersion}` : ""})`
           : "";
-      throw new Error(
-        `${known ?? "The device rejected the request"} ` +
+      // Typed like the sibling branches so downstream `code` switches see it;
+      // UNKNOWN_ERROR is the package's designated fallback code.
+      throw new WalletError({
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        message:
+          `${known ?? "The device rejected the request"} ` +
           `(ins 0x${hex2(apdu.ins)} p1 0x${hex2(apdu.p1)}, sw 0x${hex4(sw)})${appHint}`,
-      );
+      });
     }
     return response.data;
   };

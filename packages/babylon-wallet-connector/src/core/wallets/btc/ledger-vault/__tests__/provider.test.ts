@@ -181,7 +181,7 @@ describe("LedgerVaultProvider", () => {
     h.sent.length = 0;
 
     await expect(provider.approveDepositTerms({ ...TERMS, vaultCoreVersion: 1 })).rejects.toThrow(
-      /vaultCoreVersion 1 is below 2/,
+      /vaultCoreVersion 1 is not 2/,
     );
     expect(h.sent).toHaveLength(0);
   });
@@ -261,6 +261,26 @@ describe("LedgerVaultProvider", () => {
 
     await expect(provider.approveDepositTerms(TERMS)).rejects.toThrow(/was disconnected/);
     expect(h.sent).toHaveLength(0);
+  });
+
+  it("treats a reordered-but-identical roster as the same intent", async () => {
+    // The encoder sorts rosters before the wire, so a caller-order permutation
+    // produces byte-identical APDUs — it must be a no-op, not a false
+    // "different intent" rejection.
+    const twoKeeperTerms = {
+      ...TERMS,
+      vaultKeeperBtcPubkeys: ["cc".repeat(32), "ee".repeat(32)],
+    };
+    const provider = await derived();
+    await provider.approveDepositTerms(twoKeeperTerms);
+    const afterFirst = approveApdus().length;
+
+    await provider.approveDepositTerms({
+      ...twoKeeperTerms,
+      vaultKeeperBtcPubkeys: ["ee".repeat(32), "cc".repeat(32)],
+    });
+
+    expect(approveApdus()).toHaveLength(afterFirst);
   });
 
   it("does not re-run the ceremony for a byte-equal re-approval", async () => {

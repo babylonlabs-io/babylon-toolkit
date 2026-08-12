@@ -16,7 +16,12 @@ import {
   type IntentVaultGroup,
 } from "./intentTlv";
 
-const CLA_VAULT = 0xe1;
+/**
+ * The ONE class byte for the whole app: the base app's dispatcher gates every
+ * instruction — GET_EXTENDED_PUBKEY and the vault's 0x80/0x81 alike — on this
+ * CLA (`apdu_handler.c:19`). derivation.ts imports it for the base-app read.
+ */
+export const CLA_APP = 0xe1;
 const INS_APPROVE_VAULT_INTENT = 0x80;
 const INS_DERIVE_CONTEXT_HASH = 0x81;
 
@@ -119,7 +124,7 @@ export async function deriveContextHash(
   }
 
   let response = await send({
-    cla: CLA_VAULT,
+    cla: CLA_APP,
     ins: INS_DERIVE_CONTEXT_HASH,
     p1: P1_INITIAL,
     p2: P2_SHOW,
@@ -128,7 +133,7 @@ export async function deriveContextHash(
 
   for (let sent = firstChunkLen; sent < context.length; sent += MAX_APDU_DATA_BYTES) {
     response = await send({
-      cla: CLA_VAULT,
+      cla: CLA_APP,
       ins: INS_DERIVE_CONTEXT_HASH,
       p1: P1_CONTINUE,
       p2: P2_SHOW,
@@ -181,7 +186,7 @@ export async function approveVaultIntent(
   }
 
   await send({
-    cla: CLA_VAULT,
+    cla: CLA_APP,
     ins: INS_APPROVE_VAULT_INTENT,
     p1: P1_SCALARS,
     p2: P2_SHOW,
@@ -190,7 +195,7 @@ export async function approveVaultIntent(
 
   for (const group of groups) {
     await send({
-      cla: CLA_VAULT,
+      cla: CLA_APP,
       ins: INS_APPROVE_VAULT_INTENT,
       p1: P1_GROUP,
       p2: P2_SHOW,
@@ -200,7 +205,7 @@ export async function approveVaultIntent(
 
   for (const batch of encodeKeyBatches(keeperPubkeys, challengerPubkeys)) {
     await send({
-      cla: CLA_VAULT,
+      cla: CLA_APP,
       ins: INS_APPROVE_VAULT_INTENT,
       p1: P1_KEY_BATCH,
       p2: P2_SHOW,
