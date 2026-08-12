@@ -14,6 +14,7 @@
     "knip": "pnpm dlx knip@5.88.1 --workspace packages/babylon-ts-sdk --workspace services/vault",
     "nx:sync": "nx sync",
     "visual:diff": "node scripts/visual-diff.mjs",
+    "visual:test": "node --test \"scripts/__tests__/*.test.mjs\"",
     "prepare": "husky",
     "ci:release": "nx run @internal/release:run"
   },
