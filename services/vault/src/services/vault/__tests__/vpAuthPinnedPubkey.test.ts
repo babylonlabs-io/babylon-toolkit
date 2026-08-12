@@ -1,12 +1,9 @@
 /**
- * Which BTC key a vault provider's RPC auth session is pinned to.
- *
- * The pin follows the VP's *current operation* key, deliberately — not the
- * registration key and not the vault's frozen epoch, because auth is a
- * per-operator server identity rather than a per-vault binding (RFC-006 open
- * question 5). That reasoning is documented on the module but was not tested, so
- * nothing stopped a future reader "correcting" it toward the genesis key and
- * breaking auth for every vault of a rotated provider.
+ * The VP auth pin follows the *current operation* key, deliberately — auth is a
+ * per-operator server identity, not a per-vault binding (RFC-006 open question
+ * 5). Documented on the module but untested, so nothing stopped a future reader
+ * "correcting" it toward the genesis key and breaking auth for every vault of a
+ * rotated provider.
  */
 
 import type { Address } from "viem";

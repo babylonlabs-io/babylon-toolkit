@@ -1,29 +1,12 @@
 /**
- * `signDepositorGraph` must not read contract state.
+ * `signDepositorGraph` must not read contract state: its challenger-set
+ * assertion is only correct under RFC-006 because every key arrives already
+ * resolved at the vault's frozen epochs. A registry read added here would
+ * silently revert that, with the rest of the suite still green.
  *
- * It derives `LocalChallengers` and asserts the VP-returned
- * `challenger_presign_data` set equals `local ∪ universal`. Under RFC-006 that
- * is only correct because every key it works with arrives already resolved at
- * the vault's frozen epochs, through the context object `prepareSigningContext`
- * builds. The module itself resolves nothing, and nor does any module it
- * imports directly.
- *
- * Nothing in the type system says so. If someone needing "the VP's key" reached
- * for a registry read here — the natural move, and the reason #2206 renamed the
- * genesis getter — epoch resolution would silently revert for the challenger
- * set, and every other test in the suite would still pass. The failure would
- * surface as a payout signed against a challenger key the protocol does not
- * recognise, which `CLAUDE.md` lists as the asymmetric-failure case on this
- * path.
- *
- * This is a structural assertion rather than a behavioural one, deliberately.
- * The behavioural half of the same guard lives in
- * `services/vault/src/services/vault/__tests__/vaultPayoutSignatureService.payoutScripts.test.ts`,
- * whose fixture rotates the VP so that resolving the registration key instead of
- * the operation key fails a real assertion about a real return value. What that
- * test cannot express is the *absence* of a read in a module that has no
- * observable output tied to it — so this one asserts over the import graph, and
- * is the only test here allowed to do that.
+ * Structural rather than behavioural, deliberately — the absence of a read has
+ * no observable output to assert on. The behavioural half is the rotated-VP
+ * fixture in vault's `vaultPayoutSignatureService.payoutScripts.test.ts`.
  */
 
 import { readFileSync } from "fs";
@@ -34,21 +17,15 @@ import { describe, expect, it } from "vitest";
 const MODULE_PATH = path.resolve(__dirname, "../signDepositorGraph.ts");
 
 /**
- * Path segments that mean contract access.
- *
- * `clients/` as a whole is deliberately not banned: the module legitimately
- * imports `clients/vault-provider/types`, which is the VP's wire format rather
- * than chain state.
+ * Not all of `clients/`: the module legitimately imports
+ * `clients/vault-provider/types`, which is wire format, not chain state.
  */
 const CONTRACT_STATE_SEGMENTS = ["clients/eth", "contracts/"];
 
 /**
- * Every module specifier the file pulls in, in any form.
- *
- * Matching only `from "…"` would leave `await import("…")` and `require("…")` as
- * unwatched ways to reach the same registries — a plausible route in, since a
- * dynamic import is exactly what someone would reach for to dodge a circular
- * dependency.
+ * Static, type-only, bare, dynamic and `require` forms. Matching only
+ * `from "…"` would leave `await import("…")` as an unwatched route in — the
+ * obvious one, for dodging a circular dependency.
  */
 const MODULE_SPECIFIER =
   /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)["']([^"']+)["']/g;

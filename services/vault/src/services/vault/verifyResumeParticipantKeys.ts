@@ -37,24 +37,13 @@ export interface ExpectedParticipantOperationKeys {
 }
 
 /**
- * Bring a stamped key into the one form the resolved side is already in.
+ * Normalize a stamped key to the lowercase bare x-only form the resolved side
+ * already has. A no-op for stamps written through `@/storage/peginStorage`,
+ * which validates that shape — done here anyway so an encoding difference can
+ * never read as drift if a second writer of the stamp appears.
  *
- * The resolved keys come from `assertOnChainBtcPubkey`, which mints lowercase
- * x-only hex with no `0x`. The stamped keys come from localStorage, and
- * `isValidPeginRecord` in `@/storage/peginStorage` requires that same shape of
- * all three fields — so this is a no-op for anything written through the
- * sanctioned path.
- *
- * It runs anyway so that the comparison below does not silently depend on a
- * validator two modules away. A second writer of the stamp, or a relaxed
- * validator, would otherwise turn an encoding difference into a phantom
- * "keys changed" abort on a deposit whose keys are in fact identical.
- *
- * A key that cannot be canonicalized is reported with its field and index
- * rather than surfacing `canonicalizeBtcPubkey`'s bare hex complaint. The
- * resulting error is deliberately not a `ParticipantKeyDriftError`: nothing
- * drifted, the stamp is unreadable. Either way the caller keeps the pending
- * record and skips the broadcast.
+ * Not a `ParticipantKeyDriftError` on failure: nothing drifted, the stamp is
+ * unreadable.
  */
 function canonicalizeStamped(
   label: string,
@@ -74,12 +63,10 @@ function canonicalizeStamped(
 }
 
 /**
- * Compare two key sets element-by-element, in order.
- *
- * Order matters: both sides are the lexicographically sorted operation-key
- * arrays that script construction consumes, so a set that matches in a
- * different order is still a mismatch — and this is the only place that is
- * caught. Canonicalization below must therefore not reorder anything.
+ * Compare two key sets element-by-element, in order. Both sides are the sorted
+ * arrays script construction consumes, so a set matching in a different order
+ * is still a mismatch, and this is the only place that is caught — normalizing
+ * below must not reorder anything.
  */
 function assertSameSet(
   label: string,

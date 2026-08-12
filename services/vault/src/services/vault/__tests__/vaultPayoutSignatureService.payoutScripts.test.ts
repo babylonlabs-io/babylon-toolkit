@@ -61,13 +61,10 @@ import {
 import { prepareSigningContext } from "../vaultPayoutSignatureService";
 
 /**
- * The VP is rotated in this fixture: its registration key and the key its
- * frozen `vpKeyEpoch` resolves to are deliberately different values.
- *
- * That difference is what gives "builds with the epoch-bonded participant keys"
- * below any force. With both set to the same key, a regression that reached for
- * the registration key — the natural mistake, since `prepareSigningContext`
- * already reads it as the genesis fallback — would still pass.
+ * The VP is rotated here: these two are deliberately different values. Setting
+ * both to the same key is what let a regression to the registration key — the
+ * natural mistake, since it is read as the genesis fallback — pass the
+ * epoch-bonded-keys test below.
  */
 const VP_GENESIS_KEY = "a".repeat(64);
 const VP_OPERATION_KEY = "b".repeat(64);
@@ -169,10 +166,9 @@ describe("prepareSigningContext — registered payout scripts", () => {
   });
 
   it("passes the registration key to resolution as the genesis fallback", async () => {
-    // The registration key still has one job — it is the genesis the VP's
-    // epoch lookup falls back to when the provider never rotated. A change
-    // that stopped reading it would break un-rotated providers rather than
-    // rotated ones, which is the harder failure to notice.
+    // The registration key still has one job: the genesis the VP's epoch lookup
+    // falls back to when the provider never rotated. Losing it would break
+    // un-rotated providers — the harder failure to notice.
     await prepareSigningContext(signingArgs);
 
     expect(mockResolveParticipantKeysAtEpochs).toHaveBeenCalledWith(

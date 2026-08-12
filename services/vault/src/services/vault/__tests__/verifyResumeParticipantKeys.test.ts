@@ -1,11 +1,10 @@
 /**
  * The pre-broadcast key-drift guard on the resume path.
  *
- * `resolveParticipantKeysAtEpochs` is mocked: resolution itself is SDK-side and
- * covered by `resolveParticipantKeys.test.ts`. What has no coverage anywhere is
- * the comparison body in this module, which is the only thing standing between a
- * rotated key set and a Pre-PegIn broadcast, and whose abort branch cannot be
- * reached on a real network (an unrelated spend fires first — see #2187).
+ * `resolveParticipantKeysAtEpochs` is mocked — resolution is covered SDK-side by
+ * `resolveParticipantKeys.test.ts`. What had no coverage is this module's
+ * comparison body, whose abort branch is unreachable on a real network (an
+ * unrelated spend fires first, see #2187).
  */
 
 import {
@@ -154,8 +153,7 @@ describe("verifyResumeParticipantKeys", () => {
 
   it("aborts when the keeper set matches but the order does not", async () => {
     // Same two keys, opposite order. Both sides are the sorted arrays script
-    // construction consumes, so this is a genuine mismatch — and this module is
-    // the only place it is caught.
+    // construction consumes, so this is a real mismatch — caught only here.
     resolvesTo({ ...STAMPED, vaultKeepers: [KEEPER_HIGH, KEEPER_LOW] });
 
     await expect(
@@ -164,10 +162,9 @@ describe("verifyResumeParticipantKeys", () => {
   });
 
   it("throws a key-drift error and not a version mismatch", async () => {
-    // The distinction is load-bearing: `handleBroadcast` drops the pending
-    // record on a version mismatch, but must keep it on key drift, because the
-    // record holds the stamp that lets a later resume re-detect the drift
-    // instead of falling back to the indexer's copy and broadcasting it.
+    // `handleBroadcast` drops the pending record on a version mismatch but must
+    // keep it on key drift — the record holds the stamp that lets a later resume
+    // re-detect the drift instead of broadcasting the indexer's copy.
     resolvesTo({ ...STAMPED, vaultProvider: VP_KEY_ROTATED });
 
     const error = await verifyResumeParticipantKeys({
@@ -182,9 +179,7 @@ describe("verifyResumeParticipantKeys", () => {
 
   it("accepts stamped keys that differ from the resolved ones only in encoding", async () => {
     // `peginStorage` writes bare lowercase hex, so this cannot happen today.
-    // The guard normalises anyway: an encoding difference must never read as
-    // drift, or a second writer of the stamp would abort deposits whose keys
-    // are identical.
+    // Normalised anyway so an encoding difference can never read as drift.
     await expect(
       verifyResumeParticipantKeys({
         vaultId: VAULT_ID,
