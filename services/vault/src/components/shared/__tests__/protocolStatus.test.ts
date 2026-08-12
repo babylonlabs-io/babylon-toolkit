@@ -89,12 +89,14 @@ describe("entry gating — blocks on any non-null status for its scope", () => {
     expect(isDepositBlocked(gate(null, "paused"))).toBe(false);
   });
 
-  it("borrow is aave-scope (frozen OR paused)", () => {
+  it("borrow is aave-scope (frozen OR paused), plus a protocol PAUSE", () => {
     expect(isBorrowBlocked(gate(null, null))).toBe(false);
     expect(isBorrowBlocked(gate(null, "frozen"))).toBe(true);
     expect(isBorrowBlocked(gate(null, "paused"))).toBe(true);
-    // A protocol-scope status does NOT block borrow.
-    expect(isBorrowBlocked(gate("paused", null))).toBe(false);
+    // A protocol pause is a UI full stop — borrow blocks too; a protocol
+    // freeze keeps its narrow scope (deposit only).
+    expect(isBorrowBlocked(gate("paused", null))).toBe(true);
+    expect(isBorrowBlocked(gate("frozen", null))).toBe(false);
   });
 
   it("reorder is aave-scope (frozen OR paused)", () => {
@@ -136,11 +138,10 @@ describe("exit gating — blocks only on PAUSE (Freeze preserves exits)", () => 
     expect(isActivationBlocked(gate(null, "paused"))).toBe(true);
   });
 
-  it("repay is blocked ONLY by an aave pause (not a protocol pause)", () => {
+  it("repay is blocked if EITHER scope is paused", () => {
     expect(isRepayBlocked(gate(null, null))).toBe(false);
     expect(isRepayBlocked(gate(null, "paused"))).toBe(true);
-    // Protocol-only pause must keep repay available — the user can still de-risk.
-    expect(isRepayBlocked(gate("paused", null))).toBe(false);
+    expect(isRepayBlocked(gate("paused", null))).toBe(true);
   });
 
   it("activate-and-redeem is blocked ONLY by a protocol pause (not an aave pause)", () => {

@@ -1095,7 +1095,7 @@ export const COPY = {
       "Price data unavailable. Borrowing is temporarily disabled.",
     // Shown on the Repay tab when repay is blocked by a protocol pause (not a
     // technical/user error), so a user near liquidation knows it's governance,
-    // not a bug. Repay is gated only by an aave-scope pause.
+    // not a bug. Repay is gated by a pause on either scope.
     repayingUnavailable:
       "Repaying is temporarily unavailable while the protocol is paused. It will resume once the pause is lifted.",
     // Borrow tab — action-button labels (also used as the status-callout title).
