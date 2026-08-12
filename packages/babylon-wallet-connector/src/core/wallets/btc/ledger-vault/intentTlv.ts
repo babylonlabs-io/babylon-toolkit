@@ -1,14 +1,7 @@
 /**
- * TLV encoder for the Ledger vault app's APPROVE_VAULT_INTENT payloads.
- *
- * Wire format, matched byte-for-byte against Ledger's own reference host
- * encoder (`app-babylon-vault/tests/vault_client.py` @ `d74bf278`) rather than
- * inferred from the firmware C:
- *
- *     TAG (2 bytes, big-endian) ‖ LENGTH (1 byte) ‖ VALUE
- *
- * No long-form length, no terminator, no padding — records are packed and the
- * stream must end exactly at Lc.
+ * TLV encoder for APPROVE_VAULT_INTENT: `TAG (2B BE) ‖ LENGTH (1B) ‖ VALUE`,
+ * packed, ending exactly at Lc. Matched byte-for-byte against Ledger's own
+ * reference encoder (`tests/vault_client.py`), not inferred from firmware C.
  *
  * @module wallets/btc/ledger-vault/intentTlv
  */

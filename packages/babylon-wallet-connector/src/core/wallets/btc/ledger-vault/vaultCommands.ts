@@ -1,13 +1,8 @@
 /**
- * The two APDU instructions the Ledger vault app adds on top of the Bitcoin
- * base app, and the ceremony that sequences them.
- *
- * Everything else — notably `SIGN_PSBT` — falls through to the base app
- * (`app-babylon-vault/src/apdu_handler.c:24,28`; `bitcoin_app_base` is a
- * submodule of `LedgerHQ/app-bitcoin-new`).
- *
- * Framing verified against Ledger's reference host client,
- * `app-babylon-vault/tests/vault_client.py` @ `d74bf278`.
+ * The two APDU instructions the vault app adds over the Bitcoin base app,
+ * and the ceremony that sequences them. Everything else — notably SIGN_PSBT —
+ * falls through to the base app. Framing verified against Ledger's reference
+ * client (`tests/vault_client.py`).
  *
  * @module wallets/btc/ledger-vault/vaultCommands
  */
@@ -86,11 +81,8 @@ export interface DeriveContextHashParams {
 }
 
 /**
- * Derive the context root, showing the approval screen.
- *
- * Streaming is implicit: the header declares the total context length and the
- * device finalises on the chunk that completes it. There is no last-chunk
- * flag, so the byte count is the only signal.
+ * Derive the context root, showing the approval screen. Streaming is
+ * implicit — no last-chunk flag; the declared byte count is the only signal.
  *
  * @returns the 32-byte root
  * @throws If the inputs exceed the device's documented limits
@@ -158,16 +150,9 @@ export interface ApproveVaultIntentParams {
 }
 
 /**
- * Load and approve a vault intent.
- *
- * Phase order is not a convention — the device enforces it. Scalars first
- * (P1=0x00), then one APDU per vault group (P1=0x01), then the key batches
- * (P1=0x02). Sending a later phase early returns SW_BAD_STATE.
- *
- * The caller MUST have completed {@link deriveContextHash} with approval
- * BEFORE this: `DERIVE_CONTEXT_HASH` clears the intent scratch state
- * (`derive_context_hash.c:101-106`), so deriving between the scalars and the
- * keys silently discards the scalars and the key phase dies with SW_BAD_STATE.
+ * Load and approve a vault intent. The device enforces the phase order —
+ * scalars (P1=0x00), groups (P1=0x01), keys (P1=0x02) — and requires a
+ * completed {@link deriveContextHash} first; violations return SW_BAD_STATE.
  *
  * @throws If the declared counts disagree with the supplied data
  */
@@ -183,10 +168,8 @@ export async function approveVaultIntent(
   if (keeperPubkeys.length !== scalars.keeperCount) {
     throw new Error(`keeperCount ${scalars.keeperCount} does not match ${keeperPubkeys.length} key(s)`);
   }
-  // The device transitions to INTENT_LOADED and shows the approval screen only
-  // inside the key-batch handler, once every declared key has arrived. With an
-  // empty roster we would send no key APDU at all and resolve as "approved"
-  // while the device approved nothing. The firmware also requires >= 1 per role.
+  // With an empty roster no key APDU is sent, so we would resolve "approved"
+  // while the device approved nothing (approval happens in the key handler).
   if (scalars.keeperCount < 1 || scalars.challengerCount < 1) {
     throw new Error(
       `Both rosters must be non-empty: keeperCount=${scalars.keeperCount}, ` +

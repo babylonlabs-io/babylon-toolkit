@@ -13,6 +13,7 @@ const dmkStub = vi.hoisted(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
   getDeviceSessionState: vi.fn(),
+  sendCommand: vi.fn(),
   close: vi.fn(),
 }));
 
@@ -26,6 +27,10 @@ vi.mock("@ledgerhq/device-management-kit", () => ({
       return dmkStub;
     }
   },
+  GetAppAndVersionCommand: class {},
+  // Mirrors DMK's discriminated union: success carries `data`, failure carries
+  // `error` — the real narrowing helper keys on the status field.
+  isSuccessCommandResult: (result: { status: string }) => result.status === "SUCCESS",
 }));
 
 vi.mock("@ledgerhq/device-transport-kit-web-hid", () => ({
@@ -42,6 +47,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   dmkStub.startDiscovering.mockReturnValue(of(DEVICE));
   dmkStub.connect.mockResolvedValue("session-1");
+  dmkStub.sendCommand.mockResolvedValue({
+    status: "SUCCESS",
+    data: { name: "Babylon Vault Testnet", version: "0.9.4" },
+  });
 });
 
 afterEach(() => {
@@ -85,12 +94,37 @@ describe("connectDmkSession", () => {
     expect(built.count).toBe(2);
     expect(dmkStub.close).toHaveBeenCalledTimes(1);
   });
+
+  it("reports the running app's name and version from the connect preflight", async () => {
+    // The 0x6E00 wrong-app hint depends on this — "BOLOS" means the dashboard.
+    const handle = await connectDmkSession();
+
+    expect(handle.appName).toBe("Babylon Vault Testnet");
+    expect(handle.appVersion).toBe("0.9.4");
+  });
+
+  it("still connects when the preflight fails — app info is diagnostics, not a gate", async () => {
+    dmkStub.sendCommand.mockRejectedValue(new Error("transport hiccup"));
+
+    const handle = await connectDmkSession();
+
+    expect(handle.sessionId).toBe("session-1");
+    expect(handle.appName).toBeUndefined();
+    expect(handle.appVersion).toBeUndefined();
+  });
+
+  it("degrades to no app info on a command-level error result", async () => {
+    dmkStub.sendCommand.mockResolvedValue({ status: "ERROR", error: { _tag: "SomeCommandError" } });
+
+    const handle = await connectDmkSession();
+
+    expect(handle.appName).toBeUndefined();
+  });
 });
 
 describe("isSessionAlive", () => {
-  // DMK's DeviceStatus enum is exactly LOCKED | BUSY | CONNECTED | "NOT
-  // CONNECTED" (with a space). Matching on anything else never fires, so these
-  // assert the literal values from the shipped enum.
+  // isSessionAlive keys on the DeviceSessionNotFound THROW, not on emitted
+  // status values — any emission means alive, locked and busy included.
   it("treats DeviceSessionNotFound as dead — DMK throws rather than emitting a state", async () => {
     dmkStub.getDeviceSessionState.mockImplementation(() => {
       throw { _tag: "DeviceSessionNotFound" };

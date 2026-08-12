@@ -1,118 +1,69 @@
 /**
- * Read-only key derivation for the Ledger vault provider.
- *
- * The vault app inherits the Bitcoin base app's derivation instructions
- * (`app-babylon-vault` builds on `LedgerHQ/app-bitcoin-new`), so the published
- * `@ledgerhq/device-signer-kit-bitcoin` drives them. `DefaultWallet` with the
- * taproot template is documented as usable WITHOUT device registration, which
- * is what makes a plain BIP-86 path safe to read here.
- *
- * Both reads pass `skipOpenApp: true`. The kit otherwise force-opens an app it
- * calls "Bitcoin", but the device app is "Babylon Vault" — so DMK would quit the
- * vault app (or fail outright on a device that has only the vault app), and any
- * later custom APDU would hit the wrong app.
- *
- * Signing is deliberately NOT routed through this package — the vault flows need
- * a no-policy SIGN_PSBT, which this package cannot express (#2109).
+ * Read-only key derivation over raw APDUs (the Bitcoin signer kit cannot
+ * express the vault's no-policy flows). Byte layout per the base app's
+ * `get_extended_pubkey.c`; the response is the extended key as ASCII, and
+ * `display = 0` is silent for allowlisted BIP-86 paths. The taproot ADDRESS
+ * is never read from the device — the provider derives it locally.
  *
  * @module wallets/btc/ledger-vault/derivation
  */
 
-import type { Observable } from "rxjs";
+import { HDKey } from "@scure/bip32";
 
-import type { DmkSessionHandle } from "./dmkSession";
+import type { ApduSender } from "./vaultCommands";
 
-/** `m/86'/<coin>'/<account>'` — the account-level prefix for the wallet policy. */
-function accountPath(coinType: number, account = 0): string {
-  return `m/86'/${coinType}'/${account}'`;
-}
+/** `GET_EXTENDED_PUBKEY` header (`commands.h`; P2 is the protocol version). */
+const CLA_BITCOIN_BASE = 0xe1;
+const INS_GET_EXTENDED_PUBKEY = 0x00;
+const P1_NONE = 0x00;
+const P2_PROTOCOL_VERSION = 0x01;
 
-/** The full 5-level leaf the intent pins (`change`/`index` are non-hardened). */
-function leafPath(coinType: number, account = 0, change = 0, index = 0): string {
-  return `${accountPath(coinType, account)}/${change}/${index}`;
-}
+/** Silent export — no confirmation screen for allowlisted paths. */
+const DISPLAY_OFF = 0x00;
 
-/** Terminal states of a DMK device action. */
-type DeviceActionState<T> = {
-  status: string;
-  output?: T;
-  error?: unknown;
-};
+const COMPRESSED_PUBKEY_BYTES = 33;
 
 /**
- * Bridge a DMK device action to a Promise.
+ * Read the x-only public key at the given BIP-32 path.
  *
- * Device actions emit progress values and settle on a terminal state; we want
- * only the terminal one, so this resolves on `completed` and rejects on
- * anything else terminal (error, stopped).
- */
-async function firstTerminal<T>(action: { observable: Observable<DeviceActionState<T>> }): Promise<T> {
-  const { firstValueFrom, filter, map } = await import("rxjs");
-
-  return firstValueFrom(
-    action.observable.pipe(
-      filter((state) => state.status !== "pending"),
-      map((state) => {
-        if (state.status === "completed" && state.output !== undefined) {
-          return state.output;
-        }
-        const detail = (state.error as Error | undefined)?.message ?? String(state.error ?? "no detail");
-        throw new Error(`Ledger device action ${state.status}: ${detail}`);
-      }),
-    ),
-  );
-}
-
-async function signerFor(handle: DmkSessionHandle) {
-  const { SignerBtcBuilder } = await import("@ledgerhq/device-signer-kit-bitcoin");
-  return new SignerBtcBuilder({ dmk: handle.dmk, sessionId: handle.sessionId }).build();
-}
-
-/**
- * Read the x-only public key at the intent's 5-level leaf path.
- *
- * The device returns an extended key at that path; `@scure/bip32` decodes it so
- * we can take the 33-byte compressed key and drop the parity prefix. x-only is
- * what the intent and every taproot script expect.
+ * @param send - APDU sender bound to the live device session
+ * @param path - Full BIP-32 path as raw u32 levels (hardened bits included)
+ * @param bip32Versions - Version bytes for the decode: the signet build
+ *   returns a tpub, and `@scure/bip32` throws "Version mismatch" on its
+ *   mainnet defaults without them.
  */
 export async function getXOnlyPublicKeyHex(
-  handle: DmkSessionHandle,
-  coinType: number,
+  send: ApduSender,
+  path: readonly number[],
   bip32Versions: { private: number; public: number },
 ): Promise<string> {
-  const signer = await signerFor(handle);
-  const { HDKey } = await import("@scure/bip32");
+  const response = await send({
+    cla: CLA_BITCOIN_BASE,
+    ins: INS_GET_EXTENDED_PUBKEY,
+    p1: P1_NONE,
+    p2: P2_PROTOCOL_VERSION,
+    data: encodeGetExtendedPubkeyData(path),
+  });
 
-  const result = await firstTerminal<{ extendedPublicKey: string }>(
-    signer.getExtendedPublicKey(leafPath(coinType), { skipOpenApp: true }) as unknown as {
-      observable: Observable<DeviceActionState<{ extendedPublicKey: string }>>;
-    },
-  );
-
-  // The signet/testnet build returns a tpub; @scure/bip32 defaults to mainnet
-  // version bytes and throws "Version mismatch" without these.
-  const node = HDKey.fromExtendedKey(result.extendedPublicKey, bip32Versions);
-  if (!node.publicKey || node.publicKey.length !== 33) {
-    throw new Error("Ledger returned an extended key without a 33-byte public key");
+  const extendedKey = new TextDecoder().decode(response);
+  const node = HDKey.fromExtendedKey(extendedKey, bip32Versions);
+  if (!node.publicKey || node.publicKey.length !== COMPRESSED_PUBKEY_BYTES) {
+    throw new Error(`Ledger returned an extended key without a ${COMPRESSED_PUBKEY_BYTES}-byte public key`);
   }
   return Buffer.from(node.publicKey.subarray(1)).toString("hex");
 }
 
-/**
- * Read the BIP-86 taproot address at the intent's leaf.
- *
- * `DefaultWallet` needs no prior `registerWallet` — a standard taproot policy
- * is built into the app.
- */
-export async function getTaprootAddress(handle: DmkSessionHandle, coinType: number): Promise<string> {
-  const signer = await signerFor(handle);
-  const { DefaultWallet, DefaultDescriptorTemplate } = await import("@ledgerhq/device-signer-kit-bitcoin");
-
-  const wallet = new DefaultWallet(accountPath(coinType), DefaultDescriptorTemplate.TAPROOT);
-  const result = await firstTerminal<{ address: string }>(
-    signer.getWalletAddress(wallet, 0, { skipOpenApp: true }) as unknown as {
-      observable: Observable<DeviceActionState<{ address: string }>>;
-    },
-  );
-  return result.address;
+/** `display(1) ‖ n(1) ‖ n×u32BE` — the GET_EXTENDED_PUBKEY payload. */
+function encodeGetExtendedPubkeyData(path: readonly number[]): Uint8Array {
+  const data = new Uint8Array(2 + path.length * 4);
+  data[0] = DISPLAY_OFF;
+  data[1] = path.length;
+  path.forEach((level, i) => {
+    const offset = 2 + i * 4;
+    data[offset] = (level >>> 24) & 0xff;
+    data[offset + 1] = (level >>> 16) & 0xff;
+    data[offset + 2] = (level >>> 8) & 0xff;
+    data[offset + 3] = level & 0xff;
+  });
+  return data;
 }

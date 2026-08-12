@@ -1,11 +1,7 @@
 /**
- * DMK session lifecycle for the Ledger vault provider.
- *
- * Wraps discovery → connect → state gate → dispose behind a Promise API, so
- * everything above this file is device-free and testable with a fake.
- *
- * Verified against the installed `@ledgerhq/device-management-kit@1.7.1`
- * type declarations, not the published docs.
+ * DMK session lifecycle: discovery → connect → state gate → dispose behind a
+ * Promise API, so everything above this file is device-free and testable.
+ * Verified against the installed DMK 1.7.1 types, not the published docs.
  *
  * @module wallets/btc/ledger-vault/dmkSession
  */
@@ -13,26 +9,27 @@
 import type { DeviceManagementKit, DeviceSessionId, DiscoveredDevice } from "@ledgerhq/device-management-kit";
 
 /**
- * The device pings itself on a timer when the refresher is on, injecting
- * `GET_APP_AND_VERSION` mid-ceremony. We do not yet know whether that
- * nullifies a loaded vault intent (open question with Ledger), and the option
- * is connection-level rather than a window we can open and close — so we
- * connect with it off and check device state only at safe boundaries.
- * Revisit once Ledger confirms which commands nullify.
+ * The refresher injects `GET_APP_AND_VERSION` mid-ceremony, and whether that
+ * nullifies a loaded intent is unconfirmed (#2110) — so it stays off for the
+ * whole session. (DMK does offer a scoped `disableDeviceSessionRefresher`
+ * window; deliberately not used until nullification is understood.)
  */
 const SESSION_REFRESHER_OPTIONS = { isRefresherDisabled: true } as const;
 
 export interface DmkSessionHandle {
   readonly dmk: DeviceManagementKit;
   readonly sessionId: DeviceSessionId;
+  /**
+   * App name/version at connect time ("BOLOS" = dashboard). Diagnostic only;
+   * absent when the preflight failed. Never re-read between intent phases.
+   */
+  readonly appName?: string;
+  readonly appVersion?: string;
 }
 
 /**
- * One DMK per application.
- *
- * The skill prescribes a React context, but the connector is not a React tree
- * at this layer, so this is a module-level lazy singleton instead — the
- * deviation is deliberate. Two instances would register duplicate transport
+ * One DMK per application, as a module-level lazy singleton (the connector is
+ * not a React tree here). Two instances would register duplicate transport
  * listeners.
  */
 let dmkInstance: DeviceManagementKit | undefined;
@@ -80,18 +77,36 @@ export async function connectDmkSession(): Promise<DmkSessionHandle> {
     sessionRefresherOptions: SESSION_REFRESHER_OPTIONS,
   });
 
-  return { dmk, sessionId };
+  const app = await readAppAndVersion(dmk, sessionId);
+  return { dmk, sessionId, ...app };
 }
 
 /**
- * True when the session is still usable. A dead session must be rebuilt from
- * discovery — DMK has no reconnect-by-sessionId.
- *
- * DMK removes the session on disconnect, and `getDeviceSessionState` then THROWS
- * `DeviceSessionNotFound` rather than emitting a "NOT CONNECTED" state — so the
- * throw is the signal, not the status value. Residual window: inside DMK's
- * reconnect grace period a just-unplugged device still reports alive; the first
- * ceremony APDU then rejects loudly rather than hanging.
+ * `GET_APP_AND_VERSION` preflight, run only at connect — the most useful fact
+ * when the first vault APDU fails ("Babylon Vault" vs "Babylon Vault Testnet"
+ * vs "BOLOS"). Sent explicitly rather than read from DMK's internal session
+ * state. Diagnostic only: a failed read degrades to `undefined`.
+ */
+async function readAppAndVersion(
+  dmk: DeviceManagementKit,
+  sessionId: DeviceSessionId,
+): Promise<{ appName?: string; appVersion?: string }> {
+  try {
+    const { GetAppAndVersionCommand, isSuccessCommandResult } = await import("@ledgerhq/device-management-kit");
+    const result = await dmk.sendCommand({ sessionId, command: new GetAppAndVersionCommand() });
+    if (!isSuccessCommandResult(result)) return {};
+    return { appName: result.data.name, appVersion: result.data.version };
+  } catch {
+    // Preflight is diagnostics; the ceremony APDUs carry their own errors.
+    return {};
+  }
+}
+
+/**
+ * True while the session is usable (dead sessions must be rebuilt from
+ * discovery). The signal is the `DeviceSessionNotFound` THROW — DMK never
+ * emits a "NOT CONNECTED" state. A just-unplugged device may briefly report
+ * alive; the first ceremony APDU then rejects loudly.
  */
 export async function isSessionAlive(handle: DmkSessionHandle): Promise<boolean> {
   const { firstValueFrom } = await import("rxjs");

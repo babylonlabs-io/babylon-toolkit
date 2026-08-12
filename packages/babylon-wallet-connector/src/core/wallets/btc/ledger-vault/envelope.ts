@@ -1,13 +1,8 @@
 /**
- * Device-envelope validation for the Ledger vault app.
- *
- * The device rejects an out-of-range intent at APPROVE_VAULT_INTENT with an
- * opaque status word and nullifies the session. This runs the same checks
- * BEFORE any device I/O, so the depositor gets an actionable error instead of
- * a dead ceremony.
- *
- * This is the provider obligation the SDK's `DepositTermsApprover` documents.
- * It lives here and nowhere else — the SDK is vendor-neutral.
+ * Device-envelope validation, run BEFORE any device I/O — the device answers
+ * an out-of-range intent with an opaque status word and a dead session. The
+ * provider obligation `DepositTermsApprover` documents; lives here and
+ * nowhere else (the SDK is vendor-neutral).
  *
  * @module wallets/btc/ledger-vault/envelope
  */
@@ -94,10 +89,8 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
     throw new DepositTermsRejectedError(`${RANGE_MSG}: prepeginMaxFee ${terms.prepeginMaxFee} must be >= 1`);
   }
 
-  // The device requires strictly ascending htlc_vout across groups and kills the
-  // session mid-ceremony otherwise (approve_vault_intent.c). htlcVout is a u8 on
-  // the wire, so an out-of-range value must fail here with the seam's error
-  // shape rather than as a raw encoder Error.
+  // Strictly ascending htlc_vout, u8 on the wire — out-of-range must fail
+  // here with the seam's error shape, not as a raw encoder Error.
   let previousVout = -1;
   for (const vault of terms.vaults) {
     if (!Number.isInteger(vault.htlcVout) || vault.htlcVout < 0 || vault.htlcVout > 0xff) {
@@ -112,12 +105,9 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
     previousVout = vault.htlcVout;
   }
 
-  // Global uniqueness across BOTH rosters, plus no key equal to the vault
-  // provider's. The settlement contract is the authority here — the firmware
-  // enforces the same thing (VAULT_KEY_ERR_DUPLICATE / _ROLE_COLLISION in
-  // approve_vault_intent_core.h), so this is protocol, not a device quirk, and
-  // we are not stricter than what a legal vault can register. Note ordering is
-  // per-role while uniqueness is global.
+  // Global uniqueness across BOTH rosters plus the VP key — protocol rule
+  // (contract + VAULT_KEY_ERR_DUPLICATE/_ROLE_COLLISION), not a device quirk.
+  // Ordering is per-role; uniqueness is global.
   const canonicalKey = (key: string) => key.replace(/^0x/, "").toLowerCase();
   const vpKeys = new Set(terms.vaults.map((v) => canonicalKey(v.vaultProviderBtcPubkey)));
   const seenKeys = new Set<string>();

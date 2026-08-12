@@ -1,9 +1,7 @@
 /**
- * Adapter-local mirror of the SDK's deposit-terms seam.
- *
- * Declared structurally rather than imported: there is deliberately no
- * dependency edge from wallet-connector to the ts-sdk. The cross-package
- * contract is the SHAPE, documented on the SDK's `DepositTermsApprover`.
+ * Adapter-local mirror of the SDK's deposit-terms seam — declared
+ * structurally because there is deliberately no dependency edge to the
+ * ts-sdk; the cross-package contract is the SHAPE (`DepositTermsApprover`).
  *
  * @module wallets/btc/ledger-vault/types
  */

@@ -1,9 +1,9 @@
 import type { IBTCProvider, InscriptionIdentifier } from "@/core/types";
 import { Network } from "@/core/types";
-import { toNetwork } from "@/core/utils/wallet";
+import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
-import { getTaprootAddress, getXOnlyPublicKeyHex } from "./derivation";
+import { getXOnlyPublicKeyHex } from "./derivation";
 import { createDmkApduSender } from "./dmkApduSender";
 import { connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
 import { assertDepositTermsDeviceCompatible } from "./envelope";
@@ -14,14 +14,9 @@ import { approveVaultIntent, deriveContextHash, type ApduSender } from "./vaultC
 export const WALLET_PROVIDER_NAME = "Ledger Vault";
 
 /**
- * BIP-86 path for the depositor key, fixed at 5 levels.
- *
- * The intent requires exactly 5 levels (`vault_tlv.c:105-125`,
- * `VAULT_DEPOSITOR_PATH_LEN`), and the device rebuilds the depositor's P2TR
- * from the intent's key on every PSBT it validates. So the address, the
- * pubkey, the PoP key and every Pre-PegIn funding UTXO must resolve to this one
- * path: Ledger vault deposits are effectively single-address. Coin type is
- * per-network and must equal the intent's `coinType` or the device rejects.
+ * BIP-86 path for the depositor key. The intent requires exactly 5 levels
+ * (`vault_tlv.c` VAULT_DEPOSITOR_PATH_LEN) and the device rebuilds every
+ * script from this one key — vault deposits are effectively single-address.
  */
 const BIP86_PURPOSE = 86;
 const COIN_TYPE_BY_NETWORK: Record<Network, number> = {
@@ -35,21 +30,34 @@ const ADDRESS_INDEX = 0;
 const HARDENED = 0x80000000;
 
 /**
- * Ledger's dedicated vault app over the Device Management Kit.
+ * Mirror of the device's vault state machine (`vault_context.h`: IDLE →
+ * HASH_DERIVED → INTENT_LOADED). HASH_DERIVED is single-use — every ceremony
+ * consumes it; failures invalidate to IDLE (`approve_vault_intent.c`). The
+ * mirror pre-empts opaque SW_BAD_STATE with an actionable error.
+ */
+type DeviceIntentState = { phase: "idle" } | { phase: "derived" } | { phase: "intent-loaded"; termsKey: string };
+
+/**
+ * Ledger's dedicated vault app over the DMK. Distinct from the legacy
+ * `ledger_btc*` staking adapters: different device app, different transport,
+ * intent ceremony instead of wallet policies.
  *
- * Distinct from the legacy `ledger_btc` / `ledger_btc_v2` staking adapters in
- * every respect: a different device app, the DMK rather than `hw-transport`,
- * and an intent-approval ceremony rather than wallet policies.
- *
- * Ships behind `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET`, off by default,
- * while Ledger's firmware is still moving. Signing is deliberately not wired
- * yet — see {@link LedgerVaultProvider.signPsbt}.
+ * Ships behind `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET` (default off).
+ * Covers connect, the key read, and the intent ceremony; signing needs the
+ * host-side SIGN_PSBT client (#2109) — the published Bitcoin signer kit
+ * cannot express the vault's no-policy flows.
  */
 export class LedgerVaultProvider implements IBTCProvider {
   private session: DmkSessionHandle | undefined;
   private send: ApduSender | undefined;
-  /** Fingerprint of the intent already approved on this connection. */
-  private approvedTermsKey: string | undefined;
+  /** See {@link DeviceIntentState}. Updated pessimistically around device I/O. */
+  private deviceState: DeviceIntentState = { phase: "idle" };
+  /**
+   * Single in-flight pubkey read per connection — `Wallet.connect()` calls
+   * `getAddress()` and `getPublicKeyHex()` concurrently and both resolve from
+   * this one device read.
+   */
+  private pubkeyHexPromise: Promise<string> | undefined;
 
   constructor(private readonly network: Network = Network.MAINNET) {}
 
@@ -89,9 +97,9 @@ export class LedgerVaultProvider implements IBTCProvider {
     throw new WalletError({
       code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
       message:
-        `${WALLET_PROVIDER_NAME} does not implement ${method} yet. Signing lands ` +
-        `once Ledger confirms whether their DMK signer owns SIGN_PSBT or the ` +
-        `published Bitcoin signer kit drives it (#2109).`,
+        `${WALLET_PROVIDER_NAME} does not implement ${method} yet. This build ` +
+        `covers connect and the intent ceremony only; SIGN_PSBT for the ` +
+        `vault's no-policy flows is not implemented (#2109).`,
       wallet: WALLET_PROVIDER_NAME,
     });
   }
@@ -103,19 +111,21 @@ export class LedgerVaultProvider implements IBTCProvider {
    * secure context, and its picker fails silently otherwise.
    */
   connectWallet = async (): Promise<void> => {
-    // Reconnecting without releasing the old session leaks a DMK session and an
-    // open HID handle, and the stale sessionId can never be revived.
+    // Idempotent while the session lives: visibility checks re-call this
+    // outside a user gesture, where WebHID's requestDevice rejects — tearing
+    // down a healthy session would turn an alt-tab into a forced disconnect.
+    if (this.session && (await isSessionAlive(this.session))) return;
+
+    // Release the dead session first — a stale sessionId can never be revived.
     if (this.session) await this.disconnect();
 
     try {
       this.session = await connectDmkSession();
       this.send = createDmkApduSender(this.session);
     } catch (error) {
-      // DMK's errors do NOT extend Error — the base class is a plain object
-      // carrying `_tag` and `originalError` — so classify on those. Dismissing
-      // the WebHID picker resolves with an empty device list, which DMK wraps as
-      // NoAccessibleDeviceError("No selected device"); a genuine failure carries
-      // the underlying DOMException in originalError instead.
+      // DMK errors don't extend Error — classify on `_tag`/`originalError`.
+      // A dismissed WebHID picker becomes NoAccessibleDeviceError("No selected
+      // device"); genuine failures carry the DOMException in originalError.
       const dmk = error as { _tag?: string; originalError?: Error } | undefined;
       const detail = dmk?.originalError?.message ?? dmk?._tag ?? String(error);
       const dismissed = dmk?._tag === "NoAccessibleDeviceError" && dmk.originalError?.message === "No selected device";
@@ -129,49 +139,54 @@ export class LedgerVaultProvider implements IBTCProvider {
   };
 
   /**
-   * Release the device session, leaving the DMK singleton up for the next
-   * connect.
-   *
-   * Deliberately does NOT call `closeDmk()`: `dmk.close()` only closes sessions
-   * (CloseSessionsUseCase never calls `transport.destroy()`), so it aborts no
-   * HID listeners — while dropping the singleton makes the next connect build a
-   * second transport whose constructor registers ANOTHER listener pair, leaving
-   * the first registered and unreachable.
+   * Release the device session; the DMK singleton stays up. `closeDmk()` here
+   * would leak HID listeners — `dmk.close()` never destroys the transport, and
+   * a rebuilt singleton registers a duplicate listener pair.
    */
   disconnect = async (): Promise<void> => {
     if (this.session) await disconnectDmkSession(this.session);
     this.session = undefined;
     this.send = undefined;
-    // A new connection starts at IDLE and must re-derive and re-approve.
-    this.approvedTermsKey = undefined;
+    // Next connect may be a different device: reset state and the pubkey cache.
+    this.deviceState = { phase: "idle" };
+    this.pubkeyHexPromise = undefined;
   };
 
   /**
-   * BIP-86 taproot address at the pinned leaf. Read through the published
-   * Bitcoin signer kit, which drives the derivation instructions the vault app
-   * inherits from the base app.
+   * The one device read, cached per connection. A failure clears the cache
+   * (identity-guarded so a stale rejection can't wipe a newer connection's).
    */
-  getAddress = async (): Promise<string> =>
-    getTaprootAddress(this.requireSession(), COIN_TYPE_BY_NETWORK[this.network]);
-
-  /** x-only public key at the same leaf the intent pins. */
-  getPublicKeyHex = async (): Promise<string> =>
-    getXOnlyPublicKeyHex(this.requireSession(), COIN_TYPE_BY_NETWORK[this.network], toNetwork(this.network).bip32);
+  private getDevicePubkeyHex(): Promise<string> {
+    if (!this.pubkeyHexPromise) {
+      const read = getXOnlyPublicKeyHex(this.requireSender(), this.depositorPath, toNetwork(this.network).bip32).catch(
+        (error) => {
+          if (this.pubkeyHexPromise === read) this.pubkeyHexPromise = undefined;
+          throw error;
+        },
+      );
+      this.pubkeyHexPromise = read;
+    }
+    return this.pubkeyHexPromise;
+  }
 
   /**
-   * Derive the 32-byte context root, showing the approval screen.
-   *
-   * Always derives with the screen shown: a silent derivation leaves
-   * `root_user_approved` false on-device and such a root can never load an
-   * intent, so the ceremony would die later with an opaque status word.
+   * Taproot address derived locally from the device-read pubkey. Safe: the
+   * firmware rebuilds every script from its own seed at signing time, so a
+   * lied-about address can never receive a valid vault signature.
+   */
+  getAddress = async (): Promise<string> => getTaprootAddress(await this.getDevicePubkeyHex(), this.network);
+
+  /** x-only public key at the same leaf the intent pins. */
+  getPublicKeyHex = async (): Promise<string> => this.getDevicePubkeyHex();
+
+  /**
+   * Derive the 32-byte context root, always with the approval screen — a
+   * silent derivation produces a root that can never load an intent.
    */
   deriveContextHash = async (appName: string, context: string): Promise<string> => {
-    // Validate before decoding. Buffer.from(str, "hex") truncates silently at
-    // the first non-hex char and drops a trailing odd nibble, so a malformed
-    // context would derive a root over a SHORTER preimage — and since the root
-    // is the frozen on-chain binding, every derived secret would be wrong with
-    // nothing on the device screen to reveal it. The spec requires even-length
-    // lowercase hex with no 0x prefix.
+    // Buffer.from(str, "hex") truncates silently, so a malformed context
+    // would derive a root over a SHORTER preimage — every secret wrong, with
+    // nothing on the device screen to reveal it.
     if (!/^(?:[0-9a-f]{2})+$/.test(context)) {
       throw new WalletError({
         code: ERROR_CODES.INVALID_PARAMS,
@@ -182,31 +197,29 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
     }
 
+    // Deriving invalidates whatever the device held; drop to "idle" BEFORE
+    // the call so host and device stay in lockstep if it fails partway.
+    this.deviceState = { phase: "idle" };
+
     const root = await deriveContextHash(this.requireSender(), {
       appName,
       derivationPath: this.depositorPath,
       context: Uint8Array.from(Buffer.from(context, "hex")),
     });
+    this.deviceState = { phase: "derived" };
     return Buffer.from(root).toString("hex");
   };
 
   /**
-   * Validate the terms against this device's envelope, then run the intent
-   * approval ceremony.
-   *
-   * The envelope check runs BEFORE any device I/O: the firmware answers an
-   * out-of-range intent with an opaque status word and nullifies the session,
-   * so failing early is the difference between an actionable error and a dead
-   * ceremony. This is the provider obligation the SDK's `DepositTermsApprover`
-   * documents.
+   * Validate the terms against the device envelope, then run the ceremony.
+   * The envelope gate runs BEFORE any device I/O — the firmware answers an
+   * out-of-range intent with an opaque status word and a dead session.
    */
   approveDepositTerms = async (terms: DepositTerms): Promise<void> => {
     assertDepositTermsDeviceCompatible(terms);
 
     const send = this.requireSender();
-    // A dead session cannot be revived — DMK has no reconnect-by-sessionId — so
-    // fail with something actionable instead of an opaque status word partway
-    // through the ceremony.
+    // Fail actionably now rather than with an opaque status word mid-ceremony.
     if (!(await isSessionAlive(this.requireSession()))) {
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
@@ -244,31 +257,51 @@ export class LedgerVaultProvider implements IBTCProvider {
       challengerPubkeys: terms.universalChallengerBtcPubkeys.map((k) => hexToXOnly(k, "universalChallengerBtcPubkey")),
     };
 
-    // The SDK approves once in preparePegin and again in runDepositorPresignFlow.
-    // The device accepts only ONE ceremony per DERIVE_CONTEXT_HASH — a second
-    // APPROVE_VAULT_INTENT P1=0x00 from INTENT_LOADED returns SW_BAD_STATE — so a
-    // byte-equal re-approval on the same connection must be a no-op rather than a
-    // second ceremony that would make the user re-approve and then fail anyway.
     const key = fingerprintIntent(intent);
-    if (key === this.approvedTermsKey) return;
 
-    try {
-      await approveVaultIntent(send, intent);
-    } catch (error) {
-      // Any device error is a nullification trigger; force a full re-ceremony.
-      this.approvedTermsKey = undefined;
-      throw error;
+    // One ceremony per derive: a byte-equal re-approval (the SDK approves in
+    // both preparePegin and runDepositorPresignFlow) must be a no-op, and
+    // differing terms need a fresh derive — either would hit SW_BAD_STATE.
+    if (this.deviceState.phase === "intent-loaded") {
+      if (this.deviceState.termsKey === key) return;
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message:
+          `${WALLET_PROVIDER_NAME} already holds a different approved intent ` +
+          `on this connection — the device admits one ceremony per ` +
+          `DERIVE_CONTEXT_HASH. Restart the flow from derivation.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
     }
-    this.approvedTermsKey = key;
+    // Approving from IDLE (no derive yet, or a failed ceremony invalidated
+    // the device) would die at the first APDU with SW_BAD_STATE.
+    if (this.deviceState.phase === "idle") {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message:
+          `${WALLET_PROVIDER_NAME} has no freshly derived context root on ` +
+          `this connection — the device requires DERIVE_CONTEXT_HASH before ` +
+          `an intent can be approved. Restart the flow from derivation.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    // The ceremony consumes HASH_DERIVED either way; drop to "idle" BEFORE
+    // the call so every error path stays in lockstep with the device.
+    this.deviceState = { phase: "idle" };
+    await approveVaultIntent(send, intent);
+    this.deviceState = { phase: "intent-loaded", termsKey: key };
   };
 
-  // The requested input is named in the error, following this package's
-  // unsupportedDeriveContextHash convention, so logs identify the caller.
+  // TODO(#2219): implement via the SIGN_PSBT host protocol; signPsbts becomes
+  // a sequential loop. The input is named in the error so logs identify the caller.
   signPsbt = async (psbtHex: string): Promise<string> => this.notWired(`signPsbt (${psbtHex.length / 2} bytes)`);
 
   signPsbts = async (psbtsHexes: string[]): Promise<string[]> =>
     this.notWired(`signPsbts (${psbtsHexes.length} psbt(s))`);
 
+  // TODO(#2221): BIP-322 PoP — a SIGN_PSBT with tx_version 0, not the base
+  // app's SIGN_MESSAGE.
   signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> =>
     this.notWired(`signMessage (${type}, ${message.length} chars)`);
 
@@ -286,7 +319,7 @@ export class LedgerVaultProvider implements IBTCProvider {
   getWalletProviderIcon = async (): Promise<string> => "";
 }
 
-/** Deterministic fingerprint of an encoded intent, for idempotence. */
+/** Deterministic fingerprint of the intent structure (JSON), for idempotence. */
 function fingerprintIntent(intent: {
   scalars: IntentScalars;
   groups: IntentVaultGroup[];

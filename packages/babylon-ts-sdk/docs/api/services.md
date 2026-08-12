@@ -323,6 +323,85 @@ cancellation support for that window.
 
 ***
 
+### ActivateVaultAndRedeemInput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:198](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L198)
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`EthContractWriteResult`](#ethcontractwriteresult) = [`EthContractWriteResult`](#ethcontractwriteresult)
+
+#### Properties
+
+##### btcVaultRegistryAddress
+
+```ts
+btcVaultRegistryAddress: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:202](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L202)
+
+BTCVaultRegistry contract address (env-specific).
+
+##### vaultId
+
+```ts
+vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:204](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L204)
+
+Vault ID (bytes32, 0x-prefixed).
+
+##### secret
+
+```ts
+secret: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:209](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L209)
+
+HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
+`0X` prefix is normalised before validation.
+
+##### hashlock?
+
+```ts
+optional hashlock: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:214](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L214)
+
+Optional hashlock for client-side pre-validation. When provided, the SDK
+rejects before calling `writeContract` if `sha256(secret) != hashlock`.
+
+##### writeContract
+
+```ts
+writeContract: EthContractWriter<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:216](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L216)
+
+Caller-provided write callback — see [EthContractWriter](#ethcontractwriter).
+
+##### signal?
+
+```ts
+optional signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:223](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L223)
+
+Optional abort signal. Checked before validation runs; since validation
+is fully synchronous, cancellation between validation and the write is
+not observable and callers should rely on the transport's own
+cancellation support for that window.
+
+***
+
 ### PeginStatusReader
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L21)
@@ -477,7 +556,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 
 ### PeginProtocolState
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L64)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L71)
 
 Protocol-level peg-in state (framework-agnostic)
 
@@ -489,7 +568,7 @@ Protocol-level peg-in state (framework-agnostic)
 contractStatus: ContractStatus;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L73)
 
 Smart contract status (source of truth for on-chain state)
 
@@ -499,7 +578,7 @@ Smart contract status (source of truth for on-chain state)
 availableActions: PeginAction[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L68)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L75)
 
 Available user actions (empty array when no action is available)
 
@@ -507,7 +586,7 @@ Available user actions (empty array when no action is available)
 
 ### GetPeginProtocolStateOptions
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:78](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L85)
 
 Options for getPeginProtocolState function.
 
@@ -523,7 +602,7 @@ is NOT included — consumers handle that in their own layer.
 optional transactionsReady: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L87)
 
 Whether claim/payout transactions are ready from VP
 
@@ -533,7 +612,7 @@ Whether claim/payout transactions are ready from VP
 optional needsWotsKey: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:89](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L89)
 
 Whether the vault provider is waiting for the depositor's WOTS public key
 
@@ -543,7 +622,7 @@ Whether the vault provider is waiting for the depositor's WOTS public key
 optional pendingIngestion: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:91](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L91)
 
 Whether the vault provider hasn't ingested this peg-in yet
 
@@ -553,7 +632,7 @@ Whether the vault provider hasn't ingested this peg-in yet
 optional canRefund: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L93)
 
 Whether the depositor can refund the HTLC (Pre-PegIn tx available)
 
@@ -563,9 +642,32 @@ Whether the depositor can refund the HTLC (Pre-PegIn tx available)
 optional hasProviderTerminalFailure: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L88)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L95)
 
 Whether the vault provider reported a terminal failure
+
+##### htlcSpentByPeginTx?
+
+```ts
+optional htlcSpentByPeginTx: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L112)
+
+VERIFIED only: the Pre-PegIn HTLC outpoint has been spent on Bitcoin BY
+THE PEGIN TRANSACTION while the vault is still Verified on Ethereum. The
+secret was revealed (e.g. in the calldata of a reverted activation) and
+the peg-in swept without the vault activating, so the normal activation
+no longer returns value to the depositor and the CSV refund can never
+broadcast. The remaining recovery is the activate-and-redeem escape
+hatch.
+
+The caller MUST prove the spender by comparing the outspend's
+`spendingTxid` against the vault's PegIn txid before setting this. A
+bare "spent" observation is not sufficient: the spend may be the
+depositor's own CSV refund, and offering the secret-revealing hatch
+against a refund burns the secret for a vault whose funds already
+returned.
 
 ***
 
@@ -2527,7 +2629,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 function activateVault<R>(input): Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:136](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L136)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:167](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L167)
 
 Reveal the HTLC secret on Ethereum and activate the vault.
 
@@ -2581,13 +2683,71 @@ whatever the injected `writeContract` throws
 
 ***
 
+### activateVaultAndRedeem()
+
+```ts
+function activateVaultAndRedeem<R>(input): Promise<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:245](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L245)
+
+Depositor escape hatch: reveal the HTLC secret and immediately redeem the
+vault for the depositor, without any application activation. The contract
+(`activateVaultWithSecretAndRedeem`) runs the same activation preconditions
+(Verified status, activation deadline, `sha256(s) == hashlock`) and then
+marks the vault Redeemed so the vault provider pays the BTC out to the
+depositor's committed payout address. Used when the normal activation is
+unavailable (e.g. the application adapter is paused or its activation
+reverts) but the secret must still be revealed to recover the swept peg-in.
+
+Takes no activation metadata — the application entry point is never called.
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`EthContractWriteResult`](#ethcontractwriteresult) = [`EthContractWriteResult`](#ethcontractwriteresult)
+
+#### Parameters
+
+##### input
+
+[`ActivateVaultAndRedeemInput`](#activatevaultandredeeminput)\<`R`\>
+
+#### Returns
+
+`Promise`\<`R`\>
+
+#### Throws
+
+`Error` if `btcVaultRegistryAddress` is not a valid 20-byte address
+
+#### Throws
+
+`Error` if `vaultId` or `secret` is not a valid 32-byte hex
+
+#### Throws
+
+`Error` if `hashlock` is provided and is not a valid 32-byte hex,
+        or if `sha256(secret) != hashlock`
+
+#### Throws
+
+whatever the injected `writeContract` throws
+
+#### Throws
+
+`AbortError` / caller-provided abort reason if `signal` aborts
+
+***
+
 ### getPeginProtocolState()
 
 ```ts
 function getPeginProtocolState(contractStatus, options): PeginProtocolState;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:132](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L132)
 
 Determine the current protocol state and available actions based on contract
 status and vault provider state. Framework-agnostic: returns only
@@ -2625,7 +2785,7 @@ Protocol state with available actions
 function canPerformAction(state, action): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:193](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L193)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:228](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L228)
 
 Check if a specific action is available in the current state
 
@@ -2651,7 +2811,7 @@ Check if a specific action is available in the current state
 function isActivationDeadlinePassedOnChain(params): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:210](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L210)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:245](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L245)
 
 Whether a vault's on-chain activation window has closed. Mirrors the
 BTCVaultRegistry check that reverts `ActivationDeadlineExpired`:
@@ -3619,13 +3779,26 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts
 
 Reveal HTLC secret on Ethereum to activate vault
 
+##### ACTIVATE\_AND\_REDEEM
+
+```ts
+ACTIVATE_AND_REDEEM: "ACTIVATE_AND_REDEEM";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L63)
+
+Escape hatch: reveal the HTLC secret and immediately redeem the vault for
+the depositor (`activateVaultWithSecretAndRedeem`), skipping application
+activation. Recovery path when the peg-in was swept on Bitcoin but the
+vault could not be activated (application paused / activation revert).
+
 ##### REFUND\_HTLC
 
 ```ts
 REFUND_HTLC: "REFUND_HTLC";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L65)
 
 Sign and broadcast HTLC refund transaction for an expired vault
 

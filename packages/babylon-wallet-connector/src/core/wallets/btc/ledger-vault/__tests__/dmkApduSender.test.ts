@@ -73,12 +73,16 @@ describe("createDmkApduSender", () => {
     ).rejects.toThrow(expected);
   });
 
-  it("reports a decline as a user rejection, not a device failure", async () => {
-    // 0x6985 is the user declining. It never invalidates, so the same APDU can be
-    // re-sent to re-prompt; the wording starts "User rejected" so the app still
-    // classifies it if a wrapper drops the code.
+  it.each([
+    ["0x6985", [0x69, 0x85]],
+    ["0x5501", [0x55, 0x01]],
+  ])("reports a %s decline as a user rejection, not a device failure", async (_label, bytes) => {
+    // Both are refused-by-user codes per DMK's own CommandUtils.isRefusedByUser;
+    // the wording starts "User rejected" so the app still classifies it if a
+    // wrapper drops the code. Whether a decline nullifies a loaded intent is
+    // unconfirmed with Ledger (#2110).
     const { handle } = handleWith({
-      statusCode: new Uint8Array([0x69, 0x85]),
+      statusCode: new Uint8Array(bytes),
       data: new Uint8Array(),
     });
 
@@ -93,17 +97,41 @@ describe("createDmkApduSender", () => {
     await expect(call).rejects.toThrow(/User rejected/);
   });
 
+  it("asks the user to unlock on a locked-device status word", async () => {
+    // 0x5515 is one of DMK's isLockedDeviceResponse codes; a lock must read as
+    // "unlock and retry", not as the device rejecting the request.
+    const { handle } = handleWith({
+      statusCode: new Uint8Array([0x55, 0x15]),
+      data: new Uint8Array(),
+    });
+
+    const call = createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0, p2: 0, data: new Uint8Array() });
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_FAILED });
+    await expect(call).rejects.toThrow(/locked/);
+  });
+
+  it("tells the user to open the vault app on 0x6E00, naming the running app", async () => {
+    // 0x6E00 (bad CLA) is what the dashboard or a wrong app returns — the most
+    // likely first-contact failure, since raw sendApdu never opens an app.
+    const sendApdu = vi.fn().mockResolvedValue({ statusCode: new Uint8Array([0x6e, 0x00]), data: new Uint8Array() });
+    const handle = { dmk: { sendApdu }, sessionId: "s1", appName: "BOLOS" } as unknown as DmkSessionHandle;
+
+    const call = createDmkApduSender(handle)({ cla: 0xe1, ins: 0x81, p1: 0, p2: 0, data: new Uint8Array() });
+    await expect(call).rejects.toThrow(/open the Babylon Vault app/);
+    await expect(call).rejects.toThrow(/"BOLOS"/);
+  });
+
   it("surfaces an unmapped status word as hex rather than guessing", async () => {
     // Ledger has not published the full taxonomy; inventing meanings would be
     // worse than showing the raw code (#2110).
     const { handle } = handleWith({
-      statusCode: new Uint8Array([0x6d, 0x00]),
+      statusCode: new Uint8Array([0x6f, 0x42]),
       data: new Uint8Array(),
     });
 
     await expect(
       createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0, p2: 0, data: new Uint8Array() }),
-    ).rejects.toThrow(/0x6d00/);
+    ).rejects.toThrow(/0x6f42/);
   });
 
   it.each([
