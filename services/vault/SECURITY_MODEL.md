@@ -19,9 +19,18 @@ Normative references:
 | --- | --- |
 | TBV protocol, contracts, enforcement | [`babylonlabs-io/vault-contracts`](https://github.com/babylonlabs-io/vault-contracts), [`babylonlabs-io/btc-vault`](https://github.com/babylonlabs-io/btc-vault) |
 | Vault-secret and context-hash derivation | [`docs/specs/derive-vault-secrets.md`](../../docs/specs/derive-vault-secrets.md), [`docs/specs/derive-context-hash.md`](../../docs/specs/derive-context-hash.md) |
-| Repository threat analysis, attack matrix, severity rubric, vulnerability disclosure | [`SECURITY.md`](../../SECURITY.md) |
+| Repository-wide security model: adversaries A–G, per-file controls and their code pointers, the authoritative gap register, severity rubric, vulnerability disclosure | [`SECURITY.md`](../../SECURITY.md) |
 | Engineering rules on the critical paths | [`CLAUDE.md`](../../CLAUDE.md#critical-paths--human-review-required) |
 | Deployment parameters and feature flags | [`README.md`](README.md) |
+
+**Which of the two security documents to read.** Root [`SECURITY.md`](../../SECURITY.md) is the
+repository-wide model. It is longer than this file and goes deeper on the vault app's own code: its
+domain sections carry the per-file controls, code pointers, and test evidence, and it holds the
+single gap register for the whole repository. It is where you go to find *what the code does and
+where*. This file is the component model: what `services/vault` must protect, against whom, under
+which assumptions, and which invariants a change may not break. It is where you go to find *what
+must remain true*. Where the two overlap, root is authoritative on control detail and this file is
+authoritative on the component's invariants. Neither is a summary of the other.
 
 **Documentation gap.** There is no protocol-level specification that defines the depositor-side
 actor model as such. The actors below are therefore defined here, at the minimum detail needed to
@@ -53,7 +62,7 @@ component depends on them and must not be read as establishing them itself.
 
 | Imported guarantee | Established by |
 | --- | --- |
-| Transaction sizing and fee model; local PSBT construction; byte-frozen vault-secret derivation; validation and identity-pinning of vault-provider responses | `@babylonlabs-io/ts-sdk` (TBV) and `babylon-tbv-rust-wasm` |
+| Transaction sizing and fee model; local PSBT assembly and structural validation of vault-provider-proposed transactions; byte-frozen vault-secret derivation; validation and identity-pinning of vault-provider responses | `@babylonlabs-io/ts-sdk` (TBV) and `babylon-tbv-rust-wasm` |
 | The authoritative vault provider set, provider Bitcoin public keys, challenger verification keys, and protocol parameters | The vault registry contract on Ethereum |
 | Enforcement of every protocol rule that must actually hold | The vault contracts |
 | Key custody, and signing exactly the bytes handed to the wallet | The user's wallet |
@@ -126,8 +135,17 @@ this component. See [Non-claims](#non-claims-accepted-risks-and-known-deviations
    is independently re-derived, or asserted against a source other than the party that proposed it.
    Values originating from a counterparty, the indexer, browser storage, or interface state are
    never signed verbatim.
-2. **Every transaction the depositor signs is constructed locally**, from data sourced on-chain —
-   never accepted, whole or in part, from a counterparty.
+2. **The depositor never signs a counterparty-supplied PSBT.** The peg-in transaction is
+   constructed locally in full. The depositor-graph transactions are not: their skeletons
+   (Payout, Assert, NoPayout, ChallengeAssert) are proposed by the vault provider, because the
+   graph is a joint object the depositor cannot build alone. The property is therefore not that
+   the bytes originate locally, but that no proposed byte is signed until it has been checked
+   against a source other than the proposer. Every PSBT is assembled locally; each sighash-relevant
+   field is either re-derived — tapscript leaf and control block, prevout script and value, the
+   challenger set — or asserted against the protocol layout: input count and each input's parent
+   outpoint, output count, the payout destination script, the commission cap and anchor value for
+   the claimer's role, and a bound on the implicit fee. A skeleton that fails any of these is
+   refused rather than repaired.
 3. **The set of counterparties the depositor signs for is derived, not supplied.** A proposed set is
    accepted only when it matches the derived set exactly. Both directions are failures: signing for
    too few leaves recovery material missing, signing for too many hands signatures to keys the
@@ -146,9 +164,11 @@ this component. See [Non-claims](#non-claims-accepted-risks-and-known-deviations
    The application's own browser storage is such a boundary: it is user- and attacker-writable, and
    simultaneously holds the only copy of some unrecoverable in-flight state.
 9. **Counterparty identity is pinned to the chain**, not to a hostname, a transport, or a proxy.
-10. **The application offers no actionable surface while it cannot establish its own operating
-    parameters.** Uncertainty about network, chain, or contract set blocks action rather than
-    resolving to a default.
+10. **The application offers no actionable surface while it cannot establish a security-relevant
+    operating parameter.** This covers network, chain and contract set, and equally any parameter
+    whose absence silently disables a control rather than announcing itself — a missing endpoint
+    that turns a check into a no-op is an unestablished parameter, not a configured absence.
+    Uncertainty blocks action rather than resolving to a default.
 11. **The delivered page executes no code it did not ship**, and no interface path renders
     counterparty-supplied data as markup or script.
 
@@ -176,16 +196,18 @@ correctly and to introduce no path that bypasses them.
 
 ### Non-claims
 
-- **This component is not an enforcement boundary.** It is a static bundle running in a
-  user-controlled browser. Every check it performs — address screening, amount caps, kill-switches
-  — is advisory and defeated by anyone willing to edit their own JavaScript. Controls that must
-  actually hold belong in the contracts or in a server the user does not control. What these checks
-  protect against is user mistakes and a hostile counterparty, not a determined user.
-- **No protection against local compromise.** A hostile extension in the origin, or a wallet that
-  signs something other than what it was handed, defeats every property above.
+Four non-claims apply to this component but are not this component's to state, because they hold
+repository-wide. [`SECURITY.md` → _Scope and non-goals_](../../SECURITY.md#scope-and-non-goals) is
+authoritative for all four; they are named here only so a reader of this file knows they exist:
+**no enforcement boundary** (every client-side check is advisory), **no protection against local
+compromise**, **no user authentication**, and **deployment-layer controls a static bundle cannot
+establish** (HSTS, framing policy, TLS). If this file and root ever disagree on one of them, root
+is correct.
+
+Specific to this component:
+
 - **No availability or durability guarantee.** Clearing site data mid-flow can strand a deposit;
   this component holds the only copy of some resume state.
-- **No user authentication.** There are no accounts and no sessions.
 - **No claim about protocol correctness or economic outcomes**, including liquidation.
 - **No chain-privacy claim.** The model claims only that this component does not amplify linkage
   through telemetry.
@@ -193,21 +215,29 @@ correctly and to introduce no path that bypasses them.
 ### Accepted risks
 
 - A user bypassing advisory client-side checks on their own machine.
-- Operator configuration errors shipping as a release. Mitigated by review, not by any runtime
-  control, because configuration is baked in at build time.
-- Deployment-layer controls (HSTS, framing policy, TLS) that a static bundle cannot establish.
+- Operator configuration errors shipping as a release, where the error is a *valid but wrong*
+  value — a well-formed address for the wrong contract. No runtime control can catch this, because
+  configuration is baked in at build time and the application has nothing to check it against.
+  Mitigated by review only. This does **not** extend to a malformed or absent parameter that
+  silently disables a control; that is invariant 10's business and is tracked as a deviation below.
 
 ### Known deviations
 
-Invariants that are currently violated or incompletely enforced. Each needs a tracking issue before
-this document is merged.
+Invariants of this component that are currently violated or incompletely enforced.
 
-| # | Deviation | Invariant | Impact | Current mitigation | Issue |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Recovery-artifact bodies are validated only structurally, from the envelope prefix. A hostile provider can return a well-formed envelope wrapping a corrupt body; the client then records the artifacts as obtained and stops warning. | 8 | Loss of independent claim capability, discovered only at claim time. Treat as fund recovery, not robustness. | None client-side. Full validation is deferred until the backend supports streaming delivery. | *TBD* |
-| 2 | Address screening fails open when its endpoint is unset or malformed. | 10 | Compliance bypass. Bounded by the non-claim above: screening is advisory in any case. | Startup warning only. | *TBD* |
-| 3 | Egress is not constrained to known hosts, so exfiltration of derived secrets is prevented by discipline — field denylists, absence of HTML sinks — rather than by a runtime boundary. | 7 | Confidentiality of vault-secret material under an in-origin adversary. | Redaction contract in telemetry; no HTML sinks in source. | *TBD* |
-| 4 | The entry document itself is not integrity-protected by subresource hashing; only its assets are. | 11 | Origin write access remains the residual trust for the whole application. | Scoped deployment credentials; per-release hash manifests. | *TBD* |
+**There is one gap register for this repository, and it is not this table.**
+[`SECURITY.md` → _Attack scenarios matrix_](../../SECURITY.md#attack-scenarios-matrix) holds the
+authoritative entry for each gap below — scenario, adversary, impact, current mitigation, and
+remediation. This table exists only to answer the question root cannot: *which invariant of this
+component does each gap break?* It restates nothing else, deliberately, so that the two documents
+cannot drift into disagreeing about the same gap.
 
-Deviations 1–4 are stated at model level. Their implementation detail, adversary mapping, and test
-evidence live in [`SECURITY.md`](../../SECURITY.md) and are not repeated here.
+| # | Invariant broken | Gap | Authoritative entry (root matrix row) |
+| --- | --- | --- | --- |
+| 1 | 8 | Recovery-artifact bodies are validated structurally, from the envelope prefix only. A well-formed envelope may wrap a corrupt body, after which the client records the artifacts as obtained and stops warning — a failure surfacing at claim time. | `Artifacts` / adversary A |
+| 2 | 10 | Address screening fails open when its endpoint is unset or malformed. This is an operator-error deviation with a real fix (a production startup gate), **not** an instance of the advisory-checks non-claim: that non-claim covers a user editing their own bundle, whereas a typo'd `NEXT_PUBLIC_TBV_UTILS_API` ships screening disabled for everyone, with no user-visible signal. | `Screening` / adversary G |
+| 3 | 7 | Egress is not constrained to known hosts, so exfiltration of derived secrets is prevented by discipline — telemetry field denylists, absence of HTML sinks — rather than by a runtime boundary. | `CSP` / adversary D |
+| 4 | 11 | The entry document is not integrity-protected by subresource hashing; only its assets are. Origin write access remains the residual trust for the whole application. | `Delivery` / adversary D |
+
+When a gap in root's matrix is closed, the corresponding row here is deleted. When a new gap is
+found in this component, it is added to root's matrix first and mapped here second.
