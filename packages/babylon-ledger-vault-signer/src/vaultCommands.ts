@@ -4,7 +4,7 @@
  * falls through to the base app. Framing verified against Ledger's reference
  * client (`tests/vault_client.py`).
  *
- * @module wallets/btc/ledger-vault/vaultCommands
+ * @module ledger-vault-signer/vaultCommands
  */
 
 import {

@@ -5,9 +5,9 @@
  * and a dead session, so we fail comprehensibly BEFORE the ceremony.
  *
  * These are device-envelope limits only — none exist on-chain or in
- * btc-vault. They live in this adapter; the SDK must never learn them.
+ * btc-vault. They live in this signer package; the SDK must never learn them.
  *
- * @module wallets/btc/ledger-vault/deviceCaps
+ * @module ledger-vault-signer/deviceCaps
  */
 
 /**

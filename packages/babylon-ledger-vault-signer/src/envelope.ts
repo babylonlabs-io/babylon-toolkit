@@ -4,7 +4,7 @@
  * provider obligation `DepositTermsApprover` documents; lives here and
  * nowhere else (the SDK is vendor-neutral).
  *
- * @module wallets/btc/ledger-vault/envelope
+ * @module ledger-vault-signer/envelope
  */
 
 import {

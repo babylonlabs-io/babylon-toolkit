@@ -5,7 +5,7 @@
  * `display = 0` is silent for allowlisted BIP-86 paths. The taproot ADDRESS
  * is never read from the device — the provider derives it locally.
  *
- * @module wallets/btc/ledger-vault/derivation
+ * @module ledger-vault-signer/derivation
  */
 
 import { HDKey } from "@scure/bip32";
@@ -60,7 +60,13 @@ export async function getXOnlyPublicKeyHex(
   if (!node.publicKey || node.publicKey.length !== COMPRESSED_PUBKEY_BYTES) {
     throw new Error(`Ledger returned an extended key without a ${COMPRESSED_PUBKEY_BYTES}-byte public key`);
   }
-  return Buffer.from(node.publicKey.subarray(1)).toString("hex");
+  return toHex(node.publicKey.subarray(1));
+}
+
+// No implicit Node globals in this package (no Buffer): wallet-connector's
+// vite node-polyfills would inject a shim the standalone dist cannot resolve.
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** `display(1) ‖ n(1) ‖ n×u32BE` — the GET_EXTENDED_PUBKEY payload. */

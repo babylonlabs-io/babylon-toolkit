@@ -1,22 +1,32 @@
+import {
+  approveVaultIntent,
+  assertDepositTermsDeviceCompatible,
+  connectDmkSession,
+  createDmkApduSender,
+  DepositTermsRejectedError,
+  deriveContextHash,
+  disconnectDmkSession,
+  encodeIntentGroup,
+  encodeIntentScalars,
+  encodeKeyBatches,
+  getXOnlyPublicKeyHex,
+  isLedgerDeviceError,
+  isLedgerDeviceLockedError,
+  isLedgerUserRefusedError,
+  isSessionAlive,
+  type ApduSender,
+  type DepositTerms,
+  type DmkSessionHandle,
+  type IntentScalars,
+  type IntentVaultGroup,
+} from "@babylonlabs-io/ledger-vault-signer";
+
 import type { IBTCProvider, InscriptionIdentifier } from "@/core/types";
 import { Network } from "@/core/types";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
-import { getXOnlyPublicKeyHex } from "./derivation";
-import { createDmkApduSender } from "./dmkApduSender";
-import { connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
-import { assertDepositTermsDeviceCompatible } from "./envelope";
-import {
-  encodeIntentGroup,
-  encodeIntentScalars,
-  encodeKeyBatches,
-  type IntentScalars,
-  type IntentVaultGroup,
-} from "./intentTlv";
 import logo from "./logo.svg";
-import { DepositTermsRejectedError, type DepositTerms } from "./types";
-import { approveVaultIntent, deriveContextHash, type ApduSender } from "./vaultCommands";
 
 export const WALLET_PROVIDER_NAME = "Ledger Vault";
 
@@ -65,6 +75,27 @@ export class LedgerVaultProvider implements IBTCProvider {
    * this one device read.
    */
   private pubkeyHexPromise: Promise<string> | undefined;
+  /**
+   * In-flight connect, so two overlapping `connectWallet()` calls (a
+   * double-click) share one session instead of opening — and leaking — a
+   * second HID connection.
+   */
+  private connectPromise: Promise<void> | undefined;
+  /**
+   * Bumped on every session teardown and every successful connect. A ceremony
+   * captures it before its device await and refuses to commit host state if
+   * the connection changed underneath it (disconnect/reconnect racing a late
+   * APDU resolution).
+   */
+  private connectionGeneration = 0;
+  /**
+   * Bumped ONLY by the public {@link disconnect} — a user cancellation. An
+   * in-flight connect captures it and aborts if it changes, so a disconnect
+   * racing the connect can't leave a live session behind a disconnected
+   * wallet. Distinct from {@link connectionGeneration}, which the provider's
+   * own dead-session cleanup also bumps (that is not a cancellation).
+   */
+  private disconnectToken = 0;
 
   constructor(private readonly network: Network = Network.MAINNET) {}
 
@@ -118,17 +149,45 @@ export class LedgerVaultProvider implements IBTCProvider {
    * secure context, and its picker fails silently otherwise.
    */
   connectWallet = async (): Promise<void> => {
+    if (!this.connectPromise) {
+      const attempt = this.doConnect().finally(() => {
+        if (this.connectPromise === attempt) this.connectPromise = undefined;
+      });
+      this.connectPromise = attempt;
+    }
+    return this.connectPromise;
+  };
+
+  private doConnect = async (): Promise<void> => {
+    // Capture the cancellation token before any await. A disconnect racing any
+    // of the awaits below bumps it, and we abort — never installing a live
+    // session behind a wallet the caller has disconnected.
+    const token = this.disconnectToken;
+
     // Idempotent while the session lives: visibility checks re-call this
     // outside a user gesture, where WebHID's requestDevice rejects — tearing
     // down a healthy session would turn an alt-tab into a forced disconnect.
     if (this.session && (await isSessionAlive(this.session))) return;
+    // A disconnect during the probe means the caller no longer wants a
+    // session — skip opening one at all.
+    if (token !== this.disconnectToken) return;
 
-    // Release the dead session first — a stale sessionId can never be revived.
-    if (this.session) await this.disconnect();
+    // Release a dead session first — a stale sessionId can never be revived.
+    // This bumps connectionGeneration (not the token — it is our own cleanup).
+    if (this.session) await this.teardownSession();
 
     try {
-      this.session = await connectDmkSession();
-      this.send = createDmkApduSender(this.session);
+      const session = await connectDmkSession();
+      // A disconnect racing any await up to here (the probe, teardown, or this
+      // connect) bumped the token — tear the fresh session down rather than
+      // installing it behind a disconnected wallet.
+      if (token !== this.disconnectToken) {
+        await disconnectDmkSession(session);
+        return;
+      }
+      this.session = session;
+      this.send = withWalletErrorMapping(createDmkApduSender(session));
+      this.connectionGeneration += 1;
     } catch (error) {
       // DMK errors don't extend Error — classify on `_tag`/`originalError`.
       // A dismissed WebHID picker becomes NoAccessibleDeviceError("No selected
@@ -151,12 +210,27 @@ export class LedgerVaultProvider implements IBTCProvider {
    * a rebuilt singleton registers a duplicate listener pair.
    */
   disconnect = async (): Promise<void> => {
-    if (this.session) await disconnectDmkSession(this.session);
+    // A user cancellation: signal any in-flight connect before tearing down.
+    this.disconnectToken += 1;
+    await this.teardownSession();
+  };
+
+  /**
+   * Clear host state and release the transport. State is invalidated
+   * SYNCHRONOUSLY — before awaiting transport teardown — so a racing connect
+   * or ceremony sees the disconnection immediately and never targets the
+   * session being torn down. Used by both {@link disconnect} and doConnect's
+   * dead-session cleanup; only the former is a user cancellation.
+   */
+  private teardownSession = async (): Promise<void> => {
+    const session = this.session;
     this.session = undefined;
     this.send = undefined;
+    this.connectionGeneration += 1;
     // Next connect may be a different device: reset state and the pubkey cache.
     this.deviceState = { phase: "idle" };
     this.pubkeyHexPromise = undefined;
+    if (session) await disconnectDmkSession(session);
   };
 
   /**
@@ -208,11 +282,13 @@ export class LedgerVaultProvider implements IBTCProvider {
     // the call so host and device stay in lockstep if it fails partway.
     this.deviceState = { phase: "idle" };
 
+    const generation = this.connectionGeneration;
     const root = await deriveContextHash(this.requireSender(), {
       appName,
       derivationPath: this.depositorPath,
       context: Uint8Array.from(Buffer.from(context, "hex")),
     });
+    this.assertSameConnection(generation);
     this.deviceState = { phase: "derived" };
     return Buffer.from(root).toString("hex");
   };
@@ -225,6 +301,10 @@ export class LedgerVaultProvider implements IBTCProvider {
   approveDepositTerms = async (terms: DepositTerms): Promise<void> => {
     assertDepositTermsDeviceCompatible(terms);
 
+    // Capture BEFORE the first await so a disconnect/reconnect during any of
+    // the awaits below (liveness, pubkey read, the ceremony) is caught before
+    // the stale sender is used or host state is committed.
+    const generation = this.connectionGeneration;
     const send = this.requireSender();
     // Fail actionably now rather than with an opaque status word mid-ceremony.
     if (!(await isSessionAlive(this.requireSession()))) {
@@ -234,6 +314,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+    this.assertSameConnection(generation);
     const scalars: IntentScalars = {
       coinType: COIN_TYPE_BY_NETWORK[this.network],
       baseFeeRate: terms.protocolFeeRate,
@@ -247,6 +328,23 @@ export class LedgerVaultProvider implements IBTCProvider {
       vaultCount: terms.vaults.length,
       prepeginMaxFee: terms.prepeginMaxFee,
     };
+
+    // The device rejects any roster/VP key equal to the depositor's own key,
+    // but only after the whole ceremony (approve_vault_intent_core.h). Pre-empt
+    // it with the cached pubkey so it fails as a shaped rejection before I/O.
+    const depositorKey = canonicalPubkey(await this.getDevicePubkeyHex());
+    this.assertSameConnection(generation);
+    const clashes = (k: string) => canonicalPubkey(k) === depositorKey;
+    if (
+      terms.vaults.some((v) => clashes(v.vaultProviderBtcPubkey)) ||
+      terms.vaultKeeperBtcPubkeys.some(clashes) ||
+      terms.universalChallengerBtcPubkeys.some(clashes)
+    ) {
+      throw new DepositTermsRejectedError(
+        `A vault provider, keeper, or challenger key equals the depositor's own ` +
+          `key; the device requires them to be disjoint.`,
+      );
+    }
 
     const groups: IntentVaultGroup[] = terms.vaults.map((vault) => ({
       htlcVout: vault.htlcVout,
@@ -297,8 +395,24 @@ export class LedgerVaultProvider implements IBTCProvider {
     // the call so every error path stays in lockstep with the device.
     this.deviceState = { phase: "idle" };
     await approveVaultIntent(send, intent);
+    this.assertSameConnection(generation);
     this.deviceState = { phase: "intent-loaded", termsKey: key };
   };
+
+  /**
+   * Refuse to commit host state if the connection changed during a device
+   * await — a disconnect/reconnect racing a late APDU resolution would
+   * otherwise land stale state on the new connection.
+   */
+  private assertSameConnection(generation: number): void {
+    if (generation !== this.connectionGeneration) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        message: `${WALLET_PROVIDER_NAME} connection changed during the ceremony; restart from derivation.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+  }
 
   // TODO(#2219): implement via the SIGN_PSBT host protocol; signPsbts becomes
   // a sequential loop. The input is named in the error so logs identify the caller.
@@ -324,6 +438,53 @@ export class LedgerVaultProvider implements IBTCProvider {
   getWalletProviderName = async (): Promise<string> => WALLET_PROVIDER_NAME;
 
   getWalletProviderIcon = async (): Promise<string> => logo;
+}
+
+/**
+ * Map the signer package's typed device outcomes onto the connector's
+ * WalletError taxonomy; the messages (with their "User rejected" prefix)
+ * pass through unchanged. Anything unrecognised propagates untouched.
+ */
+function withWalletErrorMapping(send: ApduSender): ApduSender {
+  return async (apdu) => {
+    try {
+      return await send(apdu);
+    } catch (error) {
+      if (isLedgerUserRefusedError(error)) {
+        throw new WalletError(
+          { code: ERROR_CODES.CONNECTION_REJECTED, message: error.message, wallet: WALLET_PROVIDER_NAME },
+          { cause: error },
+        );
+      }
+      if (isLedgerDeviceLockedError(error)) {
+        throw new WalletError(
+          { code: ERROR_CODES.CONNECTION_FAILED, message: error.message, wallet: WALLET_PROVIDER_NAME },
+          { cause: error },
+        );
+      }
+      if (isLedgerDeviceError(error)) {
+        throw new WalletError(
+          { code: ERROR_CODES.UNKNOWN_ERROR, message: error.message, wallet: WALLET_PROVIDER_NAME },
+          { cause: error },
+        );
+      }
+      // DMK transport/session errors do not extend Error (plain {_tag,
+      // originalError}); without this a mid-ceremony unplug propagates as a
+      // raw object — instanceof Error misses, String(err) is "[object Object]".
+      const dmk = error as { _tag?: string; originalError?: { message?: string } } | undefined;
+      if (dmk?._tag) {
+        throw new WalletError(
+          {
+            code: ERROR_CODES.CONNECTION_FAILED,
+            message: dmk.originalError?.message ?? dmk._tag,
+            wallet: WALLET_PROVIDER_NAME,
+          },
+          { cause: error as Error },
+        );
+      }
+      throw error;
+    }
+  };
 }
 
 /**
@@ -357,6 +518,11 @@ function displayTxidToInternal(txidHex: string): Uint8Array {
     throw new DepositTermsRejectedError(`prepeginTxid must be 64 hex chars, got "${txidHex}"`);
   }
   return Uint8Array.from(Buffer.from(clean, "hex")).reverse();
+}
+
+/** Strip 0x and lowercase, for comparing x-only keys by value. */
+function canonicalPubkey(hex: string): string {
+  return hex.replace(/^0x/, "").toLowerCase();
 }
 
 function hexToXOnly(hex: string, label: string): Uint8Array {

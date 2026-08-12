@@ -5,12 +5,11 @@
  * logs header + status word per exchange — never payload bytes (pubkeys,
  * context preimage).
  *
- * @module wallets/btc/ledger-vault/dmkApduSender
+ * @module ledger-vault-signer/dmkApduSender
  */
 
-import { ERROR_CODES, WalletError } from "@/error";
-
 import type { DmkSessionHandle } from "./dmkSession";
+import { LedgerDeviceError, LedgerDeviceLockedError, LedgerUserRefusedError } from "./errors";
 import type { ApduSender } from "./vaultCommands";
 
 const SW_OK = 0x9000;
@@ -117,20 +116,13 @@ export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
       console.debug(`[ledger-vault] APDU ${header} -> sw=0x${hex4(sw)} len=${response.data.length}`);
     }
 
-    // A decline is a user action, not a failure. The message starts "User
-    // rejected" so the app still classifies it if a wrapper drops the code.
-    // No `wallet` field — provider.ts imports this module (import cycle).
+    // A decline is a user action, not a failure. The typed errors carry the
+    // status word; the consuming adapter maps them onto its own taxonomy.
     if (SW_USER_REFUSED.has(sw)) {
-      throw new WalletError({
-        code: ERROR_CODES.CONNECTION_REJECTED,
-        message: `User rejected the request on the Ledger device (0x${hex4(sw)})`,
-      });
+      throw new LedgerUserRefusedError(sw);
     }
     if (SW_DEVICE_LOCKED.has(sw)) {
-      throw new WalletError({
-        code: ERROR_CODES.CONNECTION_FAILED,
-        message: `The Ledger device is locked — unlock it and retry (0x${hex4(sw)})`,
-      });
+      throw new LedgerDeviceLockedError(sw);
     }
     if (sw !== SW_OK) {
       const known = STATUS_WORDS[sw];
@@ -140,14 +132,11 @@ export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
         sw === SW_CLA_NOT_SUPPORTED && handle.appName
           ? ` (app at connect time: "${handle.appName}"${handle.appVersion ? ` v${handle.appVersion}` : ""})`
           : "";
-      // Typed like the sibling branches so downstream `code` switches see it;
-      // UNKNOWN_ERROR is the package's designated fallback code.
-      throw new WalletError({
-        code: ERROR_CODES.UNKNOWN_ERROR,
-        message:
-          `${known ?? "The device rejected the request"} ` +
+      throw new LedgerDeviceError(
+        sw,
+        `${known ?? "The device rejected the request"} ` +
           `(ins 0x${hex2(apdu.ins)} p1 0x${hex2(apdu.p1)}, sw 0x${hex4(sw)})${appHint}`,
-      });
+      );
     }
     return response.data;
   };

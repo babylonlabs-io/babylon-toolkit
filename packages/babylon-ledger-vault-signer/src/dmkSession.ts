@@ -3,7 +3,7 @@
  * Promise API, so everything above this file is device-free and testable.
  * Verified against the installed DMK 1.7.1 types, not the published docs.
  *
- * @module wallets/btc/ledger-vault/dmkSession
+ * @module ledger-vault-signer/dmkSession
  */
 
 import type { DeviceManagementKit, DeviceSessionId, DiscoveredDevice } from "@ledgerhq/device-management-kit";

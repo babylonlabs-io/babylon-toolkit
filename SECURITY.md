@@ -104,7 +104,7 @@ rubric below.
     (`services/vault/index.html`, `services/vault/src/build/sriPlugin.ts`)
   - Install policy: frozen lockfile, store integrity verification, `minimumReleaseAge`, and the
     `onlyBuiltDependencies` allowlist (`.npmrc`, `pnpm-workspace.yaml`)
-- **High-risk areas (extra review):** the seven critical-path groups enumerated in
+- **High-risk areas (extra review):** the eight critical-path groups enumerated in
   [CLAUDE.md → CRITICAL PATHS](CLAUDE.md#critical-paths--human-review-required) and mirrored in
   [`.github/CODEOWNERS`](.github/CODEOWNERS), plus:
   - `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/` — the whole untrusted-counterparty
@@ -259,6 +259,15 @@ Two further invariants, both asymmetric in their failure mode:
 Signatures produced are verified against the expected sighash
 (`primitives/psbt/verifyScriptPathSchnorrSignature.ts`) rather than trusted because the wallet
 returned success.
+
+### The Ledger vault signer package
+
+`packages/babylon-ledger-vault-signer/src/` is the host-side client for the Ledger vault app: APDU
+framing, the intent-ceremony TLV encoder the depositor physically approves, the device envelope
+gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. A wrong encoding here puts wrong terms
+in front of a hardware signer with a trusted screen — the user approves what we built, so building
+it wrong defeats the device. Encodings cite firmware/reference-client sources and carry
+golden-vector tests; payload bytes are never logged.
 
 ### Non-standard wallet signing flags
 

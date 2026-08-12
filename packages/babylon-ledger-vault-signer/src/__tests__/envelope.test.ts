@@ -231,6 +231,19 @@ describe("assertDepositTermsDeviceCompatible", () => {
     ).not.toThrow();
   });
 
+  it("accepts timelockRefund at both device bounds and rejects one block past each", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 72 }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 4320 }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 71 }))).toThrow(/timelockRefund/);
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 4321 }))).toThrow(/timelockRefund/);
+  });
+
+  it("rejects a protocolFeeRate above the device u32 ceiling", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 0x1_0000_0000n }))).toThrow(
+      /protocolFeeRate/,
+    );
+  });
+
   it("rejects a commission or claim value below the device dust floor", () => {
     const vault = makeTerms().vaults[0];
     expect(() =>
