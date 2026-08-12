@@ -25,7 +25,7 @@
 
 ---
 
-# @babylonlabs-io/ts-sdk v0.1.2
+# @babylonlabs-io/ts-sdk
 
 ## Modules
 
