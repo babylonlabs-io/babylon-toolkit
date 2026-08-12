@@ -34,6 +34,29 @@ type Call = {
 };
 
 /**
+ * Reject a multicall result that is not one-per-call.
+ *
+ * Every method here relies on positional alignment between calls and results,
+ * so a short array does not fail — it silently hands back `undefined` for the
+ * tail entries. Downstream that surfaces as a complaint about whichever
+ * operator happens to occupy the missing slot, blaming a participant that is
+ * perfectly fine for a read that came back incomplete. Assert the length where
+ * the array arrives so the error names the real fault.
+ */
+function assertMulticallLength(
+  actual: number,
+  expected: number,
+  label: string,
+): void {
+  if (actual !== expected) {
+    throw new Error(
+      `${label}: multicall returned ${actual} results for ${expected} calls, ` +
+        `so the results are not roster-aligned; refusing to use them`,
+    );
+  }
+}
+
+/**
  * Split a flat multicall result into VP / keepers / challengers.
  *
  * Every method below builds its calls in the same order — vault provider
@@ -75,11 +98,22 @@ export class ViemOperationKeyReader implements OperationKeyReader {
    * otherwise produce a mixed-epoch key set and a lock no counterparty agrees
    * with.
    */
-  private async readAll<T>(calls: Call[], keeperCount: number) {
+  private async readAll<T>(
+    calls: Call[],
+    keeperCount: number,
+    challengerCount: number,
+    label: string,
+  ) {
     const results = (await this.publicClient.multicall({
       contracts: calls,
       allowFailure: false,
     })) as readonly T[];
+
+    assertMulticallLength(
+      results.length,
+      1 + keeperCount + challengerCount,
+      label,
+    );
 
     return partition(results, keeperCount);
   }
@@ -108,7 +142,12 @@ export class ViemOperationKeyReader implements OperationKeyReader {
       })),
     ];
 
-    return this.readAll<Hex>(calls, query.vaultKeepers.length);
+    return this.readAll<Hex>(
+      calls,
+      query.vaultKeepers.length,
+      query.universalChallengers.length,
+      "getCurrentOperationKeys",
+    );
   }
 
   async getOperationKeysAtEpochs(
@@ -149,7 +188,12 @@ export class ViemOperationKeyReader implements OperationKeyReader {
       })),
     ];
 
-    return this.readAll<Hex>(calls, query.vaultKeepers.length);
+    return this.readAll<Hex>(
+      calls,
+      query.vaultKeepers.length,
+      query.universalChallengers.length,
+      "getOperationKeysAtEpochs",
+    );
   }
 
   async getPayoutScriptsAtEpochs(
@@ -179,6 +223,14 @@ export class ViemOperationKeyReader implements OperationKeyReader {
       ],
       allowFailure: false,
     })) as readonly Hex[];
+
+    // Expected length is `1 + keepers`, with no challenger term — see the
+    // comment above on why universal challengers have no call here.
+    assertMulticallLength(
+      results.length,
+      1 + query.vaultKeepers.length,
+      "getPayoutScriptsAtEpochs",
+    );
 
     return {
       vaultProvider: results[0],
