@@ -522,7 +522,8 @@ function matchesAnyScript(script: Buffer, acceptedHexes: string[]): boolean {
 /**
  * Validate a payout transaction's output structure for the claimer's role,
  * keyed on `claimerBtcPubkey`. Pins per role: `outs.length`, `outs[0].script`,
- * `outs[last].value` (anchor dust), and (VP-claimer) `outs[1].value` capped at
+ * `outs[last].value` (anchor dust), and — for the VP-claimer —
+ * `outs[1].script` plus `outs[1].value`, capped at
  * `floor(peginValue × commissionBps / 10_000)`. Canonical layouts: VP-claimer
  * = [payout, commission, anchor]; depositor/VK-claimer = [payout, anchor].
  *
@@ -531,17 +532,26 @@ function matchesAnyScript(script: Buffer, acceptedHexes: string[]): boolean {
  *
  * `outs[1].script` (the VP commission) was unpinned for the same reason.
  * RFC-006 supersedes that rationale: the commission destination is now an
- * operator-registered scriptPubKey we can resolve independently at the vault's
- * frozen `vpKeyEpoch`, so when `vpCommissionScriptPubKey` is supplied it is
- * pinned too. The value cap stays — it is still what bounds exposure — and the
- * script pin is added precision, not a replacement for it.
+ * operator-registered scriptPubKey we resolve independently at the vault's
+ * frozen `vpKeyEpoch`, so it is pinned too — `vpCommissionScriptPubKey` is a
+ * required parameter, so there is no unpinned case. The value cap stays — it is
+ * still what bounds exposure — and the script pin is added precision, not a
+ * replacement for it.
+ *
+ * What counts as a match differs by output.
+ * {@link acceptedPayoutScriptHexes} accepts two candidates — the registered
+ * scriptPubKey and the BIP-86 derivation over the bonded key, the latter as a
+ * transitional allowance — and backs the VK-claimer's `outs[0]` and the VP
+ * commission `outs[1]`. The VP-claimer and depositor-as-claimer `outs[0]` is
+ * pinned to the registered payout script alone.
  *
  * Returns the layout-trusted non-anchor script lengths for the fee band:
- * `out0Len` from the pinned outs[0] script (registered payout script, or
- * derived BIP-86 for the VK-claimer role — see #2150 Stage 6 for the pending
- * registered-script switch); `out1Len` measured from the deliberately
- * unpinned VP-claimer commission output, `undefined` for the other roles.
- * Both are rejected outside the contract's registration cap `[1, 128]`.
+ * `out0Len` from the pinned `outs[0]` script, and `out1Len` from the pinned
+ * VP-claimer commission output, `undefined` for the other roles. Only
+ * `out0Len` is range-checked, against the contract's registration cap
+ * `[1, MAX_PAYOUT_SCRIPT_LEN]`; `outs[1]` carries no length cap of its own
+ * because `assertStandardPayoutScript` already bounds it to a standard output
+ * type, which makes the cap unreachable.
  *
  * @internal Helper invoked by {@link buildPayoutPsbt}.
  */
