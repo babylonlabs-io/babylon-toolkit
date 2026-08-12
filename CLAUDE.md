@@ -93,6 +93,25 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Uses `useTweakedSigner: false` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
 - **Rule:** Validate every signature produced with these flags against the expected sighash before treating the PSBT as signed. Do not rely on the wallet returning success.
 
+### 8. Dependency-free reimplementations of Bitcoin primitives
+
+These paths are registered ahead of the code arriving (see #2228 / #2229). Separating the Ethereum-only
+paths from the Bitcoin stack means some primitives get reimplemented without `bitcoinjs-lib`,
+`tiny-secp256k1` or the WASM engine. Each one is small, and each one fails silently: the code compiles,
+the tests pass, and a wrong address or a wrong on-chain identifier ships.
+
+- Files (arriving with the optional-BTC work):
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — transaction-id parsing and vault-id derivation, replacing the bitcoinjs and WASM implementations
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — Ethereum-side registration extracted from `PeginManager`
+  - `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now crosses
+  - `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts` — the restructured engine entry surface (the `@stability frozen` rules in section 1 still apply)
+  - `services/vault/src/utils/btc/scriptPubKeyAddress.ts` — hand-written bech32, bech32m and base58check encoding
+- **Rule:** A reimplementation may not land without a differential test asserting byte-for-byte equality
+  against the implementation it replaces, over the existing golden vectors **plus** randomised inputs. A
+  single hardcoded vector is not sufficient — it pins one input, not the function. If the original is
+  being deleted in the same change, the differential must run against it before deletion, and the vectors
+  it produced must be committed as fixtures.
+
 ---
 
 ## ZERO DEAD CODE POLICY

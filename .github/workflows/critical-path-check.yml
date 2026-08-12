@@ -39,6 +39,14 @@ jobs:
             "services/vault/src/services/vault/vaultActivationService.ts"
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/wasm/"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader.ts"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw-node.ts"
+            "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
           )
 
           git fetch origin main || true
