@@ -314,6 +314,25 @@ export async function runWithdrawFlow(
     );
     if (!all) break;
 
+    // The success screen MUST be gone before the next pass looks at the rows. The withdraw flow is an
+    // overlay and never changes the URL, so `goToSection` below is a no-op here and synchronises
+    // nothing; /vaults stays mounted underneath it. Scanning too early reads those covered rows — and a
+    // covered button still reports `isEnabled()`, so the scan would hand back a vaultId whose click then
+    // hangs to timeout on a pointer intercept, far from the real cause. `confirmWithdrawSuccess`
+    // deliberately tolerates a failed Done click (success is already proven by the initiated screen, so
+    // a missed click must not fail an otherwise-good withdrawal), which is exactly how the overlay can
+    // still be up at this point — so wait it out here and fail with the real reason if it never closes.
+    const overlayClosed = await page
+      .locator(WITHDRAW_DONE_TESTID)
+      .first()
+      .waitFor({ state: "hidden", timeout: STEP_TIMEOUT_MS })
+      .then(() => true)
+      .catch(() => false);
+    if (!overlayClosed)
+      throw new Error(
+        `The withdraw success screen stayed open for ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s after releasing vault ${shortenVaultId(vaultId)} — its Done button did not dismiss it, so the remaining vaults can't be reached. ${released.size} vault(s) were released; re-run to continue.`,
+      );
+
     // Another pass only if a withdrawable row remains. The just-released vault leaves the active list,
     // so this settles at "nothing left to release" rather than needing a count decided up front.
     await goToSection(page, "vaults", log);
