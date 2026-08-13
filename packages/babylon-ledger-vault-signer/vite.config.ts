@@ -21,7 +21,14 @@ export default defineConfig({
       formats: ["es", "cjs"],
     },
     rollupOptions: {
-      external: ["@ledgerhq/device-management-kit", "@ledgerhq/device-transport-kit-web-hid", "@scure/bip32", "rxjs"],
+      external: [
+        "@ledgerhq/device-management-kit",
+        "@ledgerhq/device-transport-kit-web-hid",
+        "@scure/bip32",
+        "bitcoinjs-lib",
+        "buffer",
+        "rxjs",
+      ],
       output: {
         sourcemapExcludeSources: false,
       },
