@@ -1,5 +1,5 @@
 .bbn-btn {
-  @apply rounded-md tracking-0.4 transition-all duration-200;
+  @apply rounded-full tracking-0.4 transition-all duration-200;
 
   &-fluid {
     @apply w-full;
@@ -7,11 +7,11 @@
 
   &-contained {
     &.bbn-btn-primary {
-      @apply text-accent-contrast bg-primary-light hover:brightness-110 disabled:bg-primary-light/30;
+      @apply text-accent-contrast bg-error-main hover:brightness-110 disabled:bg-error-main/30;
     }
 
     &.bbn-btn-secondary {
-      @apply text-accent-contrast bg-secondary-main hover:brightness-110 disabled:opacity-30;
+      @apply text-accent-contrast bg-success-main hover:brightness-110 disabled:opacity-30;
     }
   }
 
