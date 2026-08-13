@@ -74,6 +74,15 @@ describe("getXOnlyPublicKeyHex", () => {
     await expect(getXOnlyPublicKeyHex(send, MAINNET_LEAF_PATH, TESTNET_VERSIONS)).resolves.toBe(BIP86_FIRST_XONLY);
   });
 
+  it.each([0, 11])("rejects a %d-level path before any device I/O", async (levels) => {
+    // The base app rejects paths past MAX_BIP32_PATH_STEPS with a bare status
+    // word; bounding here also keeps the 1-byte length field from truncating.
+    const { send, sent } = fakeSender(asciiXpubAtLeaf(MAINNET_VERSIONS));
+
+    await expect(getXOnlyPublicKeyHex(send, Array(levels).fill(0), MAINNET_VERSIONS)).rejects.toThrow(/1\.\.10 levels/);
+    expect(sent).toHaveLength(0);
+  });
+
   it("rejects a malformed device response rather than deriving from it", async () => {
     const { send } = fakeSender(new TextEncoder().encode("not-an-extended-key"));
 

@@ -25,6 +25,15 @@ const VP = "f".repeat(64);
 const keys = (n: number, offset = 0) =>
   Array.from({ length: n }, (_, i) => (i + offset).toString(16).padStart(2, "0").repeat(32));
 
+const BASE_VAULT = {
+  htlcVout: 0,
+  vaultProviderBtcPubkey: VP,
+  peginAmount: 1_000_000n,
+  commissionFee: 10_000n,
+  depositorClaimValue: 20_000n,
+  peginMaxFee: 800n,
+};
+
 function makeTerms(over: Partial<DepositTerms> = {}): DepositTerms {
   return {
     vaultCoreVersion: 2,
@@ -36,16 +45,7 @@ function makeTerms(over: Partial<DepositTerms> = {}): DepositTerms {
     prepeginMaxFee: 1500n,
     vaultKeeperBtcPubkeys: [KEEPER_KEY],
     universalChallengerBtcPubkeys: [CHALLENGER_KEY],
-    vaults: [
-      {
-        htlcVout: 0,
-        vaultProviderBtcPubkey: VP,
-        peginAmount: 1_000_000n,
-        commissionFee: 10_000n,
-        depositorClaimValue: 20_000n,
-        peginMaxFee: 800n,
-      },
-    ],
+    vaults: [{ ...BASE_VAULT }],
     ...over,
   };
 }
@@ -66,11 +66,15 @@ describe("assertDepositTermsDeviceCompatible", () => {
     }
   });
 
-  it("refuses tx-graph v1 before any device I/O", () => {
-    // The intent would LOAD on-device and only fail at PSBT time, i.e. after
-    // the depositor has physically approved.
+  it("refuses any tx-graph version but v2 before any device I/O", () => {
+    // The intent TLV carries no version field, so a mismatched graph (v1 or a
+    // future v3) LOADS on-device and only fails at PSBT time, i.e. after the
+    // depositor has physically approved. Exact match, not a floor.
     expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion: 1 }))).toThrow(
-      /vaultCoreVersion 1 is below 2/,
+      /vaultCoreVersion 1 is not 2/,
+    );
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion: 3 }))).toThrow(
+      /vaultCoreVersion 3 is not 2/,
     );
   });
 
@@ -89,7 +93,10 @@ describe("assertDepositTermsDeviceCompatible", () => {
     );
   });
 
-  it("accepts the payout timelock at both inclusive bounds", () => {
+  it("accepts the coupled timelock band at both inclusive bounds", () => {
+    // Both timelocks carry the SAME on-chain value, so the band is the
+    // intersection [91, 1008] — not the payout range [91, 4031], which the
+    // dedicated payout test below covers at its own upper bound.
     for (const t of [DEVICE_PAYOUT_TIMELOCK_MIN_BLOCKS, DEVICE_PEGIN_CSV_TIMELOCK_MAX_BLOCKS]) {
       expect(() =>
         assertDepositTermsDeviceCompatible(makeTerms({ timelockPegin: t, timelockAssert: t })),
@@ -190,6 +197,51 @@ describe("assertDepositTermsDeviceCompatible", () => {
   it("rejects a zero fee rate and a zero prepegin max fee", () => {
     expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 0n }))).toThrow(/protocolFeeRate/);
     expect(() => assertDepositTermsDeviceCompatible(makeTerms({ prepeginMaxFee: 0n }))).toThrow(/prepeginMaxFee/);
+  });
+
+  it.each([
+    ["prepeginMaxFee", { prepeginMaxFee: 1n << 64n }],
+    ["peginAmount", { vaults: [{ ...BASE_VAULT, peginAmount: 1n << 64n }] }],
+    ["commissionFee", { vaults: [{ ...BASE_VAULT, commissionFee: 1n << 64n }] }],
+    ["depositorClaimValue", { vaults: [{ ...BASE_VAULT, depositorClaimValue: 1n << 64n }] }],
+    ["peginMaxFee", { vaults: [{ ...BASE_VAULT, peginMaxFee: 1n << 64n }] }],
+  ])("rejects an oversized %s with the seam's shape, not a raw encoder Error", (_field, overrides) => {
+    // The wire is u64; without this gate the value reaches the TLV encoder
+    // mid-ceremony and throws a plain Error the SDK cannot map.
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms(overrides as Parameters<typeof makeTerms>[0]))).toThrow(
+      /does not fit in an unsigned 64-bit field/,
+    );
+  });
+
+  it("rejects a negative prepeginMaxFee as a u64 violation, not a floor violation", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ prepeginMaxFee: -1n }))).toThrow(
+      /does not fit in an unsigned 64-bit field/,
+    );
+  });
+
+  it("rejects a negative peginMaxFee with the seam's shape", () => {
+    expect(() =>
+      assertDepositTermsDeviceCompatible(makeTerms({ vaults: [{ ...BASE_VAULT, peginMaxFee: -1n }] })),
+    ).toThrow(/does not fit in an unsigned 64-bit field/);
+  });
+
+  it("accepts peginMaxFee 0 — the firmware accepts any u64 for the group fee", () => {
+    expect(() =>
+      assertDepositTermsDeviceCompatible(makeTerms({ vaults: [{ ...BASE_VAULT, peginMaxFee: 0n }] })),
+    ).not.toThrow();
+  });
+
+  it("accepts timelockRefund at both device bounds and rejects one block past each", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 72 }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 4320 }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 71 }))).toThrow(/timelockRefund/);
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 4321 }))).toThrow(/timelockRefund/);
+  });
+
+  it("rejects a protocolFeeRate above the device u32 ceiling", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 0x1_0000_0000n }))).toThrow(
+      /protocolFeeRate/,
+    );
   });
 
   it("rejects a commission or claim value below the device dust floor", () => {

@@ -7,6 +7,12 @@
 import { of } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Prime vitest's mock registry at file load: the module under test resolves
+// these mocks via CONCURRENT dynamic imports, and the registry's interception
+// races when the first resolution happens in parallel.
+import "@ledgerhq/device-management-kit";
+import "@ledgerhq/device-transport-kit-web-hid";
+
 const built = vi.hoisted(() => ({ count: 0 }));
 const dmkStub = vi.hoisted(() => ({
   startDiscovering: vi.fn(),
@@ -28,6 +34,10 @@ vi.mock("@ledgerhq/device-management-kit", () => ({
     }
   },
   GetAppAndVersionCommand: class {},
+  // The real web-hid package's module scope imports this from DMK; vitest's
+  // dynamic-import interception can race under concurrency and load that real
+  // module, so the mock must satisfy its imports.
+  GeneralDmkError: class GeneralDmkError extends Error {},
   // Mirrors DMK's discriminated union: success carries `data`, failure carries
   // `error` — the real narrowing helper keys on the status field.
   isSuccessCommandResult: (result: { status: string }) => result.status === "SUCCESS",
@@ -82,6 +92,20 @@ describe("connectDmkSession", () => {
     // Two instances would stack duplicate transport listeners.
     await connectDmkSession();
     await connectDmkSession();
+
+    expect(built.count).toBe(1);
+  });
+
+  it("builds exactly one DMK for CONCURRENT connects", async () => {
+    // check-then-act across the builder's awaits would let both callers
+    // build; the loser's transport would keep live WebHID listeners forever.
+    // Warm the module cache first — vitest's mock registry itself races on
+    // parallel dynamic imports, which is not the behavior under test.
+    await connectDmkSession();
+    closeDmk();
+    built.count = 0;
+
+    await Promise.all([connectDmkSession(), connectDmkSession()]);
 
     expect(built.count).toBe(1);
   });

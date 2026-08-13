@@ -11,11 +11,12 @@ Monorepo (pnpm workspaces) for Babylon's Bitcoin vault frontend. Users lock BTC 
 - `packages/wallet-connector` — Multi-chain wallet abstraction (BTC + ETH)
 - `packages/core-ui` — Shared UI component library
 - `packages/ts-sdk` — TypeScript SDK for protocol interaction
+- `packages/babylon-ledger-vault-signer` — Host-side client for the Ledger Babylon Vault app (device protocol only; wallet-connector adapts it)
 
 ### Build Prerequisites
 
 - Node 24 via nvm (`nvm use 24`), pnpm via Corepack
-- Must rebuild `core-ui` and `ts-sdk` before vault build (stale `dist/` is a common issue)
+- Must rebuild `core-ui` and `ts-sdk` before vault build, and `babylon-ledger-vault-signer` before wallet-connector tests (stale `dist/` is a common issue)
 
 ## Build & Test Commands
 
@@ -87,7 +88,13 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Split outputs must be sized exactly and broadcast in order. Incorrect sizing starves one vault or fails the whole deposit after commitment.
 - **Rule:** Assert `sum(splitOutputs) === totalDeposit - fees` before signing. Assert broadcast ordering with explicit sequence checks, not array iteration order.
 
-### 7. Non-standard wallet signing options
+### 7. Ledger vault signer package
+
+- Directory: `packages/babylon-ledger-vault-signer/src/`
+- Host-side client for the Ledger vault app: APDU framing, the intent-ceremony TLV encoder, the device envelope gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. The intent the depositor approves on-device is built here; an encoding bug ships wrong terms to a hardware signer.
+- **Rule:** TLV encodings and APDU layouts must cite their firmware/reference-client source and carry golden-vector tests. The envelope gate must reject out-of-range terms with the seam's typed error BEFORE any device I/O. Never log payload bytes.
+
+### 8. Non-standard wallet signing options
 
 - File: `packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts`
 - Uses `useTweakedSigner: false` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
