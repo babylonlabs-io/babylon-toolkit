@@ -102,16 +102,22 @@ const CROP_CONTEXT_ROWS = 96;
 const CROP_MAX_KEPT_FRACTION = 0.8;
 
 /**
- * Width the composite is reduced to before it is published.
+ * Width the composite is reduced to before it is published, and with it the
+ * widest panel that reaches the reviewer at life size.
  *
- * A comment body is about 800px wide, and GitHub scales any wider image
- * down to fit, so pixels past this point are never shown - they are paid
- * for only in clone weight, because every `git clone` of this repo fetches
- * the branch these images live on. Two side-by-side 900px Storybook frames
- * come to 1808px, so this halves them to roughly what the browser was going
- * to render anyway.
+ * Sized to the desktop capture rather than to the comment column. A comment
+ * body is about 800px wide and GitHub scales anything wider down to fit, so
+ * a budget of 800-1000 looks like the honest one - but the scaling GitHub
+ * does is undone by a click, and the reduction done here is not. A 1280px
+ * desktop screen published at 856px is 856px of detail forever; published
+ * whole it is a 0.6x thumbnail that opens at full size.
+ *
+ * Paid for in clone weight, because every `git clone` of this repo fetches
+ * the branch these images live on. `panelLayout` is what keeps that bounded:
+ * a pair too wide to sit side by side stacks instead of being reduced, so
+ * the pixel count stays what it was and only the shape changes.
  */
-const EMBED_MAX_WIDTH = 1000;
+const EMBED_MAX_WIDTH = 1280;
 
 /**
  * Ceiling on the composite's height, enforced by taking fewer rows rather
@@ -127,8 +133,21 @@ const EMBED_MAX_WIDTH = 1000;
  * EMBED_MAX_WIDTH, so halving them to fit a height budget would render each
  * phone screen at under 200px - small enough that the change being reported
  * is no longer visible. Cutting rows keeps what is shown at full size.
+ *
+ * This bounds the composite, not the panel: a stacked pair splits it in two
+ * (see `panelHeightBudget`), so the published file costs the same either way.
  */
 const MAX_COMPOSITE_HEIGHT = 2400;
+
+/**
+ * How the two panels are arranged. A single panel is its own case: an added
+ * or removed screen has no counterpart to sit beside or under.
+ */
+const LAYOUT = {
+  SIDE_BY_SIDE: "side-by-side",
+  STACKED: "stacked",
+  SINGLE: "single",
+};
 
 /** Separates a Storybook title path from its story name, and a vault route
  *  from its viewport: `components-inputs-actions-button--fluid`,
@@ -312,13 +331,16 @@ function changedRowBand(baseline, candidate) {
  *
  * `clipped` says the ceiling bit, so the caption can admit the picture is
  * a slice instead of letting the reviewer assume they saw all of it.
+ *
+ * `maxHeight` is the budget for ONE panel, which is not the same as the
+ * composite's: stacking spends the composite's height twice over.
  */
-function cropWindow(band, height) {
+function cropWindow(band, height, maxHeight = MAX_COMPOSITE_HEIGHT) {
   if (band === null) {
     return {
       top: 0,
-      height: Math.min(height, MAX_COMPOSITE_HEIGHT),
-      clipped: height > MAX_COMPOSITE_HEIGHT,
+      height: Math.min(height, maxHeight),
+      clipped: height > maxHeight,
     };
   }
 
@@ -329,15 +351,15 @@ function cropWindow(band, height) {
 
   const wantedTop = keepWholePage ? 0 : bandTop;
   const wantedHeight = keepWholePage ? height : bandBottom - bandTop;
-  if (wantedHeight <= MAX_COMPOSITE_HEIGHT) {
+  if (wantedHeight <= maxHeight) {
     return { top: wantedTop, height: wantedHeight, clipped: false };
   }
 
   // Rule 2. Start at the band, pulled back only as far as is needed to
   // fill the window against the bottom of the page.
   return {
-    top: Math.min(bandTop, Math.max(0, height - MAX_COMPOSITE_HEIGHT)),
-    height: MAX_COMPOSITE_HEIGHT,
+    top: Math.min(bandTop, Math.max(0, height - maxHeight)),
+    height: maxHeight,
     clipped: true,
   };
 }
@@ -351,23 +373,65 @@ function fill(target, colour) {
   }
 }
 
-/** Copies `window` rows of `source` into `target` with its left edge at `x`. */
-function blit(source, target, x, window) {
+/** Paints a solid block, used for the gutter between the two panels. */
+function paintRect(target, left, top, width, height, colour) {
+  for (let y = top; y < top + height; y += 1) {
+    for (let x = left; x < left + width; x += 1) {
+      const i = (y * target.width + x) * 4;
+      target.data[i] = colour[0];
+      target.data[i + 1] = colour[1];
+      target.data[i + 2] = colour[2];
+      target.data[i + 3] = 255;
+    }
+  }
+}
+
+/** Copies `window` rows of `source` into `target` with its top-left at `x`, `y`. */
+function blit(source, target, x, y, window) {
   const rows = Math.min(window.height, Math.max(0, source.height - window.top));
   for (let row = 0; row < rows; row += 1) {
     const from = (window.top + row) * source.width * 4;
-    const to = (row * target.width + x) * 4;
+    const to = ((y + row) * target.width + x) * 4;
     source.data.copy(target.data, to, from, from + source.width * 4);
   }
 }
 
 /**
- * Stitches the two sides into one image, before on the left, and reports how
- * much of the screen's height that image ended up covering.
+ * Whether a pair is drawn side by side or stacked.
  *
- * Side by side rather than stacked because the panels are then the same
- * distance from the eye at every scroll position, and because a stacked
- * pair of full-page captures is twice as tall as an already-tall page.
+ * Side by side stays the default: the panels are then the same distance from
+ * the eye at every scroll position, and the pair is no taller than one
+ * already-tall page. It holds only while the pair fits the published width,
+ * because the alternative past that point is reduction, and reduction is
+ * what costs the reviewer the picture. Two 1280px vault screens side by side
+ * come to 2568px; the integer reduction that fits 1280 renders each screen
+ * 428px wide - a third of life size, in a column that then scales it again.
+ *
+ * Stacked, the same two panels publish 1280px wide and life size for the
+ * same pixel count: the height they cost is the width they keep.
+ */
+function panelLayout(panelWidth, panelCount) {
+  if (panelCount < 2) return LAYOUT.SINGLE;
+  return panelWidth * 2 + PANEL_GUTTER_WIDTH <= EMBED_MAX_WIDTH
+    ? LAYOUT.SIDE_BY_SIDE
+    : LAYOUT.STACKED;
+}
+
+/**
+ * Rows one panel may cover. A stacked pair draws the window twice, so it
+ * gets half of the composite's ceiling; anything else gets all of it.
+ */
+function panelHeightBudget(layout) {
+  return layout === LAYOUT.STACKED
+    ? Math.floor((MAX_COMPOSITE_HEIGHT - PANEL_GUTTER_WIDTH) / 2)
+    : MAX_COMPOSITE_HEIGHT;
+}
+
+/**
+ * Stitches the two sides into one image - before first, in whichever
+ * direction `panelLayout` picked - and reports how much of the screen's
+ * height that image ended up covering.
+ *
  * A missing side (an added or removed screen) renders as one panel.
  */
 function composeBeforeAfter(baseline, candidate) {
@@ -375,34 +439,41 @@ function composeBeforeAfter(baseline, candidate) {
   if (present.length === 0) throw new Error("Neither side of the pair was readable.");
 
   const panelWidth = Math.max(...present.map((png) => png.width));
+  const layout = panelLayout(panelWidth, present.length);
   const band = baseline && candidate ? changedRowBand(baseline, candidate) : null;
   const fullHeight = Math.max(...present.map((png) => png.height));
-  const window = cropWindow(band, fullHeight);
+  const window = cropWindow(band, fullHeight, panelHeightBudget(layout));
 
-  const width =
-    present.length === 2 ? panelWidth * 2 + PANEL_GUTTER_WIDTH : panelWidth;
-  const composite = new PNG({ width, height: window.height });
+  const stacked = layout === LAYOUT.STACKED;
+  const width = layout === LAYOUT.SIDE_BY_SIDE
+    ? panelWidth * 2 + PANEL_GUTTER_WIDTH
+    : panelWidth;
+  const height = stacked
+    ? window.height * 2 + PANEL_GUTTER_WIDTH
+    : window.height;
+  const composite = new PNG({ width, height });
   fill(composite, PANEL_PADDING_COLOUR);
 
-  if (present.length === 2) {
-    for (let y = 0; y < window.height; y += 1) {
-      for (let x = 0; x < PANEL_GUTTER_WIDTH; x += 1) {
-        const i = (y * width + panelWidth + x) * 4;
-        composite.data[i] = PANEL_GUTTER_COLOUR[0];
-        composite.data[i + 1] = PANEL_GUTTER_COLOUR[1];
-        composite.data[i + 2] = PANEL_GUTTER_COLOUR[2];
-        composite.data[i + 3] = 255;
-      }
-    }
-    blit(baseline, composite, 0, window);
-    blit(candidate, composite, panelWidth + PANEL_GUTTER_WIDTH, window);
+  if (layout === LAYOUT.SIDE_BY_SIDE) {
+    paintRect(composite, panelWidth, 0, PANEL_GUTTER_WIDTH, height, PANEL_GUTTER_COLOUR);
+    blit(baseline, composite, 0, 0, window);
+    blit(candidate, composite, panelWidth + PANEL_GUTTER_WIDTH, 0, window);
+  } else if (stacked) {
+    paintRect(composite, 0, window.height, width, PANEL_GUTTER_WIDTH, PANEL_GUTTER_COLOUR);
+    blit(baseline, composite, 0, 0, window);
+    blit(candidate, composite, 0, window.height + PANEL_GUTTER_WIDTH, window);
   } else {
-    blit(present[0], composite, 0, window);
+    blit(present[0], composite, 0, 0, window);
   }
 
   return {
     composite,
-    coverage: { shown: window.height, total: fullHeight, clipped: window.clipped },
+    coverage: {
+      shown: window.height,
+      total: fullHeight,
+      clipped: window.clipped,
+      layout,
+    },
   };
 }
 
@@ -479,8 +550,17 @@ async function composeComposite(reportDir, surface, name) {
  * Which panel is which is spelled out rather than left to a convention.
  * Nothing is drawn into the image itself to say so, and "before / after"
  * on its own reads as a pair of alternatives as easily as an ordering.
+ * The wording follows the layout the picture was actually composed with -
+ * a caption that says "on the left" over a stacked pair is worse than none.
  */
-const PANEL_ORDER_NOTE = "before on the left, after on the right";
+const PANEL_ORDER_NOTE = {
+  [LAYOUT.SIDE_BY_SIDE]: "before on the left, after on the right",
+  [LAYOUT.STACKED]: "before on top, after underneath",
+};
+
+function panelOrderNote(coverage) {
+  return PANEL_ORDER_NOTE[coverage?.layout] ?? PANEL_ORDER_NOTE[LAYOUT.SIDE_BY_SIDE];
+}
 
 function screenCaption(result, coverage) {
   const clipped =
@@ -493,10 +573,11 @@ function screenCaption(result, coverage) {
   if (result.status === STATUS.REMOVED) {
     return `removed by this PR - before only${clipped}`;
   }
+  const order = panelOrderNote(coverage);
   if (result.status === STATUS.SIZE_CHANGED) {
-    return `${result.baselineSize} to ${result.candidateSize} - ${PANEL_ORDER_NOTE}${clipped}`;
+    return `${result.baselineSize} to ${result.candidateSize} - ${order}${clipped}`;
   }
-  return `${formatPercent(result.changedRatio)} of pixels - ${PANEL_ORDER_NOTE}${clipped}`;
+  return `${formatPercent(result.changedRatio)} of pixels - ${order}${clipped}`;
 }
 
 /**
@@ -523,11 +604,15 @@ function groupHeadline(group) {
 }
 
 /** Describes the picture for a reader who cannot see it. */
-function screenAltText(screen) {
+function screenAltText(screen, coverage) {
   const stem = screen.name.replace(/\.png$/, "");
   if (screen.status === STATUS.ADDED) return `${stem}, this PR only`;
   if (screen.status === STATUS.REMOVED) return `${stem}, merge-base only`;
-  return `${stem}, merge-base on the left and this PR on the right`;
+  const where =
+    coverage?.layout === LAYOUT.STACKED
+      ? "on top and this PR underneath"
+      : "on the left and this PR on the right";
+  return `${stem}, merge-base ${where}`;
 }
 
 function renderGroup(group, embeddedNames, coverage, baseUrl, expanded) {
@@ -547,11 +632,10 @@ function renderGroup(group, embeddedNames, coverage, baseUrl, expanded) {
 
   for (const screen of shown) {
     const url = `${baseUrl}/${group.surface}/${encodeURIComponent(screen.name)}`;
-    lines.push(
-      `**${screen.variant}** - ${screenCaption(screen, coverage.get(`${group.surface}/${screen.name}`))}`,
-    );
+    const picture = coverage.get(`${group.surface}/${screen.name}`);
+    lines.push(`**${screen.variant}** - ${screenCaption(screen, picture)}`);
     lines.push("");
-    lines.push(`![${screenAltText(screen)}](${url})`);
+    lines.push(`![${screenAltText(screen, picture)}](${url})`);
     lines.push("");
   }
 
@@ -833,7 +917,14 @@ async function main() {
 // pinning: each of their comments records a rule that was already got wrong
 // once, and each is invisible in the rendered comment when it regresses -
 // a wrong crop still produces a picture, just not of the change.
-export { changedRowBand, cropWindow, selectEmbeddedGroups };
+export {
+  changedRowBand,
+  composeBeforeAfter,
+  cropWindow,
+  panelLayout,
+  screenCaption,
+  selectEmbeddedGroups,
+};
 
 // Only run as a CLI, so importing this from a test does not compose a
 // report. visual-diff.mjs guards the same way for the same reason.
