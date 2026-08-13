@@ -648,9 +648,9 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
-      // Shown inside the amount card (below "Max to Borrow") when the deposit is
-      // below the minimum needed to split across two vaults; the split selector
-      // below stays visible with its two-vault option disabled. `minBtc` already
+      // Shown inside the expanded split selector, under the two-vault option,
+      // when the deposit is below the minimum needed to split across two
+      // vaults; that option stays visible but disabled. `minBtc` already
       // carries the network coin symbol (e.g. "0.4 BTC"). The split name and
       // minimum are
       // emphasized (primary text) by the component; the rest stays secondary.

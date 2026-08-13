@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { formatBtcFromSats } from "@/utils/formatting";
 
 import {
   UtxoSplitSelectorV3,
@@ -93,6 +94,49 @@ describe("UtxoSplitSelectorV3", () => {
     onExpandedChange.mockClear();
     fireEvent.click(noSplitRow());
     expect(onExpandedChange).toHaveBeenCalledWith(false);
+  });
+
+  it("shows the minimum-deposit hint between the two-vault option and no-split", () => {
+    const minDepositForSplit = 40_000_000n;
+    render(
+      <UtxoSplitSelectorV3
+        twoVaultSplit={baseSplit({
+          canSplit: false,
+          isSplitAmountTooLow: true,
+          minDepositForSplit,
+        })}
+        expanded
+        onExpandedChange={vi.fn()}
+      />,
+    );
+
+    const hint = screen.getByText(
+      COPY.deposit.form.splitTooLowHint(formatBtcFromSats(minDepositForSplit))
+        .minimum,
+    );
+    // The hint belongs to the two-vault option it qualifies, but sits outside
+    // that option's box so it is not a click target.
+    expect(hint.closest('[role="button"]')).toBeNull();
+    expect(splitRow().compareDocumentPosition(hint)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(noSplitRow().compareDocumentPosition(hint)).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING,
+    );
+  });
+
+  it("hides the minimum-deposit hint when the amount is not too low", () => {
+    render(
+      <UtxoSplitSelectorV3
+        twoVaultSplit={baseSplit()}
+        expanded
+        onExpandedChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByText(COPY.deposit.form.splitTooLowHint("0.4 BTC").minimum),
+    ).toBeNull();
   });
 
   it("keeps the split option unavailable (aria-disabled) and unselectable when it cannot split", () => {

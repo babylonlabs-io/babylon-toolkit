@@ -4,6 +4,8 @@ import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 
+import { SplitTooLowHint } from "./SplitTooLowHint";
+
 /** Split state driving the picker. */
 export interface TwoVaultSplitProps {
   isEnabled: boolean;
@@ -122,6 +124,18 @@ export function UtxoSplitSelectorV3({
               <IoCheckmark className="shrink-0 text-accent-primary" size={20} />
             )}
           </div>
+
+          {/* When the amount is too low to split, the minimum is spelled out
+              under the (disabled) two-vault option it applies to. It sits
+              outside that option's clickable box so it is neither dimmed by the
+              disabled styling nor a click target. */}
+          {twoVaultSplit.isSplitAmountTooLow && (
+            <div className="px-4 pb-4">
+              <SplitTooLowHint
+                minDepositForSplit={twoVaultSplit.minDepositForSplit}
+              />
+            </div>
+          )}
 
           <div
             role="button"
