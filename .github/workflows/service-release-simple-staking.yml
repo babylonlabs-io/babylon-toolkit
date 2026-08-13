@@ -40,6 +40,9 @@ jobs:
 
   s3_publish:
     needs: [lint_test]
+    permissions:
+      id-token: write # OIDC assume-role for AWS
+      contents: write # publish checksum manifest as a release asset (#253)
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -57,10 +60,15 @@ jobs:
           - environment: mainnet
             aws_account: 490721144737
 
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.environment }}-${{ github.sha }}
+      cancel-in-progress: false
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -140,7 +148,24 @@ jobs:
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
+        env:
+          # Bound via env, not interpolated into run: — git refnames accept
+          # shell metacharacters and this job holds AWS OIDC + contents:write.
+          GIT_TAG: ${{ github.ref_name }}
         run: |
-          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}.tar.gz
-          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-files-checksum.txt
-          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-global-checksum.txt
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${GIT_TAG}.tar.gz"
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${GIT_TAG}-files-checksum.txt"
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${GIT_TAG}-global-checksum.txt"
+
+      # Last step: publishing the manifest must not block the S3 uploads above.
+      - name: Publish checksum manifest as an immutable per-sha release
+        # Only real deploy refs (a dispatch from an arbitrary branch must not
+        # notarize builds), and only envs the integrity checker monitors — the
+        # other envs would mint releases+tags nobody ever reads (~7/push
+        # otherwise). Extend the env list together with the checker's
+        # targets.json.
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/v1.x' || startsWith(github.ref, 'refs/tags/')) && contains(fromJSON('["mainnet","testnet"]'), matrix.environment)
+        uses: ./.github/actions/publish-integrity-manifest
+        with:
+          service: simple-staking
+          environment: ${{ matrix.environment }}
