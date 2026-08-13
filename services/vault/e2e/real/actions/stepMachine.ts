@@ -2,9 +2,9 @@
  * The shared peg-in signing step-machine + activated-view finish line, driven purely by AWAITING UI
  * transitions (the `role="progressbar"` and each active step's `aria-label="Step N active"`), never
  * fixed sleeps. Extracted from the `pegin` action so both `pegin` (form → sign → walk) and `resume`
- * (dashboard pending card → walk) share ONE implementation of the 15-step `DepositProgressView` walk,
+ * (/vaults pending row → walk) share ONE implementation of the 15-step `DepositProgressView` walk,
  * the Activate-Vault / artifact-Skip dapp gates, the transient-tx Retry gate, the WOTS-skip fast-fail,
- * and the dashboard collateral cross-check.
+ * and the /vaults collateral cross-check.
  *
  * The resume flow renders the IDENTICAL `DepositProgressView` stepper as the initial deposit, so the
  * walk works unchanged for both. The artifact-Skip gate is re-armed per appearance and simply never
@@ -25,6 +25,7 @@ import {
 } from "../timing";
 
 import { sweepApprovals } from "./approver";
+import { goToSection } from "./navigation";
 import { firstByTestid } from "./selectors";
 
 // The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
@@ -58,8 +59,24 @@ function retryButton(page: Page): Locator {
 // copy.ts), and we key on the stable actionable control (the "Go to Dashboard" button) rather than the
 // heading text so a wording tweak can't strand the run at the activated screen.
 const GO_TO_DASHBOARD_RX = /go to dashboard/i; // COPY.deposit.vaultActivatedSuccess.goToDashboard
-const VAULT_OPTIONS_RX = /vault options/i; // CollateralSection ExpandMenuButton aria-label ("[BTC ]Vault options")
-const VAULT_CARD_TESTID = '[data-testid="vault-card"]'; // CollateralVaultItem VaultCardShell (stable testid)
+// One active-vault row on /vaults, keyed by on-chain vaultId (VaultsActiveSection ActiveVaultRow).
+// v3 renders these inline — the v2 collateral expander they used to hide behind is gone.
+const VAULT_ROW_SELECTOR = '[data-testid^="vault-row-"]';
+// The deposit/resume overlay's root (V3ModalShell → core-ui FullScreenDialog). The page behind it stays
+// mounted, so anything read "from the progress view" must be scoped to this — see readPrePeginTxid.
+const DEPOSIT_DIALOG_SELECTOR = ".bbn-dialog-fullscreen";
+
+/**
+ * How many active-vault rows /vaults is currently showing. Callers snapshot this BEFORE starting a
+ * deposit so the finish line can assert the count rose by the number of vaults the run creates — see
+ * assertActivatedAndOnDashboard's split branch. Assumes the page is already on /vaults.
+ */
+export function countActiveVaultRows(page: Page): Promise<number> {
+  return page
+    .locator(VAULT_ROW_SELECTOR)
+    .count()
+    .catch(() => 0);
+}
 
 /** True once the terminal activated view is showing — detected by its "Go to Dashboard" button. */
 function activatedViewReached(page: Page): Promise<boolean> {
@@ -120,13 +137,20 @@ async function handleArtifactSkip(
 /**
  * Capture this deposit's Pre-PegIn txid from the progress view. Explorer links render as
  * `<host>/tx/<txid>` anchors (CopyableHash); the depositor broadcasts + links the Pre-PegIn early in
- * the flow (well before the VP broadcasts the peg-in), so the first BTC txid to appear is this run's
- * Pre-PegIn. Used to pin the dashboard cross-check to THIS run's vault — a returning depositor's
- * dashboard lists several. Scans hrefs Node-side (no page-context function) and skips ETH links: an
- * ETH `/tx/0x…` hash never matches the 64-hex-no-0x BTC pattern.
+ * the flow (well before the VP broadcasts the peg-in), so the first BTC txid to appear inside the
+ * deposit dialog is this run's Pre-PegIn. Used to pin the /vaults cross-check to THIS run's vault — a
+ * returning depositor's list holds several. Scans hrefs Node-side (no page-context function) and skips
+ * ETH links: an ETH `/tx/0x…` hash never matches the 64-hex-no-0x BTC pattern.
+ *
+ * SCOPED TO THE DIALOG, deliberately. The deposit flow is a full-screen overlay (V3ModalShell →
+ * core-ui FullScreenDialog) and /vaults stays mounted behind it, so a page-wide scan reads the FIRST
+ * active-vault row's hash cell — an unrelated, already-activated deposit — the instant the depositor
+ * holds any vault. That mis-capture is silent: the single-vault finish line just falls back to its
+ * amount match, and the split branch (txid-only) reports "0/N matched" and blames indexer lag. Same
+ * hazard resume.ts documents when it prefers a known txid over the read one.
  */
 async function readPrePeginTxid(page: Page): Promise<string | undefined> {
-  const links = page.locator('a[href*="/tx/"]');
+  const links = page.locator(`${DEPOSIT_DIALOG_SELECTOR} a[href*="/tx/"]`);
   const count = await links.count().catch(() => 0);
   for (let i = 0; i < count; i++) {
     const href = await links
@@ -387,13 +411,19 @@ export async function walkUntilPrePeginBroadcast(
 }
 
 /**
- * Finish line: click "Go to Dashboard", then best-effort confirm the vault landed as collateral. The
- * activated view is the definitive success signal (we're only here because its "Go to Dashboard"
- * button appeared); the dashboard card is a secondary check, so a copy/layout drift on the dashboard
- * is logged as a warning rather than hanging or failing an otherwise-successful peg-in.
+ * Finish line: click "Go to Dashboard", navigate to /vaults, then best-effort confirm the vault landed
+ * as collateral. The activated view is the definitive success signal (we're only here because its "Go
+ * to Dashboard" button appeared); the vault row is a secondary check, so a copy/layout drift on
+ * /vaults is logged as a warning rather than hanging or failing an otherwise-successful peg-in.
+ *
+ * "Go to Dashboard" lands on the overview (`/`), which in v3 shows position totals but no per-vault
+ * rows — the rows live on /vaults, hence the explicit navigation.
  *
  * `amountBtc` may be undefined (the resume flow doesn't know the original deposit amount) — the
- * amount cross-check is then skipped and the txid / first-card path is used instead.
+ * amount cross-check is then skipped and the txid / first-row path is used instead.
+ *
+ * `baselineRowCount` is the active-row count from BEFORE this run's deposit (countActiveVaultRows on
+ * /vaults). The split branch needs it; see there for why a txid match cannot work.
  */
 export async function assertActivatedAndOnDashboard(
   page: Page,
@@ -401,6 +431,7 @@ export async function assertActivatedAndOnDashboard(
   amountBtc: string | undefined,
   prePeginTxid: string | undefined,
   expectedVaults: number,
+  baselineRowCount: number | undefined,
 ): Promise<void> {
   log("✅ Activated view reached — clicking Go to Dashboard");
   await page
@@ -408,85 +439,84 @@ export async function assertActivatedAndOnDashboard(
     .first()
     .click({ timeout: STEP_TIMEOUT_MS });
 
-  // The freshly activated vault surfaces as collateral behind the per-vault options expander (its
-  // label may render "BTC Vault options" or "Vault options" depending on the build). Bounded waits so
-  // a dashboard drift can never hang the run.
-  const options = page.getByRole("button", { name: VAULT_OPTIONS_RX }).first();
-  const optionsShown = await options
-    .waitFor({ state: "visible", timeout: DASHBOARD_VAULT_TIMEOUT_MS })
+  // The cross-check is secondary — a navigation hiccup must not fail an otherwise-successful peg-in.
+  const navigated = await goToSection(page, "vaults", log)
     .then(() => true)
     .catch(() => false);
-  if (!optionsShown) {
+  if (!navigated) {
     log(
-      "⚠️ Dashboard collateral controls not found within the wait — activation succeeded; skipping the card cross-check.",
+      "⚠️ Could not navigate to /vaults after activation — activation succeeded; skipping the vault-row cross-check.",
     );
     return;
   }
 
-  // Expand the collateral panel so the vault cards render.
-  const cards = page.locator(VAULT_CARD_TESTID);
-  if (
-    !(await cards
-      .first()
-      .isVisible()
-      .catch(() => false))
-  ) {
-    await options.click().catch(() => {});
-    await cards
-      .first()
-      .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
-      .catch(() => {});
+  // v3 renders active vaults as always-visible rows (no expander to open). Bounded wait so a slow
+  // indexer can never hang the run.
+  const rows = page.locator(VAULT_ROW_SELECTOR);
+  const rowsShown = await rows
+    .first()
+    .waitFor({ state: "visible", timeout: DASHBOARD_VAULT_TIMEOUT_MS })
+    .then(() => true)
+    .catch(() => false);
+  if (!rowsShown) {
+    log(
+      "⚠️ No active-vault row rendered on /vaults within the wait — activation succeeded; skipping the row cross-check.",
+    );
+    return;
   }
 
-  // Two-vault split: both fresh cards share THIS run's single (batched) Pre-PegIn txid, and each shows
-  // its own split sub-amount (not the full requested amount), so the single-vault amount cross-check
-  // below doesn't apply. "Both vaults activated" is already guaranteed upstream — walkStepMachine only
-  // finishes once it has driven both activations — so this dashboard count is a SOFT secondary
-  // confirmation: the indexer commonly lags a just-activated vault's tx-hash row, so a miss is logged
-  // (not failed) rather than turning indexer lag into a false failure on a real-funds run.
+  // Two-vault split: identify this run's vaults by the ROW COUNT RISING, not by txid.
+  //
+  // A txid match cannot work here. An active row renders `peginTxHash ?? prePeginTxHash`
+  // (VaultsActiveSection) — i.e. the PEG-IN transaction, which is a different tx from the Pre-PegIn we
+  // capture mid-flow. The two only coincide in the narrow window before the indexer populates
+  // `peginTxHash`, so the match is guaranteed to fail once indexing lands. Nor can the single-vault
+  // amount match substitute: each split row shows its own allocated sub-amount (e.g. 26/74 of the
+  // deposit), which the harness never computes — the app does.
+  //
+  // The count delta is indexer-independent and checks the thing the split actually claims: N more
+  // vaults exist than before. Still SOFT — "both vaults activated" is already guaranteed upstream
+  // (walkStepMachine only finishes once it has driven every activation), so this is a secondary
+  // confirmation and a miss must not fail an otherwise-successful real-funds run.
   if (expectedVaults > 1) {
-    // Both fresh split cards share this run's Pre-PegIn txid, but the indexer commonly lags a
-    // just-activated vault's tx-hash row — so poll (bounded) for both cards to link the txid rather
-    // than snapshotting once and warning on a transient 1/2.
-    const matchingCards = () =>
-      prePeginTxid
-        ? cards
-            .filter({ has: page.locator(`a[href*="${prePeginTxid}"]`) })
-            .count()
-            .catch(() => 0)
-        : Promise.resolve(0);
-    let matched = await matchingCards();
-    const deadline = Date.now() + DASHBOARD_VAULT_TIMEOUT_MS;
-    while (matched < expectedVaults && Date.now() < deadline) {
-      await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
-      matched = await matchingCards();
-    }
-    const total = await cards.count().catch(() => 0);
-    if (matched >= expectedVaults)
+    if (baselineRowCount === undefined) {
       log(
-        `Dashboard shows ${matched} split vaults for this run (matched by Pre-PegIn txid ${prePeginTxid?.slice(0, 8)}…).`,
+        `⚠️ No pre-deposit row count was captured, so the ${expectedVaults}-vault split cross-check was skipped — activation still succeeded.`,
+      );
+      return;
+    }
+    const target = baselineRowCount + expectedVaults;
+    let total = await rows.count().catch(() => 0);
+    const deadline = Date.now() + DASHBOARD_VAULT_TIMEOUT_MS;
+    while (total < target && Date.now() < deadline) {
+      await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
+      total = await rows.count().catch(() => 0);
+    }
+    if (total >= target)
+      log(
+        `/vaults shows ${total} active vaults, up ${total - baselineRowCount} from ${baselineRowCount} before this run — the ${expectedVaults}-vault split landed.`,
       );
     else
       log(
-        `⚠️ Dashboard matched ${matched}/${expectedVaults} split vaults by Pre-PegIn txid within the wait (${total} cards total) — activation succeeded; the indexer may still be catching up to the fresh vaults' tx-hash rows.`,
+        `⚠️ /vaults shows ${total} active vaults, up ${total - baselineRowCount} from ${baselineRowCount} — expected ${expectedVaults} more within the wait. Activation succeeded; the indexer may still be catching up.`,
       );
     return;
   }
 
-  // A returning depositor's dashboard lists several vault cards, so `.first()` is not necessarily the
-  // one this run created — matching the first card against the requested amount produced a false
-  // mismatch warning against an older vault. Prefer THIS run's Pre-PegIn txid captured mid-flow: the
-  // card links it in its "TX Hash" row (PeginTxHashRow, linkPrePegin default) as `<a href=".../tx/…">`.
-  // But that row is indexer-sourced, and for a JUST-activated vault the indexer commonly lags the click
-  // to the dashboard — the fresh card shows its amount (from activation state) before its tx-hash row
-  // populates. So the amount match is the expected, immediately-authoritative identifier for a fresh
-  // vault; the txid match engages once the indexer has caught up (e.g. an already-indexed vault). First
-  // card is the last resort when neither is captured.
+  // A returning depositor's /vaults lists several vault rows, so `.first()` is not necessarily the one
+  // this run created — matching the first row against the requested amount produced a false mismatch
+  // warning against an older vault. Prefer THIS run's Pre-PegIn txid captured mid-flow: the row links
+  // it in its transaction-hash cell (CopyableHash) as `<a href=".../tx/…">`. But that cell is
+  // indexer-sourced, and for a JUST-activated vault the indexer commonly lags the click to the
+  // dashboard — the fresh row shows its amount (from activation state) before its hash cell populates.
+  // So the amount match is the expected, immediately-authoritative identifier for a fresh vault; the
+  // txid match engages once the indexer has caught up (e.g. an already-indexed vault). First row is the
+  // last resort when neither is captured.
   const byTxid = prePeginTxid
-    ? cards.filter({ has: page.locator(`a[href*="${prePeginTxid}"]`) }).first()
+    ? rows.filter({ has: page.locator(`a[href*="${prePeginTxid}"]`) }).first()
     : null;
   const byAmount = amountBtc
-    ? cards
+    ? rows
         .filter({
           hasText: new RegExp(
             `${amountBtc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*sBTC`,
@@ -495,31 +525,31 @@ export async function assertActivatedAndOnDashboard(
         .first()
     : null;
 
-  let card = cards.first();
-  let matchedBy = "first card (fallback)";
+  let row = rows.first();
+  let matchedBy = "first row (fallback)";
   if (byTxid && (await byTxid.isVisible().catch(() => false))) {
-    card = byTxid;
+    row = byTxid;
     matchedBy = `Pre-PegIn txid ${prePeginTxid?.slice(0, 8)}…`;
   } else if (byAmount && (await byAmount.isVisible().catch(() => false))) {
-    card = byAmount;
+    row = byAmount;
     matchedBy = `amount ${amountBtc}`;
   }
 
-  const cardText = (await card.innerText().catch(() => ""))
+  const rowText = (await row.innerText().catch(() => ""))
     .replace(/\s+/g, " ")
     .trim();
-  // With no known amount (resume), reaching the activated view + a rendered collateral card is the
-  // success signal; the amount-substring assertion only applies when the caller passed an amount.
+  // With no known amount (resume), reaching the activated view + a rendered vault row is the success
+  // signal; the amount-substring assertion only applies when the caller passed an amount.
   if (!amountBtc)
     log(
-      `Dashboard shows the resumed vault as collateral (matched by ${matchedBy}).`,
+      `/vaults shows the resumed vault as collateral (matched by ${matchedBy}).`,
     );
-  else if (cardText.includes(amountBtc))
+  else if (rowText.includes(amountBtc))
     log(
-      `Dashboard shows this run's vault as collateral (${amountBtc} sBTC, matched by ${matchedBy}).`,
+      `/vaults shows this run's vault as collateral (${amountBtc} sBTC, matched by ${matchedBy}).`,
     );
   else
     log(
-      `⚠️ Dashboard vault card did not clearly show "${amountBtc}" (matched by ${matchedBy}; card: "${cardText.slice(0, 120)}") — activation still succeeded.`,
+      `⚠️ The /vaults row did not clearly show "${amountBtc}" (matched by ${matchedBy}; row: "${rowText.slice(0, 120)}") — activation still succeeded.`,
     );
 }

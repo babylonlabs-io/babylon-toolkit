@@ -1,7 +1,7 @@
 /**
- * Page object for the post-connect dashboard at `/`. Exposes the
- * vault-card locator (testid-scoped to `CollateralVaultItem`) used by
- * per-flow tests; the deposit / withdraw entry points land alongside
+ * Page object for the vaults list at `/vaults`. Exposes the vault-row
+ * locator (testid-scoped to `VaultsActiveSection`'s `ActiveVaultRow`) used
+ * by per-flow tests; the deposit / withdraw entry points land alongside
  * their respective flow tickets so we don't ship selectors without a
  * caller.
  */
@@ -12,19 +12,19 @@ export class Dashboard {
   constructor(public readonly page: Page) {}
 
   async goto(): Promise<void> {
-    await this.page.goto("/");
+    await this.page.goto("/vaults");
   }
 
   /**
-   * Locator for a vault card matched by visible text (truncated pegin
-   * tx hash, provider name, BTC amount, etc.). Scoped to the
-   * `data-testid="vault-card"` div emitted by `CollateralVaultItem`,
-   * so the matcher only narrows among real cards instead of running
+   * Locator for an active-vault row matched by visible text (truncated
+   * pegin tx hash, provider name, BTC amount, etc.). Scoped to the
+   * `data-testid="vault-row-<vaultId>"` div emitted by `ActiveVaultRow`,
+   * so the matcher only narrows among real rows instead of running
    * against every ancestor `<div>`.
    */
-  vaultCard(matcher: string | RegExp): Locator {
+  vaultRow(matcher: string | RegExp): Locator {
     return this.page
-      .getByTestId("vault-card")
+      .locator('[data-testid^="vault-row-"]')
       .filter({ hasText: matcher })
       .first();
   }

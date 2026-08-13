@@ -2,7 +2,8 @@
  * The "repay" action: pay down (or clear) a loan drawn against a BTC-Vault position, end-to-end on real
  * Sepolia. Two shapes, selected by the CLI:
  *   - REUSE (default): repay a loan the depositor already holds. run.ts refuses the run before the
- *     browser if there's no debt, so we land on the dashboard with the Repay button ready.
+ *     browser if there's no debt, so the /loans Repay button is ready as soon as we navigate there
+ *     (v3 moved the loan CTAs off the dashboard — see markdown/e2e-v3/04-repay.md).
  *   - BORROW-FIRST (`--borrow-first`): borrow first (the shared `runBorrowWithOptionalPegin`), then
  *     repay that loan — all in one browser session. Adding `--pegin-first` pegs in fresh collateral
  *     ahead of the borrow, giving the full pegin → borrow → repay lifecycle in one run.
@@ -45,6 +46,7 @@ import { formatTokenAmount } from "../tokenAmount";
 
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
+import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
 import {
   AMOUNT_INPUT,
@@ -61,8 +63,8 @@ import {
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
-// Dashboard "Loans" section → Repay (testid-first; the fallback matches the button only while it reads
-// exactly "Repay", which is fine on the dashboard where the CTA isn't relabeled). The shared loan-form
+// The /loans summary → Repay (testid-first; the page ALSO renders a per-loan "Repay" row button, so the
+// anchored-text fallback is genuinely ambiguous here — the testid is what disambiguates). The shared loan-form
 // selectors (amount input — also used to detect a single-loan repay skipping the picker — Max button,
 // "Select asset" title, success-modal Done, tx-failed) live in selectors.ts; repay-specific ones here.
 const LOANS_REPAY_TESTID = '[data-testid="loans-repay-button"]';
@@ -154,9 +156,9 @@ async function resolveRepayAmount(
 }
 
 /**
- * Open the repay flow from the dashboard: click Loans → Repay, then wait for EITHER the "Select asset"
- * picker (multiple loans) OR the repay form itself (a single loan skips the picker — see the app's
- * DashboardPage.handleRepay). Returns whether the picker appeared, so the caller knows to select an
+ * Open the repay flow: navigate to /loans, click Repay, then wait for EITHER the "Select asset" picker
+ * (multiple loans) OR the repay form itself (a single loan skips the picker — see the app's
+ * useLoanActions.openRepay). Returns whether the picker appeared, so the caller knows to select an
  * asset. The Repay button is only RENDERED when the position has a loan (`{hasLoans && …}`) and is
  * enabled once connected — so after a borrow-first the button's VISIBILITY, not just its enabled state,
  * lags while the new loan propagates. We therefore poll for it to appear AND enable within a single
@@ -167,6 +169,7 @@ async function openRepay(
   page: Page,
   log: (m: string) => void,
 ): Promise<{ pickerOpened: boolean }> {
+  await goToSection(page, "loans", log);
   const repay = firstByTestid(
     page,
     LOANS_REPAY_TESTID,
@@ -181,14 +184,14 @@ async function openRepay(
   }
   if (!enabled)
     throw new Error(
-      `The dashboard Repay button stayed disabled/absent for ${Math.round(REPAY_BUTTON_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s — this position has no loan to repay.`,
+      `The /loans Repay button stayed disabled/absent for ${Math.round(REPAY_BUTTON_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s — this position has no loan to repay.`,
     );
-  log("Opening the repay flow (Loans → Repay)");
+  log("Opening the repay flow (/loans → Repay)");
   await repay.click();
 
   // Race the two possible landings. The picker is identified by its "Select asset" title; the repay form
-  // by its numeric amount input (present on the form, absent on the dashboard) — a more specific signal
-  // than the generic fluid CTA, so a stray dashboard fluid button can't be mistaken for the form.
+  // by its numeric amount input (present on the form, absent on /loans) — a more specific signal than
+  // the generic fluid CTA, so a stray page-level fluid button can't be mistaken for the form.
   const pickerTitle = page
     .getByText(ASSET_SELECT_TITLE, { exact: true })
     .first();

@@ -23,9 +23,12 @@
  * offline instead of re-run blind.
  *
  * Selectors + copy strings below were verified against a real observe recording AND the React
- * components (DepositForm, VaultProviderSelector, DepositProgressView, ActivateConfirmationModal,
- * InStepArtifactCallout, VaultActivatedView, CollateralSection/CollateralVaultItem). No product/SDK
- * code is reimplemented — this only drives the UI; the frozen critical paths stay owned by the app.
+ * components (DepositForm, VaultProviderSelectorV3, DepositProgressView, ActivateConfirmationModal,
+ * InStepArtifactCallout, VaultActivatedView, VaultsActiveSection). No product/SDK code is
+ * reimplemented — this only drives the UI; the frozen critical paths stay owned by the app.
+ *
+ * The deposit modal is a RootLayout overlay opened from the /vaults deposit CTA (v3 moved it off the
+ * dashboard — see markdown/e2e-v3/02-pegin.md), so the form phase navigates there first.
  *
  * NEVER run without an explicit go-ahead: it spends real signet BTC + Sepolia ETH and is not
  * idempotent (a crash after the Pre-PegIn broadcast leaves an on-chain in-flight deposit).
@@ -41,9 +44,14 @@ import {
 } from "../timing";
 
 import { installPopupApprover } from "./approver";
+import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
 import { FLUID_CTA_SELECTOR } from "./selectors";
-import { assertActivatedAndOnDashboard, walkStepMachine } from "./stepMachine";
+import {
+  assertActivatedAndOnDashboard,
+  countActiveVaultRows,
+  walkStepMachine,
+} from "./stepMachine";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -51,7 +59,9 @@ import { connectWallets } from "./walletConnect";
 // a comment pointing at their `services/vault/src/copy.ts` source. Finish-line matchers below are
 // tolerant regexes instead — the activated-view copy has been observed to drift between source and the
 // deployed build, so those key on stable/actionable elements rather than exact wording.
-const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // dashboard Collateral-section "Deposit"
+// The /vaults deposit CTA — rendered by both the summary card (VaultsSummaryCard) and the empty state
+// (VaultsEmptyState), so `.first()` picks whichever the page is showing.
+const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]';
 const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
@@ -68,9 +78,11 @@ const DO_NOT_SPLIT_TEXT = "Do not split"; // COPY.deposit.form.doNotSplit
 const TWO_VAULT_SPLIT_RX = /Two-vault split/; // COPY.deposit.form.splitOptionLabel / TWO_VAULT_SPLIT_NAME
 
 /**
- * Fill the deposit form (amount → provider → submit). The form has almost no testids, so selectors
- * are copy/role-driven and were verified against the real DOM. Returns once the deposit progress view
- * has opened (the fluid CTA click transitions to it).
+ * Fill the deposit form (navigate to /vaults → amount → provider → submit). The form has NO testids,
+ * so selectors are copy/role-driven and were verified against the real DOM. Returns the active-vault
+ * row count seen on /vaults BEFORE the deposit — the finish line's split cross-check asserts the count
+ * rose by the number of vaults this run creates — once the deposit progress view has opened (the fluid
+ * CTA click transitions to it).
  */
 export async function fillDepositForm(
   page: Page,
@@ -78,14 +90,20 @@ export async function fillDepositForm(
   amountBtc: string,
   provider: string | undefined,
   split: boolean,
-): Promise<void> {
+): Promise<number> {
+  await goToSection(page, "vaults", log);
   log(
     `Opening deposit form (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
   );
-  await page
-    .locator(DEPOSIT_BUTTON_TESTID)
-    .first()
-    .click({ timeout: STEP_TIMEOUT_MS });
+  const depositButton = page.locator(DEPOSIT_BUTTON_TESTID).first();
+  await depositButton.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+  // Count only AFTER the CTA renders. `goToSection` returns the moment the URL settles, but the vault
+  // list is data-driven — counting there reads 0 rows every time and silently zeroes the baseline the
+  // split cross-check subtracts against. VaultsPage renders this CTA only once its queries resolve
+  // (loading shows a Loader instead), in both the populated and empty layouts, so its presence means
+  // the row list is settled — including the legitimately-empty first-deposit case.
+  const baselineRowCount = await countActiveVaultRows(page);
+  await depositButton.click({ timeout: STEP_TIMEOUT_MS });
 
   const amount = page.getByPlaceholder(AMOUNT_PLACEHOLDER).first();
   await amount.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
@@ -99,6 +117,7 @@ export async function fillDepositForm(
   const cta = await waitForDepositCta(page, log);
   log("Deposit CTA enabled — submitting the form");
   await cta.click();
+  return baselineRowCount;
 }
 
 /**
@@ -290,7 +309,13 @@ export async function runPeginFlow(
   const split = ctx.config.split ?? false;
 
   onStep("deposit-form");
-  await fillDepositForm(page, log, amountBtc, provider, split);
+  const baselineRowCount = await fillDepositForm(
+    page,
+    log,
+    amountBtc,
+    provider,
+    split,
+  );
 
   onStep("sign-transaction");
   await startSigning(page, log);
@@ -311,6 +336,7 @@ export async function runPeginFlow(
     amountBtc,
     prePeginTxid,
     split ? 2 : 1,
+    baselineRowCount,
   );
   log(
     `✅ Pegin complete: ${split ? "two BTC Vaults" : "BTC Vault"} activated and shown on the dashboard.`,

@@ -55,9 +55,9 @@ export const VISUAL_OUTPUT_DIR =
  * copy would drift silently, and the capture would still pass — against a
  * different app than the e2e suite tests.
  *
- * Feature flags are forced ON because the v3 shell and its sections are the
- * surface worth protecting, and a flag that flipped between the two sides
- * would read as a visual regression.
+ * Feature flags are forced ON because the flag-gated sections are the surface
+ * worth protecting, and a flag that flipped between the two sides would read as
+ * a visual regression.
  */
 const VISUAL_ENV_VARS = {
   ...MOCK_ENV_VARS,
@@ -65,7 +65,6 @@ const VISUAL_ENV_VARS = {
   // needs the opposite (it asserts on tunnelled events).
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_TUNNEL_URL: "",
-  NEXT_PUBLIC_FF_ENABLE_V3_UI: "true",
   NEXT_PUBLIC_FF_ENABLE_EXPLORE: "true",
   NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART: "true",
   // Dev-only panel; would overlay every screen it mounts on.
