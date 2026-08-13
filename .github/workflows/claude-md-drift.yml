@@ -23,7 +23,11 @@ jobs:
         run: |
           set -e
           # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
-          # .github/CODEOWNERS, and .github/workflows/critical-path-check.yml.
+          # .github/CODEOWNERS, .github/workflows/critical-path-check.yml, and
+          # the "// CRITICAL PATHS" files: arrays in
+          # packages/babylon-ts-sdk/eslint.config.mjs,
+          # packages/babylon-tbv-rust-wasm/eslint.config.mjs and
+          # services/vault/eslint.config.js.
           paths=(
             "packages/babylon-tbv-rust-wasm/src/index.ts"
             "packages/babylon-tbv-rust-wasm/src/index-node.ts"
@@ -41,6 +45,16 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
             "packages/babylon-ledger-vault-signer/src/"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/wasm/"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader.ts"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw-node.ts"
+            "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
+            "services/vault/src/utils/btc/ensureBtcEccInitialized.ts"
           )
 
           : > missing.txt

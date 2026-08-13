@@ -13,6 +13,10 @@
  * the banner falls back to live data with zero behavioural change.
  */
 
+import {
+  getHealthFactorStatusFromValue,
+  type HealthFactorStatus,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useSyncExternalStore } from "react";
 
 import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
@@ -21,10 +25,6 @@ import type {
   CalculatorParams,
   CalculatorResult,
 } from "@/applications/aave/positionNotifications";
-import {
-  getHealthFactorStatusFromValue,
-  type HealthFactorStatus,
-} from "@/applications/aave/utils";
 import type { ProtocolStatus } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
 

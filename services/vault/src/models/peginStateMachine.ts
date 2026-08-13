@@ -6,7 +6,7 @@
  * concerns (isInUse, vpTerminalError, localStorage compat).
  */
 
-import { PRE_DEPOSITOR_SIGNATURES_STATES } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { PRE_DEPOSITOR_SIGNATURES_STATES } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import {
   ContractStatus,
   PeginAction as SdkPeginAction,

@@ -5,7 +5,31 @@
  * Only convert to strings/numbers at the UI boundary for display purposes.
  */
 
-import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
+const SATOSHIS_PER_BTC = 100_000_000n;
+
+/**
+ * Convert satoshis to a lossless BTC string without loading BTC primitives.
+ *
+ * Duplicates the SDK's `formatSatoshisToBtc`
+ * (packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts) on
+ * purpose: that export sits behind `@babylonlabs-io/ts-sdk/tbv/core`, a barrel
+ * that drags bitcoinjs-lib into every chunk importing it, and the amounts this
+ * formats are rendered on ETH-only routes too.
+ */
+export function satoshiToBtcString(satoshis: bigint): string {
+  if (satoshis < 0n) {
+    return `-${satoshiToBtcString(-satoshis)}`;
+  }
+  const whole = satoshis / SATOSHIS_PER_BTC;
+  const fraction = satoshis % SATOSHIS_PER_BTC;
+  const fractionString = fraction
+    .toString()
+    .padStart(8, "0")
+    .replace(/0+$/, "");
+  return fractionString.length > 0
+    ? `${whole}.${fractionString}`
+    : whole.toString();
+}
 
 /**
  * Convert satoshis (bigint) to BTC number for calculations
@@ -15,14 +39,14 @@ import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
  * @returns BTC amount as number
  */
 export function satoshiToBtcNumber(satoshi: bigint): number {
-  return Number(satoshi) / 100000000;
+  return Number(satoshi) / Number(SATOSHIS_PER_BTC);
 }
 
 /**
  * Format satoshis as a comma-grouped BTC display string with optional
  * fractional truncation.
  *
- * Uses SDK's lossless `formatSatoshisToBtc` for the base conversion, then
+ * Uses a lossless bigint conversion for the base amount, then
  * truncates the fractional part to `decimals` digits and adds thousands
  * separators on the integer part — e.g. 100_000_000_000n → "1,000".
  *
@@ -34,7 +58,7 @@ export function formatSatoshisToBtcDisplay(
   satoshis: bigint,
   decimals: number = 8,
 ): string {
-  const raw = formatSatoshisToBtc(satoshis);
+  const raw = satoshiToBtcString(satoshis);
   const [whole, fraction = ""] = raw.split(".");
   const truncatedFraction = fraction.slice(0, decimals).replace(/0+$/, "");
   const wholeWithCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");

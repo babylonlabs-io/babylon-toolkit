@@ -16,7 +16,7 @@ import {
   ViemUniversalChallengerReader,
   ViemVaultKeeperReader,
   ViemVaultRegistryReader,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 
 import { CONTRACTS } from "../../config/contracts";
 

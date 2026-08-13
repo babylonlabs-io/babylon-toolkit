@@ -48,10 +48,26 @@ vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => ({ isGeoBlocked: false, isLoading: true }),
 }));
 
-const walletMock = vi.hoisted(() => ({ connected: false }));
+const walletMock = vi.hoisted(() => ({
+  btcConnected: false,
+  ethConnected: false,
+  sessionConfirmed: false,
+  requireBtcWallet: vi.fn(() => false),
+}));
 vi.mock("@/context/wallet", () => ({
-  useBTCWallet: () => ({ connected: walletMock.connected }),
-  useETHWallet: () => ({ connected: walletMock.connected }),
+  useConnection: () => ({
+    isConnected: walletMock.sessionConfirmed && walletMock.ethConnected,
+    isFullyConnected:
+      walletMock.sessionConfirmed &&
+      walletMock.btcConnected &&
+      walletMock.ethConnected,
+    btcConnected: walletMock.btcConnected,
+    ethConnected: walletMock.ethConnected,
+  }),
+  useRequireBtcWallet: () => ({
+    btcConnected: walletMock.btcConnected,
+    requireBtcWallet: walletMock.requireBtcWallet,
+  }),
 }));
 
 // The god-mode status override is compile-time null in production (gated on
@@ -81,17 +97,12 @@ vi.mock("@/components/Wallet", () => ({
 // NetworkBadge imports it directly.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
+  useWalletConnect: () => ({ open: vi.fn() }),
 }));
 
-// SimpleDeposit never mounts in any case below (RootLayout stays on its
-// Loader branch — see the geofencing mock above), but it's still imported
-// unconditionally at module scope. Its own import graph (DepositForm,
-// DepositSignContent, ResumeDepositContent, and a dozen `hooks/deposit/*`
-// files) directly imports several more `@babylonlabs-io/wallet-connector`
-// exports (useChainConnector, getSharedWagmiConfig, isUserRejectionMessage,
-// …) that the mock above doesn't provide. Stubbing the dead subtree here is
-// far more targeted than growing the wallet-connector mock to satisfy code
-// that never executes.
+// SimpleDeposit is lazy and never mounts below (RootLayout stays on the
+// geofencing Loader branch). Keep the chunk stubbed so a test that opens it by
+// mistake cannot pull the BTC/WASM graph into this header-only unit test.
 vi.mock("@/components/simple/SimpleDeposit", () => ({
   default: () => null,
 }));
@@ -121,14 +132,19 @@ beforeEach(() => {
   featureFlagsMock.isDepositDisabled = false;
   networkMock.value = "mainnet";
   mobileMock.value = false;
-  walletMock.connected = false;
+  walletMock.btcConnected = false;
+  walletMock.ethConnected = false;
+  walletMock.sessionConfirmed = false;
+  walletMock.requireBtcWallet.mockClear();
   debugStatusMock.value = null;
 });
 
 describe("RootLayout — header wiring", () => {
   it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
     networkMock.value = "mainnet";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.sessionConfirmed = true;
 
     renderRootLayout();
 
@@ -144,7 +160,9 @@ describe("RootLayout — header wiring", () => {
 
   it("signet: shows the page-title h1 and the NetworkBadge", () => {
     networkMock.value = "signet";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.sessionConfirmed = true;
 
     renderRootLayout();
 
@@ -156,12 +174,16 @@ describe("RootLayout — header wiring", () => {
   });
 
   it("disconnected: drops the sidebar and page title for the entry chrome", () => {
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.sessionConfirmed = true;
     const { unmount } = renderRootLayout();
     expect(document.querySelector("aside")).toBeInTheDocument();
     unmount();
 
-    walletMock.connected = false;
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
+    walletMock.sessionConfirmed = false;
     const { container } = renderRootLayout();
 
     expect(document.querySelector("aside")).not.toBeInTheDocument();
@@ -174,6 +196,18 @@ describe("RootLayout — header wiring", () => {
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),
     ).toBeInTheDocument();
+  });
+
+  it("treats an ETH-only wallet as a connected application session", () => {
+    walletMock.ethConnected = true;
+    walletMock.sessionConfirmed = true;
+
+    renderRootLayout();
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      COPY.nav.overview,
+    );
   });
 
   it("disconnected: keeps the legal links reachable via the entry footer", () => {
@@ -244,7 +278,9 @@ describe("RootLayout — operator message banner", () => {
   });
 
   it("suppresses the standalone notice while the deposit-disabled banner is active", () => {
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.sessionConfirmed = true;
     featureFlagsMock.isDepositDisabled = true;
     featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
 
@@ -266,7 +302,9 @@ describe("RootLayout — operator message banner", () => {
     // healthy — the deposit-disabled default copy must not leak through, and the
     // operator message must not appear as a standalone strip.
     debugStatusMock.value = "frozen";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.sessionConfirmed = true;
     featureFlagsMock.isDepositDisabled = true;
     featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
 

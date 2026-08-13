@@ -15,9 +15,13 @@ import { usePendingDeposits } from "../usePendingDeposits";
 // ── Mocks ───────────────────────────────────────────────────────────────
 
 const mockRefetchActivities = vi.fn();
+const walletState = vi.hoisted(() => ({ btcConnected: true }));
 
 vi.mock("@/context/wallet", () => ({
-  useBTCWallet: vi.fn(() => ({ connected: true, address: "bc1qtest" })),
+  useBTCWallet: vi.fn(() => ({
+    connected: walletState.btcConnected,
+    address: walletState.btcConnected ? "bc1qtest" : "",
+  })),
   useETHWallet: vi.fn(() => ({ address: "0xethtest" })),
 }));
 
@@ -70,6 +74,7 @@ describe("usePendingDeposits", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockActivities.mockReturnValue([]);
+    walletState.btcConnected = true;
   });
 
   it("returns hasPendingDeposits=false when there are no activities", () => {
@@ -108,6 +113,20 @@ describe("usePendingDeposits", () => {
 
     expect(result.current.hasPendingDeposits).toBe(false);
     expect(result.current.pendingActivities).toHaveLength(0);
+  });
+
+  it("keeps ETH-discovered pending rows visible without a BTC wallet", () => {
+    walletState.btcConnected = false;
+    mockActivities.mockReturnValue([
+      makeActivity("a1", ContractStatus.PENDING),
+      makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
+    ]);
+
+    const { result } = renderHook(() => usePendingDeposits());
+
+    expect(result.current.btcConnected).toBe(false);
+    expect(result.current.hasPendingDeposits).toBe(true);
+    expect(result.current.hasExpiredDeposits).toBe(true);
   });
 
   it("includes all activities in allActivities regardless of status", () => {

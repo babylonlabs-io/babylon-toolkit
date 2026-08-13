@@ -18,8 +18,9 @@ interface FakeBtcProvider {
 const harness = vi.hoisted(() => ({
   connector: null as {
     connectedWallet: { provider: FakeBtcProvider } | undefined;
-    on: () => () => void;
+    on: (event: string, handler: () => void) => () => void;
   } | null,
+  disconnectListener: null as (() => void) | null,
 }));
 
 // The provider reads its session from the chain connector and wires the
@@ -53,9 +54,17 @@ function makeProvider(overrides: Partial<FakeBtcProvider> = {}): FakeBtcProvider
 }
 
 function connectWith(provider: FakeBtcProvider): void {
+  harness.disconnectListener = null;
   harness.connector = {
     connectedWallet: { provider },
-    on: () => () => {},
+    on: (event, handler) => {
+      if (event === "disconnect") harness.disconnectListener = handler;
+      return () => {
+        if (harness.disconnectListener === handler) {
+          harness.disconnectListener = null;
+        }
+      };
+    },
   };
 }
 
@@ -63,10 +72,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   <BTCWalletProvider>{children}</BTCWalletProvider>
 );
 
-// Fire a focus event — the provider runs an immediate lock probe on focus. The
-// provider also re-runs connectBTC once as the cached address/pubkey settle,
-// which transiently clears `locked`, so a positive lock assertion re-probes
-// until the steady-state verdict sticks.
+// Fire a focus event — the provider runs an immediate lock probe on focus.
 function focusTab(): void {
   window.dispatchEvent(new Event("focus"));
 }
@@ -74,6 +80,7 @@ function focusTab(): void {
 describe("BTCWalletProvider — silent lock engine", () => {
   beforeEach(() => {
     harness.connector = null;
+    harness.disconnectListener = null;
     // The lock poll and the focus probe only run while the tab is visible.
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -189,5 +196,104 @@ describe("BTCWalletProvider — silent lock engine", () => {
 
     expect(result.current.connected).toBe(false);
     expect(result.current.locked).toBe(false);
+  });
+
+  it("does not resurrect a connection that resolves after its connector disconnected", async () => {
+    let resolveAddress: (value: string) => void = () => {};
+    const address = new Promise<string>((resolve) => {
+      resolveAddress = resolve;
+    });
+    const getAddress = vi.fn(() => address);
+    const getPublicKeyHex = vi.fn(async () => PUBKEY);
+    connectWith(makeProvider({ getAddress, getPublicKeyHex }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+
+    await waitFor(() => {
+      expect(getAddress).toHaveBeenCalledOnce();
+      expect(harness.disconnectListener).not.toBeNull();
+    });
+
+    // WalletConnector clears connectedWallet before publishing its disconnect
+    // event. The local provider has not committed yet, so this specifically
+    // exercises the pre-active-session window that used to early-return without
+    // invalidating the pending address read.
+    if (harness.connector) harness.connector.connectedWallet = undefined;
+    await act(async () => {
+      harness.disconnectListener?.();
+      resolveAddress(ADDR);
+      await address;
+      await Promise.resolve();
+    });
+
+    expect(getPublicKeyHex).not.toHaveBeenCalled();
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBe("");
+    expect(result.current.publicKeyNoCoord).toBe("");
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("retries a transient raw disconnect while the connector remains selected", async () => {
+    let resolveReconnectAddress: (value: string) => void = () => {};
+    const reconnectAddress = new Promise<string>((resolve) => {
+      resolveReconnectAddress = resolve;
+    });
+    const getAddress = vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValueOnce(ADDR)
+      .mockImplementationOnce(() => reconnectAddress);
+    connectWith(makeProvider({ getAddress }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    // A provider-originated disconnect clears only the raw provider state; the
+    // connector deliberately stays selected during the vault's debounce window.
+    // The generation invalidation must therefore trigger a fresh read rather
+    // than suppressing the existing transient-recovery behavior.
+    await act(async () => {
+      result.current.disconnect();
+    });
+    await waitFor(() => expect(getAddress).toHaveBeenCalledTimes(2));
+    expect(result.current.connected).toBe(false);
+
+    await act(async () => {
+      resolveReconnectAddress(ADDR);
+      await reconnectAddress;
+    });
+    await waitFor(() => expect(result.current.connected).toBe(true));
+  });
+
+  it("drops a reconnect result that resolves after connector teardown", async () => {
+    let resolveReconnect: () => void = () => {};
+    const reconnect = new Promise<void>((resolve) => {
+      resolveReconnect = resolve;
+    });
+    const connectWallet = vi.fn(() => reconnect);
+    const getAddress = vi.fn(async () => ADDR);
+    connectWith(makeProvider({ connectWallet, getAddress }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    let reconnectResult: Promise<void> | undefined;
+    act(() => {
+      reconnectResult = result.current.reconnect();
+    });
+    await waitFor(() => expect(connectWallet).toHaveBeenCalledOnce());
+
+    if (harness.connector) harness.connector.connectedWallet = undefined;
+    await act(async () => {
+      harness.disconnectListener?.();
+      resolveReconnect();
+      await reconnectResult!;
+    });
+
+    // One address read established the original session. The stale reconnect
+    // must stop immediately after its interactive call resolves rather than
+    // reading/committing the torn-down provider again.
+    expect(getAddress).toHaveBeenCalledOnce();
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBe("");
   });
 });

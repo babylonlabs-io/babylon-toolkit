@@ -6,8 +6,10 @@
  * The actual contract reads, validations, and multicalls live in the SDK.
  */
 
-import { assertValidVaultCoreVersion } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type { KeyEpochs } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  assertValidVaultCoreVersion,
+  type KeyEpochs,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import { type Address, type Hex, zeroAddress } from "viem";
 
 import { getVaultRegistryReader } from "../sdk-readers";

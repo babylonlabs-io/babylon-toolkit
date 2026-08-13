@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
-import { getAppKitModal } from "@/core/wallets/appkit/appKitModal";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+import { getAppKitModal } from "@/core/wallets/appkit/state";
 
 /**
  * Unified AppKit modal open listener

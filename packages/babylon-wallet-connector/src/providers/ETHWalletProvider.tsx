@@ -10,10 +10,10 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import type { IETHProvider } from "@/core/types";
 import { useChainConnector } from "@/hooks/useChainConnector";
 import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
-import type { IETHProvider } from "@/core/types";
 
 export interface ETHWalletLifecycleCallbacks {
   onConnect?: (address: string) => void | Promise<void>;
@@ -46,32 +46,61 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string>();
   const [provider, setProvider] = useState<IETHProvider | null>(null);
+  const disconnectInFlightRef = useRef(false);
+  const hasActiveSessionRef = useRef(false);
+  // Every asynchronous address read belongs to the generation that started it.
+  // Disconnects advance the generation synchronously, including while the first
+  // connection is still resolving, so a stale read cannot resurrect a session
+  // that has already been torn down.
+  const sessionGenerationRef = useRef(0);
 
   const { open } = useWalletConnect();
   const ethConnector = useChainConnector("ETH");
 
   const disconnect = useCallback(async () => {
+    sessionGenerationRef.current += 1;
+    const hadActiveSession = hasActiveSessionRef.current;
+    const alreadyDisconnecting = disconnectInFlightRef.current;
+    hasActiveSessionRef.current = false;
     setAddress(undefined);
     setProvider(null);
-    ethConnector?.disconnect();
+
+    try {
+      await ethConnector?.disconnect();
+    } catch (error) {
+      console.error("Error disconnecting ETH connector:", error instanceof Error ? error.message : "Unknown error");
+    }
+
+    // A disconnect that arrives before the first address resolves still has to
+    // tear the connector down (above), but there is no session for the host to
+    // be told about. A concurrent call owns `disconnectInFlightRef` and the
+    // host callback, so it must not be re-run or the flag cleared here.
+    if (alreadyDisconnecting || !hadActiveSession) return;
+
+    disconnectInFlightRef.current = true;
 
     try {
       await callbacks?.onDisconnect?.();
     } catch (error) {
       console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      disconnectInFlightRef.current = false;
     }
   }, [ethConnector, callbacks]);
 
   const connectETH = useCallback(
     async (walletAddress: string) => {
       try {
+        hasActiveSessionRef.current = true;
         setAddress(walletAddress);
         setLoading(false);
 
         await callbacks?.onConnect?.(walletAddress);
       } catch (error: unknown) {
         setLoading(false);
-        callbacks?.onError?.(error instanceof Error ? error : new Error("ETH connection failed"), { address: walletAddress });
+        callbacks?.onError?.(error instanceof Error ? error : new Error("ETH connection failed"), {
+          address: walletAddress,
+        });
       }
     },
     [callbacks],
@@ -83,12 +112,14 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     if (!ethConnector) return;
 
     const checkExistingConnection = async () => {
+      const generation = sessionGenerationRef.current;
+
       try {
         // First check if connector already has a connected wallet
         if (ethConnector.connectedWallet?.provider && !address) {
           const walletProvider = ethConnector.connectedWallet.provider;
           const addr = await walletProvider.getAddress();
-          if (addr) {
+          if (addr && generation === sessionGenerationRef.current) {
             setProvider(walletProvider);
             connectETH(addr);
           }
@@ -103,7 +134,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
             try {
               // This will check for existing connection and return immediately if found
               const addr = await wallet.provider.getAddress();
-              if (addr) {
+              if (addr && generation === sessionGenerationRef.current) {
                 // Found existing connection, trigger manual connect to sync state
                 await ethConnector.connect(wallet);
               }
@@ -121,9 +152,11 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 
     const unsubscribe = ethConnector.on("connect", async (wallet) => {
       if (wallet.provider) {
+        const generation = sessionGenerationRef.current;
+
         try {
           const addr = await wallet.provider.getAddress();
-          if (addr) {
+          if (addr && generation === sessionGenerationRef.current) {
             setProvider(wallet.provider);
             connectETH(addr);
           }
@@ -168,10 +201,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
           // Defensive only — `connect` shouldn't reject, but reset on an
           // unexpected synchronous throw so we don't wedge the guard.
           lateReconnectInFlight = false;
-          console.error(
-            "ETH late reconnect failed:",
-            error instanceof Error ? error.message : "Unknown error",
-          );
+          console.error("ETH late reconnect failed:", error instanceof Error ? error.message : "Unknown error");
         });
     };
     if (bootstrapProvider && typeof bootstrapProvider.on === "function") {
@@ -226,7 +256,9 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         try {
           await callbacks?.onAddressChange?.(newAddress);
         } catch (error: unknown) {
-          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), { address: newAddress });
+          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), {
+            address: newAddress,
+          });
         } finally {
           isProcessingChangeRef.current = false;
         }
@@ -281,10 +313,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     enabled: Boolean(provider && address),
   });
 
-  const connected = useMemo(
-    () => Boolean(address),
-    [address],
-  );
+  const connected = useMemo(() => Boolean(address), [address]);
 
   return (
     <ETHWalletContext.Provider
@@ -302,4 +331,3 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 };
 
 export const useETHWallet = () => useContext(ETHWalletContext);
-

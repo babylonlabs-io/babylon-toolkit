@@ -3,20 +3,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WalletConnectionProvider } from "../VaultWalletConnectionProvider";
 
-// Drive the BTC lifecycle callbacks that VaultWalletConnectionProvider passes
-// into BTCWalletProvider, and observe whether the destructive disconnectAll()
-// cascade fires. We mock the wallet-connector module so the test exercises the
-// real blip-guard logic against a controllable connect/disconnect event stream.
-type BtcCallbacks = { onConnect: () => void; onDisconnect: () => void };
+type BtcCallbacks = {
+  onConnect: () => void;
+  onDisconnect: () => void | Promise<void>;
+  onAddressChange: () => void | Promise<void>;
+};
+
+type EthCallbacks = {
+  onAddressChange: () => void | Promise<void>;
+};
 
 const h = vi.hoisted(() => ({
-  disconnectAll: vi.fn(async () => {}),
-  captured: { btc: undefined as undefined | BtcCallbacks },
+  btcDisconnect: vi.fn(async () => {}),
+  captured: {
+    btc: undefined as BtcCallbacks | undefined,
+    eth: undefined as EthCallbacks | undefined,
+    requiredChains: undefined as string[] | undefined,
+  },
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   APPKIT_BTC_CONNECTOR_ID: "appkit_btc",
-  WalletProvider: ({ children }: { children: React.ReactNode }) => children,
+  WalletProvider: ({
+    children,
+    requiredChains,
+  }: {
+    children: React.ReactNode;
+    requiredChains: string[];
+  }) => {
+    h.captured.requiredChains = requiredChains;
+    return children;
+  },
   BTCWalletProvider: ({
     children,
     callbacks,
@@ -27,69 +44,162 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     h.captured.btc = callbacks;
     return children;
   },
-  ETHWalletProvider: ({ children }: { children: React.ReactNode }) => children,
+  ETHWalletProvider: ({
+    children,
+    callbacks,
+  }: {
+    children: React.ReactNode;
+    callbacks: EthCallbacks;
+  }) => {
+    h.captured.eth = callbacks;
+    return children;
+  },
   createWalletConfig: () => ({}),
-  useWalletConnect: () => ({ disconnect: h.disconnectAll }),
-  useWidgetState: () => ({ visible: false }),
+  useWalletConnect: () => ({ disconnect: h.btcDisconnect }),
 }));
 
-vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light" }) }));
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
+}));
 vi.mock("@/infrastructure", () => ({
   logger: { info: vi.fn(), error: vi.fn() },
 }));
-
-// Must stay in sync with BTC_DISCONNECT_DEBOUNCE_MS in the provider; advancing
-// past it is what would trigger the reset if the guard let it through.
-const PAST_DEBOUNCE_MS = 5000;
 
 const renderProvider = () =>
   render(<WalletConnectionProvider>child</WalletConnectionProvider>);
 
 const btc = () => h.captured.btc as BtcCallbacks;
+const eth = () => h.captured.eth as EthCallbacks;
 
-describe("WalletConnectionProvider — BTC disconnect-blip guard", () => {
+describe("WalletConnectionProvider — optional BTC lifecycle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    h.disconnectAll.mockClear();
+    h.btcDisconnect.mockReset();
+    h.btcDisconnect.mockResolvedValue(undefined);
     h.captured.btc = undefined;
+    h.captured.eth = undefined;
+    h.captured.requiredChains = undefined;
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("does not tear down both wallets for a disconnect before BTC ever connected", async () => {
+  it("requires only ETH while keeping BTC configured as an optional chain", () => {
     renderProvider();
 
-    // Startup blip: a disconnect arrives before the first successful connect.
-    act(() => btc().onDisconnect());
-    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
-
-    expect(h.disconnectAll).not.toHaveBeenCalled();
+    expect(h.captured.requiredChains).toEqual(["ETH"]);
   });
 
-  it("tears down both wallets for a genuine disconnect after a successful connect", async () => {
+  it("ignores a startup disconnect before BTC has connected", async () => {
+    renderProvider();
+
+    await act(async () => btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).not.toHaveBeenCalled();
+  });
+
+  it("clears only BTC after a genuine post-connect disconnect", async () => {
     renderProvider();
 
     act(() => btc().onConnect());
-    // No reconnect (onConnect) within the window → a real disconnect. The reset
-    // must fire purely on the absence of a reconnect — it must NOT consult the
-    // connector's connectedWallet (an extension-initiated disconnect leaves that
-    // stale-set, which would wrongly suppress the cascade).
-    act(() => btc().onDisconnect());
-    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
 
-    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+    expect(h.btcDisconnect).toHaveBeenCalledWith("BTC");
   });
 
-  it("cancels the reset when a reconnect arrives within the debounce window", async () => {
+  it("preserves BTC when it reconnects within the debounce window", async () => {
     renderProvider();
 
     act(() => btc().onConnect());
-    act(() => btc().onDisconnect());
-    act(() => btc().onConnect()); // reconnect blip resolved
-    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+    act(() => void btc().onDisconnect());
+    act(() => btc().onConnect());
+    await vi.advanceTimersByTimeAsync(5000);
 
-    expect(h.disconnectAll).not.toHaveBeenCalled();
+    expect(h.btcDisconnect).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stray disconnect once the BTC session has been torn down", async () => {
+    renderProvider();
+
+    act(() => btc().onConnect());
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(h.btcDisconnect).toHaveBeenCalledTimes(1);
+
+    // Nothing reconnected, so the session is gone. A late disconnect from the
+    // extension must not schedule a second teardown.
+    h.btcDisconnect.mockClear();
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).not.toHaveBeenCalled();
+  });
+
+  it("keeps guarding BTC when a reconnect lands while the teardown is in flight", async () => {
+    renderProvider();
+    let finishDisconnect: (() => void) | undefined;
+    h.btcDisconnect.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDisconnect = resolve;
+        }),
+    );
+
+    act(() => btc().onConnect());
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(h.btcDisconnect).toHaveBeenCalledTimes(1);
+
+    // The wallet comes back before `disconnect("BTC")` settles, so there is no
+    // pending timer to cancel — only the connection epoch tells the teardown
+    // that a newer session now exists.
+    act(() => btc().onConnect());
+    await act(async () => finishDisconnect?.());
+
+    h.btcDisconnect.mockClear();
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).toHaveBeenCalledWith("BTC");
+
+    // No reconnect landed behind that second teardown, so the epoch matches
+    // and the marker must retire — a later stray disconnect is ignored.
+    h.btcDisconnect.mockClear();
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).not.toHaveBeenCalled();
+  });
+
+  it("clears only the BTC connector after a BTC account change", async () => {
+    renderProvider();
+
+    await act(async () => btc().onAddressChange());
+
+    expect(h.btcDisconnect).toHaveBeenCalledWith("BTC");
+  });
+
+  it("guards connector disconnect callback re-entry", async () => {
+    renderProvider();
+    h.btcDisconnect.mockImplementationOnce(async () => {
+      await btc().onAddressChange();
+    });
+
+    await act(async () => btc().onAddressChange());
+
+    expect(h.btcDisconnect).toHaveBeenCalledWith("BTC");
+    expect(h.btcDisconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears only ETH after an ETH account change", async () => {
+    renderProvider();
+
+    await act(async () => eth().onAddressChange());
+
+    expect(h.btcDisconnect).toHaveBeenCalledWith("ETH");
+    expect(h.btcDisconnect).toHaveBeenCalledTimes(1);
   });
 });

@@ -66,7 +66,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files (all marked `@stability frozen` in JSDoc):
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext`, `buildFundingOutpointsCommitment`
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveVaultRoot.ts` — `deriveVaultRoot`, `VAULT_APP_NAME`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` from the WASM package
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` through `tbv/core/wasm`, the lazy facade over the WASM package
   - `packages/babylon-tbv-rust-wasm/src/index.ts` — browser-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/src/index-node.ts` — node-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js` — `VAULT_WASM_COMMIT` pin (the vault-wasm facade at this commit, and the btc-vault revs it bundles, are the byte-level source of truth for the HKDF `info` encoding, labels, and i2osp prefixes)
@@ -99,6 +99,19 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - File: `packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts`
 - Uses `useTweakedSigner: false` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
 - **Rule:** Validate every signature produced with these flags against the expected sighash before treating the PSBT as signed. Do not rely on the wallet returning success.
+
+### 9. Dependency-free reimplementations of Bitcoin primitives
+
+- Files:
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — txid parsing + vault-id derivation replacing the bitcoinjs and WASM implementations
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — Ethereum-side registration extracted from `PeginManager`
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts` — hand-rolled secp256k1 curve-membership check replacing `ecc.isXOnlyPoint`
+  - `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now crosses
+  - `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts` — the restructured engine entry surface
+  - `services/vault/src/utils/btc/scriptPubKeyAddress.ts` — hand-written bech32, bech32m and base58check encoding
+- Replacing a dependency swaps widely-exercised code for code only this repository tests, on values that reach a signature or an on-chain commitment. The failure mode is silent: an implementation that is correct for the vectors sitting in its own test file and wrong for the input that ships.
+- **Rule:** A reimplementation may not land without a differential test asserting byte-for-byte equality against the implementation it replaces, over the existing golden vectors **plus** randomised inputs. A single hardcoded vector is not sufficient — it pins one input, not the function. If the original is being deleted in the same change, the differential must run against it before deletion, and the vectors it produced must be committed as fixtures.
+- `services/vault/src/utils/btc/ensureBtcEccInitialized.ts` — the process-wide ECC registration every taproot path depends on — is code-owned and flagged by the critical-path workflows, but is deliberately **not** under the rule above: a missing registration throws loudly rather than mis-signing silently.
 
 ---
 

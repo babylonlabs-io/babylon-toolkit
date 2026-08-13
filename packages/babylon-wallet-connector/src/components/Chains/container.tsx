@@ -1,12 +1,10 @@
 import { useCallback, useMemo } from "react";
 
+import { useChainProviders } from "@/context/Chain.context";
 import type { IChain } from "@/core/types";
-import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
-import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
-import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
+import { APPKIT_BTC_CONNECTOR_ID, APPKIT_ETH_CONNECTOR_ID, APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWidgetState } from "@/hooks/useWidgetState";
-import { useChainProviders } from "@/context/Chain.context";
 
 import { Chains } from "./index";
 
@@ -26,7 +24,7 @@ interface ContainerProps {
 }
 
 export function ChainsContainer(props: ContainerProps) {
-  const { chains, selectedWallets, displayWallets } = useWidgetState();
+  const { chains, requiredChainIds, selectedWallets, displayWallets } = useWidgetState();
   const { selected } = useWalletConnect();
   const connectors = useChainProviders();
 
@@ -37,7 +35,7 @@ export function ChainsContainer(props: ContainerProps) {
       // Special handling for ETH chain with only AppKit wallet
       if (chain.id === "ETH") {
         const ethConnector = connectors.ETH;
-        const appkitWallet = ethConnector?.wallets.find(w => w.id === APPKIT_ETH_CONNECTOR_ID);
+        const appkitWallet = ethConnector?.wallets.find((w) => w.id === APPKIT_ETH_CONNECTOR_ID);
 
         if (appkitWallet && ethConnector?.wallets.length === 1) {
           // Already connected: reopen the AppKit modal so the user can switch/disconnect.
@@ -60,7 +58,7 @@ export function ChainsContainer(props: ContainerProps) {
       // Special handling for BTC chain with only AppKit wallet
       if (chain.id === "BTC") {
         const btcConnector = connectors.BTC;
-        const appkitBtcWallet = btcConnector?.wallets.find(w => w.id === APPKIT_BTC_CONNECTOR_ID);
+        const appkitBtcWallet = btcConnector?.wallets.find((w) => w.id === APPKIT_BTC_CONNECTOR_ID);
 
         if (appkitBtcWallet && btcConnector?.wallets.length === 1) {
           // Already connected: reopen the AppKit modal so the user can switch/disconnect.
@@ -90,6 +88,7 @@ export function ChainsContainer(props: ContainerProps) {
     <Chains
       disabled={!selected}
       chains={chainArr}
+      requiredChainIds={requiredChainIds}
       selectedWallets={selectedWallets}
       onSelectChain={handleSelectChain}
       {...props}

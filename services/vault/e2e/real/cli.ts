@@ -16,6 +16,12 @@
  *   pnpm --filter vault run e2e:cli --target=website --network=devnet --btc=unisat --eth=metamask \
  *     --action=connect [--data=real] [--delay=0] [--yes]
  *
+ * A Bitcoin wallet is optional for the app session, so connect comes in three shapes and none of them
+ * take extra flags: `--action=connect` connects both wallets, `--action=connect-eth-only` connects
+ * Ethereum alone and checks the app is usable that way, and `--action=btc-just-in-time` connects
+ * Ethereum alone then answers the Bitcoin prompt a deposit raises. All three still need `--btc=<id>`:
+ * the run imports both extensions up front, and the just-in-time leg picks that wallet from the prompt.
+ *
  * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
  * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.

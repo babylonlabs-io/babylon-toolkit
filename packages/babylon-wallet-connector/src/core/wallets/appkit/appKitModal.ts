@@ -10,6 +10,8 @@ import { baseAccount } from "wagmi/connectors";
 import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
 
+import { getAppKitModal, setAppKitModal } from "./state";
+
 /**
  * Unified AppKit Modal Configuration
  *
@@ -52,17 +54,8 @@ export interface AppKitModalConfig {
   };
 }
 
-let appKitModal: ReturnType<typeof createAppKit> | null = null;
 let wagmiAdapter: WagmiAdapter | null = null;
 let bitcoinAdapter: BitcoinAdapter | null = null;
-
-/**
- * Get the AppKit modal instance (if initialized)
- * @returns The AppKit modal instance or null if not initialized
- */
-export function getAppKitModal() {
-  return appKitModal;
-}
 
 /**
  * Initialize AppKit modal with ETH and/or BTC support
@@ -71,10 +64,11 @@ export function getAppKitModal() {
  * @param config - Configuration including required metadata, optional ETH chain, and optional BTC network
  */
 export function initializeAppKitModal(config: AppKitModalConfig) {
+  const existingModal = getAppKitModal();
   // Don't reinitialize if already initialized
-  if (appKitModal) {
+  if (existingModal) {
     return {
-      modal: appKitModal,
+      modal: existingModal,
       wagmiConfig: wagmiAdapter?.wagmiConfig,
       bitcoinAdapter,
     };
@@ -127,8 +121,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
 
   // Create Bitcoin Adapter if BTC is configured
   if (config.btc?.network) {
-    const btcNetwork =
-      config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
+    const btcNetwork = config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
     allNetworks.push(btcNetwork);
 
     bitcoinAdapter = new BitcoinAdapter({
@@ -144,12 +137,13 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   }
 
   // Create single AppKit modal with all adapters
-  appKitModal = createAppKit({
+  const appKitModal = createAppKit({
     adapters,
     networks: allNetworks as [AppKitNetwork, ...AppKitNetwork[]],
     projectId,
     metadata,
   });
+  setAppKitModal(appKitModal);
 
   // Set the shared BTC AppKit config with the actual modal instance
   if (bitcoinAdapter && config.btc?.network) {

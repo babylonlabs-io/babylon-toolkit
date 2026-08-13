@@ -941,6 +941,9 @@ export const COPY = {
     },
   },
   wallet: {
+    // Navbar CTA on an ETH-only session: the optional BTC wallet is the only
+    // thing still missing, so the label names that chain rather than "wallet".
+    connectBtcButton: "Connect BTC",
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     liveness: {

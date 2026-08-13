@@ -42,7 +42,12 @@ import {
 
 import { installPopupApprover } from "./approver";
 import { startRecording } from "./recording";
-import { FLUID_CTA_SELECTOR } from "./selectors";
+import {
+  depositAmountInput,
+  depositButton,
+  FLUID_CTA_SELECTOR,
+  walletDialogOption,
+} from "./selectors";
 import { assertActivatedAndOnDashboard, walkStepMachine } from "./stepMachine";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
@@ -50,9 +55,8 @@ import { connectWallets } from "./walletConnect";
 // Form-phase matchers use exact copy strings (verified against the deployed build the run drives) with
 // a comment pointing at their `services/vault/src/copy.ts` source. Finish-line matchers below are
 // tolerant regexes instead — the activated-view copy has been observed to drift between source and the
-// deployed build, so those key on stable/actionable elements rather than exact wording.
-const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // dashboard Collateral-section "Deposit"
-const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
+// deployed build, so those key on stable/actionable elements rather than exact wording. The Deposit CTA
+// + amount input are shared with resume and the just-in-time action, so they live in `selectors.ts`.
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
 // The fluid CTA also renders these at-cap states (COPY.deposit.maxVaultsReached) — detect them so an
@@ -66,6 +70,31 @@ const SIGN_TRANSACTION_LABEL = "Sign Transaction"; // COPY.deposit.progress.butt
 // single-vault (the default) and relabels to the split option once enabled.
 const DO_NOT_SPLIT_TEXT = "Do not split"; // COPY.deposit.form.doNotSplit
 const TWO_VAULT_SPLIT_RX = /Two-vault split/; // COPY.deposit.form.splitOptionLabel / TWO_VAULT_SPLIT_NAME
+
+/**
+ * Wait for the deposit form's amount input after the Deposit CTA click. The CTA only opens the form
+ * when a Bitcoin wallet is connected: without one it opens the wallet dialog on Bitcoin instead
+ * (RootLayout's `openDeposit` → `useRequireBtcWallet`), and a plain wait would spend the whole step
+ * budget before failing on an unrelated-looking "amount input never appeared". Detect that dialog and
+ * fail with the real cause — every action reaching here connected Bitcoin up front, so seeing it means
+ * that connect silently came undone.
+ */
+async function waitForAmountInput(page: Page): Promise<Locator> {
+  const amount = depositAmountInput(page);
+  const dialog = walletDialogOption(page);
+  const deadline = Date.now() + STEP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (await amount.isVisible().catch(() => false)) return amount;
+    if (await dialog.isVisible().catch(() => false))
+      throw new Error(
+        "Deposit opened the wallet dialog instead of the deposit form — the app no longer has a connected Bitcoin wallet (it asks for one just-in-time). Re-run the connect flow.",
+      );
+    await page.waitForTimeout(FORM_SETTLE_MS);
+  }
+  throw new Error(
+    `The deposit form's amount input did not appear within ${STEP_TIMEOUT_MS}ms of clicking Deposit.`,
+  );
+}
 
 /**
  * Fill the deposit form (amount → provider → submit). The form has almost no testids, so selectors
@@ -82,13 +111,9 @@ export async function fillDepositForm(
   log(
     `Opening deposit form (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
   );
-  await page
-    .locator(DEPOSIT_BUTTON_TESTID)
-    .first()
-    .click({ timeout: STEP_TIMEOUT_MS });
+  await depositButton(page).click({ timeout: STEP_TIMEOUT_MS });
 
-  const amount = page.getByPlaceholder(AMOUNT_PLACEHOLDER).first();
-  await amount.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+  const amount = await waitForAmountInput(page);
   await amount.fill(amountBtc);
   await page.waitForTimeout(FORM_SETTLE_MS);
 

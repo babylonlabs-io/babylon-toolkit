@@ -93,8 +93,10 @@ export function usePendingDeposits() {
     btcAddress,
     btcConnected,
     ethAddress,
-    hasPendingDeposits: btcConnected && pendingActivities.length > 0,
-    hasExpiredDeposits: btcConnected && expiredActivities.length > 0,
+    // Rows are discovered by the connected ETH address. A BTC wallet is only
+    // required when the user starts one of their signing/recovery actions.
+    hasPendingDeposits: pendingActivities.length > 0,
+    hasExpiredDeposits: expiredActivities.length > 0,
     isLoading: loading,
     error,
     refetchActivities,

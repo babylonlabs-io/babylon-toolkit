@@ -1,5 +1,7 @@
-import { ChainInfo, OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types";
-import { ComponentType } from "react";
+import type { ChainInfo, OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types";
+import type { ComponentType } from "react";
+
+export type ChainId = "BTC" | "BBN" | "ETH";
 
 export type Fees = {
   // fee for inclusion in the next block

@@ -9,14 +9,13 @@
  * re-fetches it at click-time.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   batchPollByProvider,
   DaemonStatus,
+  type GetPeginStatusResponse,
   VP_TRANSIENT_STATUSES,
   VpResponseValidationError,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -41,6 +40,7 @@ import {
   TerminalPeginPollingError,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
+import { strip0x } from "../../utils/txid";
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
@@ -106,7 +106,7 @@ async function fetchFromProvider(
   const rpcClient = createVpClient(providerAddress);
   await batchPollByProvider<DepositToPoll, GetPeginStatusResponse>({
     items: deposits,
-    getTxid: (deposit) => stripHexPrefix(deposit.activity.peginTxHash!),
+    getTxid: (deposit) => strip0x(deposit.activity.peginTxHash!),
     batchCall: (pegin_txids) => rpcClient.batchGetPeginStatus({ pegin_txids }),
     onItem: (deposit, envelope) => {
       const depositId = deposit.activity.id;
@@ -319,32 +319,28 @@ export function usePeginPollingQuery({
     [activities, pendingPegins, btcPublicKey],
   );
 
-  // Use refs to access latest values in queryFn without stale closures
+  // Use a ref to access the latest deposit set in queryFn without stale closures.
   const depositsRef = useRef(depositsToPoll);
-  const btcPubKeyRef = useRef(btcPublicKey);
 
-  // Keep refs updated
+  // Keep the ref updated.
   useEffect(() => {
     depositsRef.current = depositsToPoll;
-    btcPubKeyRef.current = btcPublicKey;
-  }, [depositsToPoll, btcPublicKey]);
+  }, [depositsToPoll]);
 
-  // Only enable when all required data is ready:
-  // - btcPublicKey from wallet
-  // - deposits to poll (pending deposits)
-  const isEnabled = !!btcPublicKey && depositsToPoll.length > 0;
+  // Status polling is an unauthenticated read. A BTC key narrows ownership
+  // when present, but its absence must not hide ETH-discovered deposits.
+  const isEnabled = depositsToPoll.length > 0;
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
       "peginPolling",
-      btcPublicKey,
+      btcPublicKey ?? "no-btc-wallet",
       depositsToPoll.map((d) => d.activity.id).join(","),
     ],
     queryFn: async (): Promise<PollingQueryData> => {
       const currentDeposits = depositsRef.current;
-      const currentBtcPubKey = btcPubKeyRef.current;
 
-      if (!currentBtcPubKey || currentDeposits.length === 0) {
+      if (currentDeposits.length === 0) {
         return {
           polledIds: [],
           errors: new Map<string, Error>(),

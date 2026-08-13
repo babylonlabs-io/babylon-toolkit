@@ -25,7 +25,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   ETHWalletProvider: ({ children }: { children: React.ReactNode }) => children,
   createWalletConfig: () => ({}),
   useWalletConnect: () => ({ disconnect: vi.fn() }),
-  useWidgetState: () => ({ visible: false }),
 }));
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light" }) }));

@@ -3,9 +3,9 @@ import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } fr
 import { IBTCProvider, Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
+import logo from "@/core/wallets/icons/okx.svg";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
-import logo from "./logo.svg";
 import { MIN_OKX_VERSION, checkOKXVersion } from "./version";
 
 const PROVIDER_NAMES = {

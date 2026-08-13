@@ -4,6 +4,7 @@ import {
   ConnectButton,
   Hint,
   WalletIcon,
+  WalletMenu,
 } from "@babylonlabs-io/core-ui";
 import {
   useChainConnector,
@@ -31,7 +32,11 @@ interface ConnectProps {
 }
 
 export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
-  const { open, disconnect } = useWalletConnect();
+  const {
+    connected: walletSessionConfirmed,
+    open,
+    disconnect,
+  } = useWalletConnect();
 
   const {
     connected: btcConnected,
@@ -55,16 +60,18 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
 
-  const isWalletConnected = btcConnected && ethConnected;
+  const isConnected = walletSessionConfirmed && ethConnected;
+  const isFullyConnected = isConnected && btcConnected;
 
   // Single source for both the UTXO query gate and the menu render branch below.
-  const canShowWalletMenu = isWalletConnected && !isGeoBlocked && !isGeoLoading;
+  const canShowWalletMenu = isConnected && !isGeoBlocked && !isGeoLoading;
+  const canShowBtcSettings = isFullyConnected && canShowWalletMenu;
 
   // Scope this subscription to when the menu can render; the query is shared
   // (same key) with the deposit form, so this only adds an observer.
   const utxoOptions = useMemo(
-    () => ({ enabled: canShowWalletMenu }),
-    [canShowWalletMenu],
+    () => ({ enabled: canShowBtcSettings }),
+    [canShowBtcSettings],
   );
   const { inscriptionUTXOs } = useUTXOs(btcAddress, utxoOptions);
   // While ordinals are loading or errored, useUTXOs reports 0 inscriptions, so
@@ -90,46 +97,54 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     [selectedWallets, btcConnected, ethConnected, btcConnector, ethConnector],
   );
 
+  const walletMenuTrigger = (
+    <div className="cursor-pointer">
+      <AvatarGroup max={3} className="!-space-x-2">
+        {displayWallets["BTC"] && btcConnected && (
+          <WalletIcon
+            alt={displayWallets["BTC"].name}
+            url={displayWallets["BTC"].icon}
+            background={displayWallets["BTC"].iconBackground}
+          />
+        )}
+        {displayWallets["ETH"] && (
+          <WalletIcon
+            alt={displayWallets["ETH"].name}
+            url={displayWallets["ETH"].icon}
+            background={displayWallets["ETH"].iconBackground}
+          />
+        )}
+      </AvatarGroup>
+    </div>
+  );
+
   // A silently locked BTC wallet keeps `connected` true (cached session), so it
   // would otherwise render the connected wallet menu. Surface an unlock button
   // in the navbar instead so the user can re-authorize in one click.
-  if (btcLocked && !isGeoBlocked && !isGeoLoading) {
+  if (isConnected && btcLocked && !isGeoBlocked && !isGeoLoading) {
     return (
       <ConnectButton
         connected={false}
         loading={isUnlocking}
         onClick={handleUnlock}
         text={COPY.wallet.locked.unlockButton}
+        // This control's data-testid is a real-wallet E2E hook
+        // (e2e/real/actions/walletConnect.ts) — carry it over if you move or
+        // rename the element. Three of this component's branches render a
+        // ConnectButton, so the shared `connect-wallet-button` default cannot
+        // tell them apart.
+        data-testid="unlock-btc-wallet-button"
       />
     );
   }
 
-  // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
+  // Show BtcEthWalletMenu when both wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
-  if (canShowWalletMenu) {
+  if (canShowBtcSettings) {
     return (
       <div className="flex flex-row items-center gap-4">
         <BtcEthWalletMenu
-          trigger={
-            <div className="cursor-pointer">
-              <AvatarGroup max={3} className="!-space-x-2">
-                {displayWallets["BTC"] && (
-                  <WalletIcon
-                    alt={displayWallets["BTC"].name}
-                    url={displayWallets["BTC"].icon}
-                    background={displayWallets["BTC"].iconBackground}
-                  />
-                )}
-                {displayWallets["ETH"] && (
-                  <WalletIcon
-                    alt={displayWallets["ETH"].name}
-                    url={displayWallets["ETH"].icon}
-                    background={displayWallets["ETH"].iconBackground}
-                  />
-                )}
-              </AvatarGroup>
-            </div>
-          }
+          trigger={walletMenuTrigger}
           btcAddress={btcAddress}
           ethAddress={ethAddress}
           selectedWallets={displayWallets}
@@ -146,12 +161,44 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     );
   }
 
+  // ETH is the connected application session. Keep its wallet menu visible
+  // while making the optional BTC capability discoverable beside it; the
+  // generic menu intentionally receives no BTC address/settings so it cannot
+  // render a blank public-key or inscriptions section.
+  if (canShowWalletMenu) {
+    return (
+      <div className="flex flex-row items-center gap-3">
+        <ConnectButton
+          connected={false}
+          loading={isScreeningLoading}
+          disabled={isAddressBlocked || isScreeningLoading}
+          onClick={() => open("BTC")}
+          text={COPY.wallet.connectBtcButton}
+          // This control's data-testid is a real-wallet E2E hook
+          // (e2e/real/actions/walletConnect.ts) — carry it over if you move or
+          // rename the element. Three of this component's branches render a
+          // ConnectButton, so the shared `connect-wallet-button` default cannot
+          // tell them apart.
+          data-testid="connect-btc-button"
+        />
+        <WalletMenu
+          trigger={walletMenuTrigger}
+          ethAddress={ethAddress}
+          selectedWallets={displayWallets}
+          ethCoinSymbol="ETH"
+          onDisconnect={disconnect}
+          settingsSection={null}
+        />
+      </div>
+    );
+  }
+
   const connectButton = (
     <ConnectButton
       connected={false}
       loading={loading || isGeoLoading || isScreeningLoading}
       disabled={isGeoBlocked || isAddressBlocked}
-      onClick={open}
+      onClick={() => open()}
       text={text}
     />
   );

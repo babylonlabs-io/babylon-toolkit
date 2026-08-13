@@ -71,6 +71,23 @@ export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
 export const BPS_DENOMINATOR = 10_000;
 
 /**
+ * Slack (bps) allowed between a displayed commission quote and the
+ * chain-current commission at registration, and the amount added to the
+ * anchor when deriving `maxAcceptableCommissionBps`. Absorbs a benign VP
+ * commission bump between quote and submission; anything larger is refused
+ * rather than silently paid.
+ */
+export const COMMISSION_BPS_HEADROOM = 25;
+
+/**
+ * Hard ceiling for `maxAcceptableCommissionBps`. The contract rejects any
+ * commission at or above {@link MAX_VP_COMMISSION_BPS_EXCLUSIVE}, so one bps
+ * below it is the highest cap that can ever be met.
+ */
+export const MAX_ACCEPTABLE_COMMISSION_BPS_CAP =
+  MAX_VP_COMMISSION_BPS_EXCLUSIVE - 1;
+
+/**
  * Contract cap on a registered payout/commission scriptPubKey's byte length
  * (`MAX_PAYOUT_ADDRESS_LENGTH`, Constants.sol; empty scripts are rejected at
  * registration, so valid lengths are `[1, 128]`). A measured length outside

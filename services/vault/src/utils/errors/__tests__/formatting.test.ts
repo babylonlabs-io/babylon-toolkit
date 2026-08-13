@@ -5,7 +5,7 @@
 import {
   JsonRpcError,
   RpcErrorCode,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import {

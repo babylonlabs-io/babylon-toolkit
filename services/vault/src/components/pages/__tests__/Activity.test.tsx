@@ -1,10 +1,10 @@
 /**
  * Activity page wallet-gating tests.
  *
- * The Header treats the user as connected only when BOTH the BTC and ETH
- * wallets are connected (see RootLayout.tsx). These tests lock in that the
- * Activity page uses the same canonical signal: a stale ETH address alone
- * must not trigger an indexer query or the "connected" empty state.
+ * The app treats the user as connected once ETH is connected; BTC is optional
+ * until a signing action. These tests lock in that the Activity page uses the
+ * same canonical signal: ETH-only sessions query and render normally, while a
+ * BTC-only session remains disconnected.
  */
 
 import { render, screen } from "@testing-library/react";
@@ -20,6 +20,7 @@ const useActivitiesWithPendingMock = vi.fn();
 vi.mock("../../../context/wallet", () => ({
   useConnection: () => useConnectionMock(),
   useETHWallet: () => useETHWalletMock(),
+  useRequireBtcWallet: () => ({ requireBtcWallet: () => true }),
 }));
 
 vi.mock("../../../hooks/useActivitiesWithPending", () => ({
@@ -94,9 +95,10 @@ describe("Activity page — wallet gating", () => {
     });
   });
 
-  it("treats BTC-disconnected + ETH-stale-address as disconnected, skipping the indexer query", () => {
+  it("treats an ETH-only wallet as connected and queries its activity", () => {
     useConnectionMock.mockReturnValue({
-      isConnected: false,
+      isConnected: true,
+      isFullyConnected: false,
       btcConnected: false,
       ethConnected: true,
     });
@@ -108,12 +110,14 @@ describe("Activity page — wallet gating", () => {
     renderActivity();
 
     expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
+    expect(screen.getByText("No activity yet")).toBeInTheDocument();
     expect(
-      screen.getByText("Connect your wallet to view your activity"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("No activity yet")).not.toBeInTheDocument();
+      screen.queryByText("Connect your wallet to view your activity"),
+    ).not.toBeInTheDocument();
 
-    expect(useActivitiesWithPendingMock).toHaveBeenCalledWith(undefined);
+    expect(useActivitiesWithPendingMock).toHaveBeenCalledWith(
+      "0xabc0000000000000000000000000000000000001",
+    );
   });
 
   it("treats ETH-disconnected + BTC-connected as disconnected, skipping the indexer query", () => {

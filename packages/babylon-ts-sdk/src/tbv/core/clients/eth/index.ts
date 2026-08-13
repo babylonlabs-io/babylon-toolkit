@@ -7,12 +7,30 @@ export {
   ViemOperationKeyReader,
   type OperationKeyContracts,
 } from "./operation-key-reader";
+export {
+  ViemPeginRegistrationClient,
+  capMaxAcceptableCommissionBps,
+} from "./pegin-registration-client";
+export type {
+  BatchPeginRegistrationItem,
+  BatchPeginRegistrationResultItem,
+  PeginBatchRegistrationResult,
+  PeginRegistrationResult,
+  PopSignature,
+  RegisterPeginBatchOnChainParams,
+  RegisterPeginOnChainParams,
+  ViemPeginRegistrationClientConfig,
+} from "./pegin-registration-client";
+export { calculatePeginTxHash, derivePeginVaultId } from "./pegin-transaction";
 export { ViemProtocolParamsReader } from "./protocol-params-reader";
 export {
   validateOffchainParams,
   validatePegInConfiguration,
   validateTBVProtocolParams,
 } from "./protocol-params-validation";
+// Pure validation used by ETH registry readers; re-exported here so callers
+// do not need the broad core/primitives barrel merely to validate uint16 data.
+export { assertValidVaultCoreVersion } from "../../primitives/vaultCoreVersion";
 export {
   ViemUniversalChallengerReader,
   ViemVaultKeeperReader,

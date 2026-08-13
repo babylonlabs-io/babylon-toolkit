@@ -158,8 +158,10 @@ export default tseslint.config(
   {
     files: [
       "src/hooks/deposit/depositFlowSteps/payoutSigning.ts",
-      "src/services/wots/**/*.ts",
+      "src/hooks/deposit/useEstimatedBtcFee.ts",
       "src/services/vault/vaultActivationService.ts",
+      "src/utils/btc/scriptPubKeyAddress.ts",
+      "src/utils/btc/ensureBtcEccInitialized.ts",
     ],
     ignores: ["**/__tests__/**", "**/*.test.{ts,tsx}"],
     rules: {

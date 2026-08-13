@@ -7,9 +7,9 @@
  */
 
 import { CheckIcon, CopyIcon, useCopy } from "@babylonlabs-io/core-ui";
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { truncateHash } from "@/utils/addressUtils";
+import { strip0x } from "@/utils/txid";
 
 const COPY_ICON_SIZE = 14;
 
@@ -30,7 +30,7 @@ interface CopyableHashProps {
 }
 
 function formatForChain(hash: string, chain: HashChain): string {
-  return chain === "BTC" ? stripHexPrefix(hash) : hash;
+  return chain === "BTC" ? strip0x(hash) : hash;
 }
 
 export function CopyableHash({

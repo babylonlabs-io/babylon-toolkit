@@ -8,7 +8,7 @@
 // createdAt — is read from chain, so the gate can never be stricter than the
 // contract. Only a confirmed TRUE gates Activate; any error leaves it ungated.
 
-import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import { isActivationDeadlinePassedOnChain } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";

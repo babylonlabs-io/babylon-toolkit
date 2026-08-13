@@ -11,6 +11,7 @@ const DISABLED_CONNECT_BG = "disabled:!bg-[#CCCCCC] dark:disabled:!bg-secondary-
 interface ChainsProps {
   disabled?: boolean;
   chains: IChain[];
+  requiredChainIds?: readonly string[];
   className?: string;
   selectedWallets?: Record<string, IWallet | undefined>;
   onConfirm?: () => void;
@@ -18,7 +19,15 @@ interface ChainsProps {
 }
 
 export const Chains = memo(
-  ({ disabled = false, chains, selectedWallets = {}, className, onConfirm, onSelectChain }: ChainsProps) => (
+  ({
+    disabled = false,
+    chains,
+    requiredChainIds,
+    selectedWallets = {},
+    className,
+    onConfirm,
+    onSelectChain,
+  }: ChainsProps) => (
     <div
       className={twMerge(
         "flex flex-col overflow-hidden rounded-2xl border border-secondary-strokeLight text-accent-primary",
@@ -35,11 +44,12 @@ export const Chains = memo(
         <div className="flex flex-col gap-2">
           {chains.map((chain) => {
             const selectedWallet = selectedWallets[chain.id];
+            const optional = requiredChainIds !== undefined && !requiredChainIds.includes(chain.id);
 
             return (
               <ChainButton
                 key={chain.id}
-                title={`Select ${chain.name} Wallet`}
+                title={`Select ${chain.name} Wallet${optional ? " (Optional)" : ""}`}
                 logo={chain.icon}
                 alt={chain.name}
                 onClick={() => void onSelectChain?.(chain)}
@@ -68,25 +78,25 @@ export const Chains = memo(
         </div>
 
         <Text variant="body2" className="text-center text-accent-secondary">
-            By clicking Connect you agree with the{" "}
-            <a
-              href="https://babylonlabs.io/terms-of-use"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent-primary underline"
-            >
-              Terms of Use
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://babylonlabs.io/privacy-policy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent-primary underline"
-            >
-              Privacy Policy
-            </a>
-            .
+          By clicking Connect you agree with the{" "}
+          <a
+            href="https://babylonlabs.io/terms-of-use"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent-primary underline"
+          >
+            Terms of Use
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://babylonlabs.io/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent-primary underline"
+          >
+            Privacy Policy
+          </a>
+          .
         </Text>
       </div>
     </div>

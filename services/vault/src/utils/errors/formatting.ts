@@ -7,7 +7,7 @@ import {
   JSON_RPC_ERROR_CODES,
   JsonRpcError,
   RpcErrorCode,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 
 import { COPY } from "@/copy";
 

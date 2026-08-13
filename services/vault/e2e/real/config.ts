@@ -1,9 +1,13 @@
 /**
  * Static configuration + run-config types for the real-wallet E2E CLI.
  *
- * The `connect`, `observe`, `wallet-config`, and `pegin` actions are implemented (all `real` data
- * mode); the remaining actions and mock mode are declared here as disabled so the CLI can show the
- * roadmap and so the shape is ready to extend (see `actions/index.ts`).
+ * Every action listed here is implemented (all `real` data mode); mock mode is declared but disabled
+ * so the CLI can show the roadmap and so the shape is ready to extend (see `actions/index.ts`).
+ *
+ * A Bitcoin wallet is OPTIONAL for the app session (the vault requires only Ethereum), so the connect
+ * legs come in three shapes: `connect` (both wallets), `connect-eth-only` (Ethereum alone), and
+ * `btc-just-in-time` (Ethereum alone, then Bitcoin when a deposit asks for it). Every value-moving
+ * action still connects both wallets up front.
  */
 import type { SupportedWallet } from "./connector";
 
@@ -14,6 +18,8 @@ export type EthWalletId = "metamask";
 export type DataMode = "real" | "mock";
 export type ActionId =
   | "connect"
+  | "connect-eth-only"
+  | "btc-just-in-time"
   | "observe"
   | "wallet-config"
   | "pegin"
@@ -102,6 +108,16 @@ export interface ActionOption {
 
 export const ACTIONS: ActionOption[] = [
   { id: "connect", label: "Connect", enabled: true },
+  {
+    id: "connect-eth-only",
+    label: "Connect Ethereum only (Bitcoin left unconnected)",
+    enabled: true,
+  },
+  {
+    id: "btc-just-in-time",
+    label: "Just-in-time Bitcoin (deposit from an Ethereum-only session)",
+    enabled: true,
+  },
   { id: "observe", label: "Observe (record a manual peg-in)", enabled: true },
   {
     id: "wallet-config",

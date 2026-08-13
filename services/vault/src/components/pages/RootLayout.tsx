@@ -8,9 +8,11 @@ import {
   Text,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
+import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import {
   type CSSProperties,
+  Suspense,
   useCallback,
   useLayoutEffect,
   useRef,
@@ -27,22 +29,25 @@ import {
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
 import { SidebarFooter } from "@/components/shared/SidebarFooter";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useAddressType } from "@/context/addressType";
 import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
+import { useConnection, useRequireBtcWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { ensureBtcEccInitialized } from "@/utils/btc/ensureBtcEccInitialized";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 import {
   AaveConfigProvider,
   ActivatingVaultsProvider,
 } from "../../applications/aave/context";
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
@@ -51,8 +56,14 @@ import { NetworkBadge } from "../shared/NetworkBadge";
 import { NoticeBanner } from "../shared/NoticeBanner";
 import { resolveBannerStatus } from "../shared/protocolStatus";
 import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
-import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
+
+// Deposit owns the Bitcoin/WASM-heavy graph. Do not fetch or instantiate it
+// for an ETH-only session until the user explicitly starts a BTC signing flow.
+const SimpleDeposit = lazyWithRetry(async () => {
+  await ensureBtcEccInitialized();
+  return import("../simple/SimpleDeposit");
+});
 
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
@@ -77,8 +88,9 @@ const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { isConnected, btcConnected } = useConnection();
+  const { requireBtcWallet } = useRequireBtcWallet();
+  const { open: openWallet } = useWalletConnect();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
@@ -86,14 +98,14 @@ export default function RootLayout() {
   const pageTitle = usePageTitle();
   const { pathname } = useLocation();
 
-  const isWalletConnected = btcConnected && ethConnected;
+  const isWalletConnected = isConnected;
   // One signal for "is this the entry frame", so the sidebar and the chrome
   // that replaces it can never disagree. The other routes render disconnected
   // states on purpose and keep their shell — without it a disconnected desktop
   // visitor to /vaults would have no navigation at all.
   const isEntryLayout = !isWalletConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
-  const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  const showAddressTypeBanner = btcConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't
@@ -149,12 +161,20 @@ export default function RootLayout() {
 
   // Reject a click event reaching `initialAmountBtc`: TypeScript allows this
   // where an `onClick` handler is expected, and it crashes the deposit dialog.
-  const openDeposit = useCallback((initialAmountBtc?: string) => {
-    setInitialDepositAmountBtc(
-      typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
-    );
-    setIsDepositOpen(true);
-  }, []);
+  const openDeposit = useCallback(
+    (initialAmountBtc?: string) => {
+      if (!isConnected) {
+        openWallet();
+        return;
+      }
+      if (!requireBtcWallet()) return;
+      setInitialDepositAmountBtc(
+        typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
+      );
+      setIsDepositOpen(true);
+    },
+    [isConnected, openWallet, requireBtcWallet],
+  );
 
   const closeDeposit = useCallback(() => {
     setIsDepositOpen(false);
@@ -283,31 +303,56 @@ export default function RootLayout() {
                 {/* On config failure, suppress the default panel (would leak
                   into page chrome) and instead surface an error modal only
                   when the user has actually opened the deposit dialog, so
-                  the click has a visible recovery path. */}
-                <AaveConfigProvider
-                  errorFallback={
-                    <FullScreenDialog
-                      open={isDepositOpen}
-                      onClose={closeDeposit}
-                      className="items-center justify-center p-6"
+                  the click has a visible recovery path.
+
+                  Mounting AaveConfigProvider inside the `isDepositOpen` gate
+                  costs the first open nothing: every route that can reach
+                  `openDeposit` already mounts one (router.tsx's
+                  AaveOverlayLayout and ActivityWithProviders), and the
+                  `["aaveAppConfig"]` query key is shared with a 5-minute
+                  staleTime, so this instance resolves straight from cache.
+                  The real first-open latency is the lazy chunk download plus
+                  ECC init — which is why the Suspense fallback below is a
+                  visible dialog rather than null. */}
+                {isDepositOpen && (
+                  <Suspense
+                    fallback={
+                      <V3ModalShell open onClose={closeDeposit}>
+                        <div className="flex w-full justify-center">
+                          <Loader />
+                        </div>
+                      </V3ModalShell>
+                    }
+                  >
+                    <AaveConfigProvider
+                      errorFallback={
+                        <FullScreenDialog
+                          open
+                          onClose={closeDeposit}
+                          className="items-center justify-center p-6"
+                        >
+                          <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
+                            <Text variant="body1" className="font-medium">
+                              {COPY.common.somethingWentWrong.heading}
+                            </Text>
+                            <Text
+                              variant="body2"
+                              className="text-accent-secondary"
+                            >
+                              {COPY.common.somethingWentWrong.body}
+                            </Text>
+                          </div>
+                        </FullScreenDialog>
+                      }
                     >
-                      <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
-                        <Text variant="body1" className="font-medium">
-                          {COPY.common.somethingWentWrong.heading}
-                        </Text>
-                        <Text variant="body2" className="text-accent-secondary">
-                          {COPY.common.somethingWentWrong.body}
-                        </Text>
-                      </div>
-                    </FullScreenDialog>
-                  }
-                >
-                  <SimpleDeposit
-                    open={isDepositOpen}
-                    onClose={closeDeposit}
-                    initialAmountBtc={initialDepositAmountBtc}
-                  />
-                </AaveConfigProvider>
+                      <SimpleDeposit
+                        open
+                        onClose={closeDeposit}
+                        initialAmountBtc={initialDepositAmountBtc}
+                      />
+                    </AaveConfigProvider>
+                  </Suspense>
+                )}
               </AppPeginPollingProvider>
             </ActivatingVaultsProvider>
           )}

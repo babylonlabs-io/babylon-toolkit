@@ -7,6 +7,6 @@ import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { parseBtcToSatoshis } from "../../utils/btcConversion";
 
-// Re-export BTC conversion utilities for convenience
-// These are now maintained in the utils directory
+// BTC conversion utilities re-exported for convenience: `formatSatoshisToBtc`
+// comes from the SDK, `parseBtcToSatoshis` from the local utils directory.
 export { formatSatoshisToBtc, parseBtcToSatoshis };

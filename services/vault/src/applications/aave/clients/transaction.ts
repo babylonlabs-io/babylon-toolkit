@@ -5,8 +5,8 @@
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
-import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core/contracts";
+import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils/eth";
 import {
   AaveAdapterPositionProxyABI,
   AaveIntegrationAdapterABI,
@@ -28,7 +28,7 @@ import {
 import {
   mapViemErrorToContractError,
   tagSimulationPhase,
-} from "../../../utils/errors";
+} from "../../../utils/errors/contract";
 
 /**
  * ABIs consulted when decoding a revert on the Aave paths.

@@ -10,7 +10,7 @@
 
 import { logger } from "@/infrastructure";
 import type { CollateralVaultEntry } from "@/types/collateral";
-import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
+import { scriptPubKeyHexToBtcAddress } from "@/utils/btc/scriptPubKeyAddress";
 
 /**
  * Decode each vault's registered payout scriptPubKey to a BTC address and

@@ -8,12 +8,11 @@
  * unknown-status thresholds.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   VpResponseValidationError,
   type GetPegoutStatusResponse,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -35,6 +34,7 @@ import {
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { strip0x } from "@/utils/txid";
 
 import {
   collectPegoutTerminalEvents,
@@ -105,7 +105,7 @@ async function fetchPegoutStatusesFromProvider(
   const rpcClient = createVpClient(providerAddress);
   await batchPollByProvider<VaultToPoll, GetPegoutStatusResponse>({
     items: vaults,
-    getTxid: (entry) => stripHexPrefix(entry.vault.peginTxHash),
+    getTxid: (entry) => strip0x(entry.vault.peginTxHash),
     batchCall: (pegin_txids) => rpcClient.batchGetPegoutStatus({ pegin_txids }),
     onItem: (entry, envelope) => {
       const vaultId = entry.vault.id;

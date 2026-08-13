@@ -10,6 +10,7 @@ export interface ConnectButtonProps {
   loadingText?: string;
   className?: string;
   disabled?: boolean;
+  "data-testid"?: string;
 }
 
 export const ConnectButton: React.FC<ConnectButtonProps> = ({
@@ -20,6 +21,7 @@ export const ConnectButton: React.FC<ConnectButtonProps> = ({
   loadingText = "Loading...",
   className,
   disabled = false,
+  "data-testid": dataTestId = "connect-wallet-button",
 }) => {
   if (connected) {
     return null;
@@ -32,7 +34,7 @@ export const ConnectButton: React.FC<ConnectButtonProps> = ({
       onClick={onClick}
       color="secondary"
       disabled={disabled || loading}
-      data-testid="connect-wallet-button"
+      data-testid={dataTestId}
     >
       <PiWalletBold size={20} className="flex md:hidden" />
       <span className="hidden md:flex">

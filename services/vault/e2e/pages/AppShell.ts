@@ -19,9 +19,11 @@ export class AppShell {
   }
 
   get connectButton(): Locator {
-    // Connect button in the top nav (core-ui ConnectButton). Matches
-    // any button whose accessible name starts with "Connect".
-    return this.page.getByRole("button", { name: /^Connect/i });
+    // Disconnected Connect button in the top nav (core-ui ConnectButton).
+    // Anchored on both ends: a connected, Bitcoin-less session renders a
+    // second ConnectButton labelled "Connect BTC", which a `/^Connect/i`
+    // prefix match would also (wrongly) resolve to.
+    return this.page.getByRole("button", { name: /^Connect$/i });
   }
 
   get applicationsTab(): Locator {

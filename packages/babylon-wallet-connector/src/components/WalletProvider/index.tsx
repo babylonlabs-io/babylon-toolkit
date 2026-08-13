@@ -1,17 +1,18 @@
 import { useMemo, type PropsWithChildren, type ReactNode } from "react";
 
+import { ONE_HOUR } from "@/constants";
 import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
-import type { BBNConfig, BTCConfig, ETHConfig } from "@/core/types";
+import type { BBNConfig, BTCConfig, ChainId, ETHConfig } from "@/core/types";
+import metadata from "@/core/wallets";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
 import { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
 
 import { WalletDialog } from "./components/WalletDialog";
-import { ONE_HOUR } from "./constants";
 
 function deriveNetworkMap(config: Readonly<ChainConfigArr>): Record<string, string> {
   const map: Record<string, string> = {};
@@ -33,7 +34,7 @@ function deriveNetworkMap(config: Readonly<ChainConfigArr>): Record<string, stri
   return map;
 }
 
-interface WalletProviderProps {
+export interface WalletProviderProps {
   ttl?: number;
   persistent?: boolean;
   theme?: string;
@@ -42,7 +43,8 @@ interface WalletProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
-  requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  /** Chains that must be connected before confirmation. Defaults to every configured chain. */
+  requiredChains?: readonly ChainId[];
   /**
    * Unified AppKit configuration for ETH and/or BTC wallet connections
    * Provide eth and/or btc properties to enable respective chains
@@ -93,7 +95,6 @@ export function WalletProvider({
     }
   }, [appKitConfig]);
 
-
   // Listen for requests to open the AppKit modal (triggered by connectors)
   // This hook gracefully handles cases where AppKit is not initialized
   useAppKitOpenListener();
@@ -108,6 +109,7 @@ export function WalletProvider({
         onError={onError}
         disabledWallets={disabledWallets}
         requiredChains={requiredChains}
+        metadata={metadata}
       >
         {children}
         {!disableTomo && (

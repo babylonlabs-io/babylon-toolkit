@@ -17,7 +17,7 @@ export {
   expandAuthAnchor,
   expandHashlockSecret,
   expandWotsSeed,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 
 export { buildFundingOutpointsCommitment, buildVaultContext } from "./context";
 

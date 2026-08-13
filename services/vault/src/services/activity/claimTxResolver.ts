@@ -14,16 +14,16 @@
  * surfacing the unrelated EVM hash, which is the bug this module fixes.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   type GetPegoutStatusResponse,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { isAddress } from "viem";
 
 import { logger } from "@/infrastructure";
 import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { strip0x } from "@/utils/txid";
 
 /**
  * Per-VP RPC timeout for this best-effort, display-only enrichment. Tighter
@@ -93,7 +93,7 @@ export async function resolveRedeemClaimTxids(
         });
         await batchPollByProvider<PerVaultEntry, GetPegoutStatusResponse>({
           items: entries,
-          getTxid: (e) => stripHexPrefix(e.peginTxHash),
+          getTxid: (e) => strip0x(e.peginTxHash),
           batchCall: (pegin_txids) =>
             rpcClient.batchGetPegoutStatus({ pegin_txids }),
           onItem: (entry, envelope) => {

@@ -9,7 +9,7 @@
  * withdrawal status must never be hidden.
  */
 
-import type { AllOffchainParamsData } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import type { AllOffchainParamsData } from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 

@@ -18,6 +18,11 @@
       "require": "./dist/index.cjs.js",
       "import": "./dist/index.es.js"
     },
+    "./eth": {
+      "types": "./dist/eth.d.ts",
+      "require": "./dist/eth.cjs.js",
+      "import": "./dist/eth.es.js"
+    },
     "./style.css": "./dist/wallet-connector.css"
   },
   "scripts": {

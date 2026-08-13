@@ -5,6 +5,8 @@ import { WalletConnector } from "@/core/WalletConnector";
 import type {
   BBNConfig,
   BTCConfig,
+  ChainId,
+  ChainMetadata,
   ETHConfig,
   ExternalConnector,
   HashMap,
@@ -13,13 +15,13 @@ import type {
   IETHProvider,
   IProvider,
 } from "@/core/types";
-import metadata from "@/core/wallets";
+import { ERROR_CODES, WalletError } from "@/error";
 import { useWalletRedetection } from "@/hooks/useWalletRedetection";
 
 import { InscriptionProvider } from "./Inscriptions.context";
 import { StateProvider } from "./State.context";
 
-interface ChainConfig<K extends string = string, P extends IProvider = IProvider, C = any> {
+export interface ChainConfig<K extends string = string, P extends IProvider = IProvider, C = any> {
   chain: K;
   name?: string;
   icon?: string;
@@ -33,6 +35,8 @@ export type ChainConfigArr = (
   | ChainConfig<"ETH", IETHProvider, ETHConfig>
 )[];
 
+export type ChainMetadataMap = Partial<Record<ChainId, ChainMetadata<any, any, any>>>;
+
 interface ProviderProps {
   persistent: boolean;
   storage: HashMap;
@@ -40,7 +44,8 @@ interface ProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
-  requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  requiredChains?: readonly ChainId[];
+  metadata: ChainMetadataMap;
 }
 
 export interface Connectors {
@@ -66,6 +71,7 @@ export function ChainProvider({
   onError,
   disabledWallets,
   requiredChains,
+  metadata,
 }: PropsWithChildren<ProviderProps>) {
   const [connectors, setConnectors] = useState(defaultState);
 
@@ -74,9 +80,12 @@ export function ChainProvider({
 
     const connectorPromises = filteredConfig.map(async ({ chain, config }) => {
       try {
+        const chainMetadata = metadata[chain];
+        if (!chainMetadata) return null;
+
         const connector = await createWalletConnector<string, IProvider, any>({
           persistent,
-          metadata: metadata[chain],
+          metadata: chainMetadata,
           context,
           config,
           accountStorage: storage,
@@ -84,15 +93,45 @@ export function ChainProvider({
         });
         return connector;
       } catch (error) {
-        console.error("[ChainProvider] failed to create connector for chain:", chain, error instanceof Error ? error.message : "Unknown error");
-        throw error;
+        console.error(
+          "[ChainProvider] failed to create connector for chain:",
+          chain,
+          error instanceof Error ? error.message : "Unknown error",
+        );
+        try {
+          // A failed connector is dropped from `chains` but stays in
+          // `requiredChainIds`, so the dialog can never be completed. The host's
+          // error handler is the only place that can explain which chain died —
+          // carry the chain id on a typed error so it can say so.
+          onError?.(
+            error instanceof WalletError
+              ? error
+              : new WalletError(
+                  {
+                    code: ERROR_CODES.WALLET_INITIALIZATION_FAILED,
+                    message: error instanceof Error ? error.message : "Unknown connector initialization error",
+                    chainId: chain,
+                  },
+                  { cause: error },
+                ),
+          );
+        } catch (callbackError) {
+          console.error(
+            "[ChainProvider] onError callback failed:",
+            callbackError instanceof Error ? callbackError.message : "Unknown error",
+          );
+        }
+        return null;
       }
     });
 
     const connectorArr = await Promise.all(connectorPromises);
 
-    return connectorArr.reduce((acc, connector) => ({ ...acc, [connector.id]: connector }), {} as Connectors);
-  }, [persistent, config, context, storage, disabledWallets]);
+    return connectorArr.reduce<Connectors>(
+      (acc, connector) => (connector ? { ...acc, [connector.id]: connector } : acc),
+      { ...defaultState },
+    );
+  }, [persistent, config, context, storage, disabledWallets, metadata, onError]);
 
   useEffect(() => {
     init()
@@ -100,14 +139,34 @@ export function ChainProvider({
         setConnectors(connectors);
       })
       .catch((error) => {
-        console.error("[ChainProvider] init failed with error:", error instanceof Error ? error.message : "Unknown error");
-        onError?.(error);
+        // Defensive only: individual connector failures are isolated in init().
+        console.error(
+          "[ChainProvider] init failed with error:",
+          error instanceof Error ? error.message : "Unknown error",
+        );
+        try {
+          onError?.(error instanceof Error ? error : new Error("Unknown connector initialization error"));
+        } catch (callbackError) {
+          console.error(
+            "[ChainProvider] onError callback failed:",
+            callbackError instanceof Error ? callbackError.message : "Unknown error",
+          );
+        }
       });
-  }, [setConnectors, init, onError]);
+  }, [init, onError]);
 
   // Re-detect wallets whose extension injected after the one-shot detection
   // in `init()` above (e.g. UniSat's late `window.unisat` injection).
-  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets, persistent });
+  useWalletRedetection({
+    connectors,
+    setConnectors,
+    config,
+    context,
+    storage,
+    disabledWallets,
+    persistent,
+    metadata,
+  });
 
   // Auto-reconnect (and any other connect/disconnect) mutates `connectedWallet`
   // on the existing connector instance without changing the `connectors` object
@@ -122,23 +181,33 @@ export function ChainProvider({
     if (active.length === 0) return;
 
     const bump = () => setConnectors((prev) => ({ ...prev }));
-    const unsubscribe = active.flatMap((connector) => [connector.on("connect", bump), connector.on("disconnect", bump)]);
+    const unsubscribe = active.flatMap((connector) => [
+      connector.on("connect", bump),
+      connector.on("disconnect", bump),
+    ]);
 
     return () => unsubscribe.forEach((fn) => fn());
   }, [connectors]);
 
-  const supportedChains = useMemo(() => Object.values(connectors).filter(Boolean), [connectors]);
-  const visibleChains = useMemo(
+  const supportedChains = useMemo(
+    () => Object.values(connectors).filter((connector): connector is NonNullable<typeof connector> => Boolean(connector)),
+    [connectors],
+  );
+  const requiredChainIds = useMemo(
     () =>
-      requiredChains && requiredChains.length
-        ? supportedChains.filter((chain) => requiredChains.includes(chain!.id as "BTC" | "BBN" | "ETH"))
-        : supportedChains,
-    [supportedChains, requiredChains],
+      requiredChains === undefined
+        ? config.filter((entry) => metadata[entry.chain]).map((entry) => entry.chain)
+        : [...requiredChains],
+    [config, metadata, requiredChains],
   );
 
   return (
     <InscriptionProvider context={context}>
-      <StateProvider chains={visibleChains}>
+      <StateProvider
+        chains={supportedChains}
+        requiredChainIds={requiredChainIds}
+        storage={storage}
+      >
         <Context.Provider value={connectors}>{children}</Context.Provider>
       </StateProvider>
     </InscriptionProvider>

@@ -1,14 +1,55 @@
-import { processPublicKeyToXOnly } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { logger } from "@/infrastructure";
 
+const X_ONLY_PUBKEY_HEX_LENGTH = 64;
+const COMPRESSED_PUBKEY_HEX_LENGTH = 66;
+const UNCOMPRESSED_PUBKEY_HEX_LENGTH = 130;
+/** SEC1 keys prefix the x coordinate with a `02`/`03`/`04` byte. */
+const SEC1_PREFIX_HEX_LENGTH = 2;
+
+/**
+ * Local copy of the SDK's `canonicalizeBtcPubkey`
+ * (packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts): lowercase
+ * x-only hex, no `0x`, on every path.
+ *
+ * Inlined rather than imported because this hook is reachable from ETH-only
+ * route chunks and the SDK export lives behind `@babylonlabs-io/ts-sdk/tbv/core`,
+ * a barrel that pulls bitcoinjs-lib into every chunk importing it — which
+ * `context/deposit/__tests__/pollingImportBoundary.test.ts` bans. By contrast
+ * `services/vault/src/services/vault/verifyResumeParticipantKeys.ts`
+ * deliberately keeps the SDK import: it already sits in a BTC chunk.
+ */
+function canonicalizeBtcPubkey(publicKeyHex: string): string {
+  const cleanHex = publicKeyHex.replace(/^0x/i, "");
+  if (!/^[0-9a-fA-F]*$/.test(cleanHex) || cleanHex.length % 2 !== 0) {
+    throw new Error(`Invalid hex characters in public key: ${publicKeyHex}`);
+  }
+  if (cleanHex.length === X_ONLY_PUBKEY_HEX_LENGTH) {
+    return cleanHex.toLowerCase();
+  }
+  if (
+    cleanHex.length !== COMPRESSED_PUBKEY_HEX_LENGTH &&
+    cleanHex.length !== UNCOMPRESSED_PUBKEY_HEX_LENGTH
+  ) {
+    throw new Error(
+      `Invalid public key length: ${cleanHex.length} (expected ${X_ONLY_PUBKEY_HEX_LENGTH}, ${COMPRESSED_PUBKEY_HEX_LENGTH}, or ${UNCOMPRESSED_PUBKEY_HEX_LENGTH} hex chars)`,
+    );
+  }
+  return cleanHex
+    .slice(
+      SEC1_PREFIX_HEX_LENGTH,
+      SEC1_PREFIX_HEX_LENGTH + X_ONLY_PUBKEY_HEX_LENGTH,
+    )
+    .toLowerCase();
+}
+
 interface BtcPublicKeyState {
   /**
-   * X-only public key (32 bytes, 64 hex chars, no 0x prefix), suitable for
-   * vault provider RPC calls. `undefined` while disconnected, still fetching,
-   * or after a failed wallet read.
+   * X-only public key (32 bytes, 64 lowercase hex chars, no 0x prefix),
+   * suitable for vault provider RPC calls. `undefined` while disconnected,
+   * still fetching, or after a failed wallet read.
    */
   publicKey: string | undefined;
   /**
@@ -58,12 +99,7 @@ export function useBtcPublicKey(btcConnected: boolean): UseBtcPublicKeyResult {
     try {
       const publicKeyHex =
         await btcConnector.connectedWallet.provider.getPublicKeyHex();
-      const xOnlyKey = processPublicKeyToXOnly(publicKeyHex);
-      // Strip 0x prefix for RPC calls (32-byte x-only, 64 chars)
-      const keyWithoutPrefix = xOnlyKey.startsWith("0x")
-        ? xOnlyKey.slice(2)
-        : xOnlyKey;
-      return { publicKey: keyWithoutPrefix, error: null };
+      return { publicKey: canonicalizeBtcPubkey(publicKeyHex), error: null };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error(error, {

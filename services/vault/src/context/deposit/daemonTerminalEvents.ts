@@ -24,7 +24,7 @@
  * as healthy and its prior-session terminal would emit as a fresh warning.
  */
 
-import type { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import type { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 
 import { TerminalPeginPollingError } from "../../utils/peginPolling";
 

@@ -23,7 +23,7 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils/eth", () => ({
   waitForTransactionReceiptSmartAware: (...args: unknown[]) =>
     mockWaitReceipt(...args),
 }));

@@ -1,9 +1,12 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
-import { HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
-import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import {
+  isValidConfirmationReceipt,
+  WALLET_CONFIRMATION_RECEIPT_KEY,
+} from "@/core/confirmationReceipt";
+import type { HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
 import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -42,9 +45,7 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
  * silently bouncing back to chain selection would leave the user with no
  * idea why their wallet didn't connect.
  */
-const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
-  ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
-]);
+const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([ERROR_CODES.INCOMPATIBLE_WALLET_VERSION]);
 
 interface Props {
   persistent: boolean;
@@ -55,6 +56,7 @@ interface Props {
 export function useWalletConnectors({ persistent, accountStorage, onError }: Props) {
   const connectors = useChainProviders();
   const {
+    confirmed,
     visible,
     selectWallet,
     removeWallet,
@@ -62,11 +64,57 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     displayChains,
     displayError,
     confirm,
-    close,
-    reset,
-    chains: chainMap,
+    requiredChainIds,
   } = useWidgetState();
-  const { verifyBTCAddress, acceptTermsOfService } = useLifeCycleHooks();
+  const { verifyBTCAddress, onConnect, onDisconnect } = useLifeCycleHooks();
+  // Auto-confirm is a restoration convenience, not a general consequence of
+  // "connector + storage exists". Capture the initial requirement set and keep
+  // a one-way eligibility bit: opening the dialog, confirming once, losing a
+  // required connector, or adding a new requirement moves the session onto the
+  // explicit confirmation path permanently for this provider mount.
+  const initialRequiredChainIdsRef = useRef(new Set(requiredChainIds));
+  const coldStartRestoreEligibleRef = useRef(true);
+  const requirementsExpanded = requiredChainIds.some(
+    (chainId) => !initialRequiredChainIdsRef.current.has(chainId),
+  );
+
+  useEffect(() => {
+    if (visible || confirmed || requirementsExpanded) {
+      coldStartRestoreEligibleRef.current = false;
+    }
+  }, [confirmed, requirementsExpanded, visible]);
+
+  const notifyConnect = useCallback(
+    async (chain: string, wallet: IWallet) => {
+      if (!wallet.account || !onConnect) return;
+      try {
+        await onConnect({
+          chain: chain as "BTC" | "BBN" | "ETH",
+          wallet,
+          account: wallet.account,
+        });
+      } catch (error) {
+        onError?.(error instanceof Error ? error : new Error("Wallet onConnect callback failed"));
+      }
+    },
+    [onConnect, onError],
+  );
+
+  const notifyDisconnect = useCallback(
+    async (chain: string, wallet: IWallet) => {
+      if (!wallet.account || !onDisconnect) return;
+      try {
+        await onDisconnect({
+          chain: chain as "BTC" | "BBN" | "ETH",
+          wallet,
+          account: wallet.account,
+        });
+      } catch (error) {
+        onError?.(error instanceof Error ? error : new Error("Wallet onDisconnect callback failed"));
+      }
+    },
+    [onDisconnect, onError],
+  );
 
   // Connecting event
   useEffect(() => {
@@ -92,20 +140,31 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
         try {
           if (!connectedWallet || !connectedWallet.account) return;
 
+          // Keep Bitcoin validation out of the static ETH entry graph. This
+          // chunk is requested only when a BTC connection actually succeeds.
+          // `validateAddressWithPK` reaches bitcoinjs `payments.p2tr()`, which
+          // throws "No ECC Library provided" unless the curve is registered, so
+          // register it here rather than relying on the host to bootstrap it.
+          // No extra bundle cost: `wallet.ts` already statically imports
+          // `initBTCCurve`, so both land in the same lazy chunk.
+          const [{ initBTCCurve }, { validateAddress, validateAddressWithPK }] = await Promise.all([
+            import("@/core/utils/initBTCCurve"),
+            import("@/core/utils/wallet"),
+          ]);
+          initBTCCurve();
+
           selectWallet?.("BTC", connectedWallet);
 
           if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
 
-          if (!visible) return;
+          if (!visible) {
+            await notifyConnect(connector.id, connectedWallet);
+            return;
+          }
 
           validateAddress(connector.config.network, connectedWallet.account.address);
-
-          await acceptTermsOfService?.({
-            address: connectedWallet.account.address,
-            public_key: connectedWallet.account.publicKeyHex,
-          });
 
           const goToNextScreen = () => void displayChains?.();
 
@@ -148,6 +207,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
             return;
           }
 
+          await notifyConnect(connector.id, connectedWallet);
           goToNextScreen();
         } catch (e: any) {
           connector.disconnect();
@@ -163,13 +223,15 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
           });
         }
       },
-      BBN: (connector) => (connectedWallet) => {
+      BBN: (connector) => async (connectedWallet) => {
         if (connectedWallet) {
           selectWallet?.(connector.id, connectedWallet);
 
           if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
+
+          await notifyConnect(connector.id, connectedWallet);
         }
 
         displayChains?.();
@@ -181,6 +243,8 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
           if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
+
+          await notifyConnect(connector.id, connectedWallet);
         }
 
         displayChains?.();
@@ -207,11 +271,12 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     removeWallet,
     displayChains,
     verifyBTCAddress,
-    reset,
-    close,
     connectors,
     persistent,
     visible,
+    notifyConnect,
+    accountStorage,
+    displayError,
   ]);
 
   // Disconnect Event
@@ -221,17 +286,30 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     const unsubscribeArr = connectorArr.filter(Boolean).map((connector) =>
       connector.on("disconnect", (connectedWallet: IWallet) => {
         if (connectedWallet) {
+          if (requiredChainIds.includes(connector.id)) {
+            coldStartRestoreEligibleRef.current = false;
+            accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+          }
           removeWallet?.(connector.id);
           displayChains?.();
           if (persistent) {
             accountStorage.delete(connector.id);
           }
+          void notifyDisconnect(connector.id, connectedWallet);
         }
       }),
     );
 
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
-  }, [removeWallet, displayChains, connectors, persistent]);
+  }, [
+    removeWallet,
+    displayChains,
+    connectors,
+    persistent,
+    accountStorage,
+    notifyDisconnect,
+    requiredChainIds,
+  ]);
 
   // Error Event
   useEffect(() => {
@@ -248,16 +326,11 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
         // Guard on `displayError` directly so we still fall through to
         // `displayChains?.()` below if the dialog state isn't wired up;
         // otherwise the user could be stranded on the current screen.
-        if (
-          error instanceof WalletError &&
-          TERMINAL_CONNECT_ERROR_CODES.has(error.code) &&
-          displayError
-        ) {
+        if (error instanceof WalletError && TERMINAL_CONNECT_ERROR_CODES.has(error.code) && displayError) {
           const walletName = error.wallet ?? "your wallet";
           displayError({
             title: `Update ${walletName}`,
-            description:
-              error.message || `${walletName} needs to be updated before you can connect.`,
+            description: error.message || `${walletName} needs to be updated before you can connect.`,
             submitButton: "",
             cancelButton: "Done",
             onCancel: () => {
@@ -275,31 +348,47 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
   }, [onError, displayChains, displayError, connectors]);
 
   useEffect(() => {
-    const requiredChainIds = Object.values(chainMap).filter(Boolean).map(chain => chain.id);
-    const allConnectors = Object.values(connectors).filter(Boolean);
-    const requiredConnectors = allConnectors.filter(connector =>
-      requiredChainIds.includes(connector.id)
-    );
+    const requiredConnectors = requiredChainIds
+      .map((chainId) => connectors[chainId as keyof typeof connectors])
+      .filter((connector): connector is NonNullable<typeof connector> => Boolean(connector));
+    const allRequiredConnectorsAvailable = requiredConnectors.length === requiredChainIds.length;
 
     const hasStorage = requiredConnectors.every((connector) => accountStorage.has(connector.id));
     const allConnected = requiredConnectors.every((connector) => connector.connectedWallet !== null);
+    const hasConfirmationReceipt = isValidConfirmationReceipt(
+      accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY),
+      requiredChainIds,
+      connectors,
+    );
 
     if (
       persistent &&
-      requiredConnectors.length &&
+      coldStartRestoreEligibleRef.current &&
+      !visible &&
+      !confirmed &&
+      !requirementsExpanded &&
+      requiredChainIds.length &&
+      allRequiredConnectorsAvailable &&
       hasStorage &&
+      hasConfirmationReceipt &&
       allConnected
     ) {
+      // Flip before publishing confirmation so connector bumps or host callbacks
+      // cannot run this restoration path twice.
+      coldStartRestoreEligibleRef.current = false;
       confirm?.();
       displayChains?.();
     }
   }, [
     persistent,
     connectors,
-    chainMap,
+    requiredChainIds,
     confirm,
     displayChains,
     accountStorage,
+    visible,
+    confirmed,
+    requirementsExpanded,
   ]);
 
   const connect = useCallback(

@@ -2,13 +2,43 @@
  * Tests for pegin polling utilities
  */
 
-import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
 import { describe, expect, it } from "vitest";
 
+import { ContractStatus } from "@/models/peginStateMachine";
+import type { VaultActivity } from "@/types/activity";
+
 import {
+  getDepositsNeedingPolling,
   isTerminalPollingError,
   TerminalPeginPollingError,
 } from "../peginPolling";
+
+const activity = {
+  id: "0x01",
+  collateral: { amount: "0.1", symbol: "BTC" },
+  providers: [{ id: "0x1234" }],
+  contractStatus: ContractStatus.PENDING,
+  displayLabel: "Pending",
+  peginTxHash: "0xabcd",
+  applicationEntryPoint: "0x5678",
+  depositorBtcPubkey: "aabb",
+  unsignedPrePeginTx: "",
+  depositorWotsPkHash: "",
+} as VaultActivity;
+
+describe("getDepositsNeedingPolling", () => {
+  it("keeps ETH-discovered deposits pollable without a BTC public key", () => {
+    expect(getDepositsNeedingPolling([activity], [], undefined)).toHaveLength(
+      1,
+    );
+  });
+
+  it("retains ownership filtering once a BTC public key is available", () => {
+    expect(getDepositsNeedingPolling([activity], [], "0xAABB")).toHaveLength(1);
+    expect(getDepositsNeedingPolling([activity], [], "ccdd")).toHaveLength(0);
+  });
+});
 
 describe("isTerminalPollingError", () => {
   it("fails fast on the 'Unauthorized depositor' VP rpc error (wrong wallet paired)", () => {

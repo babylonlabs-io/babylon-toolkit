@@ -64,7 +64,7 @@ vi.mock("../applications", () => ({
   getApplicationMetadataByController: () => undefined,
 }));
 
-vi.mock("../applications/aave/services", () => ({
+vi.mock("../applications/aave/services/fetchConfig", () => ({
   fetchAaveAppConfig: vi.fn().mockResolvedValue({
     config: {
       adapterAddress: "0x1",
@@ -84,9 +84,11 @@ vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => ({ connected: true }),
   useConnection: () => ({
     isConnected: true,
+    isFullyConnected: true,
     btcConnected: true,
     ethConnected: true,
   }),
+  useRequireBtcWallet: () => ({ requireBtcWallet: () => true }),
 }));
 
 const DASHBOARD_TESTID = "dashboard";

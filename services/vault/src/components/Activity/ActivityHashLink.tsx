@@ -10,12 +10,12 @@
  * hashes keep it.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { RiArrowRightUpLine } from "react-icons/ri";
 
 import type { HashChain } from "@/components/shared/CopyableHash";
 import { COPY } from "@/copy";
 import { truncateHash } from "@/utils/addressUtils";
+import { strip0x } from "@/utils/txid";
 
 const EXTERNAL_ICON_SIZE = 16;
 
@@ -33,7 +33,7 @@ export function ActivityHashLink({
   chain,
   explorerUrl,
 }: ActivityHashLinkProps) {
-  const truncated = truncateHash(chain === "BTC" ? stripHexPrefix(hash) : hash);
+  const truncated = truncateHash(chain === "BTC" ? strip0x(hash) : hash);
 
   return (
     <a

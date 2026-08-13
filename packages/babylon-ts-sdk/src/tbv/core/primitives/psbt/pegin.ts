@@ -22,7 +22,7 @@ import {
   tapInternalPubkey,
   validatePeginP2aAnchor,
   type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 import { Buffer } from "buffer";
 import { payments, script as bscript, Transaction, opcodes } from "bitcoinjs-lib";
 

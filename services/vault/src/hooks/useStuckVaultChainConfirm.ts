@@ -21,7 +21,7 @@
 // suspects, and only a chain read that still reports VERIFIED promotes one to
 // genuinely stuck.
 
-import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { type Hex, zeroAddress } from "viem";

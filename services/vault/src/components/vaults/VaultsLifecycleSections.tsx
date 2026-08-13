@@ -16,7 +16,7 @@
  */
 
 import { Heading, Hint, InfoIcon, Loader } from "@babylonlabs-io/core-ui";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, Suspense, useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -41,9 +41,9 @@ import {
   TOTAL_VISUAL_STEPS,
 } from "@/components/simple/DepositProgressView/steps";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
-import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import { useRequireBtcWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { getDemoStepperBatch } from "@/dev/demoDeposit";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
@@ -58,7 +58,18 @@ import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
+import { ensureBtcEccInitialized } from "@/utils/btc/ensureBtcEccInitialized";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
+
+const PostDepositContinuationContent = lazyWithRetry(async () => {
+  await ensureBtcEccInitialized();
+  return import("@/components/simple/PostDepositContinuationContent").then(
+    ({ PostDepositContinuationContent }) => ({
+      default: PostDepositContinuationContent,
+    }),
+  );
+});
 
 /** Step-progress bar fill — the pending amber, matching the status dot. */
 const PROGRESS_FILL_COLOR = "rgb(var(--risk-amber))";
@@ -106,14 +117,18 @@ function getRowExplorerUrl(
 function PendingRow({
   activity,
   vaultProviders,
-  onOpenDetails,
+  onOpenAction,
   onBroadcast,
   onRefund,
   onEmergencyWithdraw,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
-  onOpenDetails: (depositId: string) => void;
+  /** Opens the multistepper. Gated on a BTC wallet: the multistepper is not
+   *  read-only — its resume screen auto-broadcasts and its activation screen
+   *  reads the BTC connector — so both the primary action and "View Details"
+   *  route through it. */
+  onOpenAction: (depositId: string) => void;
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
   onEmergencyWithdraw: (depositId: string) => void;
@@ -148,7 +163,7 @@ function PendingRow({
       onEmergencyWithdraw(activity.id);
       return;
     }
-    onOpenDetails(activity.id);
+    onOpenAction(activity.id);
   };
 
   // Pre-PegIn first: while a deposit is in flight the Pre-PegIn tx exists
@@ -266,7 +281,7 @@ function PendingRow({
         ) : (
           <button
             type="button"
-            onClick={() => onOpenDetails(activity.id)}
+            onClick={() => onOpenAction(activity.id)}
             className={NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.viewDetails}
@@ -405,6 +420,7 @@ export function VaultsLifecycleSections({
   // Vault IDs whose multistepper view modal is open — the full batch for a
   // split pegin, null when closed (same contract as PendingDepositSection).
   const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
+  const { requireBtcWallet } = useRequireBtcWallet();
 
   const {
     pendingActivities,
@@ -439,47 +455,66 @@ export function VaultsLifecycleSections({
     [allActivities, demo],
   );
 
+  const handleOpenAction = useCallback(
+    (depositId: string) => {
+      if (!requireBtcWallet()) return;
+      handleOpenDetails(depositId);
+    },
+    [handleOpenDetails, requireBtcWallet],
+  );
+
   // The broadcast/refund modals resolve ids against the REAL activity list, so
   // a demo row's action would silently no-op there — route demo ids to the
   // read-only stepper walk instead (matching v2's card-click behavior).
   const handleBroadcast = useCallback(
     (depositId: string) => {
       if (allActivities.some((a) => a.id === depositId)) {
+        if (!requireBtcWallet()) return;
         broadcastModal.handleBroadcastClick(depositId);
         return;
       }
       handleOpenDetails(depositId);
     },
-    [allActivities, broadcastModal, handleOpenDetails],
+    [allActivities, broadcastModal, handleOpenDetails, requireBtcWallet],
   );
   const handleRefund = useCallback(
     (depositId: string) => {
       if (allActivities.some((a) => a.id === depositId)) {
+        if (!requireBtcWallet()) return;
         refundModal.handleRefundClick(depositId);
         return;
       }
       handleOpenDetails(depositId);
     },
-    [allActivities, refundModal, handleOpenDetails],
+    [allActivities, refundModal, handleOpenDetails, requireBtcWallet],
   );
   const handleEmergencyWithdraw = useCallback(
     (depositId: string) => {
       if (allActivities.some((a) => a.id === depositId)) {
+        if (!requireBtcWallet()) return;
         emergencyWithdrawModal.handleWithdrawClick(depositId, "detected");
         return;
       }
       handleOpenDetails(depositId);
     },
-    [allActivities, emergencyWithdrawModal, handleOpenDetails],
+    [
+      allActivities,
+      emergencyWithdrawModal,
+      handleOpenDetails,
+      requireBtcWallet,
+    ],
   );
   // Advanced entry from the activation dialog inside the multistepper: swap
   // the multistepper for the dedicated withdraw modal (the two never stack).
+  // The swap is conditional on the BTC gate — a rejected gate leaves the
+  // multistepper open rather than closing it behind the wallet dialog.
   const handleAdvancedWithdraw = useCallback(
     (depositId: string) => {
+      if (!requireBtcWallet()) return;
       setViewingBatch(null);
       emergencyWithdrawModal.handleWithdrawClick(depositId, "advanced");
     },
-    [emergencyWithdrawModal],
+    [emergencyWithdrawModal, requireBtcWallet],
   );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
@@ -521,7 +556,7 @@ export function VaultsLifecycleSections({
                 key={activity.id}
                 activity={activity}
                 vaultProviders={vaultProviders}
-                onOpenDetails={handleOpenDetails}
+                onOpenAction={handleOpenAction}
                 onBroadcast={handleBroadcast}
                 onRefund={handleRefund}
                 onEmergencyWithdraw={handleEmergencyWithdraw}
@@ -568,12 +603,14 @@ export function VaultsLifecycleSections({
       {viewingBatch && ethAddress && (
         <V3ModalShell open onClose={handleViewingClose}>
           <div className="mx-auto w-full max-w-[520px]">
-            <PostDepositContinuationContent
-              vaultIds={viewingBatch}
-              depositorEthAddress={ethAddress as Address}
-              onClose={handleViewingClose}
-              onAdvancedWithdraw={handleAdvancedWithdraw}
-            />
+            <Suspense fallback={<Loader />}>
+              <PostDepositContinuationContent
+                vaultIds={viewingBatch}
+                depositorEthAddress={ethAddress as Address}
+                onClose={handleViewingClose}
+                onAdvancedWithdraw={handleAdvancedWithdraw}
+              />
+            </Suspense>
           </div>
         </V3ModalShell>
       )}
