@@ -17,6 +17,11 @@ v6-compatible source and gate it with golden vectors.
   reproduced; attribution is by project name and URL (Apache-2.0 §4(a)/(c)).
 - Each file's header records its upstream path, version, upstream sha256, and the
   exact modifications made (§4(b)).
+- **Known upstream behaviour (kept):** `parseVarint` accepts non-canonical
+  (overlong) encodings — e.g. `fd0100` decodes to `1` — with no minimality check,
+  matching upstream and the Python oracle. Harmless while we only emit varints via
+  `createVarint`, but a hazard once PSBT bytes are parsed and reserialized;
+  revisit when `psbtv2` lands.
 
 ## Modifications (applied to every file)
 
@@ -25,24 +30,35 @@ v6-compatible source and gate it with golden vectors.
   bare `Buffer` from the standalone dist.
 - Strict-null / strict-index fixes for this repo's strict `tsconfig`.
 - Prettier/quote formatting to the package style.
-- `psbtv2.ts` (lands in a later increment): the object-level `fromBitcoinJS` is
-  dropped (it throws on taproot inputs — exactly our case; the map-level
-  `normalizeToV2` is the path we use).
 
 Everything else — protocol logic, byte layout, function surface — is verbatim.
 
 Vendored so far: `varint.ts`, `merkle.ts`, `merkleMap.ts`. The PSBT layer
 (`buffertools.ts`, `psbtv2.ts`, `merkelizedPsbt.ts`) and the client-command
-interpreter (`clientCommands.ts`, `policy.ts`) follow in later increments.
+interpreter (`clientCommands.ts`, `policy.ts`) follow in later increments. Until
+then these three modules are referenced only by their golden-vector tests, not by
+any production entrypoint (nothing reachable from `src/index.ts` imports them), so
+the bundler tree-shakes them out of the JS bundle and the vendor dir is excluded
+from declaration emission (see `vite.config.ts`) — the published `dist/` ships none
+of the vendored code (no JS, no `.d.ts`), and the `bitcoinjs-lib` / `buffer` deps
+they pull in stay out of the bundle, until the PSBT layer lands.
+
+### Planned (not yet vendored)
+
+- `psbtv2.ts`: the object-level `fromBitcoinJS` will be dropped (it throws on
+  taproot inputs — exactly our case; the map-level `normalizeToV2` is the path we
+  use).
 
 ## Golden-vector gate
 
 `__tests__/*.golden.test.ts` check the vendored modules against vectors generated
 by **Ledger's own Python client** (`ledger-bitcoin==0.4.0`, the version the vault
 firmware's device tests drive SIGN_PSBT through). `varint` and `merkle` have
-direct golden vectors (`varint.json`, `merkle_mth.json`); `merkleMap`'s
-commitment is exercised through the PSBT map vectors once `psbtv2` lands. Any
-behavioural drift from upstream fails these. The Python client is the primary
+direct golden vectors (`varint.json`, `merkle_mth.json`); `merkleMap`'s commitment
+(keys root, values root, the `varint(n) ‖ keysRoot ‖ valuesRoot` layout, and the
+outer Merkle-of-maps roots) is checked today against per-map commitment vectors the
+Python client emits over the firmware's PSBT fixtures (`__tests__/vectors/signpsbt/*.json`).
+Any behavioural drift from upstream fails these. The Python client is the primary
 oracle; the deprecated npm package is a secondary check.
 
 ## Re-diff procedure (on an upstream update)
