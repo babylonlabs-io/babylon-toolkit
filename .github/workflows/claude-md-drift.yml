@@ -42,6 +42,7 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
             "packages/babylon-ledger-vault-signer/src/"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts"
           )
 
           # Registered in CLAUDE.md > "CRITICAL PATHS" section 9, CODEOWNERS and
