@@ -3,11 +3,12 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../clients/aaveIrm", () => ({
-  getInterestRateModelCurveSafe: vi.fn(),
+vi.mock("@/clients/indexer/aaveIrmClient", () => ({
+  fetchIrmCurve: vi.fn(),
 }));
 
-import { getInterestRateModelCurveSafe } from "../../clients/aaveIrm";
+import { fetchIrmCurve } from "@/clients/indexer/aaveIrmClient";
+
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { useInterestRateModelCurve } from "../useInterestRateModelCurve";
 
@@ -49,8 +50,8 @@ describe("useInterestRateModelCurve", () => {
     vi.clearAllMocks();
   });
 
-  it("maps the Safe result's curve and figures through", async () => {
-    vi.mocked(getInterestRateModelCurveSafe).mockResolvedValue({
+  it("maps the fetched curve and figures through", async () => {
+    vi.mocked(fetchIrmCurve).mockResolvedValue({
       curve: [
         { utilizationPercent: 0, aprPercent: 0 },
         { utilizationPercent: 90, aprPercent: 4 },
@@ -58,7 +59,6 @@ describe("useInterestRateModelCurve", () => {
       ],
       kinkUtilizationPercent: 90,
       maxAprPercent: 64,
-      error: null,
     });
 
     const { result } = renderHook(
@@ -71,19 +71,16 @@ describe("useInterestRateModelCurve", () => {
     expect(result.current.kinkUtilizationPercent).toBe(90);
     expect(result.current.maxAprPercent).toBe(64);
     expect(result.current.error).toBeNull();
-    expect(getInterestRateModelCurveSafe).toHaveBeenCalledWith({
-      hub: HUB,
-      assetId: 0,
+    expect(fetchIrmCurve).toHaveBeenCalledWith({
+      reserveId: 1n,
+      signal: expect.any(AbortSignal),
     });
   });
 
-  it("surfaces the Safe result's error with a null curve", async () => {
-    vi.mocked(getInterestRateModelCurveSafe).mockResolvedValue({
-      curve: null,
-      kinkUtilizationPercent: null,
-      maxAprPercent: null,
-      error: new Error("Interest-rate strategy curve read reverted"),
-    });
+  it("surfaces a fetch rejection with a null curve", async () => {
+    vi.mocked(fetchIrmCurve).mockRejectedValue(
+      new Error("IRM curve request to https://indexer.test failed with status 502"),
+    );
 
     const { result } = renderHook(
       () => useInterestRateModelCurve({ reserve: makeReserve() }),
@@ -104,11 +101,11 @@ describe("useInterestRateModelCurve", () => {
 
     expect(result.current.curve).toBeNull();
     expect(result.current.isLoading).toBe(false);
-    expect(getInterestRateModelCurveSafe).not.toHaveBeenCalled();
+    expect(fetchIrmCurve).not.toHaveBeenCalled();
   });
 
   it("withholds the retained curve when a refetch after a successful load fails", async () => {
-    vi.mocked(getInterestRateModelCurveSafe)
+    vi.mocked(fetchIrmCurve)
       .mockResolvedValueOnce({
         curve: [
           { utilizationPercent: 0, aprPercent: 0 },
@@ -116,14 +113,8 @@ describe("useInterestRateModelCurve", () => {
         ],
         kinkUtilizationPercent: 50,
         maxAprPercent: 10,
-        error: null,
       })
-      .mockResolvedValueOnce({
-        curve: null,
-        kinkUtilizationPercent: null,
-        maxAprPercent: null,
-        error: new Error("boom"),
-      });
+      .mockRejectedValueOnce(new Error("boom"));
 
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },

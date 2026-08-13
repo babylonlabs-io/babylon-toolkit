@@ -1,9 +1,9 @@
 /**
- * On-chain interest-rate-model curve for the selected reserve — the data
- * source for the C2 borrow-rate chart. Wraps `getInterestRateModelCurveSafe`
- * (three sequential multicalls: Hub totals, strategy shape, per-sample rates)
- * in a query so the card can render loading/error states like its sibling
- * Aave hooks.
+ * Interest-rate-model curve for the selected reserve — the data source for
+ * the C2 borrow-rate chart. Reads the vault indexer's IRM endpoint, which
+ * samples the on-chain strategy server-side and Redis-caches the result, so
+ * the app just wraps the fetch in a query for the card's loading/error
+ * states like its sibling Aave hooks — no on-chain reads happen here.
  *
  * Cached for an hour, deliberately: the curve is a pure function of the
  * strategy's governance-set parameters and the sampled utilization ratios
@@ -17,28 +17,27 @@
  * `staleTime` alone never re-invokes the queryFn once mounted, and this app
  * sets `refetchOnWindowFocus: false` globally, so `refetchInterval` is what
  * actually re-runs the read hourly while the card stays mounted. An errored
- * query instead re-runs every 60s so a transient RPC failure self-heals
+ * query instead re-runs every 60s so a transient failure self-heals
  * in-session instead of waiting out the full hour — one attempt per cycle
  * (`retry: false`), since that 60s cadence is already the retry mechanism;
- * the global retry-with-backoff policy would only multiply RPC load on a
+ * the global retry-with-backoff policy would only multiply request load on a
  * persistently failing market.
  *
- * There is no "empty but successful" curve: a configured strategy always
- * yields the full sample set, so `curve === null` is the one empty state,
- * covering both the loading window and a failed read (Safe-result errors are
- * rethrown in the queryFn so a failure is never cached as hour-fresh data).
- * On error the hook withholds retained data rather than the last-good curve —
- * same guard as `useAaveReserveLiquidity`.
+ * There is no "empty but successful" curve: the endpoint's contract is that a
+ * 200 always carries a complete curve (every degraded state is a non-200), so
+ * `curve === null` is the one empty state, covering both the loading window
+ * and a failed read.
  *
- * Wallet-less: reads go through the app's public RPC client.
+ * The read needs only the indexer — no wallet, no RPC client.
  */
 
 import { skipToken, useQuery } from "@tanstack/react-query";
 
 import {
-  getInterestRateModelCurveSafe,
+  fetchIrmCurve,
   type IrmCurvePoint,
-} from "../clients/aaveIrm";
+} from "@/clients/indexer/aaveIrmClient";
+
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
 const QUERY_KEY = "aaveIrmCurve";
@@ -62,23 +61,17 @@ export function useInterestRateModelCurve({
   const assetId = reserve === null ? null : reserve.reserve.assetId;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: [QUERY_KEY, hubKey, assetId],
+    queryKey: [
+      QUERY_KEY,
+      reserve === null ? null : reserve.reserveId.toString(),
+      hubKey,
+      assetId,
+    ],
     queryFn:
       reserve === null
         ? skipToken
-        : async () => {
-            const result = await getInterestRateModelCurveSafe({
-              hub: reserve.reserve.hub,
-              assetId: reserve.reserve.assetId,
-            });
-            // A Safe-result failure must surface as a query ERROR, not be
-            // cached as hour-fresh data: stored as success, one transient RPC
-            // failure would pin "chart unavailable" for the full cache
-            // window. As an error it is refetched every 60s (below) and
-            // refetched on the next mount regardless of `staleTime`.
-            if (result.error !== null) throw result.error;
-            return result;
-          },
+        : ({ signal }) =>
+            fetchIrmCurve({ reserveId: reserve.reserveId, signal }),
     staleTime: CURVE_CACHE_MS,
     gcTime: CURVE_CACHE_MS,
     refetchInterval: (query) =>
@@ -86,8 +79,8 @@ export function useInterestRateModelCurve({
         ? ERROR_REFETCH_INTERVAL_MS
         : CURVE_CACHE_MS,
     // The 60s error refetchInterval above IS the retry mechanism for this
-    // query; the global 3-retry-with-backoff policy would only quadruple RPC
-    // attempts per cycle on a persistently failing market.
+    // query; the global 3-retry-with-backoff policy would only quadruple
+    // request attempts per cycle on a persistently failing market.
     retry: false,
   });
 

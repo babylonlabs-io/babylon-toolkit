@@ -7,8 +7,8 @@
 
 import type { ChartAxisTick } from "@babylonlabs-io/core-ui";
 
-import type { IrmCurvePoint } from "@/applications/aave/clients/aaveIrm";
 import type { BorrowRateHistoryPoint } from "@/clients/indexer/aaveHistoryClient";
+import type { IrmCurvePoint } from "@/clients/indexer/aaveIrmClient";
 import { formatAprPercent } from "@/utils/formatting";
 
 /** Headroom added to a non-flat domain, as a fraction of its span. */

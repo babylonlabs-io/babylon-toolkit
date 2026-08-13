@@ -21,9 +21,9 @@ vi.mock("@/applications/aave/hooks", () => ({
   useInterestRateModelCurve: vi.fn(),
 }));
 
-import type { IrmCurvePoint } from "@/applications/aave/clients/aaveIrm";
 import { useInterestRateModelCurve } from "@/applications/aave/hooks";
 import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
+import type { IrmCurvePoint } from "@/clients/indexer/aaveIrmClient";
 import { COPY } from "@/copy";
 
 import { InterestRateModelCard } from "../InterestRateModelCard";
