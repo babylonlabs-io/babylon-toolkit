@@ -24,11 +24,6 @@ import {
   X_ONLY_PUBKEY_HEX_LEN,
 } from "../../utils/validation";
 
-export {
-  COMPRESSED_PUBKEY_HEX_LEN,
-  X_ONLY_PUBKEY_HEX_LEN,
-} from "../../utils/validation";
-
 /**
  * BIP-341 Tapscript leaf version for script-path spends.
  * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki

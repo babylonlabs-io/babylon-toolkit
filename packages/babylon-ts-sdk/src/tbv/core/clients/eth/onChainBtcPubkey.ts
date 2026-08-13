@@ -1,7 +1,7 @@
 /**
  * The single validator that mints {@link OnChainBtcPubkey}.
  *
- * Extracted from `ViemVaultRegistryReader.getVaultProviderBtcPubKey` so that
+ * Extracted from `ViemVaultRegistryReader.getVaultProviderGenesisBtcPubKey` so that
  * RFC-006 operation-key resolution can produce branded keys through exactly
  * the same checks, rather than casting past the brand. Every producer of an
  * `OnChainBtcPubkey` must go through here.
@@ -61,8 +61,8 @@ function isSecp256k1XCoordinate(value: string): boolean {
  * 64-char lowercase hex without the `0x` prefix.
  *
  * `label` identifies the read site in error messages (e.g.
- * `getVaultProviderBTCKey (vp=0x…)`), so a failure names which participant and
- * which getter produced it.
+ * `getOperationBtcKeyAtEpoch (vp=0x…, epoch=0)`), so a failure names which
+ * participant and which getter produced it.
  *
  * A zero hash fails the curve check, so an unregistered operator or an epoch
  * with no bonded key surfaces as an error rather than a silent all-zero key.

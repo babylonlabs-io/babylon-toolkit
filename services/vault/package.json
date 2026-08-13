@@ -29,6 +29,7 @@
     "visual:capture": "playwright test --config=playwright.visual.config.ts"
   },
   "dependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",

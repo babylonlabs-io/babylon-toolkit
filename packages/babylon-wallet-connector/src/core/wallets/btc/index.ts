@@ -6,6 +6,7 @@ import injectable from "./injectable";
 import keystone from "./keystone";
 import ledger from "./ledger";
 import ledgerV2 from "./ledger-v2";
+import ledgerVault from "./ledger-vault";
 import okx from "./okx";
 import onekey from "./onekey";
 import unisat from "./unisat";
@@ -19,7 +20,9 @@ const metadata: ChainMetadata<"BTC", IBTCProvider, BTCConfig> = {
   name: "Bitcoin",
   icon,
   // deriveContextHash-capable wallets (UniSat, OneKey, OKX, Utila) lead the list.
-  wallets: [unisat, onekey, utila, okx, injectable, appkit, ledger, ledgerV2, keystone],
+  // ledgerVault is registered but hidden unless the consuming app enables it
+  // (NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET) — see #2109.
+  wallets: [unisat, onekey, utila, okx, injectable, appkit, ledger, ledgerV2, ledgerVault, keystone],
 };
 
 export default metadata;

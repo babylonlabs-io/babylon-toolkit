@@ -11,6 +11,12 @@ import {
   TXID_RE,
   pushTx,
 } from "@babylonlabs-io/ts-sdk";
+import {
+  ensurePrePeginTermsApproval,
+  isDepositTermsRejectedError,
+  type DepositTerms,
+  type PrePeginApprovalWallet,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { assertPsbtUnsignedTxMatches } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { getPsbtInputFields } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Psbt, Transaction } from "bitcoinjs-lib";
@@ -62,11 +68,22 @@ export interface BroadcastPrePeginParams {
   unsignedTxHex: string;
 
   /**
-   * BTC wallet provider with signing capability
+   * BTC wallet provider with signing capability. May also implement the
+   * intent-approval methods (`deriveContextHash`/`approveDepositTerms`); when it
+   * does, `depositTerms` is required and the approval ceremony runs before
+   * signing.
    */
   btcWalletProvider: {
     signPsbt: (psbtHex: string) => Promise<string>;
-  };
+  } & PrePeginApprovalWallet;
+
+  /**
+   * Approved deposit terms — required when `btcWalletProvider` supports deposit
+   * approval. Fresh flows pass `PreparePeginResult.depositTerms`; the resume
+   * path will rebuild them from chain state (Part 2). Ignored (but still
+   * txid-validated) for non-approval wallets.
+   */
+  depositTerms?: DepositTerms;
 
   /**
    * Depositor's BTC public key (x-only format, 32 bytes hex)
@@ -282,6 +299,7 @@ export async function broadcastPrePeginTransaction(
     btcWalletProvider,
     depositorBtcPubkey,
     expectedUtxos,
+    depositTerms,
   } = params;
 
   try {
@@ -305,6 +323,15 @@ export async function broadcastPrePeginTransaction(
       expectedUtxos,
     );
 
+    // Intent-wallet ceremony (derive → approve) immediately before signing.
+    // No-op for wallets that do not support deposit approval.
+    await ensurePrePeginTermsApproval({
+      wallet: btcWalletProvider,
+      depositTerms,
+      fundedPrePeginTxHex: unsignedTxHex,
+      depositorBtcPubkey,
+    });
+
     // Sign and finalize
     const signedTxHex = await signAndFinalizePsbt(
       psbt.toHex(),
@@ -314,6 +341,12 @@ export async function broadcastPrePeginTransaction(
     // Broadcast to network
     return await pushTx(signedTxHex, getMempoolApiUrl());
   } catch (error) {
+    // A device-envelope rejection is a distinct, user-actionable outcome — let
+    // it through unwrapped so the UI can show the intent-rejection copy instead
+    // of a generic broadcast failure.
+    if (isDepositTermsRejectedError(error)) {
+      throw error;
+    }
     const message = error == null ? "Unknown error" : formatError(error);
     throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`);
   }

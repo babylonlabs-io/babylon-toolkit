@@ -7,7 +7,15 @@
 
 const SATOSHIS_PER_BTC = 100_000_000n;
 
-/** Convert satoshis to a lossless BTC string without loading BTC primitives. */
+/**
+ * Convert satoshis to a lossless BTC string without loading BTC primitives.
+ *
+ * Duplicates the SDK's `formatSatoshisToBtc`
+ * (packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts) on
+ * purpose: that export sits behind `@babylonlabs-io/ts-sdk/tbv/core`, a barrel
+ * that drags bitcoinjs-lib into every chunk importing it, and the amounts this
+ * formats are rendered on ETH-only routes too.
+ */
 export function satoshiToBtcString(satoshis: bigint): string {
   if (satoshis < 0n) {
     return `-${satoshiToBtcString(-satoshis)}`;
@@ -31,7 +39,7 @@ export function satoshiToBtcString(satoshis: bigint): string {
  * @returns BTC amount as number
  */
 export function satoshiToBtcNumber(satoshi: bigint): number {
-  return Number(satoshi) / 100000000;
+  return Number(satoshi) / Number(SATOSHIS_PER_BTC);
 }
 
 /**

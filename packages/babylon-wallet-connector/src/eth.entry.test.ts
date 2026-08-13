@@ -5,7 +5,8 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const SRC_ROOT = path.dirname(fileURLToPath(import.meta.url));
-const ENTRY = path.join(SRC_ROOT, "eth.ts");
+const ETH_ENTRY = path.join(SRC_ROOT, "eth.ts");
+const DEFAULT_ENTRY = path.join(SRC_ROOT, "index.tsx");
 const FORBIDDEN_LOCAL_PATHS = [
   "/core/wallets/btc/",
   "/providers/BTCWalletProvider",
@@ -19,7 +20,7 @@ const FORBIDDEN_PACKAGES = [
   "@reown/appkit-adapter-bitcoin",
   "@tomo-inc/wallet-connect-sdk",
 ];
-const OPTIONAL_BITCOIN_INSTALL_PACKAGES = [
+const REQUIRED_BITCOIN_PACKAGES = [
   "bitcoinjs-lib",
   "@bitcoin-js/tiny-secp256k1-asmjs",
   "@reown/appkit-adapter-bitcoin",
@@ -67,51 +68,58 @@ function staticRuntimeImports(file: string): string[] {
   return imports;
 }
 
+function staticClosure(entry: string): { files: string[]; externalPackages: string[] } {
+  const visited = new Set<string>();
+  const externalPackages = new Set<string>();
+  const queue = [entry];
+
+  while (queue.length > 0) {
+    const file = queue.pop()!;
+    if (visited.has(file)) continue;
+    visited.add(file);
+
+    for (const specifier of staticRuntimeImports(file)) {
+      const local = resolveLocalImport(file, specifier);
+      if (local) queue.push(local);
+      else if (!specifier.endsWith(".css") && !specifier.endsWith(".svg")) externalPackages.add(specifier);
+    }
+  }
+
+  return { files: [...visited], externalPackages: [...externalPackages] };
+}
+
+function importsPackage(externalPackages: string[], name: string): boolean {
+  return externalPackages.some((specifier) => specifier === name || specifier.startsWith(`${name}/`));
+}
+
 describe("the Ethereum package entry", () => {
   it("has no static path to the Bitcoin implementation stack", () => {
-    const visited = new Set<string>();
-    const externalPackages = new Set<string>();
-    const queue = [ENTRY];
+    const { files, externalPackages } = staticClosure(ETH_ENTRY);
 
-    while (queue.length > 0) {
-      const file = queue.pop()!;
-      if (visited.has(file)) continue;
-      visited.add(file);
-
-      for (const specifier of staticRuntimeImports(file)) {
-        const local = resolveLocalImport(file, specifier);
-        if (local) queue.push(local);
-        else if (!specifier.endsWith(".css") && !specifier.endsWith(".svg")) externalPackages.add(specifier);
-      }
-    }
-
-    const normalizedFiles = [...visited].map((file) => file.replaceAll(path.sep, "/"));
+    const normalizedFiles = files.map((file) => file.replaceAll(path.sep, "/"));
     for (const forbidden of FORBIDDEN_LOCAL_PATHS) {
       expect(normalizedFiles, `static ETH graph reached ${forbidden}`).not.toEqual(
         expect.arrayContaining([expect.stringContaining(forbidden)]),
       );
     }
     for (const forbidden of FORBIDDEN_PACKAGES) {
-      expect(
-        [...externalPackages].some((specifier) => specifier === forbidden || specifier.startsWith(`${forbidden}/`)),
-        `static ETH graph imported ${forbidden}`,
-      ).toBe(false);
+      expect(importsPackage(externalPackages, forbidden), `static ETH graph imported ${forbidden}`).toBe(false);
     }
   });
+});
 
-  it("does not install the Bitcoin crypto runtime for ETH-only consumers", () => {
+describe("the default package entry", () => {
+  it("statically requires the Bitcoin stack, so those dependencies must not be optional peers", () => {
+    const { externalPackages } = staticClosure(DEFAULT_ENTRY);
     const manifest = JSON.parse(fs.readFileSync(path.join(SRC_ROOT, "..", "package.json"), "utf8")) as {
-      dependencies?: Record<string, string>;
-      peerDependencies?: Record<string, string>;
       peerDependenciesMeta?: Record<string, { optional?: boolean }>;
-      devDependencies?: Record<string, string>;
     };
 
-    for (const dependency of OPTIONAL_BITCOIN_INSTALL_PACKAGES) {
-      expect(manifest.dependencies).not.toHaveProperty(dependency);
-      expect(manifest.peerDependencies).toHaveProperty(dependency);
-      expect(manifest.peerDependenciesMeta?.[dependency]?.optional).toBe(true);
-      expect(manifest.devDependencies).toHaveProperty(dependency);
+    for (const dependency of REQUIRED_BITCOIN_PACKAGES) {
+      expect(importsPackage(externalPackages, dependency), `static default graph no longer imports ${dependency}`).toBe(
+        true,
+      );
+      expect(manifest.peerDependenciesMeta?.[dependency]?.optional, `${dependency} is an optional peer`).not.toBe(true);
     }
   });
 });

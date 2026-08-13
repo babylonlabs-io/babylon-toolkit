@@ -402,7 +402,7 @@ async function readPrePeginContext(
   ] = await Promise.all([
     protocolReader.getOffchainParamsByVersion(vault.offchainParamsVersion),
     fetchVaultProviderById(vault.vaultProvider),
-    getVaultRegistryReader().getVaultProviderBtcPubKey(
+    getVaultRegistryReader().getVaultProviderGenesisBtcPubKey(
       vault.vaultProvider as Address,
     ),
     keeperReader.getVaultKeepersByVersion(

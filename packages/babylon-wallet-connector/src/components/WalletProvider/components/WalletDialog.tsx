@@ -14,6 +14,23 @@ import { useWidgetState } from "@/hooks/useWidgetState";
 
 import { Screen } from "./Screen";
 
+/**
+ * Picks the identity the terms-of-service hook is called with. Required chains
+ * are walked in the host's declared order — iterating `selectedWallets` instead
+ * would key the identity off the order the user happened to connect wallets in.
+ */
+function findPrimaryConnection(
+  connections: WalletLifecycleConnection[],
+  requiredChainIds: string[],
+): WalletLifecycleConnection | undefined {
+  for (const chainId of requiredChainIds) {
+    const match = connections.find(({ chain }) => chain === chainId);
+    if (match) return match;
+  }
+
+  return connections.find(({ chain }) => chain === "BTC") ?? connections[0];
+}
+
 interface WalletDialogProps {
   onError?: (e: Error) => void;
   storage: HashMap;
@@ -49,14 +66,15 @@ export function WalletDialog({
 
   const handleConfirm = useCallback(async () => {
     try {
+      // Consent model: closing the dialog without confirming deliberately
+      // leaves the connectors connected, so the user can reopen and finish
+      // where they left off. The receipt written below is the single gate that
+      // lets a later reload auto-confirm — no receipt, no silent restore.
       if (!confirmed) {
         const connections = Object.entries(selectedWallets).flatMap<WalletLifecycleConnection>(([chain, wallet]) =>
           wallet?.account ? [{ chain: chain as ChainId, wallet, account: wallet.account }] : [],
         );
-        const primary =
-          connections.find(({ chain }) => requiredChainIds.includes(chain)) ??
-          connections.find(({ chain }) => chain === "BTC") ??
-          connections[0];
+        const primary = findPrimaryConnection(connections, requiredChainIds);
 
         if (primary) {
           await acceptTermsOfService?.({

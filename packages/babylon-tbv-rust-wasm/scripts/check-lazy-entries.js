@@ -114,11 +114,11 @@ try {
   rmSync(isolatedPackage, { recursive: true, force: true });
 }
 
-// Regression: browser facade calls must own independent WASM objects. The
+// Concurrent browser-facade calls with different parameters must each return
+// their own complete result. That is what per-call connector ownership buys:
+// neither call can free or overwrite the object the other is reading. The
 // generated module is initialized through the Node raw entry first so this
-// file://-based check does not rely on fetch(file://...). A shared connector
-// cache used to let the second call free the first call's object after the
-// asynchronous loader resumed but before the first call used its getters.
+// file://-based check does not rely on fetch(file://...).
 const rawNodeUrl = pathToFileURL(
   resolve(packageRoot, 'dist', 'raw-node.js'),
 ).href;
@@ -159,6 +159,20 @@ for (const result of concurrentConnectorResults) {
   if (!result.payoutScript || !result.payoutControlBlock) {
     throw new Error('Concurrent connector facade returned empty script data');
   }
+}
+// The two calls differ only in `timelockAssert`, so their script data must
+// differ too. Truthiness alone would pass a cache that hands both callers the
+// same connector — the wrong taproot leaf, fully populated.
+const [firstConnectorResult, secondConnectorResult] =
+  concurrentConnectorResults;
+if (
+  firstConnectorResult.payoutScript === secondConnectorResult.payoutScript ||
+  firstConnectorResult.payoutControlBlock ===
+    secondConnectorResult.payoutControlBlock
+) {
+  throw new Error(
+    'Concurrent connector facade returned aliased script data for different timelockAssert values',
+  );
 }
 
 console.log('Lazy WASM facade boundary verified (browser, node, and raw).');

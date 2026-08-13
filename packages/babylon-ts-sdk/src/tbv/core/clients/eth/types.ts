@@ -17,7 +17,7 @@ declare const onChainBtcPubkeyBrand: unique symbol;
  * 64-char lowercase hex (no `0x`) x-only BTC pubkey sourced from an on-chain
  * registry. Minted only by `assertOnChainBtcPubkey`, which is the shared
  * validator behind both producers:
- * {@link VaultRegistryReader.getVaultProviderBtcPubKey} (the fixed
+ * {@link VaultRegistryReader.getVaultProviderGenesisBtcPubKey} (the fixed
  * registration key) and {@link OperationKeyReader} (RFC-006 operation keys,
  * resolved current or at a vault's frozen epoch).
  *
@@ -110,7 +110,20 @@ export interface VaultRegistryReader {
   getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo>;
   getProtocolInfoBatch(vaultIds: readonly Hex[]): Promise<VaultProtocolInfo[]>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
-  getVaultProviderBtcPubKey(vpAddress: Address): Promise<OnChainBtcPubkey>;
+  /**
+   * Read a vault provider's *genesis* (registration) BTC key — the key bonded
+   * at version 0, which never moves when the operator rotates.
+   *
+   * Used only as the genesis fallback for epoch-based resolution and as a
+   * candidate when cross-checking an indexer hint. Never the key to build a
+   * Bitcoin lock with; that comes from `OperationKeyReader`.
+   *
+   * Resolves via `getOperationBtcKeyAtEpoch` at epoch 0, so it requires an
+   * RFC-006 registry — as does every caller.
+   */
+  getVaultProviderGenesisBtcPubKey(
+    vpAddress: Address,
+  ): Promise<OnChainBtcPubkey>;
   /** Read the protocol pegin fee (in wei) for a given vault provider. */
   getPegInFee(vaultProvider: Address): Promise<bigint>;
   /**
@@ -131,11 +144,13 @@ export interface VaultRegistryReader {
   /**
    * Read a vault's frozen RFC-006 key epochs.
    *
-   * Uses the extended `getBtcVaultProtocolInfo` ABI. Against a registry that
-   * predates RFC-006 this returns silent garbage for a populated vault rather
-   * than throwing, so it must only be called against an RFC-006 registry —
-   * a deployment invariant, not something this call can detect. See
-   * `BTCVaultRegistryKeyEpochs.abi.ts`.
+   * Uses the extended `getBtcVaultProtocolInfo` ABI. Against a registry whose
+   * `BTCVaultProtocolInfo` struct is not extended this returns silent garbage
+   * for a populated vault rather than throwing, so it must only be called
+   * against an RFC-006 registry — a deployment invariant, not something this
+   * call can detect. A registry missing the operation-key getters altogether is
+   * the safer case: key resolution reverts downstream and these epochs are never
+   * used. See `BTCVaultRegistryKeyEpochs.abi.ts`.
    */
   getVaultKeyEpochs(vaultId: Hex): Promise<KeyEpochs>;
   /** {@link getVaultKeyEpochs} for many vaults in one multicall. */
@@ -314,7 +329,8 @@ export interface UniversalChallengerReader {
 export interface OperationKeyQuery {
   vaultProviderEthAddress: Address;
   /**
-   * The VP's genesis (registration) key, from `getVaultProviderBTCKey`.
+   * The VP's genesis (registration) key, from
+   * {@link VaultRegistryReader.getVaultProviderGenesisBtcPubKey}.
    *
    * The VP has no roster entry to carry a genesis key the way keepers and
    * challengers do, so it is supplied here. Every call site already reads it:

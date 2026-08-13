@@ -6,6 +6,7 @@ import {
   WalletProvider,
   createWalletConfig,
   useWalletConnect,
+  type ChainId,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import {
@@ -35,10 +36,24 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc_v2",
 ];
 
+// `ledger_btc_vault` is the DMK-based vault provider (#2109), built ahead of
+// Ledger's firmware being final. Opt-in rather than opt-out: the env disable
+// list defaults to empty, so a new provider would otherwise be visible in any
+// environment that has not listed it.
+const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,
+  ...(featureFlags.isLedgerVaultWalletEnabled ? [] : [LEDGER_VAULT_WALLET_ID]),
   ...featureFlags.disabledBtcWallets,
 ];
+
+// ETH is the only chain a session must confirm; BTC stays optional. Hoisted
+// out of the JSX so the array keeps one identity for the life of the module —
+// an inline literal is a new reference on every render of this app-wide
+// provider, which invalidates ChainProvider's `requiredChainIds` memo and
+// re-runs StateProvider's setState effect each time.
+const REQUIRED_CHAINS: readonly ChainId[] = ["ETH"];
 
 const context = typeof window !== "undefined" ? window : {};
 
@@ -68,6 +83,12 @@ function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect } = useWalletConnect();
   const isClearingBtcRef = useRef(false);
   const hasBtcConnectedRef = useRef(false);
+  // Incremented on every BTC connect. `hasBtcConnectedRef` alone cannot say
+  // whether the session being torn down is still the current one: a reconnect
+  // landing while `disconnect("BTC")` is awaiting has no pending timer left to
+  // cancel, so the teardown compares this counter instead and only retires the
+  // marker when no newer connection arrived.
+  const btcConnectionEpochRef = useRef(0);
   const pendingBtcResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -75,10 +96,19 @@ function WalletProviders({ children }: PropsWithChildren) {
   const clearBtcConnector = useCallback(async () => {
     if (isClearingBtcRef.current) return;
     isClearingBtcRef.current = true;
+    const epoch = btcConnectionEpochRef.current;
     try {
       await disconnect("BTC");
     } finally {
       isClearingBtcRef.current = false;
+      if (btcConnectionEpochRef.current === epoch) {
+        hasBtcConnectedRef.current = false;
+      } else {
+        logger.info(
+          "Kept BTC disconnect guard armed (reconnect landed mid-teardown)",
+          { category: "Wallet connection" },
+        );
+      }
     }
   }, [disconnect]);
 
@@ -94,6 +124,7 @@ function WalletProviders({ children }: PropsWithChildren) {
   }, [clearBtcConnector]);
 
   const cancelBtcReset = useCallback(() => {
+    btcConnectionEpochRef.current += 1;
     hasBtcConnectedRef.current = true;
     if (pendingBtcResetRef.current === undefined) return;
     clearTimeout(pendingBtcResetRef.current);
@@ -180,7 +211,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       context={context}
       onError={onError}
       disabledWallets={DISABLED_WALLETS}
-      requiredChains={["ETH"]}
+      requiredChains={REQUIRED_CHAINS}
       disableTomo
       dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}

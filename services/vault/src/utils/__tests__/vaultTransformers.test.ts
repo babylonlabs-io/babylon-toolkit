@@ -93,7 +93,7 @@ describe("vaultTransformers", () => {
         depositorSignedPeginTx: "0xsigned" as Hex,
         unsignedPrePeginTx: "0xunsigned" as Hex,
         expiredAt: 1700001000000,
-        expirationReason: "ack_timeout" as any,
+        expirationReason: "ack_timeout",
       });
       const activity = transformVaultToActivity(vault);
 
@@ -104,11 +104,11 @@ describe("vaultTransformers", () => {
       expect(activity.expirationReason).toBe("ack_timeout");
     });
 
-    it("shows expired with ack_timeout reason", () => {
+    it("labels an expired vault as Expired", () => {
       const vault = makeVault({
         status: ContractStatus.EXPIRED,
         expiredAt: 1700001000000,
-        expirationReason: "ack_timeout" as any,
+        expirationReason: "ack_timeout",
       });
       const activity = transformVaultToActivity(vault);
 

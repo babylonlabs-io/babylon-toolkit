@@ -15,6 +15,7 @@ import type {
   IETHProvider,
   IProvider,
 } from "@/core/types";
+import { ERROR_CODES, WalletError } from "@/error";
 import { useWalletRedetection } from "@/hooks/useWalletRedetection";
 
 import { InscriptionProvider } from "./Inscriptions.context";
@@ -98,7 +99,22 @@ export function ChainProvider({
           error instanceof Error ? error.message : "Unknown error",
         );
         try {
-          onError?.(error instanceof Error ? error : new Error("Unknown connector initialization error"));
+          // A failed connector is dropped from `chains` but stays in
+          // `requiredChainIds`, so the dialog can never be completed. The host's
+          // error handler is the only place that can explain which chain died —
+          // carry the chain id on a typed error so it can say so.
+          onError?.(
+            error instanceof WalletError
+              ? error
+              : new WalletError(
+                  {
+                    code: ERROR_CODES.WALLET_INITIALIZATION_FAILED,
+                    message: error instanceof Error ? error.message : "Unknown connector initialization error",
+                    chainId: chain,
+                  },
+                  { cause: error },
+                ),
+          );
         } catch (callbackError) {
           console.error(
             "[ChainProvider] onError callback failed:",

@@ -121,6 +121,59 @@ describe("WalletConnectionProvider — optional BTC lifecycle", () => {
     expect(h.btcDisconnect).not.toHaveBeenCalled();
   });
 
+  it("ignores a stray disconnect once the BTC session has been torn down", async () => {
+    renderProvider();
+
+    act(() => btc().onConnect());
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(h.btcDisconnect).toHaveBeenCalledTimes(1);
+
+    // Nothing reconnected, so the session is gone. A late disconnect from the
+    // extension must not schedule a second teardown.
+    h.btcDisconnect.mockClear();
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).not.toHaveBeenCalled();
+  });
+
+  it("keeps guarding BTC when a reconnect lands while the teardown is in flight", async () => {
+    renderProvider();
+    let finishDisconnect: (() => void) | undefined;
+    h.btcDisconnect.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDisconnect = resolve;
+        }),
+    );
+
+    act(() => btc().onConnect());
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(h.btcDisconnect).toHaveBeenCalledTimes(1);
+
+    // The wallet comes back before `disconnect("BTC")` settles, so there is no
+    // pending timer to cancel — only the connection epoch tells the teardown
+    // that a newer session now exists.
+    act(() => btc().onConnect());
+    await act(async () => finishDisconnect?.());
+
+    h.btcDisconnect.mockClear();
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).toHaveBeenCalledWith("BTC");
+
+    // No reconnect landed behind that second teardown, so the epoch matches
+    // and the marker must retire — a later stray disconnect is ignored.
+    h.btcDisconnect.mockClear();
+    act(() => void btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(h.btcDisconnect).not.toHaveBeenCalled();
+  });
+
   it("clears only the BTC connector after a BTC account change", async () => {
     renderProvider();
 

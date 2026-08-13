@@ -9,9 +9,15 @@ export interface WalletLifecycleConnection {
 }
 
 export interface TermsOfServiceParams {
-  /** Primary account, retained for compatibility with the original BTC-only callback. */
+  /**
+   * Address of the connected account for the first chain in `requiredChains`.
+   * Read `connections` instead whenever the chain the address belongs to matters.
+   */
   address: string;
-  /** Primary public key, retained for compatibility with the original BTC-only callback. */
+  /**
+   * Public key of that same account. Read `connections` instead whenever the
+   * chain the key belongs to matters.
+   */
   public_key: string;
   chain: ChainId;
   connections: WalletLifecycleConnection[];
@@ -19,6 +25,7 @@ export interface TermsOfServiceParams {
 
 export interface LifeCycleHooksProps {
   verifyBTCAddress?: (address: string) => Promise<boolean>;
+  /** Fires once when the dialog is confirmed, not when a wallet connects, and is skipped when an already-confirmed session is confirmed again. */
   acceptTermsOfService?: (params: TermsOfServiceParams) => Promise<void>;
   onConnect?: (connection: WalletLifecycleConnection) => void | Promise<void>;
   onDisconnect?: (connection: WalletLifecycleConnection) => void | Promise<void>;

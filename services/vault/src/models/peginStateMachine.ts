@@ -206,7 +206,7 @@ const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 // Expiration helpers
 // ============================================================================
 
-const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> =
+const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string | null> =
   COPY.pegin.expiration.reasons;
 
 function formatExpiredTimeAgo(timestamp: number): string {
@@ -735,9 +735,9 @@ function getDisplay(
           (refundMaturesInBlocks * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
         ),
       );
-      // Tooltip stays focused on the expired reason + when; the countdown
-      // lives in `inlineSubtext` so the user doesn't need to hover to see
-      // the actionable info.
+      // Tooltip stays focused on the expiry itself (the reason, where we
+      // have one to give, and when); the countdown lives in `inlineSubtext`
+      // so the user doesn't need to hover to see the actionable info.
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
         displayVariant: "warning",

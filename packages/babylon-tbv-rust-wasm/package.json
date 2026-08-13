@@ -31,9 +31,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -b tsconfig.lib.json",
+    "build": "tsc -b tsconfig.lib.json && node scripts/check-lazy-entries.js",
     "build-wasm": "node scripts/build-wasm.js",
-    "check:lazy": "pnpm build && node scripts/check-lazy-entries.js",
     "lint": "eslint ."
   },
   "files": [

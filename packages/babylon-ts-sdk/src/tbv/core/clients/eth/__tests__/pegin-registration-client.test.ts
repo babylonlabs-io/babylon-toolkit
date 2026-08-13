@@ -21,7 +21,7 @@ function signedPeginTransaction(): string {
   return transaction.toHex();
 }
 
-function setup() {
+function setup(requireQuotedCommissionBps?: boolean) {
   const ethWallet = new MockEthereumWallet();
   const publicClient = {
     readContract: vi.fn(({ functionName }: { functionName: string }) => {
@@ -41,6 +41,7 @@ function setup() {
     ethChain: sepolia,
     publicClient: publicClient as never,
     btcVaultRegistry: REGISTRY,
+    requireQuotedCommissionBps,
   });
   return { client, ethWallet, publicClient };
 }
@@ -73,6 +74,80 @@ describe("ViemPeginRegistrationClient", () => {
     });
     expect(decoded.functionName).toBe("submitPeginRequest");
     expect((decoded.args as readonly unknown[])[9]).toBe(`0x5120${BTC_KEY}`);
+  });
+
+  it("refuses to register without a commission quote when one is required", async () => {
+    const { client, ethWallet, publicClient } = setup(true);
+
+    await expect(
+      client.registerPeginOnChain({
+        unsignedPrePeginTx: signedPeginTransaction(),
+        depositorSignedPeginTx: signedPeginTransaction(),
+        vaultProvider: REGISTRY,
+        hashlock: `0x${"cd".repeat(32)}`,
+        depositorWotsPkHash: `0x${"ef".repeat(32)}`,
+        popSignature: {
+          depositorEthAddress: ethWallet.account.address,
+          depositorBtcPubkey: BTC_KEY,
+          btcPopSignature: "0x0102",
+        },
+        htlcVout: 0,
+        depositorPayoutScriptPubKey: `0x5120${BTC_KEY}`,
+      }),
+    ).rejects.toThrow(/quotedCommissionBps is required/);
+    expect(publicClient.readContract).not.toHaveBeenCalled();
+  });
+
+  it("refuses to register a batch without a commission quote when one is required", async () => {
+    const { client, ethWallet, publicClient } = setup(true);
+
+    await expect(
+      client.registerPeginBatchOnChain({
+        vaultProvider: REGISTRY,
+        unsignedPrePeginTx: signedPeginTransaction(),
+        popSignature: {
+          depositorEthAddress: ethWallet.account.address,
+          depositorBtcPubkey: BTC_KEY,
+          btcPopSignature: "0x0102",
+        },
+        requests: [
+          {
+            depositorSignedPeginTx: signedPeginTransaction(),
+            hashlock: `0x${"cd".repeat(32)}`,
+            htlcVout: 0,
+            depositorPayoutScriptPubKey: `0x5120${BTC_KEY}`,
+            depositorWotsPkHash: `0x${"ef".repeat(32)}`,
+          },
+        ],
+      }),
+    ).rejects.toThrow(/quotedCommissionBps is required/);
+    expect(publicClient.readContract).not.toHaveBeenCalled();
+  });
+
+  it("registers without a commission quote when none is required", async () => {
+    const { client, ethWallet } = setup();
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await client.registerPeginOnChain({
+      unsignedPrePeginTx: signedPeginTransaction(),
+      depositorSignedPeginTx: signedPeginTransaction(),
+      vaultProvider: REGISTRY,
+      hashlock: `0x${"cd".repeat(32)}`,
+      depositorWotsPkHash: `0x${"ef".repeat(32)}`,
+      popSignature: {
+        depositorEthAddress: ethWallet.account.address,
+        depositorBtcPubkey: BTC_KEY,
+        btcPopSignature: "0x0102",
+      },
+      htlcVout: 0,
+      depositorPayoutScriptPubKey: `0x5120${BTC_KEY}`,
+    });
+
+    const decoded = decodeFunctionData({
+      abi: BTCVaultRegistryABI,
+      data: send.mock.calls[0][0].data!,
+    });
+    expect((decoded.args as readonly unknown[])[6]).toBe(125);
   });
 
   it("rejects an ETH account switch before submission", async () => {

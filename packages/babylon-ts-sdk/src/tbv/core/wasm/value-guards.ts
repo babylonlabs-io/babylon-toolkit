@@ -1,7 +1,32 @@
-/** Largest value representable by the WASM boundary's u64 amount fields. */
+/**
+ * Runtime guard for satoshi amounts crossing into the WASM FFI boundary.
+ *
+ * `new BigUint64Array(values)` is the only way satoshi amounts are handed to
+ * the constructor, and a runtime cast (`as readonly bigint[]`) lets a caller
+ * pass a non-bigint or non-positive element that `BigUint64Array` would either
+ * reject cryptically or, in its length-arg form, silently zero-fill. Values
+ * above the u64 maximum are worse still: `BigUint64Array` wraps them mod 2^64
+ * without complaint, turning an oversized amount into a small one.
+ * {@link assertPositiveBigintArray} validates such inputs before the
+ * typed-array construction.
+ *
+ * Mirrors `value-guards.ts` in `@babylonlabs-io/babylon-tbv-rust-wasm`; the two
+ * are pinned to identical behaviour by `__tests__/value-guards.test.ts`.
+ */
+
+/** Largest value BigUint64Array stores without wrapping mod 2^64 (2^64 − 1). */
 const U64_MAX = (1n << 64n) - 1n;
 
-/** Validate satoshi arrays before constructing a `BigUint64Array`. */
+/**
+ * Assert a value is a non-empty array of strictly-positive `bigint`s and return
+ * it narrowed, ready to feed into `new BigUint64Array(...)`.
+ *
+ * @param values - The candidate array of satoshi amounts.
+ * @param label - Human-readable name used in the thrown error.
+ * @throws If `values` is not an array, is empty, or contains any element that is
+ *   not a `bigint`, is not strictly greater than 0, or exceeds the u64 maximum
+ *   (which `BigUint64Array` would otherwise wrap mod 2^64).
+ */
 export function assertPositiveBigintArray(
   values: unknown,
   label: string,

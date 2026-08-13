@@ -71,17 +71,23 @@ export function resolveBannerStatus(gate: ProtocolGateState): ScopeStatus {
 // Pure functions of the gate state (plus the standalone kill-switches). Each
 // implements one row of the governance matrix. ENTRY actions block on any
 // non-null status for their scope; EXIT actions block only on "paused" (Freeze
-// preserves exits). Scope accuracy matters: e.g. repay must stay available
-// under a protocol-only pause, so it checks the aave scope only.
+// preserves exits). Additionally, a protocol-scope PAUSE also blocks borrow
+// and repay, even though the adapter contract itself would still accept them —
+// the UI is deliberately stricter than the chain there. A protocol-scope
+// FREEZE keeps its narrow scope (deposit only).
 
 /** Deposit (pegin) is a protocol-scope ENTRY action. */
 export function isDepositBlocked(gate: ProtocolGateState): boolean {
   return featureFlags.isDepositDisabled || gate.protocol !== null;
 }
 
-/** Borrow is an aave-scope ENTRY action. */
+/** Borrow is an aave-scope ENTRY action, also blocked by a protocol pause. */
 export function isBorrowBlocked(gate: ProtocolGateState): boolean {
-  return featureFlags.isBorrowDisabled || gate.aave !== null;
+  return (
+    featureFlags.isBorrowDisabled ||
+    gate.aave !== null ||
+    gate.protocol === "paused"
+  );
 }
 
 /** Reorder is an aave-scope ENTRY action. */
@@ -122,7 +128,7 @@ export function isActivateAndRedeemBlocked(gate: ProtocolGateState): boolean {
   return gate.protocol === "paused";
 }
 
-/** Repay is an aave-scope EXIT blocked ONLY by an aave pause (not protocol). */
+/** Repay is an EXIT blocked if EITHER scope is paused (preserved under freeze). */
 export function isRepayBlocked(gate: ProtocolGateState): boolean {
-  return gate.aave === "paused";
+  return gate.aave === "paused" || gate.protocol === "paused";
 }

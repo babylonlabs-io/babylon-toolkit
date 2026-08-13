@@ -61,7 +61,7 @@ beforeEach(() => {
   gateMock.value = { protocol: null, aave: null };
 });
 
-describe("useRepayTransaction — pause gating (aave-scope only)", () => {
+describe("useRepayTransaction — pause gating (either scope paused)", () => {
   it("returns false without any on-chain read when the aave scope is paused", async () => {
     gateMock.value = { protocol: null, aave: "paused" };
     const { result } = setup();
@@ -76,19 +76,18 @@ describe("useRepayTransaction — pause gating (aave-scope only)", () => {
     expect(mockRepayAll).not.toHaveBeenCalled();
   });
 
-  it("PROCEEDS under a protocol-only pause — repay must stay available so a near-liquidation user can de-risk", async () => {
-    // protocol paused, aave normal → repay is NOT blocked. Stop the flow at the
-    // reserve check (rejected stub) and assert it was reached, proving the gate
-    // let execution through. A mis-wire to isWithdrawBlocked would block here.
+  it("blocks under a protocol-only pause — a protocol pause is a full stop", async () => {
     gateMock.value = { protocol: "paused", aave: null };
-    mockAssertReserve.mockRejectedValueOnce(new Error("stub reserve"));
     const { result } = setup();
 
+    let resolved: boolean | undefined;
     await act(async () => {
-      await result.current.executeRepay(100, RESERVE);
+      resolved = await result.current.executeRepay(100, RESERVE);
     });
 
-    expect(mockAssertReserve).toHaveBeenCalledTimes(1);
+    expect(resolved).toBe(false);
+    expect(mockAssertReserve).not.toHaveBeenCalled();
+    expect(mockRepayAll).not.toHaveBeenCalled();
   });
 });
 

@@ -142,7 +142,16 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
           // Keep Bitcoin validation out of the static ETH entry graph. This
           // chunk is requested only when a BTC connection actually succeeds.
-          const { validateAddress, validateAddressWithPK } = await import("@/core/utils/wallet");
+          // `validateAddressWithPK` reaches bitcoinjs `payments.p2tr()`, which
+          // throws "No ECC Library provided" unless the curve is registered, so
+          // register it here rather than relying on the host to bootstrap it.
+          // No extra bundle cost: `wallet.ts` already statically imports
+          // `initBTCCurve`, so both land in the same lazy chunk.
+          const [{ initBTCCurve }, { validateAddress, validateAddressWithPK }] = await Promise.all([
+            import("@/core/utils/initBTCCurve"),
+            import("@/core/utils/wallet"),
+          ]);
+          initBTCCurve();
 
           selectWallet?.("BTC", connectedWallet);
 

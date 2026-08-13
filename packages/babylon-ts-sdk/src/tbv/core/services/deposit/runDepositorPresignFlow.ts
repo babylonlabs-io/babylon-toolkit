@@ -200,8 +200,18 @@ function assertDepositTermsMatchSigningContext(
     );
   };
 
-  if (terms.protocolFeeRate !== context.protocolFeeRate) {
-    refuse("protocolFeeRate", terms.protocolFeeRate, context.protocolFeeRate);
+  // Every scalar the two types share: each one shapes the graph, and the
+  // timelocks are what payout.ts pins the input sequences to.
+  const scalars = [
+    ["protocolFeeRate", terms.protocolFeeRate, context.protocolFeeRate],
+    ["vaultCoreVersion", terms.vaultCoreVersion, context.vaultCoreVersion],
+    ["timelockPegin", terms.timelockPegin, context.timelockPegin],
+    ["timelockAssert", terms.timelockAssert, context.timelockAssert],
+  ] as const;
+  for (const [field, fromTerms, fromContext] of scalars) {
+    if (fromTerms !== fromContext) {
+      refuse(field, fromTerms, fromContext);
+    }
   }
 
   // Set, not sequence: btc-vault sorts every roster and rejects duplicates

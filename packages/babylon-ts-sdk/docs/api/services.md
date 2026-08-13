@@ -9,7 +9,7 @@ Callers own the wallet; services own the orchestration.
 
 ### ParticipantKeyDriftError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 Participant operation keys drifted between building the Bitcoin artifacts
 and the vault freezing its epochs.
@@ -43,7 +43,7 @@ So: callers must keep the pending record when they catch this.
 new ParticipantKeyDriftError(message): ParticipantKeyDriftError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 ###### Parameters
 
@@ -65,7 +65,7 @@ Error.constructor
 
 ### RegisteredVaultVersionMismatchError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 #### Extends
 
@@ -79,7 +79,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 new RegisteredVaultVersionMismatchError(message): RegisteredVaultVersionMismatchError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 ###### Parameters
 
@@ -101,7 +101,7 @@ Error.constructor
 
 ### BIP68NotMatureError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts#L15)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
 
 Thrown when the broadcast transport rejects the refund tx because the CSV
 timelock has not yet matured (BIP68 non-final). Callers can surface a
@@ -120,7 +120,7 @@ available via [cause](#cause).
 new BIP68NotMatureError(vaultId, cause): BIP68NotMatureError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts#L19)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
 
 ###### Parameters
 
@@ -150,7 +150,7 @@ Error.constructor
 readonly vaultId: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
 
 ##### cause
 
@@ -158,7 +158,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts:16](
 readonly cause: Error;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
 
 ###### Overrides
 
@@ -170,7 +170,7 @@ Error.cause
 
 ### EthContractWriteCall
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 A single ETH contract-write call. The SDK assembles these; the caller
 executes them via viem, wagmi, a wallet provider, or any other transport.
@@ -183,7 +183,7 @@ executes them via viem, wagmi, a wallet provider, or any other transport.
 address: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 ##### abi
 
@@ -191,7 +191,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVa
 abi: Abi;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 ##### functionName
 
@@ -199,7 +199,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVa
 functionName: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L61)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 ##### args
 
@@ -207,13 +207,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVa
 args: readonly unknown[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 ***
 
 ### EthContractWriteResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Minimum shape the SDK requires from any contract-write result. Callers may
 return richer objects (e.g. including the receipt) — the SDK propagates
@@ -227,13 +227,13 @@ them unchanged via the generic parameter on [EthContractWriter](#ethcontractwrit
 transactionHash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 ***
 
 ### ActivateVaultInput
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:83](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L83)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 #### Type Parameters
 
@@ -249,7 +249,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVa
 btcVaultRegistryAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L87)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 BTCVaultRegistry contract address (env-specific).
 
@@ -259,7 +259,7 @@ BTCVaultRegistry contract address (env-specific).
 vaultId: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:89](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L89)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Vault ID (bytes32, 0x-prefixed).
 
@@ -269,7 +269,7 @@ Vault ID (bytes32, 0x-prefixed).
 secret: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L94)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
 `0X` prefix is normalised before validation.
@@ -280,7 +280,7 @@ HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
 optional hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Optional hashlock for client-side pre-validation. When provided, the SDK
 rejects before calling `writeContract` if `sha256(secret) != hashlock`.
@@ -291,7 +291,7 @@ rejects before calling `writeContract` if `sha256(secret) != hashlock`.
 activationMetadata: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Activation metadata passed through to the contract. Required to keep
 the "empty metadata" convention explicit at the call site — pass `"0x"`
@@ -304,7 +304,7 @@ string with an even number of hex chars.
 writeContract: EthContractWriter<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Caller-provided write callback — see [EthContractWriter](#ethcontractwriter).
 
@@ -314,7 +314,86 @@ Caller-provided write callback — see [EthContractWriter](#ethcontractwriter).
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L115)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Optional abort signal. Checked before validation runs; since validation
+is fully synchronous, cancellation between validation and the write is
+not observable and callers should rely on the transport's own
+cancellation support for that window.
+
+***
+
+### ActivateVaultAndRedeemInput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`EthContractWriteResult`](#ethcontractwriteresult) = [`EthContractWriteResult`](#ethcontractwriteresult)
+
+#### Properties
+
+##### btcVaultRegistryAddress
+
+```ts
+btcVaultRegistryAddress: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+BTCVaultRegistry contract address (env-specific).
+
+##### vaultId
+
+```ts
+vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Vault ID (bytes32, 0x-prefixed).
+
+##### secret
+
+```ts
+secret: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
+`0X` prefix is normalised before validation.
+
+##### hashlock?
+
+```ts
+optional hashlock: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Optional hashlock for client-side pre-validation. When provided, the SDK
+rejects before calling `writeContract` if `sha256(secret) != hashlock`.
+
+##### writeContract
+
+```ts
+writeContract: EthContractWriter<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Caller-provided write callback — see [EthContractWriter](#ethcontractwriter).
+
+##### signal?
+
+```ts
+optional signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Optional abort signal. Checked before validation runs; since validation
 is fully synchronous, cancellation between validation and the write is
@@ -325,7 +404,7 @@ cancellation support for that window.
 
 ### PeginStatusReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 Read-only VP operations needed by polling/status functions.
 
@@ -337,7 +416,7 @@ Read-only VP operations needed by polling/status functions.
 getPeginStatus(params, signal?): Promise<GetPeginStatusResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 ###### Parameters
 
@@ -359,7 +438,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 
 ### WotsKeySubmitter
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 Write VP operations for WOTS key submission.
 
@@ -371,7 +450,7 @@ Write VP operations for WOTS key submission.
 submitDepositorWotsKey(params, signal?): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 ###### Parameters
 
@@ -391,7 +470,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 
 ### PresignClient
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 VP operations for the presign transaction flow.
 
@@ -403,7 +482,7 @@ VP operations for the presign transaction flow.
 requestDepositorPresignTransactions(params, signal?): Promise<RequestDepositorPresignTransactionsResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 ###### Parameters
 
@@ -425,7 +504,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 submitDepositorPresignatures(params, signal?): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 ###### Parameters
 
@@ -445,7 +524,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 
 ### ClaimerArtifactsReader
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L49)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 VP operations for depositor-as-claimer artifacts (separate from payout signing).
 
@@ -457,7 +536,7 @@ VP operations for depositor-as-claimer artifacts (separate from payout signing).
 requestDepositorClaimerArtifacts(params, signal?): Promise<RequestDepositorClaimerArtifactsResponse>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
 
 ###### Parameters
 
@@ -477,7 +556,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 
 ### PeginProtocolState
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L64)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Protocol-level peg-in state (framework-agnostic)
 
@@ -489,7 +568,7 @@ Protocol-level peg-in state (framework-agnostic)
 contractStatus: ContractStatus;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Smart contract status (source of truth for on-chain state)
 
@@ -499,7 +578,7 @@ Smart contract status (source of truth for on-chain state)
 availableActions: PeginAction[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:68](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L68)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Available user actions (empty array when no action is available)
 
@@ -507,7 +586,7 @@ Available user actions (empty array when no action is available)
 
 ### GetPeginProtocolStateOptions
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:78](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Options for getPeginProtocolState function.
 
@@ -523,7 +602,7 @@ is NOT included — consumers handle that in their own layer.
 optional transactionsReady: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Whether claim/payout transactions are ready from VP
 
@@ -533,7 +612,7 @@ Whether claim/payout transactions are ready from VP
 optional needsWotsKey: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Whether the vault provider is waiting for the depositor's WOTS public key
 
@@ -543,7 +622,7 @@ Whether the vault provider is waiting for the depositor's WOTS public key
 optional pendingIngestion: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Whether the vault provider hasn't ingested this peg-in yet
 
@@ -553,7 +632,7 @@ Whether the vault provider hasn't ingested this peg-in yet
 optional canRefund: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Whether the depositor can refund the HTLC (Pre-PegIn tx available)
 
@@ -563,15 +642,38 @@ Whether the depositor can refund the HTLC (Pre-PegIn tx available)
 optional hasProviderTerminalFailure: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L88)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Whether the vault provider reported a terminal failure
+
+##### htlcSpentByPeginTx?
+
+```ts
+optional htlcSpentByPeginTx: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
+
+VERIFIED only: the Pre-PegIn HTLC outpoint has been spent on Bitcoin BY
+THE PEGIN TRANSACTION while the vault is still Verified on Ethereum. The
+secret was revealed (e.g. in the calldata of a reverted activation) and
+the peg-in swept without the vault activating, so the normal activation
+no longer returns value to the depositor and the CSV refund can never
+broadcast. The remaining recovery is the activate-and-redeem escape
+hatch.
+
+The caller MUST prove the spender by comparing the outspend's
+`spendingTxid` against the vault's PegIn txid before setting this. A
+bare "spent" observation is not sufficient: the spend may be the
+depositor's own CSV refund, and offering the secret-revealing hatch
+against a refund burns the secret for a vault whose funds already
+returned.
 
 ***
 
 ### PayoutSigningContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Context required for signing payout transactions.
 Caller builds this from on-chain data (contract queries, GraphQL, config).
@@ -584,7 +686,7 @@ Caller builds this from on-chain data (contract queries, GraphQL, config).
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L47)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Vault core (tx-graph) version the vault was registered under — the
 vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
@@ -597,7 +699,7 @@ rebuilt with.
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L49)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Raw pegin BTC transaction hex (for PSBT construction)
 
@@ -607,7 +709,7 @@ Raw pegin BTC transaction hex (for PSBT construction)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:51](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L51)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Vault provider's BTC public key (x-only hex, no prefix)
 
@@ -617,7 +719,7 @@ Vault provider's BTC public key (x-only hex, no prefix)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Sorted vault keeper BTC public keys (x-only hex, no prefix)
 
@@ -627,7 +729,7 @@ Sorted vault keeper BTC public keys (x-only hex, no prefix)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L55)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Sorted universal challenger BTC public keys (x-only hex, no prefix)
 
@@ -637,7 +739,7 @@ Sorted universal challenger BTC public keys (x-only hex, no prefix)
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:57](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L57)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Depositor's BTC public key (x-only hex, no prefix)
 
@@ -647,7 +749,7 @@ Depositor's BTC public key (x-only hex, no prefix)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:59](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Pegin timelock from the locked offchain params version
 
@@ -657,7 +759,7 @@ Pegin timelock from the locked offchain params version
 timelockAssert: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L66)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Assert CSV timelock from the locked offchain params version (blocks).
 Source: ProtocolParams contract via
@@ -670,7 +772,7 @@ Required for the depositor-graph NoPayout local rebuild.
 councilMembers: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Security council member x-only public keys (hex, no prefix).
 Source: ProtocolParams contract via
@@ -683,7 +785,7 @@ Required for the depositor-graph NoPayout local rebuild.
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 M-of-N council quorum threshold.
 Source: ProtocolParams contract via
@@ -696,7 +798,7 @@ Required for the depositor-graph NoPayout local rebuild.
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 BTC network (Mainnet, Testnet, etc.)
 
@@ -706,7 +808,7 @@ BTC network (Mainnet, Testnet, etc.)
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 On-chain registered depositor payout scriptPubKey (hex)
 
@@ -716,7 +818,7 @@ On-chain registered depositor payout scriptPubKey (hex)
 commissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:86](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 VP commission (bps) from `BTCVaultRegistry`; caps the VP-claimer payout commission output.
 
@@ -726,7 +828,7 @@ VP commission (bps) from `BTCVaultRegistry`; caps the VP-claimer payout commissi
 protocolFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L92)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Tx-graph fee rate (sat/vB) from the locked offchain params version —
 `getOffchainParamsByVersion(...).feeRate`, the rate the VP built the
@@ -738,7 +840,7 @@ graph with. Bounds every payout's implicit fee (payout fee band).
 vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:98](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L98)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 RFC-006 resolved keeper payout destinations at the vault's frozen
 `appKeeperKeyEpoch`, keyed by lowercased x-only operation pubkey.
@@ -749,7 +851,7 @@ RFC-006 resolved keeper payout destinations at the vault's frozen
 vpCommissionScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:103](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L103)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 RFC-006 resolved VP commission destination at the vault's frozen
 `vpKeyEpoch`.
@@ -758,7 +860,7 @@ RFC-006 resolved VP commission destination at the vault's frozen
 
 ### RunDepositorPresignFlowParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:106](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 #### Properties
 
@@ -768,7 +870,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 statusReader: PeginStatusReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 VP client implementing the status reader interface
 
@@ -778,7 +880,7 @@ VP client implementing the status reader interface
 presignClient: PresignClient;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:110](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L110)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 VP client implementing the presign transaction flow interface
 
@@ -788,7 +890,7 @@ VP client implementing the presign transaction flow interface
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:112](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L112)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Bitcoin wallet for signing
 
@@ -798,7 +900,7 @@ Bitcoin wallet for signing
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:114](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L114)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars)
 
@@ -808,7 +910,7 @@ BTC pegin transaction ID (unprefixed hex, 64 chars)
 depositorPk: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L116)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 
@@ -818,7 +920,7 @@ Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 signingContext: PayoutSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:118](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L118)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Signing context built from on-chain data
 
@@ -828,7 +930,7 @@ Signing context built from on-chain data
 optional depositTerms: DepositTerms;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:123](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L123)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Required for approval-capable wallets; fresh flows thread
 PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
@@ -839,7 +941,7 @@ PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
 optional timeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L125)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Maximum polling timeout in milliseconds (default: 20 min)
 
@@ -849,7 +951,7 @@ Maximum polling timeout in milliseconds (default: 20 min)
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:127](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L127)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 AbortSignal for cancellation
 
@@ -859,7 +961,7 @@ AbortSignal for cancellation
 optional onProgress: (completed, total) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L129)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Optional progress callback (completed claimers, total claimers)
 
@@ -881,7 +983,7 @@ Optional progress callback (completed claimers, total claimers)
 
 ### DepositorGraphSigningContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:500](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L500)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Authoritative inputs required to construct the depositor's Payout AND every
 per-challenger NoPayout PSBT locally. Every field here must come from
@@ -896,7 +998,7 @@ directly into the Taproot sighash.
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:506](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L506)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Vault core (tx-graph) version the vault was registered under — the
 vault's stamped on-chain `vaultCoreVersion` from `BTCVaultRegistry`.
@@ -908,7 +1010,7 @@ Selects which graph's connector scripts every PSBT is rebuilt with.
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:508](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L508)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Raw pegin BTC transaction hex (provides the depositor's signed prevout)
 
@@ -918,7 +1020,7 @@ Raw pegin BTC transaction hex (provides the depositor's signed prevout)
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:510](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L510)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 
@@ -928,7 +1030,7 @@ Depositor's BTC public key (x-only, 64-char hex, no 0x prefix)
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:512](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L512)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Vault provider's BTC public key (x-only hex, no prefix)
 
@@ -938,7 +1040,7 @@ Vault provider's BTC public key (x-only hex, no prefix)
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:514](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L514)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Sorted vault keeper BTC public keys (x-only hex, no prefix)
 
@@ -948,7 +1050,7 @@ Sorted vault keeper BTC public keys (x-only hex, no prefix)
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:516](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L516)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Sorted universal challenger BTC public keys (x-only hex, no prefix)
 
@@ -958,7 +1060,7 @@ Sorted universal challenger BTC public keys (x-only hex, no prefix)
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:518](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L518)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Pegin CSV timelock from the locked offchain params version (blocks)
 
@@ -968,7 +1070,7 @@ Pegin CSV timelock from the locked offchain params version (blocks)
 protocolFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:523](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L523)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Tx-graph fee rate (sat/vB) from the locked offchain params version —
 bounds the depositor-claimer payout's implicit fee (payout fee band).
@@ -979,7 +1081,7 @@ bounds the depositor-claimer payout's implicit fee (payout fee band).
 timelockAssert: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:529](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L529)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Assert CSV timelock from the locked offchain params version (blocks).
 Sourced from the on-chain ProtocolParams contract via
@@ -991,7 +1093,7 @@ Sourced from the on-chain ProtocolParams contract via
 councilMembers: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:535](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L535)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Security council member x-only public keys (hex, no prefix). Sourced from
 the on-chain ProtocolParams contract via
@@ -1003,7 +1105,7 @@ the on-chain ProtocolParams contract via
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:540](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L540)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 M-of-N council quorum threshold. Sourced from the on-chain ProtocolParams
 contract via `ViemProtocolParamsReader.getOffchainParamsByVersion(...).councilQuorum`.
@@ -1014,7 +1116,7 @@ contract via `ViemProtocolParamsReader.getOffchainParamsByVersion(...).councilQu
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:542](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L542)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 BTC network (Mainnet, Testnet, etc.)
 
@@ -1024,7 +1126,7 @@ BTC network (Mainnet, Testnet, etc.)
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:548](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L548)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 On-chain registered depositor payout scriptPubKey (hex, with or without
 0x prefix). Used to assert the VP-advertised payout transaction pays to
@@ -1036,7 +1138,7 @@ the depositor's registered address before the wallet produces a signature.
 vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:555](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L555)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 RFC-006 operator payout destinations. Forwarded to `buildPayoutPsbt` for
 shape completeness only: this graph is signed under the
@@ -1049,7 +1151,7 @@ neither the keeper map nor the VP commission destination.
 vpCommissionScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:557](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L557)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 See [vkClaimerPayoutScriptPubKeys](#vkclaimerpayoutscriptpubkeys-1) — unused for this role.
 
@@ -1057,7 +1159,7 @@ See [vkClaimerPayoutScriptPubKeys](#vkclaimerpayoutscriptpubkeys-1) — unused f
 
 ### SignDepositorGraphParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:560](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L560)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 #### Properties
 
@@ -1067,7 +1169,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositor
 depositorGraph: DepositorGraphTransactions;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:562](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L562)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 The depositor graph from VP response
 
@@ -1077,7 +1179,7 @@ The depositor graph from VP response
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:564](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L564)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Bitcoin wallet for signing
 
@@ -1087,7 +1189,7 @@ Bitcoin wallet for signing
 signingContext: DepositorGraphSigningContext;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:566](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L566)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Authoritative inputs used to rebuild every PSBT locally
 
@@ -1095,7 +1197,7 @@ Authoritative inputs used to rebuild every PSBT locally
 
 ### SubmitWotsPublicKeyParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 #### Properties
 
@@ -1105,7 +1207,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPub
 statusReader: PeginStatusReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 VP client implementing the status reader interface
 
@@ -1115,7 +1217,7 @@ VP client implementing the status reader interface
 wotsSubmitter: WotsKeySubmitter;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 VP client implementing the WOTS key submission interface
 
@@ -1125,7 +1227,7 @@ VP client implementing the WOTS key submission interface
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars)
 
@@ -1135,7 +1237,7 @@ BTC pegin transaction ID (unprefixed hex, 64 chars)
 depositorPk: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 
@@ -1145,7 +1247,7 @@ Depositor's x-only BTC public key (unprefixed hex, 64 chars)
 wotsPublicKeys: WotsBlockPublicKey[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 Pre-derived WOTS block public keys (one per assert block)
 
@@ -1155,7 +1257,7 @@ Pre-derived WOTS block public keys (one per assert block)
 optional timeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 Maximum time to wait for VP to be ready (default: 5 min)
 
@@ -1165,7 +1267,7 @@ Maximum time to wait for VP to be ready (default: 5 min)
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 AbortSignal for cancellation
 
@@ -1173,7 +1275,7 @@ AbortSignal for cancellation
 
 ### ValidateOnChainParticipantKeysParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L19)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 #### Properties
 
@@ -1183,7 +1285,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultRegistryReader: VaultRegistryReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L20)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### vaultKeeperReader
 
@@ -1191,7 +1293,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultKeeperReader: VaultKeeperReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### universalChallengerReader
 
@@ -1199,7 +1301,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 universalChallengerReader: UniversalChallengerReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### vaultProviderEthAddress
 
@@ -1207,7 +1309,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultProviderEthAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### applicationEntryPoint
 
@@ -1215,7 +1317,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 applicationEntryPoint: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### expectedVaultProviderBtcPubkey
 
@@ -1223,7 +1325,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedVaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### expectedVaultKeeperBtcPubkeys
 
@@ -1231,7 +1333,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedVaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L26)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### expectedUniversalChallengerBtcPubkeys
 
@@ -1239,7 +1341,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedUniversalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:27](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L27)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### operationKeyReader
 
@@ -1247,7 +1349,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 operationKeyReader: OperationKeyReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 RFC-006. Participant keys are resolved to their *current operation* keys,
 and those are what the returned key fields carry.
@@ -1258,7 +1360,7 @@ and those are what the returned key fields carry.
 optional onIndexerServingOperationKeys: (message) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 Optional observer for the case where the indexer hint matched the
 operation keys rather than the registration keys — i.e. the indexer is
@@ -1280,7 +1382,7 @@ ahead of us, not wrong. Called at most once.
 optional onIndexerHintsInconsistent: (message) => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L47)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 Optional observer for the case where the indexer is serving a half-applied
 view — one role explainable only by the registration keys, another only by
@@ -1303,7 +1405,7 @@ immediately before the throw.
 
 ### ValidatedOnChainParticipantKeys
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 #### Properties
 
@@ -1313,7 +1415,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 vaultProviderBtcPubkeyXOnly: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 The VP key to build with: its current operation key.
 
@@ -1323,7 +1425,7 @@ The VP key to build with: its current operation key.
 vaultKeeperBtcPubkeysSorted: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### universalChallengerBtcPubkeysSorted
 
@@ -1331,7 +1433,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 universalChallengerBtcPubkeysSorted: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### expectedAppVaultKeepersVersion
 
@@ -1339,7 +1441,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedAppVaultKeepersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L55)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### expectedUniversalChallengersVersion
 
@@ -1347,7 +1449,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 expectedUniversalChallengersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 ##### registrationKeys
 
@@ -1355,7 +1457,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 registrationKeys: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 The registration / roster keys, sorted. These are what indexer hints are
 compared against first, and they stay available for diagnostics after
@@ -1385,7 +1487,7 @@ universalChallengers: string[];
 participantKeys: ParticipantKeySet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 The full resolution, including the admin↔key pairing. Feeds the
 post-registration read-after-mine verification.
@@ -1394,7 +1496,7 @@ post-registration read-after-mine verification.
 
 ### ValidationResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 #### Properties
 
@@ -1404,7 +1506,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 valid: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### error?
 
@@ -1412,7 +1514,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 optional error: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### warnings?
 
@@ -1420,13 +1522,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 optional warnings: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ***
 
 ### DepositFormValidityParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Parameters for checking if a deposit form is valid.
 
@@ -1438,7 +1540,7 @@ Parameters for checking if a deposit form is valid.
 amountSats: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Deposit amount in satoshis
 
@@ -1448,7 +1550,7 @@ Deposit amount in satoshis
 minDeposit: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Minimum deposit from protocol params
 
@@ -1458,7 +1560,7 @@ Minimum deposit from protocol params
 optional maxDeposit: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Maximum deposit from protocol params (optional)
 
@@ -1468,7 +1570,7 @@ Maximum deposit from protocol params (optional)
 btcBalance: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L39)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 User's available BTC balance in satoshis
 
@@ -1478,7 +1580,7 @@ User's available BTC balance in satoshis
 optional estimatedFeeSats: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L41)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Estimated transaction fee in satoshis
 
@@ -1488,7 +1590,7 @@ Estimated transaction fee in satoshis
 optional depositorClaimValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Depositor claim value in satoshis (required output for challenge transactions)
 
@@ -1496,7 +1598,7 @@ Depositor claim value in satoshis (required output for challenge transactions)
 
 ### RemainingCapacityParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:46](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L46)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 #### Properties
 
@@ -1506,7 +1608,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 amount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Requested deposit amount in satoshis
 
@@ -1516,7 +1618,7 @@ Requested deposit amount in satoshis
 effectiveRemaining: bigint | null;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Effective remaining capacity in satoshis (min of protocol-total and
 per-address remaining). `null` means no cap applies.
@@ -1525,7 +1627,7 @@ per-address remaining). `null` means no cap applies.
 
 ### MultiVaultDepositFlowInputs
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Parameters for validating multi-vault deposit flow inputs.
 
@@ -1543,7 +1645,7 @@ responsibility and are NOT performed here.
 vaultAmounts: bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### confirmedUTXOs
 
@@ -1551,7 +1653,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 confirmedUTXOs: UtxoLike[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L74)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### vaultProviderBtcPubkey
 
@@ -1559,7 +1661,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L75)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### vaultKeeperBtcPubkeys
 
@@ -1567,7 +1669,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L76)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### universalChallengerBtcPubkeys
 
@@ -1575,7 +1677,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 ##### minDeposit
 
@@ -1583,7 +1685,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts
 minDeposit: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L79)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Protocol minimum deposit per vault (satoshis)
 
@@ -1593,7 +1695,7 @@ Protocol minimum deposit per vault (satoshis)
 optional maxDeposit: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Protocol maximum deposit per vault (satoshis)
 
@@ -1601,7 +1703,7 @@ Protocol maximum deposit per vault (satoshis)
 
 ### VerifyRegisteredParticipantKeysParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:70](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L70)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 #### Properties
 
@@ -1611,7 +1713,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 vaultRegistryReader: VaultRegistryReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 ##### operationKeyReader
 
@@ -1619,7 +1721,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 operationKeyReader: OperationKeyReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 ##### vaultIds
 
@@ -1627,7 +1729,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 vaultIds: readonly `0x${string}`[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 ##### expected
 
@@ -1635,7 +1737,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 expected: ParticipantKeySet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 The exact key set the BTC artifacts were built with. Its `query` supplies
 the rosters to re-resolve against — deliberately reused rather than
@@ -1646,7 +1748,7 @@ roster that moved since the build cannot be misreported as a key drift.
 
 ### VerifyRegisteredVaultVersionsParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:5](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L5)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 #### Properties
 
@@ -1656,7 +1758,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 vaultRegistryReader: VaultRegistryReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:6](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L6)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 ##### vaultIds
 
@@ -1664,7 +1766,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 vaultIds: readonly `0x${string}`[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:7](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L7)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 ##### expectedOffchainParamsVersion
 
@@ -1672,7 +1774,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 expectedOffchainParamsVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:8](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L8)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 ##### expectedAppVaultKeepersVersion
 
@@ -1680,7 +1782,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 expectedAppVaultKeepersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:9](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L9)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 ##### expectedUniversalChallengersVersion
 
@@ -1688,7 +1790,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 expectedUniversalChallengersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L10)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 ##### expectedVaultCoreVersion
 
@@ -1696,7 +1798,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 expectedVaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L18)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 Vault core (tx-graph) version the BTC artifacts were BUILT with. The
 contract stamps `activeVaultCoreVersion` at registration-tx execution
@@ -1708,7 +1810,7 @@ lock BTC into a graph no resume path can rebuild.
 
 ### WaitForPeginStatusParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L19)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 #### Properties
 
@@ -1718,7 +1820,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginS
 statusReader: PeginStatusReader;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 VP client implementing the status reader interface
 
@@ -1728,7 +1830,7 @@ VP client implementing the status reader interface
 peginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars)
 
@@ -1738,7 +1840,7 @@ BTC pegin transaction ID (unprefixed hex, 64 chars)
 targetStatuses: ReadonlySet<DaemonStatus>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 Set of acceptable statuses — polling stops when the VP reports one of these
 
@@ -1748,7 +1850,7 @@ Set of acceptable statuses — polling stops when the VP reports one of these
 timeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:27](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L27)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 Maximum time to wait in milliseconds
 
@@ -1758,7 +1860,7 @@ Maximum time to wait in milliseconds
 optional pollIntervalMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 Polling interval in milliseconds (default: 10s)
 
@@ -1768,7 +1870,7 @@ Polling interval in milliseconds (default: 10s)
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 AbortSignal for cancellation
 
@@ -1776,7 +1878,7 @@ AbortSignal for cancellation
 
 ### HintMatch
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Which of the two legitimate on-chain candidates a role's hint matched.
 
@@ -1791,7 +1893,7 @@ Both false means the hint is not explainable by any state the chain is in.
 registration: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L49)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 ##### operation
 
@@ -1799,13 +1901,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerK
 operation: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 ***
 
 ### AssertVaultProviderHintAcceptedParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:105](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L105)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 #### Properties
 
@@ -1815,7 +1917,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerK
 vaultProviderEthAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:107](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L107)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Vault provider's admin address, named in the error.
 
@@ -1825,7 +1927,7 @@ Vault provider's admin address, named in the error.
 optional hintBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L109)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 The untrusted hint. Absent means there is nothing to cross-check.
 
@@ -1835,7 +1937,7 @@ The untrusted hint. Absent means there is nothing to cross-check.
 registrationBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:111](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L111)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 The vault provider's registration key, already read from chain.
 
@@ -1845,7 +1947,7 @@ The vault provider's registration key, already read from chain.
 readCurrentOperationBtcPubkey: () => Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:119](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L119)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Reads the vault provider's *current* operation key.
 
@@ -1863,7 +1965,7 @@ no extra RPC. Callers must not pre-read this.
 optional context: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L125)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Sentence appended to the error naming what was aborted, e.g.
 `"Aborting refund."`. The shared half of the message says which keys
@@ -1873,7 +1975,7 @@ failed to match; this says which operation the user just lost.
 
 ### ResolvedParticipant
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 One operator's resolved identity: who it is, and which key it signs with.
 
@@ -1885,7 +1987,7 @@ One operator's resolved identity: who it is, and which key it signs with.
 adminAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 The operator's admin ETH address — its stable identity and the lookup key
 for its operation-key history. This is the roster entry's `ethAddress`.
@@ -1896,7 +1998,7 @@ for its operation-key history. This is the roster entry's `ethAddress`.
 genesisBtcPubkey: OnChainBtcPubkey;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L28)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 The operator's genesis BTC key: its roster entry / registration key.
 x-only, lowercase, no `0x`. Retained because indexer hints are still
@@ -1909,7 +2011,7 @@ expressed in these, and because a keeper's genesis is the fallback the
 operationBtcPubkey: OnChainBtcPubkey;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 The operation key this resolution produced — the key that actually goes
 into the Bitcoin scripts. Equals `genesisBtcPubkey` until the operator
@@ -1921,7 +2023,7 @@ rotates.
 rotated: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 Whether the operation key differs from the genesis key.
 
@@ -1929,7 +2031,7 @@ Whether the operation key differs from the genesis key.
 
 ### ParticipantKeySet
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 Every participant's resolved operation key for one vault (or one about to be
 created).
@@ -1947,7 +2049,7 @@ to a roster entry is wrong the moment anyone rotates.
 vaultProvider: ResolvedParticipant;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 ##### vaultKeepers
 
@@ -1955,7 +2057,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts
 vaultKeepers: ResolvedParticipant[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L55)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 ##### universalChallengers
 
@@ -1963,7 +2065,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts
 universalChallengers: ResolvedParticipant[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 ##### vaultKeeperOperationKeysSorted
 
@@ -1971,7 +2073,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts
 vaultKeeperOperationKeysSorted: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 Sorted keeper operation keys — what script construction consumes.
 
@@ -1981,7 +2083,7 @@ Sorted keeper operation keys — what script construction consumes.
 universalChallengerOperationKeysSorted: string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 Sorted challenger operation keys — what script construction consumes.
 
@@ -1991,7 +2093,7 @@ Sorted challenger operation keys — what script construction consumes.
 resolvedAt: KeyResolutionMode;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:62](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L62)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 Provenance of this resolution.
 
@@ -2001,7 +2103,7 @@ Provenance of this resolution.
 query: OperationKeyQuery;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 The rosters and addresses this set was resolved against.
 
@@ -2014,7 +2116,7 @@ drift.
 
 ### VaultBatchEntry
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:113](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L113)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 One vault's per-HTLC binding in a Pre-PegIn batch. Carries the fields
 needed to reconstruct the WASM `WasmPrePeginTx` template byte-for-byte
@@ -2028,7 +2130,7 @@ against the funded transaction.
 hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L115)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 SHA-256 hashlock commitment for this vault (bytes32, 0x-prefixed).
 
@@ -2038,7 +2140,7 @@ SHA-256 hashlock commitment for this vault (bytes32, 0x-prefixed).
 amount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:123](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L123)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Vault deposit (peg-in) amount in satoshis — the on-chain contract's
 `amount` field. This is the peg-in amount WASM expects in `pegInAmounts`,
@@ -2052,7 +2154,7 @@ output, so this value is passed straight through.
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:125](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L125)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Index of this vault's HTLC output in the funded Pre-PegIn tx.
 
@@ -2060,7 +2162,7 @@ Index of this vault's HTLC output in the funded Pre-PegIn tx.
 
 ### VaultRefundData
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:141](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L141)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Authoritative vault fields needed to build a refund. Versioning fields,
 the hashlock, and htlcVout must come from the on-chain contract (never the
@@ -2082,7 +2184,7 @@ so the WASM template matches the funded tx's shape.
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:147](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L147)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Vault core (tx-graph) version stamped on-chain at registration
 (`BTCVaultProtocolInfo.vaultCoreVersion`). The refund template must be
@@ -2094,7 +2196,7 @@ reconstructed under the same graph version the Pre-PegIn was built with.
 hashlock: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:148](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L148)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### htlcVout
 
@@ -2102,7 +2204,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### offchainParamsVersion
 
@@ -2110,7 +2212,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 offchainParamsVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L150)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### appVaultKeepersVersion
 
@@ -2118,7 +2220,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 appVaultKeepersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:151](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L151)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### universalChallengersVersion
 
@@ -2126,7 +2228,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 universalChallengersVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:152](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L152)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### vaultProvider
 
@@ -2134,7 +2236,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:153](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L153)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### applicationEntryPoint
 
@@ -2142,7 +2244,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 applicationEntryPoint: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L154)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### amount
 
@@ -2150,7 +2252,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 amount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L156)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Vault deposit (peg-in) amount in satoshis — the on-chain `amount` field.
 
@@ -2160,7 +2262,7 @@ Vault deposit (peg-in) amount in satoshis — the on-chain `amount` field.
 unsignedPrePeginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:162](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L162)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Funded, pre-witness Pre-PegIn transaction hex. 0x prefix optional.
 The name mirrors the contract/indexer schema; the bytes are the
@@ -2172,7 +2274,7 @@ funded form (refund construction needs real outpoints).
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:164](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L164)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Depositor's BTC public key (x-only or compressed hex; 0x prefix optional).
 
@@ -2182,7 +2284,7 @@ Depositor's BTC public key (x-only or compressed hex; 0x prefix optional).
 batch: readonly VaultBatchEntry[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:171](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L171)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Full vout-ordered HTLC vector for the funded Pre-PegIn (one entry
 per sibling vault, including the target vault). Must satisfy
@@ -2193,7 +2295,7 @@ per sibling vault, including the target vault). Must satisfy
 
 ### RefundPrePeginContext
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:186](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L186)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Version-resolved protocol context that parameterises the HTLC's taproot
 scripts. The *signer-set* fields (`vaultKeeperPubkeys`,
@@ -2214,7 +2316,7 @@ script derivation).
 vaultProviderPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:187](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L187)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### vaultKeeperPubkeys
 
@@ -2222,7 +2324,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 vaultKeeperPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:188](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L188)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### universalChallengerPubkeys
 
@@ -2230,7 +2332,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 universalChallengerPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L189)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### timelockRefund
 
@@ -2238,7 +2340,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 timelockRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:190](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L190)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### feeRate
 
@@ -2246,7 +2348,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 feeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:191](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L191)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### minPeginFeeRate
 
@@ -2254,7 +2356,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 minPeginFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:192](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L192)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### numLocalChallengers
 
@@ -2262,7 +2364,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 numLocalChallengers: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:193](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L193)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### councilQuorum
 
@@ -2270,7 +2372,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 councilQuorum: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:194](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L194)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### councilSize
 
@@ -2278,7 +2380,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 councilSize: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:195](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L195)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### network
 
@@ -2286,13 +2388,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:196](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L196)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ***
 
 ### BtcBroadcastResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:200](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L200)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Minimum shape required from a broadcast result.
 
@@ -2304,13 +2406,13 @@ Minimum shape required from a broadcast result.
 txId: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:201](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L201)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ***
 
 ### RefundInput
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:212](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L212)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 #### Type Parameters
 
@@ -2326,7 +2428,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 vaultId: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:215](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L215)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ##### readVault()
 
@@ -2334,7 +2436,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 readVault: () => Promise<VaultRefundData>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:221](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L221)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Fetch authoritative on-chain + indexer vault data. The SDK passes no
 arguments — the caller closes over `vaultId` (or any other context it
@@ -2350,7 +2452,7 @@ needs).
 readPrePeginContext: (vault) => Promise<RefundPrePeginContext>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:226](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L226)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Fetch the version-pinned refund context (sorted pubkeys, timelock, etc.)
 derived from the vault's locked versions.
@@ -2371,7 +2473,7 @@ derived from the vault's locked versions.
 feeRate: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:235](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L235)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Mempool-derived sat/vB fee rate to use for the refund tx (positive
 number). Caller fetches this before invoking — it does not depend on
@@ -2384,7 +2486,7 @@ orchestration honest.
 signPsbt: RefundPsbtSigner;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:237](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L237)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 BTC wallet signer; receives a PSBT hex + taproot script-path options.
 
@@ -2394,7 +2496,7 @@ BTC wallet signer; receives a PSBT hex + taproot script-path options.
 broadcastTx: BtcBroadcaster<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:239](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L239)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Broadcast callback — returns whatever shape the caller needs.
 
@@ -2404,7 +2506,7 @@ Broadcast callback — returns whatever shape the caller needs.
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:241](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L241)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Checked at every async boundary.
 
@@ -2416,7 +2518,7 @@ Checked at every async boundary.
 type EthContractWriter<R> = (call) => Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L79)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Caller-provided contract writer. The generic `R` lets callers return any
 transport-specific result shape (e.g. `{ transactionHash, receipt }`);
@@ -2446,7 +2548,7 @@ the SDK forwards that shape back through `activateVault`.
 type ExpirationReason = "ack_timeout" | "proof_timeout" | "activation_timeout";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Reason why a vault expired
 
@@ -2465,7 +2567,7 @@ type KeyResolutionMode =
 };
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 How a [ParticipantKeySet](#participantkeyset) was resolved. Carried for diagnostics.
 
@@ -2477,7 +2579,7 @@ How a [ParticipantKeySet](#participantkeyset) was resolved. Carried for diagnost
 type BtcBroadcaster<R> = (signedTxHex) => Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:204](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L204)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 #### Type Parameters
 
@@ -2503,7 +2605,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 type RefundPsbtSigner = (psbtHex, opts) => Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:207](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L207)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 #### Parameters
 
@@ -2527,7 +2629,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 function activateVault<R>(input): Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts:136](../../packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts#L136)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
 
 Reveal the HTLC secret on Ethereum and activate the vault.
 
@@ -2581,13 +2683,71 @@ whatever the injected `writeContract` throws
 
 ***
 
+### activateVaultAndRedeem()
+
+```ts
+function activateVaultAndRedeem<R>(input): Promise<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Depositor escape hatch: reveal the HTLC secret and immediately redeem the
+vault for the depositor, without any application activation. The contract
+(`activateVaultWithSecretAndRedeem`) runs the same activation preconditions
+(Verified status, activation deadline, `sha256(s) == hashlock`) and then
+marks the vault Redeemed so the vault provider pays the BTC out to the
+depositor's committed payout address. Used when the normal activation is
+unavailable (e.g. the application adapter is paused or its activation
+reverts) but the secret must still be revealed to recover the swept peg-in.
+
+Takes no activation metadata — the application entry point is never called.
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`EthContractWriteResult`](#ethcontractwriteresult) = [`EthContractWriteResult`](#ethcontractwriteresult)
+
+#### Parameters
+
+##### input
+
+[`ActivateVaultAndRedeemInput`](#activatevaultandredeeminput)\<`R`\>
+
+#### Returns
+
+`Promise`\<`R`\>
+
+#### Throws
+
+`Error` if `btcVaultRegistryAddress` is not a valid 20-byte address
+
+#### Throws
+
+`Error` if `vaultId` or `secret` is not a valid 32-byte hex
+
+#### Throws
+
+`Error` if `hashlock` is provided and is not a valid 32-byte hex,
+        or if `sha256(secret) != hashlock`
+
+#### Throws
+
+whatever the injected `writeContract` throws
+
+#### Throws
+
+`AbortError` / caller-provided abort reason if `signal` aborts
+
+***
+
 ### getPeginProtocolState()
 
 ```ts
 function getPeginProtocolState(contractStatus, options): PeginProtocolState;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:108](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L108)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Determine the current protocol state and available actions based on contract
 status and vault provider state. Framework-agnostic: returns only
@@ -2625,7 +2785,7 @@ Protocol state with available actions
 function canPerformAction(state, action): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:193](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L193)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Check if a specific action is available in the current state
 
@@ -2651,7 +2811,7 @@ Check if a specific action is available in the current state
 function isActivationDeadlinePassedOnChain(params): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:210](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L210)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Whether a vault's on-chain activation window has closed. Mirrors the
 BTCVaultRegistry check that reverts `ActivationDeadlineExpired`:
@@ -2686,7 +2846,7 @@ boundary-equal block is NOT expired. All values are Ethereum block numbers.
 function runDepositorPresignFlow(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts:403](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts#L403)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Poll for payout transactions, sign them, sign the depositor graph,
 and submit all signatures to the vault provider.
@@ -2715,7 +2875,7 @@ Error on timeout, abort, signing failure, or RPC error
 function signDepositorGraph(params): Promise<DepositorAsClaimerPresignatures>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts:578](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts#L578)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
 Sign all depositor graph transactions and assemble into presignatures.
 
@@ -2743,7 +2903,7 @@ Flow:
 function submitWotsPublicKey(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
 Submit WOTS public keys to the vault provider.
 
@@ -2769,7 +2929,7 @@ Error on timeout, abort, or RPC error
 function validateOnChainParticipantKeys(params): Promise<ValidatedOnChainParticipantKeys>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts#L76)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
 #### Parameters
 
@@ -2789,7 +2949,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 function isDepositAmountValid(params): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:102](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L102)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Check if deposit amount is within valid range and affordable.
 
@@ -2817,7 +2977,7 @@ function validateDepositAmount(
    maxDeposit?): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L129)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Validate deposit amount against minimum and maximum constraints.
 
@@ -2847,7 +3007,7 @@ Validate deposit amount against minimum and maximum constraints.
 function validateRemainingCapacity(params): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:161](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L161)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Validate that the requested deposit fits within the effective remaining cap.
 
@@ -2869,7 +3029,7 @@ Validate that the requested deposit fits within the effective remaining cap.
 function validateProviderSelection(selectedProviders, availableProviders): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:189](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L189)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Validate that selected providers exist in the available set.
 
@@ -2900,7 +3060,7 @@ function validateVaultAmounts(
    maxDeposit?): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:223](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L223)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Validate vault amounts array for multi-vault deposits.
 Checks count, positivity, and per-vault min/max protocol limits.
@@ -2933,7 +3093,7 @@ Max vault count limits are the caller's responsibility.
 function validateVaultProviderPubkey(pubkey): ValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:263](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L263)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Validate vault provider BTC public key format.
 
@@ -2955,7 +3115,7 @@ Validate vault provider BTC public key format.
 function validateMultiVaultDepositInputs(params): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts:317](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts#L317)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validation.ts)
 
 Validate protocol-level multi-vault deposit inputs.
 Throws an error if any validation fails.
@@ -2981,7 +3141,7 @@ performed by the caller before invoking this function.
 function isParticipantKeyDriftError(err): err is ParticipantKeyDriftError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L61)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 #### Parameters
 
@@ -3001,7 +3161,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 function verifyRegisteredParticipantKeys(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts:97](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts#L97)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
 
 #### Parameters
 
@@ -3021,7 +3181,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 function isRegisteredVaultVersionMismatchError(err): err is RegisteredVaultVersionMismatchError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 #### Parameters
 
@@ -3041,7 +3201,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 function verifyRegisteredVaultVersions(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts#L41)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
 
 #### Parameters
 
@@ -3061,7 +3221,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 function waitForPeginStatus(params): Promise<DaemonStatus>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 Poll `getPeginStatus` until the VP reaches one of the target statuses.
 
@@ -3091,7 +3251,7 @@ Error on timeout, abort, non-transient RPC error, or any terminal status (`Expir
 function computeHashlock(secret): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts)
 
 Compute the SHA-256 hashlock from a secret preimage.
 
@@ -3124,7 +3284,7 @@ if secret is not exactly 32 bytes
 function validateSecretAgainstHashlock(secret, hashlock): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts:95](../../packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts#L95)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/htlc/index.ts)
 
 Validate that a secret's SHA-256 hash matches the expected hashlock.
 
@@ -3163,7 +3323,7 @@ if secret or hashlock is not exactly 32 bytes
 function isHintAccepted(match): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 The accept-either policy itself.
 
@@ -3192,7 +3352,7 @@ function matchKeyHint(
    operationKey): HintMatch;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L65)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Match a single hinted key against both candidates.
 
@@ -3225,7 +3385,7 @@ function matchKeySetHint(
    operationKeys): HintMatch;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L85)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Match a hinted key *set* against both candidate sets.
 
@@ -3260,7 +3420,7 @@ readonly `string`[]
 function assertVaultProviderHintAccepted(params): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts:135](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts#L135)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/indexerKeyHint.ts)
 
 Assert an indexer-hinted vault provider key is one the chain can explain.
 
@@ -3286,7 +3446,7 @@ way, since resolution is chain-only.
 function resolveCurrentParticipantKeys(params): Promise<ParticipantKeySet>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts#L154)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts)
 
 Resolve every participant's *current* operation key.
 
@@ -3317,7 +3477,7 @@ the extended `getBtcVaultProtocolInfo` ABI.
 function resolveParticipantKeysAtEpochs(params): Promise<ParticipantKeySet>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts:172](../../packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts#L172)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/resolveParticipantKeys.ts)
 
 Resolve every participant's operation key bonded at a vault's frozen epochs.
 
@@ -3354,7 +3514,7 @@ back to.
 function isRecognizedPegoutStatus(status): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:27](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L27)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 Whether a claimer status string maps to a known pegout state.
 
@@ -3376,7 +3536,7 @@ Whether a claimer status string maps to a known pegout state.
 function isPegoutTerminalStatus(claimerStatus): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 Whether a claimer status is a hard-terminal pegout status
 (PayoutBroadcast or PayoutBlocked). Soft-terminal conditions (polling
@@ -3400,7 +3560,7 @@ thresholds) are a consumer-side concern.
 function estimateRefundFeeSats(feeRateSatsVb): bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:80](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L80)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Network fee (sats) the SDK will charge for a refund tx at the given
 sat/vB rate. Mirrors the internal computation in
@@ -3425,7 +3585,7 @@ have to duplicate the constant.
 function buildAndBroadcastRefund<R>(input): Promise<R>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:408](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L408)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Build, sign, and broadcast a refund transaction for an expired vault.
 
@@ -3475,7 +3635,7 @@ anything `readVault`, `readPrePeginContext`,
 
 ### ContractStatus
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Vault status — combines on-chain contract status (0-4) with indexer-derived
 statuses (5-7). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
@@ -3495,7 +3655,7 @@ IMPORTANT: With the new contract architecture:
 PENDING: 0;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L18)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 0: Request submitted, waiting for ACKs
 
@@ -3505,7 +3665,7 @@ Status 0: Request submitted, waiting for ACKs
 VERIFIED: 1;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L20)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 1: All ACKs collected, ready for secret activation
 
@@ -3515,7 +3675,7 @@ Status 1: All ACKs collected, ready for secret activation
 ACTIVE: 2;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 2: HTLC secret revealed, vault is active and usable (stays here even when used by apps)
 
@@ -3525,7 +3685,7 @@ Status 2: HTLC secret revealed, vault is active and usable (stays here even when
 REDEEMED: 3;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 3: Vault has been redeemed, BTC is claimable
 
@@ -3535,7 +3695,7 @@ Status 3: Vault has been redeemed, BTC is claimable
 LIQUIDATED: 4;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:26](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L26)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 4 (indexer-only): Vault was liquidated (collateral seized due to unpaid debt)
 
@@ -3545,7 +3705,7 @@ Status 4 (indexer-only): Vault was liquidated (collateral seized due to unpaid d
 INVALID: 5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L28)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 5 (indexer-only): Vault is invalid — BTC UTXOs were spent in a different transaction
 
@@ -3555,7 +3715,7 @@ Status 5 (indexer-only): Vault is invalid — BTC UTXOs were spent in a differen
 DEPOSITOR_WITHDRAWN: 6;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 6 (indexer-only): Depositor has withdrawn their BTC (redemption complete)
 
@@ -3565,7 +3725,7 @@ Status 6 (indexer-only): Depositor has withdrawn their BTC (redemption complete)
 EXPIRED: 7;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 7 (indexer-only): Vault expired due to AckTimeout or ActivationTimeout
 
@@ -3573,7 +3733,7 @@ Status 7 (indexer-only): Vault expired due to AckTimeout or ActivationTimeout
 
 ### PeginAction
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:48](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Available actions user can take
 
@@ -3585,7 +3745,7 @@ Available actions user can take
 SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L50)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Submit WOTS key (re-derives via wallet `deriveContextHash`)
 
@@ -3595,7 +3755,7 @@ Submit WOTS key (re-derives via wallet `deriveContextHash`)
 SIGN_PAYOUT_TRANSACTIONS: "SIGN_PAYOUT_TRANSACTIONS";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Sign payout transactions
 
@@ -3605,7 +3765,7 @@ Sign payout transactions
 SIGN_AND_BROADCAST_TO_BITCOIN: "SIGN_AND_BROADCAST_TO_BITCOIN";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Sign and broadcast peg-in transaction to Bitcoin
 
@@ -3615,9 +3775,22 @@ Sign and broadcast peg-in transaction to Bitcoin
 ACTIVATE_VAULT: "ACTIVATE_VAULT";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Reveal HTLC secret on Ethereum to activate vault
+
+##### ACTIVATE\_AND\_REDEEM
+
+```ts
+ACTIVATE_AND_REDEEM: "ACTIVATE_AND_REDEEM";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
+
+Escape hatch: reveal the HTLC secret and immediately redeem the vault for
+the depositor (`activateVaultWithSecretAndRedeem`), skipping application
+activation. Recovery path when the peg-in was swept on Bitcoin but the
+vault could not be activated (application paused / activation revert).
 
 ##### REFUND\_HTLC
 
@@ -3625,7 +3798,7 @@ Reveal HTLC secret on Ethereum to activate vault
 REFUND_HTLC: "REFUND_HTLC";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Sign and broadcast HTLC refund transaction for an expired vault
 
@@ -3633,7 +3806,7 @@ Sign and broadcast HTLC refund transaction for an expired vault
 
 ### ClaimerPegoutStatusValue
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:13](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L13)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 Claimer-side pegout statuses reported by the VP.
 
@@ -3645,7 +3818,7 @@ Claimer-side pegout statuses reported by the VP.
 CLAIM_EVENT_RECEIVED: "ClaimEventReceived";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:14](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L14)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 ##### CLAIM\_BROADCAST
 
@@ -3653,7 +3826,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:14](.
 CLAIM_BROADCAST: "ClaimBroadcast";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L15)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 ##### ASSERT\_BROADCAST
 
@@ -3661,7 +3834,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:15](.
 ASSERT_BROADCAST: "AssertBroadcast";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 ##### PAYOUT\_BROADCAST
 
@@ -3669,7 +3842,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:16](.
 PAYOUT_BROADCAST: "PayoutBroadcast";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 ##### PAYOUT\_BLOCKED
 
@@ -3677,7 +3850,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:17](.
 PAYOUT_BLOCKED: "PayoutBlocked";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts#L18)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 ## Variables
 
@@ -3687,7 +3860,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts:18](.
 const REFUND_VSIZE: 160 = 160;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L47)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ***
 
@@ -3697,7 +3870,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 const REFUND_MAX_FEE_RATE_SATS_VB: 2000 = 2000;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:63](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L63)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ***
 
@@ -3707,7 +3880,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 const REFUND_MAX_FEE_FRACTION_NUMERATOR: 10n = 10n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 ***
 
@@ -3717,4 +3890,4 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadc
 const REFUND_MAX_FEE_FRACTION_DENOMINATOR: 100n = 100n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts:72](../../packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts#L72)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)

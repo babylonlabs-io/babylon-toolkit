@@ -34,6 +34,43 @@ describe("useBtcPublicKey", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("lowercases an uppercase compressed key so cache keys and comparisons match", async () => {
+    mockGetPublicKeyHex.mockResolvedValue(`02${"AB".repeat(32)}`);
+
+    const { result } = renderHook(() => useBtcPublicKey(true));
+
+    await waitFor(() => {
+      expect(result.current.publicKey).toBe("ab".repeat(32));
+    });
+    expect(result.current.error).toBeNull();
+  });
+
+  it("surfaces an error when the wallet returns an unsupported key length", async () => {
+    mockGetPublicKeyHex.mockResolvedValue("ab".repeat(20));
+
+    const { result } = renderHook(() => useBtcPublicKey(true));
+
+    await waitFor(() => {
+      expect(result.current.error?.message).toContain(
+        "Invalid public key length: 40",
+      );
+    });
+    expect(result.current.publicKey).toBeUndefined();
+  });
+
+  it("surfaces an error when the wallet returns non-hex characters", async () => {
+    mockGetPublicKeyHex.mockResolvedValue(`02${"zz".repeat(32)}`);
+
+    const { result } = renderHook(() => useBtcPublicKey(true));
+
+    await waitFor(() => {
+      expect(result.current.error?.message).toContain(
+        "Invalid hex characters in public key",
+      );
+    });
+    expect(result.current.publicKey).toBeUndefined();
+  });
+
   it("surfaces a terminal error when the wallet public-key read fails", async () => {
     mockGetPublicKeyHex.mockRejectedValue(new Error("wallet locked"));
 

@@ -17,9 +17,11 @@ interface AssertPayoutNoPayoutConnector {
 
 /**
  * Create an Assert Payout/NoPayout connector owned by one facade call.
- * Keeping ownership local prevents concurrent calls with different params
- * from freeing one another's WASM object between asynchronous initialization
- * and the synchronous getter calls.
+ * The caller allocates the WASM object, reads it, and frees it before
+ * returning, so no allocation outlives the call that made it and no call can
+ * observe or free another call's object. This is how every connector in this
+ * package is constructed — see `payoutConnector.ts`,
+ * `challengeAssertConnector.ts`, and the Node entry in `index-node.ts`.
  */
 async function createConnector(
   params: AssertPayoutNoPayoutConnectorParams,

@@ -1,6 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 
-import { getBTCNetwork } from "@/config/network";
+import { BTC_MAINNET, getBTCNetwork } from "@/config/network";
 
 const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 const BECH32_GENERATORS = [
@@ -124,7 +124,7 @@ function encodeWitnessAddress(
  */
 export function scriptPubKeyHexToBtcAddress(scriptPubKeyHex: string): string {
   const script = decodeHex(scriptPubKeyHex);
-  const mainnet = getBTCNetwork() === "mainnet";
+  const mainnet = getBTCNetwork() === BTC_MAINNET;
 
   // OP_DUP OP_HASH160 PUSH20 <hash> OP_EQUALVERIFY OP_CHECKSIG
   if (

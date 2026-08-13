@@ -58,12 +58,6 @@ let wagmiAdapter: WagmiAdapter | null = null;
 let bitcoinAdapter: BitcoinAdapter | null = null;
 
 /**
- * Get the AppKit modal instance (if initialized)
- * @returns The AppKit modal instance or null if not initialized
- */
-export { getAppKitModal } from "./state";
-
-/**
  * Initialize AppKit modal with ETH and/or BTC support
  * Creates a single AppKit instance with all configured adapters
  * This should be called once at the application level

@@ -6,6 +6,9 @@
       "path": "../babylon-core-ui"
     },
     {
+      "path": "../babylon-ledger-vault-signer"
+    },
+    {
       "path": "./tsconfig.lib.json"
     },
     {

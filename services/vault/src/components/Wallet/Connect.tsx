@@ -128,6 +128,12 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
         loading={isUnlocking}
         onClick={handleUnlock}
         text={COPY.wallet.locked.unlockButton}
+        // This control's data-testid is a real-wallet E2E hook
+        // (e2e/real/actions/walletConnect.ts) — carry it over if you move or
+        // rename the element. Three of this component's branches render a
+        // ConnectButton, so the shared `connect-wallet-button` default cannot
+        // tell them apart.
+        data-testid="unlock-btc-wallet-button"
       />
     );
   }
@@ -167,7 +173,13 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           loading={isScreeningLoading}
           disabled={isAddressBlocked || isScreeningLoading}
           onClick={() => open("BTC")}
-          text="Connect BTC"
+          text={COPY.wallet.connectBtcButton}
+          // This control's data-testid is a real-wallet E2E hook
+          // (e2e/real/actions/walletConnect.ts) — carry it over if you move or
+          // rename the element. Three of this component's branches render a
+          // ConnectButton, so the shared `connect-wallet-button` default cannot
+          // tell them apart.
+          data-testid="connect-btc-button"
         />
         <WalletMenu
           trigger={walletMenuTrigger}

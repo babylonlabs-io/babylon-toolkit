@@ -13,7 +13,7 @@
 
 import {
   ParticipantKeyDriftError,
-  processPublicKeyToXOnly,
+  canonicalizeBtcPubkey,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
@@ -21,7 +21,7 @@ import type { Address, Hex } from "viem";
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
-  getVaultProviderBtcPubkeyFromChain,
+  getVaultProviderGenesisBtcPubkeyFromChain,
 } from "@/clients/eth-contract/btc-vault-registry/query";
 import {
   getOperationKeyReader,
@@ -36,18 +36,54 @@ export interface ExpectedParticipantOperationKeys {
   universalChallengers: string[];
 }
 
+/**
+ * Normalize a stamped key to the lowercase bare x-only form the resolved side
+ * already has. A no-op for stamps written through `@/storage/peginStorage`,
+ * which validates that shape — done here anyway so an encoding difference can
+ * never read as drift if a second writer of the stamp appears.
+ *
+ * Not a `ParticipantKeyDriftError` on failure: nothing drifted, the stamp is
+ * unreadable.
+ */
+function canonicalizeStamped(
+  label: string,
+  key: string,
+  index?: number,
+): string {
+  try {
+    return canonicalizeBtcPubkey(key);
+  } catch (cause) {
+    const at = index === undefined ? "" : ` at index ${index}`;
+    throw new Error(
+      `Cannot verify participant keys: the stamped value for ${label}${at} is ` +
+        `not a readable BTC public key (${key}). The Pre-PegIn was not broadcast.`,
+      { cause },
+    );
+  }
+}
+
+/**
+ * Compare two key sets element-by-element, in order. Both sides are the sorted
+ * arrays script construction consumes, so a set matching in a different order
+ * is still a mismatch, and this is the only place that is caught — normalizing
+ * below must not reorder anything.
+ */
 function assertSameSet(
   label: string,
   expected: readonly string[],
   actual: readonly string[],
 ): void {
+  const expectedCanonical = expected.map((key, i) =>
+    canonicalizeStamped(label, key, i),
+  );
+
   if (
-    expected.length !== actual.length ||
-    expected.some((k, i) => k !== actual[i])
+    expectedCanonical.length !== actual.length ||
+    expectedCanonical.some((k, i) => k !== actual[i])
   ) {
     throw new ParticipantKeyDriftError(
       `Aborting Pre-PegIn broadcast: ${label} changed since this deposit was built ` +
-        `(expected [${expected.join(", ")}], got [${actual.join(", ")}]). ` +
+        `(expected [${expectedCanonical.join(", ")}], got [${actual.join(", ")}]). ` +
         `The Pre-PegIn was not broadcast; the registered ETH vault will time out ` +
         `per protocol rules.`,
     );
@@ -87,7 +123,7 @@ export async function verifyResumeParticipantKeys(params: {
       challengerReader.getUniversalChallengersByVersion(
         vault.universalChallengersVersion,
       ),
-      getVaultProviderBtcPubkeyFromChain(vault.vaultProvider as Address),
+      getVaultProviderGenesisBtcPubkeyFromChain(vault.vaultProvider as Address),
       getVaultKeyEpochsFromChain(vaultId),
     ]);
 
@@ -103,9 +139,10 @@ export async function verifyResumeParticipantKeys(params: {
     epochs,
   });
 
-  const expectedVp = processPublicKeyToXOnly(
+  const expectedVp = canonicalizeStamped(
+    "the vault provider's operation key",
     expected.vaultProvider,
-  ).toLowerCase();
+  );
   if (resolved.vaultProvider.operationBtcPubkey !== expectedVp) {
     throw new ParticipantKeyDriftError(
       `Aborting Pre-PegIn broadcast: the vault provider's operation key changed ` +

@@ -374,6 +374,10 @@ export async function getPeginPayoutScriptInfo(
   }
 }
 
+// The Assert Payout/NoPayout connector is allocated, read and freed inside the
+// call that needs it, so no allocation outlives the call that made it and no
+// call can observe or free another call's object. Same construction as the
+// browser facade in assertPayoutNoPayoutConnector.ts.
 export async function getAssertPayoutScriptInfo(
   params: AssertPayoutNoPayoutConnectorParams,
 ): Promise<AssertPayoutScriptInfo> {

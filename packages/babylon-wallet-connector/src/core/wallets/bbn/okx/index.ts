@@ -1,7 +1,7 @@
 import { IBBNProvider, Network, type BBNConfig, type WalletMetadata } from "@/core/types";
 import { MONOCHROME_MARK_BACKGROUND } from "@/core/wallets/constants";
+import logo from "@/core/wallets/icons/okx.svg";
 
-import logo from "./logo.svg";
 import { OKXBabylonProvider, WALLET_PROVIDER_NAME } from "./provider";
 
 const metadata: WalletMetadata<IBBNProvider, BBNConfig> = {

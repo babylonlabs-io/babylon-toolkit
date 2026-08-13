@@ -21,12 +21,19 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
     onClick,
     text = "Connect",
     disabled,
+    "data-testid": dataTestId = "connect-wallet-button",
   }: {
     onClick: () => void;
     text?: string;
     disabled?: boolean;
+    "data-testid"?: string;
   }) => (
-    <button type="button" onClick={onClick} disabled={disabled}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={dataTestId}
+    >
       {text}
     </button>
   ),
@@ -106,6 +113,23 @@ describe("Connect — optional BTC navbar state", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Connect BTC" }));
     expect(state.open).toHaveBeenCalledWith("BTC");
+  });
+
+  it("gives the BTC connect control an E2E hook of its own", () => {
+    render(<Connect />);
+
+    // The default `connect-wallet-button` denotes the disconnected Connect
+    // control, so the real-wallet suite could not target this one without a
+    // dedicated id.
+    expect(screen.getByTestId("connect-btc-button")).toBeInTheDocument();
+  });
+
+  it("gives the locked-wallet unlock control an E2E hook of its own", () => {
+    state.btcLocked = true;
+
+    render(<Connect />);
+
+    expect(screen.getByTestId("unlock-btc-wallet-button")).toBeInTheDocument();
   });
 
   it("uses the full BTC/ETH menu after both wallets connect", () => {

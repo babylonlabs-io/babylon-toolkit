@@ -104,7 +104,7 @@ rubric below.
     (`services/vault/index.html`, `services/vault/src/build/sriPlugin.ts`)
   - Install policy: frozen lockfile, store integrity verification, `minimumReleaseAge`, and the
     `onlyBuiltDependencies` allowlist (`.npmrc`, `pnpm-workspace.yaml`)
-- **High-risk areas (extra review):** the seven critical-path groups enumerated in
+- **High-risk areas (extra review):** the nine critical-path groups enumerated in
   [CLAUDE.md → CRITICAL PATHS](CLAUDE.md#critical-paths--human-review-required) and mirrored in
   [`.github/CODEOWNERS`](.github/CODEOWNERS), plus:
   - `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/` — the whole untrusted-counterparty
@@ -230,10 +230,13 @@ not only at the estimator — an estimator that agrees with itself proves nothin
 The real SDK model and dApp estimator are covered by
 [`.github/CODEOWNERS`](.github/CODEOWNERS) and
 [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml). The
-critical-path inventory is hand-maintained in five places: this file, CLAUDE.md, CODEOWNERS,
-`critical-path-check.yml`, and `claude-md-drift.yml`. Update all five together when a path moves or
-is added. The scheduled drift workflow checks that listed paths exist and reports missing entries to
-a tracker issue, but it does not block a pull request.
+critical-path inventory is hand-maintained in six places: this file, CLAUDE.md, CODEOWNERS,
+`critical-path-check.yml`, `claude-md-drift.yml`, and the `// CRITICAL PATHS` `files:` arrays in the
+three ESLint configs that force `no-explicit-any` / `no-non-null-assertion` / `ban-ts-comment` on
+value-bearing code — `packages/babylon-ts-sdk/eslint.config.mjs`,
+`packages/babylon-tbv-rust-wasm/eslint.config.mjs`, and `services/vault/eslint.config.js`. Update all
+six together when a path moves or is added. The scheduled drift workflow checks that listed paths
+exist and reports missing entries to a tracker issue, but it does not block a pull request.
 
 ### Presigning the depositor graph
 
@@ -260,6 +263,15 @@ Signatures produced are verified against the expected sighash
 (`primitives/psbt/verifyScriptPathSchnorrSignature.ts`) rather than trusted because the wallet
 returned success.
 
+### The Ledger vault signer package
+
+`packages/babylon-ledger-vault-signer/src/` is the host-side client for the Ledger vault app: APDU
+framing, the intent-ceremony TLV encoder the depositor physically approves, the device envelope
+gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. A wrong encoding here puts wrong terms
+in front of a hardware signer with a trusted screen — the user approves what we built, so building
+it wrong defeats the device. Encodings cite firmware/reference-client sources and carry
+golden-vector tests; payload bytes are never logged.
+
 ### Non-standard wallet signing flags
 
 `packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts` sets `useTweakedSigner: false` and
@@ -275,6 +287,39 @@ the PSBT is treated as signed.** A wallet's success return is not evidence.
 requires ordered broadcast. Assert `sum(splitOutputs) === totalDeposit - fees` before signing, and
 assert broadcast ordering with explicit sequence checks — not by relying on array iteration order,
 which a future refactor can reorder without any test noticing.
+
+### Dependency-free reimplementations of Bitcoin primitives
+
+Shrinking the dependency surface is a supply-chain win (see _Install policy_), but each removal
+trades widely-exercised third-party code for code only this repository tests — on values that reach
+a signature or an on-chain commitment. The current reimplementations are:
+
+- `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — txid parsing and vault-id
+  derivation, replacing the bitcoinjs and WASM implementations
+- `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — the Ethereum-side
+  registration extracted from `PeginManager`
+- `packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts` — a hand-rolled secp256k1
+  curve-membership check, replacing `ecc.isXOnlyPoint`
+- `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now
+  crosses
+- `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts`
+  — the restructured engine entry surface
+- `services/vault/src/utils/btc/scriptPubKeyAddress.ts` — hand-written bech32, bech32m and
+  base58check encoding
+
+The failure mode is silent, and it is the reason a passing test suite is not evidence here: an
+implementation is written against a handful of vectors, agrees with them, and disagrees with the
+library on the input that ships. Reviewer rule, restated from CLAUDE.md:
+
+> **A reimplementation may not land without a differential test asserting byte-for-byte equality
+> against the implementation it replaces, over the existing golden vectors plus randomised inputs.**
+> A single hardcoded vector pins one input, not the function. If the original is deleted in the same
+> change, run the differential before deletion and commit the vectors it produced as fixtures.
+
+`services/vault/src/utils/btc/ensureBtcEccInitialized.ts` — the process-wide ECC registration every
+taproot path depends on — is code-owned and flagged by the critical-path workflows but is
+deliberately outside that rule: a missing registration throws, so it fails loudly rather than
+mis-signing silently.
 
 ## 2) Vault secrets, activation, and recovery material
 
@@ -682,6 +727,13 @@ roles have different review requirements. Satisfy both.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. It detects drift but does not gate merges;
   acting on the tracker or moving the existence check into `verify.yml` is still a human process.
+- Two boundary guards run inside their own package's `build` script rather than as separate CI steps:
+  `packages/babylon-ts-sdk/scripts/check-eth-build.js` (the ETH-only entry points reach no Bitcoin or
+  WASM dependency, and the SDK root barrels never eagerly resolve the optional WASM peer) and
+  `packages/babylon-tbv-rust-wasm/scripts/check-lazy-entries.js` (the generated WASM glue is reached
+  only through a dynamic import). Because they are part of `build`, both `pnpm build` in `verify.yml`
+  and `nx run-many --target=build --all` in `package-release.yml` enforce them, and a violation fails
+  the build instead of warning.
 
 ### E2E secrets
 
@@ -734,7 +786,7 @@ only repository-local safeguards.
 | ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` on every crossing; independent cross-check                     | `babylon-tbv-rust-wasm` value-guard tests                         |
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
-| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | All current paths are aligned; the scheduled existence check reports missing paths but does not gate merges     | CLAUDE.md, CODEOWNERS, both critical-path workflows               |
+| Critical-path guard | G         | A critical path moves but one of six inventories keeps the stale path             | Integrity (process)                                                     | All six inventories aligned; the scheduled existence check reports missing paths but does not gate merges       | CLAUDE.md, CODEOWNERS, both workflows, three ESLint blocks        |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |
@@ -886,9 +938,11 @@ When changing this repository, explicitly consider:
   configuration, either dApp's CSP restrictions, production response headers, or the missing SCA
   gate — MUST update the corresponding section and the severity anchors.
 - This file, [CLAUDE.md](CLAUDE.md), [`.github/CODEOWNERS`](.github/CODEOWNERS),
-  [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml), and
-  [`.github/workflows/claude-md-drift.yml`](.github/workflows/claude-md-drift.yml) contain five
-  hand-maintained critical-path inventories. **Change them together.** They have drifted before.
+  [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml),
+  [`.github/workflows/claude-md-drift.yml`](.github/workflows/claude-md-drift.yml), and the
+  `// CRITICAL PATHS` `files:` arrays in `packages/babylon-ts-sdk/eslint.config.mjs`,
+  `packages/babylon-tbv-rust-wasm/eslint.config.mjs` and `services/vault/eslint.config.js` contain
+  six hand-maintained critical-path inventories. **Change them together.** They have drifted before.
 - Security-relevant PRs SHOULD reference the relevant attack-matrix row(s); if a row is missing, add
   it.
 - The **Bug severity classification** section is shared across repositories. Changes to it must be

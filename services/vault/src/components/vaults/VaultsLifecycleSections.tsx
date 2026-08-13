@@ -16,7 +16,7 @@
  */
 
 import { Heading, Hint, InfoIcon, Loader } from "@babylonlabs-io/core-ui";
-import { lazy, type ReactNode, Suspense, useCallback, useState } from "react";
+import { type ReactNode, Suspense, useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -60,8 +60,9 @@ import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
 import { ensureBtcEccInitialized } from "@/utils/btc/ensureBtcEccInitialized";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-const PostDepositContinuationContent = lazy(async () => {
+const PostDepositContinuationContent = lazyWithRetry(async () => {
   await ensureBtcEccInitialized();
   return import("@/components/simple/PostDepositContinuationContent").then(
     ({ PostDepositContinuationContent }) => ({
@@ -116,7 +117,6 @@ function getRowExplorerUrl(
 function PendingRow({
   activity,
   vaultProviders,
-  onOpenDetails,
   onOpenAction,
   onBroadcast,
   onRefund,
@@ -124,7 +124,10 @@ function PendingRow({
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
-  onOpenDetails: (depositId: string) => void;
+  /** Opens the multistepper. Gated on a BTC wallet: the multistepper is not
+   *  read-only — its resume screen auto-broadcasts and its activation screen
+   *  reads the BTC connector — so both the primary action and "View Details"
+   *  route through it. */
   onOpenAction: (depositId: string) => void;
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
@@ -278,7 +281,7 @@ function PendingRow({
         ) : (
           <button
             type="button"
-            onClick={() => onOpenDetails(activity.id)}
+            onClick={() => onOpenAction(activity.id)}
             className={NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.viewDetails}
@@ -503,12 +506,15 @@ export function VaultsLifecycleSections({
   );
   // Advanced entry from the activation dialog inside the multistepper: swap
   // the multistepper for the dedicated withdraw modal (the two never stack).
+  // The swap is conditional on the BTC gate — a rejected gate leaves the
+  // multistepper open rather than closing it behind the wallet dialog.
   const handleAdvancedWithdraw = useCallback(
     (depositId: string) => {
+      if (!requireBtcWallet()) return;
       setViewingBatch(null);
       emergencyWithdrawModal.handleWithdrawClick(depositId, "advanced");
     },
-    [emergencyWithdrawModal],
+    [emergencyWithdrawModal, requireBtcWallet],
   );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
@@ -550,7 +556,6 @@ export function VaultsLifecycleSections({
                 key={activity.id}
                 activity={activity}
                 vaultProviders={vaultProviders}
-                onOpenDetails={handleOpenDetails}
                 onOpenAction={handleOpenAction}
                 onBroadcast={handleBroadcast}
                 onRefund={handleRefund}

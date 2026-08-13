@@ -12,7 +12,7 @@ wire-format concerns (TLV framing, SLIP-44, byte order) are provider-side.
 
 ### DepositTermsRejectedError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts)
 
 SDK-owned typed rejection thrown when deposit terms fail pre-approval validation.
 
@@ -28,7 +28,7 @@ SDK-owned typed rejection thrown when deposit terms fail pre-approval validation
 new DepositTermsRejectedError(message, reason): DepositTermsRejectedError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts:20](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts#L20)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts)
 
 ###### Parameters
 
@@ -58,13 +58,13 @@ Error.constructor
 readonly reason: "device-envelope";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts#L18)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts)
 
 ## Interfaces
 
 ### DepositTermsVaultGroup
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:6](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L6)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 #### Properties
 
@@ -74,7 +74,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 readonly htlcVout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:8](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L8)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 0-based; equals the group's position (groups are ascending by vout).
 
@@ -84,7 +84,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 readonly vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L10)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 x-only hex (64 chars), as validated on-chain upstream.
 
@@ -94,7 +94,7 @@ x-only hex (64 chars), as validated on-chain upstream.
 readonly peginAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:12](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L12)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 sats
 
@@ -104,7 +104,7 @@ sats
 readonly commissionFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 sats; the MAXIMUM commission the depositor accepts —
 floor(peginAmount * maxAcceptableCommissionBps / 10_000), the same
@@ -121,7 +121,7 @@ stamped commission may be lower. Display the quoted value in UI, not this.
 readonly depositorClaimValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 sats; the same value for every vault.
 
@@ -131,7 +131,7 @@ sats; the same value for every vault.
 readonly peginMaxFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 sats; the cap an approving wallet enforces on the PegIn tx fee. Equals
 the graph's exact (minimum) PegIn fee, which is deterministic — so the
@@ -141,7 +141,7 @@ cap is satisfied exact-by-construction.
 
 ### DepositTerms
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 Field names follow btc-vault vocabulary (the protocol source of truth);
 a device-wire encoder maps them to its intent fields (e.g. the Ledger TLV:
@@ -156,7 +156,7 @@ timelockAssert -> payout_timelock, peginAmount -> vault_amount).
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:52](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L52)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 btc-vault tx-graph version (`vaultCoreVersion`) these terms describe —
 the vault's stamped on-chain version for resumes, the chain's
@@ -174,7 +174,7 @@ mis-validating the PSBTs later.
 protocolFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:58](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L58)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 sat/vB; the tx-graph fee rate (protocolFeeRate), NOT the mempool funding
 rate. Approving wallets bound each payout's fee against this rate —
@@ -186,7 +186,7 @@ pass the exact graph rate, not an inflated ceiling.
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L60)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 Vault-UTXO CSV timelock (blocks).
 
@@ -196,7 +196,7 @@ Vault-UTXO CSV timelock (blocks).
 timelockAssert: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L65)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 btc-vault `timelock_assert` (t2) — the CSV on Assert output 0. Its own
 param, though production derives it and `timelockPegin` from one value.
@@ -207,7 +207,7 @@ param, though production derives it and `timelockPegin` from one value.
 timelockRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:67](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L67)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 HTLC refund CSV timelock (blocks).
 
@@ -217,7 +217,7 @@ HTLC refund CSV timelock (blocks).
 prepeginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L73)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 64-char hex in display order. A device-wire encoder may need the
 little-endian form — some hardware byte-compares it against
@@ -229,7 +229,7 @@ PSBT_IN_PREVIOUS_TXID rather than recomputing the txid.
 prepeginMaxFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L75)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 sats; the funded Pre-PegIn fee (an approving wallet caps the signed fee at this).
 
@@ -239,7 +239,7 @@ sats; the funded Pre-PegIn fee (an approving wallet caps the signed fee at this)
 vaultKeeperBtcPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:81](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 x-only hex. Sorted ascending by the upstream on-chain validation
 (validateOnChainParticipantKeys); the builder passes them through
@@ -251,7 +251,7 @@ unasserted — approving devices may reject unsorted lists at load.
 universalChallengerBtcPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:88](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L88)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 x-only hex, sorted ascending upstream independently of vaultKeeperBtcPubkeys (same
 pass-through contract). Universal challengers only — the full graph
@@ -264,7 +264,7 @@ challengers).
 vaults: readonly DepositTermsVaultGroup[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 Per-vault groups, ordered by ascending htlcVout.
 
@@ -272,28 +272,23 @@ Per-vault groups, ordered by ascending htlcVout.
 
 ### DepositTermsApprover
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L115)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Implemented only by depositor-approval wallets (e.g. a Ledger vault provider).
-Either a class field or a prototype method works — the deposit flow spreads
-the wallet object but forwards this method explicitly at every wrapper site.
+Implemented only by depositor-approval wallets (e.g. a Ledger vault
+provider). Provider obligations:
 
-PROVIDER OBLIGATION — device envelope: implementations MUST validate the
-terms against their own device's accepted envelope (caps, ranges, value
-floors) BEFORE starting the approval ceremony, and reject with an error of
-the shape `{ name: "DepositTermsRejectedError", reason: "device-envelope",
-message: <human-readable detail> }` rather than letting the device fail
-opaquely mid-ceremony. The shape (not a class) is the cross-package
-contract: providers throw a structurally-conforming error from their own
-code; the SDK will normalize it by `name` at its approval call sites when
-the first provider lands, #2109 (see `depositTermsErrors.ts`). Each
-vendor owns its own envelope — device limits are never SDK concerns.
+- Envelope: validate terms against the device's envelope BEFORE the
+  ceremony, rejecting with the shape `{ name: "DepositTermsRejectedError",
+  reason: "device-envelope", message }` (matched structurally, not by class).
+- Idempotence: a byte-equal re-approval MUST be a no-op while the
+  device-side approval is live; anything that invalidates it (a later
+  `deriveContextHash`, a signing failure) MUST clear the memo.
 
-Seam invariant: never call deriveContextHash between approveDepositTerms and
-the last terms-bound signature of a connection — deriving while an intent is
-loaded nullifies it on-device. Design: the SDK owns approval (mirrors its
-deriveContextHash/signPsbts orchestration); provider-internal and app-driven
-placements were rejected.
+Seam invariant: any derive invalidates a prior approval, so the SDK
+re-approves after every derive and before the next terms-bound signature.
+The re-approval sites are `PeginManager.preparePegin`,
+`runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
+which derives immediately before approving — see `ensurePrePeginTermsApproval`).
 
 #### Methods
 
@@ -303,7 +298,7 @@ placements were rejected.
 approveDepositTerms(terms): Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:116](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L116)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ###### Parameters
 
@@ -319,7 +314,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 
 ### BuildDepositTermsInputs
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:142](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L142)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 #### Properties
 
@@ -329,7 +324,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 vaultCoreVersion: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:144](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L144)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 btc-vault tx-graph version the graph is built under.
 
@@ -339,7 +334,7 @@ btc-vault tx-graph version the graph is built under.
 protocolFeeRate: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:145](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L145)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### timelockPegin
 
@@ -347,7 +342,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 timelockPegin: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:146](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L146)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### timelockAssert
 
@@ -355,7 +350,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 timelockAssert: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:148](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L148)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 btc-vault `timelock_assert` (t2) — its own param; NOT derived from timelockPegin here.
 
@@ -365,7 +360,7 @@ btc-vault `timelock_assert` (t2) — its own param; NOT derived from timelockPeg
 timelockRefund: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### prepeginTxid
 
@@ -373,7 +368,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 prepeginTxid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L150)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### prepeginMaxFee
 
@@ -381,7 +376,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 prepeginMaxFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:151](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L151)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### vaultProviderBtcPubkey
 
@@ -389,7 +384,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:152](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L152)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### vaultKeeperBtcPubkeys
 
@@ -397,7 +392,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 vaultKeeperBtcPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:153](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L153)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### universalChallengerBtcPubkeys
 
@@ -405,7 +400,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 universalChallengerBtcPubkeys: readonly string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:154](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L154)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### maxAcceptableCommissionBps
 
@@ -413,7 +408,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 maxAcceptableCommissionBps: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:156](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L156)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 Ceiling bps, not the quote — see [DepositTermsVaultGroup.commissionFee](#commissionfee).
 
@@ -423,7 +418,7 @@ Ceiling bps, not the quote — see [DepositTermsVaultGroup.commissionFee](#commi
 peginAmounts: readonly bigint[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:157](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L157)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### depositorClaimValue
 
@@ -431,7 +426,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 depositorClaimValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:158](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L158)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 ##### peginMaxFee
 
@@ -439,7 +434,106 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 peginMaxFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:159](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L159)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+***
+
+### PrePeginApprovalWallet
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+Minimal structural wallet for the Pre-PegIn ceremony. Mirrors
+`DeriveContextHashCapableWallet` so an app-side wrapper object qualifies
+without implementing all of `BitcoinWallet`. Both methods are optional so
+the capability probe below can run on any wallet.
+
+#### Methods
+
+##### deriveContextHash()?
+
+```ts
+optional deriveContextHash(appName, context): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### appName
+
+`string`
+
+###### context
+
+`string`
+
+###### Returns
+
+`Promise`\<`string`\>
+
+##### approveDepositTerms()?
+
+```ts
+optional approveDepositTerms(terms): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### EnsurePrePeginTermsApprovalParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+#### Properties
+
+##### wallet
+
+```ts
+wallet: PrePeginApprovalWallet;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+##### depositTerms
+
+```ts
+depositTerms: DepositTerms | undefined;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+The approved terms — required for approval-capable wallets, ignored (but still txid-checked) otherwise.
+
+##### fundedPrePeginTxHex
+
+```ts
+fundedPrePeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+Funded Pre-PegIn tx hex (0x optional): the funding outpoints AND the txid the terms must match.
+
+##### depositorBtcPubkey
+
+```ts
+depositorBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+x-only depositor pubkey (64 hex, 0x optional) — the identity the PSBT is signed with.
 
 ## Type Aliases
 
@@ -449,7 +543,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:
 type DepositTermsRejectionReason = "device-envelope";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts:14](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts#L14)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts)
 
 Why the terms were rejected before approval.
 
@@ -461,7 +555,7 @@ Why the terms were rejected before approval.
 function buildDepositTerms(inputs): DepositTerms;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/buildDepositTerms.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/buildDepositTerms.ts#L19)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/buildDepositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/buildDepositTerms.ts)
 
 Project already-validated pegin inputs into protocol-level deposit terms.
 Not a second validator: keys arrive canonical and sorted from on-chain
@@ -485,7 +579,7 @@ validation, and non-negative sizing is already asserted by WASM output checks.
 function supportsDepositApproval(wallet): wallet is BitcoinWallet & DepositTermsApprover;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:120](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L120)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 True when the wallet implements [DepositTermsApprover.approveDepositTerms](#approvedepositterms).
 
@@ -507,7 +601,7 @@ True when the wallet implements [DepositTermsApprover.approveDepositTerms](#appr
 function forwardDepositApproval(wallet): Partial<DepositTermsApprover>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts:134](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts#L134)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 Spreadable forward of `approveDepositTerms` for wallet-wrapper objects.
 Object spread drops prototype methods, so every `{...wallet}` wrapper site
@@ -531,7 +625,7 @@ must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
 function isDepositTermsRejectedError(err): err is DepositTermsRejectedError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts)
 
 Guard for app-side error mapping. Matches `instanceof` OR the documented
 `name` — providers and foreign realms throw structurally-conforming plain
@@ -547,6 +641,42 @@ errors that `instanceof` cannot see.
 
 `err is DepositTermsRejectedError`
 
+***
+
+### ensurePrePeginTermsApproval()
+
+```ts
+function ensurePrePeginTermsApproval(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+Run the derive → approve ceremony (or a no-op) before a Pre-PegIn signature.
+
+- Non-approval wallets: no-op, after asserting the terms (if any) match the tx.
+- Approval-capable wallets: require terms, assert they match this tx's txid,
+  derive the vault root over the tx's funding outpoints, then approve.
+
+Always derives first: the host cannot read device state, a one-shot cap means
+every retry needs the full ceremony, and whether interleaved signing
+nullifies a loaded intent is unresolved — so the broadcast path never
+approves-only.
+
+#### Parameters
+
+##### params
+
+[`EnsurePrePeginTermsApprovalParams`](#ensureprepegintermsapprovalparams)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+#### Throws
+
+If approval-capable but no terms are provided, or the provided terms
+  are for a different transaction.
+
 ## Variables
 
 ### DEPOSIT\_TERMS\_REJECTED\_ERROR\_NAME
@@ -555,6 +685,6 @@ errors that `instanceof` cannot see.
 const DEPOSIT_TERMS_REJECTED_ERROR_NAME: "DepositTermsRejectedError" = "DepositTermsRejectedError";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts:11](../../packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts#L11)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErrors.ts)
 
 The `name` value providers must set on envelope rejections (the wire contract).

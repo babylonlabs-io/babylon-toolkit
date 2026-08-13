@@ -16,7 +16,7 @@ for adapter patterns and the canonical `deriveContextHash` flow
 type Hash = `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/EthereumWallet.ts:5](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/EthereumWallet.ts#L5)
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/EthereumWallet.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/shared/wallets/interfaces/EthereumWallet.ts)
 
 Ethereum transaction hash type (hex string with 0x prefix).
 Alias for viem's Hex type, provided for convenience.
@@ -53,7 +53,7 @@ Re-exports [SignPsbtOptions](managers.md#signpsbtoptions)
 const BitcoinNetworks: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts:10](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts#L10)
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts)
 
 Bitcoin network constants
 

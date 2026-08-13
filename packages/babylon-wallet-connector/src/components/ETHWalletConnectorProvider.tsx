@@ -17,7 +17,8 @@ export interface ETHWalletConnectorProviderProps {
   ttl?: number;
   persistent?: boolean;
   lifecycleHooks?: LifeCycleHooksProps;
-  context?: any;
+  /** Object wallet detection reads its globals off. Defaults to `window` in the browser and `{}` on the server. */
+  context?: Window | Record<string, unknown>;
   config: Readonly<ETHChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];

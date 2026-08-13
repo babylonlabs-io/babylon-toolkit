@@ -207,7 +207,11 @@ export const COPY = {
     },
     expiration: {
       reasons: {
-        ack_timeout: "The vault provider did not acknowledge in time",
+        // The acknowledgment window can lapse because the depositor never
+        // finished their side (for example, never signed the payouts), not
+        // only because the vault provider was late. Naming a cause would
+        // often be wrong, so these vaults show the heading alone.
+        ack_timeout: null,
         proof_timeout: "The inclusion proof was not submitted in time",
         activation_timeout: "The BTC Vault was not activated in time",
       },
@@ -466,10 +470,16 @@ export const COPY = {
       title: "Withdraw without activating",
       // Reassurance first: the stuck state looks like lost funds but is
       // fully recoverable through this flow.
+      // Both bodies state the wait before the acknowledgement, not only on the
+      // success screen: the BTC comes back through the vault provider's normal
+      // claim pipeline, so a depositor who expects funds within the hour would
+      // be committing to the reveal on a false premise. Deliberately no figure
+      // — the real wait is the vault's `timelockAssert`, a protocol parameter
+      // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Withdrawing redeems the BTC Vault — the vault provider will send your BTC to your payout address.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Withdrawing redeems the BTC Vault — the vault provider will send your BTC to your payout address, which takes several days.",
       bodyAdvanced:
-        "This reveals your HTLC secret and redeems the BTC Vault without activating it. The vault provider will send your BTC to your payout address. If you are unsure, cancel and wait — letting the BTC Vault expire and refunding is the safe default.",
+        "This reveals your HTLC secret and redeems the BTC Vault without activating it. The vault provider will send your BTC to your payout address, which takes several days. If you are unsure, cancel and wait — letting the BTC Vault expire and refunding is the safe default.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       // Shown when the vault's application is registered but not Active on
@@ -481,6 +491,13 @@ export const COPY = {
       confirmButton: "Withdraw without activating",
       retryButton: "Retry",
       cancelButton: "Cancel",
+      // Pre-flight failures surfaced in the modal's error callout, so single
+      // lines rather than the {title, body} shape the error modals use.
+      errors: {
+        btcWalletNotConnected: "BTC wallet is not connected",
+        ethWalletNotConnected: "ETH wallet is not connected",
+        withdrawFailed: "Failed to withdraw BTC Vault",
+      },
       success: {
         heading: "Withdrawal submitted",
         body: "Your BTC Vault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
@@ -924,6 +941,9 @@ export const COPY = {
     },
   },
   wallet: {
+    // Navbar CTA on an ETH-only session: the optional BTC wallet is the only
+    // thing still missing, so the label names that chain rather than "wallet".
+    connectBtcButton: "Connect BTC",
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     liveness: {
@@ -1082,7 +1102,7 @@ export const COPY = {
       "Price data unavailable. Borrowing is temporarily disabled.",
     // Shown on the Repay tab when repay is blocked by a protocol pause (not a
     // technical/user error), so a user near liquidation knows it's governance,
-    // not a bug. Repay is gated only by an aave-scope pause.
+    // not a bug. Repay is gated by a pause on either scope.
     repayingUnavailable:
       "Repaying is temporarily unavailable while the protocol is paused. It will resume once the pause is lifted.",
     // Borrow tab — action-button labels (also used as the status-callout title).

@@ -11,15 +11,18 @@ import {
 
 import { BTCVaultRegistryABI } from "../../contracts/abis/BTCVaultRegistry.abi";
 import { handleContractError } from "../../contracts/errors";
-import { MAX_PAYOUT_SCRIPT_LEN } from "../../primitives/psbt/constants";
+import {
+  COMMISSION_BPS_HEADROOM,
+  MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+  MAX_PAYOUT_SCRIPT_LEN,
+  MAX_VP_COMMISSION_BPS_EXCLUSIVE,
+} from "../../primitives/psbt/constants";
 import { waitForTransactionReceiptSmartAware } from "../../utils/eth";
 import { assertOnChainBtcPubkey } from "./onChainBtcPubkey";
 import { calculatePeginTxHash, derivePeginVaultId } from "./pegin-transaction";
 import { ViemVaultRegistryReader } from "./vault-registry-reader";
 
 const NO_REFERRAL_CODE = 0;
-const COMMISSION_BPS_HEADROOM = 25;
-const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
 const RECEIPT_TIMEOUT_MS = 120_000;
 
 function ensureHex(value: string, label: string): Hex {
@@ -51,9 +54,14 @@ function assertHtlcVout(value: number): void {
  * BTC wallet manager can freeze the same ceiling into on-device terms.
  */
 export function capMaxAcceptableCommissionBps(bps: number): number {
-  if (!Number.isInteger(bps) || bps < 0 || bps >= 10_000) {
+  if (
+    !Number.isInteger(bps) ||
+    bps < 0 ||
+    bps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
+  ) {
     throw new Error(
-      `Quoted commissionBps must be an integer in [0, 10000), got ${bps}`,
+      `Quoted commissionBps must be an integer in ` +
+        `[0, ${MAX_VP_COMMISSION_BPS_EXCLUSIVE}), got ${bps}`,
     );
   }
   return Math.min(
@@ -76,6 +84,13 @@ export interface ViemPeginRegistrationClientConfig {
   publicClient: PublicClient;
   btcVaultRegistry: Address;
   receiptTimeoutMs?: number;
+  /**
+   * Refuse to register without a `quotedCommissionBps`. Set when the depositor
+   * approved deposit terms on a device: approval froze the commission ceiling
+   * from the quote, so the chain-current fallback could admit a commission the
+   * device would later refuse to pay out.
+   */
+  requireQuotedCommissionBps?: boolean;
 }
 
 export interface RegisterPeginOnChainParams {
@@ -139,6 +154,7 @@ export class ViemPeginRegistrationClient {
   async registerPeginOnChain(
     params: RegisterPeginOnChainParams,
   ): Promise<PeginRegistrationResult> {
+    this.assertQuotedCommissionPresentWhenRequired(params.quotedCommissionBps);
     const depositor = this.assertPopMatchesEthAccount(params.popSignature);
     const normalized = this.normalizeRequest(params, depositor);
 
@@ -183,6 +199,7 @@ export class ViemPeginRegistrationClient {
     if (params.requests.length === 0) {
       throw new Error("Batch pegin requires at least one request");
     }
+    this.assertQuotedCommissionPresentWhenRequired(params.quotedCommissionBps);
     const depositor = this.assertPopMatchesEthAccount(params.popSignature);
     const unsignedPrePeginTx = ensureHex(
       params.unsignedPrePeginTx,
@@ -252,6 +269,20 @@ export class ViemPeginRegistrationClient {
 
   getVaultContractAddress(): Address {
     return this.config.btcVaultRegistry;
+  }
+
+  private assertQuotedCommissionPresentWhenRequired(
+    quotedCommissionBps?: number,
+  ): void {
+    if (
+      quotedCommissionBps === undefined &&
+      this.config.requireQuotedCommissionBps
+    ) {
+      throw new Error(
+        "quotedCommissionBps is required when the wallet approved deposit " +
+          "terms: the registration ceiling must anchor to the approved quote.",
+      );
+    }
   }
 
   private assertPopMatchesEthAccount(pop: PopSignature): Address {

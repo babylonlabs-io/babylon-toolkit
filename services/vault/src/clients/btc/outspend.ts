@@ -8,7 +8,7 @@
 
 import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
 
-const strip0x = (value: string) => value.replace(/^0x/i, "");
+import { strip0x } from "@/utils/txid";
 
 export interface HtlcSpend {
   /** True when the HTLC output has been spent (in the mempool or a block). */

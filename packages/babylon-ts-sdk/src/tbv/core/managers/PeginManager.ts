@@ -55,6 +55,7 @@ import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI } from "../contracts";
 import {
   buildDepositTerms,
+  ensurePrePeginTermsApproval,
   supportsDepositApproval,
   type DepositTerms,
 } from "../deposit-terms";
@@ -69,12 +70,12 @@ import {
   type Network,
   type PrePeginParams,
 } from "../primitives";
+import { MAX_ACCEPTABLE_COMMISSION_BPS_CAP } from "../primitives/psbt/constants";
 import {
   hexToUint8Array,
   isAddressFromPublicKey,
   stripHexPrefix,
   uint8ArrayToHex,
-  X_ONLY_PUBKEY_HEX_LEN,
 } from "../primitives/utils/bitcoin";
 import {
   calculateBtcTxHash,
@@ -87,6 +88,7 @@ import {
   type UTXO,
 } from "../utils";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
+import { X_ONLY_PUBKEY_HEX_LEN } from "../utils/validation";
 import {
   deriveVaultRoot,
   expandAuthAnchor,
@@ -95,13 +97,6 @@ import {
 
 /** Referral code sent with pegin registration — 0 means no referral. */
 const NO_REFERRAL_CODE = 0;
-
-/**
- * Hard ceiling for `maxAcceptableCommissionBps`. The contract enforces
- * `commissionBps < 10000`, so any value at/above that is unreachable;
- * `9999` is the maximum useful cap.
- */
-const MAX_ACCEPTABLE_COMMISSION_BPS_CAP = 9999;
 
 /**
  * 32-byte zero hex used as a placeholder during the sizing pass for any
@@ -386,6 +381,15 @@ export interface SignAndBroadcastParams {
    * Useful for split transactions where outputs are unconfirmed.
    */
   localPrevouts?: Record<string, { scriptPubKey: string; value: number }>;
+
+  /**
+   * Approved deposit terms. REQUIRED when `config.btcWallet` supports deposit
+   * approval (`supportsDepositApproval`) — the device signs the Pre-PegIn only
+   * from an approved intent matching this tx. Pass `PreparePeginResult.
+   * depositTerms` for fresh flows, or a resume rebuild. For non-approval
+   * wallets it is ignored, but still validated against the tx's txid if given.
+   */
+  depositTerms?: DepositTerms;
 }
 
 /**
@@ -1133,6 +1137,18 @@ export class PeginManager {
       });
     }
 
+    // Step 3.5: intent-wallet ceremony (derive → approve) immediately before
+    // signing. Placed after prevout resolution — a network failure there must
+    // not burn a two-screen device ceremony — and adjacent to signPsbt to keep
+    // the approve→sign gap minimal (the seam invariant). No-op for wallets that
+    // do not support deposit approval.
+    await ensurePrePeginTermsApproval({
+      wallet: this.config.btcWallet,
+      depositTerms: params.depositTerms,
+      fundedPrePeginTxHex,
+      depositorBtcPubkey,
+    });
+
     // Step 4: Sign PSBT via wallet
     const requestedPsbtHex = psbt.toHex();
     const signedPsbtHex =
@@ -1223,10 +1239,6 @@ export class PeginManager {
       verifiedBtcPubkeyRaw,
       resolvedPayoutAddress,
     );
-    this.assertQuotedCommissionPresentForApprovalWallet(
-      params.quotedCommissionBps,
-    );
-
     return this.createRegistrationClient().registerPeginOnChain({
       unsignedPrePeginTx: params.unsignedPrePeginTx,
       depositorSignedPeginTx: params.depositorSignedPeginTx,
@@ -1281,10 +1293,6 @@ export class PeginManager {
         request.depositorPayoutBtcAddress,
       ),
     );
-    this.assertQuotedCommissionPresentForApprovalWallet(
-      params.quotedCommissionBps,
-    );
-
     return this.createRegistrationClient().registerPeginBatchOnChain({
       vaultProvider: params.vaultProvider,
       unsignedPrePeginTx: params.unsignedPrePeginTx,
@@ -1300,26 +1308,15 @@ export class PeginManager {
     });
   }
 
-  private assertQuotedCommissionPresentForApprovalWallet(
-    quotedCommissionBps?: number,
-  ): void {
-    if (
-      quotedCommissionBps === undefined &&
-      supportsDepositApproval(this.config.btcWallet)
-    ) {
-      throw new Error(
-        "quotedCommissionBps is required when the wallet approved deposit " +
-          "terms: the registration ceiling must anchor to the approved quote.",
-      );
-    }
-  }
-
   private createRegistrationClient(): ViemPeginRegistrationClient {
     return new ViemPeginRegistrationClient({
       ethWallet: this.config.ethWallet,
       ethChain: this.config.ethChain,
       publicClient: this.config.publicClient,
       btcVaultRegistry: this.config.vaultContracts.btcVaultRegistry,
+      requireQuotedCommissionBps: supportsDepositApproval(
+        this.config.btcWallet,
+      ),
     });
   }
 

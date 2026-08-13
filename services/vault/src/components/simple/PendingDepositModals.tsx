@@ -10,28 +10,48 @@
  * card body.
  */
 
-import { lazy, Suspense } from "react";
+import { Loader } from "@babylonlabs-io/core-ui";
+import { Suspense } from "react";
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import type { VaultActivity } from "@/types/activity";
 import { ensureBtcEccInitialized } from "@/utils/btc/ensureBtcEccInitialized";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-const SimpleDeposit = lazy(async () => {
+const SimpleDeposit = lazyWithRetry(async () => {
   await ensureBtcEccInitialized();
   return import("./SimpleDeposit");
 });
-const RefundModal = lazy(async () => {
+const RefundModal = lazyWithRetry(async () => {
   await ensureBtcEccInitialized();
   return import("@/components/deposit/RefundModal").then(({ RefundModal }) => ({
     default: RefundModal,
   }));
 });
-const EmergencyWithdrawModal = lazy(async () => {
+const EmergencyWithdrawModal = lazyWithRetry(async () => {
   await ensureBtcEccInitialized();
   return import("@/components/deposit/EmergencyWithdrawModal").then(
     ({ EmergencyWithdrawModal }) => ({ default: EmergencyWithdrawModal }),
   );
 });
+
+/**
+ * Suspense fallback for the lazy modals below. Each renders inside a
+ * V3ModalShell once its chunk lands, so the pending state uses the same shell:
+ * the dialog appears immediately, keeps a working close button while the chunk
+ * plus the ECC library download, and its chrome doesn't shift when the real
+ * content replaces it.
+ */
+function ModalLoadingShell({ onClose }: { onClose: () => void }) {
+  return (
+    <V3ModalShell open onClose={onClose}>
+      <div className="flex w-full justify-center">
+        <Loader />
+      </div>
+    </V3ModalShell>
+  );
+}
 
 interface BroadcastModalState {
   broadcastingActivity: VaultActivity | null;
@@ -76,7 +96,9 @@ export function PendingDepositModals({
     <>
       {/* Broadcast Modal – full-screen with stepper */}
       {broadcastModal.broadcastingActivity && ethAddress && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={<ModalLoadingShell onClose={broadcastModal.handleClose} />}
+        >
           <SimpleDeposit
             open
             resumeMode="broadcast_btc"
@@ -91,7 +113,9 @@ export function PendingDepositModals({
 
       {/* Refund Modal */}
       {refundModal.refundingActivity && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={<ModalLoadingShell onClose={refundModal.handleClose} />}
+        >
           <RefundModal
             open
             activity={refundModal.refundingActivity}
@@ -103,7 +127,11 @@ export function PendingDepositModals({
 
       {/* Emergency Withdraw Modal (activate-and-redeem escape hatch) */}
       {emergencyWithdrawModal.withdrawing && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <ModalLoadingShell onClose={emergencyWithdrawModal.handleClose} />
+          }
+        >
           <EmergencyWithdrawModal
             open
             activity={emergencyWithdrawModal.withdrawing.activity}

@@ -101,4 +101,29 @@ describe("useWalletConnect optional chains", () => {
     expect(disconnectETH).not.toHaveBeenCalled();
     expect(reset).not.toHaveBeenCalled();
   });
+
+  it("disconnects every chain when handed something that is not a chain id", async () => {
+    const disconnectBTC = vi.fn(async () => {});
+    const disconnectBBN = vi.fn(async () => {});
+    const disconnectETH = vi.fn(async () => {});
+    const reset = vi.fn();
+    const { result } = renderWalletConnect({
+      state: { requiredChainIds: ["ETH"], selectedWallets: { ETH: ethWallet } },
+      actions: { reset },
+      connectors: {
+        BTC: { disconnect: disconnectBTC } as unknown as Connectors["BTC"],
+        BBN: { disconnect: disconnectBBN } as unknown as Connectors["BBN"],
+        ETH: { disconnect: disconnectETH } as unknown as Connectors["ETH"],
+      },
+    });
+
+    // React's bivariant event-handler types make `onClick={disconnect}` compile,
+    // which hands the MouseEvent to the `chain` parameter.
+    await act(() => result.current.disconnect({ type: "click" } as never));
+
+    expect(disconnectBTC).toHaveBeenCalledOnce();
+    expect(disconnectBBN).toHaveBeenCalledOnce();
+    expect(disconnectETH).toHaveBeenCalledOnce();
+    expect(reset).toHaveBeenCalledOnce();
+  });
 });

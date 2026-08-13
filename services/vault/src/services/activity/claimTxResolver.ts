@@ -23,6 +23,7 @@ import { isAddress } from "viem";
 import { logger } from "@/infrastructure";
 import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { strip0x } from "@/utils/txid";
 
 /**
  * Per-VP RPC timeout for this best-effort, display-only enrichment. Tighter
@@ -34,7 +35,6 @@ export const CLAIM_TX_RPC_TIMEOUT_MS = 10_000;
 
 /** A Bitcoin txid is 32 bytes — exactly 64 hex chars, no `0x` prefix. */
 const BTC_TXID_REGEX = /^[0-9a-f]{64}$/i;
-const strip0x = (value: string) => value.replace(/^0x/i, "");
 
 export interface RedeemVaultLookup {
   peginTxHash: string;

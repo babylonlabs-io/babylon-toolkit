@@ -6,9 +6,7 @@ import type { ETHConfig } from "@/core/types";
 // The provider is constructed eagerly by `createWallet` (metadata has
 // `wallet: undefined`), so its constructor must tolerate AppKit init not
 // having run yet. The wagmi actions are mocked so the tests can observe
-// whether the constructor attached the account/chain watchers; the AppKit
-// modal module is mocked to keep the heavy `@reown/appkit` graph out of the
-// unit-test environment.
+// whether the constructor attached the account/chain watchers.
 const wagmiActions = vi.hoisted(() => ({
   getAccount: vi.fn(() => ({
     address: undefined,
@@ -36,10 +34,6 @@ vi.mock("wagmi/actions", () => ({
 
 vi.mock("wagmi/connectors", () => ({
   walletConnect: vi.fn(),
-}));
-
-vi.mock("@/core/wallets/appkit/appKitModal", () => ({
-  getAppKitModal: vi.fn(() => null),
 }));
 
 const ethConfig: ETHConfig = {

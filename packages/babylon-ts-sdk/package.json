@@ -101,8 +101,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
-    "check:eth-boundary": "pnpm build && node scripts/check-eth-build.js",
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-eth-build.js",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint .",
@@ -140,7 +139,7 @@
     "buffer": "6.0.3"
   },
   "peerDependencies": {
-    "@babylonlabs-io/babylon-tbv-rust-wasm": "^0.1.0",
+    "@babylonlabs-io/babylon-tbv-rust-wasm": ">=0.16.0 <1.0.0",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "bitcoinjs-lib": "6.1.7",
     "viem": "^2.38.2"

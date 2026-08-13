@@ -12,7 +12,6 @@ import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import {
   type CSSProperties,
-  lazy,
   Suspense,
   useCallback,
   useLayoutEffect,
@@ -30,6 +29,7 @@ import {
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
 import { SidebarFooter } from "@/components/shared/SidebarFooter";
+import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
@@ -42,6 +42,7 @@ import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { ensureBtcEccInitialized } from "@/utils/btc/ensureBtcEccInitialized";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 import {
   AaveConfigProvider,
@@ -59,7 +60,7 @@ import { Connect } from "../Wallet";
 
 // Deposit owns the Bitcoin/WASM-heavy graph. Do not fetch or instantiate it
 // for an ETH-only session until the user explicitly starts a BTC signing flow.
-const SimpleDeposit = lazy(async () => {
+const SimpleDeposit = lazyWithRetry(async () => {
   await ensureBtcEccInitialized();
   return import("../simple/SimpleDeposit");
 });
@@ -302,9 +303,27 @@ export default function RootLayout() {
                 {/* On config failure, suppress the default panel (would leak
                   into page chrome) and instead surface an error modal only
                   when the user has actually opened the deposit dialog, so
-                  the click has a visible recovery path. */}
+                  the click has a visible recovery path.
+
+                  Mounting AaveConfigProvider inside the `isDepositOpen` gate
+                  costs the first open nothing: every route that can reach
+                  `openDeposit` already mounts one (router.tsx's
+                  AaveOverlayLayout and ActivityWithProviders), and the
+                  `["aaveAppConfig"]` query key is shared with a 5-minute
+                  staleTime, so this instance resolves straight from cache.
+                  The real first-open latency is the lazy chunk download plus
+                  ECC init — which is why the Suspense fallback below is a
+                  visible dialog rather than null. */}
                 {isDepositOpen && (
-                  <Suspense fallback={null}>
+                  <Suspense
+                    fallback={
+                      <V3ModalShell open onClose={closeDeposit}>
+                        <div className="flex w-full justify-center">
+                          <Loader />
+                        </div>
+                      </V3ModalShell>
+                    }
+                  >
                     <AaveConfigProvider
                       errorFallback={
                         <FullScreenDialog

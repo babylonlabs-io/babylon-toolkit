@@ -3,19 +3,15 @@ import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const banned = [
-  "bitcoinjs-lib",
-  "@bitcoin-js/tiny-secp256k1-asmjs",
-  "@babylonlabs-io/babylon-tbv-rust-wasm",
-];
-const specifierPatterns = [
+const eagerSpecifierPatterns = [
   /\b(?:import|export)\s+(?:type\s+)?[^"';]*?\sfrom\s*["']([^"']+)["']/g,
   /\bimport\s*["']([^"']+)["']/g,
-  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
   /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
 ];
+const dynamicSpecifierPattern = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+const allSpecifierPatterns = [...eagerSpecifierPatterns, dynamicSpecifierPattern];
 
-function isBanned(specifier) {
+function isBanned(specifier, banned) {
   return banned.some(
     (dependency) =>
       specifier === dependency || specifier.startsWith(`${dependency}/`),
@@ -60,7 +56,7 @@ if (!declarationResolutionProbe[0].endsWith("/dependency.d.ts")) {
   throw new Error("Declaration closure must prefer .d.ts over emitted .js");
 }
 
-function emittedClosure(entries) {
+function emittedClosure(entries, banned, patterns) {
   const pending = [...entries];
   const visited = new Set();
   const violations = [];
@@ -70,10 +66,10 @@ function emittedClosure(entries) {
     if (!existsSync(file)) throw new Error(`Missing emitted entry: ${file}`);
     visited.add(file);
     const source = readFileSync(file, "utf8");
-    for (const pattern of specifierPatterns) {
+    for (const pattern of patterns) {
       for (const match of source.matchAll(pattern)) {
         const specifier = match[1];
-        if (isBanned(specifier)) {
+        if (isBanned(specifier, banned)) {
           violations.push(`${file} imports ${specifier}`);
         } else if (specifier.startsWith(".")) {
           pending.push(resolveLocal(file, specifier));
@@ -84,7 +80,9 @@ function emittedClosure(entries) {
   return { violations, visited };
 }
 
-const entries = [
+// Pass 1: the ETH-only entry points must not reach the Bitcoin or WASM
+// dependencies at all, eagerly or lazily.
+const dependencyCleanEntries = [
   "dist/tbv/core/clients/eth/index.js",
   "dist/tbv/core/clients/eth/index.cjs",
   "dist/tbv/core/clients/eth/index.d.ts",
@@ -98,13 +96,47 @@ const entries = [
   "dist/tbv/core/utils/eth/index.cjs",
   "dist/tbv/core/utils/eth/index.d.ts",
 ].map((entry) => resolve(packageRoot, entry));
-const { violations, visited } = emittedClosure(entries);
-if (violations.length > 0) {
+const dependencyClean = emittedClosure(
+  dependencyCleanEntries,
+  [
+    "bitcoinjs-lib",
+    "@bitcoin-js/tiny-secp256k1-asmjs",
+    "@babylonlabs-io/babylon-tbv-rust-wasm",
+  ],
+  allSpecifierPatterns,
+);
+if (dependencyClean.violations.length > 0) {
   throw new Error(
-    `Dependency-clean build boundary violations:\n${violations.join("\n")}`,
+    `Dependency-clean build boundary violations:\n${dependencyClean.violations.join("\n")}`,
+  );
+}
+
+// Pass 2: the claim made by the module JSDoc of src/tbv/core/wasm/index.ts —
+// importing the SDK, including its legacy root barrels, does not resolve the
+// WASM package or generated binary. Only eager specifiers count: the lazy
+// facade's `import(...)` of the peer is the boundary being proven, not a
+// violation of it. Runtime entries only — the facade's .d.ts carries a type
+// import of the peer, and the patterns above match type imports deliberately.
+const lazyWasmEntries = [
+  "dist/index.js",
+  "dist/index.cjs",
+  "dist/tbv/core/index.js",
+  "dist/tbv/core/index.cjs",
+].map((entry) => resolve(packageRoot, entry));
+const lazyWasm = emittedClosure(
+  lazyWasmEntries,
+  ["@babylonlabs-io/babylon-tbv-rust-wasm"],
+  eagerSpecifierPatterns,
+);
+if (lazyWasm.violations.length > 0) {
+  throw new Error(
+    `SDK root barrels eagerly resolve the optional WASM peer:\n${lazyWasm.violations.join("\n")}`,
   );
 }
 
 console.log(
-  `Dependency-clean build boundary verified across ${visited.size} emitted module(s).`,
+  `Dependency-clean build boundary verified across ${dependencyClean.visited.size} emitted module(s).`,
+);
+console.log(
+  `Lazy WASM peer boundary verified across ${lazyWasm.visited.size} emitted module(s) reachable from the SDK root barrels.`,
 );

@@ -9,8 +9,7 @@
 import { getTxInfo } from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
 
 import { computeConfirmations } from "@/components/simple/DepositProgressView/btcConfirmationProgress";
-
-const strip0x = (value: string) => value.replace(/^0x/i, "");
+import { strip0x } from "@/utils/txid";
 
 /**
  * Fetches the tx from `apiUrl` and returns its confirmation count relative

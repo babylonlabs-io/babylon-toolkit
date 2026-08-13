@@ -85,7 +85,7 @@ vi.mock("../../../config/pegin", () => ({
 const mockGetOffchainParamsByVersion = vi.fn();
 const mockGetVaultKeepersByVersion = vi.fn();
 const mockGetUniversalChallengersByVersion = vi.fn();
-const mockGetVaultProviderBtcPubKey = vi.fn();
+const mockGetVaultProviderGenesisBtcPubKey = vi.fn();
 const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
 // Lean sibling pre-filter used by discoverBatch. Defaults to deriving
 // prePeginTxHash from the same getVaultFromChain fixtures each test
@@ -116,8 +116,8 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
       mockGetUniversalChallengersByVersion(...args),
   }),
   getVaultRegistryReader: vi.fn().mockReturnValue({
-    getVaultProviderBtcPubKey: (...args: unknown[]) =>
-      mockGetVaultProviderBtcPubKey(...args),
+    getVaultProviderGenesisBtcPubKey: (...args: unknown[]) =>
+      mockGetVaultProviderGenesisBtcPubKey(...args),
     getCurrentVaultProviderOperationBtcKey: (...args: unknown[]) =>
       mockGetCurrentVaultProviderOperationBtcKey(...args),
     getProtocolInfoBatch: (ids: readonly string[]) =>
@@ -252,7 +252,9 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
-    mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
+    mockGetVaultProviderGenesisBtcPubKey.mockResolvedValue(
+      VP_BTC_PUBKEY_X_ONLY,
+    );
     // Default: an un-rotated provider, whose current operation key is its
     // registration key. The rotation cases below override this.
     mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
@@ -809,7 +811,9 @@ describe("vaultRefundService - sibling batch discovery", () => {
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
-    mockGetVaultProviderBtcPubKey.mockResolvedValue(VP_BTC_PUBKEY_X_ONLY);
+    mockGetVaultProviderGenesisBtcPubKey.mockResolvedValue(
+      VP_BTC_PUBKEY_X_ONLY,
+    );
     mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
     mockGetUniversalChallengersByVersion.mockResolvedValue(
       UNIVERSAL_CHALLENGERS,

@@ -74,3 +74,48 @@ describe("WalletConnectionProvider — NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS leve
     expect(h.captured.disabledWallets).not.toContain("utila");
   });
 });
+
+describe("WalletConnectionProvider — Ledger vault wallet opt-in", () => {
+  const FF_KEY = "NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET";
+  const original = process.env[FF_KEY];
+
+  const renderWithFlag = async (value?: string) => {
+    vi.resetModules();
+    if (value === undefined) delete process.env[FF_KEY];
+    else process.env[FF_KEY] = value;
+    h.captured.disabledWallets = undefined;
+    const { WalletConnectionProvider } = await import(
+      "../VaultWalletConnectionProvider"
+    );
+    render(<WalletConnectionProvider>child</WalletConnectionProvider>);
+  };
+
+  afterEach(() => {
+    if (original === undefined) delete process.env[FF_KEY];
+    else process.env[FF_KEY] = original;
+  });
+
+  it("hides the Ledger vault wallet when the flag is unset", async () => {
+    // Opt-in, not opt-out: the env disable list defaults to empty, so without
+    // this the provider would be visible wherever nobody listed it.
+    await renderWithFlag(undefined);
+    expect(h.captured.disabledWallets).toContain("ledger_btc_vault");
+  });
+
+  it('hides it for any value other than the literal "true"', async () => {
+    await renderWithFlag("1");
+    expect(h.captured.disabledWallets).toContain("ledger_btc_vault");
+  });
+
+  it('reveals it when the flag is exactly "true"', async () => {
+    await renderWithFlag("true");
+    expect(h.captured.disabledWallets).not.toContain("ledger_btc_vault");
+  });
+
+  it("keeps the legacy staking Ledger adapters hidden either way", async () => {
+    await renderWithFlag("true");
+    expect(h.captured.disabledWallets).toEqual(
+      expect.arrayContaining(["ledger_btc", "ledger_btc_v2"]),
+    );
+  });
+});

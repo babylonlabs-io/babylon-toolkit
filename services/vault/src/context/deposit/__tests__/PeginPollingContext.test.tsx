@@ -87,12 +87,15 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
 // a chain read. Default is the empty set, i.e. nothing confirmed stuck, which
 // is also the production fail-open default.
 const { mockUseStuckVaultChainConfirm } = vi.hoisted(() => ({
-  mockUseStuckVaultChainConfirm: vi.fn<() => ReadonlySet<string>>(
-    () => new Set<string>(),
-  ),
+  mockUseStuckVaultChainConfirm: vi.fn<
+    (suspectIds: readonly string[]) => ReadonlySet<string>
+  >(() => new Set<string>()),
 }));
+// Forwards the suspect ids so a test can assert on Tier 1's output — the set
+// this hook is asked to confirm is the only place `stuckSuspectIds` is visible.
 vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
-  useStuckVaultChainConfirm: () => mockUseStuckVaultChainConfirm(),
+  useStuckVaultChainConfirm: (suspectIds: readonly string[]) =>
+    mockUseStuckVaultChainConfirm(suspectIds),
 }));
 
 const mockVersionedParams = new Map<number, { tRefund: number }>();
@@ -974,6 +977,49 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.refundMaturityState).toBe("mature");
     expect(status?.peginState.availableActions).toEqual([
       PeginAction.REFUND_HTLC,
+    ]);
+  });
+
+  // ==========================================================================
+  // VERIFIED — Tier-1 stuck suspects
+  // ==========================================================================
+
+  it("VERIFIED: forms a stuck suspect when the activity id carries uppercase hex", () => {
+    // `useBtcHtlcRefundStatus` keys its map lowercase; activity ids arrive
+    // from the indexer unnormalized. A raw lookup misses and reads as "not
+    // swept", so no suspect forms, Tier 2 never runs, and the stuck card and
+    // Withdraw CTA silently never appear for a genuinely stuck deposit.
+    const MIXED_CASE_ID = "0xPEGIN" as Hex;
+    const PEGIN_TXID = `0x${"ef".repeat(32)}` as Hex;
+    mockUseBtcHtlcRefundStatus.mockReturnValue({
+      refundByDepositId: new Map([
+        [
+          MIXED_CASE_ID.toLowerCase(),
+          { spent: true, confirmed: true, spendingTxid: PEGIN_TXID },
+        ],
+      ]),
+    });
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[
+          {
+            ...ACTIVITY,
+            id: MIXED_CASE_ID,
+            contractStatus: ContractStatus.VERIFIED,
+            peginTxHash: PEGIN_TXID,
+          },
+        ]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    renderHook(() => usePeginPolling(), { wrapper });
+
+    expect(mockUseStuckVaultChainConfirm).toHaveBeenLastCalledWith([
+      MIXED_CASE_ID,
     ]);
   });
 

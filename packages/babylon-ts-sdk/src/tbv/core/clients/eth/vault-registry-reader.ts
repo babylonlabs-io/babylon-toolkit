@@ -91,13 +91,36 @@ function mapVaultProtocolInfo(result: RawVaultProtocolInfo): VaultProtocolInfo {
  *
  * viem does not range-check a decoded `uint64`, so a misaligned decode can
  * hand back a value far larger than the field can hold. Rejecting those is
- * cheap defence in depth against reading the extended ABI on a registry that
- * predates RFC-006 — but it is only a backstop, and a weak one: a misaligned
- * decode can also land on a small, plausible-looking integer that this range
- * accepts. Correctness rests on only ever pointing at an RFC-006 registry.
- * See `BTCVaultRegistryKeyEpochs.abi.ts`.
+ * cheap defence in depth against a mis-decode of the extended ABI.
+ *
+ * The state this is load-bearing for is narrower than "a registry that predates
+ * RFC-006". Against a *fully* pre-RFC-006 registry the path fails closed on its
+ * own: `resolveParticipantKeysAtEpochs` goes on to call
+ * `getOperationBtcKeyAtEpochOrGenesis` on ApplicationRegistry and
+ * ProtocolParams, which do not exist there, so the multicall reverts and these
+ * epochs are never used. The reachable gap is a registry that *has* the
+ * operation-key getters but whose `BTCVaultProtocolInfo` struct is not
+ * extended — there the tail-data epochs resolve with no error at all, and this
+ * range check is the only thing looking at them.
+ *
+ * Even for that case it is only a backstop, and a weak one: a misaligned decode
+ * can land on a small, plausible-looking integer this range accepts. Correctness
+ * rests on only ever pointing at an RFC-006 registry, which is a deployment
+ * precondition rather than something this call can establish — see
+ * https://github.com/babylonlabs-io/babylon-toolkit/issues/2192 for where that
+ * check is owned, and `BTCVaultRegistryKeyEpochs.abi.ts` for the decode hazard.
  */
 const UINT64_EXCLUSIVE_UPPER_BOUND = 1n << 64n;
+
+/**
+ * The epoch a vault provider's registration key is bonded at.
+ *
+ * A provider's operation-key history is append-only and every appended version
+ * is stamped at epoch 1 or later, so epoch 0 always resolves to the key set at
+ * registration. This is what lets `getOperationBtcKeyAtEpoch` stand in for the
+ * removed `getVaultProviderBTCKey` getter.
+ */
+const VP_GENESIS_KEY_EPOCH = 0n;
 
 function assertEpochInRange(
   value: bigint,
@@ -141,23 +164,40 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
   ) {}
 
   /**
-   * Read the VP's persistent x-only BTC pubkey from the on-chain
-   * registry. Validates length, hex form, and secp256k1 curve
-   * membership before minting the brand. Returns 64-char lowercase
-   * hex without the `0x` prefix.
+   * Read the VP's **genesis** (registration) x-only BTC pubkey — the key bonded
+   * at version 0, which never moves when the operator rotates.
+   *
+   * Resolved as "the operation key at epoch 0" rather than through the
+   * dedicated `getVaultProviderBTCKey` getter, which
+   * https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/539 removes.
+   * Epoch 0 predates any rotation — appended versions are stamped at epoch 1 or
+   * later — so it resolves to the registration key, and the contracts team has
+   * confirmed that is a property we can rely on rather than an implementation
+   * detail. The devnet comparison behind that claim — both getters returning the
+   * identical key for a provider that *has* rotated, while
+   * `getCurrentOperationBtcKey` differed — is recorded in
+   * https://github.com/babylonlabs-io/babylon-toolkit/issues/2188.
+   *
+   * This makes the read RFC-006-only, where the removed getter also existed on a
+   * legacy registry. That costs nothing: every caller of this method already
+   * resolves participant keys through `OperationKeyReader`, so all of them
+   * require an RFC-006 registry regardless.
+   *
+   * Validates length, hex form, and secp256k1 curve membership before minting
+   * the brand. Returns 64-char lowercase hex without the `0x` prefix.
    */
-  async getVaultProviderBtcPubKey(
+  async getVaultProviderGenesisBtcPubKey(
     vpAddress: Address,
   ): Promise<OnChainBtcPubkey> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: BTCVaultRegistryABI,
-      functionName: "getVaultProviderBTCKey",
-      args: [vpAddress],
+      functionName: "getOperationBtcKeyAtEpoch",
+      args: [vpAddress, VP_GENESIS_KEY_EPOCH],
     })) as Hex;
     return assertOnChainBtcPubkey(
       result,
-      `getVaultProviderBTCKey (vp=${vpAddress})`,
+      `getOperationBtcKeyAtEpoch (vp=${vpAddress}, epoch=${VP_GENESIS_KEY_EPOCH})`,
     );
   }
 
@@ -165,8 +205,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
    * Read a vault provider's *current* RFC-006 operation BTC key.
    *
    * Falls back on-chain to the registration key when the provider has never
-   * rotated, so this returns the same value as `getVaultProviderBtcPubKey`
-   * until the first rotation.
+   * rotated, so this returns the same value as
+   * `getVaultProviderGenesisBtcPubKey` until the first rotation.
    *
    * This is the key the VP's server signs its BIP-322 auth tokens with — a
    * live per-operator identity, not a per-vault binding, so the auth pin uses
@@ -191,11 +231,17 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
    * Read a vault's frozen RFC-006 operation-key epochs.
    *
    * Reads `getBtcVaultProtocolInfo` through the **extended** ABI, which is only
-   * valid against an RFC-006 registry: against one that predates RFC-006 this
-   * call does not fail for a populated vault, it silently returns three words
-   * of tail data as epochs. Nothing here can detect that, so the guarantee is a
-   * deployment one — every network this ships to has the RFC-006 getters, and
-   * mainnet is a fresh RFC-006 deploy. See `BTCVaultRegistryKeyEpochs.abi.ts`.
+   * valid against an RFC-006 registry: against one whose `BTCVaultProtocolInfo`
+   * struct is not extended this call does not fail for a populated vault, it
+   * silently returns three words of tail data as epochs. Nothing here can detect
+   * that, so the guarantee is a deployment one — every network this ships to has
+   * the RFC-006 getters, and mainnet is a fresh RFC-006 deploy.
+   *
+   * A registry missing the operation-key getters entirely is the *safer* of the
+   * two cases: `resolveParticipantKeysAtEpochs` reverts downstream and these
+   * epochs never reach key resolution. See {@link UINT64_EXCLUSIVE_UPPER_BOUND}
+   * for which state the range check actually guards, and
+   * `BTCVaultRegistryKeyEpochs.abi.ts` for the decode hazard.
    */
   async getVaultKeyEpochs(vaultId: Hex): Promise<KeyEpochs> {
     const result = (await this.publicClient.readContract({

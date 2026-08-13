@@ -264,19 +264,18 @@ export const BTCVaultRegistryABI = [
     ],
     stateMutability: "view",
   },
-  {
-    type: "function",
-    name: "getVaultProviderBTCKey",
-    inputs: [{ name: "vpAddr", type: "address", internalType: "address" }],
-    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
-    stateMutability: "view",
-  },
   // --- RFC-006 operation-key resolution ---------------------------------
-  // A vault provider's BTC key is no longer the fixed registration key
-  // returned by `getVaultProviderBTCKey` above: it is an append-only history
-  // of *operation* keys, rotated by the provider's cold ETH admin key. Each
-  // vault freezes a `vpKeyEpoch` at `submitPeginRequest` and resolves the key
-  // bonded at that epoch, so a later rotation never invalidates a live vault.
+  // A vault provider's BTC key is not a fixed registration key: it is an
+  // append-only history of *operation* keys, rotated by the provider's cold ETH
+  // admin key. Each vault freezes a `vpKeyEpoch` at `submitPeginRequest` and
+  // resolves the key bonded at that epoch, so a later rotation never
+  // invalidates a live vault.
+  //
+  // The dedicated `getVaultProviderBTCKey` / `getVaultProviderKeyPair` getters
+  // are deliberately absent: vault-contracts-aave-v4#539 removes them, and
+  // keeping them here would let a call compile against a selector the registry
+  // no longer exposes. The registration key is read as the operation key at
+  // epoch 0 instead — see `getVaultProviderGenesisBtcPubKey`.
   //
   // `getCurrentOperationBtcKey` falls back on-chain to the registration key at
   // version 0, so adopting it is a no-op for a provider that never rotated.

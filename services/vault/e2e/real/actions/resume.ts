@@ -37,16 +37,19 @@ import {
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { fillDepositForm, startSigning } from "./pegin";
 import { startRecording } from "./recording";
+import { CONNECT_WALLET_TESTID } from "./selectors";
 import {
   assertActivatedAndOnDashboard,
   walkStepMachine,
   walkUntilPrePeginBroadcast,
 } from "./stepMachine";
 import { type Action, type ActionContext } from "./types";
-import { connectWallets } from "./walletConnect";
+import {
+  connectBtcFromNavbar,
+  connectWallets,
+  readWalletState,
+} from "./walletConnect";
 
-const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // connected-state signal (dashboard)
-const CONNECT_BUTTON_TESTID = '[data-testid="connect-wallet-button"]'; // shown when disconnected
 // PendingDepositSection's ExpandMenuButton — the pending list (and each card's resume CTA) lives behind
 // it (aria-label="Pending deposit details"). The button is only rendered when a pending deposit exists,
 // so its presence doubles as "there is something to resume".
@@ -64,26 +67,36 @@ function normalizeTxid(txid: string | undefined): string | undefined {
 }
 
 /**
- * After the interrupt reload, make sure the app is connected before we look for the pending card (the
- * pending list reads the connected ETH address). wagmi/AppKit usually auto-reconnects on reload (the
- * deposit button reappears with no pop-up); if instead the Connect button is shown, re-run the connect
- * flow. Neither appearing is left to the pending-card wait to surface a clearer error.
+ * After the interrupt reload, make sure BOTH wallets are connected before we look for the pending card:
+ * the pending list reads the connected ETH address, and a cold resume RE-DERIVES the vault root from
+ * the BTC wallet. wagmi/AppKit usually auto-reconnects on reload with no pop-up, but Bitcoin is
+ * optional for the app session, so "reconnected" can legitimately mean Ethereum ALONE — that state
+ * still renders the page's deposit CTA, so it has to be read off the navbar's wallet controls.
+ * Reaching neither state is left to the pending-card wait to surface a clearer error.
  */
 async function ensureConnected(ctx: ActionContext): Promise<void> {
   const { page, context, log } = ctx;
-  const deposit = page.locator(DEPOSIT_BUTTON_TESTID).first();
-  const connect = page.locator(CONNECT_BUTTON_TESTID).first();
+  const connect = page.locator(CONNECT_WALLET_TESTID).first();
   const deadline = Date.now() + CONNECT_STATE_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (await deposit.isVisible().catch(() => false)) return; // auto-reconnected
-    // Only click Connect once it's actually ENABLED. Right after the reload the app re-hydrates and the
-    // Connect button renders visible-but-DISABLED for a beat while wagmi/AppKit auto-reconnects; clicking
-    // that transient disabled button just times out (it detaches the instant the connected state swaps
-    // in). Waiting instead lets the auto-reconnect win and the deposit button appear above.
-    if (
-      (await connect.isVisible().catch(() => false)) &&
-      (await connect.isEnabled().catch(() => false))
-    ) {
+    const state = await readWalletState(page);
+    if (state === "connected") return; // auto-reconnected, Bitcoin included
+    if (state === "locked")
+      throw new Error(
+        "resume: the app reconnected but the BTC wallet is locked, and the resume re-derives the vault root from it. Unlock the extension and re-run with --txid=<the interrupted Pre-PegIn>.",
+      );
+    if (state === "eth-only") {
+      log(
+        "Ethereum reconnected without Bitcoin — connecting the BTC wallet from the navbar",
+      );
+      await connectBtcFromNavbar(ctx);
+      return;
+    }
+    // Disconnected: only click Connect once it's actually ENABLED. Right after the reload the app
+    // re-hydrates and the Connect button renders visible-but-DISABLED for a beat while wagmi/AppKit
+    // auto-reconnects; clicking that transient disabled button just times out (it detaches the instant
+    // the connected state swaps in). Waiting instead lets the auto-reconnect win.
+    if (await connect.isEnabled().catch(() => false)) {
       log("Reconnecting wallets after the interrupt reload");
       await connectWallets(ctx);
       return;

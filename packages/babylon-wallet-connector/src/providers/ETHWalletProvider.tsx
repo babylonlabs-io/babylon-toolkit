@@ -48,19 +48,38 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
   const [provider, setProvider] = useState<IETHProvider | null>(null);
   const disconnectInFlightRef = useRef(false);
   const hasActiveSessionRef = useRef(false);
+  // Every asynchronous address read belongs to the generation that started it.
+  // Disconnects advance the generation synchronously, including while the first
+  // connection is still resolving, so a stale read cannot resurrect a session
+  // that has already been torn down.
+  const sessionGenerationRef = useRef(0);
 
   const { open } = useWalletConnect();
   const ethConnector = useChainConnector("ETH");
 
   const disconnect = useCallback(async () => {
-    if (disconnectInFlightRef.current || !hasActiveSessionRef.current) return;
-    disconnectInFlightRef.current = true;
+    sessionGenerationRef.current += 1;
+    const hadActiveSession = hasActiveSessionRef.current;
+    const alreadyDisconnecting = disconnectInFlightRef.current;
     hasActiveSessionRef.current = false;
     setAddress(undefined);
     setProvider(null);
 
     try {
       await ethConnector?.disconnect();
+    } catch (error) {
+      console.error("Error disconnecting ETH connector:", error instanceof Error ? error.message : "Unknown error");
+    }
+
+    // A disconnect that arrives before the first address resolves still has to
+    // tear the connector down (above), but there is no session for the host to
+    // be told about. A concurrent call owns `disconnectInFlightRef` and the
+    // host callback, so it must not be re-run or the flag cleared here.
+    if (alreadyDisconnecting || !hadActiveSession) return;
+
+    disconnectInFlightRef.current = true;
+
+    try {
       await callbacks?.onDisconnect?.();
     } catch (error) {
       console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
@@ -93,12 +112,14 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     if (!ethConnector) return;
 
     const checkExistingConnection = async () => {
+      const generation = sessionGenerationRef.current;
+
       try {
         // First check if connector already has a connected wallet
         if (ethConnector.connectedWallet?.provider && !address) {
           const walletProvider = ethConnector.connectedWallet.provider;
           const addr = await walletProvider.getAddress();
-          if (addr) {
+          if (addr && generation === sessionGenerationRef.current) {
             setProvider(walletProvider);
             connectETH(addr);
           }
@@ -113,7 +134,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
             try {
               // This will check for existing connection and return immediately if found
               const addr = await wallet.provider.getAddress();
-              if (addr) {
+              if (addr && generation === sessionGenerationRef.current) {
                 // Found existing connection, trigger manual connect to sync state
                 await ethConnector.connect(wallet);
               }
@@ -131,9 +152,11 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 
     const unsubscribe = ethConnector.on("connect", async (wallet) => {
       if (wallet.provider) {
+        const generation = sessionGenerationRef.current;
+
         try {
           const addr = await wallet.provider.getAddress();
-          if (addr) {
+          if (addr && generation === sessionGenerationRef.current) {
             setProvider(wallet.provider);
             connectETH(addr);
           }

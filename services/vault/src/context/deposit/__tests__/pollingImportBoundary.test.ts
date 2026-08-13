@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+
+import { runtimeClosure, SOURCE_ROOT } from "@/test/importGraph";
 
 const BANNED_RUNTIME_IMPORTS = new Set([
   "@babylonlabs-io/ts-sdk/tbv/core",
@@ -12,81 +12,30 @@ const BANNED_RUNTIME_IMPORTS = new Set([
   "@bitcoin-js/tiny-secp256k1-asmjs",
 ]);
 
-const STATIC_SPECIFIER =
-  /(?:import\s+(?!type\b)[\s\S]*?\sfrom\s*|export\s+(?!type\b)[\s\S]*?\sfrom\s*)["']([^"']+)["']/g;
-const SIDE_EFFECT_SPECIFIER = /import\s*["']([^"']+)["']/g;
-
-const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const sourceRoot = resolve(currentDirectory, "../../..");
-
-function resolveVaultImport(from: string, specifier: string): string | null {
-  const candidate = specifier.startsWith("@/")
-    ? resolve(sourceRoot, specifier.slice(2))
-    : specifier.startsWith(".")
-      ? resolve(dirname(from), specifier)
-      : null;
-  if (!candidate) return null;
-
-  const candidates = [
-    candidate,
-    candidate.replace(/\.js$/, ".ts"),
-    `${candidate}.ts`,
-    `${candidate}.tsx`,
-    resolve(candidate, "index.ts"),
-    resolve(candidate, "index.tsx"),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path);
-      return path;
-    } catch {
-      // Non-code assets and unresolved optional files end traversal here.
-    }
-  }
-  return null;
-}
-
-function runtimeClosure(entry: string): Map<string, Set<string>> {
-  const pending = [entry];
-  const visited = new Map<string, Set<string>>();
-  while (pending.length > 0) {
-    const file = pending.pop()!;
-    if (visited.has(file)) continue;
-
-    const source = readFileSync(file, "utf8");
-    const specifiers = new Set<string>();
-    for (const pattern of [STATIC_SPECIFIER, SIDE_EFFECT_SPECIFIER]) {
-      for (const match of source.matchAll(pattern)) {
-        const specifier = match[1];
-        specifiers.add(specifier);
-        const dependency = resolveVaultImport(file, specifier);
-        if (dependency) pending.push(dependency);
-      }
-    }
-    visited.set(file, specifiers);
-  }
-  return visited;
-}
-
 describe("ETH-session import boundaries", () => {
   const entries = [
-    resolve(sourceRoot, "main.tsx"),
-    resolve(sourceRoot, "context/deposit/PeginPollingContext.tsx"),
-    resolve(sourceRoot, "hooks/usePegoutPolling.ts"),
-    resolve(sourceRoot, "services/activity/claimTxResolver.ts"),
-    resolve(sourceRoot, "applications/aave/hooks/useAaveVaults.ts"),
-    resolve(sourceRoot, "applications/aave/utils/payoutAddresses.ts"),
+    resolve(SOURCE_ROOT, "main.tsx"),
+    resolve(SOURCE_ROOT, "context/deposit/PeginPollingContext.tsx"),
+    resolve(SOURCE_ROOT, "hooks/usePegoutPolling.ts"),
+    resolve(SOURCE_ROOT, "services/activity/claimTxResolver.ts"),
+    resolve(SOURCE_ROOT, "applications/aave/hooks/useAaveVaults.ts"),
+    resolve(SOURCE_ROOT, "applications/aave/utils/payoutAddresses.ts"),
+    // Between them these two cover the display-only hex helpers that used to
+    // reach for the SDK barrel: `utils/explorer.ts` (both), `ActivityHashLink`
+    // (Activity) and `CopyableHash` (VaultsLifecycleSections).
+    resolve(SOURCE_ROOT, "components/pages/Activity.tsx"),
+    resolve(SOURCE_ROOT, "components/vaults/VaultsLifecycleSections.tsx"),
   ];
 
   for (const entry of entries) {
-    it(`${relative(sourceRoot, entry)} avoids broad BTC/auth runtime barrels`, () => {
+    it(`${relative(SOURCE_ROOT, entry)} avoids broad BTC/auth runtime barrels`, () => {
       const violations = Array.from(
         runtimeClosure(entry),
         ([file, specifiers]) =>
           Array.from(specifiers)
             .filter((specifier) => BANNED_RUNTIME_IMPORTS.has(specifier))
             .map(
-              (specifier) => `${relative(sourceRoot, file)} -> ${specifier}`,
+              (specifier) => `${relative(SOURCE_ROOT, file)} -> ${specifier}`,
             ),
       ).flat();
 

@@ -13,12 +13,11 @@
  *      per-transaction pages, so BTC/ETH tx hashes stay on mempool/etherscan.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-
 import { getBTCNetwork } from "@/config";
 import { ENV } from "@/config/env";
 import { getNetworkConfigETH } from "@/config/network";
 import type { ActivityChain } from "@/types/activityLog";
+import { strip0x } from "@/utils/txid";
 
 const MEMPOOL_SPACE_HOST = "https://mempool.space";
 const BTC_SIGNET_NETWORK = "signet";
@@ -30,7 +29,7 @@ function getBtcExplorerHost(): string {
 }
 
 export function getBtcExplorerTxUrl(txHash: string): string {
-  return `${getBtcExplorerHost()}/tx/${stripHexPrefix(txHash)}`;
+  return `${getBtcExplorerHost()}/tx/${strip0x(txHash)}`;
 }
 
 export function getBtcExplorerAddressUrl(address: string): string {

@@ -13,6 +13,7 @@
 - [Overview](#overview)
 - [Installation](#installation)
 - [Optional chains and ETH-only imports](#optional-chains-and-eth-only-imports)
+- [Lifecycle hooks](#lifecycle-hooks)
 - [Version Release](#version-release)
   - [Stable version](#stable-version)
 - [Storybook](#storybook)
@@ -55,16 +56,6 @@ implementation into the webpage's `window` object before the dApp loads.
 npm i @babylonlabs-io/wallet-connector
 ```
 
-Add the optional Bitcoin peers when using the package's BTC/full entry, plus
-the adapters for the wallet families you enable:
-
-```bash
-npm i bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
-npm i @reown/appkit-adapter-bitcoin # BTC AppKit
-npm i @tomo-inc/wallet-connect-sdk # Tomo
-npm i @tomo-inc/ledger-bitcoin-babylon ledger-bitcoin-babylon-boilerplate # Ledger
-```
-
 ## Optional chains and ETH-only imports
 
 Every chain in `config` is shown in the connection dialog. By default all of
@@ -87,9 +78,9 @@ await disconnect("BTC"); // leave the confirmed ETH session intact
 ```
 
 Applications that never support Bitcoin should import the isolated Ethereum
-entry. It excludes the BTC wallet implementations and adapters from its static
-module graph, and does not require the optional `bitcoinjs-lib` or
-`@bitcoin-js/tiny-secp256k1-asmjs` peers:
+entry. Its static module graph contains no Bitcoin wallet implementations,
+adapters or cryptography, so a bundler keeps all of them — `bitcoinjs-lib` and
+`@bitcoin-js/tiny-secp256k1-asmjs` included — out of the shipped bundle:
 
 ```ts
 import {
@@ -99,6 +90,55 @@ import {
   useETHWallet,
 } from "@babylonlabs-io/wallet-connector/eth";
 ```
+
+## Lifecycle hooks
+
+`acceptTermsOfService` fires once, when the user confirms the wallet dialog —
+not when an individual wallet connects — and is skipped when an already
+confirmed session is confirmed again. It receives every connected account:
+
+```ts
+interface WalletLifecycleConnection {
+  chain: ChainId; // "BTC" | "BBN" | "ETH"
+  wallet: IWallet;
+  account: Account;
+}
+
+interface TermsOfServiceParams {
+  // The account of the first chain in `requiredChains`.
+  address: string;
+  public_key: string;
+  chain: ChainId;
+  connections: WalletLifecycleConnection[];
+}
+```
+
+`address`/`public_key` describe a single chain, so a host that supports more
+than one should read `connections` instead:
+
+```tsx
+<WalletProvider
+  config={config}
+  requiredChains={["ETH"]}
+  lifecycleHooks={{
+    acceptTermsOfService: async ({ connections }) => {
+      await api.acceptTerms(
+        connections.map(({ chain, account }) => ({
+          chain,
+          address: account.address,
+          publicKey: account.publicKeyHex,
+        })),
+      );
+    },
+  }}
+>
+  {children}
+</WalletProvider>
+```
+
+`onConnect`/`onDisconnect` receive one `WalletLifecycleConnection` as each
+chain connects or drops, and `onConfirm` receives the full list alongside
+`acceptTermsOfService`.
 
 ## 📝 Commit Format & Automated Releases
 

@@ -11,6 +11,11 @@
  * zero-wiped) and submitted via the activation state machine in
  * `redeemImmediately` mode, which re-validates `sha256(secret) === hashlock`
  * against the on-chain registry before any calldata is assembled.
+ *
+ * Ahead of the derivation, the confirm handler awaits the vault's application
+ * registration status — the one registry precondition the confirm screen's
+ * render-time gate cannot guarantee, because it reads the cache as it stood at
+ * paint. See `useEnsureVaultApplicationActive`.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -19,7 +24,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
+import { useEnsureVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 import {
   captureFunnelFailure,
   TELEMETRY_STAGE,
@@ -52,6 +59,7 @@ export function EmergencyWithdrawModal({
     null;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
   const { address: depositorEthAddress } = useETHWallet();
+  const ensureApplicationActive = useEnsureVaultApplicationActive();
 
   // Derivation phase (wallet popup) — the submission phase is `activating`
   // from the activation state machine below.
@@ -85,17 +93,34 @@ export function EmergencyWithdrawModal({
   const handleConfirm = useCallback(async () => {
     if (withdrawing) return;
     if (!btcWalletProvider || !connectedBtcAddress) {
-      setLocalError("BTC wallet is not connected");
+      setLocalError(
+        COPY.deposit.emergencyWithdraw.errors.btcWalletNotConnected,
+      );
       return;
     }
     if (!depositorEthAddress) {
-      setLocalError("ETH wallet is not connected");
+      setLocalError(
+        COPY.deposit.emergencyWithdraw.errors.ethWalletNotConnected,
+      );
       return;
     }
     setDeriving(true);
     setLocalError(null);
 
     try {
+      // Resolve the application registration BEFORE the wallet popup. The
+      // confirm screen's own check reads whatever was cached at paint, which is
+      // `undefined` for the whole first round-trip after the modal mounts — so
+      // on its own it lets a fast click derive the secret for a redeem the
+      // registry would reject. Fail-open is unchanged: only a CONFIRMED
+      // non-Active status stops here, and `executeWrite`'s mandatory
+      // pre-broadcast simulation remains the backstop for every other case.
+      //
+      // A bare return suffices: resolving populates the same cache entry the
+      // confirm screen reads, so that gate re-renders with the explanation and
+      // the button disabled. Setting `localError` would print it twice.
+      if ((await ensureApplicationActive(activity.id)) === false) return;
+
       const secretHex = await deriveHtlcSecretHex({
         activity,
         btcWalletProvider,
@@ -115,7 +140,9 @@ export function EmergencyWithdrawModal({
       captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_SECRET, err, activity.id);
       if (mountedRef.current) {
         const msg =
-          err instanceof Error ? err.message : "Failed to withdraw BTC Vault";
+          err instanceof Error
+            ? err.message
+            : COPY.deposit.emergencyWithdraw.errors.withdrawFailed;
         setLocalError(msg);
       }
     } finally {
@@ -128,6 +155,7 @@ export function EmergencyWithdrawModal({
     connectedBtcAddress,
     depositorEthAddress,
     btcConnector?.connectedWallet?.id,
+    ensureApplicationActive,
     handleActivation,
   ]);
 

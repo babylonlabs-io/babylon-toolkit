@@ -1,7 +1,8 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { HashMap } from "@/core/types";
+import type { BTCConfig, ETHConfig, HashMap } from "@/core/types";
+import { ERROR_CODES, WalletError } from "@/error";
 import { useWidgetState } from "@/hooks/useWidgetState";
 
 import { ChainProvider, useChainProviders, type ChainMetadataMap } from "./Chain.context";
@@ -60,6 +61,55 @@ describe("ChainProvider optional chain initialization", () => {
     expect(result.current.widget.requiredChainIds).toEqual(["ETH"]);
     expect(Object.keys(result.current.widget.chains)).toEqual(["ETH"]);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "BTC unavailable" }));
+  });
+
+  it("keeps a required chain unsatisfiable and names it on the error when its connector fails", async () => {
+    createWalletConnector.mockImplementation(async ({ metadata }: { metadata: { chain: string } }) => {
+      if (metadata.chain === "ETH") throw new Error("ETH unavailable");
+      return { id: metadata.chain, on: vi.fn(() => () => {}), connectedWallet: null };
+    });
+    const onError = vi.fn();
+    const storage: HashMap = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      has: vi.fn(),
+    };
+    const metadata = {
+      BTC: { chain: "BTC", name: "Bitcoin", icon: "", wallets: [] },
+      ETH: { chain: "ETH", name: "Ethereum", icon: "", wallets: [] },
+    } as ChainMetadataMap;
+    const config = [
+      { chain: "BTC" as const, config: {} as BTCConfig },
+      { chain: "ETH" as const, config: {} as ETHConfig },
+    ];
+
+    const { result } = renderHook(() => useWidgetState(), {
+      wrapper: ({ children }) => (
+        <ChainProvider
+          persistent={false}
+          storage={storage}
+          context={{ localStorage: window.localStorage }}
+          config={config}
+          onError={onError}
+          requiredChains={["ETH"]}
+          metadata={metadata}
+        >
+          {children}
+        </ChainProvider>
+      ),
+    });
+
+    await waitFor(() => expect(onError).toHaveBeenCalled());
+    const error = onError.mock.calls[0][0] as WalletError;
+    expect(error).toBeInstanceOf(WalletError);
+    expect(error.code).toBe(ERROR_CODES.WALLET_INITIALIZATION_FAILED);
+    expect(error.chainId).toBe("ETH");
+
+    // Fail closed: the chain the user must connect stays required even though
+    // no connector exists for it, so the dialog cannot be confirmed without one.
+    await waitFor(() => expect(Object.keys(result.current.chains)).toEqual(["BTC"]));
+    expect(result.current.requiredChainIds).toEqual(["ETH"]);
   });
 
   it("requires every configured chain when requiredChains is omitted", async () => {

@@ -37,6 +37,7 @@ export default defineConfig({
         "viem",
         "@cosmjs/stargate",
         "@babylonlabs-io/core-ui",
+        "@babylonlabs-io/ledger-vault-signer",
         "bitcoinjs-lib",
         "@keystonehq/animated-qr",
         // Issues linking with Next.js

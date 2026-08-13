@@ -195,7 +195,9 @@ function createSigningContext(): PayoutSigningContext {
     vaultKeeperBtcPubkeys: [VK_PUBKEY],
     universalChallengerBtcPubkeys: [CHALLENGER_PK],
     depositorBtcPubkey: DEPOSITOR_PK,
-    timelockPegin: 100,
+    // Production derives both from one on-chain value (deriveTimelockPegin is
+    // Number(timelockAssert)), matching btc-vault's P == t2.
+    timelockPegin: 144,
     timelockAssert: 144,
     councilMembers: ["c".repeat(64)],
     councilQuorum: 1,
@@ -670,6 +672,34 @@ describe("runDepositorPresignFlow", () => {
       ).not.toHaveBeenCalled();
       expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ["vaultCoreVersion", { vaultCoreVersion: 2 }],
+      ["timelockPegin", { timelockPegin: 999 }],
+      ["timelockAssert", { timelockAssert: 999 }],
+    ])(
+      "throws when the approved terms and the context disagree on %s",
+      async (field, override) => {
+        const wallet = createCapabilityWallet();
+        const reader = createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]);
+
+        await expect(
+          runDepositorPresignFlow({
+            statusReader: reader,
+            presignClient: createMockPresignClient(),
+            btcWallet: wallet,
+            peginTxid: VALID_TXID,
+            depositorPk: DEPOSITOR_PK,
+            signingContext: { ...createSigningContext(), ...override },
+            depositTerms: DEPOSIT_TERMS,
+          }),
+        ).rejects.toThrow(new RegExp(field));
+
+        expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+      },
+    );
 
     it("throws when the approved terms carry different participant keys than the context", async () => {
       // An RFC-006 operation-key rotation bumps only a key EPOCH — every

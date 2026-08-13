@@ -123,6 +123,59 @@ describe("WalletDialog optional chains", () => {
     );
   });
 
+  it("confirms terms with the first required chain the host declared, not the first one connected", async () => {
+    const acceptTermsOfService = vi.fn(async () => {});
+    const ethWallet = {
+      id: "eth-wallet",
+      account: { address: "0x123", publicKeyHex: "0x123" },
+    } as IWallet;
+    const btcWallet = {
+      id: "btc-wallet",
+      account: { address: "bc1ptest", publicKeyHex: "abcd" },
+    } as IWallet;
+    const chains = [
+      { id: "BTC", name: "Bitcoin", wallets: [], config: {}, icon: "" },
+      { id: "ETH", name: "Ethereum", wallets: [], config: {}, icon: "" },
+    ] as IChain[];
+    const storage: HashMap = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      has: vi.fn(),
+    };
+    const connectors = {
+      BTC: { disconnect: vi.fn() },
+      BBN: null,
+      ETH: { disconnect: vi.fn() },
+    } as unknown as Connectors;
+
+    render(
+      <Context.Provider value={connectors}>
+        <StateProvider chains={chains} requiredChainIds={["ETH", "BTC"]} storage={storage}>
+          <LifeCycleHooksProvider value={{ acceptTermsOfService }}>
+            <WalletSelectionControls ethWallet={ethWallet} btcWallet={btcWallet} />
+            <WalletDialog persistent storage={storage} config={[]} />
+          </LifeCycleHooksProvider>
+        </StateProvider>
+      </Context.Provider>,
+    );
+
+    fireEvent.click(screen.getByTestId("select-btc"));
+    fireEvent.click(screen.getByTestId("select-eth"));
+    fireEvent.click(screen.getByTestId("dialog-confirm"));
+
+    await waitFor(() => expect(acceptTermsOfService).toHaveBeenCalledOnce());
+    expect(acceptTermsOfService).toHaveBeenCalledWith({
+      address: "0x123",
+      public_key: "0x123",
+      chain: "ETH",
+      connections: [
+        { chain: "BTC", wallet: btcWallet, account: btcWallet.account },
+        { chain: "ETH", wallet: ethWallet, account: ethWallet.account },
+      ],
+    });
+  });
+
   it("requires confirmation lifecycle again when the required chain set expands", async () => {
     const acceptTermsOfService = vi.fn(async () => {});
     const onConfirm = vi.fn(async () => {});

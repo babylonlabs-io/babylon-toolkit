@@ -16,6 +16,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
   forwardDepositApproval,
+  isDepositTermsRejectedError,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   validateOnChainParticipantKeys,
@@ -815,11 +816,22 @@ export function useDepositFlow(
             btcWalletProvider: {
               signPsbt: (psbtHex: string) =>
                 confirmedBtcWallet.signPsbt(psbtHex),
+              deriveContextHash: (appName: string, context: string) =>
+                confirmedBtcWallet.deriveContextHash(appName, context),
+              // Object spread drops prototype methods — see forwardDepositApproval.
+              ...forwardDepositApproval(confirmedBtcWallet),
             },
             depositorBtcPubkey: batchResult.depositorBtcPubkey,
             expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
+            depositTerms: batchResult.depositTerms,
           });
         } catch (error) {
+          // Preserve a typed intent rejection so the error mapper can show the
+          // intent-rejection copy instead of a generic broadcast failure — the
+          // broadcast service already keeps it typed at its boundary.
+          if (isDepositTermsRejectedError(error)) {
+            throw error;
+          }
           const errorMsg =
             error instanceof Error ? error.message : String(error);
           throw new Error(

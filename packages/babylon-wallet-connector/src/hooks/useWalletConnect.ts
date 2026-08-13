@@ -18,6 +18,15 @@ export function useWalletConnect() {
   } = useWidgetState();
   const connectors = useChainProviders();
 
+  // `open` deliberately does not `reset()`: attaching an optional chain must
+  // not tear down a confirmed session. The consequence is that confirming an
+  // already-confirmed session short-circuits in `WalletDialog.handleConfirm`,
+  // so the terms hook, `onConfirm` and the receipt are all skipped and the
+  // stored receipt keeps describing the required set as it stood at the first
+  // confirm. That is safe because a change to the required set is handled
+  // separately: `State.context` clears the receipt when a new required chain
+  // appears, and `useWalletConnectors` blocks the cold-start restore once the
+  // requirements expand.
   const open = useCallback(
     (chain?: ChainId) => {
       if (chain && chainMap[chain]) {
@@ -30,9 +39,20 @@ export function useWalletConnect() {
     [chainMap, displayChains, displayWallets, openModal],
   );
 
+  /**
+   * Disconnects a single chain. With no argument — or with anything that is not
+   * a chain id, such as the event object React hands an `onClick={disconnect}`
+   * — it disconnects every chain and resets the widget state.
+   */
   const disconnect = useCallback(
     async (chain?: ChainId) => {
-      if (chain) {
+      // Membership, not truthiness: React's bivariant handler types let
+      // `onClick={disconnect}` pass a MouseEvent here, which must not be
+      // mistaken for a chain and silently skip the disconnect-all path.
+      // `connectors` always carries all three keys, so a configured chain whose
+      // connector failed to construct is still matched (and is simply a no-op)
+      // rather than falling through to disconnect-all.
+      if (chain !== undefined && Object.prototype.hasOwnProperty.call(connectors, chain)) {
         await connectors[chain]?.disconnect();
         return;
       }

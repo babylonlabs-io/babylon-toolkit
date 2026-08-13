@@ -17,10 +17,7 @@ import { useVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 interface EmergencyWithdrawConfirmContentProps {
   /** True when the stuck state was detected on-chain — drives the body copy. */
   stuckStateDetected: boolean;
-  /**
-   * Vault whose application registration gates this exit. `undefined` while
-   * unknown (loading or a failed read) — see {@link useVaultApplicationActive}.
-   */
+  /** Vault whose application registration gates this exit. */
   vaultId: Hex;
   /** Reveal + redeem in flight (wallet popup or on-chain submission). */
   withdrawing: boolean;
@@ -56,6 +53,10 @@ export function EmergencyWithdrawConfirmContent({
   // or a failed read) does NOT block — over-blocking strands a depositor whose
   // peg-in is already swept, and the pre-broadcast simulation still refuses to
   // sign into a genuinely inactive application.
+  //
+  // This is CTA suppression, not the gate: it reads the cache as of paint, so
+  // a click inside the first round-trip would slip through. The confirm handler
+  // re-reads and awaits before deriving the secret (`EmergencyWithdrawModal`).
   const applicationActive = useVaultApplicationActive(vaultId);
   const applicationInactive = applicationActive === false;
   const activateAndRedeemPaused = isActivateAndRedeemBlocked(gate);

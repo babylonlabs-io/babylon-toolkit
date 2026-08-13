@@ -34,13 +34,12 @@ import {
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { strip0x } from "@/utils/txid";
 
 import {
   collectPegoutTerminalEvents,
   getSharedPegoutTerminalTracking,
 } from "./pegoutTerminalEvents";
-
-const strip0x = (value: string) => value.replace(/^0x/i, "");
 
 export interface PegoutPollingResult {
   displayState: PegoutDisplayState;

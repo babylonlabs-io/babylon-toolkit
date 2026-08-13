@@ -82,6 +82,11 @@ export function getDepositsNeedingPolling(
         // RPC is unauthenticated and the ETH address already scoped these
         // rows. Once a BTC key is present, preserve the existing ownership
         // mismatch filter before any actionable state is surfaced.
+        //
+        // No security decision is taken from the polled status while
+        // `btcPublicKey` is absent: this ownership filter gates what is
+        // surfaced, and the row action CTAs re-check the connected wallet at
+        // click time via `useRequireBtcWallet`.
         isVaultOwnedByWallet(activity.depositorBtcPubkey, btcPublicKey);
 
       return {

@@ -40,8 +40,7 @@ import {
   TerminalPeginPollingError,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
-
-const strip0x = (value: string) => value.replace(/^0x/i, "");
+import { strip0x } from "../../utils/txid";
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];

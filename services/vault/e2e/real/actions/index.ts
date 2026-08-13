@@ -1,11 +1,13 @@
 /**
- * Registry of implemented actions: connect, observe, wallet-config, pegin, sign-conformance, borrow,
- * repay, withdraw, and resume.
+ * Registry of implemented actions: connect, connect-eth-only, btc-just-in-time, observe,
+ * wallet-config, pegin, sign-conformance, borrow, repay, withdraw, and resume.
  */
 import type { ActionId } from "../config";
 
 import { borrowAction } from "./borrow";
+import { btcJustInTimeAction } from "./btcJustInTime";
 import { connectAction } from "./connect";
+import { connectEthOnlyAction } from "./connectEthOnly";
 import { observeAction } from "./observe";
 import { peginAction } from "./pegin";
 import { repayAction } from "./repay";
@@ -17,6 +19,8 @@ import { withdrawAction } from "./withdraw";
 
 export const ACTIONS_BY_ID: Partial<Record<ActionId, Action>> = {
   connect: connectAction,
+  "connect-eth-only": connectEthOnlyAction,
+  "btc-just-in-time": btcJustInTimeAction,
   observe: observeAction,
   "wallet-config": walletConfigAction,
   pegin: peginAction,
