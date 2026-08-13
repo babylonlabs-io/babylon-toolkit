@@ -81,6 +81,21 @@ for (const target of VISUAL_TARGETS) {
       await page.goto(target.path, { waitUntil: "domcontentloaded" });
       await waitForVisualStability(page);
 
+      // The app raises a blocking error dialog when it cannot boot - most
+      // often a required env var missing from `MOCK_ENV_VARS`, which a
+      // developer machine hides because vite reads the `.env` files a clean
+      // runner does not have. Photographing that is worse than failing: the
+      // modal covers every screen, both sides of the diff agree on it, and
+      // the check reports "no visual changes" for a PR whose UI it never
+      // rendered - which is what it did until this gate landed.
+      await expect(
+        page.getByTestId("error-dialog"),
+        `${target.name} captured the app's blocking error dialog instead of ` +
+          `the page. The app did not boot - fix the capture environment ` +
+          `(services/vault/playwright.config.ts) rather than accepting this ` +
+          `as a baseline.`,
+      ).toHaveCount(0);
+
       const fileName = screenshotFileName(target, viewport);
       const buffer = await page.screenshot({ fullPage: true });
       await fs.writeFile(path.join(OUTPUT_DIR, fileName), buffer);
