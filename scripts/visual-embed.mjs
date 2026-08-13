@@ -83,6 +83,38 @@ const PANEL_GUTTER_COLOUR = [120, 120, 120];
 const PANEL_PADDING_COLOUR = [232, 232, 232];
 
 /**
+ * The third panel: the after shot with every changed area ringed, so the
+ * reviewer is told where to look instead of hunting for it.
+ *
+ * Drawn on the after shot rather than beside a bare diff mask, because a
+ * mask says which pixels moved and not which control they belong to. The
+ * ring is stroked in red between two white lines - red alone disappears
+ * over the app's own red buttons and error states, which is exactly where
+ * a change is most likely to be.
+ */
+const HIGHLIGHT_COLOUR = [226, 34, 34];
+const HIGHLIGHT_HALO_COLOUR = [255, 255, 255];
+const HIGHLIGHT_STROKE_WIDTH = 3;
+const HIGHLIGHT_HALO_WIDTH = 1;
+/** Clearance between the changed pixels and the ring drawn around them. */
+const HIGHLIGHT_PADDING = 8;
+
+/**
+ * Changed pixels are clustered on a grid of this many pixels before being
+ * ringed, so a word that changed reads as one region instead of a ring per
+ * glyph. Sized under the smallest UI element worth pointing at.
+ */
+const HIGHLIGHT_CELL_SIZE = 8;
+
+/**
+ * Rings past this count are noise: a font swap or a token recolour moves
+ * something in every corner of the page, and forty rings point at nothing.
+ * Past it they collapse into one ring around the lot, which at least still
+ * says "all of this".
+ */
+const HIGHLIGHT_MAX_REGIONS = 12;
+
+/**
  * Rows of unchanged context kept above and below the changed band.
  *
  * Full-page captures are tall - a vault route at 390px wide runs past
@@ -134,8 +166,9 @@ const EMBED_MAX_WIDTH = 1280;
  * phone screen at under 200px - small enough that the change being reported
  * is no longer visible. Cutting rows keeps what is shown at full size.
  *
- * This bounds the composite, not the panel: a stacked pair splits it in two
- * (see `panelHeightBudget`), so the published file costs the same either way.
+ * This bounds the composite, not the panel: stacked panels divide it between
+ * them (see `panelHeightBudget`), so adding the highlight panel spends the
+ * budget three ways rather than growing the published file.
  */
 const MAX_COMPOSITE_HEIGHT = 2400;
 
@@ -373,6 +406,104 @@ function fill(target, colour) {
   }
 }
 
+/**
+ * Boxes around the areas that changed, in full-image coordinates.
+ *
+ * Works on a grid rather than on pixels: neighbouring cells that both hold
+ * a changed pixel join into one region, so a repainted button is one box
+ * and not one per letter of its label. Exact byte comparison, matching
+ * `changedRowBand` - both sides render on the same machine, and a box drawn
+ * around a pixel of antialiasing jitter costs a reviewer nothing next to
+ * one that misses a real change.
+ *
+ * Empty when the sides differ in size: there is no shared coordinate space
+ * to point into, and the size change is itself what the caption reports.
+ */
+function changedRegions(baseline, candidate) {
+  if (
+    baseline.width !== candidate.width ||
+    baseline.height !== candidate.height
+  ) {
+    return [];
+  }
+
+  const cellsAcross = Math.ceil(baseline.width / HIGHLIGHT_CELL_SIZE);
+  const cellsDown = Math.ceil(baseline.height / HIGHLIGHT_CELL_SIZE);
+  const changed = new Uint8Array(cellsAcross * cellsDown);
+
+  for (let y = 0; y < baseline.height; y += 1) {
+    for (let x = 0; x < baseline.width; x += 1) {
+      const i = (y * baseline.width + x) * 4;
+      const same =
+        baseline.data[i] === candidate.data[i] &&
+        baseline.data[i + 1] === candidate.data[i + 1] &&
+        baseline.data[i + 2] === candidate.data[i + 2];
+      if (same) continue;
+      const cell =
+        Math.floor(y / HIGHLIGHT_CELL_SIZE) * cellsAcross +
+        Math.floor(x / HIGHLIGHT_CELL_SIZE);
+      changed[cell] = 1;
+      // The rest of this cell cannot change the answer.
+      x = (Math.floor(x / HIGHLIGHT_CELL_SIZE) + 1) * HIGHLIGHT_CELL_SIZE - 1;
+    }
+  }
+
+  const regions = [];
+  const seen = new Uint8Array(changed.length);
+  for (let start = 0; start < changed.length; start += 1) {
+    if (changed[start] === 0 || seen[start] === 1) continue;
+
+    // Flood fill this cluster, tracking its bounds as it grows. Iterative:
+    // a full-page change is thousands of cells deep and would blow a
+    // recursive stack.
+    const pending = [start];
+    seen[start] = 1;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+
+    while (pending.length > 0) {
+      const cell = pending.pop();
+      const cellX = cell % cellsAcross;
+      const cellY = Math.floor(cell / cellsAcross);
+      left = Math.min(left, cellX);
+      top = Math.min(top, cellY);
+      right = Math.max(right, cellX);
+      bottom = Math.max(bottom, cellY);
+
+      const neighbours = [
+        cellX > 0 ? cell - 1 : -1,
+        cellX < cellsAcross - 1 ? cell + 1 : -1,
+        cellY > 0 ? cell - cellsAcross : -1,
+        cellY < cellsDown - 1 ? cell + cellsAcross : -1,
+      ];
+      for (const next of neighbours) {
+        if (next === -1 || seen[next] === 1 || changed[next] === 0) continue;
+        seen[next] = 1;
+        pending.push(next);
+      }
+    }
+
+    regions.push({
+      left: left * HIGHLIGHT_CELL_SIZE,
+      top: top * HIGHLIGHT_CELL_SIZE,
+      right: Math.min(baseline.width, (right + 1) * HIGHLIGHT_CELL_SIZE),
+      bottom: Math.min(baseline.height, (bottom + 1) * HIGHLIGHT_CELL_SIZE),
+    });
+  }
+
+  if (regions.length <= HIGHLIGHT_MAX_REGIONS) return regions;
+  return [
+    {
+      left: Math.min(...regions.map((r) => r.left)),
+      top: Math.min(...regions.map((r) => r.top)),
+      right: Math.max(...regions.map((r) => r.right)),
+      bottom: Math.max(...regions.map((r) => r.bottom)),
+    },
+  ];
+}
+
 /** Paints a solid block, used for the gutter between the two panels. */
 function paintRect(target, left, top, width, height, colour) {
   for (let y = top; y < top + height; y += 1) {
@@ -384,6 +515,72 @@ function paintRect(target, left, top, width, height, colour) {
       target.data[i + 3] = 255;
     }
   }
+}
+
+/** Paints the four edges of `box`, clipped to the target. */
+function strokeRect(target, box, thickness, colour) {
+  const left = Math.max(0, box.left);
+  const top = Math.max(0, box.top);
+  const right = Math.min(target.width, box.right);
+  const bottom = Math.min(target.height, box.bottom);
+  const width = right - left;
+  const height = bottom - top;
+  if (width <= 0 || height <= 0) return;
+
+  const across = Math.min(thickness, height);
+  const down = Math.min(thickness, width);
+  paintRect(target, left, top, width, across, colour);
+  paintRect(target, left, bottom - across, width, across, colour);
+  paintRect(target, left, top, down, height, colour);
+  paintRect(target, right - down, top, down, height, colour);
+}
+
+function inset(box, by) {
+  return {
+    left: box.left + by,
+    top: box.top + by,
+    right: box.right - by,
+    bottom: box.bottom - by,
+  };
+}
+
+/**
+ * The after shot with a ring around every changed area.
+ *
+ * A copy, never the capture itself: the same PNG object is blitted into the
+ * after panel, and drawing on it would ring the change in the picture that
+ * is supposed to show what shipped.
+ */
+function highlightPanel(candidate, regions) {
+  const panel = {
+    width: candidate.width,
+    height: candidate.height,
+    data: Buffer.from(candidate.data),
+  };
+
+  for (const region of regions) {
+    const outer = {
+      left: region.left - HIGHLIGHT_PADDING,
+      top: region.top - HIGHLIGHT_PADDING,
+      right: region.right + HIGHLIGHT_PADDING,
+      bottom: region.bottom + HIGHLIGHT_PADDING,
+    };
+    strokeRect(panel, outer, HIGHLIGHT_HALO_WIDTH, HIGHLIGHT_HALO_COLOUR);
+    strokeRect(
+      panel,
+      inset(outer, HIGHLIGHT_HALO_WIDTH),
+      HIGHLIGHT_STROKE_WIDTH,
+      HIGHLIGHT_COLOUR,
+    );
+    strokeRect(
+      panel,
+      inset(outer, HIGHLIGHT_HALO_WIDTH + HIGHLIGHT_STROKE_WIDTH),
+      HIGHLIGHT_HALO_WIDTH,
+      HIGHLIGHT_HALO_COLOUR,
+    );
+  }
+
+  return panel;
 }
 
 /** Copies `window` rows of `source` into `target` with its top-left at `x`, `y`. */
@@ -412,58 +609,69 @@ function blit(source, target, x, y, window) {
  */
 function panelLayout(panelWidth, panelCount) {
   if (panelCount < 2) return LAYOUT.SINGLE;
-  return panelWidth * 2 + PANEL_GUTTER_WIDTH <= EMBED_MAX_WIDTH
-    ? LAYOUT.SIDE_BY_SIDE
-    : LAYOUT.STACKED;
+  const across =
+    panelWidth * panelCount + PANEL_GUTTER_WIDTH * (panelCount - 1);
+  return across <= EMBED_MAX_WIDTH ? LAYOUT.SIDE_BY_SIDE : LAYOUT.STACKED;
 }
 
 /**
- * Rows one panel may cover. A stacked pair draws the window twice, so it
- * gets half of the composite's ceiling; anything else gets all of it.
+ * Rows one panel may cover. Stacked panels divide the composite's ceiling
+ * between them, so adding the highlight panel costs height rather than
+ * doubling the file; anything else gets the ceiling whole.
  */
-function panelHeightBudget(layout) {
-  return layout === LAYOUT.STACKED
-    ? Math.floor((MAX_COMPOSITE_HEIGHT - PANEL_GUTTER_WIDTH) / 2)
-    : MAX_COMPOSITE_HEIGHT;
+function panelHeightBudget(layout, panelCount) {
+  if (layout !== LAYOUT.STACKED) return MAX_COMPOSITE_HEIGHT;
+  const gutters = PANEL_GUTTER_WIDTH * (panelCount - 1);
+  return Math.floor((MAX_COMPOSITE_HEIGHT - gutters) / panelCount);
 }
 
 /**
- * Stitches the two sides into one image - before first, in whichever
- * direction `panelLayout` picked - and reports how much of the screen's
- * height that image ended up covering.
+ * Stitches the sides into one image - before, after, and where it changed -
+ * in whichever direction `panelLayout` picked, and reports how much of the
+ * screen's height that image ended up covering.
  *
- * A missing side (an added or removed screen) renders as one panel.
+ * A missing side (an added or removed screen) renders as one panel, and so
+ * takes no highlight: there is nothing to have changed against.
  */
 function composeBeforeAfter(baseline, candidate) {
   const present = [baseline, candidate].filter((png) => png !== null);
   if (present.length === 0) throw new Error("Neither side of the pair was readable.");
 
-  const panelWidth = Math.max(...present.map((png) => png.width));
-  const layout = panelLayout(panelWidth, present.length);
-  const band = baseline && candidate ? changedRowBand(baseline, candidate) : null;
-  const fullHeight = Math.max(...present.map((png) => png.height));
-  const window = cropWindow(band, fullHeight, panelHeightBudget(layout));
+  const pair = baseline !== null && candidate !== null;
+  const band = pair ? changedRowBand(baseline, candidate) : null;
+  const regions = pair ? changedRegions(baseline, candidate) : [];
+  const panels = regions.length > 0
+    ? [...present, highlightPanel(candidate, regions)]
+    : present;
 
-  const stacked = layout === LAYOUT.STACKED;
-  const width = layout === LAYOUT.SIDE_BY_SIDE
-    ? panelWidth * 2 + PANEL_GUTTER_WIDTH
-    : panelWidth;
-  const height = stacked
-    ? window.height * 2 + PANEL_GUTTER_WIDTH
-    : window.height;
+  const panelWidth = Math.max(...present.map((png) => png.width));
+  const layout = panelLayout(panelWidth, panels.length);
+  const fullHeight = Math.max(...present.map((png) => png.height));
+  const window = cropWindow(
+    band,
+    fullHeight,
+    panelHeightBudget(layout, panels.length),
+  );
+
+  const across = layout === LAYOUT.SIDE_BY_SIDE;
+  const gutters = PANEL_GUTTER_WIDTH * (panels.length - 1);
+  const width = across ? panelWidth * panels.length + gutters : panelWidth;
+  const height = across ? window.height : window.height * panels.length + gutters;
   const composite = new PNG({ width, height });
   fill(composite, PANEL_PADDING_COLOUR);
 
-  if (layout === LAYOUT.SIDE_BY_SIDE) {
-    paintRect(composite, panelWidth, 0, PANEL_GUTTER_WIDTH, height, PANEL_GUTTER_COLOUR);
-    blit(baseline, composite, 0, 0, window);
-    blit(candidate, composite, panelWidth + PANEL_GUTTER_WIDTH, 0, window);
-  } else if (stacked) {
-    paintRect(composite, 0, window.height, width, PANEL_GUTTER_WIDTH, PANEL_GUTTER_COLOUR);
-    blit(baseline, composite, 0, 0, window);
-    blit(candidate, composite, 0, window.height + PANEL_GUTTER_WIDTH, window);
-  } else {
-    blit(present[0], composite, 0, 0, window);
+  const step = (across ? panelWidth : window.height) + PANEL_GUTTER_WIDTH;
+  for (const [index, panel] of panels.entries()) {
+    const offset = index * step;
+    if (index > 0) {
+      const gutterAt = offset - PANEL_GUTTER_WIDTH;
+      if (across) {
+        paintRect(composite, gutterAt, 0, PANEL_GUTTER_WIDTH, height, PANEL_GUTTER_COLOUR);
+      } else {
+        paintRect(composite, 0, gutterAt, width, PANEL_GUTTER_WIDTH, PANEL_GUTTER_COLOUR);
+      }
+    }
+    blit(panel, composite, across ? offset : 0, across ? 0 : offset, window);
   }
 
   return {
@@ -473,6 +681,7 @@ function composeBeforeAfter(baseline, candidate) {
       total: fullHeight,
       clipped: window.clipped,
       layout,
+      panels: panels.length,
     },
   };
 }
@@ -554,12 +763,20 @@ async function composeComposite(reportDir, surface, name) {
  * a caption that says "on the left" over a stacked pair is worse than none.
  */
 const PANEL_ORDER_NOTE = {
-  [LAYOUT.SIDE_BY_SIDE]: "before on the left, after on the right",
-  [LAYOUT.STACKED]: "before on top, after underneath",
+  [LAYOUT.SIDE_BY_SIDE]: {
+    2: "before on the left, after on the right",
+    3: "left to right: before, after, and what changed ringed in red",
+  },
+  [LAYOUT.STACKED]: {
+    2: "before on top, after underneath",
+    3: "top to bottom: before, after, and what changed ringed in red",
+  },
 };
 
 function panelOrderNote(coverage) {
-  return PANEL_ORDER_NOTE[coverage?.layout] ?? PANEL_ORDER_NOTE[LAYOUT.SIDE_BY_SIDE];
+  const byCount =
+    PANEL_ORDER_NOTE[coverage?.layout] ?? PANEL_ORDER_NOTE[LAYOUT.SIDE_BY_SIDE];
+  return byCount[coverage?.panels === 3 ? 3 : 2];
 }
 
 function screenCaption(result, coverage) {
@@ -608,10 +825,16 @@ function screenAltText(screen, coverage) {
   const stem = screen.name.replace(/\.png$/, "");
   if (screen.status === STATUS.ADDED) return `${stem}, this PR only`;
   if (screen.status === STATUS.REMOVED) return `${stem}, merge-base only`;
-  const where =
-    coverage?.layout === LAYOUT.STACKED
-      ? "on top and this PR underneath"
-      : "on the left and this PR on the right";
+
+  const stacked = coverage?.layout === LAYOUT.STACKED;
+  if (coverage?.panels === 3) {
+    return stacked
+      ? `${stem}, merge-base on top, this PR below it, and the changed areas ringed underneath`
+      : `${stem}, merge-base on the left, this PR in the middle, and the changed areas ringed on the right`;
+  }
+  const where = stacked
+    ? "on top and this PR underneath"
+    : "on the left and this PR on the right";
   return `${stem}, merge-base ${where}`;
 }
 
@@ -918,6 +1141,7 @@ async function main() {
 // once, and each is invisible in the rendered comment when it regresses -
 // a wrong crop still produces a picture, just not of the change.
 export {
+  changedRegions,
   changedRowBand,
   composeBeforeAfter,
   cropWindow,
