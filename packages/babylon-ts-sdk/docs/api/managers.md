@@ -1694,6 +1694,20 @@ Key format: "txid:vout" (e.g. "abc123...def:0").
 When provided, matching inputs skip the mempool API fetch.
 Useful for split transactions where outputs are unconfirmed.
 
+##### depositTerms?
+
+```ts
+optional depositTerms: DepositTerms;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+Approved deposit terms. REQUIRED when `config.btcWallet` supports deposit
+approval (`supportsDepositApproval`) — the device signs the Pre-PegIn only
+from an approved intent matching this tx. Pass `PreparePeginResult.
+depositTerms` for fresh flows, or a resume rebuild. For non-approval
+wallets it is ignored, but still validated against the tx's txid if given.
+
 ***
 
 ### PopSignature

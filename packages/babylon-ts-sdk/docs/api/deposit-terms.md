@@ -286,6 +286,9 @@ provider). Provider obligations:
 
 Seam invariant: any derive invalidates a prior approval, so the SDK
 re-approves after every derive and before the next terms-bound signature.
+The re-approval sites are `PeginManager.preparePegin`,
+`runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
+which derives immediately before approving — see `ensurePrePeginTermsApproval`).
 
 #### Methods
 
@@ -433,6 +436,105 @@ peginMaxFee: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
+***
+
+### PrePeginApprovalWallet
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+Minimal structural wallet for the Pre-PegIn ceremony. Mirrors
+`DeriveContextHashCapableWallet` so an app-side wrapper object qualifies
+without implementing all of `BitcoinWallet`. Both methods are optional so
+the capability probe below can run on any wallet.
+
+#### Methods
+
+##### deriveContextHash()?
+
+```ts
+optional deriveContextHash(appName, context): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### appName
+
+`string`
+
+###### context
+
+`string`
+
+###### Returns
+
+`Promise`\<`string`\>
+
+##### approveDepositTerms()?
+
+```ts
+optional approveDepositTerms(terms): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### EnsurePrePeginTermsApprovalParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+#### Properties
+
+##### wallet
+
+```ts
+wallet: PrePeginApprovalWallet;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+##### depositTerms
+
+```ts
+depositTerms: DepositTerms | undefined;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+The approved terms — required for approval-capable wallets, ignored (but still txid-checked) otherwise.
+
+##### fundedPrePeginTxHex
+
+```ts
+fundedPrePeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+Funded Pre-PegIn tx hex (0x optional): the funding outpoints AND the txid the terms must match.
+
+##### depositorBtcPubkey
+
+```ts
+depositorBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+x-only depositor pubkey (64 hex, 0x optional) — the identity the PSBT is signed with.
+
 ## Type Aliases
 
 ### DepositTermsRejectionReason
@@ -538,6 +640,42 @@ errors that `instanceof` cannot see.
 #### Returns
 
 `err is DepositTermsRejectedError`
+
+***
+
+### ensurePrePeginTermsApproval()
+
+```ts
+function ensurePrePeginTermsApproval(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+Run the derive → approve ceremony (or a no-op) before a Pre-PegIn signature.
+
+- Non-approval wallets: no-op, after asserting the terms (if any) match the tx.
+- Approval-capable wallets: require terms, assert they match this tx's txid,
+  derive the vault root over the tx's funding outpoints, then approve.
+
+Always derives first: the host cannot read device state, a one-shot cap means
+every retry needs the full ceremony, and whether interleaved signing
+nullifies a loaded intent is unresolved — so the broadcast path never
+approves-only.
+
+#### Parameters
+
+##### params
+
+[`EnsurePrePeginTermsApprovalParams`](#ensureprepegintermsapprovalparams)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+#### Throws
+
+If approval-capable but no terms are provided, or the provided terms
+  are for a different transaction.
 
 ## Variables
 

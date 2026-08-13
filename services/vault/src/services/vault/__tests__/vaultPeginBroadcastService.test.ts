@@ -1,4 +1,8 @@
 import { pushTx } from "@babylonlabs-io/ts-sdk";
+import {
+  DepositTermsRejectedError,
+  type DepositTerms,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { assertPsbtUnsignedTxMatches } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +44,9 @@ const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
         outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
         version: 2,
         locktime: 0,
+        // Only the approval-ceremony path reads this; non-approval tests
+        // short-circuit before it.
+        getId: () => "cc".repeat(32),
       },
       mockInput: input,
     };
@@ -361,5 +368,84 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     );
 
     expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
+  // Matches mockTx.getId() so the terms bind to the tx being broadcast.
+  const CEREMONY_TXID = "cc".repeat(32);
+  const pubkey = "ab".repeat(32);
+
+  const makeTerms = (): DepositTerms => ({
+    vaultCoreVersion: 2,
+    protocolFeeRate: 2n,
+    timelockPegin: 684,
+    timelockAssert: 684,
+    timelockRefund: 2016,
+    prepeginTxid: CEREMONY_TXID,
+    prepeginMaxFee: 1500n,
+    vaultKeeperBtcPubkeys: ["cc".repeat(32)],
+    universalChallengerBtcPubkeys: ["dd".repeat(32)],
+    vaults: [
+      {
+        htlcVout: 0,
+        vaultProviderBtcPubkey: "ff".repeat(32),
+        peginAmount: 1_000_000n,
+        commissionFee: 10_000n,
+        depositorClaimValue: 20_000n,
+        peginMaxFee: 800n,
+      },
+    ],
+  });
+
+  it("runs the derive→approve ceremony before signing for an approval wallet", async () => {
+    const order: string[] = [];
+    const wallet = {
+      signPsbt: vi.fn(async (psbtHex: string) => {
+        order.push("sign");
+        return psbtHex;
+      }),
+      deriveContextHash: vi.fn(async () => {
+        order.push("derive");
+        return "ab".repeat(32);
+      }),
+      approveDepositTerms: vi.fn(async () => {
+        order.push("approve");
+      }),
+    };
+
+    const txid = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+    });
+
+    expect(order).toEqual(["derive", "approve", "sign"]);
+    expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
+    expect(txid).toBe("mock-txid");
+  });
+
+  it("rethrows a device-envelope rejection unwrapped, without signing", async () => {
+    const signPsbt = vi.fn();
+    const rejection = new DepositTermsRejectedError("user declined on device");
+    const wallet = {
+      signPsbt,
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {
+        throw rejection;
+      }),
+    };
+
+    await expect(
+      broadcastPrePeginTransaction({
+        unsignedTxHex: "deadbeef",
+        btcWalletProvider: wallet,
+        depositorBtcPubkey: pubkey,
+        depositTerms: makeTerms(),
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(signPsbt).not.toHaveBeenCalled();
   });
 });
