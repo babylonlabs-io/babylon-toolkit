@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import BIP322 from "@/core/utils/bip322";
+import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { generateP2TRAddressFromXpub, toNetwork } from "@/core/utils/wallet";
 import { canonicalNetworkName } from "@/core/wallets/btc/keystone/canonicalNetworkName";
 import { connectedLeafKeyPath } from "@/core/wallets/btc/keystone/connectedKeyPath";
@@ -368,7 +369,10 @@ export class KeystoneProvider implements IBTCProvider {
       return signedPsbt;
     }
 
-    // Default - finalize all inputs for transaction broadcasting
+    // Default - finalize all inputs for transaction broadcasting. Finalizing a
+    // taproot key-spend input rebuilds the p2tr payment to derive its witness,
+    // and p2tr validates the output key against the curve.
+    initBTCCurve();
     signedPsbt.finalizeAllInputs();
     return signedPsbt;
   };

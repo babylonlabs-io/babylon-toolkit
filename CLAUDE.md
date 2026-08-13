@@ -11,11 +11,12 @@ Monorepo (pnpm workspaces) for Babylon's Bitcoin vault frontend. Users lock BTC 
 - `packages/wallet-connector` — Multi-chain wallet abstraction (BTC + ETH)
 - `packages/core-ui` — Shared UI component library
 - `packages/ts-sdk` — TypeScript SDK for protocol interaction
+- `packages/babylon-ledger-vault-signer` — Host-side client for the Ledger Babylon Vault app (device protocol only; wallet-connector adapts it)
 
 ### Build Prerequisites
 
 - Node 24 via nvm (`nvm use 24`), pnpm via Corepack
-- Must rebuild `core-ui` and `ts-sdk` before vault build (stale `dist/` is a common issue)
+- Must rebuild `core-ui` and `ts-sdk` before vault build, and `babylon-ledger-vault-signer` before wallet-connector tests (stale `dist/` is a common issue)
 
 ## Build & Test Commands
 
@@ -87,30 +88,29 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Split outputs must be sized exactly and broadcast in order. Incorrect sizing starves one vault or fails the whole deposit after commitment.
 - **Rule:** Assert `sum(splitOutputs) === totalDeposit - fees` before signing. Assert broadcast ordering with explicit sequence checks, not array iteration order.
 
-### 7. Non-standard wallet signing options
+### 7. Ledger vault signer package
+
+- Directory: `packages/babylon-ledger-vault-signer/src/`
+- Host-side client for the Ledger vault app: APDU framing, the intent-ceremony TLV encoder, the device envelope gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. The intent the depositor approves on-device is built here; an encoding bug ships wrong terms to a hardware signer.
+- **Rule:** TLV encodings and APDU layouts must cite their firmware/reference-client source and carry golden-vector tests. The envelope gate must reject out-of-range terms with the seam's typed error BEFORE any device I/O. Never log payload bytes.
+
+### 8. Non-standard wallet signing options
 
 - File: `packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts`
 - Uses `useTweakedSigner: false` and `autoFinalized: false` for taproot script-path spends. Wallet support is inconsistent; silent failures produce invalid signatures.
 - **Rule:** Validate every signature produced with these flags against the expected sighash before treating the PSBT as signed. Do not rely on the wallet returning success.
 
-### 8. Dependency-free reimplementations of Bitcoin primitives
+### 9. Dependency-free reimplementations of Bitcoin primitives
 
-These paths are registered ahead of the code arriving (see #2228 / #2229). Separating the Ethereum-only
-paths from the Bitcoin stack means some primitives get reimplemented without `bitcoinjs-lib`,
-`tiny-secp256k1` or the WASM engine. Each one is small, and each one fails silently: the code compiles,
-the tests pass, and a wrong address or a wrong on-chain identifier ships.
+These paths are registered ahead of the code arriving (see #2228 / #2229). Separating the Ethereum-only paths from the Bitcoin stack means some primitives get reimplemented without `bitcoinjs-lib`, `tiny-secp256k1` or the WASM engine. Each one is small, and each one fails silently: the code compiles, the tests pass, and a wrong address or a wrong on-chain identifier ships.
 
 - Files (arriving with the optional-BTC work):
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — transaction-id parsing and vault-id derivation, replacing the bitcoinjs and WASM implementations
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — Ethereum-side registration extracted from `PeginManager`
   - `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now crosses
-  - `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts` — the restructured engine entry surface (the `@stability frozen` rules in section 1 still apply)
+  - `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts` — the restructured engine entry surface (the `@stability frozen` rules in section 4 still apply)
   - `services/vault/src/utils/btc/scriptPubKeyAddress.ts` — hand-written bech32, bech32m and base58check encoding
-- **Rule:** A reimplementation may not land without a differential test asserting byte-for-byte equality
-  against the implementation it replaces, over the existing golden vectors **plus** randomised inputs. A
-  single hardcoded vector is not sufficient — it pins one input, not the function. If the original is
-  being deleted in the same change, the differential must run against it before deletion, and the vectors
-  it produced must be committed as fixtures.
+- **Rule:** A reimplementation may not land without a differential test asserting byte-for-byte equality against the implementation it replaces, over the existing golden vectors **plus** randomised inputs. A single hardcoded vector is not sufficient — it pins one input, not the function. If the original is being deleted in the same change, the differential must run against it before deletion, and the vectors it produced must be committed as fixtures.
 
 ---
 
@@ -238,6 +238,7 @@ the tests pass, and a wrong address or a wrong on-chain identifier ships.
 
 ## SECURITY
 
+- **Security models live next to the code they describe.** A security-critical component carries a `SECURITY_MODEL.md` at its root, stating what that component must protect, against whom, and under which assumptions. Before changing a component, read the nearest `SECURITY_MODEL.md` at or above the files you are touching. A model that has been reviewed by its component owner is binding: treat its invariants as constraints on the change rather than as a checklist to satisfy afterwards. A model still marked *pending component-owner review* is informative — read it, and raise a conflict with it on the PR rather than treating it as settled. **When no component model exists at or above those files, the repository-level [`SECURITY.md`](SECURITY.md) applies** — it covers `packages/babylon-ts-sdk` and `packages/babylon-tbv-rust-wasm` in depth, which is where most of the critical paths above are actually enforced. Component coverage is being added incrementally; the absence of a component model is not evidence that a component is uncritical, and never leaves a change unconstrained.
 - **Never log sensitive key material** — no `console.log` of private keys, derived secrets, or signing data.
 - **Wallet inputs**: Validate all data received from wallet APIs before use.
 - **GraphQL/RPC responses**: Never trust external data for security decisions without validation.

@@ -8,21 +8,26 @@
  * threw, and the connect handler reported "Connection Failed" and dropped the
  * wallet. Nothing in the suite loaded the connector cold, so it went unnoticed.
  *
- * These tests import the helpers into a fresh module registry and never call
- * `initEccLib`, so they fail if the package stops setting up its own curve.
+ * These tests clear bitcoinjs-lib's curve registration before each case and
+ * never register a working one themselves, so they fail if the package stops
+ * setting up its own curve.
  */
 
 // @vitest-environment node
 // The asmjs ECC library fails bitcoinjs's verifyEcc fixtures under jsdom but
 // passes under node. These tests touch no DOM, so pin the file to node.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initEccLib } from "bitcoinjs-lib";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { Network } from "@/core/types";
 
 /** BIP-86 first-address vector: x-only key and its published P2TR addresses. */
 const XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
 const MAINNET_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
+
+/** The same vector's scriptPubKey: OP_1 and the BIP-341 tweak of XONLY, not XONLY itself. */
+const MAINNET_SCRIPT_PUBKEY = "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c";
 
 /**
  * A different but genuinely valid x-only key (the secp256k1 generator's
@@ -32,17 +37,20 @@ const MAINNET_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpx
 const OTHER_XONLY = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
 /**
- * Re-import the module under test with no prior curve registration in this
- * module registry, mirroring a cold page load.
+ * Import the module under test. `beforeEach` has already cleared bitcoinjs-lib's
+ * curve registration, so this mirrors a cold page load.
  */
 async function loadWalletUtils() {
-  vi.resetModules();
   return import("@/core/utils/wallet");
 }
 
 describe("taproot derivation without host-side curve setup", () => {
   beforeEach(() => {
-    vi.resetModules();
+    // bitcoinjs-lib is external to vitest's module registry, so its curve cache
+    // is the state that has to be cleared — `vi.resetModules()` would not touch
+    // it, and would additionally reset any module-level "already initialised"
+    // memo, hiding the case where the package registers the curve only once.
+    initEccLib(undefined);
   });
 
   it("derives the published BIP-86 mainnet address", async () => {
@@ -82,8 +90,8 @@ describe("taproot derivation without host-side curve setup", () => {
       toNetwork(Network.MAINNET),
     );
 
-    expect(address).toMatch(/^bc1p/);
-    expect(publicKeyHex).toMatch(/^[0-9a-f]{66}$/);
-    expect(scriptPubKeyHex).toMatch(/^5120[0-9a-f]{64}$/);
+    expect(address).toBe(MAINNET_ADDRESS);
+    expect(publicKeyHex).toBe(`03${XONLY}`);
+    expect(scriptPubKeyHex).toBe(MAINNET_SCRIPT_PUBKEY);
   });
 });

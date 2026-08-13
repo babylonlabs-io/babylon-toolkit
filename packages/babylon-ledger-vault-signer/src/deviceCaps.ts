@@ -5,9 +5,9 @@
  * and a dead session, so we fail comprehensibly BEFORE the ceremony.
  *
  * These are device-envelope limits only — none exist on-chain or in
- * btc-vault. They live in this adapter; the SDK must never learn them.
+ * btc-vault. They live in this signer package; the SDK must never learn them.
  *
- * @module wallets/btc/ledger-vault/deviceCaps
+ * @module ledger-vault-signer/deviceCaps
  */
 
 /**
@@ -25,9 +25,9 @@ export const DEVICE_MAX_PARTICIPANTS_PER_ROLE = 32;
 export const DEVICE_MAX_VAULTS_PER_INTENT = 10;
 
 /**
- * Fee-rate cap (sat/vB): the intent parser rejects > UINT32_MAX
- * (`vault_tlv.c`). The `>= 1` floor next to it is the contract invariant,
- * not a device check — the firmware parses rate 0 fine.
+ * Fee-rate bounds (sat/vB): the intent parser rejects rate == 0 AND
+ * rate > UINT32_MAX (`vault_tlv.c:73`), so the `>= 1` floor is both a device
+ * check and the contract invariant.
  */
 export const DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB = 0xffffffffn;
 
@@ -70,8 +70,10 @@ export const DEVICE_MIN_DEPOSITOR_CLAIM_VALUE_SATS = DEVICE_VAULT_DUST_LIMIT_SAT
 export const DEVICE_PEGIN_AMOUNT_DUST_MULTIPLE = 2n;
 
 /**
- * The device hardcodes the tx-graph v2 PegIn shape. A v1 intent LOADS fine
- * and only fails at PSBT time — after the user physically approved — so we
- * refuse v1 before any device I/O.
+ * The ONLY tx-graph version this firmware can complete. The intent TLV
+ * carries no core-version field, so the device cannot reject a mismatched
+ * graph at load — the intent approves on-screen and signing fails at PSBT
+ * time. Any other version (v1 or a future v3) must be refused before device
+ * I/O, hence an exact match, not a floor.
  */
-export const DEVICE_MIN_VAULT_CORE_VERSION = 2;
+export const DEVICE_SUPPORTED_VAULT_CORE_VERSION = 2;

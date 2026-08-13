@@ -52,6 +52,7 @@ import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI, handleContractError } from "../contracts";
 import {
   buildDepositTerms,
+  ensurePrePeginTermsApproval,
   supportsDepositApproval,
   type DepositTerms,
 } from "../deposit-terms";
@@ -426,6 +427,15 @@ export interface SignAndBroadcastParams {
    * Useful for split transactions where outputs are unconfirmed.
    */
   localPrevouts?: Record<string, { scriptPubKey: string; value: number }>;
+
+  /**
+   * Approved deposit terms. REQUIRED when `config.btcWallet` supports deposit
+   * approval (`supportsDepositApproval`) — the device signs the Pre-PegIn only
+   * from an approved intent matching this tx. Pass `PreparePeginResult.
+   * depositTerms` for fresh flows, or a resume rebuild. For non-approval
+   * wallets it is ignored, but still validated against the tx's txid if given.
+   */
+  depositTerms?: DepositTerms;
 }
 
 /**
@@ -1194,6 +1204,18 @@ export class PeginManager {
         value: output.value,
       });
     }
+
+    // Step 3.5: intent-wallet ceremony (derive → approve) immediately before
+    // signing. Placed after prevout resolution — a network failure there must
+    // not burn a two-screen device ceremony — and adjacent to signPsbt to keep
+    // the approve→sign gap minimal (the seam invariant). No-op for wallets that
+    // do not support deposit approval.
+    await ensurePrePeginTermsApproval({
+      wallet: this.config.btcWallet,
+      depositTerms: params.depositTerms,
+      fundedPrePeginTxHex,
+      depositorBtcPubkey,
+    });
 
     // Step 4: Sign PSBT via wallet
     const requestedPsbtHex = psbt.toHex();

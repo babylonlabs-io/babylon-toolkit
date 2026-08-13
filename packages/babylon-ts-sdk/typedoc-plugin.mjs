@@ -2,8 +2,20 @@
  * TypeDoc plugin for customizing the generated API documentation
  *
  * This plugin adds helpful navigation and context to the auto-generated
- * API documentation, making it easier for developers to find what they need.
+ * API documentation, making it easier for developers to find what they need,
+ * and strips line numbers from source references.
  */
+import { MarkdownPageEvent } from "typedoc-plugin-markdown";
+
+/** `Defined in: [path/foo.ts:53](url/foo.ts#L53)` — line number in both halves. */
+const LINKED_SOURCE_REF =
+  /^(Defined in: \[[^\]]+?):\d+(\]\([^)]+?)#L\d+(\))$/gm;
+
+/** `Defined in: .../dist/index.d.ts:100` — unlinked, since `dist/` is gitignored. */
+const UNLINKED_SOURCE_REF = /^(Defined in: (?!\[)\S+?):\d+$/gm;
+
+const SOURCE_REF_WITH_LINE = /^Defined in:.*?:\d+.*$/gm;
+
 export function load(app) {
   // Add description and quick links at the beginning of the index page
   app.renderer.markdownHooks.on("index.page.begin", () => {
@@ -35,5 +47,30 @@ export function load(app) {
 ---
 
 `;
+  });
+
+  /**
+   * Drop line numbers from source references, keeping the file link.
+   *
+   * `docs/api/` is committed, so line numbers made any code movement restale
+   * 1,401 lines of it (#2196). The throw below is because these patterns depend
+   * on typedoc-plugin-markdown's output format: if that changes, fail loudly
+   * rather than silently letting the churn back in.
+   */
+  app.renderer.on(MarkdownPageEvent.END, (page) => {
+    if (typeof page.contents !== "string") return;
+
+    page.contents = page.contents
+      .replace(LINKED_SOURCE_REF, "$1$2$3")
+      .replace(UNLINKED_SOURCE_REF, "$1");
+
+    const stale = page.contents.match(SOURCE_REF_WITH_LINE);
+    if (stale) {
+      throw new Error(
+        `typedoc-plugin.mjs: ${stale.length} source reference(s) in ${page.url} ` +
+          `still carry a line number (e.g. ${stale[0]}) — the patterns above no ` +
+          `longer match what typedoc-plugin-markdown emits.`,
+      );
+    }
   });
 }

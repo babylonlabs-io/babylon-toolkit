@@ -104,7 +104,7 @@ rubric below.
     (`services/vault/index.html`, `services/vault/src/build/sriPlugin.ts`)
   - Install policy: frozen lockfile, store integrity verification, `minimumReleaseAge`, and the
     `onlyBuiltDependencies` allowlist (`.npmrc`, `pnpm-workspace.yaml`)
-- **High-risk areas (extra review):** the seven critical-path groups enumerated in
+- **High-risk areas (extra review):** the nine critical-path groups enumerated in
   [CLAUDE.md → CRITICAL PATHS](CLAUDE.md#critical-paths--human-review-required) and mirrored in
   [`.github/CODEOWNERS`](.github/CODEOWNERS), plus:
   - `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/` — the whole untrusted-counterparty
@@ -233,7 +233,10 @@ The real SDK model and dApp estimator are covered by
 critical-path inventory is hand-maintained in five places: this file, CLAUDE.md, CODEOWNERS,
 `critical-path-check.yml`, and `claude-md-drift.yml`. Update all five together when a path moves or
 is added. The scheduled drift workflow checks that listed paths exist and reports missing entries to
-a tracker issue, but it does not block a pull request.
+a tracker issue, but it does not block a pull request. A group may be registered before its files
+exist — section 9 is registered ahead of the optional-BTC work (#2228) — so that the guard evaluates
+the new list on the pull request that moves the code; those paths stay in the drift workflow's
+`pending` list until the files land.
 
 ### Presigning the depositor graph
 
@@ -259,6 +262,15 @@ Two further invariants, both asymmetric in their failure mode:
 Signatures produced are verified against the expected sighash
 (`primitives/psbt/verifyScriptPathSchnorrSignature.ts`) rather than trusted because the wallet
 returned success.
+
+### The Ledger vault signer package
+
+`packages/babylon-ledger-vault-signer/src/` is the host-side client for the Ledger vault app: APDU
+framing, the intent-ceremony TLV encoder the depositor physically approves, the device envelope
+gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. A wrong encoding here puts wrong terms
+in front of a hardware signer with a trusted screen — the user approves what we built, so building
+it wrong defeats the device. Encodings cite firmware/reference-client sources and carry
+golden-vector tests; payload bytes are never logged.
 
 ### Non-standard wallet signing flags
 
@@ -680,7 +692,9 @@ roles have different review requirements. Satisfy both.
   bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
   a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
-  no longer exist, and reports them to a tracker issue. It detects drift but does not gate merges;
+  no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
+  `pending` list that is exempt from the existence check and reported separately once the files land.
+  It detects drift but does not gate merges;
   acting on the tracker or moving the existence check into `verify.yml` is still a human process.
 
 ### E2E secrets
@@ -734,7 +748,7 @@ only repository-local safeguards.
 | ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` on every crossing; independent cross-check                     | `babylon-tbv-rust-wasm` value-guard tests                         |
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
-| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | All current paths are aligned; the scheduled existence check reports missing paths but does not gate merges     | CLAUDE.md, CODEOWNERS, both critical-path workflows               |
+| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 is pre-registered ahead of #2228; the existence check does not gate merges  | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |

@@ -34,7 +34,5 @@
   "navigationLinks": {
     "Quickstart": "../quickstart/",
     "GitHub": "https://github.com/babylonlabs-io/babylon-toolkit"
-  },
-  "includeVersion": true,
-  "sourceLinkTemplate": "../../{path}#L{line}"
+  }
 }

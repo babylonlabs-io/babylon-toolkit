@@ -7,8 +7,6 @@ import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { COMPRESSED_PUBLIC_KEY_HEX_LENGTH, toXOnlyPublicKeyHex } from "@/core/utils/publicKey";
 import { ERROR_CODES, WalletError } from "@/error";
 
-export { COMPRESSED_PUBLIC_KEY_HEX_LENGTH, toXOnlyPublicKeyHex };
-
 const NETWORKS = {
   [Network.MAINNET]: {
     name: "Mainnet",

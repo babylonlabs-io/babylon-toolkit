@@ -22,7 +22,8 @@ jobs:
         id: analyze
         run: |
           set -e
-          # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
+          # `paths` and `pending` below are one inventory. Keep their union in
+          # sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
           # .github/CODEOWNERS, and .github/workflows/critical-path-check.yml.
           paths=(
             "packages/babylon-tbv-rust-wasm/src/index.ts"
@@ -40,6 +41,17 @@ jobs:
             "services/vault/src/services/vault/vaultActivationService.ts"
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
+            "packages/babylon-ledger-vault-signer/src/"
+          )
+
+          # Registered in CLAUDE.md > "CRITICAL PATHS" section 9, CODEOWNERS and
+          # critical-path-check.yml ahead of the code arriving (see #2228), so the
+          # guard evaluates the new list rather than the old one for the PR that
+          # moves value-bearing code. They are deliberately kept out of `paths`
+          # above: the existence check below would otherwise report every one of
+          # them as a deleted critical file, every week, until the code lands.
+          # Move an entry up into `paths` in the PR that creates the file.
+          pending=(
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
             "packages/babylon-ts-sdk/src/tbv/core/wasm/"
@@ -55,22 +67,32 @@ jobs:
             [ -e "$p" ] || echo "$p" >> missing.txt
           done
 
+          # A pending path that now exists has landed and belongs in `paths`.
+          : > promote.txt
+          for p in "${pending[@]}"; do
+            if [ -e "$p" ]; then
+              echo "$p" >> promote.txt
+            fi
+          done
+
           since="$(date -u -d '7 days ago' '+%Y-%m-%d' 2>/dev/null || date -u -v-7d '+%Y-%m-%d')"
           echo "Scanning commits since $since"
           : > touched.txt
-          for p in "${paths[@]}"; do
+          for p in "${paths[@]}" "${pending[@]}"; do
             while IFS='|' read -r hash subject; do
               [ -z "$hash" ] && continue
               echo "${p}|${hash}|${subject}" >> touched.txt
-            done < <(git log --since="$since" --pretty=format:"%H|%s" origin/main -- "$p")
+            done < <(git log --since="$since" --pretty=tformat:"%H|%s" origin/main -- "$p")
           done
 
           has_signal=false
           [ -s missing.txt ] && has_signal=true
+          [ -s promote.txt ] && has_signal=true
           [ -s touched.txt ] && has_signal=true
           echo "has_signal=${has_signal}" >> "$GITHUB_OUTPUT"
 
           echo "=== missing paths ==="; cat missing.txt || true
+          echo "=== pending paths that have landed ==="; cat promote.txt || true
           echo "=== commits touching critical paths ==="; cat touched.txt || true
 
       - name: Post drift report
@@ -80,6 +102,7 @@ jobs:
           script: |
             const fs = require('fs');
             const missing = fs.readFileSync('missing.txt', 'utf8').trim();
+            const promote = fs.readFileSync('promote.txt', 'utf8').trim();
             const touched = fs.readFileSync('touched.txt', 'utf8').trim();
             const marker = '<!-- claude-md-drift-tracker -->';
             const title = 'CLAUDE.md drift tracker';
@@ -91,6 +114,13 @@ jobs:
               sections.push('### Missing paths');
               sections.push('Paths referenced in CLAUDE.md / CODEOWNERS / CI no longer exist. Update or restore:');
               missing.split('\n').forEach(p => sections.push(`- \`${p}\``));
+              sections.push('');
+            }
+
+            if (promote) {
+              sections.push('### Pending paths that have landed');
+              sections.push('Registered in CLAUDE.md / CODEOWNERS / CI ahead of the code, and the files now exist. Move them from `pending` to `paths` in `claude-md-drift.yml`:');
+              promote.split('\n').forEach(p => sections.push(`- \`${p}\``));
               sections.push('');
             }
 

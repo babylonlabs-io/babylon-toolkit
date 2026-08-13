@@ -8,7 +8,7 @@ Pure helpers for the primitives and services layers. No wallet, no network, no c
 
 ### UtxoNotAvailableError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Error thrown when UTXOs are not available.
 
@@ -24,7 +24,7 @@ Error thrown when UTXOs are not available.
 new UtxoNotAvailableError(missingUtxos): UtxoNotAvailableError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 ###### Parameters
 
@@ -50,13 +50,13 @@ Error.constructor
 readonly missingUtxos: MissingUtxoInfo[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:54](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 ## Interfaces
 
 ### CombinedAbortSignal
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:7](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L7)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts)
 
 #### Properties
 
@@ -66,7 +66,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:7](../..
 signal: AbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:8](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L8)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts)
 
 ##### cleanup()
 
@@ -74,7 +74,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:8](../..
 cleanup: () => void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L10)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts)
 
 Remove listeners from the source signals. Call once the request settles.
 
@@ -86,7 +86,7 @@ Remove listeners from the source signals. Call once the request settles.
 
 ### PsbtInputFields
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 PSBT input fields for supported script types (P2TR, P2WPKH, P2WSH).
 
@@ -98,7 +98,7 @@ PSBT input fields for supported script types (P2TR, P2WPKH, P2WSH).
 optional witnessUtxo: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 ###### script
 
@@ -118,7 +118,7 @@ value: number;
 optional witnessScript: Buffer<ArrayBufferLike>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 ##### tapInternalKey?
 
@@ -126,13 +126,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:2
 optional tapInternalKey: Buffer<ArrayBufferLike>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 ***
 
 ### UtxoForPsbt
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 UTXO information for PSBT construction.
 
@@ -146,7 +146,7 @@ Only supports Taproot (P2TR) and native SegWit (P2WPKH, P2WSH) script types.
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 Transaction ID of the UTXO
 
@@ -156,7 +156,7 @@ Transaction ID of the UTXO
 vout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 Output index (vout) of the UTXO
 
@@ -166,7 +166,7 @@ Output index (vout) of the UTXO
 value: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 Value of the UTXO in satoshis
 
@@ -176,7 +176,7 @@ Value of the UTXO in satoshis
 scriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 ScriptPubKey of the UTXO (hex string)
 
@@ -186,7 +186,7 @@ ScriptPubKey of the UTXO (hex string)
 optional witnessScript: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 Witness script (required for P2WSH)
 
@@ -194,7 +194,7 @@ Witness script (required for P2WSH)
 
 ### WaitForTransactionReceiptSmartAwareParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L40)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 #### Properties
 
@@ -204,7 +204,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 publicClient: object;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L41)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 ##### walletAddress
 
@@ -212,7 +212,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 walletAddress: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 ##### hash
 
@@ -220,7 +220,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 hash: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 ##### confirmations?
 
@@ -228,7 +228,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 optional confirmations: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 ##### timeout?
 
@@ -236,7 +236,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 optional timeout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:49](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L49)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 Forwarded to viem on the EOA (externally owned account) path.
 Ignored on the smart-account path — see safePollTimeoutMs.
@@ -247,7 +247,7 @@ Ignored on the smart-account path — see safePollTimeoutMs.
 optional safePollTimeoutMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:51](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L51)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 Total budget for waiting on Safe quorum + execution. Default 4h.
 
@@ -257,7 +257,7 @@ Total budget for waiting on Safe quorum + execution. Default 4h.
 optional safePollIntervalMs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 Poll cadence against the Safe Transaction Service. Default 5s.
 
@@ -265,7 +265,7 @@ Poll cadence against the Safe Transaction Service. Default 5s.
 
 ### ComputeBaseFeeParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 #### Properties
 
@@ -275,7 +275,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:23](
 numInputs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ##### numOutputs
 
@@ -283,7 +283,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:24](
 numOutputs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Number of outputs in the unfunded transaction (HTLC vault outputs +
 CPFP anchor + optional auth-anchor OP_RETURN). Excludes the change
@@ -296,13 +296,13 @@ separately.
 feeRate: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:32](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L32)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ***
 
 ### ApplyChangeOutputPolicyParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L75)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 #### Properties
 
@@ -312,7 +312,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:75](
 totalInputValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:76](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L76)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ##### peginAmount
 
@@ -320,7 +320,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:76](
 peginAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ##### baseFee
 
@@ -328,7 +328,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:77](
 baseFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:78](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L78)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ##### changeOutputFee
 
@@ -336,13 +336,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:78](
 changeOutputFee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L79)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ***
 
 ### ChangeOutputPolicyResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L82)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 #### Properties
 
@@ -352,7 +352,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:82](
 fee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:84](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L84)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Final transaction fee (sats).
 
@@ -362,7 +362,7 @@ Final transaction fee (sats).
 changeAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:90](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L90)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Final change amount (sats). 0n when no change output is emitted.
 When `emitChangeOutput` is false, the would-be change is paid to
@@ -374,7 +374,7 @@ miners as part of `fee` — i.e. it is dust by policy.
 emitChangeOutput: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:92](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L92)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Whether the funded transaction must include a change output.
 
@@ -382,7 +382,7 @@ Whether the funded transaction must include a change output.
 
 ### ComputeMaxDepositParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:149](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 #### Properties
 
@@ -392,7 +392,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:149]
 numInputs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:150](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L150)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ##### numOutputs
 
@@ -400,7 +400,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:150]
 numOutputs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:157](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L157)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Number of outputs in the unfunded transaction. Use the worst-case
 count for the use case being budgeted (e.g. max-batch with
@@ -413,7 +413,7 @@ and assumes no change output.
 totalBalance: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:158](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L158)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ##### feeRate
 
@@ -421,13 +421,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:158]
 feeRate: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:159](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L159)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 ***
 
 ### FundPeginTransactionParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 #### Properties
 
@@ -437,7 +437,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTra
 unfundedTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Unfunded transaction hex from SDK (0 inputs, vault + depositor claim outputs)
 
@@ -447,7 +447,7 @@ Unfunded transaction hex from SDK (0 inputs, vault + depositor claim outputs)
 selectedUTXOs: UTXO[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:27](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L27)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Selected UTXOs to use as inputs
 
@@ -457,7 +457,7 @@ Selected UTXOs to use as inputs
 changeAddress: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Change address (from wallet)
 
@@ -467,7 +467,7 @@ Change address (from wallet)
 changeAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Change amount in satoshis
 
@@ -477,7 +477,7 @@ Change amount in satoshis
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Bitcoin network
 
@@ -485,7 +485,7 @@ Bitcoin network
 
 ### ParsedOutput
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 A single parsed output from the unfunded WASM transaction
 
@@ -497,7 +497,7 @@ A single parsed output from the unfunded WASM transaction
 value: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 ##### script
 
@@ -505,13 +505,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTra
 script: Buffer;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:39](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L39)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 ***
 
 ### UtxoRef
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Reference to a Bitcoin UTXO by its outpoint (txid + vout).
 
@@ -528,7 +528,7 @@ lowercase hex.
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 ##### vout
 
@@ -536,13 +536,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:24]
 vout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 ***
 
 ### MissingUtxoInfo
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Information about a missing/spent UTXO.
 
@@ -554,7 +554,7 @@ Information about a missing/spent UTXO.
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Transaction ID of the missing UTXO
 
@@ -564,7 +564,7 @@ Transaction ID of the missing UTXO
 vout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Output index of the missing UTXO
 
@@ -572,7 +572,7 @@ Output index of the missing UTXO
 
 ### UtxoValidationResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L41)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Result of UTXO validation.
 
@@ -584,7 +584,7 @@ Result of UTXO validation.
 allAvailable: boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Whether all UTXOs are still available
 
@@ -594,7 +594,7 @@ Whether all UTXOs are still available
 missingUtxos: MissingUtxoInfo[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 List of missing UTXOs (if any)
 
@@ -604,7 +604,7 @@ List of missing UTXOs (if any)
 totalInputs: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L47)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Total number of inputs checked
 
@@ -612,7 +612,7 @@ Total number of inputs checked
 
 ### PendingPeginLike
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 Locally-known pending pegin. `id` is the bytes32 vault id.
 
@@ -624,7 +624,7 @@ Locally-known pending pegin. `id` is the bytes32 vault id.
 optional id: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ##### unsignedTxHex?
 
@@ -632,13 +632,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:23](
 optional unsignedTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ***
 
 ### VaultLike
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L28)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 On-chain vault row from the indexer.
 
@@ -650,7 +650,7 @@ On-chain vault row from the indexer.
 optional id: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:29](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L29)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ##### status
 
@@ -658,7 +658,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:29](
 status: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:30](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L30)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ##### unsignedPrePeginTx
 
@@ -666,13 +666,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:30](
 unsignedPrePeginTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ***
 
 ### FindOverlappingPendingVaultsParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:34](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L34)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 #### Properties
 
@@ -682,7 +682,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:34](
 selectedOutpoints: readonly UtxoRef[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ##### vaults?
 
@@ -690,7 +690,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:35](
 optional vaults: readonly VaultLike[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:36](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L36)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ##### pendingPegins?
 
@@ -698,13 +698,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:36](
 optional pendingPegins: readonly PendingPeginLike[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 ***
 
 ### UTXO
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L19)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Unspent Transaction Output (UTXO) for funding peg-in transactions.
 
@@ -716,7 +716,7 @@ Unspent Transaction Output (UTXO) for funding peg-in transactions.
 txid: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Transaction ID of the UTXO (64-char hex without 0x prefix).
 
@@ -726,7 +726,7 @@ Transaction ID of the UTXO (64-char hex without 0x prefix).
 vout: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:28](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L28)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Output index within the transaction.
 
@@ -736,7 +736,7 @@ Output index within the transaction.
 value: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:33](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L33)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Value in satoshis.
 
@@ -746,7 +746,7 @@ Value in satoshis.
 scriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:38](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L38)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Script public key hex.
 
@@ -754,7 +754,7 @@ Script public key hex.
 
 ### UTXOSelectionResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:41](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L41)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 #### Properties
 
@@ -764,7 +764,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:41](
 selectedUTXOs: UTXO[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 ##### totalValue
 
@@ -772,7 +772,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:42](
 totalValue: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:43](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L43)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 ##### fee
 
@@ -780,7 +780,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:43](
 fee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:44](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L44)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 ##### changeAmount
 
@@ -788,7 +788,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:44](
 changeAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 ## Functions
 
@@ -798,7 +798,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:45](
 function getNetwork(network): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:330](../../packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L330)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts)
 
 Map SDK network type to bitcoinjs-lib Network object.
 
@@ -824,7 +824,7 @@ bitcoinjs-lib Network object
 function combineAbortSignals(signals): CombinedAbortSignal;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts:24](../../packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts#L24)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/abortSignals.ts)
 
 Compose several AbortSignals into one that aborts when any input aborts,
 propagating the reason of whichever fired first.
@@ -854,7 +854,7 @@ outright on those browsers.
 function getPsbtInputFields(utxo, publicKeyNoCoord?): PsbtInputFields;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts:53](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts#L53)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/psbtInputFields.ts)
 
 Get PSBT input fields for a given UTXO based on its script type.
 
@@ -892,7 +892,7 @@ Error if required input data is missing or unsupported script type
 function getScriptType(scriptPubKey): BitcoinScriptType;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:35](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L35)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 Detect the type of a Bitcoin script.
 
@@ -927,7 +927,7 @@ if (scriptType === BitcoinScriptType.P2TR) {
 function waitForTransactionReceiptSmartAware(params): Promise<TransactionReceipt>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
 #### Parameters
 
@@ -947,7 +947,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionRe
 function rateBasedTxBufferFee(feeRate): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:37](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Adds a buffer to the transaction fee calculation if the fee rate is low.
 
@@ -977,7 +977,7 @@ Buffer amount in satoshis to add to the transaction fee
 function peginOutputCount(vaultCount, hasAuthAnchor): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:77](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Compute the total number of outputs (before change) in a Pre-PegIn
 transaction.
@@ -1024,7 +1024,7 @@ If `vaultCount` is not a positive integer.
 function computePeginBaseFeeSats(params): bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:42](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Compute the base fee (sats) for a Pre-PegIn transaction with no change
 output, including the low-fee-rate buffer.
@@ -1050,7 +1050,7 @@ decides whether to add the incremental change-output fee.
 function computeChangeOutputFeeSats(feeRate): bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:71](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Incremental fee (sats) for adding one P2TR-sized change output at the
 given fee rate. Does NOT include the low-fee-rate buffer — that is part
@@ -1074,7 +1074,7 @@ of the base fee, paid once per transaction.
 function applyChangeOutputPolicy(params): ChangeOutputPolicyResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:115](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L115)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Apply the change-output dust policy: emit a change output iff the
 post-change-output-fee residual strictly exceeds DUST_THRESHOLD.
@@ -1115,7 +1115,7 @@ If `totalInputValue < peginAmount + baseFee` (insufficient funds
 function computeMaxDeposit(params): bigint | null;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts:170](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts#L170)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
 
 Compute the maximum depositable amount (sats) given a fixed-cost
 sweep: every UTXO is spent, no change output is emitted, fee is the
@@ -1142,7 +1142,7 @@ alone exceeds the balance.
 function createTaprootScriptPathSignOptions(publicKey, inputCount): SignPsbtOptions;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts#L15)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts)
 
 Create SignPsbtOptions for Taproot script-path PSBT signing.
 
@@ -1178,7 +1178,7 @@ Number of inputs to sign. Generates entries
 function calculateBtcTxHash(txHex): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/btcTxHash.ts:23](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/btcTxHash.ts#L23)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/btcTxHash.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/btcTxHash.ts)
 
 Calculate Bitcoin transaction hash
 
@@ -1210,7 +1210,7 @@ The transaction hash as Hex (with 0x prefix)
 function parseUnfundedWasmTransaction(unfundedTxHex): ParsedUnfundedTx;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:64](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L64)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Parses an unfunded transaction hex from WASM.
 
@@ -1248,7 +1248,7 @@ Error if transaction structure is invalid
 function fundPeginTransaction(params): string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts:129](../../packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts#L129)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts)
 
 Funds an unfunded peg-in transaction by adding inputs and change output.
 
@@ -1278,7 +1278,7 @@ Transaction hex string ready for wallet signing
 function extractInputsFromTransaction(unsignedTxHex): object[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:75](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L75)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Extract input references (txid:vout) from an unsigned transaction.
 
@@ -1304,7 +1304,7 @@ Array of input references
 function validateUtxosAvailable(unsignedTxHex, availableUtxos): UtxoValidationResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L109)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Validate that all UTXOs in a transaction are still available.
 
@@ -1340,7 +1340,7 @@ Validation result with missing UTXO details
 function assertUtxosAvailable(unsignedTxHex, availableUtxos): void;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts:168](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts#L168)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
 Validate UTXOs and throw if any are not available.
 
@@ -1380,7 +1380,7 @@ Error if validation fails
 function findOverlappingPendingVaults(params): string[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts#L61)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
 
 Return the ids of pending vaults whose committed Pre-PegIn inputs
 overlap any of the just-selected outpoints. On-chain `PENDING` vaults
@@ -1408,7 +1408,7 @@ function selectUtxosForPegin(
    numOutputs): UTXOSelectionResult;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L87)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Selects UTXOs to fund a peg-in transaction with iterative fee calculation.
 
@@ -1466,7 +1466,7 @@ Error if insufficient funds or no valid UTXOs
 function shouldAddChangeOutput(changeAmount): boolean;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:176](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L176)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Checks if change amount is above dust threshold.
 
@@ -1492,7 +1492,7 @@ true if change should be added as output, false if it should go to miners
 function getDustThreshold(): number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts:185](../../packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts#L185)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
 
 Gets the dust threshold value.
 
@@ -1506,7 +1506,7 @@ Dust threshold in satoshis
 
 ### BitcoinScriptType
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:12](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L12)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 Bitcoin script types.
 
@@ -1518,7 +1518,7 @@ Bitcoin script types.
 P2PKH: "P2PKH";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:13](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L13)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 ##### P2SH
 
@@ -1526,7 +1526,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:13](..
 P2SH: "P2SH";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:14](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L14)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 ##### P2WPKH
 
@@ -1534,7 +1534,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:14](..
 P2WPKH: "P2WPKH";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:15](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L15)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 ##### P2WSH
 
@@ -1542,7 +1542,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:15](..
 P2WSH: "P2WSH";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 ##### P2TR
 
@@ -1550,7 +1550,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:16](..
 P2TR: "P2TR";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:17](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L17)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 ##### UNKNOWN
 
@@ -1558,7 +1558,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:17](..
 UNKNOWN: "UNKNOWN";
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:18](../../packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts#L18)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts)
 
 ## Variables
 
@@ -1568,7 +1568,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/btc/scriptType.ts:18](..
 const P2TR_INPUT_SIZE: 58 = 58;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:7](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L7)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Fee calculation constants for Bitcoin transactions.
 Based on btc-staking-ts values, adapted for vault peg-in transactions.
@@ -1581,7 +1581,7 @@ Based on btc-staking-ts values, adapted for vault peg-in transactions.
 const MAX_NON_LEGACY_OUTPUT_SIZE: 43 = 43;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:10](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L10)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 ***
 
@@ -1591,7 +1591,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:10](../
 const TX_BUFFER_SIZE_OVERHEAD: 11 = 11;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:13](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L13)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 ***
 
@@ -1601,7 +1601,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:13](../
 const BTC_DUST_SAT: 546 = 546;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:16](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L16)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 ***
 
@@ -1611,7 +1611,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:16](../
 const DUST_THRESHOLD: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:19](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L19)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Pre-computed BigInt dust threshold to avoid repeated conversions in hot paths
 
@@ -1623,7 +1623,7 @@ Pre-computed BigInt dust threshold to avoid repeated conversions in hot paths
 const LOW_RATE_ESTIMATION_ACCURACY_BUFFER: 30 = 30;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:22](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 ***
 
@@ -1633,7 +1633,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:22](../
 const WALLET_RELAY_FEE_RATE_THRESHOLD: 2 = 2;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:25](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L25)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 ***
 
@@ -1643,7 +1643,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:25](../
 const PEGIN_FIXED_OUTPUTS: 1 = 1;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:47](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L47)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Number of always-present fixed (non-HTLC) outputs in a Pre-PegIn
 transaction. Currently this is 1 CPFP anchor output.
@@ -1656,7 +1656,7 @@ transaction. Currently this is 1 CPFP anchor output.
 const PEGIN_AUTH_ANCHOR_OUTPUTS: 1 = 1;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L56)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Size of the auth-anchor `OP_RETURN` output when committed into a
 Pre-PegIn. The output carries `OP_RETURN <PUSH32 hash>` = 34 script
@@ -1672,7 +1672,7 @@ toward the fee-estimation output budget.
 const SPLIT_TX_FEE_SAFETY_MULTIPLIER: 5 = 5;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:99](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L99)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple
@@ -1687,7 +1687,7 @@ catching catastrophic wallet-side overpayment.
 const MAX_REASONABLE_PEGIN_VBYTES: 100000n = 100_000n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts:109](../../packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts#L109)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
 
 Binary-independent cap on the implied per-HTLC reserve
 (`htlcValue - peginAmount - depositorClaimValue`): the exact identity in
@@ -1704,7 +1704,7 @@ at 99 VKs + 99 UCs), so it can never false-positive.
 const HEX_RE: RegExp;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:9](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L9)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
 
 Non-empty string of hexadecimal characters (case-insensitive).
 
@@ -1716,7 +1716,7 @@ Non-empty string of hexadecimal characters (case-insensitive).
 const TXID_RE: RegExp;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:12](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L12)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
 
 Bitcoin txid: exactly 64 hex characters (32 bytes).
 
@@ -1728,7 +1728,7 @@ Bitcoin txid: exactly 64 hex characters (32 bytes).
 const BITCOIN_ADDRESS_RE: RegExp;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:21](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L21)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
 
 Bitcoin address format gate: 25–90 alphanumeric characters.
 Covers legacy (P2PKH/P2SH), bech32 (P2WPKH/P2WSH), bech32m (P2TR),
@@ -1744,7 +1744,7 @@ This is a format gate to prevent path-traversal — not full address validation.
 const KNOWN_SCRIPT_PREFIXES: readonly ["76a914", "a914", "0014", "0020", "5120"];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:31](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
 
 Known Bitcoin scriptPubKey prefixes:
 - P2PKH:  76a914...88ac (25 bytes)
@@ -1761,7 +1761,7 @@ Known Bitcoin scriptPubKey prefixes:
 const MAX_REASONABLE_FEE_SATS: 1000000n = 1_000_000n;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts#L45)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
 
 Upper bound on the implied miner fee (0.01 BTC = 1,000,000 sats).
 Catches inflated input values from a compromised mempool API — if inputs are

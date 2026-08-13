@@ -11,6 +11,12 @@
 // passes under node (ts-sdk's setup.ts runs the identical init there). These
 // tests touch no DOM, so pin the file to node.
 
+import type { DepositTerms } from "@babylonlabs-io/ledger-vault-signer";
+import {
+  LedgerDeviceError,
+  LedgerDeviceLockedError,
+  LedgerUserRefusedError,
+} from "@babylonlabs-io/ledger-vault-signer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Network } from "@/core/types";
@@ -32,9 +38,17 @@ const dmkSessionMock = vi.hoisted(() => ({
   disconnectDmkSession: vi.fn(async () => {}),
   isSessionAlive: vi.fn(async () => true),
 }));
-vi.mock("../dmkSession", () => dmkSessionMock);
 
-vi.mock("../dmkApduSender", () => ({
+const derivationMock = vi.hoisted(() => ({
+  getXOnlyPublicKeyHex: vi.fn(async () => VECTOR_XONLY),
+}));
+
+// Partial mock: the DMK/device layers are stubbed, everything protocol-shaped
+// (envelope gate, TLV encoding, DepositTermsRejectedError) stays real.
+vi.mock("@babylonlabs-io/ledger-vault-signer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@babylonlabs-io/ledger-vault-signer")>()),
+  ...dmkSessionMock,
+  ...derivationMock,
   createDmkApduSender: () => async (apdu: { ins: number; p1: number; data: Uint8Array }) => {
     if (h.failNext) throw h.failNext;
     h.sent.push({ ins: apdu.ins, p1: apdu.p1, data: apdu.data });
@@ -42,13 +56,7 @@ vi.mock("../dmkApduSender", () => ({
   },
 }));
 
-const derivationMock = vi.hoisted(() => ({
-  getXOnlyPublicKeyHex: vi.fn(async () => VECTOR_XONLY),
-}));
-vi.mock("../derivation", () => derivationMock);
-
 import { LedgerVaultProvider } from "../provider";
-import type { DepositTerms } from "../types";
 
 const TERMS: DepositTerms = {
   vaultCoreVersion: 2,
@@ -152,6 +160,88 @@ describe("LedgerVaultProvider", () => {
     expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(2);
   });
 
+  it("re-reads the pubkey and resets intent state on a dead-session reconnect", async () => {
+    // A different device may be plugged in: the old pubkey and intent state
+    // must not survive the reconnect.
+    const provider = await derived();
+    await provider.approveDepositTerms(TERMS);
+    await provider.getAddress();
+    derivationMock.getXOnlyPublicKeyHex.mockClear();
+
+    dmkSessionMock.isSessionAlive.mockResolvedValueOnce(false); // connect's own liveness probe
+    dmkSessionMock.isSessionAlive.mockResolvedValue(true);
+    await provider.connectWallet();
+
+    await provider.getAddress();
+    expect(derivationMock.getXOnlyPublicKeyHex).toHaveBeenCalledTimes(1);
+    await expect(provider.approveDepositTerms(TERMS)).rejects.toThrow(/DERIVE_CONTEXT_HASH/);
+  });
+
+  it("shares one session across concurrent connectWallet calls", async () => {
+    // A double-click must not open — and leak — a second HID session.
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    await Promise.all([provider.connectWallet(), provider.connectWallet()]);
+
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a reconnect whose liveness probe raced a disconnect", async () => {
+    // disconnect() during the isSessionAlive await must cancel the in-flight
+    // reconnect — no new session opened behind the disconnected wallet.
+    const provider = await connected();
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(1);
+
+    let resolveAlive: (v: boolean) => void = () => {};
+    dmkSessionMock.isSessionAlive.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveAlive = resolve;
+      }),
+    );
+
+    const reconnecting = provider.connectWallet();
+    await provider.disconnect(); // races the liveness probe
+    resolveAlive(false);
+    await reconnecting;
+
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(1); // no new session
+    await expect(provider.getAddress()).rejects.toThrow(/not connected/);
+  });
+
+  it("tears down a session whose connect raced a disconnect, leaving the wallet disconnected", async () => {
+    // disconnect() during the connectDmkSession await bumps the generation;
+    // the resolved session must be torn down, not installed behind a
+    // disconnected wallet (a leaked HID connection).
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    let resolveConnect: (session: typeof h.session) => void = () => {};
+    dmkSessionMock.connectDmkSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConnect = resolve;
+      }),
+    );
+
+    const connecting = provider.connectWallet();
+    await provider.disconnect(); // races the pending connect
+    resolveConnect(h.session);
+    await connecting;
+
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(h.session);
+    await expect(provider.getAddress()).rejects.toThrow(/not connected/);
+  });
+
+  it("clears the in-flight connect memo after a failure so a retry can connect", async () => {
+    // The identity-guarded finally must release the memo on rejection too, or
+    // the provider would be wedged unable to reconnect.
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    dmkSessionMock.connectDmkSession.mockRejectedValueOnce({
+      _tag: "NoAccessibleDeviceError",
+      originalError: new Error("boom"),
+    });
+
+    await expect(provider.connectWallet()).rejects.toThrow(WalletError);
+    await expect(provider.connectWallet()).resolves.toBeUndefined();
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(2);
+  });
+
   it.each(["signPsbt", "signPsbts", "signMessage"])(
     "fails %s with a capability error rather than a wrong result",
     async (method) => {
@@ -176,7 +266,7 @@ describe("LedgerVaultProvider", () => {
     h.sent.length = 0;
 
     await expect(provider.approveDepositTerms({ ...TERMS, vaultCoreVersion: 1 })).rejects.toThrow(
-      /vaultCoreVersion 1 is below 2/,
+      /vaultCoreVersion 1 is not 2/,
     );
     expect(h.sent).toHaveLength(0);
   });
@@ -198,6 +288,33 @@ describe("LedgerVaultProvider", () => {
     expect(approveApdus().map((s) => s.p1)).toEqual([0x00, 0x01, 0x02]);
   });
 
+  it("rejects a malformed hex context before deriving", async () => {
+    // Buffer.from truncates silently, so a bad context would derive a root over
+    // a shorter preimage — every secret wrong, nothing on the device screen.
+    const provider = await connected();
+    h.sent.length = 0;
+
+    await expect(provider.deriveContextHash("app", "zz".repeat(32))).rejects.toThrow(/even-length lowercase hex/);
+    await expect(provider.deriveContextHash("app", "abc")).rejects.toThrow(/even-length lowercase hex/);
+    expect(h.sent).toHaveLength(0);
+  });
+
+  it("reads the key at the signet BIP-86 leaf and stamps coinType 1 into the intent", async () => {
+    // Pins COIN_TYPE_BY_NETWORK + depositorPath: a swapped mainnet/testnet map
+    // would read the wrong key and encode the wrong coin type.
+    const HARDENED = 0x80000000;
+    const provider = await derived();
+    await provider.approveDepositTerms(TERMS);
+
+    expect(derivationMock.getXOnlyPublicKeyHex).toHaveBeenCalledWith(
+      expect.anything(),
+      [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0],
+      expect.anything(),
+    );
+    // TAG_COIN_TYPE 0x0021, len 0x04, u32BE(1) in the scalars APDU.
+    expect(Buffer.from(approveApdus()[0].data).toString("hex")).toContain("00210400000001");
+  });
+
   it("reverses the txid into the internal order the device compares against", async () => {
     const provider = await derived();
     await provider.approveDepositTerms(TERMS);
@@ -206,6 +323,19 @@ describe("LedgerVaultProvider", () => {
     // 32-byte value ends with "…11aa".
     const scalars = Buffer.from(approveApdus()[0].data).toString("hex");
     expect(scalars).toContain(`0027 20 ${"11".repeat(31)}aa`.replace(/ /g, ""));
+  });
+
+  it("rejects terms whose roster reuses the depositor's own key before the ceremony", async () => {
+    // VECTOR_XONLY is the device pubkey; the firmware rejects this only after
+    // the whole ceremony, so the provider pre-empts it as a shaped error before
+    // any approval APDU (approveApdus is empty).
+    const provider = await derived();
+    h.sent.length = 0;
+
+    await expect(
+      provider.approveDepositTerms({ ...TERMS, vaultKeeperBtcPubkeys: [VECTOR_XONLY] }),
+    ).rejects.toMatchObject({ name: "DepositTermsRejectedError", reason: "device-envelope" });
+    expect(approveApdus()).toHaveLength(0);
   });
 
   it("rejects a malformed pubkey in the terms with the seam's error shape", async () => {
@@ -258,6 +388,26 @@ describe("LedgerVaultProvider", () => {
     expect(h.sent).toHaveLength(0);
   });
 
+  it("treats a reordered-but-identical roster as the same intent", async () => {
+    // The encoder sorts rosters before the wire, so a caller-order permutation
+    // produces byte-identical APDUs — it must be a no-op, not a false
+    // "different intent" rejection.
+    const twoKeeperTerms = {
+      ...TERMS,
+      vaultKeeperBtcPubkeys: ["cc".repeat(32), "ee".repeat(32)],
+    };
+    const provider = await derived();
+    await provider.approveDepositTerms(twoKeeperTerms);
+    const afterFirst = approveApdus().length;
+
+    await provider.approveDepositTerms({
+      ...twoKeeperTerms,
+      vaultKeeperBtcPubkeys: ["ee".repeat(32), "cc".repeat(32)],
+    });
+
+    expect(approveApdus()).toHaveLength(afterFirst);
+  });
+
   it("does not re-run the ceremony for a byte-equal re-approval", async () => {
     // The SDK approves once in preparePegin and again in runDepositorPresignFlow;
     // the device admits only one ceremony per DERIVE_CONTEXT_HASH.
@@ -279,6 +429,20 @@ describe("LedgerVaultProvider", () => {
     h.sent.length = 0;
 
     await expect(provider.approveDepositTerms({ ...TERMS, prepeginMaxFee: 1600n })).rejects.toThrow(
+      /Restart the flow from derivation/,
+    );
+    expect(approveApdus()).toHaveLength(0);
+  });
+
+  it.each([
+    ["a changed pegin amount", { vaults: [{ ...TERMS.vaults[0], peginAmount: 999_999n }] }],
+    ["a swapped keeper key", { vaultKeeperBtcPubkeys: ["ab".repeat(32)] }],
+  ])("rejects %s while an intent is loaded — the fingerprint is value-sensitive", async (_label, override) => {
+    const provider = await derived();
+    await provider.approveDepositTerms(TERMS);
+    h.sent.length = 0;
+
+    await expect(provider.approveDepositTerms({ ...TERMS, ...override })).rejects.toThrow(
       /Restart the flow from derivation/,
     );
     expect(approveApdus()).toHaveLength(0);
@@ -358,6 +522,60 @@ describe("LedgerVaultProvider", () => {
     h.sent.length = 0;
     await provider.approveDepositTerms(TERMS);
     expect(approveApdus().length).toBeGreaterThan(0);
+  });
+
+  it("refuses to commit intent state when the connection changed mid-ceremony", async () => {
+    // A disconnect+reconnect racing an await inside approveDepositTerms must not
+    // land 'intent-loaded' on the fresh connection. The swap re-derives on the
+    // new connection, so the phase check passes — ONLY the generation guard can
+    // catch the stale-sender commit, which is what this pins.
+    const provider = await derived();
+    let swapped = false;
+    dmkSessionMock.isSessionAlive.mockImplementation(async () => {
+      if (!swapped) {
+        swapped = true;
+        await provider.disconnect();
+        await provider.connectWallet();
+        await provider.deriveContextHash("app", "aa".repeat(32));
+      }
+      return true;
+    });
+
+    await expect(provider.approveDepositTerms(TERMS)).rejects.toThrow(/connection changed/);
+  });
+
+  it("maps a non-Error DMK transport failure onto a WalletError", async () => {
+    // DMK errors are plain {_tag, originalError} objects; unmapped they reach
+    // the app as "[object Object]".
+    const provider = await connected();
+    h.failNext = { _tag: "DeviceSessionNotFound", originalError: { message: "device unplugged" } } as unknown as Error;
+
+    await expect(provider.deriveContextHash("app", "aa".repeat(32))).rejects.toMatchObject({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      wallet: "Ledger Vault",
+      message: "device unplugged",
+    });
+  });
+
+  it.each([
+    ["a device decline", new LedgerUserRefusedError(0x6985), ERROR_CODES.CONNECTION_REJECTED],
+    ["a locked device", new LedgerDeviceLockedError(0x5515), ERROR_CODES.CONNECTION_FAILED],
+    [
+      "a generic device rejection",
+      new LedgerDeviceError(0x6f42, "The device rejected the request"),
+      ERROR_CODES.UNKNOWN_ERROR,
+    ],
+  ])("maps %s onto the connector's WalletError taxonomy", async (_label, typedError, code) => {
+    // The signer package throws typed errors; the provider's one mapping seam
+    // must translate them, or user-cancellation classification breaks app-side.
+    const provider = await connected();
+    h.failNext = typedError;
+
+    await expect(provider.deriveContextHash("app", "aa".repeat(32))).rejects.toMatchObject({
+      code,
+      wallet: "Ledger Vault",
+      message: typedError.message,
+    });
   });
 
   it("has no inscriptions and no account-change event to subscribe to", async () => {

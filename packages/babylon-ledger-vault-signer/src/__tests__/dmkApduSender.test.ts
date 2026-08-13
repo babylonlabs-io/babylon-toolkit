@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { ERROR_CODES } from "@/error";
+import { LEDGER_DEVICE_ERROR_NAME, LEDGER_DEVICE_LOCKED_ERROR_NAME, LEDGER_USER_REFUSED_ERROR_NAME } from "../errors";
 
 import { createDmkApduSender } from "../dmkApduSender";
 import type { DmkSessionHandle } from "../dmkSession";
@@ -93,7 +93,10 @@ describe("createDmkApduSender", () => {
       p2: 0,
       data: new Uint8Array(),
     });
-    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
+    await expect(call).rejects.toMatchObject({
+      name: LEDGER_USER_REFUSED_ERROR_NAME,
+      statusWord: (bytes[0] << 8) | bytes[1],
+    });
     await expect(call).rejects.toThrow(/User rejected/);
   });
 
@@ -106,7 +109,7 @@ describe("createDmkApduSender", () => {
     });
 
     const call = createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0, p2: 0, data: new Uint8Array() });
-    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_FAILED });
+    await expect(call).rejects.toMatchObject({ name: LEDGER_DEVICE_LOCKED_ERROR_NAME, statusWord: 0x5515 });
     await expect(call).rejects.toThrow(/locked/);
   });
 
@@ -129,9 +132,9 @@ describe("createDmkApduSender", () => {
       data: new Uint8Array(),
     });
 
-    await expect(
-      createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0, p2: 0, data: new Uint8Array() }),
-    ).rejects.toThrow(/0x6f42/);
+    const call = createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0, p2: 0, data: new Uint8Array() });
+    await expect(call).rejects.toThrow(/0x6f42/);
+    await expect(call).rejects.toMatchObject({ name: LEDGER_DEVICE_ERROR_NAME, statusWord: 0x6f42 });
   });
 
   it.each([

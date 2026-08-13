@@ -3,7 +3,7 @@
  * packed, ending exactly at Lc. Matched byte-for-byte against Ledger's own
  * reference encoder (`tests/vault_client.py`), not inferred from firmware C.
  *
- * @module wallets/btc/ledger-vault/intentTlv
+ * @module ledger-vault-signer/intentTlv
  */
 
 /** `vault_constants.h:24,30` — both pinned at 1 for the v22 protocol. */

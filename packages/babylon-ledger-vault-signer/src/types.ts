@@ -3,7 +3,7 @@
  * structurally because there is deliberately no dependency edge to the
  * ts-sdk; the cross-package contract is the SHAPE (`DepositTermsApprover`).
  *
- * @module wallets/btc/ledger-vault/types
+ * @module ledger-vault-signer/types
  */
 
 /** One vault group within an intent. Field names follow btc-vault vocabulary. */

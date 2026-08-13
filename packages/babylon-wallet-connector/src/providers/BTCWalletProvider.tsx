@@ -12,7 +12,7 @@ import type { networks } from "bitcoinjs-lib";
 
 import { ACCOUNT_CHANGE_EVENTS, DISCONNECT_EVENT } from "@/constants/walletEvents";
 import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
-import { toXOnlyPublicKeyHex } from "@/core/utils/wallet";
+import { toXOnlyPublicKeyHex } from "@/core/utils/publicKey";
 import {
   BTC_WALLET_LOCK_POLL_INTERVAL_MS,
   classifyBtcAccountsProbe,
