@@ -55,12 +55,13 @@ const MOCK_CURVE: IrmCurvePoint[] = [
 const FULL_HOOK_RESULT = {
   curve: MOCK_CURVE,
   kinkUtilizationPercent: 80,
-  currentUtilizationPercent: 68,
-  currentAprPercent: MOCK_CURRENT_APR,
   maxAprPercent: MOCK_MAX_APR,
   isLoading: false,
   error: null,
 };
+
+/** Live figures the page derives from its 60s reserve reads (68% = 6800 BPS). */
+const MOCK_UTILIZATION_BPS = 6800;
 
 function makeReserve(
   overrides: Partial<AaveReserveConfig["reserve"]> = {},
@@ -89,13 +90,17 @@ function makeReserve(
   };
 }
 
-function renderCard(
-  reserveOverrides: Partial<AaveReserveConfig["reserve"]> = {},
-) {
+function renderCard({
+  reserveOverrides = {},
+  utilizationBps = MOCK_UTILIZATION_BPS,
+}: {
+  reserveOverrides?: Partial<AaveReserveConfig["reserve"]>;
+  utilizationBps?: number | null;
+} = {}) {
   return render(
     <InterestRateModelCard
       reserve={makeReserve(reserveOverrides)}
-      utilizationValue="68%"
+      utilizationBps={utilizationBps}
       symbol="USDC"
     />,
   );
@@ -250,7 +255,7 @@ describe("InterestRateModelCard", () => {
   it("renders normally for a paused reserve, with no special casing", () => {
     vi.mocked(useInterestRateModelCurve).mockReturnValue(FULL_HOOK_RESULT);
 
-    renderCard({ paused: true });
+    renderCard({ reserveOverrides: { paused: true } });
 
     expect(screen.getByText("Optimal (Kink) 80%")).toBeInTheDocument();
     expect(
@@ -258,12 +263,25 @@ describe("InterestRateModelCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders a kink-only chart when the live figures are missing", () => {
+    vi.mocked(useInterestRateModelCurve).mockReturnValue(FULL_HOOK_RESULT);
+
+    const { container } = renderCard({
+      utilizationBps: null,
+    });
+
+    // The cached curve still charts; only the "Current" marker is withheld.
+    expect(container.querySelectorAll(".bbn-line-chart__rule")).toHaveLength(1);
+    expect(screen.getByText("Optimal (Kink) 80%")).toBeInTheDocument();
+    expect(screen.queryByText("Current 68%")).not.toBeInTheDocument();
+    // Header figure degrades to the empty placeholder, never "0%".
+    expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
+  });
+
   it("shows the unavailable message when the curve is null", () => {
     vi.mocked(useInterestRateModelCurve).mockReturnValue({
       curve: null,
       kinkUtilizationPercent: null,
-      currentUtilizationPercent: null,
-      currentAprPercent: null,
       maxAprPercent: null,
       isLoading: false,
       error: new Error("Interest-rate strategy curve read reverted"),
@@ -295,8 +313,6 @@ describe("InterestRateModelCard", () => {
     vi.mocked(useInterestRateModelCurve).mockReturnValue({
       curve: null,
       kinkUtilizationPercent: null,
-      currentUtilizationPercent: null,
-      currentAprPercent: null,
       maxAprPercent: null,
       isLoading: true,
       error: null,

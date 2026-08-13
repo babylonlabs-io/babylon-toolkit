@@ -65,7 +65,8 @@ function setupHub(
     curveLegRevertAt?: number;
     /** Overrides the strategy's optimalUsageRatio (e.g. a RAY-scaled value). */
     optimalUsageOverride?: bigint;
-    /** Added to every curve leg's rate — simulates a deficit contribution. */
+    /** Added to every curve leg's rate — simulates a strategy whose sampled
+     *  rates exceed its own shape ceiling. */
     rateBumpRay?: bigint;
   } = {},
 ) {
@@ -129,7 +130,7 @@ describe("getInterestRateModelCurveSafe", () => {
     multicall.mockReset();
   });
 
-  it("samples every non-current leg as a T-invariant split with swept'=0", async () => {
+  it("samples every leg as a T-invariant split with swept'=0", async () => {
     setupHub({ liquidity: 600n, drawn: 400n, swept: 7n });
 
     const out = await getInterestRateModelCurveSafe({ hub: HUB, assetId: 5 });
@@ -142,44 +143,20 @@ describe("getInterestRateModelCurveSafe", () => {
       (c) => c[0].contracts[0].functionName === "calculateInterestRate",
     )!;
     const legs = curveCall[0].contracts as { args: readonly bigint[] }[];
-    // Current utilization is 400/1007 ≈ 39.72%, its own extra sample distinct
-    // from every 5%-spaced point and the kink. Exclude that one leg (verbatim
-    // live totals, checked separately below) — every other leg must be a
-    // synthetic T-invariant split.
-    const nonCurrentLegs = legs.filter(
-      (leg) =>
-        !(leg.args[1] === 600n && leg.args[2] === 400n && leg.args[4] === 7n),
-    );
-    expect(nonCurrentLegs.length).toBe(legs.length - 1);
-    for (const leg of nonCurrentLegs) {
+    for (const leg of legs) {
       const [, liquidity, drawn, , swept] = leg.args;
       expect(liquidity + drawn).toBe(total);
       expect(swept).toBe(0n);
     }
   });
 
-  it("passes the live totals verbatim for the current-utilization leg", async () => {
-    setupHub({ liquidity: 600n, drawn: 400n, swept: 7n });
-
-    await getInterestRateModelCurveSafe({ hub: HUB, assetId: 5 });
-
-    const curveCall = multicall.mock.calls.find(
-      (c) => c[0].contracts[0].functionName === "calculateInterestRate",
-    )!;
-    const legs = curveCall[0].contracts as {
-      args: readonly [bigint, bigint, bigint, bigint, bigint];
-    }[];
-    const currentLeg = legs.find(
-      (leg) =>
-        leg.args[1] === 600n && leg.args[2] === 400n && leg.args[4] === 7n,
+  it("adds an off-grid kink as its own exact sample, exactly once", async () => {
+    // liquidity+drawn+swept = 1000; a 91% kink is not a 5%-spaced point, so
+    // the sweep must add drawn' = 910 as an extra leg (and only one).
+    setupHub(
+      { liquidity: 100n, drawn: 900n, swept: 0n },
+      { optimalUsageOverride: 9_100n },
     );
-    expect(currentLeg).toBeDefined();
-  });
-
-  it("includes the exact kink and current utilizations exactly once each", async () => {
-    // liquidity+drawn+swept = 1000, drawn = 900 -> current usage = 90.0%,
-    // exactly the configured kink (90%) -> both land on the same sample.
-    setupHub({ liquidity: 100n, drawn: 900n, swept: 0n });
 
     await getInterestRateModelCurveSafe({ hub: HUB, assetId: 5 });
 
@@ -189,8 +166,9 @@ describe("getInterestRateModelCurveSafe", () => {
     const utilizations = (
       curveCall[0].contracts as { args: readonly bigint[] }[]
     ).map((c) => c.args[2]); // drawn' for each leg
-    const at900 = utilizations.filter((d) => d === 900n);
-    expect(at900).toHaveLength(1);
+    expect(utilizations.filter((d) => d === 910n)).toHaveLength(1);
+    // 21 even points + the kink.
+    expect(utilizations).toHaveLength(22);
   });
 
   it("returns the curve sorted ascending by utilization", async () => {
@@ -216,8 +194,6 @@ describe("getInterestRateModelCurveSafe", () => {
     expect(out).toEqual({
       curve: null,
       kinkUtilizationPercent: null,
-      currentUtilizationPercent: null,
-      currentAprPercent: null,
       maxAprPercent: null,
       error: expect.any(Error),
     });
@@ -278,11 +254,10 @@ describe("getInterestRateModelCurveSafe", () => {
     expect(multicall).toHaveBeenCalledTimes(2);
   });
 
-  it("raises maxAprPercent to the sampled ceiling when the deficit pushes the curve above the shape max", async () => {
-    // Every sampled leg carries the live deficit; a strategy that charges for
-    // it can exceed base+growthBefore+growthAfter (64% here). +1% on every
-    // leg puts the top sample at 65% — the reported ceiling must follow, or
-    // the consumer's y domain sits below the curve.
+  it("raises maxAprPercent to the sampled ceiling when a sample exceeds the shape max", async () => {
+    // Nothing forces a strategy to respect base+growthBefore+growthAfter
+    // (64% here). +1% on every leg puts the top sample at 65% — the reported
+    // ceiling must follow, or the consumer's y domain sits below the curve.
     setupHub(
       { liquidity: 600n, drawn: 400n, swept: 0n },
       { rateBumpRay: RAY / 100n },
@@ -294,16 +269,13 @@ describe("getInterestRateModelCurveSafe", () => {
     expect(out.maxAprPercent).toBeCloseTo(65, 6);
   });
 
-  it("converts BPS to percent for kink, current and max APR", async () => {
+  it("converts BPS to percent for kink and max APR", async () => {
     setupHub({ liquidity: 600n, drawn: 400n, swept: 0n });
 
     const out = await getInterestRateModelCurveSafe({ hub: HUB, assetId: 5 });
 
     expect(out.kinkUtilizationPercent).toBeCloseTo(90, 6);
-    expect(out.currentUtilizationPercent).toBeCloseTo(40, 6);
     // base(0%) + growthBefore(4%) + growthAfter(60%) = 64%.
     expect(out.maxAprPercent).toBeCloseTo(64, 6);
-    // Current usage 0.40 (below optimal 0.90): 0.40/0.90 * 4% ≈ 1.778%.
-    expect(out.currentAprPercent).toBeCloseTo(0.04 * (0.4 / 0.9) * 100, 6);
   });
 });

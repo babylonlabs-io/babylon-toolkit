@@ -4,17 +4,23 @@
  *
  * The curve is piecewise-linear in utilization with a single breakpoint (the
  * kink), so sampling only needs: 21 evenly-spaced points (0%, 5%, …, 100%)
- * plus the exact kink and exact live-utilization points. With the breakpoint
- * itself an exact sample, linear interpolation between samples reproduces the
- * true on-chain curve exactly — no off-chain reimplementation of the rate
- * math, same stance as `getProjectedBorrowAprPercentsSafe`.
+ * plus the exact kink point. With the breakpoint itself an exact sample,
+ * linear interpolation between samples reproduces the true on-chain curve
+ * exactly — no off-chain reimplementation of the rate math, same stance as
+ * `getProjectedBorrowAprPercentsSafe`.
  *
  * Sampling exploits that `T = liquidity + drawn + swept` is invariant: for a
  * synthetic sample at utilization `u`, `drawn' = T·u`, `liquidity' = T − drawn'`,
- * `swept' = 0` folds the sweep into liquidity without changing `T`. The one
- * exception is the live-utilization sample, which passes the untouched
- * `(liquidity, drawn, swept)` so it is bit-identical to the Hub's own
- * `getAssetDrawnRate`.
+ * `swept' = 0` folds the sweep into liquidity without changing `T`.
+ *
+ * The result is a pure function of the strategy's governance-set parameters
+ * and the sampled utilization ratios — `calculateInterestRate` ignores its
+ * `deficit` argument (declared but unused in
+ * `AssetInterestRateStrategy.calculateInterestRate`), and `T` cancels out of
+ * the ratio. The curve therefore only changes when governance updates the
+ * strategy, which is why the consuming query caches it for a long window; the
+ * live-utilization marker rides the page's 60s reserve reads instead of this
+ * read (see `useInterestRateModelCurve`).
  */
 
 import type { Abi, Address } from "viem";
@@ -75,13 +81,9 @@ export interface InterestRateModelCurveResult {
   curve: IrmCurvePoint[] | null;
   /** Kink utilization percent from getInterestRateData, or null. */
   kinkUtilizationPercent: number | null;
-  /** Live utilization percent (drawn / (liquidity+drawn+swept)), or null. */
-  currentUtilizationPercent: number | null;
-  /** APR at the live totals — bit-identical to the Hub's getAssetDrawnRate. */
-  currentAprPercent: number | null;
   /**
    * The y-axis ceiling, percent: base+growthBefore+growthAfter, raised to the
-   * highest sampled APR when the live deficit pushes the curve above it.
+   * highest sampled APR when a strategy's rounding puts a sample above it.
    */
   maxAprPercent: number | null;
   error: Error | null;
@@ -90,8 +92,6 @@ export interface InterestRateModelCurveResult {
 const NULL_CURVE_RESULT: Omit<InterestRateModelCurveResult, "error"> = {
   curve: null,
   kinkUtilizationPercent: null,
-  currentUtilizationPercent: null,
-  currentAprPercent: null,
   maxAprPercent: null,
 };
 
@@ -126,7 +126,6 @@ export async function getInterestRateModelCurveSafe({
       error: new Error("Reserve has no supplied liquidity"),
     };
   }
-  const currentBps = (drawn * BPS_SCALE) / totalLiquidity;
 
   let curveData;
   try {
@@ -185,13 +184,12 @@ export async function getInterestRateModelCurveSafe({
     Number(baseDrawnRate + rateGrowthBeforeOptimal + rateGrowthAfterOptimal) /
     BPS_PER_PERCENT;
 
-  // Sample set: 21 even points ∪ { kink, current }, deduplicated and sorted.
+  // Sample set: 21 even points ∪ { kink }, deduplicated and sorted.
   const sampleBpsSet = new Set<bigint>();
   for (let bps = 0n; bps <= BPS_SCALE; bps += BigInt(IRM_SAMPLE_STEP_BPS)) {
     sampleBpsSet.add(bps);
   }
   sampleBpsSet.add(kinkBps);
-  sampleBpsSet.add(currentBps);
   const sortedSampleBps = [...sampleBpsSet].sort((a, b) =>
     a < b ? -1 : a > b ? 1 : 0,
   );
@@ -200,14 +198,9 @@ export async function getInterestRateModelCurveSafe({
   try {
     rateLegs = await publicClient.multicall({
       contracts: sortedSampleBps.map((bps) => {
-        const isCurrent = bps === currentBps;
-        const sampleDrawn = isCurrent
-          ? drawn
-          : (totalLiquidity * bps) / BPS_SCALE;
-        const sampleLiquidity = isCurrent
-          ? liquidity
-          : totalLiquidity - sampleDrawn;
-        const sampleSwept = isCurrent ? swept : 0n;
+        const sampleDrawn = (totalLiquidity * bps) / BPS_SCALE;
+        const sampleLiquidity = totalLiquidity - sampleDrawn;
+        const sampleSwept = 0n;
         return {
           address: irStrategy,
           abi: IR_STRATEGY_ABI as Abi,
@@ -243,16 +236,13 @@ export async function getInterestRateModelCurveSafe({
     aprPercent: rateRayToPercent(rateLegs[i].result as bigint),
   }));
 
-  const currentIndex = sortedSampleBps.findIndex((bps) => bps === currentBps);
-
   return {
     curve,
     kinkUtilizationPercent: Number(kinkBps) / BPS_PER_PERCENT,
-    currentUtilizationPercent: Number(currentBps) / BPS_PER_PERCENT,
-    currentAprPercent: curve[currentIndex].aprPercent,
-    // The shape ceiling ignores the reserve's live deficit, which every
-    // sampled leg carries — clamp so the consumer's y domain can never sit
-    // below a sampled point (the chart SVG is overflow: visible).
+    // The on-chain math rounds rates up (and nothing forces a custom strategy
+    // to respect the shape ceiling), so a sampled point can land above
+    // base+growthBefore+growthAfter — clamp so the consumer's y domain can
+    // never sit below a sampled point (the chart SVG is overflow: visible).
     maxAprPercent: Math.max(
       shapeMaxAprPercent,
       ...curve.map((point) => point.aprPercent),

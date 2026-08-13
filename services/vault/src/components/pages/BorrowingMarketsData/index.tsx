@@ -4,9 +4,10 @@
  * Everything on the page reads from the same three batched Hub queries over
  * `borrowableReserves`: the stats bar and the collateral card show the routed
  * symbol's slice, the table shows every reserve. The two charts fetch their
- * own data independently of that batch: `BorrowRateHistoryCard` queries the
+ * series independently of that batch: `BorrowRateHistoryCard` queries the
  * indexer for a rate time series and `InterestRateModelCard` reads the
- * on-chain IRM curve — both keyed off the page's own `selectedReserve`.
+ * on-chain IRM curve (hour-cached; its live "Current" marker reuses the
+ * batch) — both keyed off the page's own `selectedReserve`.
  */
 
 import { Avatar, Container, Heading, Text } from "@babylonlabs-io/core-ui";
@@ -289,17 +290,15 @@ export default function BorrowingMarketsData() {
       ? COPY.common.emptyValue
       : formatBasisPointsAsPercent(effectiveCollateralFactor * BPS_SCALE);
 
-  // Same derivation the stats bar's "Market utilization" figure reads —
-  // reused rather than re-fetched so the IRM card's header always agrees
-  // with the stats bar above it.
-  const marketUtilizationValue = useMemo(() => {
-    const key = selectedReserve?.reserveId.toString();
-    const liquidity =
-      key === undefined ? null : effectiveLiquidityByReserveId[key];
-    return liquidity?.utilizationBps == null
-      ? COPY.common.emptyValue
-      : formatBasisPointsAsPercent(liquidity.utilizationBps);
-  }, [selectedReserve, effectiveLiquidityByReserveId]);
+  // Same 60s reads the stats bar renders from — the IRM card's header and
+  // "Current" marker reuse them (rather than the card's own hour-cached curve
+  // query) so they always agree with the stats bar above.
+  const selectedReserveKey = selectedReserve?.reserveId.toString();
+  const selectedUtilizationBps =
+    selectedReserveKey === undefined
+      ? null
+      : (effectiveLiquidityByReserveId[selectedReserveKey]?.utilizationBps ??
+        null);
 
   const centered = (message: string) => (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
@@ -428,7 +427,7 @@ export default function BorrowingMarketsData() {
           {selectedReserve !== null && (
             <InterestRateModelCard
               reserve={selectedReserve}
-              utilizationValue={marketUtilizationValue}
+              utilizationBps={selectedUtilizationBps}
               symbol={symbol}
             />
           )}

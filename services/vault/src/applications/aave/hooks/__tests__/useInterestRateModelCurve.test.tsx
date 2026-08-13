@@ -57,8 +57,6 @@ describe("useInterestRateModelCurve", () => {
         { utilizationPercent: 100, aprPercent: 64 },
       ],
       kinkUtilizationPercent: 90,
-      currentUtilizationPercent: 40,
-      currentAprPercent: 1.78,
       maxAprPercent: 64,
       error: null,
     });
@@ -71,8 +69,6 @@ describe("useInterestRateModelCurve", () => {
     await waitFor(() => expect(result.current.curve).not.toBeNull());
     expect(result.current.curve).toHaveLength(3);
     expect(result.current.kinkUtilizationPercent).toBe(90);
-    expect(result.current.currentUtilizationPercent).toBe(40);
-    expect(result.current.currentAprPercent).toBe(1.78);
     expect(result.current.maxAprPercent).toBe(64);
     expect(result.current.error).toBeNull();
     expect(getInterestRateModelCurveSafe).toHaveBeenCalledWith({
@@ -85,8 +81,6 @@ describe("useInterestRateModelCurve", () => {
     vi.mocked(getInterestRateModelCurveSafe).mockResolvedValue({
       curve: null,
       kinkUtilizationPercent: null,
-      currentUtilizationPercent: null,
-      currentAprPercent: null,
       maxAprPercent: null,
       error: new Error("Interest-rate strategy curve read reverted"),
     });
@@ -111,5 +105,47 @@ describe("useInterestRateModelCurve", () => {
     expect(result.current.curve).toBeNull();
     expect(result.current.isLoading).toBe(false);
     expect(getInterestRateModelCurveSafe).not.toHaveBeenCalled();
+  });
+
+  it("withholds the retained curve when a refetch after a successful load fails", async () => {
+    vi.mocked(getInterestRateModelCurveSafe)
+      .mockResolvedValueOnce({
+        curve: [
+          { utilizationPercent: 0, aprPercent: 0 },
+          { utilizationPercent: 100, aprPercent: 10 },
+        ],
+        kinkUtilizationPercent: 50,
+        maxAprPercent: 10,
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        curve: null,
+        kinkUtilizationPercent: null,
+        maxAprPercent: null,
+        error: new Error("boom"),
+      });
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    function scopedWrapper({ children }: { children: ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+    }
+
+    const { result } = renderHook(
+      () => useInterestRateModelCurve({ reserve: makeReserve() }),
+      { wrapper: scopedWrapper },
+    );
+
+    await waitFor(() => expect(result.current.curve).not.toBeNull());
+
+    await client.refetchQueries();
+
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+    expect(result.current.curve).toBeNull();
+    expect(result.current.kinkUtilizationPercent).toBeNull();
+    expect(result.current.maxAprPercent).toBeNull();
   });
 });

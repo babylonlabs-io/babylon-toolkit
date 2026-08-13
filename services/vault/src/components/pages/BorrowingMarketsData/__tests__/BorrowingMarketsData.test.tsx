@@ -88,7 +88,7 @@ const interestRateModelCardMock = vi.fn();
 vi.mock("../InterestRateModelCard", () => ({
   InterestRateModelCard: (props: {
     reserve: { reserveId: bigint };
-    utilizationValue: string;
+    utilizationBps: number | null;
     symbol: string;
   }) => {
     interestRateModelCardMock(props);
@@ -281,7 +281,7 @@ describe("BorrowingMarketsData", () => {
     interestRateModelCardMock.mockClear();
   });
 
-  it("wires the routed reserve's id, config, and market-utilization figure into the two chart cards", () => {
+  it("wires the routed reserve's id, config, and live figures into the two chart cards", () => {
     setUpHooks();
 
     renderPage("1");
@@ -292,8 +292,8 @@ describe("BorrowingMarketsData", () => {
     });
     expect(interestRateModelCardMock).toHaveBeenCalledWith({
       reserve: USDC_RESERVE,
-      // Same "68%" the stats bar shows for reserve 1's utilizationBps (6800).
-      utilizationValue: "68%",
+      // Same 60s reads the stats bar renders from for reserve 1.
+      utilizationBps: 6800,
       symbol: "USDC-VERIFIED",
     });
   });

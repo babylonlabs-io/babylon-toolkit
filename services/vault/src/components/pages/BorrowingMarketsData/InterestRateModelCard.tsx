@@ -18,9 +18,12 @@ import { useMemo } from "react";
 import { useInterestRateModelCurve } from "@/applications/aave/hooks";
 import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
 import { COPY } from "@/copy";
-import { formatAprPercent } from "@/utils/formatting";
+import {
+  formatAprPercent,
+  formatBasisPointsAsPercent,
+} from "@/utils/formatting";
 
-import { percentAxis } from "./borrowChartData";
+import { aprAtUtilization, percentAxis } from "./borrowChartData";
 
 /** Theme tokens (globals.css) shared by the chart marks and the legend dots
  *  so they can never drift apart. LineChart pipes the `var()` references into
@@ -42,6 +45,8 @@ const X_TICKS: ChartAxisTick[] = X_TICK_VALUES.map((value) => ({
 const X_DOMAIN: [number, number] = [0, 100];
 /** Frame shows 5 rows of y-axis ticks. */
 const Y_TICK_COUNT = 5;
+/** BPS per whole percentage point (1% = 100 BPS). */
+const BPS_PER_PERCENT = 100;
 
 const CARD_CLASS =
   "flex w-full flex-col gap-6 rounded-2xl bg-background-secondary pt-6 px-6 pb-10";
@@ -81,22 +86,28 @@ function Legend() {
 
 export function InterestRateModelCard({
   reserve,
-  utilizationValue,
+  utilizationBps,
   symbol,
 }: {
   reserve: AaveReserveConfig;
-  /** Pre-formatted current-utilization figure the page already derives, e.g. "68%". */
-  utilizationValue: string;
+  /**
+   * Live utilization in BPS from the page's 60s reserve reads — drives both
+   * the header figure and the "Current" marker. They share one source value;
+   * the callout rounds to a whole percent (Figma callout format) while the
+   * header keeps `formatBasisPointsAsPercent` precision.
+   */
+  utilizationBps: number | null;
   symbol: string;
 }) {
-  const {
-    curve,
-    kinkUtilizationPercent,
-    currentUtilizationPercent,
-    currentAprPercent,
-    maxAprPercent,
-    isLoading,
-  } = useInterestRateModelCurve({ reserve });
+  const { curve, kinkUtilizationPercent, maxAprPercent, isLoading } =
+    useInterestRateModelCurve({ reserve });
+
+  const currentUtilizationPercent =
+    utilizationBps === null ? null : utilizationBps / BPS_PER_PERCENT;
+  const utilizationValue =
+    utilizationBps === null
+      ? COPY.common.emptyValue
+      : formatBasisPointsAsPercent(utilizationBps);
 
   // Hooks run before either early return below (rules-of-hooks), so every
   // memo here must tolerate the null states those returns handle — the
@@ -124,14 +135,12 @@ export function InterestRateModelCard({
   // The curve always includes an exact sample at the kink utilization (see
   // useInterestRateModelCurve module doc) — looked up by equality, never
   // interpolated. That invariant is load-bearing, so its failure throws
-  // rather than degrading to a chart with no kink marker.
+  // rather than degrading to a chart with no kink marker. The "Current"
+  // marker derives entirely from the live utilization — its callout APR is
+  // read off the cached curve at that x, so the dot and the label can never
+  // disagree (previously they came from two independently-polled queries).
   const markers = useMemo<LineChartMarker[]>(() => {
-    if (
-      curve === null ||
-      kinkUtilizationPercent === null ||
-      currentUtilizationPercent === null ||
-      currentAprPercent === null
-    ) {
+    if (curve === null || kinkUtilizationPercent === null) {
       return [];
     }
 
@@ -144,21 +153,27 @@ export function InterestRateModelCard({
       );
     }
 
-    return [
-      {
-        key: "kink",
-        x: kinkUtilizationPercent,
-        title: COPY.marketData.charts.optimalCallout(
-          formatWholeUtilizationPercent(kinkUtilizationPercent),
+    const kinkMarker: LineChartMarker = {
+      key: "kink",
+      x: kinkUtilizationPercent,
+      title: COPY.marketData.charts.optimalCallout(
+        formatWholeUtilizationPercent(kinkUtilizationPercent),
+      ),
+      lines: [
+        COPY.marketData.charts.calloutApr(
+          formatAprPercent(kinkPoint.aprPercent),
         ),
-        lines: [
-          COPY.marketData.charts.calloutApr(
-            formatAprPercent(kinkPoint.aprPercent),
-          ),
-        ],
-        style: "dashed",
-        color: MARKER_COLOR,
-      },
+      ],
+      style: "dashed",
+      color: MARKER_COLOR,
+    };
+
+    if (currentUtilizationPercent === null) {
+      return [kinkMarker];
+    }
+
+    return [
+      kinkMarker,
       {
         key: "current",
         x: currentUtilizationPercent,
@@ -167,19 +182,16 @@ export function InterestRateModelCard({
         ),
         lines: [
           COPY.marketData.charts.calloutApr(
-            formatAprPercent(currentAprPercent),
+            formatAprPercent(
+              aprAtUtilization(curve, currentUtilizationPercent),
+            ),
           ),
         ],
         style: "solid",
         color: MARKER_COLOR,
       },
     ];
-  }, [
-    curve,
-    kinkUtilizationPercent,
-    currentUtilizationPercent,
-    currentAprPercent,
-  ]);
+  }, [curve, kinkUtilizationPercent, currentUtilizationPercent]);
 
   const header = (
     <div className="flex items-center justify-between gap-2">
@@ -207,16 +219,15 @@ export function InterestRateModelCard({
     );
   }
 
-  // A configured strategy always yields the full sample set plus the kink and
-  // current figures (see useInterestRateModelCurve); anything null here means
-  // the read failed, not that the market genuinely has no rate. A max of 0
-  // (a strategy with every rate param zeroed) is folded in: it admits no
-  // usable y scale, only a degenerate [0, 0] domain.
+  // A configured strategy always yields the full sample set plus the kink
+  // figure (see useInterestRateModelCurve); anything null here means the read
+  // failed, not that the market genuinely has no rate. A max of 0 (a strategy
+  // with every rate param zeroed) is folded in: it admits no usable y scale,
+  // only a degenerate [0, 0] domain. The live figures are deliberately not
+  // gates — a missing current marker degrades to a kink-only chart.
   if (
     curve === null ||
     kinkUtilizationPercent === null ||
-    currentUtilizationPercent === null ||
-    currentAprPercent === null ||
     maxAprPercent === null ||
     maxAprPercent === 0
   ) {
