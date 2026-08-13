@@ -202,7 +202,7 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
               <thead>
                 <tr className="border-b border-zinc-700 text-left">
                   <th className="px-2 py-1">#</th>
-                  <th className="px-2 py-1">Vaults</th>
+                  <th className="px-2 py-1">BTCVault</th>
                   <th className="px-2 py-1 text-right">BTC</th>
                   <th className="px-2 py-1 text-right">Liq $</th>
                   <th className="px-2 py-1 text-right">Dist%</th>
