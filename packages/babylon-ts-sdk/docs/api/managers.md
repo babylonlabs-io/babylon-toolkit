@@ -2165,7 +2165,7 @@ WOTS hash, payout script). The estimate is approximate — calldata-byte
 gas is correct, contract-side branches that depend on the real values may
 diverge — but it lands within the usual gas-estimate margin.
 
-Passes MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP for the
+Passes [MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP](deposit-terms.md#max_acceptable_commission_bps_cap) for the
 `maxAcceptableCommissionBps` argument so the simulation does not revert on
 the contract's commission-drift check regardless of the VP's current
 commission. The real submit path resolves an accurate, drift-checked value

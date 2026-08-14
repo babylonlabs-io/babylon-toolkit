@@ -23,7 +23,11 @@ export { buildFundingOutpointsCommitment, buildVaultContext } from "./context";
 
 export type { FundingOutpoint, VaultContextInput } from "./context";
 
-export { deriveVaultRoot, VAULT_APP_NAME } from "./deriveVaultRoot";
+export {
+  VAULT_APP_NAME,
+  deriveVaultRoot,
+  forwardDeriveContextHash,
+} from "./deriveVaultRoot";
 
 export type { DeriveContextHashCapableWallet } from "./deriveVaultRoot";
 

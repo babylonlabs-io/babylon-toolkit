@@ -8,6 +8,8 @@
  * @module deposit-terms
  */
 export * from "./buildDepositTerms";
+export * from "./commissionCeiling";
 export * from "./depositTerms";
 export * from "./depositTermsErrors";
 export * from "./prePeginApproval";
+export * from "./rebuildDepositTermsCore";

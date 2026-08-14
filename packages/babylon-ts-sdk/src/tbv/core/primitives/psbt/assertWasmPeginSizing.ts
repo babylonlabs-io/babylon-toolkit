@@ -42,6 +42,9 @@ import type { PrePeginParams } from "./pegin";
  * exact, but both sides come from the same binary, which is why the
  * independent bounds above are kept alongside it.
  *
+ * The resume rebuild (`deposit-terms/rebuildDepositTermsCore.ts`) mirrors these
+ * bounds (positivity + reserve band) — keep the two in sync when editing.
+ *
  * @param result - The result returned by `createPrePeginTransaction`.
  * @param params - The parameters that were passed to build it.
  * @returns The independently computed `minPeginFee` this function already

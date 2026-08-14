@@ -4,8 +4,11 @@
 
 import {
   ensureHexPrefix,
+  forwardDepositApproval,
+  forwardDeriveContextHash,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
+  supportsDepositApproval,
   verifyRegisteredVaultVersions,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
@@ -60,6 +63,8 @@ import {
   broadcastPrePeginTransaction,
   fetchVaultById,
 } from "../../services/vault";
+import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
+import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
@@ -74,6 +79,12 @@ import {
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
+  /**
+   * Connected wallet's ETH address. On the intent (Ledger) path the rebuild
+   * asserts it equals the on-chain depositor before any device interaction —
+   * a stale modal after a wallet switch must fail closed, not re-approve.
+   */
+  depositorEthAddress: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -163,6 +174,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       vaultId,
+      depositorEthAddress,
       pendingPegin,
       updatePendingPeginStatus,
       removePendingPegin,
@@ -274,19 +286,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // Use the locally stored UTXO set as trusted construction-time data
-      // ONLY when we're broadcasting the local tx. The stored UTXOs are the
-      // inputs of the local tx, not necessarily of the indexer's tx, so when
-      // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
-      // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
-      // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
-      // supplied but doesn't cover every input, so a stale/partial local set
-      // paired with the indexer tx would dead-end the broadcast.
-      const expectedUtxos =
-        localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
-          ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
-          : undefined;
-
       // The integrity guarantee for this broadcast is the on-chain
       // `prePeginTxHash` match asserted above: it commits to every input,
       // output, and script of the registered Pre-PegIn, so a match proves
@@ -360,14 +359,54 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
-      await broadcastPrePeginTransaction({
-        unsignedTxHex,
-        btcWalletProvider: {
-          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-        },
-        depositorBtcPubkey,
-        expectedUtxos,
-      });
+      // Intent (Ledger) resume: rebuild the DepositTerms from chain + WASM and
+      // run the derive→approve ceremony before signing. Prevouts are resolved
+      // once, mempool-only (never the local cache), so the fee the device
+      // approves is the fee the broadcast signs. Software wallets unchanged.
+      if (supportsDepositApproval(btcWalletProvider)) {
+        const { expectedUtxos: resolvedUtxos, fundedTxFee } =
+          await resolveFundedTxFeeAndUtxos(unsignedTxHex);
+        const depositTerms = await rebuildDepositTerms({
+          vaultId,
+          target: onChainVault,
+          fundedPrePeginTxHex: unsignedTxHex,
+          connectedDepositorAddress: depositorEthAddress as Hex,
+          depositorBtcPubkey,
+          fundedTxFee,
+        });
+        await broadcastPrePeginTransaction({
+          unsignedTxHex,
+          btcWalletProvider: {
+            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+            ...forwardDeriveContextHash(btcWalletProvider),
+            ...forwardDepositApproval(btcWalletProvider),
+          },
+          depositorBtcPubkey,
+          expectedUtxos: resolvedUtxos,
+          depositTerms,
+        });
+      } else {
+        // Use the locally stored UTXO set as trusted construction-time data
+        // ONLY when we're broadcasting the local tx. The stored UTXOs are the
+        // inputs of the local tx, not necessarily of the indexer's tx, so when
+        // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
+        // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
+        // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
+        // supplied but doesn't cover every input, so a stale/partial local set
+        // paired with the indexer tx would dead-end the broadcast.
+        const expectedUtxos =
+          localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
+            ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
+            : undefined;
+        await broadcastPrePeginTransaction({
+          unsignedTxHex,
+          btcWalletProvider: {
+            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+          },
+          depositorBtcPubkey,
+          expectedUtxos,
+        });
+      }
 
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
@@ -391,6 +430,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (mountedRef.current) {
         let errorMessage: string;
 
+        // DepositTermsRejectedError arrives message-preserved, so mapDepositError
+        // classifies it like the fresh path today. broadcastError is string by
+        // contract; when #2110 adds a typed branch, thread the typed error to
+        // the mapper here (as useDepositFlow does).
         if (err instanceof UtxoNotAvailableError) {
           // UTXO not available - provide specific error message
           errorMessage = err.message;

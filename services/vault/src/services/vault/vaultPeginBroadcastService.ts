@@ -80,8 +80,8 @@ export interface BroadcastPrePeginParams {
   /**
    * Approved deposit terms — required when `btcWalletProvider` supports deposit
    * approval. Fresh flows pass `PreparePeginResult.depositTerms`; the resume
-   * path will rebuild them from chain state (Part 2). Ignored (but still
-   * txid-validated) for non-approval wallets.
+   * path rebuilds them from chain state via `rebuildDepositTerms`. Ignored
+   * (but still txid-validated) for non-approval wallets.
    */
   depositTerms?: DepositTerms;
 
