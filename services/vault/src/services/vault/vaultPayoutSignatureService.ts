@@ -63,6 +63,13 @@ export function assertVpCommissionInProtocolRange(
   bps: number,
   minVpCommissionBps: number,
 ): void {
+  // NaN/undefined would silently disable the floor (Math.max(NaN, 1) → NaN,
+  // and every < comparison below turns false) — reject the bad read loudly.
+  if (!Number.isInteger(minVpCommissionBps) || minVpCommissionBps < 0) {
+    throw new Error(
+      `minVpCommissionBps must be a non-negative integer, got ${minVpCommissionBps}`,
+    );
+  }
   const minCommissionBps = Math.max(
     minVpCommissionBps,
     MIN_REALIZABLE_VP_COMMISSION_BPS,

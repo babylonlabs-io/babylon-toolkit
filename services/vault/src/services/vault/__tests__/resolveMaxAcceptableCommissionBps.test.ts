@@ -51,4 +51,15 @@ describe("resolveMaxAcceptableCommissionBps", () => {
       ),
     ).toBe(9999);
   });
+
+  it("rejects a NaN floor instead of letting it silently disable the range check", () => {
+    // Math.max(NaN, 1) is NaN and every comparison against NaN is false —
+    // without the guard, a commission of 0 would pass.
+    expect(() =>
+      resolveMaxAcceptableCommissionBps(
+        { vaultProviderCommissionBps: 0 },
+        Number.NaN,
+      ),
+    ).toThrow(/non-negative integer/);
+  });
 });
