@@ -57,6 +57,28 @@ function getVerifiedVaultIds(activities: VaultActivity[]): Hex[] {
     .map((a) => a.id);
 }
 
+/**
+ * Protocol info for every candidate, batched.
+ *
+ * `getProtocolInfoBatch` runs `allowFailure: false` and throws for the WHOLE
+ * batch if any single vault is unreadable (e.g. an RPC node lagging the indexer
+ * returns a zeroed record). Falling back to per-vault reads keeps one bad vault
+ * from gating every other VERIFIED vault the depositor holds; the bad one
+ * resolves to `null` and stays gated on its own.
+ */
+async function readProtocolInfos(
+  ids: Hex[],
+): Promise<({ verifiedAt: bigint } | null)[]> {
+  const reader = getVaultRegistryReader();
+  try {
+    return await reader.getProtocolInfoBatch(ids);
+  } catch {
+    return Promise.all(
+      ids.map((id) => reader.getVaultProtocolInfo(id).catch(() => null)),
+    );
+  }
+}
+
 export function useActivationFloorGate(
   activities: VaultActivity[],
 ): ActivationFloorGate {
@@ -82,55 +104,84 @@ export function useActivationFloorGate(
     enabled: enabled && candidateIds.length > 0,
     refetchInterval: POLL_INTERVAL_MS,
     staleTime: STALE_TIME_MS,
+    // The key covers the whole candidate set, so verifying one more vault
+    // changes it. Carrying the previous result across that change keeps
+    // already-resolved vaults resolved instead of re-gating every one of them
+    // for a round-trip — which, because a gated vault loses ACTIVATE_VAULT,
+    // would blink the button off for unrelated vaults whenever a sibling
+    // verifies. Vaults absent from the carried map are seeded gated below, so
+    // carrying data can only preserve a decision, never invent one.
+    placeholderData: (previous) => previous,
+    // NEVER REJECTS. Returning the fail-closed map instead of throwing is
+    // deliberate: this query is mounted app-wide, and a rejection reaches the
+    // global QueryCache.onError -> logger.error -> captureException. Turning
+    // the flag on where the getter is absent would then emit a Sentry event
+    // every poll, for every session, forever. `useActivationDeadlineGate`
+    // wraps its body for the same reason. Safety is unaffected — the map is
+    // seeded gated and only a proven read can relax an entry.
     queryFn: async (): Promise<Map<string, number | null>> => {
-      // Fail closed: until proven otherwise every candidate is gated with an
-      // unknown remainder. Success overwrites; a throw leaves this standing.
-      const gated = new Map<string, number | null>(
+      // `null` = gated, remaining unknown. `0` = proven open. Every candidate
+      // keeps an entry so the public map below can tell "resolved open" apart
+      // from "never resolved"; absence would collapse those two.
+      const resolved = new Map<string, number | null>(
         candidateIds.map((id) => [id.toLowerCase(), null]),
       );
 
-      const paramsReader = await getProtocolParamsReader();
-      const [currentBlock, peginActivationDelay, protocolInfos] =
-        await Promise.all([
-          ethClient.getPublicClient().getBlockNumber(),
+      let currentBlock: bigint;
+      let peginActivationDelay: bigint;
+      try {
+        const paramsReader = await getProtocolParamsReader();
+        [currentBlock, peginActivationDelay] = await Promise.all([
+          // `cacheTime: 0` — viem caches getBlockNumber ~4s by default, and a
+          // block behind head inflates the remaining count.
+          ethClient.getPublicClient().getBlockNumber({ cacheTime: 0 }),
           paramsReader.getPeginActivationDelay(),
-          getVaultRegistryReader().getProtocolInfoBatch(candidateIds),
         ]);
+      } catch {
+        // Both inputs are global, so without them nothing can be resolved.
+        return resolved;
+      }
+
+      const protocolInfos = await readProtocolInfos(candidateIds);
 
       candidateIds.forEach((id, i) => {
-        const key = id.toLowerCase();
         const verifiedAt = protocolInfos[i]?.verifiedAt;
         // A VERIFIED vault always has a non-zero `verifiedAt` (the registry
-        // stamps it on the ACK that completes the set). A zero here means the
-        // batch and the id list disagree, so stay gated rather than guess.
+        // stamps it on the ACK that completes the set). A zero or missing one
+        // means this vault could not be read, so leave it gated.
         if (verifiedAt === undefined || verifiedAt === 0n) return;
 
-        const blocksRemaining = activationFloorBlocksRemaining({
-          currentBlock,
-          verifiedAt,
-          peginActivationDelay,
-        });
-        if (blocksRemaining > 0) gated.set(key, blocksRemaining);
-        else gated.delete(key);
+        resolved.set(
+          id.toLowerCase(),
+          activationFloorBlocksRemaining({
+            currentBlock,
+            verifiedAt,
+            peginActivationDelay,
+          }),
+        );
       });
 
-      return gated;
+      return resolved;
     },
   });
 
   return useMemo(() => {
     if (!enabled || candidateIds.length === 0) return EMPTY_GATE;
-    // Unresolved in any sense gates. `isError` is checked alongside missing
-    // data because React Query RETAINS the last successful result through a
-    // failed background refetch — without it, a cached "floor is open" would
-    // survive a governance raise that the failing refetch was meant to catch,
-    // and the button would stay live on a value we can no longer confirm.
-    // The cost is a briefly disabled Activate on a transient RPC blip, which
-    // the next successful poll clears; the alternative is an enabled button we
-    // cannot justify.
-    if (!query.data || query.isError) {
-      return new Map(candidateIds.map((id) => [id.toLowerCase(), null]));
+    const resolved = query.data;
+    const gate = new Map<string, number | null>();
+    for (const id of candidateIds) {
+      const key = id.toLowerCase();
+      const remaining = resolved?.get(key);
+      // Unresolved in any sense gates: no data yet, a vault absent from a
+      // carried-over map, or a read that could not prove anything.
+      if (remaining === undefined || remaining === null) {
+        gate.set(key, null);
+        continue;
+      }
+      // Proven open (0) is omitted — absence is what downstream reads as
+      // "not gated".
+      if (remaining > 0) gate.set(key, remaining);
     }
-    return query.data;
-  }, [enabled, candidateIds, query.data, query.isError]);
+    return gate;
+  }, [enabled, candidateIds, query.data]);
 }

@@ -108,7 +108,9 @@ export interface PeginState {
   /**
    * Short message intended for the inline subtext slot under the amount
    * (e.g. "Your refund will be claimable in ~18 blocks (~3h)"). The full sentence stays
-   * in `message` for the tooltip. Set for maturing / unknown EXPIRED only.
+   * in `message` for the tooltip. Set for maturing / unknown EXPIRED, and for
+   * a VERIFIED vault waiting out the activation floor — that second producer
+   * is why the row prefers this over the step counter.
    */
   inlineSubtext?: string;
   /**

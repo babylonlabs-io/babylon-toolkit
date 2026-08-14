@@ -182,13 +182,19 @@ vi.mock("@/clients/eth-contract/client", () => ({
 // Flag holder so the floor tests can turn the feature on; plain object (not
 // vi.fn) so `vi.clearAllMocks()` cannot reset it mid-suite.
 const floorFlagMock = vi.hoisted(() => ({ enabled: false }));
-vi.mock("@/config/featureFlags", () => ({
-  default: {
-    get isActivationDelayEnabled() {
-      return floorFlagMock.enabled;
+// Spread the real module: replacing it wholesale would blank every OTHER flag
+// for all tests in this file, silently changing behaviour they do not control.
+vi.mock("@/config/featureFlags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/config/featureFlags")>();
+  return {
+    default: {
+      ...actual.default,
+      get isActivationDelayEnabled() {
+        return floorFlagMock.enabled;
+      },
     },
-  },
-}));
+  };
+});
 
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),

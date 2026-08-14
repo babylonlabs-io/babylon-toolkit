@@ -165,6 +165,13 @@ export interface UseVaultActionsReturn {
 /**
  * Custom hook for vault actions (broadcast)
  */
+/**
+ * Marks an activation abort caused by an unreadable activation floor. Carried on
+ * `Error.name` rather than a shared flag so the catch block classifies the error
+ * that actually propagated — see `onFloorReadFailure`.
+ */
+const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
+
 export function useVaultActions(): UseVaultActionsReturn {
   const gate = useProtocolGateState();
 
@@ -652,10 +659,18 @@ export function useVaultActions(): UseVaultActionsReturn {
       // misconfigured environment as a failed reveal, and the depositor sees
       // raw viem text instead of copy we own.
       const onFloorReadFailure = (cause: unknown): never => {
-        expectedInterruption = true;
-        throw new Error(COPY.pegin.messages.activationWindowUnavailable, {
+        // Deliberately does NOT set `expectedInterruption` here. This runs in a
+        // `.catch` on a sibling of the `Promise.all` below, and `Promise.all`
+        // settles on the FIRST rejection — so a slower floor read could flip
+        // the flag for a `getVaultData` failure that has nothing to do with the
+        // floor, suppressing a real reveal failure from telemetry. The tag is
+        // read in the catch block, where the error that actually propagated is
+        // the one being classified.
+        const err = new Error(COPY.pegin.messages.activationWindowUnavailable, {
           cause,
         });
+        err.name = FLOOR_UNAVAILABLE_ERROR_NAME;
+        throw err;
       };
       const [
         { basic: basicInfo, protocol: protocolInfo },
@@ -842,7 +857,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       // Skipped for expected pre-reveal interruptions and for anything thrown
       // after the reveal landed on-chain — either would count a non-failure
       // against the activation.reveal rate.
-      if (!expectedInterruption && !revealed) {
+      // A floor read that could not complete is an expected interruption, but
+      // only when it is the error that actually surfaced.
+      const floorUnavailable =
+        err instanceof Error && err.name === FLOOR_UNAVAILABLE_ERROR_NAME;
+      if (!expectedInterruption && !floorUnavailable && !revealed) {
         captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
       }
       if (mountedRef.current) {

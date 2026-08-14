@@ -41,6 +41,7 @@ vi.mock("@/config/featureFlags", () => ({
 const mockGetBlockNumber = vi.fn();
 const mockGetPeginActivationDelay = vi.fn();
 const mockGetProtocolInfoBatch = vi.fn();
+const mockGetVaultProtocolInfo = vi.fn();
 
 const VAULT_ID = `0x${"11".repeat(32)}`;
 const VERIFIED_AT = 1_000n;
@@ -75,7 +76,7 @@ function renderGate(activities: VaultActivity[]) {
     waitFor(() =>
       expect(client.getQueryCache().getAll()[0]?.state.status).toBe(status),
     );
-  return { ...rendered, settled };
+  return { ...rendered, settled, cache: client.getQueryCache() };
 }
 
 describe("useActivationFloorGate", () => {
@@ -90,6 +91,7 @@ describe("useActivationFloorGate", () => {
     } as never);
     vi.mocked(getVaultRegistryReader).mockReturnValue({
       getProtocolInfoBatch: mockGetProtocolInfoBatch,
+      getVaultProtocolInfo: mockGetVaultProtocolInfo,
     } as never);
     mockGetPeginActivationDelay.mockResolvedValue(DELAY);
     mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: VERIFIED_AT }]);
@@ -104,9 +106,14 @@ describe("useActivationFloorGate", () => {
 
     const { result } = renderGate([makeActivity()]);
 
-    expect(result.current.size).toBe(0);
+    // Asserting `not.toHaveBeenCalled()` synchronously would pass even if the
+    // reads DID fire, because they are async. Give the query every chance to
+    // run first, then assert it never did.
+    await new Promise((r) => setTimeout(r, 0));
     expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
     expect(mockGetBlockNumber).not.toHaveBeenCalled();
+    expect(mockGetProtocolInfoBatch).not.toHaveBeenCalled();
+    expect(result.current.size).toBe(0);
   });
 
   it("ignores vaults that are not VERIFIED", async () => {
@@ -134,11 +141,46 @@ describe("useActivationFloorGate", () => {
 
     const { result, settled } = renderGate([makeActivity()]);
 
-    await settled("error");
-    // Checked only after the query has actually failed: a fail-open regression
-    // would have emptied the map by now.
+    // The query RESOLVES on a failed read — it returns the fail-closed map
+    // rather than rejecting, so a mounted app-wide query cannot spam the
+    // global error handler. Safety comes from the map, not from the status.
+    await settled("success");
     expect(result.current.get(VAULT_ID.toLowerCase())).toBeNull();
     expect(result.current.size).toBe(1);
+  });
+
+  it("does not reject, so a failing read cannot flood the global error handler", async () => {
+    mockGetPeginActivationDelay.mockRejectedValue(new Error("getter absent"));
+    mockGetBlockNumber.mockResolvedValue(9_999n);
+
+    const { settled, cache } = renderGate([makeActivity()]);
+
+    await settled("success");
+    expect(cache.getAll()[0]?.state.error).toBeNull();
+  });
+
+  it("keeps one unreadable vault from gating the others", async () => {
+    // getProtocolInfoBatch is allowFailure:false — it throws for the whole
+    // batch if any single vault is unreadable. Without a per-vault fallback,
+    // one lagging record would disable Activate on every vault in the wallet.
+    const OTHER = `0x${"22".repeat(32)}`;
+    mockGetBlockNumber.mockResolvedValue(9_999n); // both well past the floor
+    mockGetProtocolInfoBatch.mockRejectedValue(new Error("one vault missing"));
+    mockGetVaultProtocolInfo.mockImplementation(async (id: string) =>
+      id === VAULT_ID
+        ? { verifiedAt: VERIFIED_AT }
+        : Promise.reject(new Error("nope")),
+    );
+
+    const { result, settled } = renderGate([
+      makeActivity(),
+      makeActivity({ id: OTHER as `0x${string}` }),
+    ]);
+
+    await settled("success");
+    // The readable one is released; only the unreadable one stays gated.
+    expect(result.current.has(VAULT_ID.toLowerCase())).toBe(false);
+    expect(result.current.get(OTHER.toLowerCase())).toBeNull();
   });
 
   it("reports the remaining blocks while the window is closed", async () => {

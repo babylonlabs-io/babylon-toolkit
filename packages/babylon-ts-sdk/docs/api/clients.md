@@ -278,6 +278,27 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 
 [`ProtocolParamsReader`](#protocolparamsreader).[`getTimelockPeginByVersion`](#gettimelockpeginbyversion-2)
 
+##### getPeginActivationDelay()
+
+```ts
+getPeginActivationDelay(): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts)
+
+Returned as `bigint` with no narrowing: the registry compares it against
+`block.number`, so callers must do the same arithmetic the contract does.
+No validator runs — every `uint256` is a legal value here, `0` being the
+documented "disabled" case, so there is nothing to reject.
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+###### Implementation of
+
+[`ProtocolParamsReader`](#protocolparamsreader).[`getPeginActivationDelay`](#getpeginactivationdelay-2)
+
 ##### getPegInConfiguration()
 
 ```ts
@@ -2508,6 +2529,30 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ###### Returns
 
 `Promise`\<[`PegInConfiguration`](#peginconfiguration)\>
+
+##### getPeginActivationDelay()
+
+```ts
+getPeginActivationDelay(): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Observation window enforced between a vault's final ACK and its
+activation, in ETH blocks measured from `verifiedAt`. `0` disables it.
+
+Deliberately its own read rather than a field on
+[PegInConfiguration](#peginconfiguration): the parameter is absent from deployments that
+predate it, so folding it into the shared multicall would make every
+protocol-param read fail wherever it is missing.
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+###### Throws
+
+If the deployment does not expose `peginActivationDelay()`.
 
 ##### fetchAllOffchainParams()
 
