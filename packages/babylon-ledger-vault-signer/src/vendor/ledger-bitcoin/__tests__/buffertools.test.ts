@@ -2,8 +2,9 @@
  * Boundary tests for the vendored 8-byte-LE amount codec.
  *
  * PSBT amounts ride `unsafeTo64bitLE`/`unsafeFrom64bitLE` (PSBT_OUT_AMOUNT and
- * witness-utxo values), and the pair silently caps at 2^53 − 1 — pin the bound
- * from both directions. The varint/slice paths are exercised transitively by
+ * witness-utxo values); the codec rejects out-of-range input from both
+ * directions — pin the 2^53 − 1 bound on encode and on decode. The
+ * varint/slice paths are exercised transitively by
  * the psbtv2 golden round-trips; the remaining accessors (Int32/UInt64/vector
  * readers) are upstream-faithful surface kept per the vendor manifest and only
  * reachable via bip32-derivation accessors no current flow calls.

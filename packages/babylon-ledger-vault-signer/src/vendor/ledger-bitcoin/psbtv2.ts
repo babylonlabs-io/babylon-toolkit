@@ -21,9 +21,12 @@
  *                  `readInt32LE` → `readUInt32LE` for the VERSION read in
  *                  `normalizeToV2` (matches `getGlobalPsbtVersion`); named
  *                  `DEFAULT_SEQUENCE_FINAL`; `serialize` reuses
- *                  `PSBT_MAGIC_BYTES`; defensive strict-null guards
- *                  (behaviour-preserving); `==` → `===`; `slice` → `subarray`;
- *                  formatting.
+ *                  `PSBT_MAGIC_BYTES`; `deserialize` rejects a repeated
+ *                  keypair within a map (BIP-174 forbids duplicates; upstream
+ *                  silently last-wins); `deserialize` rejects trailing bytes
+ *                  after the last output map (upstream silently dropped them);
+ *                  defensive strict-null guards (behaviour-preserving);
+ *                  `==` → `===`; `slice` → `subarray`; formatting.
  */
 
 import { Transaction } from "bitcoinjs-lib";
@@ -389,6 +392,11 @@ export class PsbtV2 {
       while (this.readKeyPair(outputMap, buf));
     }
 
+    // Unparsed trailing bytes would be silently dropped on re-serialize.
+    if (buf.available() !== 0) {
+      throw new Error("Trailing bytes after PSBT output maps");
+    }
+
     this.normalizeToV2();
   }
   normalizeToV2() {
@@ -433,7 +441,12 @@ export class PsbtV2 {
     const keyType = buf.readUInt8();
     const keyData = buf.readSlice(keyLen - 1);
     const value = buf.readVarSlice();
-    set(map, keyType, keyData, value);
+    const key = new Key(keyType, keyData).toString();
+    // BIP-174: keys must be unique within a map; upstream silently last-wins.
+    if (map.has(key)) {
+      throw new Error("Repeated keypair in PSBT map");
+    }
+    map.set(key, value);
 
     return true;
   }

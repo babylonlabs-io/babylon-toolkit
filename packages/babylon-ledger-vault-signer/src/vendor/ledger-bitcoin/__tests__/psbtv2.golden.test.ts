@@ -118,6 +118,22 @@ function splitMaps(psbt: Buffer, mapCount: number): MapEntry[][] {
   return maps;
 }
 
+/** Inverse of splitMaps: re-emits per-map entries (in the given order) as PSBT bytes. */
+function joinMaps(maps: MapEntry[][]): Buffer {
+  const writer = new BufferWriter();
+  writer.writeSlice(PSBT_MAGIC);
+  for (const entries of maps) {
+    for (const [keyHex, valueHex] of entries) {
+      const key = Buffer.from(keyHex, "hex");
+      writer.writeVarInt(key.length);
+      writer.writeSlice(key);
+      writer.writeVarSlice(Buffer.from(valueHex, "hex"));
+    }
+    writer.writeUInt8(0);
+  }
+  return writer.buffer();
+}
+
 describe("PsbtV2 normalization golden vectors (22 SIGN_PSBT fixtures)", () => {
   it.each(cases)("normalizes $id to the oracle's v2 map content in device key order", ({ v }) => {
     const psbt = new PsbtV2();
@@ -178,8 +194,9 @@ describe("PsbtV2 normalization golden vectors (22 SIGN_PSBT fixtures)", () => {
     expect(fromV0.serialize().toString("hex")).toBe(fromV2.serialize().toString("hex"));
   });
 
-  // Cross-check entry 7: the v0 pegin fixtures reach deserialize with ZERO-entry
-  // per-output maps; normalizeToV2 must synthesize AMOUNT/SCRIPT into them.
+  // The v0 pegin fixtures reach deserialize with ZERO-entry per-output maps —
+  // this pins the pre-normalization shape; the AMOUNT/SCRIPT synthesis itself
+  // is asserted by the first golden test above.
   it("parses the v0 pegin fixtures through their zero-entry pre-normalization output maps", () => {
     for (const v of [pegin0, generatedPegin0] as unknown as SignPsbtVector[]) {
       const rawMaps = splitMaps(Buffer.from(v.psbt_hex, "hex"), 1 + v.n_inputs + v.n_outputs);
@@ -189,6 +206,25 @@ describe("PsbtV2 normalization golden vectors (22 SIGN_PSBT fixtures)", () => {
         expect(outputMap).toEqual([]);
       }
     }
+  });
+});
+
+// Malformed-input gates added on top of upstream, which parse-accepted both shapes.
+describe("PsbtV2 deserialize malformed-input rejections", () => {
+  it("rejects a repeated keypair within a single map", () => {
+    const v = prePegin0 as unknown as SignPsbtVector;
+    const maps = splitMaps(Buffer.from(v.psbt_v2_hex, "hex"), 1 + v.n_inputs + v.n_outputs);
+    // BIP-174 forbids duplicate keys in a map — re-emit the global map with its first pair twice.
+    maps[0]!.push(maps[0]![0]!);
+    const psbt = new PsbtV2();
+    expect(() => psbt.deserialize(joinMaps(maps))).toThrow(/[Rr]epeated|[Dd]uplicate/);
+  });
+
+  it("rejects trailing bytes after the last output map", () => {
+    const v = prePegin0 as unknown as SignPsbtVector;
+    const withGarbage = Buffer.concat([Buffer.from(v.psbt_v2_hex, "hex"), Buffer.from([0xde, 0xad, 0xbe, 0xef])]);
+    const psbt = new PsbtV2();
+    expect(() => psbt.deserialize(withGarbage)).toThrow(/[Tt]railing/);
   });
 });
 

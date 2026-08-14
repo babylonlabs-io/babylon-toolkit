@@ -64,17 +64,21 @@ class NoWalletPolicy(WalletPolicy):
 
 def load_psbt_hexes(path: Path):
     """Fixture format (tests/vectors/README.txt): .json = JSON array of PSBT hexes,
-    .txt = a single hex. 70736274ff = PSBT; 02000000 = finalized raw tx (skip)."""
+    .txt = a single hex. 70736274ff = PSBT; 02000000 = finalized raw tx (skip).
+    Skips are per entry so a mixed file keeps its remaining PSBTs; returns
+    ([(batch_index, hex)], n_skipped) with original batch indices preserved."""
     text = path.read_text().strip()
     hexes = json.loads(text) if path.suffix == ".json" else [text]
     out = []
-    for h in hexes:
+    n_skipped = 0
+    for i, h in enumerate(hexes):
         h = h.strip()
         if not h.lower().startswith("70736274ff"):
-            print(f"  SKIP (not a PSBT, raw tx reference): {path.name}")
-            return []
-        out.append(h)
-    return out
+            print(f"  SKIP (not a PSBT, raw tx reference): {path.name}[{i}]")
+            n_skipped += 1
+            continue
+        out.append((i, h))
+    return out, n_skipped
 
 
 def map_to_pairs(m):
@@ -234,11 +238,11 @@ def main():
 
     for rel in fixture_files:
         path = fixtures_root / rel
-        hexes = load_psbt_hexes(path)
-        if not hexes:
-            index["skipped_raw_tx_fixtures"].append(rel)
-            continue
-        for i, h in enumerate(hexes):
+        psbts, n_skipped = load_psbt_hexes(path)
+        if n_skipped:
+            # {fixture: n skipped entries} so a partially-skipped file stays accounted.
+            index["skipped_raw_tx_fixtures"].append({rel: n_skipped})
+        for i, h in psbts:
             vec = psbt_vector(rel, i, h)
             vec_id = rel.replace("/", "__").rsplit(".", 1)[0] + f"__{i}"
             out_file = out_dir / "signpsbt" / f"{vec_id}.json"
