@@ -63,8 +63,21 @@ const PUBLIC_VAULT_ORIGIN = "https://btc-vaults.testnet.babylonlabs.io";
 
 // index.html appends paths to this value, so the trailing slash is stripped here rather than
 // left to each %NEXT_PUBLIC_CANONICAL% call site.
+//
+// Every deploy environment is expected to set NEXT_PUBLIC_CANONICAL to its own host. None of
+// them do today, so the fallback is what actually ships, and a build that falls back
+// advertises another environment's host as its canonical URL. That is an improvement on the
+// marketing-site fallback it replaces, but it is still wrong for any environment other than
+// the public one, so a release build says so out loud rather than falling back silently.
 function resolveCanonicalOrigin() {
   const configured = process.env.NEXT_PUBLIC_CANONICAL?.trim();
+  if (!configured && process.env.CI) {
+    console.warn(
+      '⚠️ NEXT_PUBLIC_CANONICAL is unset. rel="canonical", og:url and the link-preview ' +
+        `image URLs will all point at ${PUBLIC_VAULT_ORIGIN}. Set it on this deploy ` +
+        "environment for the build to advertise its own host.",
+    );
+  }
   return (configured || PUBLIC_VAULT_ORIGIN).replace(/\/+$/, "");
 }
 
