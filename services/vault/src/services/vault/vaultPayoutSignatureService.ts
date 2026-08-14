@@ -41,9 +41,9 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 /**
- * Exclusive upper bound on VP commission (bps) — `BTCVaultRegistry._validateCommission`
- * ceiling. Local literal by design: the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE`
- * is an internal module, not public API.
+ * Exclusive upper bound on VP commission (bps) — mirrors `VPKeyRegistryLogic.sol`
+ * (registerVaultProvider / updateCommission bounds). Local literal by design:
+ * the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE` is an internal module, not public API.
  */
 const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
 
@@ -56,8 +56,8 @@ const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
 
 /**
  * Trust-boundary check on a VP commission read from chain — mirrors
- * `BTCVaultRegistry._validateCommission` (plus the tx-graph's nonzero floor)
- * so downstream consumers can trust the value.
+ * `VPKeyRegistryLogic.sol`'s registration/update bounds (plus the tx-graph's
+ * nonzero floor) so downstream consumers can trust the value.
  */
 export function assertVpCommissionInProtocolRange(
   bps: number,

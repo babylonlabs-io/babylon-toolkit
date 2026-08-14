@@ -601,7 +601,7 @@ fundedPrePeginTxHex: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
 
-Funded Pre-PegIn tx hex — already hash-verified vs on-chain prePeginTxHash by the app (Gate 0).
+Funded Pre-PegIn tx hex. Gate 0 (hash vs prepeginTxid) is SELF-verified below — callers need not pre-verify.
 
 ##### depositorBtcPubkey
 

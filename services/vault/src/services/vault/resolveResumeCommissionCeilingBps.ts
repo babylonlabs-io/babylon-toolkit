@@ -25,7 +25,7 @@ import { capMaxAcceptableCommissionBps } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { assertVpCommissionInProtocolRange } from "./vaultPayoutSignatureService";
 
-export function resolveMaxAcceptableCommissionBps(
+export function resolveResumeCommissionCeilingBps(
   vault: { vaultProviderCommissionBps: number },
   minVpCommissionBps: number,
 ): number {

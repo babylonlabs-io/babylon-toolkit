@@ -5,7 +5,7 @@
  * an intent (Ledger) wallet has nothing to approve. Reconstructs them from
  * chain + WASM only — never browser storage — at the vault's STAMPED versions;
  * the one non-chain-derivable field is the commission ceiling (interim proxy,
- * see {@link resolveMaxAcceptableCommissionBps} + #2252). This orchestrator does
+ * see {@link resolveResumeCommissionCeilingBps} + #2252). This orchestrator does
  * the chain reads + sibling discovery (mirrors `discoverBatch` /
  * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
  * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
@@ -39,7 +39,7 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 import { fetchVaultIdsByDepositor } from "./fetchVaults";
-import { resolveMaxAcceptableCommissionBps } from "./resolveMaxAcceptableCommissionBps";
+import { resolveResumeCommissionCeilingBps } from "./resolveResumeCommissionCeilingBps";
 import { resolveVaultProviderBtcPubkey } from "./vaultPayoutSignatureService";
 
 export interface RebuildDepositTermsParams {
@@ -281,7 +281,7 @@ export async function rebuildDepositTerms(
     timelockRefund: offchainParams.tRefund,
     prepeginTxid: stripHexPrefix(target.prePeginTxHash).toLowerCase(),
     prepeginMaxFee: params.fundedTxFee,
-    maxAcceptableCommissionBps: resolveMaxAcceptableCommissionBps(
+    maxAcceptableCommissionBps: resolveResumeCommissionCeilingBps(
       target,
       offchainParams.minVpCommissionBps,
     ),

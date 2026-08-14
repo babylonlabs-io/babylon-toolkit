@@ -42,7 +42,7 @@ export interface RebuildDepositTermsCoreInput {
   vaultCoreVersion: number;
   /** Sibling HTLCs ordered by htlcVout; index === htlcVout (asserted by the app). */
   siblings: readonly RebuildSibling[];
-  /** Funded Pre-PegIn tx hex — already hash-verified vs on-chain prePeginTxHash by the app (Gate 0). */
+  /** Funded Pre-PegIn tx hex. Gate 0 (hash vs prepeginTxid) is SELF-verified below — callers need not pre-verify. */
   fundedPrePeginTxHex: string;
 
   // Stamped-version participant data (already resolved + sorted by the app).

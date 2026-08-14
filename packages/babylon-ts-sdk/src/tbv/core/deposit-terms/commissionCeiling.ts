@@ -7,6 +7,20 @@
  * @module deposit-terms/commissionCeiling
  */
 
+/*
+ * Commission-check map (each guards a DIFFERENT boundary — do not consolidate):
+ *  1. assertVpCommissionInProtocolRange (vault app, vaultPayoutSignatureService)
+ *     — chain-read trust boundary; mirrors VPKeyRegistryLogic.sol bounds.
+ *  2. capMaxAcceptableCommissionBps (here) — depositor quote → ceiling policy;
+ *     mirrors PeginLogic.sol's strict > check via the +25bps headroom.
+ *  3. buildDepositTerms range check — public-API precondition on the projection
+ *     that mints the device-enforced commissionFee.
+ *  4. payout.ts commission cap — the VP-built tx's output value vs bps at the
+ *     signing site (CLAUDE.md Critical Path #3).
+ *  5. envelope.ts dust/cross-field gates (ledger-vault-signer) — firmware-only
+ *     constants, pre-device-I/O (Critical Path #7).
+ */
+
 import { MAX_VP_COMMISSION_BPS_EXCLUSIVE } from "../primitives/psbt/constants";
 
 /**

@@ -19,24 +19,24 @@ vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "testnet"),
 }));
 
-import { resolveMaxAcceptableCommissionBps } from "../resolveMaxAcceptableCommissionBps";
+import { resolveResumeCommissionCeilingBps } from "../resolveResumeCommissionCeilingBps";
 
-describe("resolveMaxAcceptableCommissionBps", () => {
+describe("resolveResumeCommissionCeilingBps", () => {
   it("throws when the stored commission is below the protocol floor", () => {
     expect(() =>
-      resolveMaxAcceptableCommissionBps({ vaultProviderCommissionBps: 5 }, 10),
+      resolveResumeCommissionCeilingBps({ vaultProviderCommissionBps: 5 }, 10),
     ).toThrow(/VP commission 5 bps out of protocol range \[10, 10000\)/);
   });
 
   it("throws on a zero commission (tx-graph builder refuses vp_commission_bps == 0)", () => {
     expect(() =>
-      resolveMaxAcceptableCommissionBps({ vaultProviderCommissionBps: 0 }, 0),
+      resolveResumeCommissionCeilingBps({ vaultProviderCommissionBps: 0 }, 0),
     ).toThrow(/VP commission 0 bps out of protocol range \[1, 10000\)/);
   });
 
   it("applies the fresh path's +25 bps headroom to an in-range commission", () => {
     expect(
-      resolveMaxAcceptableCommissionBps(
+      resolveResumeCommissionCeilingBps(
         { vaultProviderCommissionBps: 250 },
         10,
       ),
@@ -45,7 +45,7 @@ describe("resolveMaxAcceptableCommissionBps", () => {
 
   it("caps the ceiling at 9999 so it never reaches the contract's exclusive bound", () => {
     expect(
-      resolveMaxAcceptableCommissionBps(
+      resolveResumeCommissionCeilingBps(
         { vaultProviderCommissionBps: 9990 },
         10,
       ),
@@ -56,7 +56,7 @@ describe("resolveMaxAcceptableCommissionBps", () => {
     // Math.max(NaN, 1) is NaN and every comparison against NaN is false —
     // without the guard, a commission of 0 would pass.
     expect(() =>
-      resolveMaxAcceptableCommissionBps(
+      resolveResumeCommissionCeilingBps(
         { vaultProviderCommissionBps: 0 },
         Number.NaN,
       ),

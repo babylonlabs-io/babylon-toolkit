@@ -4,6 +4,10 @@
  * in browser storage (`assertUtxosAvailable` already guarantees the inputs are
  * mempool-visible). Returns a COMPLETE record that the broadcast reuses
  * verbatim, so the fee in the rebuilt terms is the fee it signs (no drift).
+ *
+ * The fee bounds here deliberately overlap `validateInputOutputBalance`
+ * (vaultPeginBroadcastService) — this copy bounds the fee at the terms-minting
+ * site, before the rebuild's chain reads and any device work.
  */
 
 import { MAX_REASONABLE_FEE_SATS } from "@babylonlabs-io/ts-sdk";
