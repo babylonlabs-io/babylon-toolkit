@@ -10,7 +10,7 @@
 
 import { renderHook, waitFor } from "@testing-library/react";
 import { initEccLib } from "bitcoinjs-lib";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HashMap, IWallet, Network } from "@/core/types";
 
@@ -24,6 +24,7 @@ import { useWalletConnectors } from "./useWalletConnectors";
  * concession to it — without it no jsdom test could register a curve at all.
  */
 const NODE_UINT8ARRAY = Object.getPrototypeOf(Buffer.prototype).constructor;
+const JSDOM_UINT8ARRAY = globalThis.Uint8Array;
 
 /** BIP-86 first-address vector: the compressed key and the address it derives. */
 const TAPROOT_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
@@ -121,6 +122,14 @@ describe("BTC connect handler without host-side curve setup", () => {
     initEccLib(undefined);
     harness.connectHandler = null;
     vi.clearAllMocks();
+  });
+
+  // Hand the environment back as it was found. Vitest isolates test files, so
+  // nothing here reaches another file today — but a mutated global that outlives
+  // the suite that needed it is a trap for whoever adds the next case.
+  afterEach(() => {
+    globalThis.Uint8Array = JSDOM_UINT8ARRAY;
+    initEccLib(undefined);
   });
 
   it("keeps a taproot wallet selected", async () => {
