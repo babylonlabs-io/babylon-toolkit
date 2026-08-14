@@ -29,6 +29,17 @@ const MAINNET_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpx
 /** The same vector's scriptPubKey: OP_1 and the BIP-341 tweak of XONLY, not XONLY itself. */
 const MAINNET_SCRIPT_PUBKEY = "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c";
 
+/** The same key on testnet and signet, which share bitcoinjs's testnet parameters. */
+const TESTNET_ADDRESS = "tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv";
+
+/** BIP-86 test-vector account xpub and the path to the first receive address. */
+const ACCOUNT_XPUB =
+  "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoGVky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ";
+const FIRST_RECEIVE_PATH = "m/0/0";
+
+/** The parity byte an even-y compressed key carries, which XONLY drops. */
+const EVEN_Y_PREFIX = "03";
+
 /**
  * A different but genuinely valid x-only key (the secp256k1 generator's
  * x-coordinate), so the mismatch below is rejected because the derived address
@@ -59,11 +70,16 @@ describe("taproot derivation without host-side curve setup", () => {
     expect(getTaprootAddress(XONLY, Network.MAINNET)).toBe(MAINNET_ADDRESS);
   });
 
-  it("derives a taproot address on testnet and signet", async () => {
+  it("derives the published BIP-86 testnet address", async () => {
     const { getTaprootAddress } = await loadWalletUtils();
 
-    expect(getTaprootAddress(XONLY, Network.TESTNET)).toMatch(/^tb1p/);
-    expect(getTaprootAddress(XONLY, Network.SIGNET)).toMatch(/^tb1p/);
+    expect(getTaprootAddress(XONLY, Network.TESTNET)).toBe(TESTNET_ADDRESS);
+  });
+
+  it("derives the published BIP-86 testnet address on signet too", async () => {
+    const { getTaprootAddress } = await loadWalletUtils();
+
+    expect(getTaprootAddress(XONLY, Network.SIGNET)).toBe(TESTNET_ADDRESS);
   });
 
   it("accepts an address that matches its public key", async () => {
@@ -81,17 +97,14 @@ describe("taproot derivation without host-side curve setup", () => {
   it("derives a taproot address from an extended public key", async () => {
     const { generateP2TRAddressFromXpub, toNetwork } = await loadWalletUtils();
 
-    // BIP-86 test-vector account xpub, first receive address.
-    const xpub =
-      "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoGVky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ";
     const { address, publicKeyHex, scriptPubKeyHex } = generateP2TRAddressFromXpub(
-      xpub,
-      "m/0/0",
+      ACCOUNT_XPUB,
+      FIRST_RECEIVE_PATH,
       toNetwork(Network.MAINNET),
     );
 
     expect(address).toBe(MAINNET_ADDRESS);
-    expect(publicKeyHex).toBe(`03${XONLY}`);
+    expect(publicKeyHex).toBe(`${EVEN_Y_PREFIX}${XONLY}`);
     expect(scriptPubKeyHex).toBe(MAINNET_SCRIPT_PUBKEY);
   });
 });
