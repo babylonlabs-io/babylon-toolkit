@@ -327,6 +327,15 @@ export async function runWithdrawFlow(
     );
   });
 
+  // A zero baseline is not a withdrawable position, and `fetchWithdrawContext` also reports 0 when the
+  // position exists but holds no collateral. Reject it here so the run names that cause, rather than
+  // releasing whatever the UI still offers and then failing `assertVaultsReleased` against a NEGATIVE
+  // target — an impossible expectation that would read as a broken assertion, not a bad starting state.
+  if (before.vaultCount === 0)
+    throw new Error(
+      "withdraw: the on-chain position reports 0 vaults before withdrawing — there is nothing to release, and no baseline to verify a release against.",
+    );
+
   const released = new Set<string>();
   for (;;) {
     const pass = released.size + 1;
