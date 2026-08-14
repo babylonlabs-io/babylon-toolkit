@@ -78,6 +78,12 @@ import {
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
+  /**
+   * Connected wallet's ETH address. On the intent (Ledger) path the rebuild
+   * asserts it equals the on-chain depositor before any device interaction —
+   * a stale modal after a wallet switch must fail closed, not re-approve.
+   */
+  depositorEthAddress: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -167,6 +173,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       vaultId,
+      depositorEthAddress,
       pendingPegin,
       updatePendingPeginStatus,
       removePendingPegin,
@@ -364,17 +371,17 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
-      // Intent (Ledger) resume: rebuild the approved DepositTerms from chain +
-      // WASM and run the derive→approve ceremony (inside broadcastPrePeginTransaction)
-      // before signing. Software wallets keep the signPsbt-only path unchanged.
-      // Resolve every prevout ONCE so the fee that feeds the rebuilt terms is the
-      // same Σin−Σout the broadcast will sign (no drift).
+      // Intent (Ledger) resume: rebuild the DepositTerms from chain + WASM and
+      // run the derive→approve ceremony before signing. Prevouts are resolved
+      // once, mempool-only (never the local cache), so the fee the device
+      // approves is the fee the broadcast signs. Software wallets unchanged.
       if (supportsDepositApproval(btcWalletProvider)) {
         const { expectedUtxos: resolvedUtxos, fundedTxFee } =
-          await resolveFundedTxFeeAndUtxos(unsignedTxHex, expectedUtxos);
+          await resolveFundedTxFeeAndUtxos(unsignedTxHex);
         const depositTerms = await rebuildDepositTerms({
           vaultId,
           fundedPrePeginTxHex: unsignedTxHex,
+          connectedDepositorAddress: depositorEthAddress as Hex,
           depositorBtcPubkey,
           fundedTxFee,
         });
@@ -423,13 +430,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (mountedRef.current) {
         let errorMessage: string;
 
-        // An intent-wallet's DepositTermsRejectedError arrives here with its
-        // message preserved verbatim (no "Failed to broadcast" wrapper), so the
-        // resume UI's mapDepositError classifies it the same as the fresh path
-        // does today. broadcastError is string-typed by contract (its content is
-        // asserted across the hook tests). When #2110 adds a typed
-        // intent-rejection branch to mapDepositError, thread the typed error to
-        // the mapper here as useDepositFlow already does — see #2110.
+        // DepositTermsRejectedError arrives message-preserved, so mapDepositError
+        // classifies it like the fresh path today. broadcastError is string by
+        // contract; when #2110 adds a typed branch, thread the typed error to
+        // the mapper here (as useDepositFlow does).
         if (err instanceof UtxoNotAvailableError) {
           // UTXO not available - provide specific error message
           errorMessage = err.message;

@@ -23,6 +23,7 @@ import { Transaction } from "bitcoinjs-lib";
 import { findAuthAnchorOpReturn } from "../managers/pegin/assertAuthAnchorOpReturn";
 import { assertEncodedHtlcOutputsMatch } from "../primitives/psbt/assertWasmPeginSizing";
 import { stripHexPrefix } from "../primitives/utils/bitcoin";
+import { MAX_REASONABLE_PEGIN_VBYTES } from "../utils/fee/constants";
 import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
 
 import { buildDepositTerms } from "./buildDepositTerms";
@@ -84,11 +85,9 @@ export async function rebuildDepositTermsCore(
     );
   }
 
-  // Gate 0 (self-verified, not merely trusted from the caller): the funded tx
-  // bytes must hash to the on-chain-pinned prepeginTxid. Everything below trusts
-  // these bytes — without this a substituted tx that replicates the first N HTLC
-  // outputs passes Gate 1 while carrying a different fee/txid the device would
-  // then be asked to approve. Mirrors the refund flow's Gate 0.
+  // Gate 0, self-verified: everything below trusts these bytes, and a
+  // substituted tx replicating the HTLC outputs would pass Gate 1 with a
+  // different fee/txid.
   const expectedTxid = stripHexPrefix(input.prepeginTxid).toLowerCase();
   const actualTxid = stripHexPrefix(
     calculateBtcTxHash(input.fundedPrePeginTxHex),
@@ -100,10 +99,8 @@ export async function rebuildDepositTermsCore(
     );
   }
 
-  // Completeness anchor: the funded tx's auth-anchor OP_RETURN sits at
-  // vout === HTLC count. Production pegins always commit exactly one anchor, so
-  // its absence (or an ambiguous set) MUST reject — this is the only guard
-  // against an indexer-lagged partial sibling set (Gate 1 only inspects 0..N-1).
+  // Completeness anchor: the single auth-anchor OP_RETURN sits at vout === HTLC
+  // count — the only guard against an indexer-lagged partial sibling set.
   const found = findAuthAnchorOpReturn(
     stripHexPrefix(input.fundedPrePeginTxHex),
   );
@@ -116,9 +113,8 @@ export async function rebuildDepositTermsCore(
     );
   }
 
-  // Amount-independent sizing (btc-vault: DCV + minPeginFee depend on the signer
-  // set + rates, not the pegin amount). Depositor-as-claimer:
-  // numLocalChallengers === numVks (VP excluded) — graph.rs derive_challengers_for.
+  // Amount-independent sizing. Depositor-as-claimer: numLocalChallengers ===
+  // numVks (VP excluded) — btc-vault graph.rs derive_challengers_for.
   const numVks = input.vaultKeeperBtcPubkeys.length;
   const numUcs = input.universalChallengerBtcPubkeys.length;
   const depositorClaimValue = await computeMinClaimValue(
@@ -138,10 +134,41 @@ export async function rebuildDepositTermsCore(
   const anchor = await peginP2aAnchorOutput(input.vaultCoreVersion);
   const anchorValue = anchor?.value ?? 0n;
 
-  // Gate 1: per sibling, expected HTLC value = amount + DCV + peginMaxFee + anchor
-  // (btc-vault compute_min_htlc_value), and expected scriptPubKey from the
-  // sibling's on-chain hashlock. assertEncodedHtlcOutputsMatch byte-matches both
-  // against the funded tx's outputs 0..N-1.
+  // Independent bounds on the WASM outputs (mirrors assertWasmPeginSizing):
+  // Gate 1 only proves the DCV+fee+anchor SUM — these constrain the
+  // decomposition the device is shown.
+  if (depositorClaimValue <= 0n) {
+    throw new Error(
+      `WASM returned non-positive depositorClaimValue ${depositorClaimValue}; ` +
+        `expected > 0. Resume refused.`,
+    );
+  }
+  if (peginMaxFee <= 0n) {
+    throw new Error(
+      `WASM returned non-positive peginMaxFee ${peginMaxFee}; expected > 0. ` +
+        `Resume refused.`,
+    );
+  }
+  // Explicit anchor check: the sum bound alone would let a negative anchor
+  // offset an inflated peginMaxFee (kept local, not inherited from the facade).
+  if (anchorValue < 0n) {
+    throw new Error(
+      `WASM returned negative P2A anchor value ${anchorValue}. Resume refused.`,
+    );
+  }
+  const impliedReserve = peginMaxFee + anchorValue;
+  const maxImpliedReserve = input.minPeginFeeRate * MAX_REASONABLE_PEGIN_VBYTES;
+  if (impliedReserve <= 0n || impliedReserve > maxImpliedReserve) {
+    throw new Error(
+      `WASM implied PegIn reserve ${impliedReserve} sat is outside ` +
+        `(0, ${maxImpliedReserve}] (minPeginFeeRate=${input.minPeginFeeRate} × ` +
+        `${MAX_REASONABLE_PEGIN_VBYTES} vbytes). Resume refused.`,
+    );
+  }
+
+  // Gate 1: per sibling, value = amount + DCV + peginMaxFee + anchor (btc-vault
+  // compute_min_htlc_value) + scriptPubKey from the on-chain hashlock,
+  // byte-matched against outputs 0..N-1.
   const expectedHtlcValues = input.siblings.map(
     (s) => s.amount + depositorClaimValue + peginMaxFee + anchorValue,
   );

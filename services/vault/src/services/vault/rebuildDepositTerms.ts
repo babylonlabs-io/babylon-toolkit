@@ -1,22 +1,15 @@
 /**
  * Rebuild a {@link DepositTerms} on the resume-broadcast path (#2220 Part 2).
  *
- * On a fresh deposit the terms are still in memory from `preparePegin`. On a
- * resume — including a different browser / private mode — they are gone, so an
- * intent (Ledger) wallet has nothing to approve. This reconstructs them from
- * chain + WASM ONLY (never browser storage): every field is chain-derivable at
- * the vault's STAMPED version, except the depositor commission ceiling (interim
- * proxy — see {@link resolveMaxAcceptableCommissionBps} + #2252).
- *
- * This orchestrator does the CHAIN READS + sibling discovery only; the pure
- * WASM-recompute + Gate 1 byte-match + projection live in ts-sdk
- * `rebuildDepositTermsCore` (unit-testable, no chain). btc-vault is the protocol
- * source of truth. Design: `todo/ledger/2220-part2-resume-rebuild-design.md`.
- *
- * NOTE (drift): sibling discovery mirrors `discoverBatch` (vaultRefundService)
- * and the stamped reads mirror `prepareSigningContext` (vaultPayoutSignatureService).
- * A shared helper is the anti-drift move; deferred so this PR does not refactor
- * payout/refund code.
+ * On resume (any browser) the in-memory terms from `preparePegin` are gone, so
+ * an intent (Ledger) wallet has nothing to approve. Reconstructs them from
+ * chain + WASM only — never browser storage — at the vault's STAMPED versions;
+ * the one non-chain-derivable field is the commission ceiling (interim proxy,
+ * see {@link resolveMaxAcceptableCommissionBps} + #2252). This orchestrator does
+ * the chain reads + sibling discovery (mirrors `discoverBatch` /
+ * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
+ * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
+ * Design: `todo/ledger/2220-part2-resume-rebuild-design.md`.
  */
 
 import {
@@ -27,6 +20,7 @@ import {
   type DepositTerms,
   type RebuildSibling,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
@@ -34,6 +28,7 @@ import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
+  type OnChainVaultData,
 } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
   getOperationKeyReader,
@@ -51,21 +46,15 @@ import { resolveVaultProviderBtcPubkey } from "./vaultPayoutSignatureService";
 export interface RebuildDepositTermsParams {
   /** The vault being resumed (any sibling of a batch). */
   vaultId: Hex;
-  /** Funded Pre-PegIn tx hex — already hash-verified against on-chain prePeginTxHash by the caller (Gate 0). */
+  /** Funded Pre-PegIn tx hex — the core re-verifies it against the on-chain hash (Gate 0). */
   fundedPrePeginTxHex: string;
-  /**
-   * Connected wallet's ETH address, when available — a sanity check that it equals
-   * the on-chain depositor (defense-in-depth vs a stale wallet switch). Sibling
-   * enumeration always uses the authoritative on-chain depositor, so this is optional.
-   */
-  connectedDepositorAddress?: Address;
-  /** Depositor BTC pubkey (from the broadcast context) — the identity the HTLC scripts + PSBT are signed with. */
+  /** Connected wallet's ETH address — must equal the on-chain depositor (stale wallet-switch guard). */
+  connectedDepositorAddress: Address;
+  /** Depositor BTC pubkey — the identity the HTLC scripts + PSBT are signed with. */
   depositorBtcPubkey: string;
   /**
-   * The funded Pre-PegIn tx fee (Σ input prevout values − Σ outputs), a WALLET-level
-   * fee distinct from the per-vault graph `peginMaxFee`. The caller computes it from the
-   * prevouts it already resolves for broadcast (Gate 3); it becomes `DepositTerms.prepeginMaxFee`,
-   * the bound the device enforces (`fee ≤ prepegin_max_fee`).
+   * Funded-tx fee (Σ prevouts − Σ outputs), computed by the caller from the same
+   * prevouts the broadcast signs. Becomes the device's `prepegin_max_fee` bound.
    */
   fundedTxFee: bigint;
 }
@@ -75,60 +64,62 @@ interface OrderedSibling extends RebuildSibling {
 }
 
 /**
- * Discover the complete sibling set sharing this vault's Pre-PegIn tx, ordered by
- * on-chain htlcVout, fail-closed. Mirrors `discoverBatch` (vaultRefundService).
- * Membership is by on-chain `prePeginTxHash` equality, not indexer hex — a stale
- * indexer can only enumerate ids, never fabricate/drop a sibling. The OP_RETURN
- * completeness anchor runs in `rebuildDepositTermsCore` (it holds the funded tx).
+ * Fields that must be uniform across the batch: each sibling is stamped by its
+ * own `submitPeginRequest`, so governance/VP changes between registrations can
+ * stamp them differently — and Gate 1 cannot see fields not encoded in the
+ * HTLC outputs (timelockPegin, timelockAssert, commission). Fail closed.
  */
-async function discoverSiblings(
-  targetVaultId: Hex,
-  targetPrePeginTxHash: Hex,
-  connectedDepositor: Address | undefined,
-  onChainDepositor: Address,
-  target: OrderedSibling,
-): Promise<OrderedSibling[]> {
-  if (
-    connectedDepositor !== undefined &&
-    onChainDepositor.toLowerCase() !== connectedDepositor.toLowerCase()
-  ) {
-    throw new Error(
-      `Vault ${targetVaultId} is owned by ${onChainDepositor}, but the connected ` +
-        `wallet is ${connectedDepositor}. Connect with the depositor wallet to resume.`,
-    );
+const SIBLING_HOMOGENEOUS_FIELDS = [
+  "vaultCoreVersion",
+  "offchainParamsVersion",
+  "appVaultKeepersVersion",
+  "universalChallengersVersion",
+  "vaultProviderCommissionBps",
+] as const;
+
+/** Exported for tests — pure, fail-closed. */
+export function assertSiblingBatchHomogeneous(
+  target: OnChainVaultData,
+  siblings: readonly OnChainVaultData[],
+): void {
+  // Chain-read PENDING gate for EVERY member — an expired/liquidated sibling
+  // would otherwise be silently funded by the shared broadcast.
+  for (const vault of [target, ...siblings]) {
+    if (vault.status !== OnChainBtcVaultStatus.PENDING) {
+      throw new Error(
+        `A vault in this Pre-PegIn batch is no longer awaiting broadcast ` +
+          `(on-chain status ${vault.status}); the batch cannot be broadcast ` +
+          `as one transaction. Resume refused.`,
+      );
+    }
   }
-
-  const txHashLower = targetPrePeginTxHash.toLowerCase();
-  const targetIdLower = targetVaultId.toLowerCase();
-  const depositorVaultIds = await fetchVaultIdsByDepositor(onChainDepositor);
-  const candidateIds = depositorVaultIds.filter(
-    (id) => id.toLowerCase() !== targetIdLower,
-  );
-
-  // Lean prePeginTxHash-only multicall first, so the fully-validated read (which
-  // fail-closes on a bad stamped vaultCoreVersion) runs only for actual siblings.
-  const candidateInfos =
-    await getVaultRegistryReader().getProtocolInfoBatch(candidateIds);
-  const siblingIds = candidateIds.filter(
-    (_, i) => candidateInfos[i].prePeginTxHash.toLowerCase() === txHashLower,
-  );
-  const siblingOnChain = await Promise.all(
-    siblingIds.map((id) => getVaultFromChain(id)),
-  );
-
-  const siblings: OrderedSibling[] = [target];
-  for (const sib of siblingOnChain) {
-    if (sib.prePeginTxHash.toLowerCase() !== txHashLower) continue;
-    siblings.push({
-      hashlock: sib.hashlock,
-      amount: sib.amount,
-      htlcVout: sib.htlcVout,
-    });
+  for (const sib of siblings) {
+    for (const field of SIBLING_HOMOGENEOUS_FIELDS) {
+      if (sib[field] !== target[field]) {
+        throw new Error(
+          `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
+            `(${String(sib[field])} vs ${String(target[field])}); the batch ` +
+            `cannot be described by one set of deposit terms. Resume refused.`,
+        );
+      }
+    }
+    for (const field of ["applicationEntryPoint", "vaultProvider"] as const) {
+      if (sib[field].toLowerCase() !== target[field].toLowerCase()) {
+        throw new Error(
+          `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
+            `(${sib[field]} vs ${target[field]}); the batch cannot be ` +
+            `described by one set of deposit terms. Resume refused.`,
+        );
+      }
+    }
   }
-  siblings.sort((a, b) => a.htlcVout - b.htlcVout);
+}
 
-  // Contiguity: cover [0, N-1] with no gaps/dupes — the core (and buildDepositTerms)
-  // derive htlcVout from array position, so a gap would mis-align with the funded tx.
+/** Exported for tests — pure, fail-closed. htlcVout is derived from array
+ * position downstream, so the sorted vector must cover [0, N-1] exactly. */
+export function assertContiguousHtlcVector(
+  siblings: readonly OrderedSibling[],
+): void {
   for (let i = 0; i < siblings.length; i++) {
     if (siblings[i].htlcVout !== i) {
       throw new Error(
@@ -137,33 +128,64 @@ async function discoverSiblings(
       );
     }
   }
+}
+
+/**
+ * Discover the complete sibling set sharing this Pre-PegIn tx, ordered by
+ * htlcVout. Membership is on-chain `prePeginTxHash` equality (a stale indexer
+ * can only enumerate ids); completeness is backstopped by the core's OP_RETURN
+ * anchor check.
+ */
+async function discoverSiblings(
+  targetVaultId: Hex,
+  connectedDepositor: Address,
+  target: OnChainVaultData,
+): Promise<OrderedSibling[]> {
+  if (target.depositor.toLowerCase() !== connectedDepositor.toLowerCase()) {
+    throw new Error(
+      `Vault ${targetVaultId} is owned by ${target.depositor}, but the connected ` +
+        `wallet is ${connectedDepositor}. Connect with the depositor wallet to resume.`,
+    );
+  }
+
+  const txHashLower = target.prePeginTxHash.toLowerCase();
+  const targetIdLower = targetVaultId.toLowerCase();
+  const depositorVaultIds = await fetchVaultIdsByDepositor(target.depositor);
+  const candidateIds = depositorVaultIds.filter(
+    (id) => id.toLowerCase() !== targetIdLower,
+  );
+
+  // Lean hash-only multicall first; the fully-validated read runs only for
+  // actual siblings.
+  const candidateInfos =
+    await getVaultRegistryReader().getProtocolInfoBatch(candidateIds);
+  const siblingIds = candidateIds.filter(
+    (_, i) => candidateInfos[i].prePeginTxHash.toLowerCase() === txHashLower,
+  );
+  const siblingOnChain = (
+    await Promise.all(siblingIds.map((id) => getVaultFromChain(id)))
+  ).filter((sib) => sib.prePeginTxHash.toLowerCase() === txHashLower);
+
+  assertSiblingBatchHomogeneous(target, siblingOnChain);
+
+  const siblings: OrderedSibling[] = [target, ...siblingOnChain].map((v) => ({
+    hashlock: v.hashlock,
+    amount: v.amount,
+    htlcVout: v.htlcVout,
+  }));
+  siblings.sort((a, b) => a.htlcVout - b.htlcVout);
+  assertContiguousHtlcVector(siblings);
 
   return siblings;
 }
 
-export async function rebuildDepositTerms(
-  params: RebuildDepositTermsParams,
-): Promise<DepositTerms> {
-  const target = await getVaultFromChain(params.vaultId);
-
-  // Fail closed with a friendly "update the app" message BEFORE any wallet popup
-  // if this build's WASM cannot construct the vault's stamped version (mirrors the
-  // refund flow). Vendor-neutral — not a Ledger-specific guard.
-  await assertVaultCoreVersionSupported(target.vaultCoreVersion);
-
-  const siblings = await discoverSiblings(
-    params.vaultId,
-    target.prePeginTxHash,
-    params.connectedDepositorAddress,
-    target.depositor,
-    {
-      hashlock: target.hashlock,
-      amount: target.amount,
-      htlcVout: target.htlcVout,
-    },
-  );
-
-  // ---- Shared stamped-version reads (mirror prepareSigningContext) ----
+/**
+ * Read everything version-locked to the vault's stamps (mirrors
+ * `prepareSigningContext`): offchain params + timelocks at
+ * `offchainParamsVersion`, rosters at their stamped versions, operation keys
+ * at the vault's frozen epochs.
+ */
+async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
   const protocolParamsReader = await getProtocolParamsReader();
   const offchainParams = await protocolParamsReader.getOffchainParamsByVersion(
     target.offchainParamsVersion,
@@ -198,7 +220,7 @@ export async function rebuildDepositTerms(
     undefined,
   );
   const operationKeyReader = await getOperationKeyReader();
-  const epochs = await getVaultKeyEpochsFromChain(params.vaultId);
+  const epochs = await getVaultKeyEpochsFromChain(vaultId);
   const participantKeys = await resolveParticipantKeysAtEpochs({
     operationKeyReader,
     query: {
@@ -210,6 +232,26 @@ export async function rebuildDepositTerms(
     },
     epochs,
   });
+
+  return { offchainParams, timelockPegin, participantKeys };
+}
+
+export async function rebuildDepositTerms(
+  params: RebuildDepositTermsParams,
+): Promise<DepositTerms> {
+  const target = await getVaultFromChain(params.vaultId);
+
+  // Fail closed before any wallet popup if this build's WASM cannot construct
+  // the stamped version. Vendor-neutral, mirrors the refund flow.
+  await assertVaultCoreVersionSupported(target.vaultCoreVersion);
+
+  const siblings = await discoverSiblings(
+    params.vaultId,
+    params.connectedDepositorAddress,
+    target,
+  );
+  const { offchainParams, timelockPegin, participantKeys } =
+    await readStampedVaultContext(params.vaultId, target);
 
   return rebuildDepositTermsCore({
     vaultCoreVersion: target.vaultCoreVersion,

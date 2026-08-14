@@ -72,6 +72,7 @@ export function useBroadcastState({
     try {
       await vaultHandleBroadcast({
         vaultId: activity.id,
+        depositorEthAddress,
         pendingPegin,
         updatePendingPeginStatus,
         removePendingPegin,
@@ -110,6 +111,7 @@ export function useBroadcastState({
   }, [
     activity,
     batchVaultIds,
+    depositorEthAddress,
     pendingPegins,
     updatePendingPeginStatus,
     removePendingPegin,

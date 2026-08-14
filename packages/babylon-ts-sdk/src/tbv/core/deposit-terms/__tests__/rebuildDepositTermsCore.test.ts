@@ -135,6 +135,26 @@ describe("rebuildDepositTermsCore guards", () => {
       rebuildDepositTermsCore(makeInput({ fundedPrePeginTxHex, siblings: [] })),
     ).rejects.toThrow(/at least one sibling/);
   });
+
+  it("throws when a second auth-anchor-shaped OP_RETURN makes the anchor ambiguous", async () => {
+    // Two OP_RETURN‖PUSH32‖value-0 outputs → findAuthAnchorOpReturn returns
+    // undefined (single-hit rule) → the core must refuse, not pick one.
+    const tx = new Transaction();
+    tx.version = 2;
+    tx.addInput(Buffer.alloc(32, 0x11), 0);
+    tx.addOutput(Buffer.from(`5120${"00".repeat(32)}`, "hex"), 1000);
+    tx.addOutput(
+      Buffer.concat([Buffer.from([0x6a, 0x20]), Buffer.alloc(32, 0xab)]),
+      0,
+    );
+    tx.addOutput(
+      Buffer.concat([Buffer.from([0x6a, 0x20]), Buffer.alloc(32, 0xcd)]),
+      0,
+    );
+    await expect(
+      rebuildDepositTermsCore(makeInput({ fundedPrePeginTxHex: tx.toHex() })),
+    ).rejects.toThrow(/absent or ambiguous/);
+  });
 });
 
 describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
@@ -143,13 +163,16 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
   });
 
   const NETWORK = "signet" as Network;
+  // All four scalars deliberately DISTINCT: identical rates (or timelocks)
+  // would blind these tests to a swapped-argument bug in the core's WASM
+  // calls or a transposed field in the projection.
   const TIMELOCK_REFUND = 2016;
   const TIMELOCK_PEGIN = 684;
-  const TIMELOCK_ASSERT = 684;
+  const TIMELOCK_ASSERT = 700;
   const COUNCIL_QUORUM = 2;
   const COUNCIL_SIZE = 3;
-  const PROTOCOL_FEE_RATE = 2n;
-  const MIN_PEGIN_FEE_RATE = 2n;
+  const PROTOCOL_FEE_RATE = 3n;
+  const MIN_PEGIN_FEE_RATE = 7n;
   const PREPEGIN_MAX_FEE = 1500n;
   const COMMISSION_BPS = 250;
   const BPS_DENOMINATOR = 10_000n;
@@ -278,7 +301,9 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
   });
 
   it("rebuilds single-vault v1 terms (zero-anchor branch)", async () => {
-    const siblings: Sibling[] = [{ hashlock: "ef".repeat(32), amount: 750_000n }];
+    const siblings: Sibling[] = [
+      { hashlock: "ef".repeat(32), amount: 750_000n },
+    ];
     const { txHex, dcv, fee, anchor } = await buildRealFundedTx(1, siblings);
     const input = baseInput(1, siblings, txHex);
 
@@ -290,5 +315,40 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     expect(terms.vaults[0].peginAmount).toBe(750_000n);
     expect(terms.vaults[0].depositorClaimValue).toBe(dcv);
     expect(terms.vaults[0].peginMaxFee).toBe(fee);
+  });
+
+  // Gate 1 negatives THROUGH the core (not just the helper's own unit tests):
+  // prove the core feeds the funded tx's actual outputs to the byte-match.
+  // The txid is recomputed from the tampered hex so Gate 0 passes and the
+  // failure is attributable to Gate 1 alone.
+
+  it("rejects a funded tx whose HTLC value was tampered (Gate 1 via the core)", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 400_000n },
+    ];
+    const { txHex } = await buildRealFundedTx(2, siblings);
+    const tampered = Transaction.fromHex(txHex);
+    tampered.outs[0].value += 1;
+    const tamperedHex = tampered.toHex();
+
+    await expect(
+      rebuildDepositTermsCore(baseInput(2, siblings, tamperedHex)),
+    ).rejects.toThrow(/value .* does not|does not match the cross-checked/);
+  });
+
+  it("rejects a funded tx whose HTLC scriptPubKey was tampered (Gate 1 via the core)", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 400_000n },
+    ];
+    const { txHex } = await buildRealFundedTx(2, siblings);
+    const tampered = Transaction.fromHex(txHex);
+    const script = Buffer.from(tampered.outs[0].script);
+    script[script.length - 1] ^= 0x01;
+    tampered.outs[0].script = script;
+    const tamperedHex = tampered.toHex();
+
+    await expect(
+      rebuildDepositTermsCore(baseInput(2, siblings, tamperedHex)),
+    ).rejects.toThrow(/scriptPubKey .* does not match/);
   });
 });
