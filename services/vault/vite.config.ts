@@ -54,6 +54,20 @@ function resolveSidecarProxy(mode: string) {
   };
 }
 
+// Origin of the public vault deployment, and the fallback for NEXT_PUBLIC_CANONICAL when a
+// deploy environment leaves it unset. It is what index.html's rel="canonical", og:url and the
+// Open Graph image URLs are built from, so it has to be an absolute origin that actually
+// serves the app. The previous fallback (the marketing site) told crawlers the vault was a
+// duplicate of it, and made the card image 404.
+const PUBLIC_VAULT_ORIGIN = "https://btc-vaults.testnet.babylonlabs.io";
+
+// index.html appends paths to this value, so the trailing slash is stripped here rather than
+// left to each %NEXT_PUBLIC_CANONICAL% call site.
+function resolveCanonicalOrigin() {
+  const configured = process.env.NEXT_PUBLIC_CANONICAL?.trim();
+  return (configured || PUBLIC_VAULT_ORIGIN).replace(/\/+$/, "");
+}
+
 const isSentryDisabled =
   process.env.NEXT_BUILD_E2E || process.env.DISABLE_SENTRY === "true";
 
@@ -142,7 +156,7 @@ export default defineConfig(({ mode }) => ({
       process.env.NEXT_PUBLIC_COMMIT_HASH || "development",
     ),
     "import.meta.env.NEXT_PUBLIC_CANONICAL": JSON.stringify(
-      process.env.NEXT_PUBLIC_CANONICAL || "https://babylonlabs.io/",
+      resolveCanonicalOrigin(),
     ),
   },
 }));
