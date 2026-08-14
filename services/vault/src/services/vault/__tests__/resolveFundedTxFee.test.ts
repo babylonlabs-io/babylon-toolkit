@@ -100,4 +100,34 @@ describe("resolveFundedTxFeeAndUtxos", () => {
       /do not cover its outputs/,
     );
   });
+
+  it("rejects when any prevout fetch fails (no partial UTXO record)", async () => {
+    const hex = makeTxHex(
+      [
+        { txid: TXID_A, vout: 0 },
+        { txid: TXID_B, vout: 1 },
+      ],
+      [1000],
+    );
+    vi.mocked(fetchUTXOFromMempool)
+      .mockResolvedValueOnce({ scriptPubKey: "0014aa", value: 1200 })
+      .mockRejectedValueOnce(new Error("mempool 404"));
+
+    await expect(resolveFundedTxFeeAndUtxos(hex)).rejects.toThrow(
+      /mempool 404/,
+    );
+  });
+
+  it("throws when the fee exceeds the maximum reasonable fee cap", async () => {
+    // 2_001_000 in − 1_000_000 out = 1_001_000 fee > the 1_000_000 sat cap.
+    const hex = makeTxHex([{ txid: TXID_A, vout: 0 }], [1_000_000]);
+    vi.mocked(fetchUTXOFromMempool).mockResolvedValue({
+      scriptPubKey: "0014aa",
+      value: 2_001_000,
+    });
+
+    await expect(resolveFundedTxFeeAndUtxos(hex)).rejects.toThrow(
+      /exceeds the maximum reasonable fee/,
+    );
+  });
 });

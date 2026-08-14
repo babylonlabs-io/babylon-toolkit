@@ -17,10 +17,21 @@ import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
 import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
+import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 
 import { useVaultActions } from "../useVaultActions";
 
 const mockSignPsbt = vi.hoisted(() => vi.fn().mockResolvedValue("signedPsbt"));
+const makeDefaultChainConnector = vi.hoisted(() => () => ({
+  connectedWallet: {
+    account: { address: "bc1qdepositor" },
+    provider: {
+      connectWallet: vi.fn().mockResolvedValue(undefined),
+      getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+      signPsbt: mockSignPsbt,
+    },
+  },
+}));
 const mockCalculateBtcTxHash = vi.hoisted(() =>
   vi.fn(() => "0xmatching_pre_pegin_hash"),
 );
@@ -107,16 +118,7 @@ vi.mock("@/clients/eth-contract/pause-state/query", () => ({
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: vi.fn(() => ({})),
-  useChainConnector: vi.fn(() => ({
-    connectedWallet: {
-      account: { address: "bc1qdepositor" },
-      provider: {
-        connectWallet: vi.fn().mockResolvedValue(undefined),
-        getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-        signPsbt: mockSignPsbt,
-      },
-    },
-  })),
+  useChainConnector: vi.fn(makeDefaultChainConnector),
 }));
 
 vi.mock("wagmi/actions", () => ({
@@ -249,6 +251,15 @@ const baseBroadcastParams = {
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
 };
+
+// Re-assert the default connector before EVERY test so a describe that
+// overrides useChainConnector's return value cannot leak a stale wallet into
+// later tests. Idempotent for tests that never override it.
+beforeEach(() => {
+  vi.mocked(useChainConnector).mockImplementation(
+    makeDefaultChainConnector as never,
+  );
+});
 
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
   beforeEach(() => {
@@ -1218,8 +1229,6 @@ describe("useVaultActions — handleActivation hashlock source", () => {
   });
 });
 
-// Placed last: these tests override the useChainConnector mock's return value,
-// which persists for the rest of the file.
 describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", () => {
   const RESOLVED = {
     expectedUtxos: {
@@ -1228,6 +1237,13 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     fundedTxFee: 1234n,
   };
   const REBUILT_TERMS = { prepeginTxid: "ff".repeat(32) };
+  // Single fixture for the chain read AND the `target` the hook must forward
+  // to the rebuild — the same object, not a re-read.
+  const ONCHAIN_VAULT = {
+    prePeginTxHash: "0xmatching_pre_pegin_hash",
+    hashlock: "0xonchain_hashlock",
+    status: OnChainBtcVaultStatus.PENDING,
+  };
 
   function connectIntentWallet() {
     vi.mocked(useChainConnector).mockReturnValue({
@@ -1247,11 +1263,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
   beforeEach(() => {
     vi.clearAllMocks();
     mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
-    mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
-      hashlock: "0xonchain_hashlock",
-      status: OnChainBtcVaultStatus.PENDING,
-    } as never);
+    mockGetVaultFromChain.mockResolvedValue(ONCHAIN_VAULT as never);
     mockGetVaultRegistryReader.mockReturnValue({
       getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -1277,6 +1289,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     expect(resolveFundedTxFeeAndUtxos).toHaveBeenCalledWith(TRUSTED_TX_HEX);
     expect(rebuildDepositTerms).toHaveBeenCalledWith({
       vaultId: "0xvaultId",
+      target: ONCHAIN_VAULT,
       fundedPrePeginTxHex: TRUSTED_TX_HEX,
       connectedDepositorAddress: "0xconnected_depositor",
       depositorBtcPubkey: "depositorBtcPubkey",
@@ -1340,5 +1353,68 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     expect(resolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
     const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
     expect("depositTerms" in broadcastArg).toBe(false);
+  });
+
+  // The seam guard (ensurePrePeginTermsApproval) must see the capability
+  // absent — an always-present wrapper property would turn its typed error
+  // into a mid-ceremony TypeError.
+  it("does not forward deriveContextHash when the intent wallet lacks it", async () => {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
+    expect("deriveContextHash" in broadcastArg.btcWalletProvider).toBe(false);
+    expect("approveDepositTerms" in broadcastArg.btcWalletProvider).toBe(true);
+  });
+
+  // The intent path resolves prevouts mempool-only; the local UTXO record
+  // helper belongs to the software branch and must never run here.
+  it("broadcasts even when the local UTXO record helper would throw", async () => {
+    connectIntentWallet();
+    vi.mocked(utxosToExpectedRecord).mockImplementation(() => {
+      throw new Error("stale local UTXO record");
+    });
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          selectedUTXOs: [
+            {
+              txid: "abc123",
+              vout: 0,
+              value: "100000",
+              scriptPubKey: "0014abcdef",
+            },
+          ],
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    // Restore the factory default — implementations survive clearAllMocks.
+    vi.mocked(utxosToExpectedRecord).mockImplementation(() => ({}));
   });
 });

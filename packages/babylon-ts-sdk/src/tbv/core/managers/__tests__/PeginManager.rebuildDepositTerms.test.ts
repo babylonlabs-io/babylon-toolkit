@@ -16,7 +16,10 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { MockBitcoinWallet, MockEthereumWallet } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
-import { rebuildDepositTermsCore } from "../../deposit-terms";
+import {
+  capMaxAcceptableCommissionBps,
+  rebuildDepositTermsCore,
+} from "../../deposit-terms";
 import { deriveTaprootAddress } from "../../primitives";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import {
@@ -138,7 +141,9 @@ const PARAMS = {
 } as const;
 
 // Fresh path applies `capMaxAcceptableCommissionBps`: quote + 25 bps headroom.
-const EXPECTED_MAX_ACCEPTABLE_BPS = PARAMS.commissionBps + 25;
+const EXPECTED_MAX_ACCEPTABLE_BPS = capMaxAcceptableCommissionBps(
+  PARAMS.commissionBps,
+);
 
 const PREVOUT_VALUES = new Map(
   TEST_UTXOS.map((u) => [`${u.txid}:${u.vout}`, BigInt(u.value)]),

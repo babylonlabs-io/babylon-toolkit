@@ -5,6 +5,7 @@
 import {
   ensureHexPrefix,
   forwardDepositApproval,
+  forwardDeriveContextHash,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   supportsDepositApproval,
@@ -285,19 +286,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // Use the locally stored UTXO set as trusted construction-time data
-      // ONLY when we're broadcasting the local tx. The stored UTXOs are the
-      // inputs of the local tx, not necessarily of the indexer's tx, so when
-      // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
-      // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
-      // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
-      // supplied but doesn't cover every input, so a stale/partial local set
-      // paired with the indexer tx would dead-end the broadcast.
-      const expectedUtxos =
-        localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
-          ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
-          : undefined;
-
       // The integrity guarantee for this broadcast is the on-chain
       // `prePeginTxHash` match asserted above: it commits to every input,
       // output, and script of the registered Pre-PegIn, so a match proves
@@ -380,6 +368,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           await resolveFundedTxFeeAndUtxos(unsignedTxHex);
         const depositTerms = await rebuildDepositTerms({
           vaultId,
+          target: onChainVault,
           fundedPrePeginTxHex: unsignedTxHex,
           connectedDepositorAddress: depositorEthAddress as Hex,
           depositorBtcPubkey,
@@ -389,8 +378,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           unsignedTxHex,
           btcWalletProvider: {
             signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-            deriveContextHash: (appName: string, context: string) =>
-              btcWalletProvider.deriveContextHash(appName, context),
+            ...forwardDeriveContextHash(btcWalletProvider),
             ...forwardDepositApproval(btcWalletProvider),
           },
           depositorBtcPubkey,
@@ -398,6 +386,18 @@ export function useVaultActions(): UseVaultActionsReturn {
           depositTerms,
         });
       } else {
+        // Use the locally stored UTXO set as trusted construction-time data
+        // ONLY when we're broadcasting the local tx. The stored UTXOs are the
+        // inputs of the local tx, not necessarily of the indexer's tx, so when
+        // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
+        // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
+        // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
+        // supplied but doesn't cover every input, so a stale/partial local set
+        // paired with the indexer tx would dead-end the broadcast.
+        const expectedUtxos =
+          localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
+            ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
+            : undefined;
         await broadcastPrePeginTransaction({
           unsignedTxHex,
           btcWalletProvider: {

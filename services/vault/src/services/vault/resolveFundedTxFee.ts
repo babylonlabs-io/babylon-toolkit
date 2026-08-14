@@ -6,6 +6,7 @@
  * verbatim, so the fee in the rebuilt terms is the fee it signs (no drift).
  */
 
+import { MAX_REASONABLE_FEE_SATS } from "@babylonlabs-io/ts-sdk";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -21,13 +22,19 @@ export async function resolveFundedTxFeeAndUtxos(
     : fundedPrePeginTxHex;
   const tx = Transaction.fromHex(cleanHex);
 
+  const resolvedInputs = await Promise.all(
+    tx.ins.map(async (input) => {
+      // Bitcoin stores the prev-txid in reverse (internal) byte order.
+      const txid = Buffer.from(input.hash).reverse().toString("hex");
+      const key = `${txid}:${input.index}`;
+      const utxo = await fetchUTXOFromMempool(txid, input.index);
+      return { key, utxo };
+    }),
+  );
+
   const expectedUtxos: UtxoRecord = {};
   let totalInputValue = 0n;
-  for (const input of tx.ins) {
-    // Bitcoin stores the prev-txid in reverse (internal) byte order.
-    const txid = Buffer.from(input.hash).reverse().toString("hex");
-    const key = `${txid}:${input.index}`;
-    const utxo = await fetchUTXOFromMempool(txid, input.index);
+  for (const { key, utxo } of resolvedInputs) {
     expectedUtxos[key] = utxo;
     totalInputValue += BigInt(utxo.value);
   }
@@ -41,6 +48,14 @@ export async function resolveFundedTxFeeAndUtxos(
     throw new Error(
       `The funded Pre-PegIn transaction's inputs do not cover its outputs ` +
         `plus a fee (computed fee: ${fundedTxFee} sats). Refusing to resume.`,
+    );
+  }
+  if (fundedTxFee > MAX_REASONABLE_FEE_SATS) {
+    throw new Error(
+      `The funded Pre-PegIn transaction's computed fee (${fundedTxFee} sats) ` +
+        `exceeds the maximum reasonable fee (${MAX_REASONABLE_FEE_SATS} sats). ` +
+        `This may indicate the mempool API returned manipulated UTXO data. ` +
+        `Refusing to resume.`,
     );
   }
 

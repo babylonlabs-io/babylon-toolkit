@@ -553,7 +553,7 @@ hashlock: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
 
-x-only or 0x-prefixed hex hashlock, per-vault (feeds the HTLC scriptPubKey).
+32-byte hex hashlock (0x prefix optional), per-vault (feeds the HTLC scriptPubKey).
 
 ##### amount
 
@@ -765,6 +765,31 @@ validation, and non-negative sizing is already asserted by WASM output checks.
 
 ***
 
+### capMaxAcceptableCommissionBps()
+
+```ts
+function capMaxAcceptableCommissionBps(bps): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeiling.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeiling.ts)
+
+The commission ceiling submitted as registration calldata and mirrored
+into `DepositTerms.commissionFee`: quoted + drift headroom, capped.
+Single source for both consumers — feed it the SAME quoted bps at prepare
+and register time so device-accept stays coextensive with contract-accept.
+
+#### Parameters
+
+##### bps
+
+`number`
+
+#### Returns
+
+`number`
+
+***
+
 ### supportsDepositApproval()
 
 ```ts
@@ -890,6 +915,39 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTe
 `Promise`\<[`DepositTerms`](#depositterms)\>
 
 ## Variables
+
+### COMMISSION\_BPS\_HEADROOM
+
+```ts
+const COMMISSION_BPS_HEADROOM: 25 = 25;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeiling.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeiling.ts)
+
+Headroom (in basis points) added to the current VP commission to compute
+`maxAcceptableCommissionBps` at submit time. Lets the VP raise its
+commission by up to this amount between read and submit without forcing
+a re-quote. Capped by [MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP](#max_acceptable_commission_bps_cap).
+
+Contract check is strict `>` (PeginLogic.sol `VaultProviderCommissionExceeded`
+revert), so +25 allows up
+to +25 bps of drift.
+
+***
+
+### MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP
+
+```ts
+const MAX_ACCEPTABLE_COMMISSION_BPS_CAP: 9999 = 9999;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeiling.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeiling.ts)
+
+Hard ceiling for `maxAcceptableCommissionBps`. The contract enforces
+`commissionBps < 10000`, so any value at/above that is unreachable;
+`9999` is the maximum useful cap.
+
+***
 
 ### DEPOSIT\_TERMS\_REJECTED\_ERROR\_NAME
 

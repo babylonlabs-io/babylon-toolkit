@@ -100,6 +100,18 @@ describe("rebuildDepositTermsCore guards", () => {
     ).rejects.toThrow(/prepeginMaxFee must be > 0/);
   });
 
+  it("throws when a sibling carries a non-positive on-chain pegin amount", async () => {
+    const fundedPrePeginTxHex = makeFundedTx({ htlcCount: 1, opReturnVout: 1 });
+    await expect(
+      rebuildDepositTermsCore(
+        makeInput({
+          fundedPrePeginTxHex,
+          siblings: [{ hashlock: "ab".repeat(32), amount: 0n }],
+        }),
+      ),
+    ).rejects.toThrow(/non-positive on-chain pegin amount/);
+  });
+
   it("throws when the funded tx does not hash to prepeginTxid (Gate 0)", async () => {
     const fundedPrePeginTxHex = makeFundedTx({ htlcCount: 1, opReturnVout: 1 });
     await expect(
@@ -113,7 +125,7 @@ describe("rebuildDepositTermsCore guards", () => {
     const fundedPrePeginTxHex = makeFundedTx({ htlcCount: 1 }); // no OP_RETURN
     await expect(
       rebuildDepositTermsCore(makeInput({ fundedPrePeginTxHex })),
-    ).rejects.toThrow(/absent or ambiguous|sibling set is incomplete/);
+    ).rejects.toThrow(/no single, unambiguous auth-anchor/);
   });
 
   it("throws when the OP_RETURN vout disagrees with the sibling count", async () => {
@@ -126,7 +138,7 @@ describe("rebuildDepositTermsCore guards", () => {
           siblings: [{ hashlock: "ab".repeat(32), amount: 1_000_000n }],
         }),
       ),
-    ).rejects.toThrow(/does not match sibling count/);
+    ).rejects.toThrow(/does not match the discovered sibling count/);
   });
 
   it("throws on an empty sibling set", async () => {
@@ -153,7 +165,7 @@ describe("rebuildDepositTermsCore guards", () => {
     );
     await expect(
       rebuildDepositTermsCore(makeInput({ fundedPrePeginTxHex: tx.toHex() })),
-    ).rejects.toThrow(/absent or ambiguous/);
+    ).rejects.toThrow(/no single, unambiguous auth-anchor/);
   });
 });
 

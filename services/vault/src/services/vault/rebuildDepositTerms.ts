@@ -9,7 +9,6 @@
  * the chain reads + sibling discovery (mirrors `discoverBatch` /
  * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
  * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
- * Design: `todo/ledger/2220-part2-resume-rebuild-design.md`.
  */
 
 import {
@@ -46,6 +45,8 @@ import { resolveVaultProviderBtcPubkey } from "./vaultPayoutSignatureService";
 export interface RebuildDepositTermsParams {
   /** The vault being resumed (any sibling of a batch). */
   vaultId: Hex;
+  /** Caller's getVaultFromChain(vaultId) record, already hash-verified against fundedPrePeginTxHex. */
+  target: OnChainVaultData;
   /** Funded Pre-PegIn tx hex — the core re-verifies it against the on-chain hash (Gate 0). */
   fundedPrePeginTxHex: string;
   /** Connected wallet's ETH address — must equal the on-chain depositor (stale wallet-switch guard). */
@@ -186,41 +187,48 @@ async function discoverSiblings(
  * at the vault's frozen epochs.
  */
 async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
-  const protocolParamsReader = await getProtocolParamsReader();
-  const offchainParams = await protocolParamsReader.getOffchainParamsByVersion(
-    target.offchainParamsVersion,
-  );
-  const timelockPegin = await protocolParamsReader.getTimelockPeginByVersion(
-    target.offchainParamsVersion,
-  );
+  // Reader factories are TTL-cached with in-flight dedupe, so concurrent
+  // acquisition is safe.
+  const [
+    { offchainParams, timelockPegin },
+    vaultKeepers,
+    universalChallengers,
+    registrationVpBtcPubkey,
+    operationKeyReader,
+    epochs,
+  ] = await Promise.all([
+    getProtocolParamsReader().then(async (reader) => {
+      const [offchainParams, timelockPegin] = await Promise.all([
+        reader.getOffchainParamsByVersion(target.offchainParamsVersion),
+        reader.getTimelockPeginByVersion(target.offchainParamsVersion),
+      ]);
+      return { offchainParams, timelockPegin };
+    }),
+    getVaultKeeperReader().then((r) =>
+      r.getVaultKeepersByVersion(
+        target.applicationEntryPoint,
+        target.appVaultKeepersVersion,
+      ),
+    ),
+    getUniversalChallengerReader().then((r) =>
+      r.getUniversalChallengersByVersion(target.universalChallengersVersion),
+    ),
+    resolveVaultProviderBtcPubkey(target.vaultProvider, undefined),
+    getOperationKeyReader(),
+    getVaultKeyEpochsFromChain(vaultId),
+  ]);
 
-  const vaultKeeperReader = await getVaultKeeperReader();
-  const vaultKeepers = await vaultKeeperReader.getVaultKeepersByVersion(
-    target.applicationEntryPoint,
-    target.appVaultKeepersVersion,
-  );
   if (vaultKeepers.length === 0) {
     throw new Error(
       `No vault keepers for version ${target.appVaultKeepersVersion}`,
     );
   }
-  const universalChallengerReader = await getUniversalChallengerReader();
-  const universalChallengers =
-    await universalChallengerReader.getUniversalChallengersByVersion(
-      target.universalChallengersVersion,
-    );
   if (universalChallengers.length === 0) {
     throw new Error(
       `No universal challengers for version ${target.universalChallengersVersion}`,
     );
   }
 
-  const registrationVpBtcPubkey = await resolveVaultProviderBtcPubkey(
-    target.vaultProvider,
-    undefined,
-  );
-  const operationKeyReader = await getOperationKeyReader();
-  const epochs = await getVaultKeyEpochsFromChain(vaultId);
   const participantKeys = await resolveParticipantKeysAtEpochs({
     operationKeyReader,
     query: {
@@ -239,7 +247,7 @@ async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
 export async function rebuildDepositTerms(
   params: RebuildDepositTermsParams,
 ): Promise<DepositTerms> {
-  const target = await getVaultFromChain(params.vaultId);
+  const { target } = params;
 
   // Fail closed before any wallet popup if this build's WASM cannot construct
   // the stamped version. Vendor-neutral, mirrors the refund flow.
@@ -273,7 +281,10 @@ export async function rebuildDepositTerms(
     timelockRefund: offchainParams.tRefund,
     prepeginTxid: stripHexPrefix(target.prePeginTxHash).toLowerCase(),
     prepeginMaxFee: params.fundedTxFee,
-    maxAcceptableCommissionBps: resolveMaxAcceptableCommissionBps(target),
+    maxAcceptableCommissionBps: resolveMaxAcceptableCommissionBps(
+      target,
+      offchainParams.minVpCommissionBps,
+    ),
     network: getBTCNetworkForWASM(),
   });
 }

@@ -9,7 +9,7 @@
  * projects into DepositTerms. No chain access, no browser state — unit-testable.
  *
  * btc-vault is the protocol source of truth (`compute_min_htlc_value`,
- * `derive_challengers_for`). Design: `todo/ledger/2220-part2-resume-rebuild-design.md`.
+ * `derive_challengers_for`).
  */
 
 import {
@@ -31,7 +31,7 @@ import type { DepositTerms } from "./depositTerms";
 
 /** One HTLC in the shared Pre-PegIn tx, ordered by (and contiguous in) htlcVout. */
 export interface RebuildSibling {
-  /** x-only or 0x-prefixed hex hashlock, per-vault (feeds the HTLC scriptPubKey). */
+  /** 32-byte hex hashlock (0x prefix optional), per-vault (feeds the HTLC scriptPubKey). */
   hashlock: string;
   /** btc-vault `pegin_amount` for this sibling (satoshis). */
   amount: bigint;
@@ -79,6 +79,14 @@ export async function rebuildDepositTermsCore(
       "rebuildDepositTermsCore: at least one sibling is required",
     );
   }
+  for (const [i, sibling] of input.siblings.entries()) {
+    if (sibling.amount <= 0n) {
+      throw new Error(
+        `rebuildDepositTermsCore: sibling[${i}] has non-positive on-chain pegin ` +
+          `amount ${sibling.amount}; the chain-read vault record is invalid. Resume refused.`,
+      );
+    }
+  }
   if (input.prepeginMaxFee <= 0n) {
     throw new Error(
       `rebuildDepositTermsCore: prepeginMaxFee must be > 0, got ${input.prepeginMaxFee}`,
@@ -104,12 +112,20 @@ export async function rebuildDepositTermsCore(
   const found = findAuthAnchorOpReturn(
     stripHexPrefix(input.fundedPrePeginTxHex),
   );
-  if (found === undefined || found.vout !== siblingCount) {
+  if (found === undefined) {
     throw new Error(
-      `Auth-anchor OP_RETURN ${
-        found === undefined ? "absent or ambiguous" : `at vout ${found.vout}`
-      } does not match sibling count ${siblingCount}; sibling set is incomplete. ` +
+      `Funded Pre-PegIn carries no single, unambiguous auth-anchor OP_RETURN ` +
+        `commitment — it either predates auth anchoring or is malformed. The ` +
+        `intent resume path requires the anchor to prove sibling completeness. ` +
         `Resume refused.`,
+    );
+  }
+  if (found.vout !== siblingCount) {
+    throw new Error(
+      `Auth-anchor OP_RETURN at vout ${found.vout} does not match the ` +
+        `discovered sibling count ${siblingCount}; the discovered sibling set ` +
+        `does not cover this transaction's HTLC outputs (a lagging index can ` +
+        `cause this — retry later). Resume refused.`,
     );
   }
 

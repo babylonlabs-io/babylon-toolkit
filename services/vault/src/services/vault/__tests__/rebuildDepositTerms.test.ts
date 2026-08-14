@@ -2,6 +2,7 @@ import {
   rebuildDepositTermsCore,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { Transaction } from "bitcoinjs-lib";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,6 +40,7 @@ vi.mock("@/utils/vaultCoreVersionSupport", () => ({
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
   getVaultKeyEpochsFromChain: vi.fn(),
+  getVaultProviderGenesisBtcPubkeyFromChain: vi.fn(),
 }));
 vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
   getOperationKeyReader: vi.fn().mockResolvedValue({}),
@@ -53,7 +55,10 @@ vi.mock("../../../config/pegin", () => ({
 vi.mock("../fetchVaults", () => ({
   fetchVaultIdsByDepositor: vi.fn(),
 }));
-vi.mock("../vaultPayoutSignatureService", () => ({
+// importOriginal keeps the real assertVpCommissionInProtocolRange so the
+// commission-ceiling mapping is exercised end-to-end.
+vi.mock("../vaultPayoutSignatureService", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../vaultPayoutSignatureService")>()),
   resolveVaultProviderBtcPubkey: vi.fn(),
 }));
 
@@ -197,6 +202,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
   function baseParams() {
     return {
       vaultId: TARGET_ID,
+      target: targetVault,
       fundedPrePeginTxHex: "deadbeef",
       connectedDepositorAddress: DEPOSITOR_ETH.toLowerCase() as `0x${string}`,
       depositorBtcPubkey: DEPOSITOR_BTC,
@@ -228,6 +234,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
         securityCouncilKeys: ["c1", "c2", "c3"],
         timelockAssert: 150n,
         tRefund: 144,
+        minVpCommissionBps: 10,
       }),
       getTimelockPeginByVersion: vi.fn().mockResolvedValue(100),
     } as never);
@@ -273,7 +280,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       timelockRefund: 144, // tRefund mapping
       prepeginTxid: "12".repeat(32), // stripped + lowercased
       prepeginMaxFee: 1234n,
-      maxAcceptableCommissionBps: 250, // interim proxy = stored VP bps (#2252)
+      maxAcceptableCommissionBps: 275, // stored 250 + 25 bps headroom (fresh-path cap policy, #2252 interim)
       network: "signet",
     });
   });
@@ -311,5 +318,53 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       /disagree on offchainParamsVersion/,
     );
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+  });
+
+  /** A funded Pre-PegIn tx with `htlcCount` HTLC outputs and the auth-anchor
+   * OP_RETURN at vout === htlcCount. Uses the GLOBAL native Buffer, not
+   * `import { Buffer } from "buffer"` — the polyfill package's instances fail
+   * bitcoinjs/typeforce's native Buffer.isBuffer check (dual-realm Buffer). */
+  function makeFundedTx(htlcCount: number): string {
+    const tx = new Transaction();
+    tx.version = 2;
+    tx.addInput(Buffer.alloc(32, 0x11), 0);
+    for (let i = 0; i < htlcCount; i++) {
+      tx.addOutput(Buffer.from(`5120${"00".repeat(32)}`, "hex"), 1000);
+    }
+    tx.addOutput(
+      Buffer.concat([Buffer.from([0x6a, 0x20]), Buffer.alloc(32, 0xab)]),
+      0,
+    );
+    return tx.toHex();
+  }
+
+  // Lagging-indexer end-to-end: discovery only enumerates what the indexer
+  // knows, so a truncated sibling set must be caught by the REAL core's
+  // auth-anchor completeness check — not silently rebuilt as a 1-vault batch.
+  it("refuses a truncated sibling set via the real core's auth-anchor check", async () => {
+    const actual = await vi.importActual<
+      typeof import("@babylonlabs-io/ts-sdk/tbv/core")
+    >("@babylonlabs-io/ts-sdk/tbv/core");
+    vi.mocked(rebuildDepositTermsCore).mockImplementation(
+      actual.rebuildDepositTermsCore,
+    );
+
+    // 2-HTLC funded tx (anchor at vout 2), but the indexer returns only the
+    // target vault id — the discovered sibling set covers 1 of 2 HTLCs.
+    const fundedTxHex = makeFundedTx(2);
+    const laggedTarget = {
+      ...targetVault,
+      prePeginTxHash: `0x${Transaction.fromHex(fundedTxHex).getId()}` as Hex,
+    };
+    vi.mocked(fetchVaultIdsByDepositor).mockResolvedValue([TARGET_ID]);
+
+    await expect(
+      rebuildDepositTerms({
+        ...baseParams(),
+        target: laggedTarget,
+        fundedPrePeginTxHex: fundedTxHex,
+      }),
+    ).rejects.toThrow(/does not match the discovered sibling count 1/);
+    expect(rebuildDepositTermsCore).toHaveBeenCalledTimes(1);
   });
 });
