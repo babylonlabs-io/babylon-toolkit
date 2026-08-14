@@ -26,7 +26,7 @@ describe("unsafeTo64bitLE / unsafeFrom64bitLE boundaries", () => {
   });
 
   it("rejects encoding a value above MAX_SAFE_INTEGER", () => {
-    expect(() => unsafeTo64bitLE(2 ** 53)).toThrow(/MAX_SAFE_INT/);
+    expect(() => unsafeTo64bitLE(2 ** 53)).toThrow(/non-negative safe integer/);
   });
 
   it("rejects decoding a value above the 2^53 − 1 bound", () => {
@@ -38,5 +38,14 @@ describe("unsafeTo64bitLE / unsafeFrom64bitLE boundaries", () => {
 
   it("rejects a buffer that is not 8 bytes long", () => {
     expect(() => unsafeFrom64bitLE(Buffer.from("00", "hex"))).toThrow(/length 8/);
+  });
+
+  it("rejects negative, fractional, and NaN amounts instead of silently corrupting", () => {
+    // Negatives would two's-complement wrap, NaN encodes as zero — amount bytes
+    // must never be produced from garbage input.
+    expect(() => unsafeTo64bitLE(-1)).toThrow(/non-negative safe integer/);
+    expect(() => unsafeTo64bitLE(1.5)).toThrow(/non-negative safe integer/);
+    expect(() => unsafeTo64bitLE(Number.NaN)).toThrow(/non-negative safe integer/);
+    expect(() => unsafeTo64bitLE(Number.NEGATIVE_INFINITY)).toThrow(/non-negative safe integer/);
   });
 });

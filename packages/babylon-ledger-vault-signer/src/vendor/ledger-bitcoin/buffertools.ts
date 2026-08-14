@@ -12,7 +12,10 @@
  *                  `MAX_SAFE_INTEGER_TOP_BYTE` 2^53 bound in unsafeFrom64bitLE;
  *                  fixed the "Bufffer of lenght" typo; `slice` → `subarray` in
  *                  readSlice; defensive strict-null guards on byte indexing
- *                  (behaviour-preserving); `==` → `===`; formatting.
+ *                  (behaviour-preserving); `==` → `===`; formatting;
+ *                  unsafeTo64bitLE rejects non-safe-integer/negative input
+ *                  (upstream only capped > MAX_SAFE_INTEGER — negatives wrapped,
+ *                  NaN encoded as zero).
  */
 
 import { Buffer } from "buffer";
@@ -24,9 +27,11 @@ import { createVarint, parseVarint, sanitizeBigintToNumber } from "./varint";
 const MAX_SAFE_INTEGER_TOP_BYTE = 0x1f;
 
 export function unsafeTo64bitLE(n: number): Buffer {
-  // we want to represent the input as a 8-bytes array
-  if (n > Number.MAX_SAFE_INTEGER) {
-    throw new Error("Can't convert numbers > MAX_SAFE_INT");
+  // we want to represent the input as a 8-bytes array. Reject anything that is
+  // not a non-negative safe integer: negatives would two's-complement wrap and
+  // NaN would encode as zero — silent corruption for an amount field.
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new Error("Can't convert a number that is not a non-negative safe integer to 64-bit LE");
   }
   const byteArray = Buffer.alloc(8, 0);
   for (let index = 0; index < byteArray.length; index++) {
