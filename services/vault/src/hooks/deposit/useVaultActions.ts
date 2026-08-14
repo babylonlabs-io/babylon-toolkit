@@ -4,8 +4,10 @@
 
 import {
   ensureHexPrefix,
+  forwardDepositApproval,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
+  supportsDepositApproval,
   verifyRegisteredVaultVersions,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
@@ -60,6 +62,8 @@ import {
   broadcastPrePeginTransaction,
   fetchVaultById,
 } from "../../services/vault";
+import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
+import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
@@ -360,14 +364,42 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
-      await broadcastPrePeginTransaction({
-        unsignedTxHex,
-        btcWalletProvider: {
-          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-        },
-        depositorBtcPubkey,
-        expectedUtxos,
-      });
+      // Intent (Ledger) resume: rebuild the approved DepositTerms from chain +
+      // WASM and run the derive→approve ceremony (inside broadcastPrePeginTransaction)
+      // before signing. Software wallets keep the signPsbt-only path unchanged.
+      // Resolve every prevout ONCE so the fee that feeds the rebuilt terms is the
+      // same Σin−Σout the broadcast will sign (no drift).
+      if (supportsDepositApproval(btcWalletProvider)) {
+        const { expectedUtxos: resolvedUtxos, fundedTxFee } =
+          await resolveFundedTxFeeAndUtxos(unsignedTxHex, expectedUtxos);
+        const depositTerms = await rebuildDepositTerms({
+          vaultId,
+          fundedPrePeginTxHex: unsignedTxHex,
+          depositorBtcPubkey,
+          fundedTxFee,
+        });
+        await broadcastPrePeginTransaction({
+          unsignedTxHex,
+          btcWalletProvider: {
+            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+            deriveContextHash: (appName: string, context: string) =>
+              btcWalletProvider.deriveContextHash(appName, context),
+            ...forwardDepositApproval(btcWalletProvider),
+          },
+          depositorBtcPubkey,
+          expectedUtxos: resolvedUtxos,
+          depositTerms,
+        });
+      } else {
+        await broadcastPrePeginTransaction({
+          unsignedTxHex,
+          btcWalletProvider: {
+            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+          },
+          depositorBtcPubkey,
+          expectedUtxos,
+        });
+      }
 
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
@@ -391,6 +423,13 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (mountedRef.current) {
         let errorMessage: string;
 
+        // An intent-wallet's DepositTermsRejectedError arrives here with its
+        // message preserved verbatim (no "Failed to broadcast" wrapper), so the
+        // resume UI's mapDepositError classifies it the same as the fresh path
+        // does today. broadcastError is string-typed by contract (its content is
+        // asserted across the hook tests). When #2110 adds a typed
+        // intent-rejection branch to mapDepositError, thread the typed error to
+        // the mapper here as useDepositFlow already does — see #2110.
         if (err instanceof UtxoNotAvailableError) {
           // UTXO not available - provide specific error message
           errorMessage = err.message;
