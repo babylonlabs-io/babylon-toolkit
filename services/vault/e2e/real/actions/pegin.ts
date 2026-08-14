@@ -35,6 +35,7 @@
  */
 import type { Locator, Page } from "@playwright/test";
 
+import { fetchActiveVaultCount } from "../borrowParams";
 import {
   DEPOSIT_CTA_ENABLE_TIMEOUT_MS,
   FORM_SETTLE_MS,
@@ -49,7 +50,7 @@ import { startRecording } from "./recording";
 import { FLUID_CTA_SELECTOR } from "./selectors";
 import {
   assertActivatedAndOnDashboard,
-  countActiveVaultRows,
+  assertVaultCountRose,
   walkStepMachine,
 } from "./stepMachine";
 import { type Action, type ActionContext } from "./types";
@@ -79,10 +80,8 @@ const TWO_VAULT_SPLIT_RX = /Two-vault split/; // COPY.deposit.form.splitOptionLa
 
 /**
  * Fill the deposit form (navigate to /vaults → amount → provider → submit). The form has NO testids,
- * so selectors are copy/role-driven and were verified against the real DOM. Returns the active-vault
- * row count seen on /vaults BEFORE the deposit — the finish line's split cross-check asserts the count
- * rose by the number of vaults this run creates — once the deposit progress view has opened (the fluid
- * CTA click transitions to it).
+ * so selectors are copy/role-driven and were verified against the real DOM. Returns once the deposit
+ * progress view has opened (the fluid CTA click transitions to it).
  */
 export async function fillDepositForm(
   page: Page,
@@ -90,20 +89,15 @@ export async function fillDepositForm(
   amountBtc: string,
   provider: string | undefined,
   split: boolean,
-): Promise<number> {
+): Promise<void> {
   await goToSection(page, "vaults", log);
   log(
     `Opening deposit form (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
   );
-  const depositButton = page.locator(DEPOSIT_BUTTON_TESTID).first();
-  await depositButton.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
-  // Count only AFTER the CTA renders. `goToSection` returns the moment the URL settles, but the vault
-  // list is data-driven — counting there reads 0 rows every time and silently zeroes the baseline the
-  // split cross-check subtracts against. VaultsPage renders this CTA only once its queries resolve
-  // (loading shows a Loader instead), in both the populated and empty layouts, so its presence means
-  // the row list is settled — including the legitimately-empty first-deposit case.
-  const baselineRowCount = await countActiveVaultRows(page);
-  await depositButton.click({ timeout: STEP_TIMEOUT_MS });
+  await page
+    .locator(DEPOSIT_BUTTON_TESTID)
+    .first()
+    .click({ timeout: STEP_TIMEOUT_MS });
 
   const amount = page.getByPlaceholder(AMOUNT_PLACEHOLDER).first();
   await amount.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
@@ -117,7 +111,6 @@ export async function fillDepositForm(
   const cta = await waitForDepositCta(page, log);
   log("Deposit CTA enabled — submitting the form");
   await cta.click();
-  return baselineRowCount;
 }
 
 /**
@@ -308,14 +301,17 @@ export async function runPeginFlow(
   const provider = ctx.config.peginProvider?.trim() || undefined;
   const split = ctx.config.split ?? false;
 
-  onStep("deposit-form");
-  const baselineRowCount = await fillDepositForm(
-    page,
-    log,
-    amountBtc,
-    provider,
-    split,
+  const expectedVaults = split ? 2 : 1;
+  // The on-chain vault count BEFORE this run — the baseline the post-condition asserts against. Read
+  // from `getPosition`, not the UI: /vaults renders optimistic rows for vaults this run activates, so
+  // a row count could never tell us whether the deposit actually landed.
+  const vaultsBefore = await fetchActiveVaultCount(
+    ctx.config.network,
+    ctx.eth.address,
   );
+
+  onStep("deposit-form");
+  await fillDepositForm(page, log, amountBtc, provider, split);
 
   onStep("sign-transaction");
   await startSigning(page, log);
@@ -325,19 +321,15 @@ export async function runPeginFlow(
     page,
     context,
     log,
-    split ? 2 : 1,
+    expectedVaults,
     onStep,
   );
 
   onStep("finish");
-  await assertActivatedAndOnDashboard(
-    page,
-    log,
-    amountBtc,
-    prePeginTxid,
-    split ? 2 : 1,
-    baselineRowCount,
-  );
+  await assertActivatedAndOnDashboard(page, log, amountBtc, prePeginTxid);
+
+  onStep("verify");
+  await assertVaultCountRose(ctx, vaultsBefore, expectedVaults);
   log(
     `✅ Pegin complete: ${split ? "two BTC Vaults" : "BTC Vault"} activated and shown on the dashboard.`,
   );

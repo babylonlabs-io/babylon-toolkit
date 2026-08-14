@@ -28,6 +28,7 @@
  */
 import type { Page } from "@playwright/test";
 
+import { fetchActiveVaultCount } from "../borrowParams";
 import {
   CONNECT_STATE_POLL_MS,
   CONNECT_STATE_TIMEOUT_MS,
@@ -43,7 +44,7 @@ import { fillDepositForm, startSigning } from "./pegin";
 import { startRecording } from "./recording";
 import {
   assertActivatedAndOnDashboard,
-  countActiveVaultRows,
+  assertVaultCountRose,
   walkStepMachine,
   walkUntilPrePeginBroadcast,
 } from "./stepMachine";
@@ -120,14 +121,11 @@ async function readPendingRowState(
  * step, which for a just-confirmed Pre-PegIn waits on signet block time), then click the CTA to open the
  * continuation view. Targets the `--txid` row when given (its hash cell links the Pre-PegIn), else the
  * first actionable row.
- *
- * Returns the active-vault row count seen before resuming, which the finish line's split cross-check
- * asserts against (see assertActivatedAndOnDashboard).
  */
 async function openPendingDeposit(
   ctx: ActionContext,
   txid: string | undefined,
-): Promise<number> {
+): Promise<void> {
   const { page, context, log } = ctx;
 
   await goToSection(page, "vaults", log);
@@ -144,12 +142,6 @@ async function openPendingDeposit(
     throw new Error(
       "resume: no pending deposit found on /vaults to resume. Peg in and interrupt one first (or re-run with --interrupt-fresh), or resume with an ETH account that has an in-flight deposit.",
     );
-
-  // Count only now: `goToSection` returns the moment the URL settles, but the lists are data-driven, so
-  // counting there reads 0 rows every time and silently zeroes the baseline the split cross-check
-  // subtracts against. A rendered pending row means the deposits query resolved, so the sibling
-  // active-vault list is settled too.
-  const baselineRowCount = await countActiveVaultRows(page);
 
   // 2. The resume CTA. v3 gives EVERY pending deposit its own row and its own CTA — including each half
   //    of a split, which is why a two-vault batch shows two rows sharing one Pre-PegIn hash. Clicking
@@ -198,7 +190,6 @@ async function openPendingDeposit(
   // standard actionability checks apply and are worth keeping (v2 needed `force` to punch through the
   // batch group's role=button wrapper, which v3 no longer has).
   await cta.click({ timeout: STEP_TIMEOUT_MS });
-  return baselineRowCount;
 }
 
 /**
@@ -264,8 +255,15 @@ async function runResumeFlow(
   // deposit — so we prefer this known txid and only fall back to the read one (first-actionable resume).
   const knownTxid = normalizeTxid(targetTxid ?? ctx.config.resumeTxid);
 
+  // Snapshot the on-chain vault count BEFORE resuming — the post-condition's baseline. Read from
+  // `getPosition`, never the UI: /vaults renders optimistic rows for the vaults this resume activates.
+  const vaultsBefore = await fetchActiveVaultCount(
+    ctx.config.network,
+    ctx.eth.address,
+  );
+
   onStep("open-pending-deposit");
-  const baselineRowCount = await openPendingDeposit(ctx, knownTxid);
+  await openPendingDeposit(ctx, knownTxid);
 
   onStep("resume-step-machine");
   const expectedVaults = ctx.config.split ? 2 : 1;
@@ -279,16 +277,16 @@ async function runResumeFlow(
 
   onStep("finish");
   // The resume flow doesn't always know the original deposit amount (a plain resume of a pre-existing
-  // deposit), so the single-vault cross-check falls back to the Pre-PegIn txid; --interrupt-fresh does
-  // pass the amount. A split resume uses the row-count delta instead — see the split branch.
+  // deposit), so this display check falls back to the Pre-PegIn txid; --interrupt-fresh does pass the
+  // amount. Either way it only confirms the row rendered — the on-chain assert below is the real one.
   await assertActivatedAndOnDashboard(
     page,
     log,
     ctx.config.peginAmountBtc,
     knownTxid ?? prePeginTxid,
-    expectedVaults,
-    baselineRowCount,
   );
+
+  await assertVaultCountRose(ctx, vaultsBefore, expectedVaults);
   log(
     "✅ Resume complete: the interrupted deposit reached an activated vault on /vaults.",
   );

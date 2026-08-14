@@ -39,7 +39,6 @@
  */
 import type { BrowserContext, Page } from "@playwright/test";
 
-import { fetchCollateralSats } from "../borrowParams";
 import { formatBtc } from "../preflight";
 import {
   FORM_SETTLE_MS,
@@ -50,6 +49,7 @@ import {
   WITHDRAW_TX_TIMEOUT_MS,
   WITHDRAW_VERIFY_POLL_MS,
 } from "../timing";
+import { fetchWithdrawContext } from "../withdrawParams";
 
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
@@ -124,7 +124,25 @@ async function findWithdrawableVaultId(
  * disabled — waiting that out is not the same as "nothing withdrawable". `released` holds the vaults
  * this run has already put through the flow, so a `--withdraw-all` pass can't re-enter one whose row
  * hasn't left the list yet.
+ *
+ * The poll lives in `waitForWithdrawableVaultId` so the `--withdraw-all` loop decides "is there another
+ * one?" on exactly the same terms. A single unpolled scan there would end the batch early on any
+ * transient — `findWithdrawableVaultId` reports every locator failure as "nothing withdrawable", and
+ * /vaults re-renders right after each withdrawal settles — releasing a subset while still exiting green.
  */
+async function waitForWithdrawableVaultId(
+  page: Page,
+  released: ReadonlySet<string>,
+): Promise<{ vaultId: string; rowCount: number } | { rowCount: number }> {
+  const deadline = Date.now() + WITHDRAW_CTA_ENABLE_TIMEOUT_MS;
+  let found = await findWithdrawableVaultId(page, released);
+  while (!("vaultId" in found) && Date.now() < deadline) {
+    await page.waitForTimeout(FORM_SETTLE_MS);
+    found = await findWithdrawableVaultId(page, released);
+  }
+  return found;
+}
+
 async function openWithdrawForRow(
   page: Page,
   log: (m: string) => void,
@@ -132,12 +150,7 @@ async function openWithdrawForRow(
 ): Promise<string> {
   await goToSection(page, "vaults", log);
 
-  const deadline = Date.now() + WITHDRAW_CTA_ENABLE_TIMEOUT_MS;
-  let found = await findWithdrawableVaultId(page, released);
-  while (!("vaultId" in found) && Date.now() < deadline) {
-    await page.waitForTimeout(FORM_SETTLE_MS);
-    found = await findWithdrawableVaultId(page, released);
-  }
+  const found = await waitForWithdrawableVaultId(page, released);
   if (!("vaultId" in found)) {
     if (found.rowCount === 0)
       throw new Error(
@@ -243,35 +256,45 @@ async function confirmWithdrawSuccess(
 }
 
 /**
- * After the success screen, verify on-chain that the position's collateral actually fell — the UI
- * "Withdrawal initiated" alone doesn't prove the vault left the position. Polls `fetchCollateralSats`
- * (on-chain `getPosition.totalCollateralBTC`) until it drops below the pre-withdraw baseline (inverse of
- * borrow's collateral-rose wait). Never silently passes; throws if collateral doesn't move.
+ * After the success screen(s), verify on-chain that EXACTLY the vaults this run released actually left
+ * the position: poll `getPosition` until `vaultCount === beforeCount - released`, then throw.
+ *
+ * The count, not the collateral total, is the post-condition. `collateral fell at all` cannot tell 1
+ * released from 10 — the snapshot is taken once before the first pass and asserted once after the last,
+ * so the very first release satisfies it permanently and a `--withdraw-all` run that quietly released a
+ * subset still reports success. The count is exact, so a missing release fails.
+ *
+ * A read failure is retried inside the budget and then FAILS rather than being skipped: the whole point
+ * is the post-condition, so silently dropping it would leave the run verified by UI markers alone.
  */
-async function assertCollateralDecreased(
+async function assertVaultsReleased(
   ctx: ActionContext,
-  beforeSats: bigint,
-): Promise<void> {
+  beforeCount: number,
+  releasedCount: number,
+): Promise<number> {
+  const target = beforeCount - releasedCount;
   const deadline = Date.now() + WITHDRAW_TX_TIMEOUT_MS;
-  let lastSats = beforeSats;
+  let lastCount: number | null = null;
   while (Date.now() < deadline) {
-    const sats = await fetchCollateralSats(
+    const context = await fetchWithdrawContext(
       ctx.config.network,
       ctx.eth.address,
     ).catch(() => null);
-    if (sats != null) {
-      lastSats = sats;
-      if (sats < beforeSats) {
+    if (context) {
+      lastCount = context.vaultCount;
+      if (context.vaultCount === target) {
         ctx.log(
-          `✅ On-chain collateral fell: ${formatBtc(beforeSats)} → ${formatBtc(sats)}.`,
+          `✅ On-chain vaults fell: ${beforeCount} → ${context.vaultCount} (released ${releasedCount}); collateral now ${formatBtc(context.collateralSats)}.`,
         );
-        return;
+        return context.vaultCount;
       }
     }
     await ctx.page.waitForTimeout(WITHDRAW_VERIFY_POLL_MS);
   }
   throw new Error(
-    `Withdraw reached the success screen but on-chain collateral did not fall within ${Math.round(WITHDRAW_TX_TIMEOUT_MS / MS_PER_SECOND)}s (before ${formatBtc(beforeSats)}, last ${formatBtc(lastSats)}) — the position doesn't reflect the withdrawal.`,
+    lastCount == null
+      ? `Withdraw reached the success screen but the on-chain position could not be read within ${Math.round(WITHDRAW_TX_TIMEOUT_MS / MS_PER_SECOND)}s, so the ${releasedCount} release(s) are unverified. Check the Sepolia RPC and the position manually.`
+      : `Withdraw released ${releasedCount} vault(s) in the UI but the on-chain position holds ${lastCount}, not the expected ${target} (${beforeCount} before this run − ${releasedCount}) within ${Math.round(WITHDRAW_TX_TIMEOUT_MS / MS_PER_SECOND)}s — at least one withdrawal did not take effect.`,
   );
 }
 
@@ -281,7 +304,7 @@ async function assertCollateralDecreased(
  * `--withdraw-all` repeats row → Review → Done — one on-chain transaction each — until no withdrawable
  * row is left. The default releases exactly one, keeping the position alive for reuse.
  *
- * The on-chain collateral snapshot is taken before the FIRST pass and asserted after the LAST, so the
+ * The on-chain vault count is snapshotted before the FIRST pass and asserted after the LAST, so the
  * post-condition covers the whole batch rather than re-reading between transactions.
  */
 export async function runWithdrawFlow(
@@ -291,12 +314,18 @@ export async function runWithdrawFlow(
   const { page, context, log } = ctx;
   const all = ctx.config.withdrawAll === true;
 
-  // Snapshot on-chain collateral BEFORE submitting so we can assert it fell afterwards (a real-data
-  // post-condition on top of the UI success screen).
-  const collateralBeforeSats = await fetchCollateralSats(
+  // Snapshot the on-chain position BEFORE submitting: `vaultCount` is the baseline the post-condition
+  // asserts against, and `hasDebt` decides whether leftover vaults are legitimate (health-factor gating)
+  // or a silent under-release. Fail now rather than discover at verification time that there is no
+  // baseline to compare against — that is how the check used to skip itself.
+  const before = await fetchWithdrawContext(
     ctx.config.network,
     ctx.eth.address,
-  ).catch(() => null);
+  ).catch((error: unknown) => {
+    throw new Error(
+      `withdraw: could not read the on-chain position before withdrawing (${error instanceof Error ? error.message : error}), so the run would be unverifiable. Re-run against a reachable Sepolia RPC.`,
+    );
+  });
 
   const released = new Set<string>();
   for (;;) {
@@ -333,19 +362,37 @@ export async function runWithdrawFlow(
         `The withdraw success screen stayed open for ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s after releasing vault ${shortenVaultId(vaultId)} — its Done button did not dismiss it, so the remaining vaults can't be reached. ${released.size} vault(s) were released; re-run to continue.`,
       );
 
-    // Another pass only if a withdrawable row remains. The just-released vault leaves the active list,
-    // so this settles at "nothing left to release" rather than needing a count decided up front.
+    // Everything the position held is now released — stop without paying the poll below for a row that
+    // cannot exist.
+    if (released.size >= before.vaultCount) break;
+
+    // Another pass only if a withdrawable row remains — POLLED, on the same terms as the entry path.
+    // A single scan here would end the batch on any transient (a re-render mid-refetch, a sibling still
+    // `isActivating`), silently releasing a subset while still exiting green.
     await goToSection(page, "vaults", log);
-    const next = await findWithdrawableVaultId(page, released);
+    const next = await waitForWithdrawableVaultId(page, released);
     if (!("vaultId" in next)) break;
   }
 
   onStep("withdraw-verify");
-  if (collateralBeforeSats == null)
+  const remaining = await assertVaultsReleased(
+    ctx,
+    before.vaultCount,
+    released.size,
+  );
+
+  // `--withdraw-all` promises to drain the position. Leftovers are only legitimate when debt is still
+  // health-factor-gating them; with no debt every vault was releasable, so anything left means the loop
+  // stopped early and the run must not report success.
+  if (all && remaining > 0) {
+    if (!before.hasDebt)
+      throw new Error(
+        `--withdraw-all released ${released.size} of ${before.vaultCount} vault(s) but ${remaining} remain, and the position carries no debt to health-factor-gate them — the loop stopped before draining the position.`,
+      );
     log(
-      "⚠️ Skipping the on-chain collateral check — couldn't read the pre-withdraw collateral to compare against.",
+      `⚠️ --withdraw-all released ${released.size} of ${before.vaultCount} vault(s); ${remaining} remain, held back by the $${before.currentDebtUsd.toFixed(2)} debt's health-factor gate. Repay first (--repay-first) to release them.`,
     );
-  else await assertCollateralDecreased(ctx, collateralBeforeSats);
+  }
 
   log(`Withdraw released ${released.size} vault(s).`);
 }

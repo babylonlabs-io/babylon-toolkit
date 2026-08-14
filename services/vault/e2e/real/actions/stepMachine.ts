@@ -16,8 +16,12 @@
  */
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 
+import { fetchActiveVaultCount } from "../borrowParams";
 import {
   DASHBOARD_VAULT_TIMEOUT_MS,
+  FRESH_COLLATERAL_POLL_MS,
+  FRESH_COLLATERAL_TIMEOUT_MS,
+  MS_PER_SECOND,
   PEGIN_POLL_INTERVAL_MS,
   PEGIN_STEP_MACHINE_BUDGET_MS,
   PEGIN_TX_FAILURE_RETRY_LIMIT,
@@ -27,6 +31,7 @@ import {
 import { sweepApprovals } from "./approver";
 import { goToSection } from "./navigation";
 import { firstByTestid } from "./selectors";
+import { type ActionContext } from "./types";
 
 // The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
 // tolerant-text fallback: the button copy drifts (COPY.deposit.activateConfirmation.activateButton
@@ -65,18 +70,6 @@ const VAULT_ROW_SELECTOR = '[data-testid^="vault-row-"]';
 // The deposit/resume overlay's root (V3ModalShell → core-ui FullScreenDialog). The page behind it stays
 // mounted, so anything read "from the progress view" must be scoped to this — see readPrePeginTxid.
 const DEPOSIT_DIALOG_SELECTOR = ".bbn-dialog-fullscreen";
-
-/**
- * How many active-vault rows /vaults is currently showing. Callers snapshot this BEFORE starting a
- * deposit so the finish line can assert the count rose by the number of vaults the run creates — see
- * assertActivatedAndOnDashboard's split branch. Assumes the page is already on /vaults.
- */
-export function countActiveVaultRows(page: Page): Promise<number> {
-  return page
-    .locator(VAULT_ROW_SELECTOR)
-    .count()
-    .catch(() => 0);
-}
 
 /** True once the terminal activated view is showing — detected by its "Go to Dashboard" button. */
 function activatedViewReached(page: Page): Promise<boolean> {
@@ -422,16 +415,17 @@ export async function walkUntilPrePeginBroadcast(
  * `amountBtc` may be undefined (the resume flow doesn't know the original deposit amount) — the
  * amount cross-check is then skipped and the txid / first-row path is used instead.
  *
- * `baselineRowCount` is the active-row count from BEFORE this run's deposit (countActiveVaultRows on
- * /vaults). The split branch needs it; see there for why a txid match cannot work.
+ * DISPLAY ONLY — this cannot tell you the peg-in landed, and must never be treated as if it could.
+ * The app renders an optimistic row per just-activated vault from in-memory state
+ * (ActivatingVaultsContext, 90s TTL, no indexer), carrying the same `vault-row-<vaultId>` testid and
+ * the same amount as a real row. So every identifier available here is satisfied by a row THIS RUN's
+ * own activations created, ingested or not. `assertVaultCountRose` is the authoritative check.
  */
 export async function assertActivatedAndOnDashboard(
   page: Page,
   log: (m: string) => void,
   amountBtc: string | undefined,
   prePeginTxid: string | undefined,
-  expectedVaults: number,
-  baselineRowCount: number | undefined,
 ): Promise<void> {
   log("✅ Activated view reached — clicking Go to Dashboard");
   await page
@@ -462,44 +456,6 @@ export async function assertActivatedAndOnDashboard(
     log(
       "⚠️ No active-vault row rendered on /vaults within the wait — activation succeeded; skipping the row cross-check.",
     );
-    return;
-  }
-
-  // Two-vault split: identify this run's vaults by the ROW COUNT RISING, not by txid.
-  //
-  // A txid match cannot work here. An active row renders `peginTxHash ?? prePeginTxHash`
-  // (VaultsActiveSection) — i.e. the PEG-IN transaction, which is a different tx from the Pre-PegIn we
-  // capture mid-flow. The two only coincide in the narrow window before the indexer populates
-  // `peginTxHash`, so the match is guaranteed to fail once indexing lands. Nor can the single-vault
-  // amount match substitute: each split row shows its own allocated sub-amount (e.g. 26/74 of the
-  // deposit), which the harness never computes — the app does.
-  //
-  // The count delta is indexer-independent and checks the thing the split actually claims: N more
-  // vaults exist than before. Still SOFT — "both vaults activated" is already guaranteed upstream
-  // (walkStepMachine only finishes once it has driven every activation), so this is a secondary
-  // confirmation and a miss must not fail an otherwise-successful real-funds run.
-  if (expectedVaults > 1) {
-    if (baselineRowCount === undefined) {
-      log(
-        `⚠️ No pre-deposit row count was captured, so the ${expectedVaults}-vault split cross-check was skipped — activation still succeeded.`,
-      );
-      return;
-    }
-    const target = baselineRowCount + expectedVaults;
-    let total = await rows.count().catch(() => 0);
-    const deadline = Date.now() + DASHBOARD_VAULT_TIMEOUT_MS;
-    while (total < target && Date.now() < deadline) {
-      await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
-      total = await rows.count().catch(() => 0);
-    }
-    if (total >= target)
-      log(
-        `/vaults shows ${total} active vaults, up ${total - baselineRowCount} from ${baselineRowCount} before this run — the ${expectedVaults}-vault split landed.`,
-      );
-    else
-      log(
-        `⚠️ /vaults shows ${total} active vaults, up ${total - baselineRowCount} from ${baselineRowCount} — expected ${expectedVaults} more within the wait. Activation succeeded; the indexer may still be catching up.`,
-      );
     return;
   }
 
@@ -552,4 +508,52 @@ export async function assertActivatedAndOnDashboard(
     log(
       `⚠️ The /vaults row did not clearly show "${amountBtc}" (matched by ${matchedBy}; row: "${rowText.slice(0, 120)}") — activation still succeeded.`,
     );
+}
+
+/**
+ * THE peg-in post-condition: assert the depositor's on-chain position gained exactly the vaults this
+ * run created. Polls `fetchActiveVaultCount` (a `getPosition` read) until it reaches
+ * `beforeCount + expectedVaults`, then THROWS — mirroring the on-chain post-conditions borrow, repay
+ * and withdraw already carry (debt rose / debt fell / collateral fell). Peg-in previously had none,
+ * which is how a UI check that could not fail came to stand in for verification.
+ *
+ * Deliberately NOT a UI read. /vaults renders an optimistic row per just-activated vault from
+ * in-memory state, so any row-based count after driving N activations is satisfied by the harness's
+ * own side effects — see `fetchActiveVaultCount` and `assertActivatedAndOnDashboard`.
+ *
+ * Budget is borrow's post-activation settle window: activation confirms on Sepolia in seconds and
+ * `getPosition` reads that state directly, so this is normally immediate; the allowance absorbs a slow
+ * read rather than a slow indexer (there is no indexer in this path).
+ */
+export async function assertVaultCountRose(
+  ctx: ActionContext,
+  beforeCount: number,
+  expectedVaults: number,
+): Promise<void> {
+  const target = beforeCount + expectedVaults;
+  const deadline = Date.now() + FRESH_COLLATERAL_TIMEOUT_MS;
+  let lastCount = beforeCount;
+  let read = false;
+  while (Date.now() < deadline) {
+    const count = await fetchActiveVaultCount(
+      ctx.config.network,
+      ctx.eth.address,
+    ).catch(() => null);
+    if (count != null) {
+      read = true;
+      lastCount = count;
+      if (count >= target) {
+        ctx.log(
+          `✅ On-chain vaults rose: ${beforeCount} → ${count} (+${count - beforeCount}, expected +${expectedVaults}).`,
+        );
+        return;
+      }
+    }
+    await ctx.page.waitForTimeout(FRESH_COLLATERAL_POLL_MS);
+  }
+  throw new Error(
+    read
+      ? `Peg-in reached the activated view but the on-chain position holds ${lastCount} vault(s), not the expected ${target} (${beforeCount} before this run + ${expectedVaults}) within ${Math.round(FRESH_COLLATERAL_TIMEOUT_MS / MS_PER_SECOND)}s — the activation(s) did not register as collateral.`
+      : `Peg-in reached the activated view but the on-chain vault count could not be read within ${Math.round(FRESH_COLLATERAL_TIMEOUT_MS / MS_PER_SECOND)}s, so the deposit is unverified. Check the Sepolia RPC and re-check the position manually.`,
+  );
 }
