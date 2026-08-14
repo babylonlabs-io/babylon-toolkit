@@ -267,7 +267,10 @@ framing, the intent-ceremony TLV encoder the depositor physically approves, the 
 gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. A wrong encoding here puts wrong terms
 in front of a hardware signer with a trusted screen — the user approves what we built, so building
 it wrong defeats the device. Encodings cite firmware/reference-client sources and carry
-golden-vector tests; payload bytes are never logged.
+golden-vector tests; payload bytes are never logged. The golden vectors are generated from
+Ledger's pinned reference client over pinned firmware fixtures — review of vector changes is
+by whole-tree re-derivation and byte-identity (see the vendor README), and the generators in
+`packages/babylon-ledger-vault-signer/scripts/` are treated as critical source.
 
 ### Non-standard wallet signing flags
 
