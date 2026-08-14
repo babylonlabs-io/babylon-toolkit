@@ -216,7 +216,8 @@ def trace_leaf_proofs(runner: TraceRun, tree):
             "GET_MERKLE_LEAF_PROOF",
             leaf_proof_request(tree["root"], n, idx),
             f"{label}: leaf {idx} of {n}; response = leaf_hash(32) | proof_len(1) | "
-            f"n_in_msg(1) | hashes (empty proof for a single-leaf tree)",
+            f"n_in_msg(1) | hashes"
+            + (" (empty proof for a single-leaf tree)" if n == 1 else ""),
         )
         assert resp[:32] == element_hash(tree["elements"][idx])
         assert len(runner.queue) == 0, "unexpected proof spill in PSBT-sized tree"
@@ -411,8 +412,8 @@ def synthetic_deep_tree_file():
     resp = runner.run(
         "GET_MERKLE_LEAF_PROOF",
         leaf_proof_request(root, SYNTHETIC_N, 0),
-        f"SYNTHETIC 129-leaf tree, leaf 0: proof depth 8 -> 6 hashes in-message "
-        f"(floor((255-32-1-1)/32)), 2 spill to the queue as 32-byte elements",
+        f"SYNTHETIC {SYNTHETIC_N}-leaf tree, leaf 0: proof depth 8 -> 6 hashes in-message "
+        "(floor((255-32-1-1)/32)), 2 spill to the queue as 32-byte elements",
     )
     assert resp[32] == 8 and resp[33] == 6 and len(runner.queue) == 2
     rounds = runner.drain_queue("deep-tree leaf-0 proof")

@@ -52,8 +52,8 @@ with the exceptions recorded per file header; the substantive ones:
   stays raw (`subarray(1)`, no shape assumption).
 
 Vendored so far: `varint.ts`, `merkle.ts`, `merkleMap.ts`, `buffertools.ts`,
-`psbtv2.ts`, `merkelizedPsbt.ts`, `clientCommands.ts`, `policy.ts` — the full
-#2219 vendoring closure. These modules are referenced only by their
+`psbtv2.ts`, `merkelizedPsbt.ts`, `clientCommands.ts`, `policy.ts` — the
+full #2219 vendoring closure. These modules are referenced only by their
 golden-vector and unit tests, not by any production entrypoint (nothing
 reachable from `src/index.ts` imports them), so the bundler tree-shakes them
 out of the JS bundle and the vendor dir is excluded from declaration emission
