@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  changedRegions,
   changedRowBand,
+  composeBeforeAfter,
   cropWindow,
+  panelLayout,
+  screenCaption,
   selectEmbeddedGroups,
 } from "../visual-embed.mjs";
 
@@ -12,6 +16,14 @@ function png(width, height, paint) {
   const data = Buffer.alloc(width * height * 4);
   if (paint) paint(data, width);
   return { width, height, data };
+}
+
+function paintBlock(data, width, { left, top, width: w, height: h }) {
+  for (let y = top; y < top + h; y += 1) {
+    for (let x = left; x < left + w; x += 1) {
+      data.fill(0xff, (y * width + x) * 4, (y * width + x) * 4 + 3);
+    }
+  }
 }
 
 function paintRow(data, width, y, value) {
@@ -68,6 +80,174 @@ test("cropWindow anchors an over-tall window on the change, not on row 0", () =>
   assert.equal(window.top, 2354);
   assert.equal(window.height, 2400);
   assert.equal(window.clipped, true);
+});
+
+// A stacked pair draws the window twice, so one panel may only claim half
+// the composite's ceiling - otherwise the published file doubles.
+test("cropWindow honours a smaller per-panel budget", () => {
+  assert.deepEqual(cropWindow(null, 3000, 1196), {
+    top: 0,
+    height: 1196,
+    clipped: true,
+  });
+});
+
+test("panelLayout keeps a phone pair side by side", () => {
+  assert.equal(panelLayout(390, 2), "side-by-side");
+});
+
+// The case this layout rule exists for: side by side, two 1280px screens
+// come to 2568px and are reduced to a third of life size to fit.
+test("panelLayout stacks a pair too wide to sit side by side", () => {
+  assert.equal(panelLayout(1280, 2), "stacked");
+});
+
+test("panelLayout draws a screen with no counterpart as a single panel", () => {
+  assert.equal(panelLayout(1280, 1), "single");
+});
+
+test("composeBeforeAfter publishes a desktop pair at full panel width", () => {
+  const baseline = png(1280, 400);
+  const candidate = png(1280, 400, (data, width) => {
+    paintRow(data, width, 100, 0xff);
+    paintRow(data, width, 300, 0xff);
+  });
+
+  const { composite, coverage } = composeBeforeAfter(baseline, candidate);
+
+  assert.equal(coverage.layout, "stacked");
+  assert.equal(coverage.panels, 3);
+  assert.equal(composite.width, 1280);
+  // Before, after and highlight, plus the two gutters between them.
+  assert.equal(composite.height, 400 * 3 + 8 * 2);
+});
+
+// Stacking is only worth its height if the second panel really is the
+// candidate: a bug that drew the baseline twice would still produce a
+// correctly-shaped image, and the reviewer would read it as "no change".
+test("composeBeforeAfter draws the candidate in the lower panel", () => {
+  const baseline = png(1280, 400);
+  const candidate = png(1280, 400, (data, width) => {
+    paintRow(data, width, 100, 0xff);
+    paintRow(data, width, 300, 0xff);
+  });
+
+  const { composite } = composeBeforeAfter(baseline, candidate);
+  const pixel = (x, y) => composite.data[(y * composite.width + x) * 4];
+
+  assert.equal(pixel(0, 100), 0x00);
+  assert.equal(pixel(0, 400 + 8 + 100), 0xff);
+});
+
+test("composeBeforeAfter keeps a phone pair side by side", () => {
+  const baseline = png(390, 400);
+  const candidate = png(390, 400, (data, width) => {
+    paintRow(data, width, 100, 0xff);
+    paintRow(data, width, 300, 0xff);
+  });
+
+  const { composite, coverage } = composeBeforeAfter(baseline, candidate);
+
+  assert.equal(coverage.layout, "side-by-side");
+  assert.equal(composite.width, 390 * 3 + 8 * 2);
+  assert.equal(composite.height, 400);
+});
+
+test("changedRegions rings the area that changed", () => {
+  const baseline = png(64, 64);
+  const candidate = png(64, 64, (data, width) => {
+    paintBlock(data, width, { left: 16, top: 24, width: 8, height: 8 });
+  });
+
+  assert.deepEqual(changedRegions(baseline, candidate), [
+    { left: 16, top: 24, right: 24, bottom: 32 },
+  ]);
+});
+
+// One ring per changed word, not one per letter: neighbouring cells belong
+// to the same region.
+test("changedRegions joins neighbouring changes into one region", () => {
+  const baseline = png(64, 64);
+  const candidate = png(64, 64, (data, width) => {
+    paintBlock(data, width, { left: 8, top: 8, width: 4, height: 4 });
+    paintBlock(data, width, { left: 14, top: 8, width: 4, height: 4 });
+  });
+
+  assert.deepEqual(changedRegions(baseline, candidate), [
+    { left: 8, top: 8, right: 24, bottom: 16 },
+  ]);
+});
+
+test("changedRegions keeps unrelated changes apart", () => {
+  const baseline = png(64, 64);
+  const candidate = png(64, 64, (data, width) => {
+    paintBlock(data, width, { left: 0, top: 0, width: 8, height: 8 });
+    paintBlock(data, width, { left: 48, top: 48, width: 8, height: 8 });
+  });
+
+  assert.equal(changedRegions(baseline, candidate).length, 2);
+});
+
+// A token recolour moves something in every corner; forty rings point at
+// nothing, so past the cap they become one ring around the lot.
+test("changedRegions collapses past the cap into a single region", () => {
+  const baseline = png(400, 400);
+  const candidate = png(400, 400, (data, width) => {
+    for (let i = 0; i < 20; i += 1) {
+      paintBlock(data, width, { left: i * 16, top: i * 16, width: 4, height: 4 });
+    }
+  });
+
+  assert.deepEqual(changedRegions(baseline, candidate), [
+    { left: 0, top: 0, right: 312, bottom: 312 },
+  ]);
+});
+
+test("changedRegions gives up when the two sides differ in size", () => {
+  assert.deepEqual(changedRegions(png(64, 64), png(64, 80)), []);
+});
+
+// The ring belongs on a copy. Drawing it on the capture would put it in the
+// "after" panel too, which is meant to show what actually shipped.
+test("composeBeforeAfter rings the change in the third panel only", () => {
+  const baseline = png(64, 64);
+  const candidate = png(64, 64, (data, width) => {
+    paintBlock(data, width, { left: 24, top: 24, width: 8, height: 8 });
+  });
+
+  const { composite, coverage } = composeBeforeAfter(baseline, candidate);
+  assert.equal(coverage.layout, "side-by-side");
+
+  const red = (x, y) => {
+    const i = (y * composite.width + x) * 4;
+    return [composite.data[i], composite.data[i + 1], composite.data[i + 2]];
+  };
+  // Top-left corner of the ring: the region padded out by 8, then the 1px
+  // white halo, lands the red stroke at 17,17 within its own panel.
+  const panelStride = 64 + 8;
+  assert.deepEqual(red(2 * panelStride + 17, 17), [226, 34, 34]);
+  // Same spot in the after panel is untouched capture.
+  assert.deepEqual(red(panelStride + 17, 17), [0, 0, 0]);
+});
+
+// A caption reading "on the left" over a stacked pair sends the reviewer
+// looking for a panel that is not there.
+test("screenCaption describes the arrangement the picture was composed with", () => {
+  const changed = { status: "changed", changedRatio: 0.01 };
+
+  assert.match(
+    screenCaption(changed, { shown: 400, total: 400, clipped: false, layout: "stacked" }),
+    /before on top, after underneath/,
+  );
+  assert.match(
+    screenCaption(changed, {
+      shown: 300,
+      total: 300,
+      clipped: false,
+      layout: "side-by-side",
+    }),
+    /before on the left, after on the right/,
+  );
 });
 
 function group(surface, key, topRank) {
