@@ -1,0 +1,137 @@
+{
+ "fixture": "generated/deposit-flow/pre_pegin.txt",
+ "batch_index": 0,
+ "original_psbt_version": 0,
+ "psbt_hex": "70736274ff0100890200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000fdffffff02780c970000000000225120a93ef5b307f822e9b5614c7a7df037d3fc8d7b0327766fb843cf863281134d252202000000000000225120fbd7fcd8b392e87a825373ecbc822e34373e6cea5e14c8008557ab94f0fae743000000000001012b780c970000000000225120fbd7fcd8b392e87a825373ecbc822e34373e6cea5e14c8008557ab94f0fae743011720e49662aea97a89551401ce54de10474b24b4ab71383b69cf164ea59b3a209e0d000000",
+ "psbt_v2_hex": "70736274ff0102040200000001030400000000010401010105010201fb04020000000001012b780c970000000000225120fbd7fcd8b392e87a825373ecbc822e34373e6cea5e14c8008557ab94f0fae743011720e49662aea97a89551401ce54de10474b24b4ab71383b69cf164ea59b3a209e0d010e20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa010f0400000000011004fdffffff00010308780c9700000000000104225120a93ef5b307f822e9b5614c7a7df037d3fc8d7b0327766fb843cf863281134d250001030822020000000000000104225120fbd7fcd8b392e87a825373ecbc822e34373e6cea5e14c8008557ab94f0fae74300",
+ "n_inputs": 1,
+ "n_outputs": 2,
+ "global_map": [
+  [
+   "02",
+   "02000000"
+  ],
+  [
+   "03",
+   "00000000"
+  ],
+  [
+   "04",
+   "01"
+  ],
+  [
+   "05",
+   "02"
+  ],
+  [
+   "fb",
+   "02000000"
+  ]
+ ],
+ "input_maps": [
+  [
+   [
+    "01",
+    "780c970000000000225120fbd7fcd8b392e87a825373ecbc822e34373e6cea5e14c8008557ab94f0fae743"
+   ],
+   [
+    "17",
+    "e49662aea97a89551401ce54de10474b24b4ab71383b69cf164ea59b3a209e0d"
+   ],
+   [
+    "0e",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   ],
+   [
+    "0f",
+    "00000000"
+   ],
+   [
+    "10",
+    "fdffffff"
+   ]
+  ]
+ ],
+ "output_maps": [
+  [
+   [
+    "03",
+    "780c970000000000"
+   ],
+   [
+    "04",
+    "5120a93ef5b307f822e9b5614c7a7df037d3fc8d7b0327766fb843cf863281134d25"
+   ]
+  ],
+  [
+   [
+    "03",
+    "2202000000000000"
+   ],
+   [
+    "04",
+    "5120fbd7fcd8b392e87a825373ecbc822e34373e6cea5e14c8008557ab94f0fae743"
+   ]
+  ]
+ ],
+ "global_commitment": {
+  "n_entries": 5,
+  "keys_root": "519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e31321620",
+  "values_root": "86d8d9498a323006ec5982eeb4ea7c41d27020d57985512ab59ff8f40d501507",
+  "commitment_hex": "05519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e3132162086d8d9498a323006ec5982eeb4ea7c41d27020d57985512ab59ff8f40d501507",
+  "sorted_key_order": [
+   "02",
+   "03",
+   "04",
+   "05",
+   "fb"
+  ]
+ },
+ "input_commitments": [
+  {
+   "n_entries": 5,
+   "keys_root": "5d2a504fbdccb7089215860847f6b154c3e6a434b40b2f835365dc651183b13c",
+   "values_root": "0da0d9e109d001831d1f388921bbe56819b42913829369ef6b3ec5be44867ff2",
+   "commitment_hex": "055d2a504fbdccb7089215860847f6b154c3e6a434b40b2f835365dc651183b13c0da0d9e109d001831d1f388921bbe56819b42913829369ef6b3ec5be44867ff2",
+   "sorted_key_order": [
+    "01",
+    "0e",
+    "0f",
+    "10",
+    "17"
+   ]
+  }
+ ],
+ "output_commitments": [
+  {
+   "n_entries": 2,
+   "keys_root": "78850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d",
+   "values_root": "266df2da7ab4e5060ddf83d47d463fd92ae164a36ed2cf78296f74a1b26c1d53",
+   "commitment_hex": "0278850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d266df2da7ab4e5060ddf83d47d463fd92ae164a36ed2cf78296f74a1b26c1d53",
+   "sorted_key_order": [
+    "03",
+    "04"
+   ]
+  },
+  {
+   "n_entries": 2,
+   "keys_root": "78850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d",
+   "values_root": "90c33160edec4ea44b38735d6c7784e3474c7121ab5cb0d55ee94fc283f01e0e",
+   "commitment_hex": "0278850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d90c33160edec4ea44b38735d6c7784e3474c7121ab5cb0d55ee94fc283f01e0e",
+   "sorted_key_order": [
+    "03",
+    "04"
+   ]
+  }
+ ],
+ "inputs_maps_root": "7269c6a769f64cfbb0861d7b002a2a3e2863d771e40bcc710c6ecc9c39720b1a",
+ "outputs_maps_root": "82e6cb665c79cae3b2c9167f6ee974e3bbe88abf7c7de6ac4951b3a602b56de1",
+ "sign_psbt_cdata_hex": "05519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e3132162086d8d9498a323006ec5982eeb4ea7c41d27020d57985512ab59ff8f40d501507017269c6a769f64cfbb0861d7b002a2a3e2863d771e40bcc710c6ecc9c39720b1a0282e6cb665c79cae3b2c9167f6ee974e3bbe88abf7c7de6ac4951b3a602b56de100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+ "sign_psbt_cdata_len": 195,
+ "apdu": {
+  "cla": 225,
+  "ins": 4,
+  "p1": 0,
+  "p2": 1
+ }
+}

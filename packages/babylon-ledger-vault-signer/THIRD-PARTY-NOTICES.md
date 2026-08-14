@@ -15,7 +15,9 @@ their own license files. Vendored source:
   (source-in-tree; not yet reachable from the published bundle)
 - License: Apache License 2.0
 - Modifications: see the per-file provenance headers in the vendored source
-  (explicit Buffer import, defensive strict-null guards, formatting).
+  (explicit Buffer import, defensive strict-null guards, formatting; psbtv2.ts
+  additionally drops `fromBitcoinJS` and unifies the serialization key
+  comparator to byte-lexicographic order).
 
 ### Apache License 2.0
 
