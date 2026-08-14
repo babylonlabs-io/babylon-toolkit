@@ -10,14 +10,7 @@
 
 import type { Locator, Page } from "@playwright/test";
 
-/** Sidebar section ids, mirroring `src/config/v3Navigation.ts`. */
-export type NavSection =
-  | "overview"
-  | "vaults"
-  | "loans"
-  | "activity"
-  | "liquidations"
-  | "explore";
+import type { V3NavItemId } from "@/config/v3Navigation";
 
 export class AppShell {
   constructor(public readonly page: Page) {}
@@ -36,12 +29,17 @@ export class AppShell {
    * A sidebar nav link, by section id (`AppSidebar`'s `nav-<id>` testid).
    * The sidebar is hidden on the disconnected entry layout, so this only
    * resolves once the app is connected or on a non-root route.
+   *
+   * The id type comes from the production nav config rather than a copy here,
+   * so adding a section can't leave this file silently stale — a new id is
+   * accepted automatically, and a renamed one fails to compile. Type-only, so
+   * nothing from `src` is pulled in at runtime.
    */
-  navLink(section: NavSection): Locator {
+  navLink(section: V3NavItemId): Locator {
     return this.page.getByTestId(`nav-${section}`);
   }
 
-  async openSection(section: NavSection): Promise<void> {
+  async openSection(section: V3NavItemId): Promise<void> {
     await this.navLink(section).click();
   }
 }
