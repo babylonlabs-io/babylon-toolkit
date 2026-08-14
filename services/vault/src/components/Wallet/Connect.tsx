@@ -111,7 +111,12 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
       <div className="flex flex-row items-center gap-4">
         <BtcEthWalletMenu
           trigger={
-            <div className="cursor-pointer">
+            // This control's data-testid is a real-wallet E2E hook
+            // (e2e/real/actions/walletConnect.ts, e2e/real/actions/resume.ts) —
+            // carry it over if you move or rename the element. It renders only
+            // once both wallets are connected, on every route, so the harness
+            // uses it as its route-independent "connected" signal.
+            <div className="cursor-pointer" data-testid="wallet-menu-trigger">
               <AvatarGroup max={3} className="!-space-x-2">
                 {displayWallets["BTC"] && (
                   <WalletIcon

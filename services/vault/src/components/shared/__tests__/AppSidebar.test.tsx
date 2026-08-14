@@ -110,6 +110,27 @@ describe("AppSidebar", () => {
     );
   });
 
+  it("gives each nav link a nav-<id> testid pointing at its route", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppSidebar />
+      </MemoryRouter>,
+    );
+
+    // The real-wallet E2E CLI changes section through these testids
+    // (e2e/real/actions/navigation.ts), so they are load-bearing.
+    for (const [id, path] of [
+      ["overview", "/"],
+      ["vaults", "/vaults"],
+      ["loans", "/loans"],
+      ["activity", "/activity"],
+      ["liquidations", "/liquidations"],
+      ["explore", "/explore"],
+    ]) {
+      expect(screen.getByTestId(`nav-${id}`)).toHaveAttribute("href", path);
+    }
+  });
+
   it("marks Overview active at the exact root path", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>

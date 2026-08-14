@@ -5,7 +5,12 @@
  *   Connect (connect-wallet-button) → Select Bitcoin Wallet (select-bitcoin-wallet-button) →
  *   wallet-option-<id> → approve in the BTC extension popup → Select Ethereum Wallet
  *   (select-ethereum-wallet-button) → MetaMask (Reown AppKit) → approve MetaMask popup →
- *   Connect (chains-connect-button) → the dashboard deposit CTA (data-testid="deposit-button") appears.
+ *   Connect (chains-connect-button) → the header wallet menu (data-testid="wallet-menu-trigger")
+ *   appears.
+ *
+ * The connected-state signal is the header's wallet-menu trigger, NOT a page CTA: v3 splits the old
+ * dashboard across routes, so the deposit CTA now lives on /vaults only (markdown/e2e-v3/01-connect.md).
+ * The menu trigger renders on every route the moment both wallets are connected.
  *
  * It assumes a pop-up approver is ALREADY installed on the context (see `approver.ts`) — the approval
  * pop-ups fire asynchronously during these clicks. Callers own the approver lifecycle so they can keep
@@ -30,8 +35,15 @@ import type { ActionContext } from "./types";
 const ETH_APPKIT_NAME: Record<EthWalletId, RegExp> = { metamask: /metamask/i };
 
 /**
- * Drive the connect flow to the connected state (the dashboard deposit button visible). Requires an
- * active pop-up approver on `ctx.context`.
+ * The header's connected wallet menu (the avatar-group trigger, src/components/Wallet/Connect.tsx). It
+ * renders ONLY once both wallets are connected and on EVERY route, which makes it both the connected-
+ * state signal and the menu trigger.
+ */
+export const WALLET_MENU_TRIGGER_TESTID = '[data-testid="wallet-menu-trigger"]';
+
+/**
+ * Drive the connect flow to the connected state (the header wallet menu visible). Requires an active
+ * pop-up approver on `ctx.context`.
  */
 export async function connectWallets(ctx: ActionContext): Promise<void> {
   const { page, context, log } = ctx;
@@ -68,29 +80,30 @@ export async function connectWallets(ctx: ActionContext): Promise<void> {
     .click({ timeout: STEP_TIMEOUT_MS })
     .catch(() => {});
 
-  log("Waiting for connected state (deposit button)");
+  log("Waiting for connected state (header wallet menu)");
   // Poll for the connected state while actively sweeping approval popups. MetaMask can insert an EXTRA
   // approval AFTER the initial connect — a "Review permissions / Use your enabled networks" prompt whose
   // Confirm (page-container-footer-next) must be clicked before the app flips to connected. That prompt
   // can land after the popup approver's per-window rounds have ended (or in a reused window that fires no
   // 'page' event), so a one-shot waitFor would just time out with it hanging. Sweeping each tick clicks
   // it (clickApprove already matches that Confirm), the same way the borrow/repay confirm loops do.
-  const deposit = page.locator('[data-testid="deposit-button"]').first();
+  const walletMenu = page.locator(WALLET_MENU_TRIGGER_TESTID).first();
   const deadline = Date.now() + CONNECT_STATE_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (await deposit.isVisible().catch(() => false)) return;
+    if (await walletMenu.isVisible().catch(() => false)) return;
     await sweepApprovals(context, page, log);
     await page.waitForTimeout(CONNECT_STATE_POLL_MS);
   }
   throw new Error(
-    `connect: the connected state (deposit button) did not appear within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s — a wallet approval popup (e.g. MetaMask "Review permissions") may be unconfirmed.`,
+    `connect: the connected state (header wallet menu) did not appear within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s — a wallet approval popup (e.g. MetaMask "Review permissions") may be unconfirmed.`,
   );
 }
 
 /**
  * Open the connected wallet menu. core-ui's `Menu` clones the trigger (the avatar group) and adds
  * `aria-haspopup="true"` + toggles `aria-expanded`, rendering the address cards in a Popover when open.
- * Click the haspopup trigger and confirm the menu opened (retry with the avatar image as a fallback).
+ * Click the trigger and confirm the menu opened (one retry, since the header can swallow the first
+ * click while it settles).
  */
 export async function openWalletMenu(
   page: Page,
@@ -106,12 +119,9 @@ export async function openWalletMenu(
       .then(() => true)
       .catch(() => false);
 
-  // The header has TWO aria-haspopup triggers: the wallet avatar group and the settings gear. Target
-  // the avatar group specifically (it contains the wallet avatar images), not the gear.
-  const trigger = page
-    .locator('[aria-haspopup="true"]')
-    .filter({ has: page.locator("img.bbn-avatar-img") })
-    .first();
+  // The header has TWO aria-haspopup triggers: the wallet avatar group and the settings gear — hence
+  // the testid on the avatar group rather than a structural match on either.
+  const trigger = page.locator(WALLET_MENU_TRIGGER_TESTID).first();
   await trigger
     .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
     .catch(() => {});

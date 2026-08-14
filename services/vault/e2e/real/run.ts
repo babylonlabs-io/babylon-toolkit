@@ -189,7 +189,7 @@ export async function runE2E(config: RunConfig): Promise<void> {
     // Withdraw pre-flight (withdraw run, EXCEPT --pegin-first — which pegs in the collateral DURING the
     // run, so there's nothing to read yet; the max-vault cap gate above covers that pegin). Read the
     // position from real data and refuse a doomed run BEFORE the browser if there's no active collateral
-    // to release. A fetch failure is non-fatal: the absent "⋯" menu + the modal's per-vault eligibility
+    // to release. A fetch failure is non-fatal: the absent vault rows + each row's disabled Withdraw
     // backstop it, so we warn. The debt handling depends on the chain: --borrow-first creates the debt
     // during the run (nothing to require here); --repay-first needs an EXISTING debt to clear; a plain
     // withdraw with lingering debt is only HF-gated (a heads-up, not a hard block). Which vault(s) to
@@ -227,7 +227,7 @@ export async function runE2E(config: RunConfig): Promise<void> {
           );
         } else if (withdrawContext.hasDebt) {
           artifacts.log(
-            `⚠️ Position carries $${withdrawContext.currentDebtUsd.toFixed(2)} debt — withdraw is health-factor-gated, so some/all vaults may not be selectable. Re-run with --repay-first for a clean release.`,
+            `⚠️ Position carries $${withdrawContext.currentDebtUsd.toFixed(2)} debt — withdraw is health-factor-gated, so the Review screen may block some/all vaults. Re-run with --repay-first for a clean release.`,
           );
         }
         artifacts.log(

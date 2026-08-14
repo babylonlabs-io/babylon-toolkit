@@ -23,15 +23,19 @@
  * offline instead of re-run blind.
  *
  * Selectors + copy strings below were verified against a real observe recording AND the React
- * components (DepositForm, VaultProviderSelector, DepositProgressView, ActivateConfirmationModal,
- * InStepArtifactCallout, VaultActivatedView, CollateralSection/CollateralVaultItem). No product/SDK
- * code is reimplemented — this only drives the UI; the frozen critical paths stay owned by the app.
+ * components (DepositForm, VaultProviderSelectorV3, DepositProgressView, ActivateConfirmationModal,
+ * InStepArtifactCallout, VaultActivatedView, VaultsActiveSection). No product/SDK code is
+ * reimplemented — this only drives the UI; the frozen critical paths stay owned by the app.
+ *
+ * The deposit modal is a RootLayout overlay opened from the /vaults deposit CTA (v3 moved it off the
+ * dashboard — see markdown/e2e-v3/02-pegin.md), so the form phase navigates there first.
  *
  * NEVER run without an explicit go-ahead: it spends real signet BTC + Sepolia ETH and is not
  * idempotent (a crash after the Pre-PegIn broadcast leaves an on-chain in-flight deposit).
  */
 import type { Locator, Page } from "@playwright/test";
 
+import { fetchActiveVaultCount } from "../borrowParams";
 import {
   DEPOSIT_CTA_ENABLE_TIMEOUT_MS,
   FORM_SETTLE_MS,
@@ -41,9 +45,14 @@ import {
 } from "../timing";
 
 import { installPopupApprover } from "./approver";
+import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
 import { FLUID_CTA_SELECTOR } from "./selectors";
-import { assertActivatedAndOnDashboard, walkStepMachine } from "./stepMachine";
+import {
+  assertActivatedAndOnDashboard,
+  assertVaultCountRose,
+  walkStepMachine,
+} from "./stepMachine";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -51,7 +60,9 @@ import { connectWallets } from "./walletConnect";
 // a comment pointing at their `services/vault/src/copy.ts` source. Finish-line matchers below are
 // tolerant regexes instead — the activated-view copy has been observed to drift between source and the
 // deployed build, so those key on stable/actionable elements rather than exact wording.
-const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]'; // dashboard Collateral-section "Deposit"
+// The /vaults deposit CTA — rendered by both the summary card (VaultsSummaryCard) and the empty state
+// (VaultsEmptyState), so `.first()` picks whichever the page is showing.
+const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]';
 const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
@@ -68,9 +79,9 @@ const DO_NOT_SPLIT_TEXT = "Do not split"; // COPY.deposit.form.doNotSplit
 const TWO_VAULT_SPLIT_RX = /Two-vault split/; // COPY.deposit.form.splitOptionLabel / TWO_VAULT_SPLIT_NAME
 
 /**
- * Fill the deposit form (amount → provider → submit). The form has almost no testids, so selectors
- * are copy/role-driven and were verified against the real DOM. Returns once the deposit progress view
- * has opened (the fluid CTA click transitions to it).
+ * Fill the deposit form (navigate to /vaults → amount → provider → submit). The form has NO testids,
+ * so selectors are copy/role-driven and were verified against the real DOM. Returns once the deposit
+ * progress view has opened (the fluid CTA click transitions to it).
  */
 export async function fillDepositForm(
   page: Page,
@@ -79,6 +90,7 @@ export async function fillDepositForm(
   provider: string | undefined,
   split: boolean,
 ): Promise<void> {
+  await goToSection(page, "vaults", log);
   log(
     `Opening deposit form (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
   );
@@ -289,6 +301,15 @@ export async function runPeginFlow(
   const provider = ctx.config.peginProvider?.trim() || undefined;
   const split = ctx.config.split ?? false;
 
+  const expectedVaults = split ? 2 : 1;
+  // The on-chain vault count BEFORE this run — the baseline the post-condition asserts against. Read
+  // from `getPosition`, not the UI: /vaults renders optimistic rows for vaults this run activates, so
+  // a row count could never tell us whether the deposit actually landed.
+  const vaultsBefore = await fetchActiveVaultCount(
+    ctx.config.network,
+    ctx.eth.address,
+  );
+
   onStep("deposit-form");
   await fillDepositForm(page, log, amountBtc, provider, split);
 
@@ -300,18 +321,15 @@ export async function runPeginFlow(
     page,
     context,
     log,
-    split ? 2 : 1,
+    expectedVaults,
     onStep,
   );
 
   onStep("finish");
-  await assertActivatedAndOnDashboard(
-    page,
-    log,
-    amountBtc,
-    prePeginTxid,
-    split ? 2 : 1,
-  );
+  await assertActivatedAndOnDashboard(page, log, amountBtc, prePeginTxid);
+
+  onStep("verify");
+  await assertVaultCountRose(ctx, vaultsBefore, expectedVaults);
   log(
     `✅ Pegin complete: ${split ? "two BTC Vaults" : "BTC Vault"} activated and shown on the dashboard.`,
   );

@@ -45,7 +45,15 @@ function V3NavLinks() {
           {group.map(({ id, path, label }) => {
             const Icon = V3_NAV_ICONS[id];
             return (
-              <NavLink key={path} to={path} end={path === "/"}>
+              // These links' data-testids are real-wallet E2E hooks
+              // (e2e/real/actions/navigation.ts) — the harness changes section
+              // through them, so carry them over if you move or rename the nav.
+              <NavLink
+                key={path}
+                to={path}
+                end={path === "/"}
+                data-testid={`nav-${id}`}
+              >
                 {({ isActive }) => (
                   <SidebarItem
                     icon={<Icon size={24} />}

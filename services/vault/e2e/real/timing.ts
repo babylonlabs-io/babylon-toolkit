@@ -18,7 +18,7 @@ export const HEADER_SETTLE_MS = 1_500;
 export const APPROVAL_WAIT_MS = 6_000;
 
 /**
- * The connected state (the header "deposit" CTA) to appear after finalizing the connect. Generous
+ * The connected state (the header wallet menu) to appear after finalizing the connect. Generous
  * because MetaMask can insert an EXTRA approval after the initial connect — a "Review permissions / Use
  * your enabled networks" prompt — which must be confirmed before the app flips to connected. We poll +
  * sweep approvals across this window so that late/reused-window prompt is clicked (a single one-shot
@@ -75,17 +75,17 @@ export const PEGIN_POLL_INTERVAL_MS = 3_000;
  */
 export const PEGIN_TX_FAILURE_RETRY_LIMIT = 3;
 /**
- * The activated vault to surface as collateral on the dashboard after "Go to Dashboard" — it appears
- * optimistically ("Activating collateral…") but can lag the indexer catching up.
+ * The activated vault to surface as an active-vault row on /vaults after "Go to Dashboard" — it
+ * appears optimistically ("Activating collateral…") but can lag the indexer catching up.
  */
 export const DASHBOARD_VAULT_TIMEOUT_MS = 60_000;
 
 // ── borrow ────────────────────────────────────────────────────────────────────
 /**
- * The dashboard "Borrow" button to become enabled after landing on the dashboard. It's gated on
+ * The /loans "Borrow" button to become enabled after landing on that page. It's gated on
  * `hasCollateral` (the position's on-chain collateral > 0); a JUST-activated vault (pegin-first) takes
- * a little time to propagate into that read, so the button can be briefly disabled right after
- * "Go to Dashboard". Generous so a fresh activation isn't mistaken for "no collateral" (a hard fail);
+ * a little time to propagate into that read, so the button can be briefly disabled right after the
+ * peg-in finishes. Generous so a fresh activation isn't mistaken for "no collateral" (a hard fail);
  * a reuse run already had its collateral gated by run.ts, so the button is enabled well within this.
  */
 export const BORROW_BUTTON_ENABLE_TIMEOUT_MS = 180_000;
@@ -116,7 +116,7 @@ export const BORROW_TX_TIMEOUT_MS = 90_000;
 
 // ── repay ─────────────────────────────────────────────────────────────────────
 /**
- * The dashboard "Repay" button to become visible + enabled. It only renders when `hasLoans` and is
+ * The /loans "Repay" button to become visible + enabled. It only renders when `hasLoans` and is
  * enabled once connected; a loan created earlier in the SAME session (borrow-first) takes a moment to
  * propagate into that read, so we poll rather than fail on the first check. A reuse run's loan is
  * already on-chain, so the button is ready almost immediately.
@@ -140,19 +140,13 @@ export const REPAY_TX_TIMEOUT_MS = 120_000;
 export const REPAY_VERIFY_POLL_MS = 3_000;
 
 // ── withdraw ───────────────────────────────────────────────────────────────────
-/**
- * The Collateral "⋯" actions menu to appear + enable on the dashboard. It's only RENDERED when the
- * position holds collateral, so after a chained repay/borrow it can lag while the position settles;
- * generous so a slow-to-render menu isn't mistaken for "no collateral" (a hard fail).
- */
-export const WITHDRAW_MENU_TIMEOUT_MS = 30_000;
-/** The withdraw selection modal to render after clicking the "Withdraw" menu item. */
+/** The withdraw Review screen to render after clicking a vault row's "Withdraw". */
 export const WITHDRAW_MODAL_TIMEOUT_MS = 15_000;
 /**
- * A withdraw CTA (the modal's "Withdraw {amount}" confirm, then the Review "Confirm") to enable after a
- * selection is made — the Review screen recomputes the projected health factor + fees first. Generous so
- * a slow risk-param read isn't mistaken for a blocked withdrawal; a genuine HF breach fails fast via the
- * block warning.
+ * Two waits share this budget: a vault row's "Withdraw" button becoming enabled on /vaults, and then the
+ * Review screen's "Confirm" — which waits on the projected health factor + fees being recomputed.
+ * Generous so a slow risk-param read (or a position still settling after a chained repay) isn't mistaken
+ * for a blocked withdrawal; a genuine HF breach fails fast via the block warning.
  */
 export const WITHDRAW_CTA_ENABLE_TIMEOUT_MS = 90_000;
 /**
@@ -166,11 +160,11 @@ export const WITHDRAW_VERIFY_POLL_MS = 3_000;
 
 // ── resume (recover an interrupted peg-in from the dashboard) ────────────────────
 /**
- * After landing on the dashboard, how long to wait for a resumable pending-deposit card to appear. A
- * same-tab storage event + the indexer poll surface it quickly, so this is short — its absence means
- * there is nothing to resume (a clear fail), not a slow read.
+ * After landing on /vaults, how long to wait for a resumable pending-deposit row to appear. A same-tab
+ * storage event + the indexer poll surface it quickly, so this is short — its absence means there is
+ * nothing to resume (a clear fail), not a slow read.
  */
-export const RESUME_CARD_APPEAR_TIMEOUT_MS = 60_000;
+export const RESUME_ROW_APPEAR_TIMEOUT_MS = 60_000;
 /**
  * How long to wait for a pending deposit to become ACTIONABLE (its resume CTA rendered). This can be
  * LONG: the vault provider must ingest the confirmed Pre-PegIn before "Submit WOTS Key" appears, and the
@@ -178,7 +172,7 @@ export const RESUME_CARD_APPEAR_TIMEOUT_MS = 60_000;
  * the step machine so a slow-but-healthy signet confirmation isn't mistaken for a dead deposit.
  */
 export const RESUME_ACTIONABLE_TIMEOUT_MS = PEGIN_STEP_MACHINE_BUDGET_MS;
-/** Poll cadence while waiting for the pending card to appear / become actionable (sweeps pop-ups too). */
+/** Poll cadence while waiting for the pending row to appear / become actionable (sweeps pop-ups too). */
 export const RESUME_POLL_INTERVAL_MS = 5_000;
 
 // ── sign-conformance (per-wallet signing replay) ─────────────────────────────
