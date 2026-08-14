@@ -33,29 +33,36 @@ v6-compatible source and gate it with golden vectors.
 - Prettier/quote formatting to the package style.
 
 Everything else — protocol logic, byte layout, function surface — is verbatim,
-with two recorded exceptions in `psbtv2.ts` (also in its header):
+with the exceptions recorded per file header; the substantive ones:
 
-- `fromBitcoinJS` is dropped — it throws on taproot inputs, exactly our case;
-  the map-level `normalizeToV2` is the path we use.
-- The `serializeMap` key comparator is unified from `localeCompare` to the
-  byte-lexicographic code-unit order that `MerkleMap` and the device enforce
-  (base app `check_merkle_tree_sorted.c`) — serialize order, merkleization
-  order, and the vectors' `sorted_key_order` are one order.
+- `psbtv2.ts`: `fromBitcoinJS` is dropped — it throws on taproot inputs,
+  exactly our case; the map-level `normalizeToV2` is the path we use.
+- `psbtv2.ts`: the `serializeMap` key comparator is unified from
+  `localeCompare` to the byte-lexicographic code-unit order that `MerkleMap`
+  and the device enforce (base app `check_merkle_tree_sorted.c`) — serialize
+  order, merkleization order, and the vectors' `sorted_key_order` are one
+  order.
+- `clientCommands.ts`: local addition — an optional `onYield(payload)`
+  validator on `YieldCommand` / the interpreter constructor, the vault
+  SIGN_PSBT seam (the per-yield assertion of #2219 hooks in there); it runs
+  before the payload is recorded, so a throw leaves the FAILING yield
+  unrecorded — earlier validated yields remain in `getYielded()` (multi-input
+  flows yield once per input). Discard the interpreter on abort; a retry must
+  seed a fresh one. The validator receives a copy, and the payload push itself
+  stays raw (`subarray(1)`, no shape assumption).
 
 Vendored so far: `varint.ts`, `merkle.ts`, `merkleMap.ts`, `buffertools.ts`,
-`psbtv2.ts`. The merkleization wrapper (`merkelizedPsbt.ts`) and the
-client-command interpreter (`clientCommands.ts`, `policy.ts`) follow in later
-increments. Until then these modules are referenced only by their golden-vector
-tests, not by any production entrypoint (nothing reachable from `src/index.ts`
-imports them), so the bundler tree-shakes them out of the JS bundle and the vendor dir is excluded
-from declaration emission (see `vite.config.ts`) — the published `dist/` ships none
-of the vendored code (no JS, no `.d.ts`), and the `bitcoinjs-lib` / `buffer` deps
-they pull in stay out of the bundle, until the PSBT layer lands.
+`psbtv2.ts`, `merkelizedPsbt.ts`, `clientCommands.ts`, `policy.ts` — the full
+#2219 vendoring closure. These modules are referenced only by their
+golden-vector and unit tests, not by any production entrypoint (nothing
+reachable from `src/index.ts` imports them), so the bundler tree-shakes them
+out of the JS bundle and the vendor dir is excluded from declaration emission
+(see `vite.config.ts`) — the published `dist/` ships none of the vendored code
+(no JS, no `.d.ts`), and the `bitcoinjs-lib` / `buffer` deps they pull in stay
+out of the bundle, until the SIGN_PSBT task (#2219 B1-d) wires them in.
 
-### Planned (not yet vendored)
+### Planned local additions (not yet applied)
 
-- `merkelizedPsbt.ts`, `clientCommands.ts`, `policy.ts` — the remaining #2219
-  increments.
 - `psbtv2.ts` local addition `getInputEntriesOfType` (generic reader for the
   expected-signature table) lands with its consumer, not before — zero dead
   code.
@@ -73,9 +80,21 @@ Python client emits over the firmware's PSBT fixtures (`__tests__/vectors/signps
 each map's keys/values, the serialized key order (== `sorted_key_order`), and
 full byte-identity with `psbt_v2_hex` — the oracle serializes maps in insertion
 order, so the identity is asserted by reassembling the normalized model in the
-oracle's recorded order. Any behavioural drift from upstream fails these. The
-Python client is the primary oracle; the deprecated npm package is a secondary
-check.
+oracle's recorded order. `merkelizedPsbt`'s gate re-derives, from each
+fixture's raw `psbt_hex` through the class, every per-map commitment, the
+outer inputs/outputs maps-roots, and the reassembled SIGN_PSBT client data
+(`sign_psbt_cdata_hex`) over all 22 fixtures — superseding the
+hand-concatenated maps-root/cdata assertions that previously lived in the
+`merkleMap` golden. `clientCommands` has unit tests pinning the three chunking
+constants (first preimage chunk `255 − len(varint) − 1`; 6 proof hashes per
+GET_MERKLE_LEAF_PROOF response; `⌊253 / el_len⌋` per GET_MORE_ELEMENTS round),
+the found=0 no-throw contract of GET_MERKLE_LEAF_INDEX, the two preimage traps
+(list elements stored 0x00-prefixed, wallet-policy material raw), and the
+`onYield` seam — request/response bytes checked against the committed Merkle
+vectors. `policy` is gated by a `DefaultWalletPolicy("tr(@0/**)", …)`
+serialize/getId golden emitted by the same Python oracle (repro command in the
+test header). Any behavioural drift from upstream fails these. The Python
+client is the primary oracle; the deprecated npm package is a secondary check.
 
 Vector provenance (`__tests__/vectors/signpsbt/`):
 
@@ -105,3 +124,16 @@ Vector provenance (`__tests__/vectors/signpsbt/`):
    header's `Version` / `Modifications` / upstream sha256.
 3. Re-run the golden-vector gate. If the update crosses into `bitcoinjs-lib` v7
    (0.3.1+), do NOT take it without migrating the repo's v6 pin first.
+
+### Command-trace goldens (`__tests__/vectors/command-traces/`)
+
+Request/response traces for the client-command interpreter (plan S4). Oracle:
+`ledger-bitcoin==0.4.0` `ClientCommandInterpreter` (`client_command.py`), pinned in
+`scripts/requirements.txt`; every `response_hex` is the literal `execute()` output.
+Generated by `scripts/gen_command_traces.py` over four `signpsbt/` vectors (one per
+flow), seeded exactly as `client.py sign_psbt` seeds the interpreter (`client.py:293-320`,
+`_NoWalletPolicy`). Traces are order-dependent (shared element queue).
+`synthetic__deep_tree.json` and all YIELD payload bytes are synthetic (marked in-file);
+YIELD responses and all other bytes are oracle output. Independently verified with a
+plain-hashlib recursive-MTH replay before committing. Replayed by
+`clientCommands.golden.test.ts`.

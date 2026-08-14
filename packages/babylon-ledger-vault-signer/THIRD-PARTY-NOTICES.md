@@ -17,7 +17,8 @@ their own license files. Vendored source:
 - Modifications: see the per-file provenance headers in the vendored source
   (explicit Buffer import, defensive strict-null guards, formatting; psbtv2.ts
   additionally drops `fromBitcoinJS` and unifies the serialization key
-  comparator to byte-lexicographic order).
+  comparator to byte-lexicographic order; clientCommands.ts adds an optional
+  `onYield` validator hook to `YieldCommand` / `ClientCommandInterpreter`).
 
 ### Apache License 2.0
 

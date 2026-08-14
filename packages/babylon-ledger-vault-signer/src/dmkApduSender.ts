@@ -1,56 +1,20 @@
 /**
- * Binds our {@link ApduSender} seam to DMK's public raw-APDU transport;
- * every vault instruction rides this seam, including the future SIGN_PSBT
- * loop (#2219). Debugging: `globalThis.__LEDGER_VAULT_APDU_TRACE__ = true`
- * logs header + status word per exchange — never payload bytes (pubkeys,
- * context preimage).
+ * Binds our APDU seams to DMK's public raw-APDU transport. Two senders share
+ * one wire encoding: the non-throwing {@link RawApduSender} for the SIGN_PSBT
+ * interrupt/continue loop (#2219, where 0xE000 is data), and the throwing
+ * {@link ApduSender} the DERIVE/APPROVE ceremony rides, re-based on the raw
+ * sender via `classifyStatusWord`. Debugging:
+ * `globalThis.__LEDGER_VAULT_APDU_TRACE__ = true` logs header + status word
+ * per exchange — never payload bytes (pubkeys, context preimage).
  *
  * @module ledger-vault-signer/dmkApduSender
  */
 
 import type { DmkSessionHandle } from "./dmkSession";
-import { LedgerDeviceError, LedgerDeviceLockedError, LedgerUserRefusedError } from "./errors";
+import { classifyStatusWord, type RawApduSender } from "./rawApdu";
 import type { ApduSender } from "./vaultCommands";
 
-const SW_OK = 0x9000;
-
-/**
- * Mirrored from DMK 1.7.1 `CommandUtils.isRefusedByUser`; mirrored rather than
- * imported so this module keeps zero eager DMK imports. Which code each vault
- * screen returns, and whether a decline nullifies a loaded intent, is an open
- * question (#2110).
- */
-const SW_USER_REFUSED = new Set([0x5501, 0x6985]);
-
-/** Mirrored from DMK 1.7.1 `CommandUtils.isLockedDeviceResponse`. */
-const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
-
 const STATUS_WORD_BYTES = 2;
-
-/** CLA not supported — what the dashboard or a wrong app returns. */
-const SW_CLA_NOT_SUPPORTED = 0x6e00;
-
-/**
- * Vault status words (`app-babylon-vault` `sw.h`, #2110) plus the base-app
- * codes from the signer kit's published `BTC_APP_ERRORS`, mirrored so nothing
- * imports the kit. Unmapped words surface as raw hex rather than guesses.
- */
-const STATUS_WORDS: Record<number, string> = {
-  0x6a80: "The device rejected the data as invalid",
-  // SW_NOT_SUPPORTED — for the silent key read this usually means the app
-  // build (mainnet vs testnet coin type) does not match the selected network.
-  0x6a82: "The device does not support this request — check that the app build matches the selected network",
-  0x6a86: "The device rejected the instruction parameters",
-  0x6a87: "The device rejected the payload length",
-  0x6d00: "The running app does not support this instruction",
-  [SW_CLA_NOT_SUPPORTED]: "The running app does not handle vault instructions — open the Babylon Vault app",
-  0xb000: "The device reported a wrong response length",
-  0xb007: "The device is not in the expected state for this step",
-  0xb008: "The device rejected a signature or HMAC as invalid",
-  0xb009: "The device rejected the CPFP anchor",
-  0xb00a: "The device has already signed the maximum number of these transactions",
-  0x6f00: "The device reported an internal error",
-};
 
 /**
  * A missing byte must not default to 0: `[0x90]` would read as 0x9000 —
@@ -93,10 +57,11 @@ function hex4(value: number): string {
 }
 
 /**
- * Build a sender bound to one device session. A `sessionId` must never outlive
+ * Build a non-throwing sender bound to one device session: every status word
+ * — 0xE000 included — comes back as data. A `sessionId` must never outlive
  * its connection — recreate the sender whenever the session changes.
  */
-export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
+export function createDmkRawApduSender(handle: DmkSessionHandle): RawApduSender {
   return async (apdu) => {
     const header = `${hex2(apdu.cla)} ${hex2(apdu.ins)} ${hex2(apdu.p1)} ${hex2(apdu.p2)} Lc=${apdu.data.length}`;
 
@@ -115,29 +80,25 @@ export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
     if (traceEnabled()) {
       console.debug(`[ledger-vault] APDU ${header} -> sw=0x${hex4(sw)} len=${response.data.length}`);
     }
+    return { sw, data: response.data };
+  };
+}
 
-    // A decline is a user action, not a failure. The typed errors carry the
-    // status word; the consuming adapter maps them onto its own taxonomy.
-    if (SW_USER_REFUSED.has(sw)) {
-      throw new LedgerUserRefusedError(sw);
-    }
-    if (SW_DEVICE_LOCKED.has(sw)) {
-      throw new LedgerDeviceLockedError(sw);
-    }
-    if (sw !== SW_OK) {
-      const known = STATUS_WORDS[sw];
-      // Name the app seen at connect ("BOLOS" = dashboard); the user may have
-      // switched apps since, hence the phrasing.
-      const appHint =
-        sw === SW_CLA_NOT_SUPPORTED && handle.appName
-          ? ` (app at connect time: "${handle.appName}"${handle.appVersion ? ` v${handle.appVersion}` : ""})`
-          : "";
-      throw new LedgerDeviceError(
-        sw,
-        `${known ?? "The device rejected the request"} ` +
-          `(ins 0x${hex2(apdu.ins)} p1 0x${hex2(apdu.p1)}, sw 0x${hex4(sw)})${appHint}`,
-      );
-    }
-    return response.data;
+/**
+ * Build the ceremony's throwing sender: the raw sender plus the shared
+ * status-word classification (typed error on anything but 0x9000).
+ */
+export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
+  const sendRaw = createDmkRawApduSender(handle);
+  return async (apdu) => {
+    const { sw, data } = await sendRaw(apdu);
+    const error = classifyStatusWord(sw, {
+      ins: apdu.ins,
+      p1: apdu.p1,
+      appName: handle.appName,
+      appVersion: handle.appVersion,
+    });
+    if (error) throw error;
+    return data;
   };
 }

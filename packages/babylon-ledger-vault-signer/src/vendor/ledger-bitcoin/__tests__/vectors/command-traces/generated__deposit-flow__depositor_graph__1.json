@@ -1,0 +1,355 @@
+{
+ "schema": "s4-command-trace/v1",
+ "flow": "depositor_graph",
+ "vector_id": "generated__deposit-flow__depositor_graph__1",
+ "source_vector": "signpsbt/generated__deposit-flow__depositor_graph__1.json",
+ "oracle": "ledger-bitcoin==0.4.0 ClientCommandInterpreter (client_command.py); every response_hex is the literal execute() return value",
+ "seeding": [
+  "add_known_list(_NoWalletPolicy keys_info)  # mirrors client.py:294; never queried in no-policy mode",
+  "add_known_preimage(_NoWalletPolicy serialize())  # client.py:295; never queried",
+  "add_known_preimage(_NoWalletPolicy descriptor_template)  # client.py:298; never queried",
+  "add_known_mapping(global_map)  # client.py:301",
+  "add_known_mapping(each input map)  # client.py:306-307",
+  "add_known_mapping(each output map)  # client.py:312-313",
+  "add_known_list(input map commitments)  # client.py:319",
+  "add_known_list(output map commitments)  # client.py:320",
+  "maps and commitments come byte-for-byte from source_vector"
+ ],
+ "replay": "execute traces IN ORDER against one interpreter: the element queue carries state from a spilling command into the following GET_MORE_ELEMENTS",
+ "trees": [
+  {
+   "name": "global_keys",
+   "aliases": [],
+   "root": "519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e31321620",
+   "n_leaves": 5
+  },
+  {
+   "name": "global_values",
+   "aliases": [],
+   "root": "0cc15eb5cb32e7455befea7fd7d2c8890e8975b0cfa9141e8b8cc201f24f803f",
+   "n_leaves": 5
+  },
+  {
+   "name": "input0_keys",
+   "aliases": [],
+   "root": "e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da2",
+   "n_leaves": 10
+  },
+  {
+   "name": "input0_values",
+   "aliases": [],
+   "root": "fe036bafecf875a9875d5ef5ed5ca43edf9da1393a92f5adbfedaa8609477075",
+   "n_leaves": 10
+  },
+  {
+   "name": "input1_keys",
+   "aliases": [
+    "input2_keys"
+   ],
+   "root": "b2b11dcdce6e9754ef1b55479cd48cd7a44d183eee3b1bf22092472e1f6e2c23",
+   "n_leaves": 4
+  },
+  {
+   "name": "input1_values",
+   "aliases": [],
+   "root": "966f396929606ba486c02d8705ae3907a532e45ddcd1b02304c3c26fd03d2159",
+   "n_leaves": 4
+  },
+  {
+   "name": "input2_values",
+   "aliases": [],
+   "root": "ee0433f5d36e951be7414fba96fbbf8322550fa2125778432a6baa82a3a9ec7c",
+   "n_leaves": 4
+  },
+  {
+   "name": "output0_keys",
+   "aliases": [],
+   "root": "78850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d",
+   "n_leaves": 2
+  },
+  {
+   "name": "output0_values",
+   "aliases": [],
+   "root": "426284ac4e0a8b358027b03204fc7d653aceb2c4467a4623f0cb0b66d0bb1da1",
+   "n_leaves": 2
+  },
+  {
+   "name": "input_commitments",
+   "aliases": [],
+   "root": "3f29425f13846f0887d1563d8971bee348b10175f89b5c2a4846af7ac9697585",
+   "n_leaves": 3
+  },
+  {
+   "name": "output_commitments",
+   "aliases": [],
+   "root": "94b294c0c46b51f45d0ec8b7418a7fb84726000e37ba2de0483a5703ceddcb30",
+   "n_leaves": 1
+  }
+ ],
+ "traces": [
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e313216200500",
+   "response_hex": "fcf0a6c700dd13e274b6fba8deea8dd9b26e4eedde3495717cac8408c9c5177f0303583c7dfb7b3055d99465544032a571e10a134b1b6f769422bbb71fd7fa167a5d4b8c129ed14cce2c08cfc6766db7f8cdb133b5f698b8de3d5890ea7ff7f0a8d195811f41d3d5c58240be155bb7d1dcb8f47add7e3417c24e1d52d41653013926",
+   "notes": "global_keys: leaf 0 of 5; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e313216200502",
+   "response_hex": "4f35212d12f9ad2036492c95f1fe79baf4ec7bd9bef3dffa7579f2293ff546a403039f1afa4dc124cba73134e82ff50f17c8f7164257c79fed9a13f5943a6acb8e3d52c56b473e5246933e7852989cd9feba3b38f078742b93afff1e65ed4679782595811f41d3d5c58240be155bb7d1dcb8f47add7e3417c24e1d52d41653013926",
+   "notes": "global_keys: leaf 2 of 5; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e313216200504",
+   "response_hex": "95811f41d3d5c58240be155bb7d1dcb8f47add7e3417c24e1d52d41653013926010112885c5025dece82b9e180bdaf19d6e5571772906c9c24de31790023755c8888",
+   "notes": "global_keys: leaf 4 of 5; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "410cc15eb5cb32e7455befea7fd7d2c8890e8975b0cfa9141e8b8cc201f24f803f0500",
+   "response_hex": "0bd288cecce2dfc6c9b9245ab747a10870f84c16e986e61b259603b59cf1f3b903038855508aade16ec573d21e6a485dfd0a7624085c1a14b5ecdd6485de0c6839a4f88b4f7bcacdc7c62baecee96b9456ec8228c04443e84c10ec11712b97e6887a0bd288cecce2dfc6c9b9245ab747a10870f84c16e986e61b259603b59cf1f3b9",
+   "notes": "global_values: leaf 0 of 5; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "410cc15eb5cb32e7455befea7fd7d2c8890e8975b0cfa9141e8b8cc201f24f803f0502",
+   "response_hex": "583c7dfb7b3055d99465544032a571e10a134b1b6f769422bbb71fd7fa167a5d0303b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2ef9e606dab0cf4d1dcc1424eaf09c6478b3665145adbf549d9d334c218886b260bd288cecce2dfc6c9b9245ab747a10870f84c16e986e61b259603b59cf1f3b9",
+   "notes": "global_values: leaf 2 of 5; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "410cc15eb5cb32e7455befea7fd7d2c8890e8975b0cfa9141e8b8cc201f24f803f0504",
+   "response_hex": "0bd288cecce2dfc6c9b9245ab747a10870f84c16e986e61b259603b59cf1f3b9010108b39a252fd45838bfb966defde735553bb27c3f55837a23e4d158fd16f8773f",
+   "notes": "global_values: leaf 4 of 5; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da20a00",
+   "response_hex": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d20404583c7dfb7b3055d99465544032a571e10a134b1b6f769422bbb71fd7fa167a5de80cc247985bb408a9484b6fd53b538c321cab413033bb288ba55747dfadb6ba717d6541a5357f0f557bd587a42f66d5e66a0fbbd7f74c0f4af29f562411e3be625b913ee9c3b93595e0eff3c6027145f86b094ecc1062d4f9cc4b1f22170534",
+   "notes": "input0_keys: leaf 0 of 10; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da20a04",
+   "response_hex": "0298d122906dcfc10892cb53a73992fc5b9f493ea4c9badb27b791b4127a7fe70404f52d3d83d9151c4a2d64cf3f478ca823a84110f29c93791dc96656dbde7f9ea5f2982c062fce191c50d14a4c05d8fe6fc8c758d8c0e4b4e6b4db542f626e9467722331f4d1466415a9ed493cda597538431c8bea1b14bed934ba20a1f565b4c0625b913ee9c3b93595e0eff3c6027145f86b094ecc1062d4f9cc4b1f22170534",
+   "notes": "input0_keys: leaf 4 of 10; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da20a09",
+   "response_hex": "b5609376c87f00c645433e48648cb02e6a3f83467f2c827194de5d58f971c8f0020267a88a2dc9a9749ec611eef8f47ef5ffcc335f2950d1bfaaf31169ed019040125b024e919e124dc8a00c74390003d6f09f72b357794001aaa77d8cb8dab763db",
+   "notes": "input0_keys: leaf 9 of 10; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41fe036bafecf875a9875d5ef5ed5ca43edf9da1393a92f5adbfedaa86094770750a00",
+   "response_hex": "7a02703f8520b41be692e32ecf0e73a076f28a06ceae1e9c765a71082b64565304048855508aade16ec573d21e6a485dfd0a7624085c1a14b5ecdd6485de0c6839a4f4e7c5b4db4d1cf208a617d6a3c5b07ca63ae57176310996d4fb3616922a50324ef2ad8ed04ee8eb436cd554986cec6b9101d47b08099f8a839f099cf5381238dfb8c79f8e8a5c31f1fa8a508b6399c8fb9e36ef7a9effe0be5a419c5470c9ba",
+   "notes": "input0_values: leaf 0 of 10; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41fe036bafecf875a9875d5ef5ed5ca43edf9da1393a92f5adbfedaa86094770750a04",
+   "response_hex": "4447853d37cddbb1a43a0417efa55ed6929efbd26a954eb6b94ef1216e564fa1040493dd8fadd63d4bc433139f8ead94521c7a0b3eff96ee0ebc1c2c77c61e9768ec1a7d24b3155db8dd564e44aa087a308a8be99bb826c2221d0945637449eacebf4b8b30deceef2d053d2f38c6b4c7db878d8de8a9d041e6e2a7e8fc7b75267508dfb8c79f8e8a5c31f1fa8a508b6399c8fb9e36ef7a9effe0be5a419c5470c9ba",
+   "notes": "input0_values: leaf 4 of 10; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41fe036bafecf875a9875d5ef5ed5ca43edf9da1393a92f5adbfedaa86094770750a09",
+   "response_hex": "1ef9f00303ae6d52b6858a55482d03c2966e64a93bec591da61249a3365bd81c0202b4e03cb6b096221c1171193d9bd985d52ad254931e9897b3ce53b1870b85c70e0c904512de7666a8dbd190b07fa8580b61034f1b662e0e06f8a02a2329241537",
+   "notes": "input0_values: leaf 9 of 10; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41b2b11dcdce6e9754ef1b55479cd48cd7a44d183eee3b1bf22092472e1f6e2c230400",
+   "response_hex": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d202029f4917386c45e2c0da0d9b475f1a19cf2db1e929195c6a9f4966ca0d2105b196d19379c3b959d2f633568f4389726312ac69bd8e3783436175c33216b545ff01",
+   "notes": "input1_keys (also input2_keys): leaf 0 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41b2b11dcdce6e9754ef1b55479cd48cd7a44d183eee3b1bf22092472e1f6e2c230401",
+   "response_hex": "9f4917386c45e2c0da0d9b475f1a19cf2db1e929195c6a9f4966ca0d2105b1960202b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2d19379c3b959d2f633568f4389726312ac69bd8e3783436175c33216b545ff01",
+   "notes": "input1_keys (also input2_keys): leaf 1 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41b2b11dcdce6e9754ef1b55479cd48cd7a44d183eee3b1bf22092472e1f6e2c230403",
+   "response_hex": "0298d122906dcfc10892cb53a73992fc5b9f493ea4c9badb27b791b4127a7fe702023b2b7c6ee25e2f28a6235e273eaf13f504bd445024147ebacb878262aae905093cd9c1605ee4d185c8826df445334881b5785e1d4b45144ddd2f7e2fb2ce5297",
+   "notes": "input1_keys (also input2_keys): leaf 3 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41966f396929606ba486c02d8705ae3907a532e45ddcd1b02304c3c26fd03d21590400",
+   "response_hex": "32956d64d0f776e3bbcb8089e1b152d9bcebe1572b6565cf54b2acf17fad21d70202c08b23d8ad32dc8c8cd672416f74ec51fc1c25e6dc7221bec44c8efc0f89c085f0880fb8ac70aac7e696d23a5347c2b3fa8cff8fe0ed5a4ad7d1ca286c26c3a5",
+   "notes": "input1_values: leaf 0 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41966f396929606ba486c02d8705ae3907a532e45ddcd1b02304c3c26fd03d21590401",
+   "response_hex": "c08b23d8ad32dc8c8cd672416f74ec51fc1c25e6dc7221bec44c8efc0f89c085020232956d64d0f776e3bbcb8089e1b152d9bcebe1572b6565cf54b2acf17fad21d7f0880fb8ac70aac7e696d23a5347c2b3fa8cff8fe0ed5a4ad7d1ca286c26c3a5",
+   "notes": "input1_values: leaf 1 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41966f396929606ba486c02d8705ae3907a532e45ddcd1b02304c3c26fd03d21590403",
+   "response_hex": "d860af53276d714d632e18c01220c68f51d3992d2019a9d74f58a9aaf344186602028855508aade16ec573d21e6a485dfd0a7624085c1a14b5ecdd6485de0c6839a466a1efa2520e44b498ec1adaa4eb28886c117ee672fb76ceae8f45e7e0212956",
+   "notes": "input1_values: leaf 3 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41ee0433f5d36e951be7414fba96fbbf8322550fa2125778432a6baa82a3a9ec7c0400",
+   "response_hex": "32956d64d0f776e3bbcb8089e1b152d9bcebe1572b6565cf54b2acf17fad21d7020253ecf51096d59229fc918f55c803bdec502fa09addaca5436cb63b6763dec674f0880fb8ac70aac7e696d23a5347c2b3fa8cff8fe0ed5a4ad7d1ca286c26c3a5",
+   "notes": "input2_values: leaf 0 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41ee0433f5d36e951be7414fba96fbbf8322550fa2125778432a6baa82a3a9ec7c0401",
+   "response_hex": "53ecf51096d59229fc918f55c803bdec502fa09addaca5436cb63b6763dec674020232956d64d0f776e3bbcb8089e1b152d9bcebe1572b6565cf54b2acf17fad21d7f0880fb8ac70aac7e696d23a5347c2b3fa8cff8fe0ed5a4ad7d1ca286c26c3a5",
+   "notes": "input2_values: leaf 1 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41ee0433f5d36e951be7414fba96fbbf8322550fa2125778432a6baa82a3a9ec7c0403",
+   "response_hex": "d860af53276d714d632e18c01220c68f51d3992d2019a9d74f58a9aaf344186602028855508aade16ec573d21e6a485dfd0a7624085c1a14b5ecdd6485de0c6839a47e0b29fe23c536db0e018e45bc6ae54513d85d808a09719896304cf9203d40c6",
+   "notes": "input2_values: leaf 3 of 4; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "4178850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d0200",
+   "response_hex": "583c7dfb7b3055d99465544032a571e10a134b1b6f769422bbb71fd7fa167a5d01014f35212d12f9ad2036492c95f1fe79baf4ec7bd9bef3dffa7579f2293ff546a4",
+   "notes": "output0_keys: leaf 0 of 2; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "4178850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d0201",
+   "response_hex": "4f35212d12f9ad2036492c95f1fe79baf4ec7bd9bef3dffa7579f2293ff546a40101583c7dfb7b3055d99465544032a571e10a134b1b6f769422bbb71fd7fa167a5d",
+   "notes": "output0_keys: leaf 1 of 2; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41426284ac4e0a8b358027b03204fc7d653aceb2c4467a4623f0cb0b66d0bb1da10200",
+   "response_hex": "caf12df4a6fb3cc4b54b95ab8d1937dac80ed208c93c4d8d4e47b67eba4e1ebf0101188d7f5c4b3045774f5b269bc52e3b63a3b609e359cc05814c069ad2343abfa3",
+   "notes": "output0_values: leaf 0 of 2; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "41426284ac4e0a8b358027b03204fc7d653aceb2c4467a4623f0cb0b66d0bb1da10201",
+   "response_hex": "188d7f5c4b3045774f5b269bc52e3b63a3b609e359cc05814c069ad2343abfa30101caf12df4a6fb3cc4b54b95ab8d1937dac80ed208c93c4d8d4e47b67eba4e1ebf",
+   "notes": "output0_values: leaf 1 of 2; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "413f29425f13846f0887d1563d8971bee348b10175f89b5c2a4846af7ac96975850300",
+   "response_hex": "9e57de4cb9b255880315875829ea092a69b41ae45e71f21a7a2f22988bfdb517020256fecbcda041337b8cdefa4cbeca1c9aabf5329baf61548247f5709b67c027ccce926219d30f03f38ea8e9a454dd0f8c6330f068e2deec29c98bbdb4ed893e02",
+   "notes": "input_commitments: leaf 0 of 3; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "413f29425f13846f0887d1563d8971bee348b10175f89b5c2a4846af7ac96975850301",
+   "response_hex": "56fecbcda041337b8cdefa4cbeca1c9aabf5329baf61548247f5709b67c027cc02029e57de4cb9b255880315875829ea092a69b41ae45e71f21a7a2f22988bfdb517ce926219d30f03f38ea8e9a454dd0f8c6330f068e2deec29c98bbdb4ed893e02",
+   "notes": "input_commitments: leaf 1 of 3; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "413f29425f13846f0887d1563d8971bee348b10175f89b5c2a4846af7ac96975850302",
+   "response_hex": "ce926219d30f03f38ea8e9a454dd0f8c6330f068e2deec29c98bbdb4ed893e020101ed081bd7d844d40cddb77dee2dda9a2caaafb99d47a0a66ec63020af56f4da2c",
+   "notes": "input_commitments: leaf 2 of 3; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_PROOF",
+   "request_hex": "4194b294c0c46b51f45d0ec8b7418a7fb84726000e37ba2de0483a5703ceddcb300100",
+   "response_hex": "94b294c0c46b51f45d0ec8b7418a7fb84726000e37ba2de0483a5703ceddcb300000",
+   "notes": "output_commitments: leaf 0 of 1; response = leaf_hash(32) | proof_len(1) | n_in_msg(1) | hashes (empty proof for a single-leaf tree)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "42519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e31321620fcf0a6c700dd13e274b6fba8deea8dd9b26e4eedde3495717cac8408c9c5177f",
+   "response_hex": "0100",
+   "notes": "global_keys: present leaf_hash = sha256(0x00 | element) of element 0 (02); response = found(1) | varint(index)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "42519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e3132162095811f41d3d5c58240be155bb7d1dcb8f47add7e3417c24e1d52d41653013926",
+   "response_hex": "0104",
+   "notes": "global_keys: present leaf_hash = sha256(0x00 | element) of element 4 (fb); response = found(1) | varint(index)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "42519b38dae74447b72151f354cb138ca3591a5ff8ac813289b18a004e3132162096a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7",
+   "response_hex": "0000",
+   "notes": "global_keys: ABSENT leaf (hash of 0x00 | 00, not in tree); response = found=0 | varint(0)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "42e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da2b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2",
+   "response_hex": "0100",
+   "notes": "input0_keys: present leaf_hash = sha256(0x00 | element) of element 0 (01); response = found(1) | varint(index)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "42e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da2b5609376c87f00c645433e48648cb02e6a3f83467f2c827194de5d58f971c8f0",
+   "response_hex": "0109",
+   "notes": "input0_keys: present leaf_hash = sha256(0x00 | element) of element 9 (18); response = found(1) | varint(index)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "42e45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da296a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7",
+   "response_hex": "0000",
+   "notes": "input0_keys: ABSENT leaf (hash of 0x00 | 00, not in tree); response = found=0 | varint(0)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "4278850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d583c7dfb7b3055d99465544032a571e10a134b1b6f769422bbb71fd7fa167a5d",
+   "response_hex": "0100",
+   "notes": "output0_keys: present leaf_hash = sha256(0x00 | element) of element 0 (03); response = found(1) | varint(index)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "4278850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d4f35212d12f9ad2036492c95f1fe79baf4ec7bd9bef3dffa7579f2293ff546a4",
+   "response_hex": "0101",
+   "notes": "output0_keys: present leaf_hash = sha256(0x00 | element) of element 1 (04); response = found(1) | varint(index)"
+  },
+  {
+   "command_name": "GET_MERKLE_LEAF_INDEX",
+   "request_hex": "4278850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d96a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7",
+   "response_hex": "0000",
+   "notes": "output0_keys: ABSENT leaf (hash of 0x00 | 00, not in tree); response = found=0 | varint(0)"
+  },
+  {
+   "command_name": "GET_PREIMAGE",
+   "request_hex": "4000fcf0a6c700dd13e274b6fba8deea8dd9b26e4eedde3495717cac8408c9c5177f",
+   "response_hex": "02020002",
+   "notes": "global key 02: request hash = sha256(0x00 | element) (the Merkle leaf hash); response = varint(len) | chunk_len(1) | chunk \u2014 preimage includes the 0x00 prefix"
+  },
+  {
+   "command_name": "GET_PREIMAGE",
+   "request_hex": "40000bd288cecce2dfc6c9b9245ab747a10870f84c16e986e61b259603b59cf1f3b9",
+   "response_hex": "05050002000000",
+   "notes": "value of global key 02: request hash = sha256(0x00 | element) (the Merkle leaf hash); response = varint(len) | chunk_len(1) | chunk \u2014 preimage includes the 0x00 prefix"
+  },
+  {
+   "command_name": "GET_PREIMAGE",
+   "request_hex": "400093dd8fadd63d4bc433139f8ead94521c7a0b3eff96ee0ebc1c2c77c61e9768ec",
+   "response_hex": "46460020e49662aea97a89551401ce54de10474b24b4ab71383b69cf164ea59b3a209e0dad2025d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517acc0",
+   "notes": "longest PSBT value: input0 map, key 15c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac089480a5ecdec1dbdce4e385bd900baf5be35a7ddf0a38c7676e1290428e518b9ed11ff219c2fccd79eeceec06f6264d0331818b66333dd810cf1f200e8f0f390, 69 B; preimage 70 B -> first chunk 70 B (fits in one response, no continuation)"
+  },
+  {
+   "command_name": "GET_PREIMAGE",
+   "request_hex": "40009e57de4cb9b255880315875829ea092a69b41ae45e71f21a7a2f22988bfdb517",
+   "response_hex": "4242000ae45dd15c3f9ed4497cc272ba92d219e2c76e222ea270f57dfefec2be59975da2fe036bafecf875a9875d5ef5ed5ca43edf9da1393a92f5adbfedaa8609477075",
+   "notes": "input_commitments[0] = varint(n) | keys_root | values_root (65 B); the device pulls this before walking a per-map tree (get_merkleized_map.c); 0x00-prefixed like every add_known_list element"
+  },
+  {
+   "command_name": "GET_PREIMAGE",
+   "request_hex": "400094b294c0c46b51f45d0ec8b7418a7fb84726000e37ba2de0483a5703ceddcb30",
+   "response_hex": "4242000278850a5ab36238b076dd99fd258c70d523168704247988a94caa8c9ccd056b8d426284ac4e0a8b358027b03204fc7d653aceb2c4467a4623f0cb0b66d0bb1da1",
+   "notes": "output_commitments[0] = varint(n) | keys_root | values_root (65 B); the device pulls this before walking a per-map tree (get_merkleized_map.c); 0x00-prefixed like every add_known_list element"
+  },
+  {
+   "command_name": "YIELD",
+   "request_hex": "10004023c9d66711a0b301f0c94ceb79a85a8eb890bcb9f2212b09af91d0ef90c41090f90634060cacf18103c18d1c087bf875e03faf0b1b9c3e602a264e11d9c395f65ebe93ecc7fd0b3c92371273a182457c4d79db6e16123ad5cfe4ddbf741219633a1c174eb334c4989a90f522555abb952a3430e5abbe9d9a6dfc8a6015be4195",
+   "response_hex": "",
+   "notes": "depositor_graph signature yield, SYNTHETIC payload (shape per wire-spec \u00a75: varint(0) | 0x40 | pubkey(32) | tapleaf(32) | sig(64); bytes are sha256-derived placeholders, not a real device signature); oracle response is empty and interpreter stores request[1:] in .yielded"
+  }
+ ]
+}
