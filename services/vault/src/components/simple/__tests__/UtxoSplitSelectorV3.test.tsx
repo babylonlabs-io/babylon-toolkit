@@ -9,6 +9,9 @@ import {
   type TwoVaultSplitProps,
 } from "../UtxoSplitSelectorV3";
 
+/** Enough to make the hint's amount recognisable in an assertion: 0.4 BTC. */
+const MIN_DEPOSIT_FOR_SPLIT_SATS = 40_000_000n;
+
 function baseSplit(
   overrides: Partial<TwoVaultSplitProps> = {},
 ): TwoVaultSplitProps {
@@ -97,13 +100,12 @@ describe("UtxoSplitSelectorV3", () => {
   });
 
   it("shows the minimum-deposit hint between the two-vault option and no-split", () => {
-    const minDepositForSplit = 40_000_000n;
     render(
       <UtxoSplitSelectorV3
         twoVaultSplit={baseSplit({
           canSplit: false,
           isSplitAmountTooLow: true,
-          minDepositForSplit,
+          minDepositForSplit: MIN_DEPOSIT_FOR_SPLIT_SATS,
         })}
         expanded
         onExpandedChange={vi.fn()}
@@ -111,8 +113,9 @@ describe("UtxoSplitSelectorV3", () => {
     );
 
     const hint = screen.getByText(
-      COPY.deposit.form.splitTooLowHint(formatBtcFromSats(minDepositForSplit))
-        .minimum,
+      COPY.deposit.form.splitTooLowHint(
+        formatBtcFromSats(MIN_DEPOSIT_FOR_SPLIT_SATS),
+      ).minimum,
     );
     // The hint belongs to the two-vault option it qualifies, but sits outside
     // that option's box so it is not a click target.
@@ -134,9 +137,25 @@ describe("UtxoSplitSelectorV3", () => {
       />,
     );
 
-    expect(
-      screen.queryByText(COPY.deposit.form.splitTooLowHint("0.4 BTC").minimum),
-    ).toBeNull();
+    // Query the hint's own role rather than its text: a copy change would make
+    // a text query match nothing and pass for the wrong reason.
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("hides the minimum-deposit hint while the panel is collapsed", () => {
+    render(
+      <UtxoSplitSelectorV3
+        twoVaultSplit={baseSplit({
+          canSplit: false,
+          isSplitAmountTooLow: true,
+          minDepositForSplit: MIN_DEPOSIT_FOR_SPLIT_SATS,
+        })}
+        expanded={false}
+        onExpandedChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("keeps the split option unavailable (aria-disabled) and unselectable when it cannot split", () => {
