@@ -12,9 +12,9 @@
  * in a diff threshold.
  *
  * The backend behind these screens is a recorded devnet run, replayed from
- * `e2e/artifacts` - see `e2e/fixtures/replay`. Before that, the VP proxy and
- * the contract reads were left unmocked and every page here rendered the
- * app's error boundary instead.
+ * the fixture in `e2e/fixtures/replay`. Before that, the VP proxy and the
+ * contract reads were left unmocked and every page here rendered the app's
+ * error boundary instead.
  */
 
 import { test } from "../fixtures";

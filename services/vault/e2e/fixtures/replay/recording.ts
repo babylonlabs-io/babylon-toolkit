@@ -1,6 +1,6 @@
 /**
- * Reader for the run recordings under `e2e/artifacts`, each of which holds a
- * `recording/http.jsonl`.
+ * Reader for a run recording in the JSONL shape that
+ * `e2e/real/actions/recording.ts` writes.
  *
  * Those files are captured by `e2e/real/actions/recording.ts` during a real
  * devnet peg-in: one JSON line per app fetch/XHR, request and response body
@@ -68,16 +68,38 @@ export interface RecordedRun {
 export const DEFAULT_REPLAY_STEP = "deposit-form";
 
 /**
- * The peg-in recording committed to this repository.
+ * The peg-in fixture committed to this repository.
+ *
+ * NOT the raw recording under `e2e/artifacts` - that directory is gitignored
+ * (`services/vault/.gitignore`), because a raw run is transient, megabytes,
+ * and covers the whole flow including the depositor auth-token exchange. It
+ * exists only on the machine that recorded it, so anything reading it works
+ * locally and finds nothing in CI.
+ *
+ * This is the derived subset: cut at the `deposit-form` step, stripped of
+ * telemetry and asset traffic, checked for credentials, 58KB. Regenerate it
+ * from a fresh run with:
+ *
+ *   node scripts/build-replay-fixture.mjs e2e/artifacts/<run>/recording/http.jsonl
  *
  * A single named constant rather than a glob: which run is replayed decides
  * what every captured screen contains, so it is a deliberate choice, not
- * whichever directory happens to sort first.
+ * whichever file happens to sort first.
  */
-export const PEGIN_RECORDING_PATH = path.join(
-  currentDir,
-  "../../artifacts/2026-07-20-173643-pegin/recording/http.jsonl",
-);
+export const PEGIN_RECORDING_PATH = path.join(currentDir, "recorded-run.jsonl");
+
+/**
+ * Whether `hostname` is `domain` or a subdomain of it.
+ *
+ * Not `hostname.includes(domain)`, which is what this used to be: that also
+ * matches `sentry.io.example.com`, so a fixture naming such a host would have
+ * its traffic silently dropped - or, for the matches below that select rather
+ * than drop, replayed as the wrong backend. Anchoring on the dot is what makes
+ * the check mean "this domain" instead of "these characters appear somewhere".
+ */
+function isHost(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+}
 
 /**
  * Classify a recorded URL.
@@ -87,18 +109,28 @@ export const PEGIN_RECORDING_PATH = path.join(
  * wallet picker's remote images - the injected wallet needs none of it) and
  * the dApp's own origin (documents, bundles, the wasm blob - served by the
  * dev server under test).
+ *
+ * The dApp's own hosts are matched on a label rather than a full domain -
+ * `mempool`, `indexer-api` - because those names are deployment-specific and
+ * a re-recording against another environment must still classify. They are
+ * matched against hostname LABELS, never as a bare substring.
  */
+function hasLabel(hostname: string, label: string): boolean {
+  return hostname.split(".").some((part) => part.includes(label));
+}
+
 function classify(url: string): RecordedBackend | null {
   const { hostname, pathname } = new URL(url);
-  if (hostname.includes("sentry.io")) return null;
-  if (hostname.includes("web3modal.org")) return null;
-  if (hostname.includes("demo.vault-devnet")) return null;
-  if (hostname.includes("mempool")) return "mempool";
-  if (hostname.includes("indexer-api")) return "graphql";
-  if (hostname.includes("vault-provider-proxy")) {
+  if (isHost(hostname, "sentry.io")) return null;
+  if (isHost(hostname, "web3modal.org")) return null;
+  if (isHost(hostname, "walletconnect.org")) return null;
+  if (hasLabel(hostname, "demo")) return null;
+  if (hasLabel(hostname, "mempool")) return "mempool";
+  if (hasLabel(hostname, "indexer-api")) return "graphql";
+  if (hasLabel(hostname, "vault-provider-proxy")) {
     return pathname.startsWith("/vp-health") ? "vp-health" : "vp-rpc";
   }
-  if (hostname.includes("utils-api")) return null;
+  if (hasLabel(hostname, "utils-api")) return null;
   // Everything left is the Ethereum JSON-RPC endpoint. Matched last and by
   // exclusion on purpose: the RPC host is an operator choice (publicnode
   // here, Alchemy/Infura elsewhere), so a hostname allowlist would silently
