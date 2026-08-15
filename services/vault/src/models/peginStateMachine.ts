@@ -17,7 +17,10 @@ import {
 import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
-import { activationFloorMinutesRemaining } from "@/utils/activationFloor";
+import {
+  activationFloorMinutesRemaining,
+  isActivationFloorGating,
+} from "@/utils/activationFloor";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 export type {
@@ -441,7 +444,7 @@ export function getPeginState(
   // floor must not let the secret reach simulation calldata.
   const floorAdjustedActions =
     contractStatus === ContractStatus.VERIFIED &&
-    options.activationFloorBlocksRemaining !== undefined
+    isActivationFloorGating(options.activationFloorBlocksRemaining)
       ? deadlineAdjustedActions.filter(
           (a) => a !== SdkPeginAction.ACTIVATE_VAULT,
         )
@@ -705,7 +708,7 @@ function getDisplay(
     // activation opens. Keeps the pending variant deliberately — this vault is
     // healthy and simply waiting, so it must not read as expired and must keep
     // its progress step.
-    if (options.activationFloorBlocksRemaining !== undefined) {
+    if (isActivationFloorGating(options.activationFloorBlocksRemaining)) {
       const blocks = options.activationFloorBlocksRemaining;
       return {
         // NOT "Ready to activate" — it demonstrably is not, and pairing that

@@ -63,6 +63,11 @@ export interface VaultProtocolInfo {
   universalChallengersVersion: number;
   appVaultKeepersVersion: number;
   offchainParamsVersion: number;
+  /**
+   * ETH block number stamped at the Pending→Verified transition.
+   * Compared against `block.number` (inclusive:
+   * `block.number >= verifiedAt + peginActivationDelay`), never a unix timestamp.
+   */
   verifiedAt: bigint;
   depositorWotsPkHash: Hex;
   hashlock: Hex;
@@ -275,7 +280,8 @@ export interface ProtocolParamsReader {
    * predate it, so folding it into the shared multicall would make every
    * protocol-param read fail wherever it is missing.
    *
-   * @throws If the deployment does not expose `peginActivationDelay()`.
+   * @throws If the deployment does not expose `peginActivationDelay()`, or
+   *   the decoded payload is not a `bigint`.
    */
   getPeginActivationDelay(): Promise<bigint>;
   fetchAllOffchainParams(

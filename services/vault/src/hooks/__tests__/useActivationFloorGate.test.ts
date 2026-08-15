@@ -211,6 +211,18 @@ describe("useActivationFloorGate", () => {
     await waitFor(() => expect(result.current.size).toBe(0));
   });
 
+  it("never gates at delay 0 even when verifiedAt and the block number are unreadable", async () => {
+    mockGetPeginActivationDelay.mockResolvedValue(0n);
+    mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: 0n }]);
+    mockGetBlockNumber.mockRejectedValue(new Error("RPC down"));
+
+    const { result } = renderGate([makeActivity()]);
+
+    await waitFor(() => expect(result.current.size).toBe(0));
+    expect(mockGetBlockNumber).not.toHaveBeenCalled();
+    expect(mockGetProtocolInfoBatch).not.toHaveBeenCalled();
+  });
+
   it("stays gated when the batch returns no usable verifiedAt", async () => {
     // Index mismatch or an unregistered vault: no proof the window is open,
     // so the vault must not be released.

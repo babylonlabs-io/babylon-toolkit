@@ -643,12 +643,14 @@ export function useVaultActions(): UseVaultActionsReturn {
       // calldata if the protocol paused in that window. A failed pause read
       // falls back to the cached gate (activation is time-critical — an RPC
       // blip must not trap a depositor whose activation deadline is near).
-      // The activation-floor reads are deliberately NOT `.catch`-ed like the
-      // pause read below: an unreadable floor must reject rather than fall
-      // through, because proceeding would put the secret into
-      // `simulateContract` calldata for a call the contract will refuse.
-      // Skipped entirely when the feature is off — the getter does not exist
-      // on every deployment yet.
+      // The delay read is deliberately NOT `.catch`-ed like the pause read
+      // below: an unreadable delay must reject rather than fall through,
+      // because proceeding would put the secret into `simulateContract`
+      // calldata for a call the contract will refuse. The block-number read
+      // is the exception — delay 0 disables the floor, so a `getBlockNumber`
+      // blip must not abort that path; a missing block with delay > 0 still
+      // aborts below. Skipped entirely when the feature is off — the getter
+      // does not exist on every deployment yet.
       // Redeem path is exempt from the floor (see the check below), so it does
       // not need these reads either.
       const floorEnabled =
@@ -683,11 +685,15 @@ export function useVaultActions(): UseVaultActionsReturn {
         // `cacheTime: 0` because viem caches getBlockNumber for ~4s by
         // default; a stale-behind head inflates the remaining count and can
         // gate a window that is actually open.
+        // Block number is only required when the delay is non-zero. Catching
+        // to `undefined` (instead of aborting the whole `Promise.all`) lets a
+        // delay of 0 proceed even if `getBlockNumber` blips — delay 0 must
+        // never gate. A missing block with delay > 0 still aborts below.
         floorEnabled
           ? ethClient
               .getPublicClient()
               .getBlockNumber({ cacheTime: 0 })
-              .catch(onFloorReadFailure)
+              .catch(() => undefined)
           : Promise.resolve(undefined),
         floorEnabled
           ? getProtocolParamsReader()
@@ -755,29 +761,37 @@ export function useVaultActions(): UseVaultActionsReturn {
       // for a contract call that would have succeeded.
       if (floorEnabled) {
         // Shaped so the absence of a value ABORTS rather than skips. Unreachable
-        // today (a failed read rejects above), but the gate must not quietly
-        // become fail-open if a future reader returns undefined instead of
-        // throwing where the getter is missing.
-        if (currentBlock === undefined || peginActivationDelay === undefined) {
+        // today for the delay (a failed read rejects above), but the gate must
+        // not quietly become fail-open if a future reader returns undefined
+        // instead of throwing where the getter is missing.
+        if (peginActivationDelay === undefined) {
           // `throw` at the call site: TS does not narrow through a
           // `never`-returning arrow held in a const.
           throw onFloorReadFailure(
             new Error("activation floor inputs missing after a settled read"),
           );
         }
-        const blocksRemaining = activationFloorBlocksRemaining({
-          currentBlock,
-          verifiedAt: protocolInfo.verifiedAt,
-          peginActivationDelay,
-        });
-        if (blocksRemaining > 0) {
-          expectedInterruption = true;
-          throw new Error(
-            COPY.pegin.messages.activationWindowNotOpen(
-              blocksRemaining,
-              activationFloorMinutesRemaining(blocksRemaining),
-            ),
-          );
+        // Delay of 0 disables the floor: do not require block/`verifiedAt`.
+        if (peginActivationDelay !== 0n) {
+          if (currentBlock === undefined || protocolInfo.verifiedAt === 0n) {
+            throw onFloorReadFailure(
+              new Error("activation floor inputs missing after a settled read"),
+            );
+          }
+          const blocksRemaining = activationFloorBlocksRemaining({
+            currentBlock,
+            verifiedAt: protocolInfo.verifiedAt,
+            peginActivationDelay,
+          });
+          if (blocksRemaining > 0) {
+            expectedInterruption = true;
+            throw new Error(
+              COPY.pegin.messages.activationWindowNotOpen(
+                blocksRemaining,
+                activationFloorMinutesRemaining(blocksRemaining),
+              ),
+            );
+          }
         }
       }
 

@@ -171,7 +171,7 @@ export const COPY = {
       // checks; the minutes figure is an estimate derived from slot time, so it
       // is bracketed as approximate. Mirrors the refundMaturing shape.
       activationWindowOpening: (blocks: number, minutes: number) =>
-        `Your BTC Vault is verified. Activation opens in ~${blocks} Ethereum ${
+        `Your BTC Vault is verified. Activation opens in ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
         } (~${minutes} min).`,
       activationWindowTooltip:
@@ -180,13 +180,13 @@ export const COPY = {
       // sentence stays in `message` (the info-icon tooltip); this is what a
       // depositor sees without interacting, so it must survive `truncate`.
       activationWindowSubtext: (blocks: number, minutes: number) =>
-        `Opens in ~${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
+        `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
       activationWindowSubtextUnknown: "Waiting for the activation window",
       // Error-slot framing of the same wait. `activationWindowOpening` leads
       // with "Your BTC Vault is verified", which reads as a status line rather
       // than a failure when it lands in the red error callout after a click.
       activationWindowNotOpen: (blocks: number, minutes: number) =>
-        `Activation is not open yet — about ${blocks} Ethereum ${
+        `Activation is not open yet — ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
         } to go (~${minutes} min). You can try again once the window opens.`,
       // The window state could not be read at all. Distinct from the countdown

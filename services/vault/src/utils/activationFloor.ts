@@ -9,9 +9,10 @@
 // direction is inverted. The deadline may be *estimated* from wall-clock time
 // because over-estimating elapsed blocks only escalates to an on-chain check.
 // The floor may not: over-estimating elapsed blocks would open Activate early,
-// which is the failure being removed. So every function here takes a real
-// `currentBlock` read from chain, and slot time is used only to describe a
-// block count to the user, never to decide whether the window has opened.
+// which is the failure being removed. So `activationFloorBlocksRemaining`
+// takes a real `currentBlock` read from chain, and slot time is used only to
+// describe a block count to the user, never to decide whether the window has
+// opened.
 
 import { ETH_SLOT_SECONDS } from "./activationDeadline";
 
@@ -29,10 +30,29 @@ export function activationFloorBlocksRemaining(params: {
   peginActivationDelay: bigint;
 }): number {
   const { currentBlock, verifiedAt, peginActivationDelay } = params;
+  // `0` disables the floor entirely — do not compare `verifiedAt` against
+  // `currentBlock`. A just-verified vault can be read with `verifiedAt` one
+  // block ahead of a lagging `getBlockNumber`, and that comparison would
+  // gate a window the contract is not enforcing.
+  if (peginActivationDelay === 0n) return 0;
   // Matches the contract exactly, including the inclusive boundary: at
   // `currentBlock === verifiedAt + delay` the difference is 0, not 1.
   const remaining = verifiedAt + peginActivationDelay - currentBlock;
   return remaining > 0n ? Number(remaining) : 0;
+}
+
+/**
+ * Whether a remaining-blocks reading should hold Activate closed.
+ *
+ * - `undefined` — not gated (window open, or the feature is off)
+ * - `0` — not gated (inclusive boundary; the window is open)
+ * - `null` — gated, duration unknown (fail-closed)
+ * - `> 0` — gated, that many blocks remain
+ */
+export function isActivationFloorGating(
+  remaining: number | null | undefined,
+): remaining is number | null {
+  return remaining === null || (remaining !== undefined && remaining > 0);
 }
 
 /**

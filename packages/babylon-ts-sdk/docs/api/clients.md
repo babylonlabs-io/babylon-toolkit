@@ -286,14 +286,20 @@ getPeginActivationDelay(): Promise<bigint>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts)
 
-Returned as `bigint` with no narrowing: the registry compares it against
-`block.number`, so callers must do the same arithmetic the contract does.
-No validator runs — every `uint256` is a legal value here, `0` being the
-documented "disabled" case, so there is nothing to reject.
+Returned as `bigint` with no `Number` narrowing: the registry compares it
+against `block.number`, so callers must do the same arithmetic the
+contract does. `0` is the documented "disabled" case and is returned as
+`0n`. A missing getter or a non-bigint payload throws — never coerced to
+`0`, which would fail open and skip the observation window.
 
 ###### Returns
 
 `Promise`\<`bigint`\>
+
+###### Throws
+
+If the deployment does not expose `peginActivationDelay()`, or
+  the decoded payload is not a `bigint`.
 
 ###### Implementation of
 
@@ -1741,6 +1747,10 @@ verifiedAt: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
+ETH block number stamped at the Pending→Verified transition.
+Compared against `block.number` (inclusive:
+`block.number >= verifiedAt + peginActivationDelay`), never a unix timestamp.
+
 ##### depositorWotsPkHash
 
 ```ts
@@ -2552,7 +2562,8 @@ protocol-param read fail wherever it is missing.
 
 ###### Throws
 
-If the deployment does not expose `peginActivationDelay()`.
+If the deployment does not expose `peginActivationDelay()`, or
+  the decoded payload is not a `bigint`.
 
 ##### fetchAllOffchainParams()
 

@@ -6,6 +6,7 @@
  */
 
 import { COPY } from "@/copy";
+import { isActivationFloorGating } from "@/utils/activationFloor";
 
 import type { DepositPollingResult } from "../../context/deposit/PeginPollingContext";
 import {
@@ -99,7 +100,10 @@ export function getActionStatus(
     // disabled Activate with the wait explained, rather than the neutral
     // "View details" that `noAction` renders — otherwise the wait is silent
     // and looks like a stuck deposit.
-    if (!error && peginState.activationFloorBlocksRemaining !== undefined) {
+    if (
+      !error &&
+      isActivationFloorGating(peginState.activationFloorBlocksRemaining)
+    ) {
       return {
         type: "disabled",
         action: {

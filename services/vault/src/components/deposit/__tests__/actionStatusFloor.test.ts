@@ -56,6 +56,14 @@ describe("getActionStatus with the activation floor", () => {
     expect(status.type).toBe("noAction");
   });
 
+  it("falls through to noAction at remaining 0 (window open)", () => {
+    const status = getActionStatus(
+      makeResult({ activationFloorBlocksRemaining: 0 }),
+    );
+
+    expect(status.type).toBe("noAction");
+  });
+
   it("lets wallet-ownership disabling win, so an unowned vault shows no countdown", () => {
     const status = getActionStatus(
       makeResult(

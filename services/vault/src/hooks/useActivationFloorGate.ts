@@ -127,18 +127,33 @@ export function useActivationFloorGate(
         candidateIds.map((id) => [id.toLowerCase(), null]),
       );
 
-      let currentBlock: bigint;
       let peginActivationDelay: bigint;
       try {
         const paramsReader = await getProtocolParamsReader();
-        [currentBlock, peginActivationDelay] = await Promise.all([
-          // `cacheTime: 0` — viem caches getBlockNumber ~4s by default, and a
-          // block behind head inflates the remaining count.
-          ethClient.getPublicClient().getBlockNumber({ cacheTime: 0 }),
-          paramsReader.getPeginActivationDelay(),
-        ]);
+        peginActivationDelay = await paramsReader.getPeginActivationDelay();
       } catch {
-        // Both inputs are global, so without them nothing can be resolved.
+        // Without the delay, nothing can be proven open.
+        return resolved;
+      }
+
+      // Delay of 0 disables the floor. Do not wait on block number or
+      // `verifiedAt` — a blip on those reads must not gate a window the
+      // contract is not enforcing.
+      if (peginActivationDelay === 0n) {
+        for (const id of candidateIds) {
+          resolved.set(id.toLowerCase(), 0);
+        }
+        return resolved;
+      }
+
+      let currentBlock: bigint;
+      try {
+        // `cacheTime: 0` — viem caches getBlockNumber ~4s by default, and a
+        // block behind head inflates the remaining count.
+        currentBlock = await ethClient
+          .getPublicClient()
+          .getBlockNumber({ cacheTime: 0 });
+      } catch {
         return resolved;
       }
 

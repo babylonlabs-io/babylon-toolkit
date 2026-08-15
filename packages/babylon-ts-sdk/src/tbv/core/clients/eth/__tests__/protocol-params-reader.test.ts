@@ -40,7 +40,7 @@ function createMockPublicClient(overrides?: {
   version?: unknown;
   activeVaultCoreVersion?: unknown;
   perVersionOffchainParams?: Map<number, unknown>;
-  peginActivationDelay?: bigint;
+  peginActivationDelay?: unknown;
 }) {
   return {
     readContract: vi.fn(
@@ -69,7 +69,17 @@ function createMockPublicClient(overrides?: {
           return overrides?.version ?? 3;
         }
         if (functionName === "peginActivationDelay") {
-          return overrides?.peginActivationDelay ?? 150n;
+          // No silent 0n/testnet-default: a deployment that predates the
+          // getter must fail the same way viem does — by throwing.
+          if (
+            overrides === undefined ||
+            !("peginActivationDelay" in overrides)
+          ) {
+            throw new Error(
+              'Function "peginActivationDelay" not found on contract',
+            );
+          }
+          return overrides.peginActivationDelay;
         }
         throw new Error(`Unknown function: ${functionName}`);
       },
@@ -289,14 +299,14 @@ describe("ViemProtocolParamsReader", () => {
 
   it("getPeginActivationDelay returns the delay as a bigint", async () => {
     const publicClient = createMockPublicClient({
-      peginActivationDelay: 150n,
+      peginActivationDelay: 200n,
     });
     const reader = new ViemProtocolParamsReader(
       publicClient as never,
       MOCK_ADDRESS,
     );
 
-    await expect(reader.getPeginActivationDelay()).resolves.toBe(150n);
+    await expect(reader.getPeginActivationDelay()).resolves.toBe(200n);
   });
 
   it("getPeginActivationDelay returns 0 when the window is disabled", async () => {
@@ -310,7 +320,9 @@ describe("ViemProtocolParamsReader", () => {
   });
 
   it("getPeginActivationDelay reads standalone, never through the shared multicall", async () => {
-    const publicClient = createMockPublicClient();
+    const publicClient = createMockPublicClient({
+      peginActivationDelay: 200n,
+    });
     const reader = new ViemProtocolParamsReader(
       publicClient as never,
       MOCK_ADDRESS,
@@ -323,6 +335,49 @@ describe("ViemProtocolParamsReader", () => {
     expect(publicClient.multicall).not.toHaveBeenCalled();
     expect(publicClient.readContract).toHaveBeenCalledWith(
       expect.objectContaining({ functionName: "peginActivationDelay" }),
+    );
+  });
+
+  it("getPeginActivationDelay throws when the getter is absent, never returning 0", async () => {
+    // Predating deployments revert the selector. Treating that as 0n would
+    // disable the observation window (fail open) — the class of bug this
+    // parameter exists to prevent.
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPeginActivationDelay()).rejects.toThrow(
+      /peginActivationDelay/,
+    );
+  });
+
+  it("getPeginActivationDelay throws on a non-bigint payload instead of coercing to 0", async () => {
+    const publicClient = createMockPublicClient({
+      peginActivationDelay: undefined,
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPeginActivationDelay()).rejects.toThrow(
+      /Invalid peginActivationDelay from contract: must be a bigint/,
+    );
+  });
+
+  it("getPeginActivationDelay throws on a number 0 payload instead of treating the window as disabled", async () => {
+    const publicClient = createMockPublicClient({
+      peginActivationDelay: 0,
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getPeginActivationDelay()).rejects.toThrow(
+      /Invalid peginActivationDelay from contract: must be a bigint/,
     );
   });
 

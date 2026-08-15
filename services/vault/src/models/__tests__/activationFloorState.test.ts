@@ -25,6 +25,16 @@ describe("activation floor in getPeginState", () => {
     expect(state.message).toBe(COPY.pegin.messages.readyToActivate);
   });
 
+  it("offers Activate at remaining 0 (inclusive boundary, window open)", () => {
+    const state = getPeginState(VERIFIED.contractStatus, {
+      transactionsReady: true,
+      activationFloorBlocksRemaining: 0,
+    });
+
+    expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
+    expect(state.activationFloorBlocksRemaining).toBeUndefined();
+  });
+
   it("strips Activate while blocks remain", () => {
     const state = getPeginState(VERIFIED.contractStatus, {
       transactionsReady: true,

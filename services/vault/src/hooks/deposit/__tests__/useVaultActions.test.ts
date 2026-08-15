@@ -1922,4 +1922,46 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
     expect(mockActivateVaultWithSecret).toHaveBeenCalled();
   });
+
+  it("reveals immediately when the protocol delay is 0, even if currentBlock lags verifiedAt", async () => {
+    mockGetPeginActivationDelay.mockResolvedValue(0n);
+    mockGetBlockNumber.mockResolvedValue(VERIFIED_AT - 1n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
+  });
+
+  it("reveals at delay 0 even when getBlockNumber fails", async () => {
+    mockGetPeginActivationDelay.mockResolvedValue(0n);
+    mockGetBlockNumber.mockRejectedValue(new Error("RPC down"));
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
+  });
+
+  it("aborts rather than revealing when verifiedAt is unreadable (fail closed)", async () => {
+    mockGetBlockNumber.mockResolvedValue(9_999n);
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        verifiedAt: 0n,
+      }),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
 });

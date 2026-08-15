@@ -66,6 +66,18 @@ describe("activationFloorBlocksRemaining", () => {
       }),
     ).toBe(0);
   });
+
+  it("is still ungated at delay 0 when currentBlock lags verifiedAt", () => {
+    // A just-verified vault can be read with verifiedAt one block ahead of a
+    // lagging getBlockNumber. Delay 0 must not treat that as "not yet open".
+    expect(
+      activationFloorBlocksRemaining({
+        currentBlock: 999n,
+        verifiedAt: 1000n,
+        peginActivationDelay: 0n,
+      }),
+    ).toBe(0);
+  });
 });
 
 describe("activationFloorMinutesRemaining", () => {
