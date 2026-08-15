@@ -235,9 +235,9 @@ describe("prepare-time rejections (§2.2 — all typed, all pre-I/O)", () => {
 
   it("rejects a tapscript input with no witnessUtxo before any device work", () => {
     // Strip input 0's WITNESS_UTXO (keytype 0x01) by raw-byte surgery — a model
-    // round-trip through PsbtV2.serialize would trip the merge-target parse
-    // gate first (its v0 re-emission is not bitcoinjs-canonical). The stripped
-    // bytes stay bitcoinjs-parseable, so the tapscript preflight is what fires.
+    // round-trip would trip the merge-target parse gate first, since deserialize
+    // normalizes and serialize then emits v2 bytes bitcoinjs won't parse. The
+    // stripped bytes stay v0, so the tapscript preflight is what fires.
     const raw = Buffer.from(VALID_PSBT_HEX, "hex");
     // key = len(01) ‖ keytype(01), value = varint(len) ‖ witnessUtxo bytes.
     const keyIndex = raw.indexOf(Buffer.from([0x01, 0x01]), 5);

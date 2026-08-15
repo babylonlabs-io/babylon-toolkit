@@ -173,6 +173,11 @@ export async function getAppAndVersion(sendRaw: RawApduSender): Promise<AppAndVe
   }
   const nameLen = data[1];
   const nameEnd = 2 + nameLen;
+  // Check BEFORE reading the version-length byte: an out-of-range read yields
+  // undefined, and the NaN that follows makes every `>` bound below false.
+  if (nameEnd >= data.length) {
+    throw new Error(`GET_APP_AND_VERSION response truncated (${toHex(data)})`);
+  }
   const versionLen = data[nameEnd];
   const versionEnd = nameEnd + 1 + versionLen;
   if (versionEnd > data.length) {

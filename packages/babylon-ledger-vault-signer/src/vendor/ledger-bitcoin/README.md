@@ -96,13 +96,14 @@ until #2221/#2222 use it. `bitcoinjs-lib` and `buffer` remain vite externals.
   `0a9e9e14`. Provenance headers plus the golden-vector gates below are what
   makes that surface auditable — not its absence from the bundle.
 
-## Known upstream behaviour (kept): v0 round-trip is not bitcoinjs-canonical
+## Known upstream behaviour (kept): a deserialized v0 PSBT serializes as v2
 
-`PsbtV2.serialize()` on a deserialized-but-NOT-normalized v0 model re-emits
-bytes that `bitcoinjs-lib` rejects ("Only one UNSIGNED_TX allowed"). No
-production path serializes an un-normalized model (prepare always normalizes),
-and `prepareSignPsbt`'s merge-target parse gate rejects such input pre-I/O.
-Kept upstream-faithful.
+`deserialize()` always normalizes, so `serialize()` re-emits v2 bytes — v2
+globals, no `PSBT_GLOBAL_UNSIGNED_TX` — which `bitcoinjs-lib` 6.1.7 rejects
+("Only one UNSIGNED_TX allowed"). Production signs from the normalized v2
+model and `prepareSignPsbt`'s merge-target parse gate rejects incompatible
+input pre-I/O, so this only bites a test that round-trips a v0 fixture through
+the model. Kept upstream-faithful.
 
 ## Golden-vector gate
 

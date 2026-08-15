@@ -100,8 +100,10 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       const deriveScreens = await approveOnScreen(SPECULOS_URL, DERIVE_APPROVAL_TEXT);
       contextRoot = await rootPending;
       expect(contextRoot).toHaveLength(32);
+      // NB: never log the context root, sighash or signature — CLAUDE.md #7
+      // ("never log payload bytes") is unconditional here, and this suite can
+      // be pointed at a real device. Assertions below pin the values instead.
       console.log(`[speculos-e2e] derive screens: ${deriveScreens.join(" || ")}`);
-      console.log(`[speculos-e2e] context root: ${Buffer.from(contextRoot).toString("hex")}`);
 
       // Scalars and group APDUs answer immediately; the final key batch blocks
       // on the intent review screen — drive it concurrently too.
@@ -139,7 +141,6 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
       expect(yielded.leafHashHex).toBe(fixture.leaf0Hash.toString("hex"));
       expect(yielded.signature).toHaveLength(SCHNORR_SIG_BYTES);
-      console.log(`[speculos-e2e] schnorr signature: ${Buffer.from(yielded.signature).toString("hex")}`);
     },
     SIGNING_TIMEOUT_MS,
   );
@@ -155,7 +156,6 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
 
       const sighash = computePeginSighash(psbtFixture.psbtHex, psbtFixture);
       const valid = verifySchnorrSignature(sighash, DEPOSITOR_XONLY_HEX, yielded.signature);
-      console.log(`[speculos-e2e] sighash: ${sighash.toString("hex")}`);
       console.log(`[speculos-e2e] verifySchnorr(depositor key): ${valid}`);
       expect(valid).toBe(true);
 
