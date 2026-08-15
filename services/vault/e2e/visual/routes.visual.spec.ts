@@ -4,71 +4,34 @@
  * This spec asserts nothing about how the app *looks* - that judgement
  * belongs to the diff step, which compares this run's output against the
  * same capture taken at the PR's merge-base. All this file guarantees is
- * that each screen renders, settles, and is written to disk under a
- * stable filename.
+ * that each screen renders real content, settles, and is written to disk
+ * under a stable filename.
  *
  * Run it twice on the same commit and the two output directories must be
  * byte-identical. If they are not, the fix belongs in `stabilize.ts`, not
  * in a diff threshold.
+ *
+ * The backend behind these screens is a recorded devnet run, replayed from
+ * `e2e/artifacts` - see `e2e/fixtures/replay`. Before that, the VP proxy and
+ * the contract reads were left unmocked and every page here rendered the
+ * app's error boundary instead.
  */
 
-import type { Page } from "@playwright/test";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { test } from "../fixtures";
 
-import { expect, test } from "../fixtures";
-import { mockEthRpc, mockGraphql } from "../fixtures/networkRoutes";
-
-import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
+import {
+  assertAppRendered,
+  capture,
+  ensureOutputDir,
+  preparePage,
+} from "./capture";
 import {
   screenshotFileName,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
 } from "./targets";
 
-import { VISUAL_OUTPUT_DIR as OUTPUT_DIR } from "../../playwright.visual.config";
-
-/**
- * Nothing may leave the machine during a capture. The mocks below cover
- * the endpoints the app actually calls; this catch-all makes anything we
- * missed fail closed instead of reaching a live host and introducing
- * run-to-run variance (or, on a fork PR, leaking a request).
- *
- * Registered first on purpose - Playwright gives precedence to the most
- * recently registered matching route, so the specific mocks below win.
- */
-async function blockOffsiteRequests(page: Page): Promise<void> {
-  await page.route("**/*", (route) => {
-    const { hostname } = new URL(route.request().url());
-    const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
-    return isLocal ? route.continue() : route.abort();
-  });
-}
-
-/**
- * Deliberately NOT `mockVpProxy`. It answers `/vp-health` with an empty
- * snapshot list, which the app treats as "no vault provider exists" and
- * throws on during startup - React never mounts and `#root` stays empty,
- * so every screen would capture as a blank page. Leaving the VP calls to
- * `blockOffsiteRequests` lets the app fall back to its error surface and
- * render the real shell.
- *
- * `mockEthRpc` answers `eth_chainId`; the contract reads it cannot answer
- * fall through to a JSON-RPC error, which the app renders as its
- * "Something went wrong" card. That is the honest unconnected state this
- * harness can reach today - the fully-populated dashboard needs the
- * page-side wallet provider from #1592.
- */
-test.beforeEach(async ({ page }) => {
-  await blockOffsiteRequests(page);
-  await mockGraphql(page, () => ({ data: {} }));
-  await mockEthRpc(page);
-  await installVisualDeterminism(page);
-});
-
-test.beforeAll(async () => {
-  await fs.mkdir(OUTPUT_DIR, { recursive: true });
-});
+test.beforeAll(ensureOutputDir);
 
 for (const target of VISUAL_TARGETS) {
   for (const viewport of VISUAL_VIEWPORTS) {
@@ -78,32 +41,10 @@ for (const target of VISUAL_TARGETS) {
         height: viewport.height,
       });
 
+      const backend = await preparePage(page);
       await page.goto(target.path, { waitUntil: "domcontentloaded" });
-      await waitForVisualStability(page);
-
-      // The app raises a blocking error dialog when it cannot boot - most
-      // often a required env var missing from `MOCK_ENV_VARS`, which a
-      // developer machine hides because vite reads the `.env` files a clean
-      // runner does not have. Photographing that is worse than failing: the
-      // modal covers every screen, both sides of the diff agree on it, and
-      // the check reports "no visual changes" for a PR whose UI it never
-      // rendered - which is what it did until this gate landed.
-      await expect(
-        page.getByTestId("error-dialog"),
-        `${target.name} captured the app's blocking error dialog instead of ` +
-          `the page. The app did not boot - fix the capture environment ` +
-          `(services/vault/playwright.config.ts) rather than accepting this ` +
-          `as a baseline.`,
-      ).toHaveCount(0);
-
-      const fileName = screenshotFileName(target, viewport);
-      const buffer = await page.screenshot({ fullPage: true });
-      await fs.writeFile(path.join(OUTPUT_DIR, fileName), buffer);
-
-      // A zero-byte or absurdly small PNG means the screen never
-      // painted; that must fail the capture rather than silently
-      // become an "expected" baseline the next run diffs against.
-      expect(buffer.byteLength).toBeGreaterThan(1000);
+      await capture(page, screenshotFileName(target, viewport));
+      await assertAppRendered(page, backend, target.name);
     });
   }
 }

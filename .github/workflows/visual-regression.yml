@@ -159,7 +159,15 @@ jobs:
           set -euo pipefail
           H="${{ runner.temp }}/harness"
           mkdir -p "$H"
-          cp -R services/vault/e2e/visual "$H/vault-visual"
+          # The WHOLE e2e tree, not just e2e/visual. The capture now depends on
+          # `e2e/fixtures` (the recorded-backend replay and the injected
+          # wallets) and on `e2e/artifacts` (the recording itself), and those
+          # are as much a part of the instrument as the spec that calls them.
+          # Restoring only e2e/visual leaves the baseline side importing the
+          # merge-base's fixtures - which, for the commit that introduces
+          # them, do not exist at all, so the baseline captures nothing and
+          # the run degrades to "no comparison" without ever going red.
+          cp -R services/vault/e2e "$H/vault-e2e"
           cp services/vault/playwright.visual.config.ts "$H/"
           # The visual config imports MOCK_ENV_VARS from playwright.config.ts,
           # and that export only exists on the PR side. Left unstashed, the
@@ -194,9 +202,9 @@ jobs:
         run: |
           set -euo pipefail
           H="${{ runner.temp }}/harness"
-          rm -rf services/vault/e2e/visual packages/babylon-core-ui/visual
-          mkdir -p services/vault/e2e packages/babylon-core-ui .github/scripts
-          cp -R "$H/vault-visual" services/vault/e2e/visual
+          rm -rf services/vault/e2e packages/babylon-core-ui/visual
+          mkdir -p services/vault packages/babylon-core-ui .github/scripts
+          cp -R "$H/vault-e2e" services/vault/e2e
           cp "$H/playwright.visual.config.ts" services/vault/
           cp "$H/playwright.config.ts" services/vault/
           cp -R "$H/core-ui-visual" packages/babylon-core-ui/visual

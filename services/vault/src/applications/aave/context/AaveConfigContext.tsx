@@ -59,7 +59,15 @@ export function AaveConfigProvider({
   if (error || data == null) {
     if (errorFallback !== undefined) return <>{errorFallback}</>;
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 px-4 text-center">
+      // `app-error-state` is read by the visual capture
+      // (services/vault/e2e/visual/capture.ts), which refuses to photograph
+      // an error surface as a baseline. This fallback covers every page that
+      // needs Aave config, so it is what a capture with no backend behind it
+      // renders - and it is stable, so it diffs clean against itself forever.
+      <div
+        data-testid="app-error-state"
+        className="flex min-h-[400px] flex-col items-center justify-center gap-3 px-4 text-center"
+      >
         <p className="text-base font-medium">Something went wrong</p>
         <p className="max-w-md text-sm text-accent-secondary">
           Please try again in a moment.

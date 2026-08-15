@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { RECORDED_DEPLOYMENT } from "./e2e/fixtures/replay/contracts";
 import { MOCK_ENV_VARS } from "./playwright.config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,6 +62,17 @@ export const VISUAL_OUTPUT_DIR =
  */
 const VISUAL_ENV_VARS = {
   ...MOCK_ENV_VARS,
+  // Point the app at the deployment the replayed recording was captured
+  // against. `MOCK_ENV_VARS` uses 0x…0001/2/3 placeholders, which are fine
+  // for the behavioural suite (it asserts on what the app DOES with a
+  // response) and useless here: a replayed read is answered by the address it
+  // was aimed at, so a placeholder matches nothing and every screen falls
+  // back to the error boundary. See `e2e/fixtures/replay/contracts.ts`.
+  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
+  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
+  NEXT_PUBLIC_ETH_CHAINID: RECORDED_DEPLOYMENT.ETH_CHAIN_ID,
   // Sentry off: a capture run must not transmit anything. The e2e suite
   // needs the opposite (it asserts on tunnelled events).
   NEXT_PUBLIC_SENTRY_DSN: "",
