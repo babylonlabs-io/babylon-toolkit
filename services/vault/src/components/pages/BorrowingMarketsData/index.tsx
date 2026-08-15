@@ -251,6 +251,7 @@ export default function BorrowingMarketsData() {
       {
         label: COPY.marketData.stats.availableLiquidity,
         value: compactUsdLabel(liquidity?.availableLiquidity, priceUsd),
+        tooltip: COPY.marketData.stats.availableLiquidityTooltip,
       },
       {
         label: COPY.marketData.stats.borrowApr,
@@ -268,6 +269,7 @@ export default function BorrowingMarketsData() {
       {
         label: COPY.marketData.stats.totalBorrowed,
         value: compactUsdLabel(liquidity?.totalBorrowed, priceUsd),
+        tooltip: COPY.marketData.stats.totalBorrowedTooltip,
       },
       {
         label: COPY.marketData.stats.marketUtilization,
@@ -275,6 +277,7 @@ export default function BorrowingMarketsData() {
           liquidity?.utilizationBps == null
             ? COPY.common.emptyValue
             : formatBasisPointsAsPercent(liquidity.utilizationBps),
+        tooltip: COPY.marketData.stats.marketUtilizationTooltip,
       },
     ];
   }, [

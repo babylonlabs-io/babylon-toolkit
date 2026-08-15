@@ -73,7 +73,7 @@ export function PositionOverview({
       },
       {
         label: COPY.liquidations.position.healthFactor,
-        tooltip: COPY.overview.healthFactorTooltip,
+        tooltip: COPY.tooltips.healthFactor,
         value: healthFactorText,
         valueNode: (
           <span className="flex items-center gap-2">
@@ -81,7 +81,6 @@ export function PositionOverview({
             <HeartIcon color={healthFactorColor} />
           </span>
         ),
-        caption: COPY.risk.healthFactorDescription,
       },
     ],
     [

@@ -28,7 +28,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // consistent with BorrowMarketsTable.test.tsx / CollateralInfoCard.test.tsx.
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
-  Hint: () => null,
+  Hint: ({ tooltip }: { tooltip?: string }) => <span>{tooltip}</span>,
   Container: ({
     children,
     className,
@@ -333,6 +333,24 @@ describe("BorrowingMarketsData", () => {
     expect(statsBar.getByText("$35.5M")).toBeInTheDocument(); // supplied
     expect(statsBar.getByText("$24.1M")).toBeInTheDocument(); // total borrowed
     expect(statsBar.getByText("68%")).toBeInTheDocument(); // market utilization
+  });
+
+  it("explains every stats-bar figure with its own tooltip", () => {
+    setUpHooks();
+
+    renderPage("1");
+
+    const statsBar = within(screen.getByTestId("market-stats-bar"));
+    const { stats } = COPY.marketData;
+    for (const tooltip of [
+      stats.availableLiquidityTooltip,
+      COPY.loans.borrowAprTooltip,
+      stats.suppliedTooltip,
+      stats.totalBorrowedTooltip,
+      stats.marketUtilizationTooltip,
+    ]) {
+      expect(statsBar.getByText(tooltip)).toBeInTheDocument();
+    }
   });
 
   it("shows the on-chain collateral factor as a percentage", () => {

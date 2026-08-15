@@ -74,7 +74,7 @@ export function VaultsSummaryCard({
     },
     {
       label: COPY.vaults.summary.healthFactorLabel,
-      tooltip: COPY.overview.healthFactorTooltip,
+      tooltip: COPY.tooltips.healthFactor,
       value: healthFactorText,
       valueNode: (
         <span

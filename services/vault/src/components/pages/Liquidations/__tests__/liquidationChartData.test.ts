@@ -6,6 +6,7 @@ import type {
   LiquidationGroup,
   Vault,
 } from "@/applications/aave/positionNotifications/types";
+import { COPY } from "@/copy";
 
 import {
   buildLiquidationChartData,
@@ -466,6 +467,31 @@ describe("buildLiquidationChartData", () => {
     expect(cards[0].fairness.value).toContain("$81");
     // Converted at the event's trigger price: 81 / 40500 = 0.002 BTC.
     expect(cards[0].fairness.value).toContain("0.002");
+  });
+
+  // The tooltip describes a payment to the user's wallet, which only the
+  // full-liquidation variant makes — the debt-repaid row must not claim it.
+  it("carries the fairness tooltip on the payment variant only", () => {
+    const paymentResult = makeResult([
+      makeGroup(1, { isFullLiquidation: true, fairnessPaymentUsd: 81 }),
+    ]);
+    const debtRepaidResult = makeResult([
+      makeGroup(1, { isFullLiquidation: false }),
+    ]);
+    const options = {
+      vaultsTotal: 1,
+      btcPrice: 90000,
+      collateralFactor: CF,
+    };
+
+    expect(
+      buildLiquidationChartData(paymentResult, options).cards[0].fairness
+        .tooltip,
+    ).toBe(COPY.liquidations.events.fairnessPaymentTooltip);
+    expect(
+      buildLiquidationChartData(debtRepaidResult, options).cards[0].fairness
+        .tooltip,
+    ).toBeUndefined();
   });
 
   // The card colour used to key off `badge` (array position), so a protected
