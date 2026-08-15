@@ -53,6 +53,7 @@ function getDmk(): Promise<DeviceManagementKit> {
         import("@ledgerhq/device-management-kit"),
         import("@ledgerhq/device-transport-kit-web-hid"),
       ]);
+      // No .addLogger(): DMK's own send/error logs include full APDU payload bytes.
       dmkInstance = new DeviceManagementKitBuilder().addTransport(webHidTransportFactory).build();
       return dmkInstance;
     })().catch((error) => {

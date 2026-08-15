@@ -49,6 +49,16 @@ from ledger_bitcoin.merkle import MerkleTree, element_hash, get_merkleized_map_c
 from ledger_bitcoin.psbt import PSBT
 from ledger_bitcoin.wallet import WalletPolicy
 
+from importlib.metadata import version as installed_version
+
+# Provenance guard: goldens are only valid against the pinned oracle (requirements.txt).
+ORACLE_VERSION = "0.4.0"
+_installed = installed_version("ledger-bitcoin")
+if _installed != ORACLE_VERSION:  # not assert: stripped under python -O
+    raise RuntimeError(
+        f"oracle must be ledger-bitcoin=={ORACLE_VERSION}, got {_installed}"
+    )
+
 # Same trick as the firmware's tests/test_sign_psbt_validate.py::_NoWalletPolicy —
 # wallet_id = 32 zero bytes routes the firmware into the vault validator
 # (init_global_state.c: has_no_wallet_policy). The descriptor content is irrelevant;
@@ -233,7 +243,7 @@ def main():
         "depositor-as-claimer/wrongly_challenged.txt",  # raw tx — skipped
     ]
 
-    index = {"package": "ledger-bitcoin==0.4.0", "fixtures_root": str(fixtures_root),
+    index = {"package": f"ledger-bitcoin=={ORACLE_VERSION}", "fixtures_root": str(fixtures_root),
              "psbt_vectors": [], "skipped_raw_tx_fixtures": []}
 
     for rel in fixture_files:

@@ -15,6 +15,7 @@ import {
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
+import type { Apdu } from "./rawApdu";
 
 /**
  * The ONE class byte for the whole app: the base app's dispatcher gates every
@@ -48,13 +49,7 @@ const DERIVATION_PATH_MAX_LEVELS = 10;
 const ROOT_BYTES = 32;
 
 /** Transport seam: send one APDU, return the response data or throw on error SW. */
-export type ApduSender = (apdu: {
-  cla: number;
-  ins: number;
-  p1: number;
-  p2: number;
-  data: Uint8Array;
-}) => Promise<Uint8Array>;
+export type ApduSender = (apdu: Apdu) => Promise<Uint8Array>;
 
 function u16BE(value: number): Uint8Array {
   return new Uint8Array([(value >> 8) & 0xff, value & 0xff]);
