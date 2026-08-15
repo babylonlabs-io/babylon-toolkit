@@ -2,12 +2,15 @@
  * Transport seam for the SIGN_PSBT interrupt/continue loop (#2219).
  *
  * The ceremony's `ApduSender` throws on every status word except 0x9000;
- * SIGN_PSBT cannot ride it, because `0xE000` (SW_INTERRUPTED_EXECUTION — a
- * client-command request follows in the response data) and the once-eaten
- * `0x6A80` retry are loop inputs, not failures. A {@link RawApduSender}
- * therefore never throws on ANY status word; terminal words are classified by
- * the caller via {@link classifyStatusWord}, so raw-seam consumers and the
- * throwing sender raise identical typed errors.
+ * SIGN_PSBT cannot ride it: `0xE000` (SW_INTERRUPTED_EXECUTION — a
+ * client-command request follows in the response data) is loop input, and the
+ * loop's one gated resend must see the first `0x6A80` after a host-abandoned
+ * interruption as data too — the dispatcher answers any non-CONTINUE APDU
+ * with 0x6A80 and drops the interrupted command (`base:dispatcher.c:107-111`
+ * `process_interruption`); every other `0x6A80` is a terminal validation
+ * failure. A {@link RawApduSender} therefore never throws on ANY status word;
+ * terminal words are classified by the caller via {@link classifyStatusWord},
+ * so raw-seam consumers and the throwing sender raise identical typed errors.
  *
  * @module ledger-vault-signer/rawApdu
  */
@@ -74,11 +77,11 @@ const STATUS_WORDS: Record<number, string> = {
   0x6f00: "The device reported an internal error",
 };
 
-function hex2(value: number): string {
+export function hex2(value: number): string {
   return value.toString(16).padStart(2, "0");
 }
 
-function hex4(value: number): string {
+export function hex4(value: number): string {
   return value.toString(16).padStart(4, "0");
 }
 

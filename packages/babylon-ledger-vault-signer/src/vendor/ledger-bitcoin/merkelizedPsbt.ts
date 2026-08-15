@@ -11,9 +11,11 @@
  *                  global — this package ships to the browser); the commitment
  *                  lists map over the arrays directly (upstream's
  *                  `[...maps.values()].map` spread was a no-op on an Array);
- *                  defensive strict-null guard on per-index map access in the
- *                  constructor (a count/maps mismatch now throws a typed Error
- *                  instead of upstream's raw TypeError; valid PSBTs unchanged);
+ *                  symmetric count guards in the constructor — the input/output
+ *                  map counts must equal the declared PSBT_GLOBAL_*_COUNTs in
+ *                  BOTH directions (upstream TypeErrors on missing maps and
+ *                  silently ignores surplus ones; valid PSBTs unchanged), plus
+ *                  the per-index strict-null guard the strict tsconfig needs;
  *                  formatting.
  */
 
@@ -44,7 +46,13 @@ export class MerkelizedPsbt extends PsbtV2 {
     psbt.copy(this);
     this.globalMerkleMap = MerkelizedPsbt.createMerkleMap(this.globalMap);
 
-    for (let i = 0; i < this.getGlobalInputCount(); i++) {
+    const inputCount = this.getGlobalInputCount();
+    // LOCAL ADDITION: symmetric count guard — psbt.copy already copied surplus
+    // maps, so serialize() would emit maps the commitment never covers.
+    if (this.inputMaps.length !== inputCount) {
+      throw new Error(`Input map count ${this.inputMaps.length} != declared PSBT_GLOBAL_INPUT_COUNT ${inputCount}`);
+    }
+    for (let i = 0; i < inputCount; i++) {
       const inputMap = this.inputMaps[i];
       if (inputMap === undefined) {
         throw new Error(`Missing input map ${i}`);
@@ -53,7 +61,11 @@ export class MerkelizedPsbt extends PsbtV2 {
     }
     this.inputMapCommitments = this.inputMerkleMaps.map((v) => v.commitment());
 
-    for (let i = 0; i < this.getGlobalOutputCount(); i++) {
+    const outputCount = this.getGlobalOutputCount();
+    if (this.outputMaps.length !== outputCount) {
+      throw new Error(`Output map count ${this.outputMaps.length} != declared PSBT_GLOBAL_OUTPUT_COUNT ${outputCount}`);
+    }
+    for (let i = 0; i < outputCount; i++) {
       const outputMap = this.outputMaps[i];
       if (outputMap === undefined) {
         throw new Error(`Missing output map ${i}`);

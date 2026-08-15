@@ -132,3 +132,38 @@ describe("MerkelizedPsbt commitment golden vectors (22 SIGN_PSBT fixtures)", () 
     expect(hex(cdata)).toBe(v.sign_psbt_cdata_hex);
   });
 });
+
+describe("MerkelizedPsbt symmetric count guard", () => {
+  // claimerPayout2 is a 2-in/3-out fixture; the setters plant a mismatched
+  // declared count, the only way to reach the guard (deserialize builds
+  // exactly the declared number of maps).
+  function parsed(): PsbtV2 {
+    const psbt = new PsbtV2();
+    psbt.deserialize(Buffer.from(claimerPayout2.psbt_hex, "hex"));
+    return psbt;
+  }
+
+  it("rejects surplus input maps beyond the declared count", () => {
+    const psbt = parsed();
+    psbt.setGlobalInputCount(1);
+    expect(() => new MerkelizedPsbt(psbt)).toThrow(/Input map count 2 != declared PSBT_GLOBAL_INPUT_COUNT 1/);
+  });
+
+  it("rejects a declared input count exceeding the maps", () => {
+    const psbt = parsed();
+    psbt.setGlobalInputCount(3);
+    expect(() => new MerkelizedPsbt(psbt)).toThrow(/Input map count 2 != declared PSBT_GLOBAL_INPUT_COUNT 3/);
+  });
+
+  it("rejects surplus output maps beyond the declared count", () => {
+    const psbt = parsed();
+    psbt.setGlobalOutputCount(2);
+    expect(() => new MerkelizedPsbt(psbt)).toThrow(/Output map count 3 != declared PSBT_GLOBAL_OUTPUT_COUNT 2/);
+  });
+
+  it("rejects a declared output count exceeding the maps", () => {
+    const psbt = parsed();
+    psbt.setGlobalOutputCount(4);
+    expect(() => new MerkelizedPsbt(psbt)).toThrow(/Output map count 3 != declared PSBT_GLOBAL_OUTPUT_COUNT 4/);
+  });
+});

@@ -44,6 +44,16 @@ from ledger_bitcoin.common import sha256, write_varint
 from ledger_bitcoin.merkle import MerkleTree, element_hash
 from ledger_bitcoin.wallet import WalletPolicy
 
+from importlib.metadata import version as installed_version
+
+# Provenance guard: goldens are only valid against the pinned oracle (requirements.txt).
+ORACLE_VERSION = "0.4.0"
+_installed = installed_version("ledger-bitcoin")
+if _installed != ORACLE_VERSION:  # not assert: stripped under python -O
+    raise RuntimeError(
+        f"oracle must be ledger-bitcoin=={ORACLE_VERSION}, got {_installed}"
+    )
+
 MAX_CONTINUE_DATA = 255  # Lc of the F8 01 00 00 CONTINUE APDU is one byte
 
 # One vector per flow. pegin uses the generated 1-in/3-out variant: the captured
@@ -353,9 +363,9 @@ def vector_trace_file(flow: str, vec_id: str, vec: dict):
         trace_leaf_proofs(runner, tree)
     # index lookups on the trees the device actually queries by hash: keys trees
     # (get_merkleized_map_value pattern: H(0x00|key) against the map's keys root)
-    named = {name: (root, elements) for name, root, elements in reg}
+    named = {name: root for name, root, _elements in reg}
     for tree_name, source_map in [("global_keys", g), ("input0_keys", ins[0]), ("output0_keys", outs[0])]:
-        root, elements = named[tree_name]
+        root = named[tree_name]
         canonical = next(t for t in trees if t["root"] == root)
         trace_leaf_index(runner, {**canonical, "name": tree_name}, absent_map_key(source_map))
     trace_preimages(runner, g, ins, outs, input_commitments, output_commitments)
@@ -367,7 +377,7 @@ def vector_trace_file(flow: str, vec_id: str, vec: dict):
         "flow": flow,
         "vector_id": vec_id,
         "source_vector": f"signpsbt/{vec_id}.json",
-        "oracle": "ledger-bitcoin==0.4.0 ClientCommandInterpreter (client_command.py); "
+        "oracle": f"ledger-bitcoin=={ORACLE_VERSION} ClientCommandInterpreter (client_command.py); "
         "every response_hex is the literal execute() return value",
         "seeding": [
             "add_known_list(_NoWalletPolicy keys_info)  # mirrors client.py:294; never queried in no-policy mode",
@@ -450,7 +460,7 @@ def synthetic_deep_tree_file():
         "synthetic": True,
         "vector_id": "synthetic__deep_tree",
         "source_vector": None,
-        "oracle": "ledger-bitcoin==0.4.0 ClientCommandInterpreter (client_command.py); "
+        "oracle": f"ledger-bitcoin=={ORACLE_VERSION} ClientCommandInterpreter (client_command.py); "
         "every response_hex is the literal execute() return value",
         "seeding": [
             f"add_known_list(elements), elements[i] = uint32 BE of i, i = 0..{SYNTHETIC_N - 1}"
@@ -471,7 +481,7 @@ def main():
 
     index = {
         "schema": "s4-command-trace-index/v1",
-        "oracle": "ledger-bitcoin==0.4.0",
+        "oracle": f"ledger-bitcoin=={ORACLE_VERSION}",
         "generator": "gen_command_traces.py",
         "source_vectors_dir": "signpsbt/",
         "files": [],

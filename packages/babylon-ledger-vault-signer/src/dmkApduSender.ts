@@ -11,7 +11,7 @@
  */
 
 import type { DmkSessionHandle } from "./dmkSession";
-import { classifyStatusWord, type RawApduSender } from "./rawApdu";
+import { classifyStatusWord, hex2, hex4, type Apdu, type RawApduSender } from "./rawApdu";
 import type { ApduSender } from "./vaultCommands";
 
 const STATUS_WORD_BYTES = 2;
@@ -29,8 +29,22 @@ function statusWordOf(response: { statusCode: Uint8Array }): number {
   return (response.statusCode[0] << 8) | response.statusCode[1];
 }
 
+/**
+ * Uint8Array assignment truncates mod-256 while the trace prints the full
+ * value — reject an out-of-range header field instead of diverging.
+ */
+function assertByte(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 0 || value > 0xff) {
+    throw new Error(`APDU ${name} ${value} is not a single byte (0..255)`);
+  }
+}
+
 /** Serialise to the wire form: CLA ‖ INS ‖ P1 ‖ P2 ‖ Lc ‖ DATA. */
-function encodeApdu(apdu: { cla: number; ins: number; p1: number; p2: number; data: Uint8Array }): Uint8Array {
+function encodeApdu(apdu: Apdu): Uint8Array {
+  assertByte(apdu.cla, "cla");
+  assertByte(apdu.ins, "ins");
+  assertByte(apdu.p1, "p1");
+  assertByte(apdu.p2, "p2");
   if (apdu.data.length > 0xff) {
     throw new Error(`APDU data is ${apdu.data.length} bytes; Lc is a single byte (max 255)`);
   }
@@ -46,14 +60,6 @@ function encodeApdu(apdu: { cla: number; ins: number; p1: number; p2: number; da
 
 function traceEnabled(): boolean {
   return (globalThis as { __LEDGER_VAULT_APDU_TRACE__?: boolean }).__LEDGER_VAULT_APDU_TRACE__ === true;
-}
-
-function hex2(value: number): string {
-  return value.toString(16).padStart(2, "0");
-}
-
-function hex4(value: number): string {
-  return value.toString(16).padStart(4, "0");
 }
 
 /**

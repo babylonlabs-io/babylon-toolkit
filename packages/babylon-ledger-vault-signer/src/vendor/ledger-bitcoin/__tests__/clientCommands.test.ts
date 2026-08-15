@@ -65,6 +65,17 @@ describe("YieldCommand", () => {
     expect(onYield).toHaveBeenCalledWith(Buffer.from([0x07, 0x08]));
   });
 
+  it("gives the onYield validator its own copy — mutating it cannot corrupt the record", () => {
+    const results: Buffer[] = [];
+    const command = new YieldCommand(results, undefined, (payload) => {
+      payload.fill(0);
+    });
+
+    command.execute(Buffer.from([YIELD, 0x07, 0x08]));
+
+    expect(results).toEqual([Buffer.from([0x07, 0x08])]);
+  });
+
   it("aborts on an onYield throw without recording the yield", () => {
     // The vault seam: a failed per-yield assertion must propagate out of
     // execute() and the rejected signature must never look collected.
@@ -261,6 +272,23 @@ describe("GetMerkleLeafIndexCommand", () => {
   it("throws for an unknown root", () => {
     const command = new GetMerkleLeafIndexCommand(new Map());
     expect(() => command.execute(leafIndexRequest(Buffer.alloc(32, 1), Buffer.alloc(32, 2)))).toThrow(/unknown root/);
+  });
+
+  it("encodes a leaf index past the 252 single-byte bound as an fd-prefixed varint", () => {
+    // Corpus maps top out at 12 entries — only a synthetic tree reaches the width.
+    const elements = Array.from({ length: 301 }, (_, i) => {
+      const b = Buffer.alloc(4);
+      b.writeUInt32BE(i, 0);
+      return b;
+    });
+    const tree = new Merkle(elements.map((el) => hashLeaf(el)));
+    const root = tree.getRoot();
+    const command = new GetMerkleLeafIndexCommand(new Map([[root.toString("hex"), tree]]));
+
+    const response = command.execute(leafIndexRequest(root, hashLeaf(elements[300]!)));
+
+    // Literal fd 2c 01 = varint(300): pins the wire encoding, not the helper.
+    expect(response).toEqual(Buffer.concat([Buffer.from([1]), Buffer.from([0xfd, 0x2c, 0x01])]));
   });
 
   it("returns the FIRST index for a duplicated leaf (oracle: linear scan)", () => {

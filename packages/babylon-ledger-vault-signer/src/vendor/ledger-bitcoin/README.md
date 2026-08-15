@@ -17,12 +17,20 @@ v6-compatible source and gate it with golden vectors.
   reproduced; attribution is by project name and URL (Apache-2.0 §4(a)/(c)).
 - Each file's header records its upstream path, version, upstream sha256, and the
   exact modifications made (§4(b)).
-- **Known upstream behaviour (kept):** `parseVarint` accepts non-canonical
-  (overlong) encodings — e.g. `fd0100` decodes to `1` — with no minimality check,
-  matching upstream and the Python oracle. Resolved with `psbtv2`: it parses
-  length varints through `sanitizeBigintToNumber(readVarInt())` and re-serializes
-  every map through `createVarint` (`serializeMap`), so overlong lengths in a
-  hostile PSBT are re-emitted canonically — parse-accept, emit-canonical.
+- **Known upstream behaviour (kept):**
+  - `parseVarint` accepts non-canonical (overlong) encodings — e.g. `fd0100`
+    decodes to `1` — with no minimality check, matching upstream and the Python
+    oracle. Resolved with `psbtv2`: it parses length varints through
+    `sanitizeBigintToNumber(readVarInt())` and re-serializes every map through
+    `createVarint` (`serializeMap`), so overlong lengths in a hostile PSBT are
+    re-emitted canonically — parse-accept, emit-canonical.
+  - `policy.ts` `serialize()` writes the descriptor-template length in UTF-16
+    code units but hashes its UTF-8 bytes; the Python oracle (`wallet.py:70`)
+    counts UTF-8 for both, and encodes name/keys as UTF-8 where the JS uses
+    `"ascii"` — so they diverge on any non-ASCII input. Identical for the
+    ASCII-only templates every flow uses; never construct a `WalletPolicy`
+    with non-ASCII strings. If that ever changes, encode once as UTF-8 to
+    match the oracle.
 
 ## Modifications (applied to every file)
 
@@ -73,8 +81,8 @@ out of the bundle, until the SIGN_PSBT task (#2219 B1-d) wires them in.
 by **Ledger's own Python client** (`ledger-bitcoin==0.4.0`, the version the vault
 firmware's device tests drive SIGN_PSBT through). `varint` and `merkle` have
 direct golden vectors (`varint.json`, `merkle_mth.json`); `merkleMap`'s commitment
-(keys root, values root, the `varint(n) ‖ keysRoot ‖ valuesRoot` layout, and the
-outer Merkle-of-maps roots) is checked today against per-map commitment vectors the
+(keys root, values root, the `varint(n) ‖ keysRoot ‖ valuesRoot` layout) is
+checked today against per-map commitment vectors the
 Python client emits over the firmware's PSBT fixtures (`__tests__/vectors/signpsbt/*.json`).
 `psbtv2`'s gate parses every fixture's `psbt_hex`, normalizes to v2, and checks
 each map's keys/values, the serialized key order (== `sorted_key_order`), and

@@ -10,6 +10,13 @@
  * Modifications:   explicit `import { Buffer } from "buffer"` (no implicit Node
  *                  global — this package ships to the browser); fixed the
  *                  "Bitcon" typo; formatting.
+ * Known upstream behaviour (kept): `serialize()` writes the template length in
+ *                  UTF-16 code units but hashes UTF-8 bytes; the Python oracle
+ *                  (wallet.py:70) counts UTF-8 for both, and encodes name/keys
+ *                  as UTF-8 where this file uses "ascii". Identical for the
+ *                  ASCII-only templates every flow uses — never construct a
+ *                  WalletPolicy with non-ASCII strings; if that ever changes,
+ *                  encode once as UTF-8 to match the oracle.
  */
 
 import { crypto } from "bitcoinjs-lib";

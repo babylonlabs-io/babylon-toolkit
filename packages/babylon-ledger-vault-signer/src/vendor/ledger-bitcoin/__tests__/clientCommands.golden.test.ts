@@ -16,7 +16,7 @@
  */
 
 import { Buffer } from "buffer";
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
@@ -73,7 +73,9 @@ function seededInterpreter(file: TraceFile): ClientCommandInterpreter {
   return interpreter;
 }
 
-const TRACE_INDEX = loadJson<{ files: { file: string; n_traces: number }[] }>(join(TRACES_DIR, "index.json")).files;
+const TRACE_INDEX = loadJson<{ files: { file: string; n_traces: number; per_command: Record<string, number> }[] }>(
+  join(TRACES_DIR, "index.json"),
+).files;
 
 // A regenerated-but-empty fixture set must fail loudly, not create zero tests.
 if (TRACE_INDEX.length === 0) {
@@ -81,15 +83,25 @@ if (TRACE_INDEX.length === 0) {
 }
 
 describe("client-command interpreter replays the Python-oracle traces byte-for-byte", () => {
-  it.each(TRACE_INDEX)("$file", ({ file: fileName, n_traces }) => {
+  it.each(TRACE_INDEX)("$file", ({ file: fileName, n_traces, per_command }) => {
     const file = loadJson<TraceFile>(join(TRACES_DIR, fileName));
     expect(file.traces.length).toBe(n_traces);
     expect(file.traces.length).toBeGreaterThan(0);
     const interpreter = seededInterpreter(file);
 
+    const counts: Record<string, number> = {};
     for (const [i, trace] of file.traces.entries()) {
+      counts[trace.command_name] = (counts[trace.command_name] ?? 0) + 1;
       const response = interpreter.execute(Buffer.from(trace.request_hex, "hex"));
       expect(response.toString("hex"), `${fileName} trace[${i}] ${trace.command_name}`).toBe(trace.response_hex);
     }
+    expect(counts).toEqual(per_command);
+  });
+
+  it("index.json lists exactly the trace files on disk", () => {
+    const onDisk = readdirSync(TRACES_DIR)
+      .filter((f) => f.endsWith(".json") && f !== "index.json")
+      .sort();
+    expect(onDisk).toEqual(TRACE_INDEX.map((f) => f.file).sort());
   });
 });
