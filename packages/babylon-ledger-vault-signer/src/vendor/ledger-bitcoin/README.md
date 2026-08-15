@@ -58,22 +58,51 @@ with the exceptions recorded per file header; the substantive ones:
   flows yield once per input). Discard the interpreter on abort; a retry must
   seed a fresh one. The validator receives a copy, and the payload push itself
   stays raw (`subarray(1)`, no shape assumption).
+- `psbtv2.ts`: local addition — two `psbtIn` enum members the upstream enum
+  lacks (`TAP_LEAF_SCRIPT = 0x15`, `TAP_INTERNAL_KEY = 0x17` — BIP-371, byte
+  values verified against base app `psbt.h:37-42`) plus a public
+  `getInputEntriesOfType(inputIndex, keyType)` reader returning Buffer copies
+  of every `{ keyData, value }` entry of one key type. `PsbtV2`'s maps are
+  `protected` with no generic public getter; the SIGN_PSBT expected-signature
+  table reads per-input taproot entries through this accessor so the table is
+  built from the exact map model the device Merkle-verifies.
 
 Vendored so far: `varint.ts`, `merkle.ts`, `merkleMap.ts`, `buffertools.ts`,
 `psbtv2.ts`, `merkelizedPsbt.ts`, `clientCommands.ts`, `policy.ts` — the
-full #2219 vendoring closure. These modules are referenced only by their
-golden-vector and unit tests, not by any production entrypoint (nothing
-reachable from `src/index.ts` imports them), so the bundler tree-shakes them
-out of the JS bundle and the vendor dir is excluded from declaration emission
-(see `vite.config.ts`) — the published `dist/` ships none of the vendored code
-(no JS, no `.d.ts`), and the `bitcoinjs-lib` / `buffer` deps they pull in stay
-out of the bundle, until the SIGN_PSBT task (#2219 B1-d) wires them in.
+full #2219 vendoring closure.
 
-### Planned local additions (not yet applied)
+## Audit boundary — the vendored JS ships
 
-- `psbtv2.ts` local addition `getInputEntriesOfType` (generic reader for the
-  expected-signature table) lands with its consumer, not before — zero dead
-  code.
+From #2219 B1-d, `src/index.ts` → `signPsbt.ts` reaches this directory, so the
+vendored JavaScript is bundled into the published `dist/`. Verified against
+`dist/index.js.map`'s `sources` after a build: `varint`, `buffertools`,
+`psbtv2`, `merkle`, `merkleMap`, `merkelizedPsbt`, `clientCommands` are inlined
+(1,643 of the 1,735 vendored lines); `policy.ts` is reachable only through a
+type position (`addKnownWalletPolicy`'s parameter) and stays tree-shaken out
+until #2221/#2222 use it. `bitcoinjs-lib` and `buffer` remain vite externals.
+
+- **Attribution** lives in `THIRD-PARTY-NOTICES.md`, shipped via package.json
+  `files`. `esbuild.legalComments: "none"` strips the per-file Apache-2.0
+  §4(b) provenance headers from the bundle — that trade-off is recorded in
+  `vite.config.ts`.
+- **No vendored declaration ships.** The first-party modules type every
+  vendored surface structurally (`ExpectedSignaturePsbt`,
+  `SignPsbtCommitments`, `SignPsbtInterpreter`), so no `dist/*.d.ts` references
+  `src/vendor`, and `vite.config.ts`'s `beforeWriteFile` drops vendor
+  declarations before write. **Review check on every public-API change: never
+  re-export a vendored type** (`PsbtV2`, `PartialSignature`,
+  `ClientCommandInterpreter`, …) — return a first-party shape instead.
+- The audit surface is therefore ~1.7 kLOC of Apache-2.0 source pinned at
+  `0a9e9e14`. Provenance headers plus the golden-vector gates below are what
+  makes that surface auditable — not its absence from the bundle.
+
+## Known upstream behaviour (kept): v0 round-trip is not bitcoinjs-canonical
+
+`PsbtV2.serialize()` on a deserialized-but-NOT-normalized v0 model re-emits
+bytes that `bitcoinjs-lib` rejects ("Only one UNSIGNED_TX allowed"). No
+production path serializes an un-normalized model (prepare always normalizes),
+and `prepareSignPsbt`'s merge-target parse gate rejects such input pre-I/O.
+Kept upstream-faithful.
 
 ## Golden-vector gate
 

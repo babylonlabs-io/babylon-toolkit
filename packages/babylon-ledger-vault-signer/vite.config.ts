@@ -8,10 +8,13 @@ export default defineConfig({
       tsconfigPath: "./tsconfig.lib.json",
       insertTypesEntry: true,
       include: ["src"],
-      // Vendored SIGN_PSBT primitives are unreferenced by index.ts (test-only
-      // until #2219) — keep their declarations out of the published dist too,
-      // so nothing vendored ships until the code is actually wired in.
-      exclude: ["src/**/__tests__/**", "src/vendor/**"],
+      // Vendored files stay IN the declaration program (index.ts reaches them
+      // through signPsbt.ts; excluding them makes tsc report TS6307 on every
+      // vendor import), but their declarations are dropped before write.
+      exclude: ["src/**/__tests__/**"],
+      // No vendored .d.ts ships: the first-party modules type the vendored
+      // surfaces structurally, so no emitted declaration references src/vendor.
+      beforeWriteFile: (filePath) => (/[\\/]vendor[\\/]/.test(filePath) ? false : undefined),
     }),
   ],
   build: {
@@ -25,6 +28,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        "@bitcoin-js/tiny-secp256k1-asmjs",
         "@ledgerhq/device-management-kit",
         "@ledgerhq/device-transport-kit-web-hid",
         "@scure/bip32",

@@ -26,7 +26,12 @@
  *                  silently last-wins); `deserialize` rejects trailing bytes
  *                  after the last output map (upstream silently dropped them);
  *                  defensive strict-null guards (behaviour-preserving);
- *                  `==` → `===`; `slice` → `subarray`; formatting.
+ *                  `==` → `===`; `slice` → `subarray`; formatting;
+ *                  LOCAL ADDITION: two `psbtIn` members the upstream enum
+ *                  lacks (`TAP_LEAF_SCRIPT = 0x15`, `TAP_INTERNAL_KEY = 0x17`
+ *                  — BIP-371, byte values verified against base app
+ *                  psbt.h:37-42) and a public `getInputEntriesOfType` reader,
+ *                  both for the vault SIGN_PSBT expected-signature table.
  */
 
 import { Transaction } from "bitcoinjs-lib";
@@ -59,7 +64,10 @@ export enum psbtIn {
   OUTPUT_INDEX = 0x0f,
   SEQUENCE = 0x10,
   TAP_KEY_SIG = 0x13,
+  // Local additions — BIP-371; byte values verified against base app psbt.h:37-42.
+  TAP_LEAF_SCRIPT = 0x15, // keydata = control block; value = script ‖ leaf_version(1B trailing)
   TAP_BIP32_DERIVATION = 0x16,
+  TAP_INTERNAL_KEY = 0x17, // keydata = ∅; value = 32B x-only internal key
 }
 export enum psbtOut {
   REDEEM_SCRIPT = 0x00,
@@ -256,6 +264,23 @@ export class PsbtV2 {
   }
   getInputKeyDatas(inputIndex: number, keyType: KeyType): readonly Buffer[] {
     return this.getKeyDatas(this.inputMaps[inputIndex], keyType);
+  }
+  /** LOCAL ADDITION (vault expected-signature table): all entries of one key type. */
+  getInputEntriesOfType(
+    inputIndex: number,
+    keyType: KeyType,
+  ): readonly { readonly keyData: Buffer; readonly value: Buffer }[] {
+    const map = this.inputMaps[inputIndex];
+    if (!map) {
+      throw new Error("No such map");
+    }
+    const entries: { readonly keyData: Buffer; readonly value: Buffer }[] = [];
+    map.forEach((value, key) => {
+      if (this.isKeyType(key, [keyType])) {
+        entries.push({ keyData: Buffer.from(key.substring(2), "hex"), value: Buffer.from(value) });
+      }
+    });
+    return entries;
   }
 
   setOutputRedeemScript(outputIndex: number, redeemScript: Buffer) {
