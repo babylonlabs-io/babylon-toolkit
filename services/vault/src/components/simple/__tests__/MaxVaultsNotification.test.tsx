@@ -11,12 +11,11 @@ const featureFlagsMock = vi.hoisted(() => ({
 }));
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
-import {
-  DEBUG_FORCED_MAX_VAULTS,
-  setDebugMaxVaultsOverride,
-} from "@/dev/debugPositionStore";
+import { setMaxVaultsOverride } from "@/overrides/protocolStatus";
 
 import { MaxVaultsNotification } from "../MaxVaultsNotification";
+
+const FORCED_MAX_VAULTS = 10;
 
 const BELOW_CAP = {
   isAtCap: false,
@@ -27,7 +26,7 @@ const BELOW_CAP = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  setDebugMaxVaultsOverride(null);
+  setMaxVaultsOverride(null);
 });
 
 describe("MaxVaultsNotification", () => {
@@ -86,7 +85,7 @@ describe("MaxVaultsNotification", () => {
   it("shows the card from the god-mode override while below the live cap", () => {
     mockUseVaultCountCap.mockReturnValue(BELOW_CAP);
 
-    setDebugMaxVaultsOverride(DEBUG_FORCED_MAX_VAULTS);
+    setMaxVaultsOverride(FORCED_MAX_VAULTS);
     render(<MaxVaultsNotification connectedAddress="0xuser" />);
 
     expect(screen.getByTestId("max-vaults-notification")).toHaveAttribute(
@@ -95,9 +94,7 @@ describe("MaxVaultsNotification", () => {
     );
     expect(
       screen.getByText(
-        new RegExp(
-          `maximum number of BTC Vaults \\(${DEBUG_FORCED_MAX_VAULTS}\\)`,
-        ),
+        new RegExp(`maximum number of BTC Vaults \\(${FORCED_MAX_VAULTS}\\)`),
       ),
     ).toBeInTheDocument();
   });
@@ -105,8 +102,8 @@ describe("MaxVaultsNotification", () => {
   it("renders nothing once the god-mode override is released", () => {
     mockUseVaultCountCap.mockReturnValue(BELOW_CAP);
 
-    setDebugMaxVaultsOverride(DEBUG_FORCED_MAX_VAULTS);
-    setDebugMaxVaultsOverride(null);
+    setMaxVaultsOverride(FORCED_MAX_VAULTS);
+    setMaxVaultsOverride(null);
     const { container } = render(
       <MaxVaultsNotification connectedAddress="0xuser" />,
     );

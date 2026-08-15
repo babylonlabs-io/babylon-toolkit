@@ -19,21 +19,19 @@ import {
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import {
-  resolveShownHealthFactor,
-  useDebugHealthFactorOverride,
-  useDebugManualMode,
-  useDebugManualParams,
-  useDebugPositionOverride,
-} from "@/dev/debugPositionStore";
-import {
-  resolveLiquidationCardState,
-  useLiquidationDebugState,
-} from "@/dev/liquidationDebugStore";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
 import { usePrices } from "@/hooks/usePrices";
+import {
+  resolveShownHealthFactor,
+  useHealthFactorOverride,
+} from "@/overrides/borrowCapacity";
+import {
+  resolveLiquidationCardState,
+  useLiquidationCardOverride,
+} from "@/overrides/liquidations";
+import { usePositionCascadeOverride } from "@/overrides/position";
 import {
   formatBasisPointsAsPercent,
   formatBtcAmount,
@@ -56,31 +54,25 @@ export function DashboardPage() {
   const { isConnected } = useConnection();
 
   // Dev-only banner override driven by the position-notifications section of
-  // the god-mode panel (see debugPositionStore). Always null in production, so
-  // the banners fall back to the live calculation with no behavioural change.
-  const { result: debugResultOverride, status: debugStatusOverride } =
-    useDebugPositionOverride();
-  // Manual mode only: live mode republishes the live result as a no-op
-  // override, which is not a simulation.
-  const debugManualMode = useDebugManualMode();
-  const debugManualParams = useDebugManualParams();
-  const liquidationDebugState = useLiquidationDebugState();
+  // the god-mode panel (see @/overrides/position). Always null in production,
+  // so the banners fall back to the live calculation with no behavioural
+  // change.
+  const cascadeOverride = usePositionCascadeOverride();
+  const liquidationCardOverride = useLiquidationCardOverride();
   // No live source yet: the chart renders only from the god-mode cascade,
   // behind its own flag. Elsewhere it stays absent rather than charting a real
   // position from placeholder numbers.
   const liquidationCascade = useMemo(
     () =>
-      featureFlags.isLiquidationAnalysisChartEnabled &&
-      debugManualMode &&
-      debugResultOverride
+      featureFlags.isLiquidationAnalysisChartEnabled && cascadeOverride?.result
         ? {
-            result: debugResultOverride,
-            btcPrice: debugManualParams.btcPrice,
-            collateralFactor: debugManualParams.CF,
-            vaultsTotal: debugManualParams.vaults.length,
+            result: cascadeOverride.result,
+            btcPrice: cascadeOverride.params.btcPrice,
+            collateralFactor: cascadeOverride.params.CF,
+            vaultsTotal: cascadeOverride.params.vaults.length,
           }
         : null,
-    [debugManualMode, debugResultOverride, debugManualParams],
+    [cascadeOverride],
   );
   const {
     collateralBtc,
@@ -118,7 +110,7 @@ export function DashboardPage() {
 
   // Feed the critical top banner the same debug-aware result the mid-page banner
   // uses: the debug override when set, otherwise the live calculation.
-  const criticalBannerResult = debugResultOverride ?? positionNotifications;
+  const criticalBannerResult = cascadeOverride?.result ?? positionNotifications;
 
   const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
@@ -139,7 +131,7 @@ export function DashboardPage() {
   // vault, whose values are still $0, doesn't surface an empty panel.
   const hasOverviewData = hasCollateral || hasLoans;
   const liquidationCardState = resolveLiquidationCardState(
-    liquidationDebugState,
+    liquidationCardOverride,
     { hasCollateral: hasDisplayCollateral, hasLoans },
   );
 
@@ -179,7 +171,7 @@ export function DashboardPage() {
   // price there is nothing to imply a liquidation price from, and the stats
   // read as placeholders rather than mixing a forced HF with live liquidation
   // numbers (the case you hit inspecting the stale-price path).
-  const healthFactorOverride = useDebugHealthFactorOverride();
+  const healthFactorOverride = useHealthFactorOverride();
   const {
     healthFactor: shownHealthFactor,
     healthFactorStatus: shownHealthFactorStatus,
@@ -224,8 +216,8 @@ export function DashboardPage() {
       connectedAddress={address}
       onDeposit={openDeposit}
       onRepay={openRepay}
-      result={debugResultOverride ?? undefined}
-      statusOverride={debugStatusOverride ?? undefined}
+      result={cascadeOverride?.result ?? undefined}
+      statusOverride={cascadeOverride?.status ?? undefined}
     />
   ) : null;
 

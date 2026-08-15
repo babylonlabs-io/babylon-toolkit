@@ -19,9 +19,9 @@ import { COPY } from "@/copy";
 const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
 const useDashboardStateMock = vi.fn();
-const useDemoLoanMock = vi.fn();
-const useDebugHealthFactorOverrideMock = vi.fn();
-const useDebugBorrowCapacityMock = vi.fn();
+const useLoanOverrideMock = vi.fn();
+const useHealthFactorOverrideMock = vi.fn();
+const useBorrowCapacityOverrideMock = vi.fn();
 
 vi.mock("@/context/wallet", () => ({
   useConnection: () => useConnectionMock(),
@@ -51,14 +51,14 @@ vi.mock("@/applications/aave/hooks", () => ({
   useActiveLoans: () => [],
 }));
 
-vi.mock("@/dev/demoDeposit", () => ({
-  useDemoLoan: () => useDemoLoanMock(),
+vi.mock("@/overrides/loans", () => ({
+  useLoanOverride: () => useLoanOverrideMock(),
 }));
 
-vi.mock("@/dev/debugPositionStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/dev/debugPositionStore")>()),
-  useDebugHealthFactorOverride: () => useDebugHealthFactorOverrideMock(),
-  useDebugBorrowCapacity: () => useDebugBorrowCapacityMock(),
+vi.mock("@/overrides/borrowCapacity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/overrides/borrowCapacity")>()),
+  useHealthFactorOverride: () => useHealthFactorOverrideMock(),
+  useBorrowCapacityOverride: () => useBorrowCapacityOverrideMock(),
 }));
 
 vi.mock("react-router", () => ({
@@ -141,9 +141,9 @@ const DEMO_LOAN_ROW = {
 describe("Loans page — loading gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useDemoLoanMock.mockReturnValue(null);
-    useDebugHealthFactorOverrideMock.mockReturnValue(null);
-    useDebugBorrowCapacityMock.mockReturnValue(null);
+    useLoanOverrideMock.mockReturnValue(null);
+    useHealthFactorOverrideMock.mockReturnValue(null);
+    useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
   it("shows a spinner (not the deposit CTA) while a connected depositor's position loads", () => {
@@ -191,7 +191,7 @@ describe("Loans page — loading gate", () => {
       ...CONNECTED_LOADED,
       hasCollateral: false,
     });
-    useDemoLoanMock.mockReturnValue({
+    useLoanOverrideMock.mockReturnValue({
       rows: [DEMO_LOAN_ROW],
       debtUsd: 1500,
       hideReal: false,
@@ -211,7 +211,11 @@ describe("Loans page — loading gate", () => {
       ...CONNECTED_LOADED,
       hasCollateral: false,
     });
-    useDemoLoanMock.mockReturnValue({ rows: [], debtUsd: 0, hideReal: false });
+    useLoanOverrideMock.mockReturnValue({
+      rows: [],
+      debtUsd: 0,
+      hideReal: false,
+    });
 
     render(<Loans />);
 
@@ -232,9 +236,9 @@ describe("Loans page — loading gate", () => {
 describe("Loans page — god-mode summary overrides", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useDemoLoanMock.mockReturnValue(null);
-    useDebugHealthFactorOverrideMock.mockReturnValue(null);
-    useDebugBorrowCapacityMock.mockReturnValue(null);
+    useLoanOverrideMock.mockReturnValue(null);
+    useHealthFactorOverrideMock.mockReturnValue(null);
+    useBorrowCapacityOverrideMock.mockReturnValue(null);
     useConnectionMock.mockReturnValue({ isConnected: true });
     useETHWalletMock.mockReturnValue({ address: "0xabc" });
   });
@@ -246,7 +250,7 @@ describe("Loans page — god-mode summary overrides", () => {
       ...CONNECTED_LOADED,
       isBorrowCapacityLoading: true,
     });
-    useDebugBorrowCapacityMock.mockReturnValue({
+    useBorrowCapacityOverrideMock.mockReturnValue({
       loading: false,
       error: new Error("forced"),
     });
@@ -263,7 +267,10 @@ describe("Loans page — god-mode summary overrides", () => {
       ...CONNECTED_LOADED,
       borrowCapacityError: new Error("live failure"),
     });
-    useDebugBorrowCapacityMock.mockReturnValue({ loading: true, error: null });
+    useBorrowCapacityOverrideMock.mockReturnValue({
+      loading: true,
+      error: null,
+    });
 
     render(<Loans />);
 
@@ -278,7 +285,7 @@ describe("Loans page — god-mode summary overrides", () => {
       healthFactor: 5,
       healthFactorStatus: "safe",
     });
-    useDebugHealthFactorOverrideMock.mockReturnValue(0.95);
+    useHealthFactorOverrideMock.mockReturnValue(0.95);
 
     render(<Loans />);
 
@@ -294,7 +301,7 @@ describe("Loans page — god-mode summary overrides", () => {
       ...CONNECTED_LOADED,
       hasCollateral: false,
     });
-    useDebugHealthFactorOverrideMock.mockReturnValue(1.25);
+    useHealthFactorOverrideMock.mockReturnValue(1.25);
 
     render(<Loans />);
 

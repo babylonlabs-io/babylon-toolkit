@@ -88,11 +88,6 @@ vi.mock("@/applications/aave/hooks", () => ({
   useInterestRateModelCurve: () => mockUseInterestRateModelCurve(),
 }));
 
-const mockUseDemoMarketData = vi.fn();
-vi.mock("@/dev/demoMarketData", () => ({
-  useDemoMarketData: () => mockUseDemoMarketData(),
-}));
-
 const WETH_IDENTITY = {
   address: "0xWETH" as Address,
   symbol: "WETH",
@@ -122,7 +117,6 @@ describe("BorrowingMarketsData", () => {
     mockUseAaveReserveLiquidity.mockReturnValue({ liquidityByReserveId: {} });
     mockUseAaveReservesPrices.mockReturnValue({ pricesByReserveId: {} });
     mockUseVaultSplitParams.mockReturnValue({ params: null });
-    mockUseDemoMarketData.mockReturnValue(null);
     mockUseBorrowRateHistory.mockReturnValue({
       points: [],
       isLoading: false,

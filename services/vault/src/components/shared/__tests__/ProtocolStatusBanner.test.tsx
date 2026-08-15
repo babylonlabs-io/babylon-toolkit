@@ -22,7 +22,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
-import { setDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
+import { setProtocolStatusOverride } from "@/overrides/protocolStatus";
 
 import { ProtocolStatusBanner } from "../ProtocolStatusBanner";
 
@@ -30,7 +30,7 @@ beforeEach(() => {
   featureFlagsMock.noticeBannerMessage = undefined;
   featureFlagsMock.isGodModePanelEnabled = true;
   gateMock.value = { protocol: null, aave: null };
-  setDebugProtocolStatusOverride(null);
+  setProtocolStatusOverride(null);
 });
 
 describe("ProtocolStatusBanner", () => {
@@ -90,19 +90,19 @@ describe("ProtocolStatusBanner", () => {
   });
 
   it("forces each paused card from the god-mode override while the gate is healthy", () => {
-    setDebugProtocolStatusOverride("frozen");
+    setProtocolStatusOverride("frozen");
     const soft = render(<ProtocolStatusBanner />);
     expect(screen.getByText("Protocol is soft-paused")).toBeInTheDocument();
     soft.unmount();
 
-    setDebugProtocolStatusOverride("paused");
+    setProtocolStatusOverride("paused");
     render(<ProtocolStatusBanner />);
     expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
   });
 
   it("falls back to the live gate once the override is released", () => {
-    setDebugProtocolStatusOverride("paused");
-    setDebugProtocolStatusOverride(null);
+    setProtocolStatusOverride("paused");
+    setProtocolStatusOverride(null);
 
     const { container } = render(<ProtocolStatusBanner />);
 

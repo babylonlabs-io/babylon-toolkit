@@ -22,9 +22,9 @@ import {
 } from "react";
 import type { Hex } from "viem";
 
-import { useDemoDeposit } from "@/dev/demoDeposit";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
+import { useDepositOverride } from "@/overrides/deposits";
 
 import { usePeginPollingProtocolParams } from "../../hooks/deposit/usePeginPollingProtocolParams";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
@@ -193,7 +193,7 @@ export function PeginPollingProvider({
   // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
   // is on and the panel toggle is enabled). When present, its ids resolve to
   // controlled results below instead of the live polling decision tree.
-  const demo = useDemoDeposit();
+  const demo = useDepositOverride();
 
   // Optimistic step completions (for immediate UI feedback after an action).
   // App-scoped, not provider-scoped: the writers run outside the context
