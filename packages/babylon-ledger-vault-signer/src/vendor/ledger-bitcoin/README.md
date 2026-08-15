@@ -155,11 +155,14 @@ the pinned oracle and require byte-identity with the committed files.
    `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
 2. Fixtures: `https://github.com/LedgerHQ/app-babylon-vault` checked out at
    commit `8f99b8b0a0754e0f798a2db6c73a84fc16ce3411`, directory `tests/vectors`.
-3. `.venv/bin/python gen_vectors.py <app-babylon-vault>/tests/vectors /tmp/regen`
-4. `.venv/bin/python gen_command_traces.py /tmp/regen /tmp/regen/command-traces`
-5. `diff -r /tmp/regen src/vendor/ledger-bitcoin/__tests__/vectors` (from the
-   package root). The only acceptable output is `Only in /tmp/regen: index.json`
-   — gen_vectors.py's provenance index embeds the step-3 fixtures path and is
+3. `REGEN=$(mktemp -d)` — a guaranteed-empty directory. Never reuse one: the
+   generators do not clear their output, so a stale file from an earlier run
+   would stand in for one the current run failed to produce.
+4. `.venv/bin/python gen_vectors.py <app-babylon-vault>/tests/vectors "$REGEN"`
+5. `.venv/bin/python gen_command_traces.py "$REGEN" "$REGEN/command-traces"`
+6. `diff -r "$REGEN" src/vendor/ledger-bitcoin/__tests__/vectors` (from the
+   package root). The only acceptable output is `Only in <REGEN>: index.json`
+   — gen_vectors.py's provenance index embeds the step-4 fixtures path and is
    deliberately not committed. Anything else — changed, missing, OR extra
    files — is a review finding.
 

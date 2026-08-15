@@ -857,7 +857,8 @@ When changing this repository, explicitly consider:
 
 - [ ] Does the change touch a path in
       [CLAUDE.md → CRITICAL PATHS](CLAUDE.md#critical-paths--human-review-required)? If yes: two
-      code-owner approvals, the author can walk every changed line unaided, and the per-path rule is
+      code-owner approvals, the author can walk every changed line unaided (for generated golden
+      vectors: reviewer-repeated re-derivation instead), and the per-path rule is
       satisfied. Say so in the PR description.
 - [ ] **New value crossing the WASM boundary:** is it asserted before use? Does anything downstream
       sign it, and if so is it cross-checked against an independent computation?
