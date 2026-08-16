@@ -24,6 +24,7 @@ import {
   capture,
   ensureOutputDir,
   preparePage,
+  writeCaptures,
 } from "./capture";
 import {
   screenshotFileName,
@@ -43,8 +44,9 @@ for (const target of VISUAL_TARGETS) {
 
       const backend = await preparePage(page);
       await page.goto(target.path, { waitUntil: "domcontentloaded" });
-      await capture(page, screenshotFileName(target, viewport));
+      const shot = await capture(page, screenshotFileName(target, viewport));
       await assertAppRendered(page, backend, target.name);
+      await writeCaptures([shot]);
     });
   }
 }

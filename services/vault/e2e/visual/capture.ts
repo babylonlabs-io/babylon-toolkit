@@ -143,20 +143,54 @@ export async function assertAppRendered(
   ).toEqual([]);
 }
 
+/** A photograph taken but not yet written. See {@link writeCaptures}. */
+export interface StagedShot {
+  readonly fileName: string;
+  readonly buffer: Buffer;
+}
+
 /**
- * Settle the page, photograph it, and write it under `fileName`.
+ * Settle the page and photograph it, WITHOUT writing it to disk.
+ *
+ * Staged rather than written because the CI capture step is
+ * `continue-on-error` (`.github/workflows/visual-regression.yml`), and that is
+ * only safe while a fired gate leaves no file behind. A missing surface is
+ * what makes the diff step report "missing" and the summary refuse to say "no
+ * visual changes"; a screenshot already on disk would hand the diff a
+ * complete, comparable set on both sides and let a failed gate report success.
+ * So nothing reaches disk until the gates have passed - see
+ * {@link writeCaptures}.
  *
  * Full-page rather than viewport-sized: a change below the fold is still a
  * change, and cropping would hide it.
  */
-export async function capture(page: Page, fileName: string): Promise<void> {
+export async function capture(
+  page: Page,
+  fileName: string,
+): Promise<StagedShot> {
   await waitForVisualStability(page);
   const buffer = await page.screenshot({ fullPage: true });
-  await fs.writeFile(path.join(VISUAL_OUTPUT_DIR, fileName), buffer);
   expect(
     buffer.byteLength,
     `${fileName} is ${buffer.byteLength} bytes - the screen never painted.`,
   ).toBeGreaterThan(MIN_CAPTURE_BYTES);
+  return { fileName, buffer };
+}
+
+/**
+ * Write staged photographs to disk. Call only after {@link assertAppRendered}
+ * has passed - reaching here is the test's statement that what it photographed
+ * is worth diffing against.
+ */
+export async function writeCaptures(
+  shots: readonly StagedShot[],
+): Promise<void> {
+  for (const shot of shots) {
+    await fs.writeFile(
+      path.join(VISUAL_OUTPUT_DIR, shot.fileName),
+      shot.buffer,
+    );
+  }
 }
 
 /** Create the output directory. Call from `test.beforeAll`. */

@@ -140,6 +140,29 @@ describe("buildRecordedChain", () => {
     ]);
   });
 
+  it("reports a batch that is not aggregate3 instead of throwing past the route", () => {
+    // Throwing here would escape the Playwright route handler: the request is
+    // never fulfilled, no miss is logged, and `unanswered` stays empty - so
+    // the capture gates pass while the screen renders without that data.
+    const run = loadRecordedRun();
+    const chain = buildRecordedChain(run);
+    const tryAggregate = encodeFunctionData({
+      abi: parseAbi([
+        "function tryAggregate(bool requireSuccess, (address target, bytes callData)[] calls) returns ((bool success, bytes returnData)[])",
+      ]),
+      functionName: "tryAggregate",
+      args: [false, []],
+    });
+
+    expect(chain.answerMulticall(tryAggregate)).toBeNull();
+    expect(chain.unanswered).toEqual([
+      {
+        target: "0xca11bde05977b3631167028862be2a173976ca11",
+        selector: tryAggregate.slice(0, 10),
+      },
+    ]);
+  });
+
   it("keeps each view's unanswered calls to itself", () => {
     // One screen's miss must not be reported against the next screen, or the
     // failure message names the wrong capture.

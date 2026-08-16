@@ -85,8 +85,13 @@ export interface RecordedChain {
    * come back as `success: false`, and are also appended to
    * {@link RecordedChain.unanswered} so a test can fail on them - returning
    * a fabricated success would put invented numbers on screen.
+   *
+   * Returns null for a batch that is not `aggregate3` at all, which is
+   * likewise recorded in {@link RecordedChain.unanswered}: throwing here would
+   * escape the route handler, leave the request unfulfilled, and log no miss -
+   * a silent green rather than the loud failure this fixture exists to give.
    */
-  answerMulticall(data: Hex): Hex;
+  answerMulticall(data: Hex): Hex | null;
   /** Answer a non-`eth_call` method (`eth_chainId`, `eth_blockNumber`, ...). */
   answerMethod(method: string): unknown | undefined;
   /** Every call this chain could not answer, in the order they arrived. */
@@ -221,11 +226,23 @@ export function buildRecordedChain(run: RecordedRun): RecordedChain {
 
   return {
     answerCall,
-    answerMulticall(data: Hex): Hex {
-      const [calls] = decodeFunctionData({
-        abi: MULTICALL3_ABI,
-        data,
-      }).args as unknown as [{ target: string; callData: Hex }[]];
+    answerMulticall(data: Hex): Hex | null {
+      let calls: readonly { target: string; callData: Hex }[];
+      try {
+        [calls] = decodeFunctionData({
+          abi: MULTICALL3_ABI,
+          data,
+        }).args as unknown as [{ target: string; callData: Hex }[]];
+      } catch {
+        // `aggregate`, `tryAggregate`, or calldata this fixture cannot take
+        // apart. Reported like any other unanswerable call so the gate names
+        // it, rather than thrown past the route handler.
+        unanswered.push({
+          target: MULTICALL3_ADDRESS,
+          selector: selectorOf(data),
+        });
+        return null;
+      }
 
       const results = calls.map((inner) => {
         const returnData = answerCall(inner.target, inner.callData);

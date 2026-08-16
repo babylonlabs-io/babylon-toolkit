@@ -22,6 +22,8 @@ import {
   capture,
   ensureOutputDir,
   preparePage,
+  type StagedShot,
+  writeCaptures,
 } from "./capture";
 import {
   DEPOSIT_FLOW_STOPS,
@@ -68,9 +70,16 @@ for (const viewport of VISUAL_VIEWPORTS) {
       ethRpcUrl: MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL,
     });
 
+    const shots: StagedShot[] = [];
+
     await page.goto("/vaults", { waitUntil: "domcontentloaded" });
     await connectInjectedWallets(page);
-    await capture(page, flowScreenshotFileName(DEPOSIT_FLOW_STOPS.connected, viewport));
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_FLOW_STOPS.connected, viewport),
+      ),
+    );
 
     // Same testid the real-wallet CLI drives (`e2e/real/actions/selectors.ts`),
     // so this capture and that runner cannot disagree about which control
@@ -80,26 +89,37 @@ for (const viewport of VISUAL_VIEWPORTS) {
     const dialog = page.locator(".portal-root");
     const amountInput = dialog.locator("input").first();
     await amountInput.waitFor();
-    await capture(page, flowScreenshotFileName(DEPOSIT_FLOW_STOPS.form, viewport));
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_FLOW_STOPS.form, viewport),
+      ),
+    );
 
     await amountInput.fill(AMOUNT_BELOW_SPLIT_MINIMUM_BTC);
-    await capture(
-      page,
-      flowScreenshotFileName(DEPOSIT_FLOW_STOPS.amountEntered, viewport),
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_FLOW_STOPS.amountEntered, viewport),
+      ),
     );
 
     // The collapsed selector's header carries the current choice as its label.
     // `.first()` is safe HERE and only here: the panel is still collapsed, so
     // the option row with the same words has not been rendered yet.
     await dialog.getByRole("button", { name: /do not split/i }).first().click();
-    await capture(
-      page,
-      flowScreenshotFileName(DEPOSIT_FLOW_STOPS.splitOptions, viewport),
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_FLOW_STOPS.splitOptions, viewport),
+      ),
     );
 
     // Asserted once at the end rather than per stop: the misses accumulate
     // across the whole walk, so one check at the end covers every stop and
-    // names them together.
+    // names them together. Nothing has reached disk yet, so a failure here
+    // withholds all four stops - which is what makes the capture step's
+    // `continue-on-error` safe.
     //
     // All four boundaries are named because this walk genuinely needs all
     // four - the chain for borrow power and the split minimum, the indexer
@@ -112,6 +132,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
       "vp-health",
       "mempool",
     ]);
+    await writeCaptures(shots);
   });
 }
 

@@ -188,6 +188,13 @@ jobs:
       # Advisory check: one story that never settles must not cost the whole
       # report. The diff step reports whichever side is missing instead, and
       # the summary/comment branch on whether the comparison actually ran.
+      #
+      # That is only sound while a failed capture writes NO screenshot: the
+      # missing surface IS the signal. `capture()` therefore stages its
+      # photograph in memory and `writeCaptures()` flushes it only after the
+      # gates in `e2e/visual/capture.ts` pass. Write a PNG before asserting and
+      # both sides come back complete, the diff compares two error cards, and
+      # this step's failure is discarded into a green check.
       - name: Capture candidate (PR head)
         id: capture-candidate
         continue-on-error: true

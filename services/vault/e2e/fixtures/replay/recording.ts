@@ -197,6 +197,13 @@ export function loadRecordedRun(
     if (classify(entry.url) !== null) parsed.push(entry);
   }
 
+  if (parsed.length === 0) {
+    throw new Error(
+      `${filePath} holds no replayable exchange. Every line was telemetry or ` +
+        `an asset request - the recording captured no app data.`,
+    );
+  }
+
   // Cut the run at the requested step. The file is append-only and written in
   // wall-clock order, so the last line tagged with the step is where that
   // moment ends - there is no need to know the step ORDER, only where the
@@ -217,14 +224,6 @@ export function loadRecordedRun(
     const bucket = byBackend.get(backend);
     if (bucket) bucket.push(entry);
     else byBackend.set(backend, [entry]);
-  }
-
-  if (entries.length === 0) {
-    throw new Error(
-      `${filePath} holds no replayable exchange up to "${upToStep}". Every ` +
-        `line was telemetry or an asset request - the recording captured no ` +
-        `app data.`,
-    );
   }
 
   const run: RecordedRun = { entries, byBackend };
