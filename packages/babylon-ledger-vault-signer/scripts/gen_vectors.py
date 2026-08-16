@@ -29,7 +29,7 @@ Setup (one-liner; ledger-bitcoin==0.4.0 is the pinned oracle, see requirements.t
 
 Usage:
   .venv/bin/python gen_vectors.py <fixtures_root> <out_dir>
-  where <fixtures_root> = app-babylon-vault/tests/vectors at commit 8f99b8b (the
+  where <fixtures_root> = tests/vectors of https://github.com/LedgerHQ/app-babylon-vault at commit 8f99b8b (the
   firmware fixtures the committed signpsbt vectors were generated from), and
   <out_dir> maps onto src/vendor/ledger-bitcoin/__tests__/vectors/.
 

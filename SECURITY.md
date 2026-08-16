@@ -267,7 +267,10 @@ framing, the intent-ceremony TLV encoder the depositor physically approves, the 
 gate, and (from #2219) the SIGN_PSBT merkleized-PSBT client. A wrong encoding here puts wrong terms
 in front of a hardware signer with a trusted screen — the user approves what we built, so building
 it wrong defeats the device. Encodings cite firmware/reference-client sources and carry
-golden-vector tests; payload bytes are never logged.
+golden-vector tests; payload bytes are never logged. The golden vectors are generated from
+Ledger's pinned reference client over pinned firmware fixtures — review of vector changes is
+by whole-tree re-derivation and byte-identity (see the vendor README), and the generators in
+`packages/babylon-ledger-vault-signer/scripts/` are treated as critical source.
 
 ### Non-standard wallet signing flags
 
@@ -854,7 +857,8 @@ When changing this repository, explicitly consider:
 
 - [ ] Does the change touch a path in
       [CLAUDE.md → CRITICAL PATHS](CLAUDE.md#critical-paths--human-review-required)? If yes: two
-      code-owner approvals, the author can walk every changed line unaided, and the per-path rule is
+      code-owner approvals, the author can walk every changed line unaided (for generated golden
+      vectors: reviewer-repeated re-derivation instead), and the per-path rule is
       satisfied. Say so in the PR description.
 - [ ] **New value crossing the WASM boundary:** is it asserted before use? Does anything downstream
       sign it, and if so is it cross-checked against an independent computation?

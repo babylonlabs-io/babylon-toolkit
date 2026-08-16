@@ -145,3 +145,30 @@ flow), seeded exactly as `client.py sign_psbt` seeds the interpreter (`client.py
 YIELD responses and all other bytes are oracle output. Independently verified with a
 plain-hashlib recursive-MTH replay before committing. Replayed by
 `clientCommands.golden.test.ts`.
+
+## Regenerating the vectors (fixture review)
+
+A vector diff is reviewed by re-derivation, not line-walking: regenerate from
+the pinned oracle and require byte-identity with the committed files.
+
+1. Setup, in `packages/babylon-ledger-vault-signer/scripts/`:
+   `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
+2. Fixtures: `https://github.com/LedgerHQ/app-babylon-vault` checked out at
+   commit `8f99b8b0a0754e0f798a2db6c73a84fc16ce3411`, directory `tests/vectors`.
+3. `REGEN=$(mktemp -d)` — a guaranteed-empty directory. Never reuse one: the
+   generators do not clear their output, so a stale file from an earlier run
+   would stand in for one the current run failed to produce.
+4. `.venv/bin/python gen_vectors.py <app-babylon-vault>/tests/vectors "$REGEN"`
+5. `.venv/bin/python gen_command_traces.py "$REGEN" "$REGEN/command-traces"`
+6. `diff -r "$REGEN" src/vendor/ledger-bitcoin/__tests__/vectors` (from the
+   package root). The only acceptable output is `Only in <REGEN>: index.json`
+   — gen_vectors.py's provenance index embeds the step-4 fixtures path and is
+   deliberately not committed. Anything else — changed, missing, OR extra
+   files — is a review finding.
+
+Output is byte-deterministic: `json.dumps(indent=1)` over insertion-ordered
+maps, no timestamps, and the synthetic YIELD bytes are sha256-derived from
+fixed tags. A PR that regenerates vectors from a newer fixtures commit must
+update the pin here (and in the script headers) in the same change; reviewers
+regenerate from the pin the PR declares, and state the byte-identity result
+in their review.

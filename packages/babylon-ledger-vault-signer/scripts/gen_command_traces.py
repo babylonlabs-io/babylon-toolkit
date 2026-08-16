@@ -32,6 +32,9 @@ interpreter instance.
 
 Usage:
   <venv>/bin/python gen_command_traces.py [<vectors_dir> [<out_dir>]]
+
+Setup: same venv as gen_vectors.py —
+  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
   defaults: vectors_dir = this script's directory, out_dir = <vectors_dir>/command-traces
 """
 
