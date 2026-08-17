@@ -15,12 +15,15 @@ export function SplitTooLowHint({ minDepositForSplit }: SplitTooLowHintProps) {
 
   // Centered hint that sizes to its content, wrapping to a second line when the
   // message is too long for the row.
+  //
+  // Deliberately NOT a live region. It renders inside the split selector's
+  // accordion, which collapses with `visibility: hidden` while keeping its
+  // children mounted - so a live region here is outside the accessibility tree
+  // exactly when the amount crosses the minimum, which is the moment worth
+  // announcing. `UtxoSplitSelectorV3` owns an off-screen region outside the
+  // accordion for that; two would announce the same sentence twice.
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center"
-    >
+    <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center">
       <IoInformationCircle
         size={18}
         className="mt-px shrink-0 text-accent-primary"

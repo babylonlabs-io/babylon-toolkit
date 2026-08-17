@@ -137,12 +137,22 @@ describe("UtxoSplitSelectorV3", () => {
       />,
     );
 
-    // Query the hint's own role rather than its text: a copy change would make
-    // a text query match nothing and pass for the wrong reason.
-    expect(screen.queryByRole("status")).toBeNull();
+    // Query the hint by the copy it is built from rather than a literal, so a
+    // copy change cannot make this pass by matching nothing.
+    expect(
+      screen.queryByText(
+        COPY.deposit.form.splitTooLowHint(
+          formatBtcFromSats(MIN_DEPOSIT_FOR_SPLIT_SATS),
+        ).minimum,
+      ),
+    ).toBeNull();
+    // The live region stays mounted and goes empty rather than unmounting -
+    // a region has to be in the DOM before its content changes for the change
+    // to be announced at all.
+    expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
-  it("hides the minimum-deposit hint while the panel is collapsed", () => {
+  it("keeps the minimum-deposit hint out of the accessibility tree while the panel is collapsed", () => {
     render(
       <UtxoSplitSelectorV3
         twoVaultSplit={baseSplit({
@@ -155,7 +165,45 @@ describe("UtxoSplitSelectorV3", () => {
       />,
     );
 
-    expect(screen.queryByRole("status")).toBeNull();
+    // core-ui's AccordionDetails keeps its children MOUNTED when collapsed and
+    // hides them with `visibility: hidden`, so the hint node is in the DOM
+    // either way. What removes it is the accessibility tree. Asserting mere
+    // absence passed for a reason no reader of the test could see, and would
+    // go on passing if the accordion ever switched to `display: none` or to
+    // unmounting - a different behaviour, same green.
+    expect(
+      screen.getByText(
+        COPY.deposit.form.splitTooLowHint(
+          formatBtcFromSats(MIN_DEPOSIT_FOR_SPLIT_SATS),
+        ).minimum,
+      ),
+    ).not.toBeVisible();
+  });
+
+  it("announces the minimum off-screen even while the panel is collapsed", () => {
+    // The panel starts collapsed, so the amount crosses below the minimum with
+    // the visible notice already outside the accessibility tree. Without this
+    // region a screen-reader user is never told why the recommended option is
+    // disabled - which is the whole point of the notice.
+    render(
+      <UtxoSplitSelectorV3
+        twoVaultSplit={baseSplit({
+          canSplit: false,
+          isSplitAmountTooLow: true,
+          minDepositForSplit: MIN_DEPOSIT_FOR_SPLIT_SATS,
+        })}
+        expanded={false}
+        onExpandedChange={vi.fn()}
+      />,
+    );
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent(
+      COPY.deposit.form.splitTooLowHint(
+        formatBtcFromSats(MIN_DEPOSIT_FOR_SPLIT_SATS),
+      ).announcement,
+    );
+    expect(region).toBeVisible();
   });
 
   it("keeps the split option unavailable (aria-disabled) and unselectable when it cannot split", () => {
