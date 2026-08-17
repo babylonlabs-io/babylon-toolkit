@@ -38,7 +38,7 @@ vi.mock("wagmi/connectors", () => ({
   walletConnect: vi.fn(),
 }));
 
-vi.mock("@/core/wallets/appkit/appKitModal", () => ({
+vi.mock("@/core/wallets/appkit/state", () => ({
   getAppKitModal: vi.fn(() => null),
 }));
 

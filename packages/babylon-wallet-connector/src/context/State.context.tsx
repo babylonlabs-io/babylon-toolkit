@@ -1,7 +1,8 @@
-import { type PropsWithChildren, createContext, useEffect, useMemo, useState } from "react";
+import { type PropsWithChildren, createContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { WALLET_MODAL_OPEN_EVENT } from "@/constants/walletEvents";
-import type { IChain, IWallet } from "@/core/types";
+import { WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
+import type { HashMap, IChain, IWallet } from "@/core/types";
 
 export type Screen<T extends string = string> = {
   type: T;
@@ -19,7 +20,13 @@ export interface State {
   visible: boolean;
   screen: Screens;
   selectedWallets: Record<string, IWallet | undefined>;
+  /** Every chain the dialog displays. */
   chains: Record<string, IChain>;
+  /**
+   * The subset of `chains` a host requires before the session counts as
+   * connected. Chains outside this set are offered but never block confirm.
+   */
+  requiredChainIds: string[];
 }
 
 export interface Actions {
@@ -49,12 +56,15 @@ const defaultState: State = {
   screen: { type: "CHAINS" },
   chains: {},
   selectedWallets: {},
+  requiredChainIds: [],
 };
 
 export const StateContext = createContext<State & Actions>(defaultState);
 
 interface StateProviderProps {
   chains: IChain[];
+  requiredChainIds: readonly string[];
+  storage?: HashMap;
 }
 
 // Filters selected wallets to only include those that belong to currently valid chains.
@@ -71,18 +81,47 @@ function filterWalletsByValidChains(
   }, {} as Record<string, IWallet | undefined>);
 }
 
-export function StateProvider({ children, chains }: PropsWithChildren<StateProviderProps>) {
-  const [state, setState] = useState<State>(defaultState);
+// True when `next` asks for a chain `previous` did not. Narrowing or
+// reordering the requirement set is not an expansion.
+function hasNewRequiredChain(previous: readonly string[], next: readonly string[]): boolean {
+  const previousIds = new Set(previous);
+
+  return next.some((chainId) => !previousIds.has(chainId));
+}
+
+export function StateProvider({ children, chains, requiredChainIds, storage }: PropsWithChildren<StateProviderProps>) {
+  const [state, setState] = useState<State>(() => ({
+    ...defaultState,
+    chains: chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {}),
+    requiredChainIds: [...requiredChainIds],
+  }));
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const previousRequiredChainIdsRef = useRef([...requiredChainIds]);
 
   useEffect(() => {
+    if (hasNewRequiredChain(previousRequiredChainIdsRef.current, requiredChainIds)) {
+      storage?.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+    }
+    previousRequiredChainIdsRef.current = [...requiredChainIds];
+
     setState((state) => {
       const newChains = chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {});
-      const validChainIds = new Set(chains.map(chain => chain.id));
+      const validChainIds = new Set(chains.map((chain) => chain.id));
       const filteredWallets = filterWalletsByValidChains(state.selectedWallets, validChainIds);
 
-      return { ...state, chains: newChains, selectedWallets: filteredWallets };
+      return {
+        ...state,
+        // A confirmation only ever covered the requirement set the user was
+        // shown. Asking for a chain that was not in that set must send them
+        // back through an explicit confirmation.
+        confirmed: hasNewRequiredChain(state.requiredChainIds, requiredChainIds) ? false : state.confirmed,
+        chains: newChains,
+        selectedWallets: filteredWallets,
+        requiredChainIds: [...requiredChainIds],
+      };
     });
-  }, [chains]);
+  }, [chains, requiredChainIds, storage]);
 
   const actions: Actions = useMemo(
     () => ({
@@ -102,7 +141,8 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
       },
 
       reset: () => {
-        setState(({ chains }) => ({ ...defaultState, chains }));
+        storage?.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+        setState(({ chains, requiredChainIds }) => ({ ...defaultState, chains, requiredChainIds }));
       },
 
       displayLoader: (message = "", description = "") => {
@@ -129,8 +169,15 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
       },
 
       removeWallet: (chain: string) => {
+        if (stateRef.current.requiredChainIds.includes(chain)) {
+          storage?.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+        }
         setState((state) => ({
           ...state,
+          // Losing an optional chain must not tear down a confirmed session.
+          // Losing a required one does invalidate the confirmation, so
+          // reconnecting cannot silently restore it.
+          confirmed: state.requiredChainIds.includes(chain) ? false : state.confirmed,
           selectedWallets: { ...state.selectedWallets, [chain]: undefined },
         }));
       },
@@ -139,7 +186,7 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
         setState((state) => ({ ...state, confirmed: true }));
       },
     }),
-    [],
+    [storage],
   );
 
   const context = useMemo(

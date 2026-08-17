@@ -3,12 +3,12 @@ import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
-import { http, type Chain } from "viem";
-import { cookieStorage, createStorage } from "wagmi";
-import { baseAccount } from "wagmi/connectors";
+import type { Chain } from "viem";
 
 import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
-import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
+import { createETHWagmiAdapter } from "../eth/appkit/modal";
+
+import { getAppKitModal, setAppKitModal } from "./state";
 
 /**
  * Unified AppKit Modal Configuration
@@ -52,17 +52,10 @@ export interface AppKitModalConfig {
   };
 }
 
-let appKitModal: ReturnType<typeof createAppKit> | null = null;
 let wagmiAdapter: WagmiAdapter | null = null;
 let bitcoinAdapter: BitcoinAdapter | null = null;
 
-/**
- * Get the AppKit modal instance (if initialized)
- * @returns The AppKit modal instance or null if not initialized
- */
-export function getAppKitModal() {
-  return appKitModal;
-}
+export { getAppKitModal };
 
 /**
  * Initialize AppKit modal with ETH and/or BTC support
@@ -71,10 +64,11 @@ export function getAppKitModal() {
  * @param config - Configuration including required metadata, optional ETH chain, and optional BTC network
  */
 export function initializeAppKitModal(config: AppKitModalConfig) {
+  const existingModal = getAppKitModal();
   // Don't reinitialize if already initialized
-  if (appKitModal) {
+  if (existingModal) {
     return {
-      modal: appKitModal,
+      modal: existingModal,
       wagmiConfig: wagmiAdapter?.wagmiConfig,
       bitcoinAdapter,
     };
@@ -93,36 +87,11 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
 
   // Create Wagmi Adapter if ETH is configured
   if (config.eth?.chain) {
-    const ethNetworks = [config.eth.chain];
-    allNetworks.push(...ethNetworks);
+    allNetworks.push(config.eth.chain);
 
-    // Create storage for wallet persistence
-    const storage = createStorage({
-      storage: cookieStorage,
-    });
-
-    // Pin the transport to the chain's configured RPC URL. Without this,
-    // wagmi falls back to viem's bundled public RPC (e.g. sepolia.drpc.org)
-    // which doesn't see contracts on private/devnet deployments.
-    const ethRpcUrl = config.eth.chain.rpcUrls.default.http[0];
-    // Supply the Base Account connector ourselves so AppKit skips constructing
-    // its own default one. Its default enables the Base Account SDK's telemetry,
-    // which injects an inline analytics script into the page.
-    wagmiAdapter = new WagmiAdapter({
-      networks: ethNetworks,
-      projectId,
-      ssr: false,
-      storage,
-      connectors: [baseAccount({ preference: { telemetry: false } })],
-      transports: {
-        [config.eth.chain.id]: http(ethRpcUrl),
-      },
-    });
+    wagmiAdapter = createETHWagmiAdapter(config.eth.chain, projectId);
 
     adapters.push(wagmiAdapter);
-
-    // Set the shared wagmi config for the wallet-connector AppKitProvider
-    setSharedWagmiConfig(wagmiAdapter.wagmiConfig);
   }
 
   // Create Bitcoin Adapter if BTC is configured
@@ -144,12 +113,13 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   }
 
   // Create single AppKit modal with all adapters
-  appKitModal = createAppKit({
+  const appKitModal = createAppKit({
     adapters,
     networks: allNetworks as [AppKitNetwork, ...AppKitNetwork[]],
     projectId,
     metadata,
   });
+  setAppKitModal(appKitModal);
 
   // Set the shared BTC AppKit config with the actual modal instance
   if (bitcoinAdapter && config.btc?.network) {

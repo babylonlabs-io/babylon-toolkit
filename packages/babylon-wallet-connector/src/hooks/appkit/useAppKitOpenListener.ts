@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 
-import { getAppKitModal } from "@/core/wallets/appkit/appKitModal";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+// Read the modal from the shared singleton rather than from `appKitModal`,
+// which pulls the Bitcoin adapter in with it and would put Bitcoin code in the
+// `./eth` graph.
+import { getAppKitModal } from "@/core/wallets/appkit/state";
 
 /**
  * Unified AppKit modal open listener

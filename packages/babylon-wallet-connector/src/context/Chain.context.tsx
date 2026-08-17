@@ -5,6 +5,8 @@ import { WalletConnector } from "@/core/WalletConnector";
 import type {
   BBNConfig,
   BTCConfig,
+  ChainId,
+  ChainMetadata,
   ETHConfig,
   ExternalConnector,
   HashMap,
@@ -13,13 +15,12 @@ import type {
   IETHProvider,
   IProvider,
 } from "@/core/types";
-import metadata from "@/core/wallets";
 import { useWalletRedetection } from "@/hooks/useWalletRedetection";
 
 import { InscriptionProvider } from "./Inscriptions.context";
 import { StateProvider } from "./State.context";
 
-interface ChainConfig<K extends string = string, P extends IProvider = IProvider, C = any> {
+export interface ChainConfig<K extends string = string, P extends IProvider = IProvider, C = any> {
   chain: K;
   name?: string;
   icon?: string;
@@ -33,6 +34,17 @@ export type ChainConfigArr = (
   | ChainConfig<"ETH", IETHProvider, ETHConfig>
 )[];
 
+/**
+ * Chain metadata is injected rather than imported, so an entry point can hand
+ * over only the chains it supports. The `./eth` entry passes `{ ETH }` alone,
+ * which keeps every Bitcoin wallet adapter out of its module graph.
+ */
+export interface ChainMetadataMap {
+  BTC?: ChainMetadata<"BTC", IBTCProvider, BTCConfig>;
+  BBN?: ChainMetadata<"BBN", IBBNProvider, BBNConfig>;
+  ETH?: ChainMetadata<"ETH", IETHProvider, ETHConfig>;
+}
+
 interface ProviderProps {
   persistent: boolean;
   storage: HashMap;
@@ -40,7 +52,9 @@ interface ProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
-  requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  /** Defaults to every configured chain, which is the pre-optional-chains behaviour. */
+  requiredChains?: readonly ChainId[];
+  metadata: ChainMetadataMap;
 }
 
 export interface Connectors {
@@ -66,6 +80,7 @@ export function ChainProvider({
   onError,
   disabledWallets,
   requiredChains,
+  metadata,
 }: PropsWithChildren<ProviderProps>) {
   const [connectors, setConnectors] = useState(defaultState);
 
@@ -73,10 +88,13 @@ export function ChainProvider({
     const filteredConfig = config.filter((c) => metadata[c.chain]);
 
     const connectorPromises = filteredConfig.map(async ({ chain, config }) => {
+      const chainMetadata = metadata[chain];
+      if (!chainMetadata) return null;
+
       try {
         const connector = await createWalletConnector<string, IProvider, any>({
           persistent,
-          metadata: metadata[chain],
+          metadata: chainMetadata,
           context,
           config,
           accountStorage: storage,
@@ -91,8 +109,11 @@ export function ChainProvider({
 
     const connectorArr = await Promise.all(connectorPromises);
 
-    return connectorArr.reduce((acc, connector) => ({ ...acc, [connector.id]: connector }), {} as Connectors);
-  }, [persistent, config, context, storage, disabledWallets]);
+    return connectorArr.reduce<Connectors>(
+      (acc, connector) => (connector ? { ...acc, [connector.id]: connector } : acc),
+      { ...defaultState },
+    );
+  }, [persistent, config, context, storage, disabledWallets, metadata]);
 
   useEffect(() => {
     init()
@@ -107,7 +128,7 @@ export function ChainProvider({
 
   // Re-detect wallets whose extension injected after the one-shot detection
   // in `init()` above (e.g. UniSat's late `window.unisat` injection).
-  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets, persistent });
+  useWalletRedetection({ connectors, setConnectors, config, context, storage, disabledWallets, persistent, metadata });
 
   // Auto-reconnect (and any other connect/disconnect) mutates `connectedWallet`
   // on the existing connector instance without changing the `connectors` object
@@ -127,18 +148,24 @@ export function ChainProvider({
     return () => unsubscribe.forEach((fn) => fn());
   }, [connectors]);
 
-  const supportedChains = useMemo(() => Object.values(connectors).filter(Boolean), [connectors]);
-  const visibleChains = useMemo(
+  // Every chain that built a connector is displayed. `requiredChains` used to
+  // filter this list, which meant a host could not offer a wallet without also
+  // demanding it; it now gates only the confirm button and session restore.
+  const supportedChains = useMemo(
+    () => Object.values(connectors).filter((connector): connector is NonNullable<typeof connector> => Boolean(connector)),
+    [connectors],
+  );
+  const requiredChainIds = useMemo(
     () =>
-      requiredChains && requiredChains.length
-        ? supportedChains.filter((chain) => requiredChains.includes(chain!.id as "BTC" | "BBN" | "ETH"))
-        : supportedChains,
-    [supportedChains, requiredChains],
+      requiredChains === undefined
+        ? config.filter((entry) => metadata[entry.chain]).map((entry) => entry.chain)
+        : [...requiredChains],
+    [config, metadata, requiredChains],
   );
 
   return (
     <InscriptionProvider context={context}>
-      <StateProvider chains={visibleChains}>
+      <StateProvider chains={supportedChains} requiredChainIds={requiredChainIds} storage={storage}>
         <Context.Provider value={connectors}>{children}</Context.Provider>
       </StateProvider>
     </InscriptionProvider>

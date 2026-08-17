@@ -4,8 +4,7 @@ import { Buffer } from "buffer";
 import { isAccountChangeEvent } from "@/constants/walletEvents";
 import { BBNConfig, IBBNProvider, WalletInfo } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
-
-import logo from "./logo.svg";
+import logo from "@/core/wallets/icons/okx.svg";
 
 export const WALLET_PROVIDER_NAME = "OKX";
 

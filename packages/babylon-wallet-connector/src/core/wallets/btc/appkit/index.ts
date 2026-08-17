@@ -1,15 +1,13 @@
 import type { BTCConfig, IBTCProvider, WalletMetadata } from "@/core/types";
 import { Network } from "@/core/types";
+import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/appkit/constants";
 
 import icon from "./icon.svg";
 import { AppKitBTCProvider } from "./provider";
 
 const WALLET_PROVIDER_NAME = "AppKit";
 
-/**
- * Unique identifier for AppKit BTC wallet connector
- */
-export const APPKIT_BTC_CONNECTOR_ID = "appkit-btc-connector";
+export { APPKIT_BTC_CONNECTOR_ID };
 
 /**
  * AppKit wallet metadata for BTC chain

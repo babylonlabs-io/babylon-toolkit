@@ -220,6 +220,9 @@ export interface IWallet<P extends IProvider = IProvider> {
   hardware?: boolean;
 }
 
+/** Every chain the connector can build a wallet connector for. */
+export type ChainId = "BTC" | "BBN" | "ETH";
+
 export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
   id: K;
   name: string;

@@ -12,7 +12,7 @@ export function ConnectButton({ disabled }: ConnectButtonProps) {
   return (
     <Button
       type="button"
-      onClick={open}
+      onClick={() => open()}
       className="mt-2 w-full"
       disabled={disabled}
     >

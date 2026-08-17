@@ -1,7 +1,8 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
+import { isValidConfirmationReceipt, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
 import { HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
 import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
 import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
@@ -55,6 +56,7 @@ interface Props {
 export function useWalletConnectors({ persistent, accountStorage, onError }: Props) {
   const connectors = useChainProviders();
   const {
+    confirmed,
     visible,
     selectWallet,
     removeWallet,
@@ -62,11 +64,25 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     displayChains,
     displayError,
     confirm,
-    close,
-    reset,
-    chains: chainMap,
+    requiredChainIds,
   } = useWidgetState();
-  const { verifyBTCAddress, acceptTermsOfService } = useLifeCycleHooks();
+  const { verifyBTCAddress } = useLifeCycleHooks();
+
+  // Auto-confirm on reload is a restoration convenience, not a general
+  // consequence of "connector plus storage exists". Capture the requirement set
+  // this provider mounted with and keep a one-way eligibility bit: opening the
+  // dialog, confirming once, losing a required connector, or gaining a new
+  // requirement all move the session onto the explicit-confirmation path for
+  // the rest of this mount.
+  const initialRequiredChainIdsRef = useRef(new Set(requiredChainIds));
+  const coldStartRestoreEligibleRef = useRef(true);
+  const requirementsExpanded = requiredChainIds.some((chainId) => !initialRequiredChainIdsRef.current.has(chainId));
+
+  useEffect(() => {
+    if (visible || confirmed || requirementsExpanded) {
+      coldStartRestoreEligibleRef.current = false;
+    }
+  }, [confirmed, requirementsExpanded, visible]);
 
   // Connecting event
   useEffect(() => {
@@ -101,11 +117,6 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
           if (!visible) return;
 
           validateAddress(connector.config.network, connectedWallet.account.address);
-
-          await acceptTermsOfService?.({
-            address: connectedWallet.account.address,
-            public_key: connectedWallet.account.publicKeyHex,
-          });
 
           const goToNextScreen = () => void displayChains?.();
 
@@ -206,9 +217,9 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     selectWallet,
     removeWallet,
     displayChains,
+    displayError,
     verifyBTCAddress,
-    reset,
-    close,
+    accountStorage,
     connectors,
     persistent,
     visible,
@@ -221,6 +232,13 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     const unsubscribeArr = connectorArr.filter(Boolean).map((connector) =>
       connector.on("disconnect", (connectedWallet: IWallet) => {
         if (connectedWallet) {
+          // Losing a required chain invalidates the confirmation it was part
+          // of, so the receipt must not survive to auto-confirm a later
+          // reconnect. An optional chain leaving is not a consent change.
+          if (requiredChainIds.includes(connector.id)) {
+            coldStartRestoreEligibleRef.current = false;
+            accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+          }
           removeWallet?.(connector.id);
           displayChains?.();
           if (persistent) {
@@ -231,7 +249,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     );
 
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
-  }, [removeWallet, displayChains, connectors, persistent]);
+  }, [removeWallet, displayChains, connectors, persistent, accountStorage, requiredChainIds]);
 
   // Error Event
   useEffect(() => {
@@ -274,32 +292,51 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
   }, [onError, displayChains, displayError, connectors]);
 
+  // Cold-start restore. Every required chain must be back with the same
+  // wallet, account and network the receipt recorded; anything else needs an
+  // explicit confirmation.
   useEffect(() => {
-    const requiredChainIds = Object.values(chainMap).filter(Boolean).map(chain => chain.id);
-    const allConnectors = Object.values(connectors).filter(Boolean);
-    const requiredConnectors = allConnectors.filter(connector =>
-      requiredChainIds.includes(connector.id)
-    );
+    const requiredConnectors = requiredChainIds
+      .map((chainId) => connectors[chainId as keyof typeof connectors])
+      .filter((connector): connector is NonNullable<typeof connector> => Boolean(connector));
+    const allRequiredConnectorsAvailable = requiredConnectors.length === requiredChainIds.length;
 
     const hasStorage = requiredConnectors.every((connector) => accountStorage.has(connector.id));
     const allConnected = requiredConnectors.every((connector) => connector.connectedWallet !== null);
+    const hasConfirmationReceipt = isValidConfirmationReceipt(
+      accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY),
+      requiredChainIds,
+      connectors,
+    );
 
     if (
       persistent &&
-      requiredConnectors.length &&
+      coldStartRestoreEligibleRef.current &&
+      !visible &&
+      !confirmed &&
+      !requirementsExpanded &&
+      requiredChainIds.length &&
+      allRequiredConnectorsAvailable &&
       hasStorage &&
+      hasConfirmationReceipt &&
       allConnected
     ) {
+      // Flip before publishing the confirmation so a connector bump cannot run
+      // this restoration path twice.
+      coldStartRestoreEligibleRef.current = false;
       confirm?.();
       displayChains?.();
     }
   }, [
     persistent,
     connectors,
-    chainMap,
+    requiredChainIds,
     confirm,
     displayChains,
     accountStorage,
+    visible,
+    confirmed,
+    requirementsExpanded,
   ]);
 
   const connect = useCallback(

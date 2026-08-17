@@ -11,7 +11,7 @@ export default defineConfig({
       tsconfigPath: "./tsconfig.lib.json",
       insertTypesEntry: true,
       include: ["src"],
-      exclude: ["src/**/*.stories.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
+      exclude: ["src/**/*.stories.tsx", "src/**/*.test.ts", "src/**/*.test.tsx", "src/__fixtures__/**"],
     }),
     nodePolyfills(),
   ],
@@ -19,9 +19,15 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: true,
     lib: {
-      entry: path.resolve(__dirname, "src/index.tsx"),
+      entry: {
+        index: path.resolve(__dirname, "src/index.tsx"),
+        eth: path.resolve(__dirname, "src/eth.ts"),
+      },
       formats: ["es", "cjs"],
-      fileName: (format) => `index.${format}.js`,
+      fileName: (format, entryName) => `${entryName}.${format}.js`,
+      // Pinned because a multi-entry lib build otherwise names the stylesheet
+      // after the package, changing the published `./style.css` target.
+      cssFileName: "wallet-connector",
     },
     rollupOptions: {
       external: [
