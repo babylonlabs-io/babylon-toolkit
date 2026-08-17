@@ -25,6 +25,13 @@ import {
 import type { RecordedBackend } from "../fixtures/replay/recording";
 
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
+import {
+  DEPOSIT_FLOW_STOPS,
+  flowScreenshotFileName,
+  screenshotFileName,
+  VISUAL_TARGETS,
+  VISUAL_VIEWPORTS,
+} from "./targets";
 
 /**
  * Smallest PNG that can plausibly be a rendered screen. A capture below this
@@ -32,6 +39,16 @@ import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
  * next run diffs against.
  */
 const MIN_CAPTURE_BYTES = 1000;
+
+/**
+ * Name of the manifest each capture writes beside its PNGs, listing the
+ * screens that side INTENDED to produce. Read by `scripts/visual-diff.mjs`
+ * (`--expected-baseline` / `--expected-candidate`) and referenced by name in
+ * `.github/workflows/visual-regression.yml`; the Storybook capture writes one
+ * of its own under the same name. Not a `.png`, so `listPngs` and `copyDir` in
+ * the diff script skip it without needing to know it exists.
+ */
+export const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
 
 /**
  * Seal the page off the network.
@@ -67,8 +84,8 @@ export async function preparePage(
 /**
  * Refuse to photograph an error surface.
  *
- * Three separate ways a capture can be worthless, each checked by name so the
- * failure says which one happened:
+ * Two ways a screen can be worthless the moment it is photographed, each
+ * checked by name so the failure says which one happened:
  *
  *  - `error-dialog` - the app could not boot at all, usually a required env
  *    var absent from `MOCK_ENV_VARS` that a developer's `.env` hides locally.
@@ -77,15 +94,18 @@ export async function preparePage(
  *    unanswered contract read looks like from the outside. This is the one
  *    that hid behind #2248's gate: the config dialog was gone, so the check
  *    passed, and the screens were still error cards.
- *  - a backend miss - the app asked the recording something it does not
- *    contain. The screen may look fine and be missing a section, so this is
- *    checked even when nothing above fired.
+ *
+ * Both are point-in-time DOM queries, which is why {@link capture} runs them
+ * per photograph rather than once at the end of a walk. Checked once at the
+ * end, a multi-stop walk verifies every stop against the DOM as it stands at
+ * the LAST one: an earlier stop photographed inside a React Query retry window
+ * is a static "Something went wrong" frame that `waitForVisualStability`
+ * settles on happily, and the retry then succeeds in time for a single
+ * trailing check to pass.
  */
-export async function assertAppRendered(
+export async function assertNoErrorSurface(
   page: Page,
-  backend: ReplayBackend,
   label: string,
-  requiredBoundaries: readonly RecordedBackend[] = [],
 ): Promise<void> {
   await expect(
     page.getByTestId("error-dialog"),
@@ -102,7 +122,24 @@ export async function assertAppRendered(
       `answer. Photographing it would bake "Something went wrong" in as the ` +
       `expected look, and it diffs clean against itself forever.`,
   ).toHaveCount(0);
+}
 
+/**
+ * Assert the recording actually answered what the walk asked of it.
+ *
+ * The half of the gating that must be DEFERRED to the end, because both
+ * checks below accumulate across a walk rather than describing one moment:
+ *
+ *  - a backend miss - the app asked the recording something it does not
+ *    contain. The screen may look fine and be missing a section, so this is
+ *    checked even when {@link assertNoErrorSurface} found nothing.
+ *  - a boundary that was never reached at all.
+ */
+export function assertRecordingCovered(
+  backend: ReplayBackend,
+  label: string,
+  requiredBoundaries: readonly RecordedBackend[] = [],
+): void {
   // Deduplicated: a polled query re-asks the same unanswered question every
   // few seconds, and a hundred repetitions of one line buries the other two.
   const misses = [...new Set(backend.misses)];
@@ -169,6 +206,9 @@ export async function capture(
   fileName: string,
 ): Promise<StagedShot> {
   await waitForVisualStability(page);
+  // Per photograph, not per walk - see {@link assertNoErrorSurface}. Settled
+  // is not the same as rendered: an error fallback is perfectly stable.
+  await assertNoErrorSurface(page, fileName);
   const buffer = await page.screenshot({ fullPage: true });
   expect(
     buffer.byteLength,
@@ -193,7 +233,45 @@ export async function writeCaptures(
   }
 }
 
-/** Create the output directory. Call from `test.beforeAll`. */
+/**
+ * Create the output directory and declare which screens it should end up
+ * holding. Call from `test.beforeAll`.
+ *
+ * The manifest is what closes the last silent-green path. A fired gate
+ * withholds a PNG, which the diff step is meant to read as "missing" - but it
+ * only checks that each surface DIRECTORY is non-empty, and `visual-diff.mjs`
+ * builds its name set from the union of the two sides, so a screen absent from
+ * BOTH never enters the comparison at all. Both sides run the same stashed
+ * harness against the same committed fixture, so every fixture- or
+ * harness-caused failure is symmetric BY CONSTRUCTION: the eight deposit-flow
+ * shots vanish from both sides, the twelve route shots still land, and the run
+ * reports "No visual changes" for a comparison that never looked at 8 of 20
+ * screens.
+ *
+ * Written at collection time rather than derived at diff time on purpose: it
+ * is a statement of intent made before anything can fail, so a spec that never
+ * ran at all still leaves its screens accounted for.
+ */
 export async function ensureOutputDir(): Promise<void> {
   await fs.mkdir(VISUAL_OUTPUT_DIR, { recursive: true });
+
+  const expected = [
+    ...VISUAL_TARGETS.flatMap((target) =>
+      VISUAL_VIEWPORTS.map((viewport) => screenshotFileName(target, viewport)),
+    ),
+    ...Object.values(DEPOSIT_FLOW_STOPS).flatMap((stop) =>
+      VISUAL_VIEWPORTS.map((viewport) =>
+        flowScreenshotFileName(stop, viewport),
+      ),
+    ),
+  ].sort();
+
+  // Both specs call this from `test.beforeAll`, and the config pins
+  // `workers: 1, fullyParallel: false`, so the two writes are sequential and
+  // byte-identical. Declaring the flow stops here even when only the routes
+  // spec is collected is the correct direction: it fails loud, not silent.
+  await fs.writeFile(
+    path.join(VISUAL_OUTPUT_DIR, EXPECTED_SCREENS_MANIFEST),
+    `${expected.join("\n")}\n`,
+  );
 }

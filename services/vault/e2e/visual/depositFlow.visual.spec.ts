@@ -18,7 +18,7 @@ import { connectInjectedWallets, injectPageWallets } from "../fixtures/pageWalle
 import { RECORDED_DEPOSITOR } from "../fixtures/replay/contracts";
 
 import {
-  assertAppRendered,
+  assertRecordingCovered,
   capture,
   ensureOutputDir,
   preparePage,
@@ -61,10 +61,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
     const backend = await preparePage(page);
     await injectPageWallets(page, {
       btcAddress: RECORDED_DEPOSITOR.BTC_ADDRESS,
-      // Compressed form of the address's x-only key. The wallet-connector
-      // adapters expect a 33-byte key; the recording holds no internal key,
-      // and nothing in a capture signs, so the output key stands in for it.
-      btcPublicKeyHex: `02${RECORDED_DEPOSITOR.BTC_X_ONLY_PUBLIC_KEY}`,
+      btcPublicKeyHex: RECORDED_DEPOSITOR.BTC_PUBLIC_KEY,
       ethAddress: RECORDED_DEPOSITOR.ETH_ADDRESS,
       ethChainIdHex: SEPOLIA_CHAIN_ID_HEX,
       ethRpcUrl: MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL,
@@ -104,10 +101,14 @@ for (const viewport of VISUAL_VIEWPORTS) {
       ),
     );
 
-    // The collapsed selector's header carries the current choice as its label.
-    // `.first()` is safe HERE and only here: the panel is still collapsed, so
-    // the option row with the same words has not been rendered yet.
-    await dialog.getByRole("button", { name: /do not split/i }).first().click();
+    // By testid, not by the header's label. The label IS the current choice,
+    // so a text match breaks twice over: on a copy edit, and on any state
+    // where a split is pre-selected and the words are no longer there at all.
+    // The collapsed option row below carries the same words - core-ui's
+    // AccordionDetails keeps its children mounted and hides them with
+    // `visibility: hidden` - so a role query was relying on Playwright's
+    // accessibility-hidden filter to tell the two apart.
+    await dialog.getByTestId("split-selector-toggle").click();
     shots.push(
       await capture(
         page,
@@ -115,18 +116,17 @@ for (const viewport of VISUAL_VIEWPORTS) {
       ),
     );
 
-    // Asserted once at the end rather than per stop: the misses accumulate
-    // across the whole walk, so one check at the end covers every stop and
-    // names them together. Nothing has reached disk yet, so a failure here
-    // withholds all four stops - which is what makes the capture step's
-    // `continue-on-error` safe.
+    // Deferred to the end because these two accumulate across the walk, where
+    // the error-surface gates cannot and so run inside `capture()` per stop.
+    // Nothing has reached disk yet, so a failure here withholds all four
+    // stops - which is what makes the capture step's `continue-on-error` safe.
     //
     // All four boundaries are named because this walk genuinely needs all
     // four - the chain for borrow power and the split minimum, the indexer
     // for the vault list, the VP proxy for the provider, mempool for the
     // balance. A screen missing any of them still renders, just emptier, and
     // that is precisely the failure a screenshot cannot be trusted to show.
-    await assertAppRendered(page, backend, `deposit flow at ${viewport.name}`, [
+    assertRecordingCovered(backend, `deposit flow at ${viewport.name}`, [
       "eth-rpc",
       "graphql",
       "vp-health",

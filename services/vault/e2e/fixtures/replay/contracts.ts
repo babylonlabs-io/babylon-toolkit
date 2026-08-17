@@ -44,19 +44,42 @@ export const RECORDED_DEPLOYMENT = {
  * which is a screenshot of nothing.
  */
 export const RECORDED_DEPOSITOR = {
-  BTC_ADDRESS: "tb1py5pswr46tl0y0qapun6gdm760a7rkkxcxclchu6072c3zykl7cnqjckc8a",
   /**
-   * The x-only public key inside {@link RECORDED_DEPOSITOR.BTC_ADDRESS}.
+   * The compressed public key the injected BTC wallet reports.
    *
-   * A taproot address IS its output key, so this is decoded from the address
-   * rather than chosen - the co-located test re-derives it, which is what
-   * keeps the pair honest if either is ever edited. It is the tweaked output
-   * key, not the wallet's internal key, which the recording does not contain;
-   * that difference does not reach a captured screen, and nothing in a
-   * capture may sign, so it cannot reach a signature either.
+   * Its x-only half is the output key of the address the recording was made
+   * against (`tb1py5psw…`), which is the only Bitcoin key the recording
+   * contains - a taproot address IS its output key. The wallet's INTERNAL key
+   * was never recorded and cannot be recovered from the address.
+   *
+   * So the address below is derived from this key rather than the other way
+   * round. Reporting this key beside the recorded address instead looked
+   * harmless and was not: `validateAddressWithPK` in the wallet-connector is
+   * exactly `address === getTaprootAddress(publicKey, network)`, and
+   * `getTaprootAddress` feeds what it is handed in as the INTERNAL key - so a
+   * key that is already an output key gets tweaked twice and the pair fails
+   * the connector's own check. It sits on the connect path, and it fired: the
+   * capture reached a "Public Key Mismatch" screen and only survived because
+   * the auto-confirm effect overwrote it a tick later, once both chains were
+   * connected. One effect-ordering change away from a timeout, or from
+   * photographing the mismatch modal.
    */
-  BTC_X_ONLY_PUBLIC_KEY:
-    "2503070eba5fde4783a1e4f486efda7f7c3b58d8363f8bf34ff2b11112dff626",
+  BTC_PUBLIC_KEY:
+    "022503070eba5fde4783a1e4f486efda7f7c3b58d8363f8bf34ff2b11112dff626",
+  /**
+   * `p2tr(internalPubkey = BTC_PUBLIC_KEY)` on signet. Derived, not recorded -
+   * the co-located test re-derives it, which is what keeps the pair honest if
+   * either is ever edited.
+   *
+   * It is NOT the address the recording was captured against, and it does not
+   * need to be: `mempoolKey` in `../index.ts` normalises the address out of
+   * every mempool path, precisely so the injected wallet can keep its own
+   * address and still be funded by the recorded UTXO set. The recorded
+   * `validate-address` response is likewise reusable - the app only checks
+   * that the scriptPubKey it returns is hex with a known prefix, never that it
+   * belongs to the address asked about.
+   */
+  BTC_ADDRESS: "tb1plzqtvucpdmetwegp8twumz8p8z4ncn0ul7295g7xglnh8tpj70rscgf75f",
   /** Bitcoin network the recording was made on. */
   BTC_NETWORK: "signet",
   /**

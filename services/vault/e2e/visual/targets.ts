@@ -19,6 +19,8 @@
  * claim nothing changed.
  */
 
+import type { RecordedBackend } from "../fixtures/replay/recording";
+
 export interface VisualViewport {
   readonly name: string;
   readonly width: number;
@@ -30,6 +32,20 @@ export interface VisualTarget {
    *  reads as "screen deleted + screen added" in the diff report. */
   readonly name: string;
   readonly path: string;
+  /**
+   * Boundaries this screen's content actually comes from.
+   *
+   * Asserted non-silent by `capture.ts`, and the only gate that can see a
+   * boundary the app never reached at all - a stale URL, a moved port, an env
+   * override. Nothing arrives, so no miss is logged and no error state
+   * renders; the screen simply falls back to its "nothing to show" variant,
+   * which is stable and diffs clean against itself forever.
+   *
+   * Kept per target rather than as one list because a total cannot see it:
+   * with only the chain moved, the other boundaries still answer and the
+   * overall count looks healthy while every contract read has gone nowhere.
+   */
+  readonly requires: readonly RecordedBackend[];
 }
 
 /** Desktop is the primary review size; mobile catches responsive-only
@@ -39,13 +55,39 @@ export const VISUAL_VIEWPORTS: readonly VisualViewport[] = [
   { name: "mobile", width: 390, height: 844 },
 ];
 
+/**
+ * What every route screen reads before it has painted.
+ *
+ * Measured, not assumed: a capture run instrumented to print `backend.served`
+ * per screen reports all four non-zero on all six routes at both viewports -
+ * the app shell fetches the Aave config and the provider list (`graphql`),
+ * polls protocol status (`vp-health`), reads the chain through Multicall3
+ * (`eth-rpc`) and asks mempool for fees. `vp-rpc` is the one boundary no
+ * route touches, so requiring it would fail every screen.
+ *
+ * Written per target below rather than shared, even though the six agree
+ * today: a route that stops needing one of these should say so at its own
+ * entry, and the gate that catches a boundary going silent is only as good
+ * as the screen-level claim behind it.
+ */
+const APP_SHELL_BOUNDARIES: readonly RecordedBackend[] = [
+  "eth-rpc",
+  "graphql",
+  "vp-health",
+  "mempool",
+];
+
 export const VISUAL_TARGETS: readonly VisualTarget[] = [
-  { name: "overview", path: "/" },
-  { name: "vaults", path: "/vaults" },
-  { name: "loans", path: "/loans" },
-  { name: "activity", path: "/activity" },
-  { name: "explore", path: "/explore" },
-  { name: "liquidations", path: "/liquidations" },
+  { name: "overview", path: "/", requires: APP_SHELL_BOUNDARIES },
+  { name: "vaults", path: "/vaults", requires: APP_SHELL_BOUNDARIES },
+  { name: "loans", path: "/loans", requires: APP_SHELL_BOUNDARIES },
+  { name: "activity", path: "/activity", requires: APP_SHELL_BOUNDARIES },
+  { name: "explore", path: "/explore", requires: APP_SHELL_BOUNDARIES },
+  {
+    name: "liquidations",
+    path: "/liquidations",
+    requires: APP_SHELL_BOUNDARIES,
+  },
 ];
 
 /**

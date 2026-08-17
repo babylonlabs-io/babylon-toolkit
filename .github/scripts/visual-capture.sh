@@ -52,5 +52,8 @@ VISUAL_OUT_DIR="${CAPTURE_ROOT}/vault" \
   playwright test --config=playwright.visual.config.ts
 
 echo "==> Capture complete for ${CAPTURE_ROOT}"
-ls -1 "${CAPTURE_ROOT}/storybook" | wc -l | xargs echo "    storybook screens:"
-ls -1 "${CAPTURE_ROOT}/vault" | wc -l | xargs echo "    vault screens:"
+# PNGs only: each surface also writes an expected-screens manifest beside
+# them, and counting directory entries would report one screen more than
+# were taken.
+find "${CAPTURE_ROOT}/storybook" -name '*.png' | wc -l | xargs echo "    storybook screens:"
+find "${CAPTURE_ROOT}/vault" -name '*.png' | wc -l | xargs echo "    vault screens:"

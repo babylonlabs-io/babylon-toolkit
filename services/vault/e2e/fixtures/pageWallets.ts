@@ -24,10 +24,10 @@
  *    account, so AppKit's modal - which fetches its wallet catalogue from
  *    api.web3modal.org, a host the capture blocks - never opens.
  *
- * These providers connect and read. They do not sign: `signPsbt` returns its
- * input unchanged and `signMessage` returns a fixed non-signature, so a test
- * that walks into a signing step fails there rather than appearing to
- * succeed. Captures stop at the deposit form for exactly that reason.
+ * These providers connect and read. They do not sign: every signing method
+ * throws, so a test that walks into a signing step fails there rather than
+ * appearing to succeed. Captures stop at the deposit form for exactly that
+ * reason.
  */
 
 import { expect, type Page } from "@playwright/test";
@@ -57,6 +57,13 @@ const UNISAT_SIGNET_CHAIN = {
 const BLANK_ICON =
   "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxIDEiLz4=";
 
+/**
+ * What every signing method rejects with. Names the fix so the failure reads
+ * as a deliberate boundary rather than a broken fixture.
+ */
+const CAPTURE_WALLETS_NEVER_SIGN =
+  "capture wallets never sign - extend the recording instead";
+
 export interface PageWalletConfig {
   /** BTC address the wallet reports; must be the one the recording funds. */
   readonly btcAddress: string;
@@ -84,10 +91,17 @@ export async function injectPageWallets(
   config: PageWalletConfig,
 ): Promise<void> {
   await page.addInitScript(
-    ([walletConfig, unisatVersion, signetChain, blankIcon]: readonly [
+    ([
+      walletConfig,
+      unisatVersion,
+      signetChain,
+      blankIcon,
+      neverSignMessage,
+    ]: readonly [
       PageWalletConfig,
       string,
       typeof UNISAT_SIGNET_CHAIN,
+      string,
       string,
     ]) => {
       // ---- BTC: window.unisat --------------------------------------------
@@ -104,9 +118,21 @@ export async function injectPageWallets(
         // `{ list, total }` is the paging shape the adapter walks; an empty
         // first page ends the walk immediately.
         getInscriptions: async () => ({ list: [], total: 0 }),
-        signPsbt: async (psbtHex: string) => psbtHex,
-        signPsbts: async (psbtHexes: string[]) => [...psbtHexes],
-        signMessage: async () => "00".repeat(64),
+        // Throwing, not returning the input: a well-formed UNSIGNED PSBT is
+        // what a caller reads as a successful signature, and it would carry
+        // on. Nothing on the captured path signs - connect goes through
+        // `requestAccounts` / `getPublicKey` / `getVersion` - so failing loudly
+        // here costs nothing today and is the behaviour the seam wants when a
+        // capture is one day extended past the form.
+        signPsbt: async () => {
+          throw new Error(neverSignMessage);
+        },
+        signPsbts: async () => {
+          throw new Error(neverSignMessage);
+        },
+        signMessage: async () => {
+          throw new Error(neverSignMessage);
+        },
         // Deterministic, and deliberately NOT the real derivation: it exists
         // so capability detection passes. Anything that consumed it for real
         // would be deriving vault secrets from a test fixture, which is why
@@ -220,7 +246,13 @@ export async function injectPageWallets(
       window.addEventListener("eip6963:requestProvider", announce);
       announce();
     },
-    [config, UNISAT_VERSION, UNISAT_SIGNET_CHAIN, BLANK_ICON] as const,
+    [
+      config,
+      UNISAT_VERSION,
+      UNISAT_SIGNET_CHAIN,
+      BLANK_ICON,
+      CAPTURE_WALLETS_NEVER_SIGN,
+    ] as const,
   );
 }
 
@@ -244,22 +276,29 @@ export async function connectInjectedWallets(page: Page): Promise<void> {
   await page.getByTestId("connect-wallet-button").first().click();
 
   const dialog = page.locator(".portal-root");
-  await dialog.getByText("Select Bitcoin Wallet").click();
-  // By name, not by position: the list is ordered by the connector's own
-  // ranking and a positional click would silently select a different wallet
-  // the day that ordering changes.
-  await dialog.getByText("Unisat", { exact: true }).click();
+  // Every control below is driven by the SAME testid the real-wallet CLI uses
+  // (`e2e/real/actions/walletConnect.ts`), not by its label. Matching on
+  // "Select Bitcoin Wallet" / "Unisat" / "Connect" would mean a copy edit
+  // breaks this capture with a bare timeout while that runner keeps passing -
+  // the opposite of the guarantee the deposit spec claims when it deliberately
+  // reuses `deposit-button`.
+  await dialog.getByTestId("select-bitcoin-wallet-button").click();
+  // By id, not by position: the list is ordered by the connector's own ranking
+  // and a positional click would silently select a different wallet the day
+  // that ordering changes.
+  await dialog.getByTestId("wallet-option-unisat").click();
 
-  // The dialog returns to its summary once BTC is chosen; its Connect button
-  // is what commits the session. Waiting for it to be enabled is what makes
-  // this robust - it stays disabled until both required chains are satisfied,
-  // so this is also the assertion that ETH really did connect silently.
-  const commit = dialog.getByRole("button", { name: "Connect", exact: true });
+  // The dialog returns to its summary once BTC is chosen; this button is what
+  // commits the session. Waiting for it to be enabled is what makes this
+  // robust - it stays disabled until both required chains are satisfied, so
+  // this is also the assertion that ETH really did connect silently.
+  const commit = dialog.getByTestId("chains-connect-button");
   await expect(commit).toBeEnabled();
   await commit.click();
 
   // The dialog is a full-viewport overlay: anything clicked before it is gone
   // hits the overlay instead, which surfaces as an unrelated timeout further
-  // down the test.
-  await expect(dialog.getByText("Connect Wallets")).toHaveCount(0);
+  // down the test. The commit button leaving the DOM is the dialog being gone,
+  // and unlike its heading it is not copy.
+  await expect(commit).toHaveCount(0);
 }

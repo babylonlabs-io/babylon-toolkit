@@ -1,27 +1,33 @@
 /**
  * A read-only fake chain assembled from a recorded run.
  *
- * The dApp reads the chain almost entirely through Multicall3: of the 227
- * `eth_call`s in the committed peg-in recording, 226 are `aggregate3`
- * batches. Replaying those batches by matching the outer `data` byte-for-byte
- * would be useless in practice - the batch is composed by wagmi from whatever
- * hooks happen to be mounted, so adding one component to a page changes the
- * bytes and every recorded batch stops matching at once.
+ * The dApp reads the chain almost entirely through Multicall3: all 19
+ * `eth_call`s in the committed peg-in recording are `aggregate3` batches.
+ * Replaying those batches by matching the outer `data` byte-for-byte would be
+ * useless in practice - the batch is composed by wagmi from whatever hooks
+ * happen to be mounted, so adding one component to a page changes the bytes
+ * and every recorded batch stops matching at once.
  *
  * So a batch is taken apart instead. Each recorded `aggregate3` is decoded
  * into its inner calls, paired positionally with the decoded results, and
  * stored per inner call. A live batch is answered the same way: decoded,
- * answered call by call, re-encoded. The recording's 609 inner calls collapse
- * to 35 distinct (target, selector) pairs, and a page that batches them
+ * answered call by call, re-encoded. The recording's 39 inner calls collapse
+ * to 28 distinct (target, selector) pairs, and a page that batches them
  * differently - or in a different order, or across two batches - is still
  * answered correctly.
  *
  * Lookup is exact-first: a call is answered by its full calldata when that
- * exact calldata was recorded, and otherwise by (target, selector) alone.
- * The fallback is what makes the fixture survive an argument the recording
- * never saw (a different block number, a re-ordered address array); the exact
- * tier is what keeps two calls to the same getter with different arguments
- * from collapsing into one answer.
+ * exact calldata was recorded, and otherwise by (target, selector) alone. The
+ * fallback is what makes the fixture survive an argument the recording never
+ * saw (a different block number, a re-ordered address array).
+ *
+ * That fallback is only offered for a getter the recording saw with ONE
+ * argument - see {@link buildTables}. A getter recorded with several has no
+ * single right answer for a fourth, and handing back the last recorded one
+ * would be the only path in this fixture that puts an invented number on a
+ * screenshot: a wrong answer rather than a missing one, which every gate in
+ * `visual/capture.ts` is blind to because nothing was ever reported as
+ * unanswered.
  */
 
 import {
@@ -76,8 +82,11 @@ export interface UnansweredCall {
 
 export interface RecordedChain {
   /**
-   * Answer one `eth_call`. Returns the recorded return data, or null when
-   * neither the exact calldata nor the (target, selector) pair was recorded.
+   * Answer one `eth_call`. Returns the recorded return data, or null when the
+   * exact calldata was not recorded and the (target, selector) pair cannot
+   * stand in for it - either because the pair was never recorded, or because
+   * the recording holds several arguments for it and no one of them is the
+   * right answer to a question it never saw.
    */
   answerCall(to: string, data: Hex): Hex | null;
   /**
@@ -112,14 +121,20 @@ function selectorKey(target: string, data: Hex): string {
   return `${target.toLowerCase()}|${selectorOf(data)}`;
 }
 
+/**
+ * The selector table's value. `null` marks a (target, selector) pair the
+ * recording holds under more than one calldata - see {@link buildTables}.
+ */
+type SelectorAnswer = Hex | null;
+
 interface ChainTables {
   readonly exact: Map<string, Hex>;
-  readonly bySelector: Map<string, Hex>;
+  readonly bySelector: Map<string, SelectorAnswer>;
   readonly methods: Map<string, unknown>;
 }
 
 /**
- * Decoded tables per run, so the ~226 recorded batches are taken apart once
+ * Decoded tables per run, so the 19 recorded batches are taken apart once
  * rather than once per captured screen. Keyed on the run object, which
  * `loadRecordedRun` already caches per path.
  */
@@ -134,15 +149,39 @@ const tableCache = new WeakMap<RecordedRun, ChainTables>();
  * deliberate: the run progresses through a deposit, so the last recorded
  * value for a getter is the one describing the furthest-along state, which is
  * the state a screenshot of a populated app should show.
+ *
+ * The selector table is built to REFUSE rather than guess. A pair recorded
+ * under a second distinct calldata is marked `null` and stops answering by
+ * selector from then on, so an argument the recording never saw comes back
+ * unanswered instead of carrying another argument's value.
+ *
+ * Four pairs in the committed recording need that. `getReservesPrices` is the
+ * one that shows what the guess costs: it is recorded three times, once per
+ * borrowable reserve, and the vault's own vBTC reserve is never priced. Under
+ * a last-wins fallback, asking for it would quietly return the previous
+ * reserve's price - a plausible BTC figure the recording never justified,
+ * rendered onto the deposit form the capture exists to photograph.
  */
 function buildTables(run: RecordedRun): ChainTables {
   const exact = new Map<string, Hex>();
-  const bySelector = new Map<string, Hex>();
+  const bySelector = new Map<string, SelectorAnswer>();
   const methods = new Map<string, unknown>();
 
   const remember = (target: string, callData: Hex, returnData: Hex): void => {
-    exact.set(exactKey(target, callData), returnData);
-    bySelector.set(selectorKey(target, callData), returnData);
+    const byExact = exactKey(target, callData);
+    const bySelectorAlone = selectorKey(target, callData);
+    const isNewArgument = !exact.has(byExact);
+    exact.set(byExact, returnData);
+
+    if (isNewArgument && bySelector.has(bySelectorAlone)) {
+      bySelector.set(bySelectorAlone, null);
+      return;
+    }
+    // Absent, or holding this same argument's earlier answer. Either way the
+    // pair still has exactly one argument behind it and last-wins applies.
+    if (bySelector.get(bySelectorAlone) !== null) {
+      bySelector.set(bySelectorAlone, returnData);
+    }
   };
 
   for (const entry of run.byBackend.get("eth-rpc") ?? []) {
@@ -219,6 +258,8 @@ export function buildRecordedChain(run: RecordedRun): RecordedChain {
   const { exact, bySelector, methods } = tables;
   const unanswered: UnansweredCall[] = [];
 
+  // `?? null` covers both selector outcomes that must not answer: a pair the
+  // recording never held, and one it held under several arguments.
   const answerCall = (to: string, data: Hex): Hex | null =>
     exact.get(exactKey(to, data)) ??
     bySelector.get(selectorKey(to, data)) ??

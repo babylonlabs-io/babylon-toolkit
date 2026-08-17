@@ -20,7 +20,7 @@
 import { test } from "../fixtures";
 
 import {
-  assertAppRendered,
+  assertRecordingCovered,
   capture,
   ensureOutputDir,
   preparePage,
@@ -45,7 +45,7 @@ for (const target of VISUAL_TARGETS) {
       const backend = await preparePage(page);
       await page.goto(target.path, { waitUntil: "domcontentloaded" });
       const shot = await capture(page, screenshotFileName(target, viewport));
-      await assertAppRendered(page, backend, target.name);
+      assertRecordingCovered(backend, target.name, target.requires);
       await writeCaptures([shot]);
     });
   }

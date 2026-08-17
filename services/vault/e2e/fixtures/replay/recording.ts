@@ -102,35 +102,70 @@ function isHost(hostname: string, domain: string): boolean {
 }
 
 /**
- * Classify a recorded URL.
+ * Whether any LABEL of `hostname` contains `label`.
  *
- * Returns null for the boundaries a capture must never replay: Sentry
- * envelopes (telemetry, not app data), the AppKit/web3modal asset CDN (the
- * wallet picker's remote images - the injected wallet needs none of it) and
- * the dApp's own origin (documents, bundles, the wasm blob - served by the
- * dev server under test).
- *
- * The dApp's own hosts are matched on a label rather than a full domain -
+ * The dApp's own hosts are matched this way rather than by full domain -
  * `mempool`, `indexer-api` - because those names are deployment-specific and
- * a re-recording against another environment must still classify. They are
- * matched against hostname LABELS, never as a bare substring.
+ * a re-recording against another environment must still classify. Matched
+ * against hostname labels, never as a bare substring.
  */
 function hasLabel(hostname: string, label: string): boolean {
   return hostname.split(".").some((part) => part.includes(label));
 }
 
+/** Vendor domains dropped whole, dot-anchored so a lookalike is not caught. */
+const DROPPED_DOMAINS = [
+  "sentry.io",
+  "web3modal.org",
+  "web3modal.com",
+  "walletconnect.org",
+  "walletconnect.com",
+];
+
+/** Deployment-specific hosts dropped by label, for the reason `hasLabel` gives. */
+const DROPPED_LABELS = ["demo", "utils-api"];
+
+/**
+ * Whether a recorded host's traffic is never replayed: Sentry envelopes
+ * (telemetry, not app data, and they carry session ids and user context), the
+ * AppKit/web3modal asset CDN (the wallet picker's remote images - the injected
+ * wallet needs none of it), and the dApp's own deployment host.
+ *
+ * Exported because `scripts/build-replay-fixture.mjs` imports it. That builder
+ * used to carry its own copy of this list, matching bare labels where this one
+ * matches domains, and the two had already drifted: `walletconnect.com` - the
+ * host the app's own CSP names in `index.html` - and `web3modal.com` were
+ * dropped by the builder and replayed as `eth-rpc` here. One policy, one file.
+ *
+ * This module must therefore stay a LEAF - no relative imports - and use only
+ * erasable syntax: the builder runs under plain `node`, which strips types but
+ * cannot resolve an extensionless `./sibling`.
+ */
+export function isDroppedHost(hostname: string): boolean {
+  return (
+    DROPPED_DOMAINS.some((domain) => isHost(hostname, domain)) ||
+    DROPPED_LABELS.some((label) => hasLabel(hostname, label))
+  );
+}
+
+/**
+ * Classify a recorded URL, or null for a host {@link isDroppedHost} refuses.
+ *
+ * Note what is NOT here: a check for the dApp's own origin. The devnet dApp is
+ * `demo.vault-devnet.babylonlabs.io`, so its documents, bundles and wasm blob
+ * are dropped by the `demo` label rather than by anything that knows what an
+ * own-origin request is. A recording made against a host without that label -
+ * a local dev server - classifies its own `HEAD /` and wasm fetches as
+ * `eth-rpc`. They carry no JSON-RPC body, so `buildTables` discards them.
+ */
 function classify(url: string): RecordedBackend | null {
   const { hostname, pathname } = new URL(url);
-  if (isHost(hostname, "sentry.io")) return null;
-  if (isHost(hostname, "web3modal.org")) return null;
-  if (isHost(hostname, "walletconnect.org")) return null;
-  if (hasLabel(hostname, "demo")) return null;
+  if (isDroppedHost(hostname)) return null;
   if (hasLabel(hostname, "mempool")) return "mempool";
   if (hasLabel(hostname, "indexer-api")) return "graphql";
   if (hasLabel(hostname, "vault-provider-proxy")) {
     return pathname.startsWith("/vp-health") ? "vp-health" : "vp-rpc";
   }
-  if (hasLabel(hostname, "utils-api")) return null;
   // Everything left is the Ethereum JSON-RPC endpoint. Matched last and by
   // exclusion on purpose: the RPC host is an operator choice (publicnode
   // here, Alchemy/Infura elsewhere), so a hostname allowlist would silently

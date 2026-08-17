@@ -57,8 +57,14 @@ export function UtxoSplitSelectorV3({
   return (
     <Accordion expanded={expanded}>
       <Card variant="filled" className="!rounded-lg !p-0">
+        {/* Read by the visual capture
+          (services/vault/e2e/visual/depositFlow.visual.spec.ts) to expand this
+          panel. Its label is the current choice, so matching on the text meant
+          the capture broke on a copy edit - and matched nothing at all
+          whenever a split was pre-selected. */}
         <button
           type="button"
+          data-testid="split-selector-toggle"
           className="flex w-full items-center justify-between px-6 py-4"
           onClick={() => onExpandedChange(!expanded)}
         >

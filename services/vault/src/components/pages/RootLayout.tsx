@@ -291,7 +291,16 @@ export default function RootLayout() {
                       onClose={closeDeposit}
                       className="items-center justify-center p-6"
                     >
-                      <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center">
+                      {/* Same `app-error-state` the provider's own panel
+                        carries. This override replaces that panel, so without
+                        it the visual capture's error gate
+                        (services/vault/e2e/visual/capture.ts) is blind to an
+                        Aave-config failure on exactly the surface it opens -
+                        the deposit dialog. */}
+                      <div
+                        data-testid="app-error-state"
+                        className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-3 text-center"
+                      >
                         <Text variant="body1" className="font-medium">
                           {COPY.common.somethingWentWrong.heading}
                         </Text>

@@ -28,6 +28,13 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+// The loader's own policy, imported rather than restated. This script used to
+// carry a second copy that matched bare labels where the loader matches
+// domains, and the two had already drifted apart on `walletconnect.com` and
+// `web3modal.com`. Node strips the types on import; `recording.ts` is a leaf
+// module with no relative imports, which is what makes that work.
+import { isDroppedHost } from "../e2e/fixtures/replay/recording.ts";
+
 /** Where the committed fixture lives - beside the code that loads it. */
 const OUTPUT = path.join(
   import.meta.dirname,
@@ -36,19 +43,6 @@ const OUTPUT = path.join(
 
 /** The step the fixture is cut at. See `recording.ts`. */
 const DEFAULT_STEP = "deposit-form";
-
-/**
- * Hosts whose traffic is never replayed. Dropping them is a size decision for
- * the first three and a privacy one for Sentry, whose envelopes carry session
- * ids and user context that have no business in a fixture.
- */
-const DROPPED_HOSTS = [
-  "sentry",
-  "web3modal",
-  "walletconnect",
-  "demo",
-  "utils-api",
-];
 
 /**
  * Belt and braces over the step cut: refuse to emit anything that smells like
@@ -90,16 +84,9 @@ function main() {
     process.exit(1);
   }
 
-  const kept = lines.slice(0, cutoff + 1).filter((entry) => {
-    // Matched against hostname LABELS, never as a bare substring. A plain
-    // `hostname.includes("sentry.io")` also matches `sentry.io.example.com`,
-    // which drops a host nobody meant to drop - the same flaw CodeQL caught
-    // in the loader's classifier.
-    const labels = new URL(entry.url).hostname.split(".");
-    return !DROPPED_HOSTS.some((dropped) =>
-      labels.some((label) => label === dropped || label.includes(dropped)),
-    );
-  });
+  const kept = lines
+    .slice(0, cutoff + 1)
+    .filter((entry) => !isDroppedHost(new URL(entry.url).hostname));
 
   const offending = kept.filter((entry) =>
     SECRET_PATTERNS.some((pattern) => pattern.test(JSON.stringify(entry))),

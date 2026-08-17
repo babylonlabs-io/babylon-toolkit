@@ -102,11 +102,56 @@ function mempoolKey(pathname: string): string {
     .replace(/^.*\/api\//, "/");
 }
 
-/** Name a GraphQL request by its operation, falling back to the raw query. */
-function graphqlKey(body: string | undefined): string {
-  const parsed = parseJson<{ operationName?: string; query?: string }>(body);
-  if (parsed?.operationName) return parsed.operationName;
-  return (parsed?.query ?? "").replace(/\s+/g, " ").trim();
+/** JSON with object keys sorted, so key ORDER cannot change a lookup key. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "undefined";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`)
+    .join(",")}}`;
+}
+
+/**
+ * Key a request to the indexer origin.
+ *
+ * A GraphQL POST is named by its operation AND its variables; anything else
+ * on this origin - today only the bodyless `GET /health` the health check
+ * issues - is named by method and path. Both halves are needed.
+ *
+ * Keyed on the body alone, every bodyless or unparseable request collapsed to
+ * the empty string, which is the key `GET /health` indexes under. So the
+ * health check passed by coincidence rather than by design, and anything else
+ * bodyless reaching this origin was answered `200` with `"{}"` - a body
+ * carrying neither `data` nor `errors`, which renders as an empty state with
+ * NO miss recorded.
+ *
+ * A POST is keyed on its operation rather than its path because the two
+ * differ by design: the recorded indexer serves GraphQL at `/`, while
+ * `MOCK_ENV_VARS` pins `/graphql`. Keying a POST on its path would match
+ * nothing and every screen would render empty.
+ *
+ * `variables` are part of the key because an operation name is not one
+ * question. `fetchVaultProviderStats` issues one `GetVaultsByProvider` per
+ * vault provider; the recording holds a single provider, so without
+ * `variables` every provider on a multi-provider deployment would be served
+ * the first one's vaults - identical rows, and no miss to say so.
+ */
+function graphqlKey(
+  method: string,
+  pathname: string,
+  body: string | undefined,
+): string {
+  const parsed = parseJson<{
+    operationName?: string;
+    query?: string;
+    variables?: unknown;
+  }>(body);
+  const operation =
+    parsed?.operationName ?? (parsed?.query ?? "").replace(/\s+/g, " ").trim();
+  if (operation === "") return `${method} ${pathname}`;
+  return `${operation} ${stableStringify(parsed?.variables)}`;
 }
 
 /**
@@ -160,7 +205,7 @@ export async function installRecordedBackend(
     (entry) => parseJson<JsonRpcRequest>(entry.reqBody)?.method ?? "",
   );
   const graphql = indexBy(run.byBackend.get("graphql") ?? [], (entry) =>
-    graphqlKey(entry.reqBody),
+    graphqlKey(entry.method, new URL(entry.url).pathname, entry.reqBody),
   );
   const mempool = indexBy(run.byBackend.get("mempool") ?? [], (entry) =>
     mempoolKey(new URL(entry.url).pathname),
@@ -310,10 +355,15 @@ export async function installRecordedBackend(
   await page.route(
     on(GRAPHQL_ORIGIN, () => true),
     serve("graphql", (route) => {
-      const key = graphqlKey(route.request().postData() ?? undefined);
+      const request = route.request();
+      const key = graphqlKey(
+        request.method(),
+        new URL(request.url()).pathname,
+        request.postData() ?? undefined,
+      );
       const recorded = graphql.get(key);
       if (!recorded) {
-        miss(`graphql ${key || "(unnamed operation)"}`);
+        miss(`graphql ${key}`);
         return jsonResponse(route, {
           errors: [{ message: `operation not recorded: ${key}` }],
         });
@@ -344,9 +394,6 @@ export async function installRecordedBackend(
     }),
   );
 
-  // A getter, not a snapshot: the count keeps rising while the page runs, and
-  // a caller reading it after the walk must see the total rather than the
-  // zero it was at the moment the backend was installed.
   // `served` is the live object, not a copy: the counts keep rising while the
   // page runs, and a caller reading them after the walk must see the totals
   // rather than the zeroes they held when the backend was installed.
