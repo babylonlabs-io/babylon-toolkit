@@ -227,4 +227,158 @@ describe("fetchIrmCurve", () => {
       /indexer\.test/,
     );
   });
+
+  it("throws when a point's utilizationPercent is out of the [0, 100] range", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 101, aprRay: "0", aprPercent: 4 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /out-of-range "utilizationPercent"/,
+    );
+  });
+
+  it("throws when points are not strictly ascending", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 50, aprRay: "0", aprPercent: 5 },
+            { utilizationPercent: 50, aprRay: "0", aprPercent: 5 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /not strictly ascending/,
+    );
+  });
+
+  it("throws when the first point is not exactly 0% utilization", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 5, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /does not start at 0% utilization/,
+    );
+  });
+
+  it("throws when the last point is not exactly 100% utilization", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 95, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /does not end at 100% utilization/,
+    );
+  });
+
+  it("throws when kinkUtilizationPercent is out of the [0, 100] range", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ kinkUtilizationPercent: 150 })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /out-of-range "kinkUtilizationPercent"/,
+    );
+  });
+
+  it("throws when kinkUtilizationPercent is not an exact sample in points", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ kinkUtilizationPercent: 42 })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /is not an exact sample/,
+    );
+  });
+
+  it("throws when maxAprPercent is negative", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          maxAprPercent: -1,
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 80, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 0 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /negative "maxAprPercent"/,
+    );
+  });
+
+  it("throws when a point's aprPercent is negative", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: -1 },
+            { utilizationPercent: 80, aprRay: "0", aprPercent: 4 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /"aprPercent".*outside \[0, maxAprPercent/,
+    );
+  });
+
+  it("throws when a point's aprPercent exceeds maxAprPercent", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 80, aprRay: "0", aprPercent: 4 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 65 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /"aprPercent".*outside \[0, maxAprPercent/,
+    );
+  });
 });

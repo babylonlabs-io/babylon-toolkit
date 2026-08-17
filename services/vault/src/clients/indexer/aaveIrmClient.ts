@@ -124,6 +124,57 @@ function parseIrmPayload(payload: unknown, endpoint: string): IrmCurve {
     };
   });
 
+  curve.forEach((point, index) => {
+    if (point.utilizationPercent < 0 || point.utilizationPercent > 100) {
+      throw new Error(
+        `IRM curve point ${index} from ${endpoint} has an out-of-range "utilizationPercent": ${point.utilizationPercent}`,
+      );
+    }
+    if (
+      index > 0 &&
+      point.utilizationPercent <= curve[index - 1].utilizationPercent
+    ) {
+      throw new Error(
+        `IRM curve response from ${endpoint} is not strictly ascending at point ${index}`,
+      );
+    }
+  });
+
+  if (curve[0].utilizationPercent !== 0) {
+    throw new Error(
+      `IRM curve response from ${endpoint} does not start at 0% utilization`,
+    );
+  }
+  if (curve[curve.length - 1].utilizationPercent !== 100) {
+    throw new Error(
+      `IRM curve response from ${endpoint} does not end at 100% utilization`,
+    );
+  }
+
+  if (kink < 0 || kink > 100) {
+    throw new Error(
+      `IRM curve response from ${endpoint} has an out-of-range "kinkUtilizationPercent": ${kink}`,
+    );
+  }
+  if (!curve.some((point) => point.utilizationPercent === kink)) {
+    throw new Error(
+      `IRM curve response from ${endpoint} has a "kinkUtilizationPercent" (${kink}) that is not an exact sample`,
+    );
+  }
+
+  if (maxApr < 0) {
+    throw new Error(
+      `IRM curve response from ${endpoint} has a negative "maxAprPercent": ${maxApr}`,
+    );
+  }
+  curve.forEach((point, index) => {
+    if (point.aprPercent < 0 || point.aprPercent > maxApr) {
+      throw new Error(
+        `IRM curve point ${index} from ${endpoint} has an "aprPercent" (${point.aprPercent}) outside [0, maxAprPercent=${maxApr}]`,
+      );
+    }
+  });
+
   return { curve, kinkUtilizationPercent: kink, maxAprPercent: maxApr };
 }
 

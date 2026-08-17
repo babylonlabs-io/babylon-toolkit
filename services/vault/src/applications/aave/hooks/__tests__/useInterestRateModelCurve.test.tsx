@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/clients/indexer/aaveIrmClient", () => ({
   fetchIrmCurve: vi.fn(),
@@ -13,6 +13,8 @@ import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { useInterestRateModelCurve } from "../useInterestRateModelCurve";
 
 const HUB = "0x0000000000000000000000000000000000000003" as const;
+const HOUR_MS = 60 * 60 * 1000;
+const SIXTY_SECONDS_MS = 60_000;
 
 function makeReserve(assetId = 0): AaveReserveConfig {
   return {
@@ -38,11 +40,16 @@ function makeReserve(assetId = 0): AaveReserveConfig {
   };
 }
 
-function wrapper({ children }: { children: ReactNode }) {
+function makeWrapper() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  function wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
+  return { client, wrapper };
 }
 
 describe("useInterestRateModelCurve", () => {
@@ -61,6 +68,7 @@ describe("useInterestRateModelCurve", () => {
       maxAprPercent: 64,
     });
 
+    const { wrapper } = makeWrapper();
     const { result } = renderHook(
       () => useInterestRateModelCurve({ reserve: makeReserve() }),
       { wrapper },
@@ -79,9 +87,12 @@ describe("useInterestRateModelCurve", () => {
 
   it("surfaces a fetch rejection with a null curve", async () => {
     vi.mocked(fetchIrmCurve).mockRejectedValue(
-      new Error("IRM curve request to https://indexer.test failed with status 502"),
+      new Error(
+        "IRM curve request to https://indexer.test failed with status 502",
+      ),
     );
 
+    const { wrapper } = makeWrapper();
     const { result } = renderHook(
       () => useInterestRateModelCurve({ reserve: makeReserve() }),
       { wrapper },
@@ -94,6 +105,7 @@ describe("useInterestRateModelCurve", () => {
   });
 
   it("is disabled when reserve is null", () => {
+    const { wrapper } = makeWrapper();
     const { result } = renderHook(
       () => useInterestRateModelCurve({ reserve: null }),
       { wrapper },
@@ -104,7 +116,61 @@ describe("useInterestRateModelCurve", () => {
     expect(fetchIrmCurve).not.toHaveBeenCalled();
   });
 
-  it("withholds the retained curve when a refetch after a successful load fails", async () => {
+  describe("refetch cadence", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("on success, does not refetch just under an hour later, then refetches exactly once past the hour", async () => {
+      vi.mocked(fetchIrmCurve).mockResolvedValue({
+        curve: [
+          { utilizationPercent: 0, aprPercent: 0 },
+          { utilizationPercent: 100, aprPercent: 10 },
+        ],
+        kinkUtilizationPercent: 50,
+        maxAprPercent: 10,
+      });
+
+      const { wrapper } = makeWrapper();
+      const { result } = renderHook(
+        () => useInterestRateModelCurve({ reserve: makeReserve() }),
+        { wrapper },
+      );
+
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(result.current.curve).not.toBeNull();
+      expect(fetchIrmCurve).toHaveBeenCalledTimes(1);
+
+      await act(() => vi.advanceTimersByTimeAsync(HOUR_MS - 1000));
+      expect(fetchIrmCurve).toHaveBeenCalledTimes(1);
+
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(fetchIrmCurve).toHaveBeenCalledTimes(2);
+    });
+
+    it("on an errored read, retries 60s later", async () => {
+      vi.mocked(fetchIrmCurve).mockRejectedValue(new Error("boom"));
+
+      const { wrapper } = makeWrapper();
+      const { result } = renderHook(
+        () => useInterestRateModelCurve({ reserve: makeReserve() }),
+        { wrapper },
+      );
+
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(result.current.error).toBeInstanceOf(Error);
+      expect(fetchIrmCurve).toHaveBeenCalledTimes(1);
+
+      await act(() => vi.advanceTimersByTimeAsync(SIXTY_SECONDS_MS));
+      expect(fetchIrmCurve).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("retains the last-good curve and reports a non-null error when a refetch after a successful load fails", async () => {
     vi.mocked(fetchIrmCurve)
       .mockResolvedValueOnce({
         curve: [
@@ -116,27 +182,21 @@ describe("useInterestRateModelCurve", () => {
       })
       .mockRejectedValueOnce(new Error("boom"));
 
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    function scopedWrapper({ children }: { children: ReactNode }) {
-      return (
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
-      );
-    }
-
+    const { client, wrapper } = makeWrapper();
     const { result } = renderHook(
       () => useInterestRateModelCurve({ reserve: makeReserve() }),
-      { wrapper: scopedWrapper },
+      { wrapper },
     );
 
     await waitFor(() => expect(result.current.curve).not.toBeNull());
+    expect(result.current.error).toBeNull();
 
     await client.refetchQueries();
 
     await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
-    expect(result.current.curve).toBeNull();
-    expect(result.current.kinkUtilizationPercent).toBeNull();
-    expect(result.current.maxAprPercent).toBeNull();
+    expect(result.current.curve).toHaveLength(2);
+    expect(result.current.kinkUtilizationPercent).toBe(50);
+    expect(result.current.maxAprPercent).toBe(10);
+    expect(fetchIrmCurve).toHaveBeenCalledTimes(2);
   });
 });

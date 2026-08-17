@@ -211,6 +211,24 @@ describe("InterestRateModelCard", () => {
     expect(lines).toEqual(["APR ~ 12%", "APR ~ 9%"]);
   });
 
+  it("interpolates the current-marker APR between the two neighboring samples", () => {
+    vi.mocked(useInterestRateModelCurve).mockReturnValue(FULL_HOOK_RESULT);
+
+    // 59% falls between MOCK_CURVE's 50->5 and 68->9 samples:
+    // 5 + (59-50)/(68-50) * (9-5) = 7.
+    const { container } = renderCard({ utilizationBps: 5900 });
+
+    const titles = Array.from(
+      container.querySelectorAll(".bbn-line-chart__callout-title"),
+    ).map((el) => el.textContent);
+    expect(titles).toEqual(["Optimal (Kink) 80%", "Current 59%"]);
+
+    const lines = Array.from(
+      container.querySelectorAll(".bbn-line-chart__callout-line"),
+    ).map((el) => el.textContent);
+    expect(lines).toEqual(["APR ~ 12%", "APR ~ 7%"]);
+  });
+
   it("scales the y-axis to the on-chain maxAprPercent, not a fixed ceiling", () => {
     vi.mocked(useInterestRateModelCurve).mockReturnValue(FULL_HOOK_RESULT);
 

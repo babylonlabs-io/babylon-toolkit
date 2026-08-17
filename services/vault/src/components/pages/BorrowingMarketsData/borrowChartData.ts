@@ -95,6 +95,10 @@ export function percentAxis(
  * Borrow APR at `utilizationPercent`, linearly interpolated between the two
  * neighboring samples (exact for the on-chain piecewise-linear strategy,
  * whose kink is always an exact sample). Clamped to the curve's ends.
+ *
+ * Precondition: `curve` must be sorted strictly ascending by
+ * `utilizationPercent` (the indexer client validates this at parse — see
+ * `aaveIrmClient.ts`).
  */
 export function aprAtUtilization(
   curve: IrmCurvePoint[],
@@ -112,11 +116,10 @@ export function aprAtUtilization(
     if (utilizationPercent > b.utilizationPercent) continue;
     const a = curve[i - 1];
     const span = b.utilizationPercent - a.utilizationPercent;
-    if (span === 0) return b.aprPercent;
     const t = (utilizationPercent - a.utilizationPercent) / span;
     return a.aprPercent + t * (b.aprPercent - a.aprPercent);
   }
-  return last.aprPercent;
+  throw new Error("aprAtUtilization: curve must be sorted ascending");
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1_000;

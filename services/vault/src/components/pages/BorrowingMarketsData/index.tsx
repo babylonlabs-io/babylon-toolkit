@@ -6,7 +6,7 @@
  * symbol's slice, the table shows every reserve. The two charts fetch their
  * series independently of that batch: `BorrowRateHistoryCard` queries the
  * indexer for a rate time series and `InterestRateModelCard` reads the
- * on-chain IRM curve (hour-cached; its live "Current" marker reuses the
+ * indexer IRM curve (hour-cached; its live "Current" marker reuses the
  * batch) — both keyed off the page's own `selectedReserve`.
  */
 
