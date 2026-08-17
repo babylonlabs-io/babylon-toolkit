@@ -18,7 +18,6 @@ import {
   PeginRegistrationMissingError,
   PeginRegistrationNotFinalError,
   computeRegistrationConfirmations,
-  isPeginRegistrationFinal,
   waitForPeginRegistrationDepth,
 } from "../peginRegistrationDepth";
 
@@ -73,20 +72,6 @@ describe("computeRegistrationConfirmations", () => {
         createdAtBlock: 101n,
       }),
     ).toBe(0);
-  });
-});
-
-describe("isPeginRegistrationFinal", () => {
-  it("is final at exactly 8 confirmations", () => {
-    expect(
-      isPeginRegistrationFinal({ currentBlock: 107n, createdAtBlock: 100n }),
-    ).toBe(true);
-  });
-
-  it("is not final at 7 confirmations", () => {
-    expect(
-      isPeginRegistrationFinal({ currentBlock: 106n, createdAtBlock: 100n }),
-    ).toBe(false);
   });
 });
 

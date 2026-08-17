@@ -8,7 +8,6 @@ export {
   PEGIN_ETH_CONFIRMATIONS,
   PeginRegistrationMissingError,
   PeginRegistrationNotFinalError,
-  isPeginRegistrationFinal,
   isPeginRegistrationMissingError,
   isPeginRegistrationNotFinalError,
   waitForPeginRegistrationDepth,

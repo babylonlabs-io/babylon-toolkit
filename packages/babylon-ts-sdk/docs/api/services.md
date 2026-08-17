@@ -3033,28 +3033,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistra
 
 ***
 
-### isPeginRegistrationFinal()
-
-```ts
-function isPeginRegistrationFinal(params): boolean;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
-
-Whether a registration has reached the required confirmation depth.
-
-#### Parameters
-
-##### params
-
-[`RegistrationDepthParams`](#registrationdepthparams) & `object`
-
-#### Returns
-
-`boolean`
-
-***
-
 ### waitForPeginRegistrationDepth()
 
 ```ts

@@ -14,7 +14,6 @@
  */
 
 import {
-  isPeginRegistrationFinal,
   waitForPeginRegistrationDepth,
   type PeginRegistrationDepthResult,
   type RegistrationDepthProgress,
@@ -51,19 +50,4 @@ export async function waitForEthRegistrationDepth(
     onProgress,
     signal,
   });
-}
-
-/**
- * Cheap pre-check for a `createdAt` already in hand.
- *
- * The resume path reads the vault before it reaches the gate, so any deposit
- * registered more than ~2 minutes ago short-circuits here — no extra contract
- * read, no poll loop, and no confirmation panel flashing on screen for a
- * deposit that has been final for hours.
- */
-export async function isEthRegistrationFinal(
-  createdAtBlock: bigint,
-): Promise<boolean> {
-  const currentBlock = await ethClient.getPublicClient().getBlockNumber();
-  return isPeginRegistrationFinal({ currentBlock, createdAtBlock });
 }

@@ -44,7 +44,6 @@ import {
   TELEMETRY_STAGE,
 } from "@/infrastructure/telemetryEvents";
 import {
-  isEthRegistrationFinal,
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
@@ -171,10 +170,25 @@ export function useVaultActions(): UseVaultActionsReturn {
   // the deposit modal) can unmount mid-flight; without this guard those
   // post-await setters fire on an unmounted component.
   const mountedRef = useRef(true);
+  // Cancels an in-flight broadcast. `mountedRef` only suppresses setState — it
+  // does not stop the flow, and the Ethereum finality gate can hold
+  // `handleBroadcast` for ~1.6 min, which is ample time for the user to close
+  // the modal. Without this the abandoned flow would carry on and raise a BTC
+  // wallet popup with no UI behind it.
+  const broadcastAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
     return () => {
       mountedRef.current = false;
+      // Abort on real unmount only. StrictMode re-runs the effect synchronously
+      // in the same task, so this microtask fires after the remount has already
+      // set mountedRef back to true — matching useDepositFlow's abort seam.
+      queueMicrotask(() => {
+        if (!mountedRef.current) {
+          broadcastAbortRef.current?.abort();
+          broadcastAbortRef.current = null;
+        }
+      });
     };
   }, []);
 
@@ -197,6 +211,10 @@ export function useVaultActions(): UseVaultActionsReturn {
 
     setBroadcasting(true);
     setBroadcastError(null);
+
+    const abortController = new AbortController();
+    broadcastAbortRef.current = abortController;
+    const { signal } = abortController;
 
     try {
       // Fetch vault data from GraphQL
@@ -271,31 +289,48 @@ export function useVaultActions(): UseVaultActionsReturn {
       //
       // Deliberately ahead of the wallet-liveness probe and everything after
       // it: no popup, no UTXO read and no signing should happen for a deposit
-      // we may refuse to broadcast. Any deposit registered more than ~2 min ago
-      // clears the fast path below without a poll or a progress panel.
-      if (!(await isEthRegistrationFinal(onChainVault.createdAt))) {
-        let finalBasicInfo;
-        try {
-          ({ basicInfo: finalBasicInfo } = await waitForEthRegistrationDepth({
-            vaultIds: [vaultId],
-            onProgress: setEthConfirmationDetail,
-          }));
-        } finally {
-          if (mountedRef.current) setEthConfirmationDetail(null);
-        }
+      // we may refuse to broadcast.
+      //
+      // Runs unconditionally, with no "already deep enough" shortcut computed
+      // from the `createdAt` read above. A shortcut would authorise the
+      // broadcast from a vault reading taken several RPC round-trips earlier
+      // and never look at the registry again; the wait re-reads live vault
+      // state and hands back the observation the status check below uses. For
+      // an already-final deposit — nearly every resume — it costs one extra
+      // contract read and returns without polling or rendering a counter.
+      let finalBasicInfo;
+      try {
+        ({ basicInfo: finalBasicInfo } = await waitForEthRegistrationDepth({
+          vaultIds: [vaultId],
+          // Publish only while the gate is actually holding. An already-final
+          // deposit reports its (large) depth once on the way out, and
+          // rendering that would flash a nonsensical "50000 of 8" counter.
+          onProgress: (progress) => {
+            if (progress.confirmations < progress.required) {
+              setEthConfirmationDetail(progress);
+            }
+          },
+          signal,
+        }));
+      } finally {
+        if (mountedRef.current) setEthConfirmationDetail(null);
+      }
 
-        // The PENDING gate above read pre-wait state and the wait can span
-        // minutes. `prePeginTxHash` cannot go stale — vaultId commits to it,
-        // so any re-mined registration under this id carries the same hash —
-        // but `status` can, so re-assert it on the post-wait observation.
-        if (finalBasicInfo.status !== OnChainBtcVaultStatus.PENDING) {
-          const label =
-            OnChainBtcVaultStatus[finalBasicInfo.status] ??
-            `UNKNOWN(${finalBasicInfo.status})`;
-          throw new Error(
-            `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
-          );
-        }
+      // The modal can be dismissed during a wait that spans minutes. Stop here
+      // rather than surfacing a BTC wallet popup for a flow whose UI is gone.
+      if (signal.aborted) return;
+
+      // The PENDING gate above read pre-wait state and the wait can span
+      // minutes. `prePeginTxHash` cannot go stale — vaultId commits to it, so
+      // any re-mined registration under this id carries the same hash — but
+      // `status` can, so re-assert it on the post-wait observation.
+      if (finalBasicInfo.status !== OnChainBtcVaultStatus.PENDING) {
+        const label =
+          OnChainBtcVaultStatus[finalBasicInfo.status] ??
+          `UNKNOWN(${finalBasicInfo.status})`;
+        throw new Error(
+          `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
+        );
       }
 
       // Get BTC wallet provider

@@ -14,10 +14,7 @@ import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/que
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
-import {
-  isEthRegistrationFinal,
-  waitForEthRegistrationDepth,
-} from "@/services/vault/ethConfirmationGate";
+import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
 import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
@@ -109,7 +106,6 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
 // the pre-existing broadcast tests are unaffected. The gate's own tests drive
 // these two directly.
 vi.mock("@/services/vault/ethConfirmationGate", () => ({
-  isEthRegistrationFinal: vi.fn(async () => true),
   waitForEthRegistrationDepth: vi.fn(async () => ({
     confirmations: 8,
     basicInfo: { status: OnChainBtcVaultStatus.PENDING },
@@ -202,7 +198,6 @@ const mockBroadcastPrePeginTransaction = vi.mocked(
 const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
-const mockIsEthRegistrationFinal = vi.mocked(isEthRegistrationFinal);
 const mockWaitForEthRegistrationDepth = vi.mocked(waitForEthRegistrationDepth);
 
 /**
@@ -1465,14 +1460,13 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
     mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
     mockFetchVaultById.mockResolvedValue(baseVault as never);
-    mockIsEthRegistrationFinal.mockResolvedValue(true);
     mockWaitForEthRegistrationDepth.mockResolvedValue({
       confirmations: 8,
       basicInfo: { status: OnChainBtcVaultStatus.PENDING },
     } as never);
   });
 
-  it("broadcasts without waiting when the registration is already deep enough", async () => {
+  it("consults the gate before broadcasting, even for an already-deep registration", async () => {
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
@@ -1482,28 +1476,52 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
       });
     });
 
-    expect(mockIsEthRegistrationFinal).toHaveBeenCalledWith(1_000n);
-    expect(mockWaitForEthRegistrationDepth).not.toHaveBeenCalled();
-    expect(result.current.ethConfirmationDetail).toBeNull();
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-  });
-
-  it("waits for depth before broadcasting when the registration is too recent", async () => {
-    mockIsEthRegistrationFinal.mockResolvedValue(false);
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: { ...basePendingPegin },
-      });
-    });
-
+    // No "already deep enough" shortcut computed from the earlier vault read:
+    // the gate re-reads live registry state and supplies the observation the
+    // post-wait status check uses.
     expect(mockWaitForEthRegistrationDepth).toHaveBeenCalledWith(
       expect.objectContaining({ vaultIds: ["0xvaultId"] }),
     );
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.broadcastError).toBeNull();
+  });
+
+  it("shows no confirmation counter for a registration that is already final", async () => {
+    // The gate reports the (large) depth once on its way out. Rendering that
+    // would flash a nonsensical counter over a deposit that never waited.
+    mockWaitForEthRegistrationDepth.mockImplementation((async (params: {
+      onProgress?: (p: { confirmations: number; required: number }) => void;
+    }) => {
+      params.onProgress?.({ confirmations: 50_000, required: 8 });
+      return {
+        confirmations: 50_000,
+        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+      };
+    }) as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.ethConfirmationDetail).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for depth before broadcasting", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
     expect(
       mockWaitForEthRegistrationDepth.mock.invocationCallOrder[0],
     ).toBeLessThan(
@@ -1512,7 +1530,6 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
   });
 
   it("does not touch the BTC wallet while waiting for depth", async () => {
-    mockIsEthRegistrationFinal.mockResolvedValue(false);
     mockWaitForEthRegistrationDepth.mockRejectedValue(
       new Error("still waiting for Ethereum confirmations"),
     );
@@ -1536,7 +1553,6 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
   });
 
   it("publishes live confirmation progress while waiting and clears it after", async () => {
-    mockIsEthRegistrationFinal.mockResolvedValue(false);
     const observed: Array<{ confirmations: number; required: number }> = [];
     mockWaitForEthRegistrationDepth.mockImplementation((async (params: {
       onProgress?: (p: { confirmations: number; required: number }) => void;
@@ -1566,8 +1582,55 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     expect(result.current.ethConfirmationDetail).toBeNull();
   });
 
+  it("passes an abort signal and stops before the wallet when the modal unmounts", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let releaseWait: (() => void) | undefined;
+    mockWaitForEthRegistrationDepth.mockImplementation((async (params: {
+      signal?: AbortSignal;
+    }) => {
+      capturedSignal = params.signal;
+      await new Promise<void>((resolve) => {
+        releaseWait = resolve;
+      });
+      return {
+        confirmations: 8,
+        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+      };
+    }) as never);
+
+    const { result, unmount } = renderHook(() => useVaultActions());
+
+    let broadcastPromise: Promise<void> | undefined;
+    await act(async () => {
+      broadcastPromise = result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+      await Promise.resolve();
+    });
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal!.aborted).toBe(false);
+
+    // Closing the resume modal must cancel the wait, not leave it running to
+    // raise a BTC wallet popup with no UI behind it.
+    await act(async () => {
+      unmount();
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)));
+    });
+
+    expect(capturedSignal!.aborted).toBe(true);
+
+    await act(async () => {
+      releaseWait?.();
+      await broadcastPromise;
+    });
+
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
   it("re-checks the on-chain status after the wait and refuses a vault that left PENDING", async () => {
-    mockIsEthRegistrationFinal.mockResolvedValue(false);
     // The PENDING gate ran before the wait; a wait spanning minutes can outlive
     // that reading, so the post-wait observation is authoritative.
     mockWaitForEthRegistrationDepth.mockResolvedValue({
@@ -1589,8 +1652,6 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
   });
 
   it("applies the gate on a cross-device resume that has no local record", async () => {
-    mockIsEthRegistrationFinal.mockResolvedValue(false);
-
     const { result } = renderHook(() => useVaultActions());
 
     await act(async () => {
@@ -1606,7 +1667,6 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
   });
 
   it("surfaces a depth timeout as an error and keeps the pending entry", async () => {
-    mockIsEthRegistrationFinal.mockResolvedValue(false);
     mockWaitForEthRegistrationDepth.mockRejectedValue(
       new Error("Peg-in registration did not reach 8 Ethereum confirmations"),
     );

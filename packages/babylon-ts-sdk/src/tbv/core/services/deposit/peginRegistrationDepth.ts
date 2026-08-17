@@ -119,14 +119,6 @@ export function computeRegistrationConfirmations(
   return depth < 0n ? 0 : Number(depth);
 }
 
-/** Whether a registration has reached the required confirmation depth. */
-export function isPeginRegistrationFinal(
-  params: RegistrationDepthParams & { required?: number },
-): boolean {
-  const { required = PEGIN_ETH_CONFIRMATIONS, ...depth } = params;
-  return computeRegistrationConfirmations(depth) >= required;
-}
-
 export interface RegistrationDepthProgress {
   /** Shallowest depth across every vault being waited on. */
   confirmations: number;
