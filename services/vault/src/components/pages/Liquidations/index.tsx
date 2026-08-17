@@ -2,27 +2,13 @@ import { Container, Loader, SeizureMap } from "@babylonlabs-io/core-ui";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
-import {
-  BPS_SCALE,
-  MIN_HEALTH_FACTOR_FOR_BORROW,
-} from "@/applications/aave/constants";
-import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
+import { BPS_SCALE } from "@/applications/aave/constants";
 import { calculate } from "@/applications/aave/positionNotifications";
-import {
-  calculateBorrowCapacityUsd,
-  getHealthFactorStatusFromValue,
-} from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import {
-  useDebugManualMode,
-  useDebugManualParams,
-  useDebugPositionOverride,
-} from "@/dev/debugPositionStore";
-import { useLiquidationPositionOverride } from "@/dev/liquidationDebugStore";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
 import { formatPriceUsd } from "@/utils/formatting";
@@ -34,6 +20,7 @@ import {
 import { LiquidationEventCard } from "./LiquidationEventCard";
 import { PositionOverview } from "./PositionOverview";
 import { SimulationToolbar } from "./SimulationToolbar";
+import { useLiquidationsPageState } from "./useLiquidationsPageState";
 
 /**
  * Liquidation Dashboard (issue #2043, Figma node 10209:67763).
@@ -46,8 +33,8 @@ import { SimulationToolbar } from "./SimulationToolbar";
  * cascade, this page charts THAT cascade instead — and every position stat
  * derives from it too, never from the live `useDashboardState`, so a
  * fabricated demo can never be shown as if it were the depositor's real
- * position. See `src/dev/debugPositionStore.ts`. A separate position override
- * (`src/dev/liquidationDebugStore.ts`) can additionally force the stat cards'
+ * position. See `src/overrides/position.ts`. A separate position override
+ * (`src/overrides/liquidations.ts`) can additionally force the stat cards'
  * own figures independent of the cascade — it wins over both the live
  * position and the cascade for those cards, while the cascade keeps driving
  * the event cards.
@@ -80,15 +67,7 @@ export default function Liquidations() {
   const { isConnected } = useConnection();
   const account = isConnected ? address : undefined;
 
-  const { result: liveResult, params: liveParams } =
-    usePositionNotifications(account);
   const {
-    collateralBtc,
-    collateralValueUsd,
-    debtValueUsd,
-    maxTotalDebtUsd,
-    healthFactor,
-    healthFactorStatus,
     hasCollateral,
     hasLoans,
     collateralFactorBps,
@@ -98,104 +77,13 @@ export default function Liquidations() {
 
   const { openBorrowPicker, openRepay } = useLoanActions({ borrowedAssets });
 
-  // God-mode override (dev only): manual mode drives this page's whole
-  // cascade, bypassing the connection/empty-state ladder below, the way
-  // `DashboardPage.tsx` drives its overview card. Compile-time dead in
-  // production, like the other debug hooks (debugPositionStore.ts) — nothing
-  // ever sets `manualMode` outside the debug panel, which is only imported
-  // behind `import.meta.env.DEV`.
-  const debugManualMode = useDebugManualMode();
-  const { result: debugResultOverride } = useDebugPositionOverride();
-  const debugManualParams = useDebugManualParams();
-  const godMode = useMemo(
-    () =>
-      debugManualMode && debugResultOverride
-        ? { result: debugResultOverride, params: debugManualParams }
-        : null,
-    [debugManualMode, debugResultOverride, debugManualParams],
-  );
-
-  // Position override (dev only): a lighter-weight god-mode control that sets
-  // this page's stat cards directly, without needing a real position or a
-  // Manual Mode cascade. It wins for the stat cards even over an active
-  // cascade above — see the `position` derivation below — while the cascade
-  // (godMode/`result`) keeps driving the event cards untouched.
-  const positionOverride = useLiquidationPositionOverride();
-  const isGodMode = godMode !== null || positionOverride !== null;
-
-  const result = godMode?.result ?? liveResult;
-  const params = godMode?.params ?? liveParams;
-
-  // Position stats shown above the chart. Precedence: the position override,
-  // then the god-mode cascade's own numbers, then the live `useDashboardState`
-  // figures — a mocked stat must never render mixed with a real one, so each
-  // branch is self-contained rather than layering overrides on a live base.
-  const position = useMemo(() => {
-    if (positionOverride) {
-      const {
-        collateralBtc: overrideCollateralBtc,
-        debtUsd,
-        healthFactor: overrideHealthFactor,
-      } = positionOverride;
-      // Price: the active cascade's if Manual Mode is on, else the live oracle
-      // price — `params` already resolves that precedence. No price available
-      // = an absent caption, not a fabricated "$0.00 USD".
-      // `maxTotalDebtUsd = debtUsd * HF / MIN_HEALTH_FACTOR_FOR_BORROW` mirrors
-      // `calculateBorrowCapacityUsd`: live HF = collateralValueUsd * LT /
-      // (BPS_SCALE * debtUsd), and maxTotalDebtUsd = collateralValueUsd * LT /
-      // BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW, so substituting collapses to
-      // this — guarded so a non-positive HF can't divide by zero or produce a
-      // negative denominator.
-      const btcPrice = params?.btcPrice ?? null;
-      return {
-        collateralBtc: overrideCollateralBtc,
-        collateralValueUsd:
-          btcPrice !== null ? overrideCollateralBtc * btcPrice : null,
-        debtValueUsd: debtUsd,
-        maxTotalDebtUsd:
-          overrideHealthFactor > 0
-            ? (debtUsd * overrideHealthFactor) / MIN_HEALTH_FACTOR_FOR_BORROW
-            : 0,
-        healthFactor: overrideHealthFactor,
-        healthFactorStatus:
-          getHealthFactorStatusFromValue(overrideHealthFactor),
-      };
-    }
-    if (!godMode) {
-      return {
-        collateralBtc,
-        collateralValueUsd,
-        debtValueUsd,
-        maxTotalDebtUsd,
-        healthFactor,
-        healthFactorStatus,
-      };
-    }
-    const { result: gmResult, params: gmParams } = godMode;
-    const { maxTotalDebtUsd: gmMaxTotalDebtUsd } = calculateBorrowCapacityUsd({
-      collateralValueUsd: gmResult.collateralValue,
-      currentDebtUsd: gmParams.totalDebtUsd,
-      liquidationThresholdBps: Math.round(gmParams.CF * BPS_SCALE),
-    });
-    return {
-      collateralBtc: gmParams.vaults.reduce((sum, v) => sum + v.btc, 0),
-      collateralValueUsd: gmResult.collateralValue,
-      debtValueUsd: gmParams.totalDebtUsd,
-      maxTotalDebtUsd: gmMaxTotalDebtUsd,
-      healthFactor: gmResult.currentHF,
-      healthFactorStatus: getHealthFactorStatusFromValue(gmResult.currentHF),
-    };
-  }, [
-    positionOverride,
+  const {
+    position,
     params,
-    godMode,
-    collateralBtc,
-    collateralValueUsd,
-    debtValueUsd,
-    maxTotalDebtUsd,
-    healthFactor,
-    healthFactorStatus,
-  ]);
+    result,
+    isGodMode,
+    cascade: cascadeOverride,
+  } = useLiquidationsPageState(account);
 
   const livePrice = params?.btcPrice ?? null;
   // `null` = "track the live price" — the slider hasn't diverged from it (or
@@ -228,8 +116,8 @@ export default function Liquidations() {
     return calculate({ ...params, btcPrice: projectedPrice });
   }, [params, result, projectedPrice]);
 
-  const collateralFactor = godMode
-    ? godMode.params.CF
+  const collateralFactor = cascadeOverride
+    ? cascadeOverride.params.CF
     : collateralFactorBps !== null
       ? collateralFactorBps / BPS_SCALE
       : null;

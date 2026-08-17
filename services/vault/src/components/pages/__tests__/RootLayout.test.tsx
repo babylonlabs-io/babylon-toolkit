@@ -60,12 +60,12 @@ vi.mock("@/context/wallet", () => ({
 const debugStatusMock = vi.hoisted(
   () => ({ value: null }) as { value: "frozen" | "paused" | null },
 );
-vi.mock("@/dev/debugPositionStore", async (importOriginal) => {
+vi.mock("@/overrides/protocolStatus", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@/dev/debugPositionStore")>();
+    await importOriginal<typeof import("@/overrides/protocolStatus")>();
   return {
     ...actual,
-    useDebugProtocolStatusOverride: () => debugStatusMock.value,
+    useProtocolStatusOverride: () => debugStatusMock.value,
   };
 });
 

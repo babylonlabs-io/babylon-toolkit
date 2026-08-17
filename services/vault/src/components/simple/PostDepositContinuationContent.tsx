@@ -12,10 +12,10 @@ import { useMemo } from "react";
 import type { Address, Hex } from "viem";
 
 import { useBTCWallet } from "@/context/wallet";
-import { useDemoDeposit } from "@/dev/demoDeposit";
 import type { DepositWarning } from "@/hooks/deposit/depositWarnings";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
+import { useDepositOverride } from "@/overrides/deposits";
 
 import { ContinuationWarnings } from "./ContinuationWarnings";
 import { PostDepositContinuationView } from "./PostDepositContinuationView";
@@ -55,7 +55,7 @@ export function PostDepositContinuationContent({
   // is what lets PostDepositContinuationView find the demo VaultActivity and
   // mount the activation branch; the app provider resolves demo polling results
   // by id via `demo.resultsById`. Inert in production.
-  const demo = useDemoDeposit();
+  const demo = useDepositOverride();
 
   const scoped = useMemo(() => {
     const ids = new Set<string>(vaultIds);

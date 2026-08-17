@@ -8,10 +8,6 @@ import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
-import {
-  demoFetchAndDownloadArtifacts,
-  isArtifactDownloadDemoEnabled,
-} from "@/dev/demoArtifactDownload";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { logger } from "@/infrastructure";
 import {
@@ -21,6 +17,7 @@ import {
   TELEMETRY_STAGE,
 } from "@/infrastructure/telemetryEvents";
 import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
+import { getArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import {
   ArtifactDownloadCancelledError,
   type ArtifactDownloadOutcome,
@@ -143,7 +140,7 @@ export function useArtifactDownload(options?: {
       // so the dialogs' progress states can be exercised. Opted into via the
       // god-mode panel's "Mock artifact download" toggle; off in production
       // builds, where the god-mode gate is compile-time false.
-      const demoDownload = isArtifactDownloadDemoEnabled();
+      const demoDownload = getArtifactDownloadOverride();
 
       // DO NOT REORDER: showSaveFilePicker() requires transient user
       // activation, which any preceding `await` destroys. Opening the save
@@ -225,7 +222,7 @@ export function useArtifactDownload(options?: {
         fetchOptions: FetchArtifactsOptions,
       ): Promise<ArtifactDownloadOutcome | null> =>
         demoDownload
-          ? demoFetchAndDownloadArtifacts(
+          ? demoDownload(
               saveTarget,
               { peginTxid: normalizedPeginTxid, depositorPk },
               fetchOptions,

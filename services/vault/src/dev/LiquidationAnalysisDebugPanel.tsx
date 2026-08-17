@@ -14,6 +14,13 @@
  * independently, so both can be on at once.
  */
 
+import { useEffect } from "react";
+
+import {
+  setLiquidationCardOverride,
+  setLiquidationPositionOverride,
+} from "@/overrides/liquidations";
+
 import {
   LIQUIDATION_DEBUG_STATES,
   setLiquidationDebugState,
@@ -38,6 +45,10 @@ const POSITION_FIELD_GRID_CLASS = "grid grid-cols-3 gap-x-3 gap-y-2";
 function PositionOverrideControls() {
   const enabled = useLiquidationPositionOverrideEnabled();
   const values = useLiquidationPositionOverrideValues();
+
+  useEffect(() => {
+    setLiquidationPositionOverride(enabled ? values : null);
+  }, [enabled, values]);
 
   const updateField = (
     field: keyof LiquidationPositionOverride,
@@ -108,6 +119,10 @@ function PositionOverrideControls() {
 
 export function LiquidationAnalysisDebugPanel() {
   const state = useLiquidationDebugState();
+
+  useEffect(() => {
+    setLiquidationCardOverride(state === "auto" ? null : state);
+  }, [state]);
 
   return (
     <details className={PANEL_SECTION_CLASS}>

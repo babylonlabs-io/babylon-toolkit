@@ -28,7 +28,7 @@ import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
-import { useDemoMarketData } from "@/dev/demoMarketData";
+import { useMarketDataOverride } from "@/overrides/marketData";
 import { getAssetPickerRoute, getMarketSlug, MARKET_PARAM } from "@/routes";
 import {
   getCurrencyIconWithFallback,
@@ -125,7 +125,7 @@ export default function BorrowingMarketsData() {
   // God-mode demo data (dev only; null unless the panel's toggle is on).
   // Substituted at the raw-hook layer, so the derivation below formats demo
   // figures exactly as it formats live ones. Inert in production.
-  const demoMarketData = useDemoMarketData();
+  const demoMarketData = useMarketDataOverride();
   const isDemo = demoMarketData !== null;
   const effectiveReserves = demoMarketData?.reserves ?? borrowableReserves;
   const effectiveLiquidityByReserveId =
@@ -170,9 +170,9 @@ export default function BorrowingMarketsData() {
     underlying: isDemo ? undefined : selectedReserve?.reserve.underlying,
   });
 
-  // Dev-only (`useDemoMarketData` is null in production): the fixture's own
-  // label stands in for a verified identity. The F7 gate below still governs
-  // every live reserve.
+  // Dev-only (`useMarketDataOverride` is null in production): the fixture's
+  // own label stands in for a verified identity. The F7 gate below still
+  // governs every live reserve.
   const demoIdentity = isDemo ? selectedReserve?.token : undefined;
   const symbol = demoIdentity?.symbol ?? identity?.symbol ?? "";
   const name = demoIdentity?.name ?? identity?.name ?? symbol;

@@ -75,10 +75,6 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
   }),
 }));
 
-vi.mock("@/dev/demoDeposit", () => ({
-  useDemoDeposit: () => null,
-}));
-
 vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
   VaultsSummaryCard: () => <div data-testid="vaults-summary-card" />,
 }));

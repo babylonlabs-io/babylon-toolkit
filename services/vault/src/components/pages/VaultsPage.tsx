@@ -33,11 +33,11 @@ import { VaultsSummaryCard } from "@/components/vaults/VaultsSummaryCard";
 import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { useDemoDeposit } from "@/dev/demoDeposit";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
+import { useDepositOverride } from "@/overrides/deposits";
 import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
 
 export default function VaultsPage() {
@@ -63,7 +63,7 @@ export default function VaultsPage() {
   // God-mode demo aggregate (dev only; null unless the panel's "Inject demo"
   // toggle is on). Routes the page to the populated layout even while
   // disconnected, so the sections can be exercised without a wallet.
-  const demo = useDemoDeposit();
+  const demo = useDepositOverride();
 
   // Withdraw flow, opened per-row with that vault preselected. Only the
   // demo-free list ever reaches it; its optimistic activating entries are
@@ -112,11 +112,6 @@ export default function VaultsPage() {
     }
   }, [address, queryClient]);
 
-  // The god-mode panel itself is mounted once by the route layout (see
-  // dev/GodModeMount); this only gates the demo-driven body below.
-  const isDevToolingEnabled =
-    import.meta.env.DEV && FeatureFlags.isGodModePanelEnabled;
-
   const populatedBody = (
     <div className="flex flex-col gap-8">
       {/* One of the two data sources failed while the other still has rows —
@@ -164,7 +159,7 @@ export default function VaultsPage() {
   const renderBody = () => {
     // Dev-only: with demo injection on, always show the populated layout —
     // even while disconnected — so the page can be exercised without a wallet.
-    if (isDevToolingEnabled && demo) return populatedBody;
+    if (demo) return populatedBody;
     if (isLoading) {
       return (
         <div className="flex items-center justify-center py-12">

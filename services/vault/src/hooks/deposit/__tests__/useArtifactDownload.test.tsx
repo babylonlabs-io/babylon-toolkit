@@ -8,6 +8,13 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const featureFlagsMock = vi.hoisted(() => ({
+  // The artifact-download override is itself gated on this flag; the
+  // god-mode test flips it on to exercise the gated path.
+  isGodModePanelEnabled: false,
+}));
+vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
+
 vi.mock("@/services/artifacts", async () => {
   // Re-export the real cancellation sentinel so the hook's
   // `err instanceof ArtifactDownloadCancelledError` check matches the
@@ -44,17 +51,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
 
-vi.mock("@/dev/demoArtifactDownload", () => ({
-  // Default OFF so every existing test exercises the real download path; the
-  // one demo test below flips it on.
-  isArtifactDownloadDemoEnabled: vi.fn(() => false),
-  demoFetchAndDownloadArtifacts: vi.fn(),
-}));
-
-import {
-  demoFetchAndDownloadArtifacts,
-  isArtifactDownloadDemoEnabled,
-} from "@/dev/demoArtifactDownload";
+import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import {
   ArtifactDownloadCancelledError,
   type ArtifactDownloadOutcome,
@@ -75,8 +72,6 @@ import { useArtifactDownload } from "../useArtifactDownload";
 const fetchMock = vi.mocked(fetchAndDownloadArtifacts);
 const openTargetMock = vi.mocked(openArtifactSaveTarget);
 const ensureAuthMock = vi.mocked(ensureAuthenticatedVpClient);
-const demoEnabledMock = vi.mocked(isArtifactDownloadDemoEnabled);
-const demoFetchMock = vi.mocked(demoFetchAndDownloadArtifacts);
 const saveReceiptMock = vi.mocked(saveArtifactDownloadReceipt);
 const hasDownloadedMock = vi.mocked(hasArtifactsDownloaded);
 
@@ -133,8 +128,8 @@ describe("useArtifactDownload — prime then fetch", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     ensureAuthMock.mockReset();
-    demoEnabledMock.mockReturnValue(false);
-    demoFetchMock.mockReset();
+    featureFlagsMock.isGodModePanelEnabled = false;
+    setArtifactDownloadOverride(null);
     saveReceiptMock.mockReset();
     hasDownloadedMock.mockReturnValue(false);
     openTargetMock.mockReset();
@@ -144,6 +139,8 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    featureFlagsMock.isGodModePanelEnabled = false;
+    setArtifactDownloadOverride(null);
   });
 
   it("primes the bearer upfront when the registry is cold, then fetches once", async () => {
@@ -303,8 +300,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     // gate: the file it wrote is synthetic, so mocking a download on a real
     // vault must not leave that vault looking recoverable, so it reports
     // `delivered` (which drives the UI) and never `downloaded`.
-    demoEnabledMock.mockReturnValue(true);
-    demoFetchMock.mockResolvedValueOnce(undefined);
+    featureFlagsMock.isGodModePanelEnabled = true;
+    const overrideFn = vi.fn().mockResolvedValueOnce(undefined);
+    setArtifactDownloadOverride(overrideFn);
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID }),
@@ -316,8 +314,8 @@ describe("useArtifactDownload — prime then fetch", () => {
 
     await waitFor(() => expect(result.current.delivered).toBe(true));
     expect(result.current.downloaded).toBe(false);
-    expect(demoFetchMock).toHaveBeenCalledTimes(1);
-    expect(demoFetchMock).toHaveBeenCalledWith(
+    expect(overrideFn).toHaveBeenCalledTimes(1);
+    expect(overrideFn).toHaveBeenCalledWith(
       SAVE_TARGET,
       { peginTxid: PEGIN_TXID, depositorPk: DEPOSITOR_PK },
       expect.anything(),
@@ -712,7 +710,8 @@ describe("useArtifactDownload — funnel telemetry", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     ensureAuthMock.mockReset();
-    demoEnabledMock.mockReturnValue(false);
+    featureFlagsMock.isGodModePanelEnabled = false;
+    setArtifactDownloadOverride(null);
     saveReceiptMock.mockReset();
     hasDownloadedMock.mockReset();
     hasDownloadedMock.mockReturnValue(false);

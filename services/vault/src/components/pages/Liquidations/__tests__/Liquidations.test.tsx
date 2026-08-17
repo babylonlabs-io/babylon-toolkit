@@ -6,7 +6,7 @@ import { calculate } from "@/applications/aave/positionNotifications";
 import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
 import { formatHealthFactor } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
-import type { LiquidationPositionOverride } from "@/dev/liquidationDebugStore";
+import type { LiquidationPositionOverride } from "@/overrides/liquidations";
 import { formatBtcAmount, formatUsd } from "@/utils/formatting";
 
 /**
@@ -22,9 +22,7 @@ const useConnectionMock = vi.fn();
 const useETHWalletMock = vi.fn();
 const useDashboardStateMock = vi.fn();
 const usePositionNotificationsMock = vi.fn();
-const useDebugManualModeMock = vi.fn();
-const useDebugPositionOverrideMock = vi.fn();
-const useDebugManualParamsMock = vi.fn();
+const usePositionCascadeOverrideMock = vi.fn();
 const useLiquidationPositionOverrideMock = vi.fn();
 
 vi.mock("@/context/wallet", () => ({
@@ -40,13 +38,11 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   usePositionNotifications: () => usePositionNotificationsMock(),
 }));
 
-vi.mock("@/dev/debugPositionStore", () => ({
-  useDebugManualMode: () => useDebugManualModeMock(),
-  useDebugPositionOverride: () => useDebugPositionOverrideMock(),
-  useDebugManualParams: () => useDebugManualParamsMock(),
+vi.mock("@/overrides/position", () => ({
+  usePositionCascadeOverride: () => usePositionCascadeOverrideMock(),
 }));
 
-vi.mock("@/dev/liquidationDebugStore", () => ({
+vi.mock("@/overrides/liquidations", () => ({
   useLiquidationPositionOverride: () => useLiquidationPositionOverrideMock(),
 }));
 
@@ -180,18 +176,15 @@ function connectWallet() {
 
 /** Manual mode off, matching the real store's default (untouched in production). */
 function disableGodMode() {
-  useDebugManualModeMock.mockReturnValue(false);
-  useDebugPositionOverrideMock.mockReturnValue({ result: null, status: null });
-  useDebugManualParamsMock.mockReturnValue(GOD_MODE_PARAMS);
+  usePositionCascadeOverrideMock.mockReturnValue(null);
 }
 
 function enableGodMode() {
-  useDebugManualModeMock.mockReturnValue(true);
-  useDebugPositionOverrideMock.mockReturnValue({
+  usePositionCascadeOverrideMock.mockReturnValue({
     result: GOD_MODE_RESULT,
     status: null,
+    params: GOD_MODE_PARAMS,
   });
-  useDebugManualParamsMock.mockReturnValue(GOD_MODE_PARAMS);
 }
 
 /** Position override off, matching the real store's default (untouched in production). */

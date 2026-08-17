@@ -13,8 +13,8 @@ import { useMemo } from "react";
 
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
-import { useDemoCollateral } from "@/dev/demoDeposit";
 import { useDashboardState } from "@/hooks/useDashboardState";
+import { useCollateralOverride } from "@/overrides/collateral";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import {
   formatBtcAmount,
@@ -34,7 +34,7 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     collateralVaults,
   } = useDashboardState(connectedAddress);
 
-  const demoCollateral = useDemoCollateral();
+  const demoCollateral = useCollateralOverride();
   const displayVaults = useMemo((): CollateralVaultEntry[] => {
     if (!demoCollateral) return collateralVaults;
     return [

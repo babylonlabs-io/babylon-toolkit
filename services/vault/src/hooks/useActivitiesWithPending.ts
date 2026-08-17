@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 
 import { STORAGE_UPDATE_EVENT } from "../constants";
-import { useDemoActivity } from "../dev/demoDeposit";
+import { useActivityOverride } from "../overrides/activity";
 import { getPendingActivities } from "../services/activity";
 import type { ActivityLog, ActivityRow } from "../types/activityLog";
 
@@ -38,7 +38,7 @@ export function useActivitiesWithPending(userAddress: Address | undefined) {
   // indexed history. Read-only display rows: nothing here is ever polled,
   // written to localStorage, or deduplicated against real ids. Inert in
   // production.
-  const demo = useDemoActivity();
+  const demo = useActivityOverride();
 
   // Load pending activities from localStorage
   const loadPendingActivities = useCallback(() => {

@@ -45,7 +45,6 @@ import { PostDepositContinuationContent } from "@/components/simple/PostDepositC
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
-import { getDemoStepperBatch } from "@/dev/demoDeposit";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import {
@@ -54,6 +53,7 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
+import { getDemoStepperBatch } from "@/overrides/deposits";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
@@ -429,12 +429,10 @@ export function VaultsLifecycleSections({
       const activity = allActivities.find((a) => a.id === depositId);
       if (!activity) {
         // God-mode: an owned flow-state demo card opens the multistepper so
-        // the whole flow can be walked. `import.meta.env.DEV` tree-shakes
-        // this from production, where `demo` is always null.
-        if (import.meta.env.DEV) {
-          const demoBatch = getDemoStepperBatch(demo, depositId);
-          if (demoBatch) setViewingBatch(demoBatch);
-        }
+        // the whole flow can be walked. `getDemoStepperBatch` is null-safe
+        // and gated at source, so this is a no-op in production.
+        const demoBatch = getDemoStepperBatch(demo, depositId);
+        if (demoBatch) setViewingBatch(demoBatch);
         return;
       }
       const siblings = getBatchSiblings(allActivities, activity);

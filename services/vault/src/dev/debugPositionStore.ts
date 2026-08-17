@@ -15,24 +15,11 @@
 
 import { useSyncExternalStore } from "react";
 
-import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
 import type {
   BannerSeverity,
   CalculatorParams,
-  CalculatorResult,
 } from "@/applications/aave/positionNotifications";
-import {
-  getHealthFactorStatusFromValue,
-  type HealthFactorStatus,
-} from "@/applications/aave/utils";
 import type { ProtocolStatus } from "@/components/shared/protocolStatus";
-import featureFlags from "@/config/featureFlags";
-
-/** Derived banner override the dashboard reads: null result/status = use live. */
-export interface DebugPositionOverride {
-  result: CalculatorResult | null;
-  status: PositionNotificationsStatus | null;
-}
 
 // Representative sample inputs for manual mode — a realistic starting point,
 // NOT protocol parameters. The ratio defaults are exported so the panel's
@@ -191,8 +178,6 @@ export function applyDebugPreset(preset: DebugPreset) {
   emit();
 }
 
-const NO_OVERRIDE: DebugPositionOverride = { result: null, status: null };
-
 /**
  * Cap used when "maximum vaults reached" is forced from the panel — the
  * on-chain governance value at the time of writing, so the forced card reads
@@ -240,7 +225,6 @@ const DEBUG_BORROW_CAPACITY_SNAPSHOTS: Record<
 let manualMode = false;
 let simulateStalePrice = false;
 let manualParams: CalculatorParams = makeDefaultDebugParams();
-let override: DebugPositionOverride = NO_OVERRIDE;
 // Non-cascade notification overrides (Figma v3 §7 / §8 / §9). null = no
 // override, i.e. the component uses live chain state.
 let maxVaultsOverride: number | null = null;
@@ -285,20 +269,6 @@ export function resetDebugManualParams() {
   emit();
 }
 
-/**
- * Publish the derived banner override. Written by the debug panel's effect and
- * read by the dashboard. Reference-guarded so an unchanged override doesn't
- * churn subscribers (mirrors React's setState bailout).
- */
-export function setDebugPositionOverride(
-  result: CalculatorResult | null,
-  status: PositionNotificationsStatus | null,
-) {
-  if (override.result === result && override.status === status) return;
-  override = { result, status };
-  emit();
-}
-
 /** Force (a cap number) or release (null) the "maximum vaults reached" card. */
 export function setDebugMaxVaultsOverride(cap: number | null) {
   maxVaultsOverride = cap;
@@ -334,10 +304,6 @@ function getSimulateStalePrice() {
 function getManualParams() {
   return manualParams;
 }
-function getOverride() {
-  return override;
-}
-
 export function useDebugManualMode(): boolean {
   return useSyncExternalStore(subscribe, getManualMode, getManualMode);
 }
@@ -354,31 +320,23 @@ export function useDebugManualParams(): CalculatorParams {
   return useSyncExternalStore(subscribe, getManualParams, getManualParams);
 }
 
-export function useDebugPositionOverride(): DebugPositionOverride {
-  return useSyncExternalStore(subscribe, getOverride, getOverride);
-}
-
-// The two overrides below are read by PRODUCTION components (the max-vaults
-// notice and the protocol banner), so they are additionally gated on the
-// god-mode flag — which is itself hard-gated on `import.meta.env.DEV`. In a
-// production build these getters are compile-time constant `null`, exactly like
-// demoArtifactDownload's mock gate, so the components always see live state.
+// Plain getters for the panel's own display hooks below. The god-mode gate
+// for PRODUCTION consumers now lives solely in `overrides/store.ts` (read via
+// the matching `@/overrides/*` store), so these no longer re-check the flag.
 function getMaxVaultsOverride(): number | null {
-  return featureFlags.isGodModePanelEnabled ? maxVaultsOverride : null;
+  return maxVaultsOverride;
 }
 
 function getProtocolStatusOverride(): ProtocolStatus | null {
-  return featureFlags.isGodModePanelEnabled ? protocolStatusOverride : null;
+  return protocolStatusOverride;
 }
 
 function getHealthFactorOverride(): number | null {
-  return featureFlags.isGodModePanelEnabled ? healthFactorOverride : null;
+  return healthFactorOverride;
 }
 
 function getBorrowCapacityStateOverride(): DebugBorrowCapacityState | null {
-  return featureFlags.isGodModePanelEnabled
-    ? borrowCapacityStateOverride
-    : null;
+  return borrowCapacityStateOverride;
 }
 
 function getBorrowCapacity(): DebugBorrowCapacity | null {
@@ -421,27 +379,10 @@ export function useDebugBorrowCapacityStateOverride(): DebugBorrowCapacityState 
 
 /**
  * The forced borrow-capacity rendering state for the v3 Loans summary, or null
- * to use the live read. Production reads THIS (not the raw state or the Error
- * constant) so the simulated-failure message never enters a production build.
+ * to use the live read. The panel publishes THIS (not the raw state or the
+ * Error constant) to `@/overrides/borrowCapacity`, so the simulated-failure
+ * message never enters a production build.
  */
 export function useDebugBorrowCapacity(): DebugBorrowCapacity | null {
   return useSyncExternalStore(subscribe, getBorrowCapacity, getBorrowCapacity);
-}
-
-/**
- * What a page should render for the health factor given a forced value. Shared
- * by every god-mode consumer so they can't drift on how a forced value maps to
- * a status: the status is always re-derived with the production banding
- * function, never carried over from the live read.
- */
-export function resolveShownHealthFactor(
-  override: number | null,
-  healthFactor: number | null,
-  healthFactorStatus: HealthFactorStatus,
-): { healthFactor: number | null; healthFactorStatus: HealthFactorStatus } {
-  if (override === null) return { healthFactor, healthFactorStatus };
-  return {
-    healthFactor: override,
-    healthFactorStatus: getHealthFactorStatusFromValue(override),
-  };
 }

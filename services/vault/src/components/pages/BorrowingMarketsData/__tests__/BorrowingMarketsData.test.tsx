@@ -67,10 +67,10 @@ vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({ icon: "btc-icon.svg" }),
 }));
 
-const useDemoMarketDataMock = vi.fn();
+const useMarketDataOverrideMock = vi.fn();
 
-vi.mock("@/dev/demoMarketData", () => ({
-  useDemoMarketData: () => useDemoMarketDataMock(),
+vi.mock("@/overrides/marketData", () => ({
+  useMarketDataOverride: () => useMarketDataOverrideMock(),
 }));
 
 // The two chart cards have their own dedicated test files (chart internals,
@@ -232,7 +232,7 @@ function setUpHooks({
   identityError = null,
   isIntegrityViolation = false,
 }: HookOverrides = {}) {
-  useDemoMarketDataMock.mockReturnValue(demoMarketData);
+  useMarketDataOverrideMock.mockReturnValue(demoMarketData);
   useAaveConfigMock.mockReturnValue({
     config: { coreSpokeAddress: "0xspoke000000000000000000000000000000000" },
     borrowableReserves,
