@@ -7,6 +7,84 @@ Callers own the wallet; services own the orchestration.
 
 ## Classes
 
+### PeginRegistrationMissingError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+The vault is not registered on-chain at all. Thrown only on the FIRST poll,
+where it means the caller's premise was wrong rather than that a reorg took
+the registration away — retrying will not help.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new PeginRegistrationMissingError(message): PeginRegistrationMissingError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`PeginRegistrationMissingError`](#peginregistrationmissingerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
+### PeginRegistrationNotFinalError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+The registration did not reach the required depth within the budget.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new PeginRegistrationNotFinalError(message): PeginRegistrationNotFinalError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`PeginRegistrationNotFinalError`](#peginregistrationnotfinalerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### ParticipantKeyDriftError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
@@ -551,6 +629,180 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 ###### Returns
 
 `Promise`\<[`RequestDepositorClaimerArtifactsResponse`](clients.md#requestdepositorclaimerartifactsresponse)\>
+
+***
+
+### RegistrationDepthParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+#### Properties
+
+##### currentBlock
+
+```ts
+currentBlock: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Current chain tip block number.
+
+##### createdAtBlock
+
+```ts
+createdAtBlock: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Block number the registration was mined at (`VaultBasicInfo.createdAt`).
+
+***
+
+### RegistrationDepthProgress
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+#### Properties
+
+##### confirmations
+
+```ts
+confirmations: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Shallowest depth across every vault being waited on.
+
+##### required
+
+```ts
+required: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+***
+
+### WaitForPeginRegistrationDepthParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+#### Properties
+
+##### vaultRegistryReader
+
+```ts
+vaultRegistryReader: VaultRegistryReader;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+##### getBlockNumber()
+
+```ts
+getBlockNumber: () => Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Chain-tip reader. A thunk rather than a `PublicClient` so this module has
+no viem-client dependency and stays testable with two plain fakes — the
+same shape `verifyRegisteredVaultVersions` uses for its reader.
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+##### vaultIds
+
+```ts
+vaultIds: readonly `0x${string}`[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Vaults registered by the same transaction; the shallowest one gates.
+
+##### required?
+
+```ts
+optional required: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+##### pollIntervalMs?
+
+```ts
+optional pollIntervalMs: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+##### timeoutMs?
+
+```ts
+optional timeoutMs: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+##### signal?
+
+```ts
+optional signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+##### onProgress()?
+
+```ts
+optional onProgress: (progress) => void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+###### Parameters
+
+###### progress
+
+[`RegistrationDepthProgress`](#registrationdepthprogress)
+
+###### Returns
+
+`void`
+
+***
+
+### PeginRegistrationDepthResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+#### Properties
+
+##### confirmations
+
+```ts
+confirmations: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+##### basicInfo
+
+```ts
+basicInfo: VaultBasicInfo;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+The final observation for the shallowest vault. Callers that gated on
+`status` before the wait should re-assert it against this — the wait can
+span minutes, and a vault can leave PENDING in that time.
 
 ***
 
@@ -2741,6 +2993,102 @@ whatever the injected `writeContract` throws
 
 ***
 
+### isPeginRegistrationMissingError()
+
+```ts
+function isPeginRegistrationMissingError(err): err is PeginRegistrationMissingError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is PeginRegistrationMissingError`
+
+***
+
+### isPeginRegistrationNotFinalError()
+
+```ts
+function isPeginRegistrationNotFinalError(err): err is PeginRegistrationNotFinalError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is PeginRegistrationNotFinalError`
+
+***
+
+### isPeginRegistrationFinal()
+
+```ts
+function isPeginRegistrationFinal(params): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Whether a registration has reached the required confirmation depth.
+
+#### Parameters
+
+##### params
+
+[`RegistrationDepthParams`](#registrationdepthparams) & `object`
+
+#### Returns
+
+`boolean`
+
+***
+
+### waitForPeginRegistrationDepth()
+
+```ts
+function waitForPeginRegistrationDepth(params): Promise<PeginRegistrationDepthResult>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Poll until every vault's registration is at least `required` blocks deep.
+
+#### Parameters
+
+##### params
+
+[`WaitForPeginRegistrationDepthParams`](#waitforpeginregistrationdepthparams)
+
+#### Returns
+
+`Promise`\<[`PeginRegistrationDepthResult`](#peginregistrationdepthresult)\>
+
+#### Throws
+
+if no vault is registered on the first poll.
+
+#### Throws
+
+on timeout.
+
+#### Throws
+
+if aborted, or if the tip read fails on the first poll.
+
+***
+
 ### getPeginProtocolState()
 
 ```ts
@@ -3853,6 +4201,26 @@ PAYOUT_BLOCKED: "PayoutBlocked";
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 ## Variables
+
+### PEGIN\_ETH\_CONFIRMATIONS
+
+```ts
+const PEGIN_ETH_CONFIRMATIONS: 8 = 8;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
+
+Ethereum block confirmations required before the Pre-PegIn BTC transaction
+may be broadcast.
+
+8 exceeds the deepest reorg ever observed on Ethereum (7, pre-merge, caused
+by a client bug), and costs ~1.6 min at 12s slots. Deliberately not the
+`safe` block tag: a full epoch (~12.8 min) was rejected as too slow for the
+benefit. This is a liveness guard against an orphaned registration, not a
+theft mitigation — every Pre-PegIn HTLC spend path requires the depositor's
+own BTC key regardless.
+
+***
 
 ### REFUND\_VSIZE
 
