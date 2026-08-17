@@ -41,9 +41,9 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 /**
- * Exclusive upper bound on VP commission (bps) — `BTCVaultRegistry._validateCommission`
- * ceiling. Local literal by design: the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE`
- * is an internal module, not public API.
+ * Exclusive upper bound on VP commission (bps) — mirrors `VPKeyRegistryLogic.sol`
+ * (registerVaultProvider / updateCommission bounds). Local literal by design:
+ * the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE` is an internal module, not public API.
  */
 const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
 
@@ -53,6 +53,38 @@ const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
  * `max(minVpCommissionBps, 1)`.
  */
 const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
+
+/**
+ * Trust-boundary check on a VP commission read from chain — mirrors
+ * `VPKeyRegistryLogic.sol`'s registration/update bounds (plus the tx-graph's
+ * nonzero floor) so downstream consumers can trust the value.
+ */
+export function assertVpCommissionInProtocolRange(
+  bps: number,
+  minVpCommissionBps: number,
+): void {
+  // NaN/undefined would silently disable the floor (Math.max(NaN, 1) → NaN,
+  // and every < comparison below turns false) — reject the bad read loudly.
+  if (!Number.isInteger(minVpCommissionBps) || minVpCommissionBps < 0) {
+    throw new Error(
+      `minVpCommissionBps must be a non-negative integer, got ${minVpCommissionBps}`,
+    );
+  }
+  const minCommissionBps = Math.max(
+    minVpCommissionBps,
+    MIN_REALIZABLE_VP_COMMISSION_BPS,
+  );
+  if (
+    !Number.isInteger(bps) ||
+    bps < minCommissionBps ||
+    bps >= VP_COMMISSION_BPS_EXCLUSIVE_MAX
+  ) {
+    throw new Error(
+      `VP commission ${bps} bps out of protocol range ` +
+        `[${minCommissionBps}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX})`,
+    );
+  }
+}
 
 export interface PrepareSigningContextParams {
   /** Derived vault ID (for contract calls) */
@@ -187,23 +219,10 @@ export async function prepareSigningContext(
     vault.offchainParamsVersion,
   );
 
-  // Trust-boundary check on the VP commission read from chain — mirrors
-  // `BTCVaultRegistry._validateCommission` so `buildPayoutPsbt` can trust it.
-  const minCommissionBps = Math.max(
+  assertVpCommissionInProtocolRange(
+    vault.vaultProviderCommissionBps,
     offchainParams.minVpCommissionBps,
-    MIN_REALIZABLE_VP_COMMISSION_BPS,
   );
-  if (
-    !Number.isInteger(vault.vaultProviderCommissionBps) ||
-    vault.vaultProviderCommissionBps < minCommissionBps ||
-    vault.vaultProviderCommissionBps >= VP_COMMISSION_BPS_EXCLUSIVE_MAX
-  ) {
-    throw new Error(
-      `VP commission ${vault.vaultProviderCommissionBps} bps out of protocol ` +
-        `range [${minCommissionBps}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX}) ` +
-        `for offchain params version ${vault.offchainParamsVersion}`,
-    );
-  }
 
   const councilMembers = offchainParams.securityCouncilKeys
     .map((k) => stripHexPrefix(k))

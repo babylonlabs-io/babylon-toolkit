@@ -39,8 +39,8 @@ vi.mock("@/hooks/useVaultDeposits", () => ({
   }),
 }));
 
-vi.mock("@/dev/demoDeposit", () => ({
-  useDemoDeposit: () => ({
+vi.mock("@/overrides/deposits", () => ({
+  useDepositOverride: () => ({
     pendingActivities: [{ id: DEMO_ID }],
     resultsById: new Map(),
   }),

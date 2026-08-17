@@ -5,6 +5,7 @@
  */
 
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,11 +14,24 @@ import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/que
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
+import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
+import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
+import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 
 import { useVaultActions } from "../useVaultActions";
 
 const mockSignPsbt = vi.hoisted(() => vi.fn().mockResolvedValue("signedPsbt"));
+const makeDefaultChainConnector = vi.hoisted(() => () => ({
+  connectedWallet: {
+    account: { address: "bc1qdepositor" },
+    provider: {
+      connectWallet: vi.fn().mockResolvedValue(undefined),
+      getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+      signPsbt: mockSignPsbt,
+    },
+  },
+}));
 const mockCalculateBtcTxHash = vi.hoisted(() =>
   vi.fn(() => "0xmatching_pre_pegin_hash"),
 );
@@ -104,16 +118,7 @@ vi.mock("@/clients/eth-contract/pause-state/query", () => ({
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: vi.fn(() => ({})),
-  useChainConnector: vi.fn(() => ({
-    connectedWallet: {
-      account: { address: "bc1qdepositor" },
-      provider: {
-        connectWallet: vi.fn().mockResolvedValue(undefined),
-        getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-        signPsbt: mockSignPsbt,
-      },
-    },
-  })),
+  useChainConnector: vi.fn(makeDefaultChainConnector),
 }));
 
 vi.mock("wagmi/actions", () => ({
@@ -139,6 +144,14 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
 
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
+}));
+
+vi.mock("@/services/vault/rebuildDepositTerms", () => ({
+  rebuildDepositTerms: vi.fn(),
+}));
+
+vi.mock("@/services/vault/resolveFundedTxFee", () => ({
+  resolveFundedTxFeeAndUtxos: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
@@ -234,9 +247,19 @@ function makeMatchingProtocolInfoBatch() {
 
 const baseBroadcastParams = {
   vaultId: "0xvaultId" as Hex,
+  depositorEthAddress: "0xconnected_depositor",
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
 };
+
+// Re-assert the default connector before EVERY test so a describe that
+// overrides useChainConnector's return value cannot leak a stale wallet into
+// later tests. Idempotent for tests that never override it.
+beforeEach(() => {
+  vi.mocked(useChainConnector).mockImplementation(
+    makeDefaultChainConnector as never,
+  );
+});
 
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
   beforeEach(() => {
@@ -1203,5 +1226,195 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
     expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
     expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+});
+
+describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", () => {
+  const RESOLVED = {
+    expectedUtxos: {
+      ["ab".repeat(32) + ":0"]: { scriptPubKey: "5120aa", value: 500_000 },
+    },
+    fundedTxFee: 1234n,
+  };
+  const REBUILT_TERMS = { prepeginTxid: "ff".repeat(32) };
+  // Single fixture for the chain read AND the `target` the hook must forward
+  // to the rebuild — the same object, not a re-read.
+  const ONCHAIN_VAULT = {
+    prePeginTxHash: "0xmatching_pre_pegin_hash",
+    hashlock: "0xonchain_hashlock",
+    status: OnChainBtcVaultStatus.PENDING,
+  };
+
+  function connectIntentWallet() {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+          deriveContextHash: vi.fn().mockResolvedValue("ab".repeat(32)),
+          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    } as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue(ONCHAIN_VAULT as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
+    vi.mocked(resolveFundedTxFeeAndUtxos).mockResolvedValue(RESOLVED as never);
+    vi.mocked(rebuildDepositTerms).mockResolvedValue(REBUILT_TERMS as never);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+  });
+
+  it("rebuilds terms from chain and forwards them (with approval capability) to the broadcast", async () => {
+    connectIntentWallet();
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    // Prevouts resolved once, mempool-only (no same-device record argument).
+    expect(resolveFundedTxFeeAndUtxos).toHaveBeenCalledWith(TRUSTED_TX_HEX);
+    expect(rebuildDepositTerms).toHaveBeenCalledWith({
+      vaultId: "0xvaultId",
+      target: ONCHAIN_VAULT,
+      fundedPrePeginTxHex: TRUSTED_TX_HEX,
+      connectedDepositorAddress: "0xconnected_depositor",
+      depositorBtcPubkey: "depositorBtcPubkey",
+      fundedTxFee: 1234n,
+    });
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unsignedTxHex: TRUSTED_TX_HEX,
+        depositTerms: REBUILT_TERMS,
+        expectedUtxos: RESOLVED.expectedUtxos,
+        btcWalletProvider: expect.objectContaining({
+          approveDepositTerms: expect.any(Function),
+          deriveContextHash: expect.any(Function),
+        }),
+      }),
+    );
+  });
+
+  it("does not broadcast (and reports the error) when the rebuild fails", async () => {
+    connectIntentWallet();
+    vi.mocked(rebuildDepositTerms).mockRejectedValue(
+      new Error(
+        "Sibling vaults of this Pre-PegIn disagree on offchainParamsVersion",
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toContain("disagree on");
+  });
+
+  it("skips the rebuild entirely for a software (signPsbt-only) wallet", async () => {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+        },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(resolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
+    const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
+    expect("depositTerms" in broadcastArg).toBe(false);
+  });
+
+  // The seam guard (ensurePrePeginTermsApproval) must see the capability
+  // absent — an always-present wrapper property would turn its typed error
+  // into a mid-ceremony TypeError.
+  it("does not forward deriveContextHash when the intent wallet lacks it", async () => {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
+    expect("deriveContextHash" in broadcastArg.btcWalletProvider).toBe(false);
+    expect("approveDepositTerms" in broadcastArg.btcWalletProvider).toBe(true);
+  });
+
+  // The intent path resolves prevouts mempool-only; the local UTXO record
+  // helper belongs to the software branch and must never run here.
+  it("broadcasts even when the local UTXO record helper would throw", async () => {
+    connectIntentWallet();
+    vi.mocked(utxosToExpectedRecord).mockImplementation(() => {
+      throw new Error("stale local UTXO record");
+    });
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          selectedUTXOs: [
+            {
+              txid: "abc123",
+              vout: 0,
+              value: "100000",
+              scriptPubKey: "0014abcdef",
+            },
+          ],
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    // Restore the factory default — implementations survive clearAllMocks.
+    vi.mocked(utxosToExpectedRecord).mockImplementation(() => ({}));
   });
 });

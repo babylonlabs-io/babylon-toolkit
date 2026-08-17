@@ -5,7 +5,11 @@
  * device Merkle-verifies inside the SIGN_PSBT header, so a swapped root order or
  * a dropped length prefix must fail here. Vectors are the per-map commitments
  * the Python client (`ledger-bitcoin==0.4.0`) emits over the firmware's PSBT
- * fixtures — real map keys/values, byte-lexicographic key order.
+ * fixtures — real map keys/values, byte-lexicographic key order, built here
+ * directly from the vector data (independent of the psbtv2 parser). The outer
+ * maps-roots and SIGN_PSBT client-data assertions live in
+ * `merkelizedPsbt.golden.test.ts`, derived from the raw PSBTs through the
+ * real class over all 22 fixtures.
  */
 
 import { Buffer } from "buffer";

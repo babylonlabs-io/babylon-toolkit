@@ -19,7 +19,6 @@ import {
   buildCollateralsDemo,
   buildDepositsDemo,
   buildLoansDemo,
-  buildWithdrawalsDemo,
   COLLATERAL_SCENARIOS,
   type DemoBorrowSymbol,
   type DemoItem,
@@ -33,7 +32,6 @@ import {
   submitDemoVaultActivation,
   useDemoBorrowSymbol,
   useDemoItems,
-  WITHDRAWAL_SCENARIOS,
 } from "../demoDeposit";
 import { GodModePanel } from "../GodModePanel";
 
@@ -137,21 +135,6 @@ describe("demoDeposit builders", () => {
     );
     expect(deposits.pendingActivities[0].collateral.amount).toBe("1.2345");
     expect(deposits.hideReal).toBe(true);
-
-    const withdrawals = buildWithdrawalsDemo(
-      [
-        {
-          key: 2,
-          type: "withdrawal",
-          stateIndex: 0,
-          amount: "0.5",
-          batched: false,
-        },
-      ],
-      true,
-    );
-    expect(withdrawals.vaults[0].amountBtc).toBe(0.5);
-    expect(withdrawals.statuses.size).toBe(1);
 
     const collateral = buildCollateralsDemo(
       [
@@ -505,17 +488,6 @@ describe("GodModePanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("switches a mock to a different type and shows that type's states", () => {
-    renderExpanded();
-
-    fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
-      target: { value: "withdrawal" },
-    });
-
-    // The readout reflects the first state of the newly selected type.
-    expect(screen.getByText(WITHDRAWAL_SCENARIOS[0].label)).toBeInTheDocument();
-  });
-
   it("switches a mock to a loan and re-labels its amount in the borrowed asset", () => {
     renderExpanded();
 
@@ -726,7 +698,6 @@ describe("GodModePanel", () => {
 describe("demoDeposit scenario lists", () => {
   it("exposes non-empty scenario lists per type", () => {
     expect(DEPOSIT_SCENARIOS.length).toBeGreaterThan(0);
-    expect(WITHDRAWAL_SCENARIOS.length).toBeGreaterThan(0);
     expect(COLLATERAL_SCENARIOS.length).toBeGreaterThan(0);
     expect(loanScenarios(TEST_SYMBOL).length).toBeGreaterThan(0);
     expect(activityScenarios(TEST_SYMBOL).length).toBeGreaterThan(0);

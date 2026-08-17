@@ -18,13 +18,13 @@ import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
-import { useDemoDeposit } from "@/dev/demoDeposit";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
+import { useDepositOverride } from "@/overrides/deposits";
 
 export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
@@ -44,7 +44,7 @@ export function usePendingDeposits() {
   // the `demo` aggregate returned below (see PendingDepositSection). When
   // `demo.hideReal` is set, the real deposits are dropped from the render lists
   // so only the demo shows. Inert in production.
-  const demo = useDemoDeposit();
+  const demo = useDepositOverride();
 
   const pendingActivities = useMemo(() => {
     const real = activities.filter(

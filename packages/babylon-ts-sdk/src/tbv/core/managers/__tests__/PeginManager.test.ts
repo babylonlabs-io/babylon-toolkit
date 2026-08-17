@@ -24,7 +24,10 @@ import type { SignPsbtOptions } from "../../../../shared/wallets";
 import { MockBitcoinWallet, MockEthereumWallet } from "../../../../testing";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { BTCVaultRegistryABI } from "../../contracts";
-import type { DepositTerms } from "../../deposit-terms";
+import {
+  DepositTermsRejectedError,
+  type DepositTerms,
+} from "../../deposit-terms";
 import {
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
@@ -1702,6 +1705,194 @@ describe("PeginManager", () => {
       ).rejects.toThrow(/scriptPubKey differs/);
 
       expect(rebind).toHaveBeenCalledTimes(1);
+    });
+
+    it("runs the intent ceremony (derive then approve) before signing for an approval wallet", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+
+      // An approval-capable wallet: MockBitcoinWallet already derives; add
+      // approveDepositTerms and record call order relative to signPsbt.
+      const order: string[] = [];
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const deriveSpy = vi
+        .spyOn(btcWallet, "deriveContextHash")
+        .mockImplementation(async () => {
+          order.push("derive");
+          return "ab".repeat(32);
+        });
+      vi.spyOn(btcWallet, "signPsbt").mockImplementation(
+        async (psbtHex: string) => {
+          order.push("sign");
+          return psbtHex;
+        },
+      );
+      const approveSpy = vi.fn(async () => {
+        order.push("approve");
+      });
+      (
+        btcWallet as unknown as { approveDepositTerms: typeof approveSpy }
+      ).approveDepositTerms = approveSpy;
+
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const prepared = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+      const localPrevouts = TEST_UTXOS.reduce<
+        Record<string, { scriptPubKey: string; value: number }>
+      >((acc, u) => {
+        acc[`${u.txid}:${u.vout}`] = {
+          scriptPubKey: u.scriptPubKey,
+          value: u.value,
+        };
+        return acc;
+      }, {});
+
+      // Terms must match this tx's txid or the ceremony rejects first.
+      const fundedTxid = bitcoin.Transaction.fromHex(
+        prepared.transaction.fundedPrePeginTxHex,
+      ).getId();
+      const depositTerms: DepositTerms = {
+        vaultCoreVersion: 2,
+        protocolFeeRate: 2n,
+        timelockPegin: 684,
+        timelockAssert: 684,
+        timelockRefund: 2016,
+        prepeginTxid: fundedTxid,
+        prepeginMaxFee: 1500n,
+        vaultKeeperBtcPubkeys: ["cc".repeat(32)],
+        universalChallengerBtcPubkeys: ["dd".repeat(32)],
+        vaults: [
+          {
+            htlcVout: 0,
+            vaultProviderBtcPubkey: "ff".repeat(32),
+            peginAmount: 1_000_000n,
+            commissionFee: 10_000n,
+            depositorClaimValue: 20_000n,
+            peginMaxFee: 800n,
+          },
+        ],
+      };
+
+      // Abort at rebind (after signing) so we never hit the network — the
+      // ceremony has already run by then, which is what we assert.
+      deriveSpy.mockClear();
+      order.length = 0;
+      rebind.mockClear();
+      rebind.mockImplementationOnce(() => {
+        throw new Error("stop before broadcast");
+      });
+
+      await expect(
+        manager.signAndBroadcast({
+          fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          localPrevouts,
+          depositTerms,
+        }),
+      ).rejects.toThrow(/stop before broadcast/);
+
+      expect(approveSpy).toHaveBeenCalledWith(depositTerms);
+      // derive → approve → sign, exactly.
+      expect(order).toEqual(["derive", "approve", "sign"]);
+    });
+
+    it("propagates an approval rejection unwrapped, without signing", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "deriveContextHash").mockResolvedValue(
+        "ab".repeat(32),
+      );
+      const signSpy = vi.spyOn(btcWallet, "signPsbt");
+      // preparePegin is itself a re-approval site, so approval must succeed
+      // there; the rejection is injected only for the broadcast ceremony below.
+      const approveSpy = vi.fn(async () => {});
+      (
+        btcWallet as unknown as { approveDepositTerms: typeof approveSpy }
+      ).approveDepositTerms = approveSpy;
+
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const prepared = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+      const localPrevouts = TEST_UTXOS.reduce<
+        Record<string, { scriptPubKey: string; value: number }>
+      >((acc, u) => {
+        acc[`${u.txid}:${u.vout}`] = {
+          scriptPubKey: u.scriptPubKey,
+          value: u.value,
+        };
+        return acc;
+      }, {});
+      const fundedTxid = bitcoin.Transaction.fromHex(
+        prepared.transaction.fundedPrePeginTxHex,
+      ).getId();
+      const depositTerms: DepositTerms = {
+        vaultCoreVersion: 2,
+        protocolFeeRate: 2n,
+        timelockPegin: 684,
+        timelockAssert: 684,
+        timelockRefund: 2016,
+        prepeginTxid: fundedTxid,
+        prepeginMaxFee: 1500n,
+        vaultKeeperBtcPubkeys: ["cc".repeat(32)],
+        universalChallengerBtcPubkeys: ["dd".repeat(32)],
+        vaults: [
+          {
+            htlcVout: 0,
+            vaultProviderBtcPubkey: "ff".repeat(32),
+            peginAmount: 1_000_000n,
+            commissionFee: 10_000n,
+            depositorClaimValue: 20_000n,
+            peginMaxFee: 800n,
+          },
+        ],
+      };
+
+      // The manager must not swallow or re-wrap the typed rejection, and must
+      // never reach signing once approval fails.
+      const rejection = new DepositTermsRejectedError("declined on device");
+      approveSpy.mockClear();
+      approveSpy.mockRejectedValueOnce(rejection);
+      signSpy.mockClear();
+
+      await expect(
+        manager.signAndBroadcast({
+          fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          localPrevouts,
+          depositTerms,
+        }),
+      ).rejects.toBe(rejection);
+
+      expect(signSpy).not.toHaveBeenCalled();
     });
   });
 

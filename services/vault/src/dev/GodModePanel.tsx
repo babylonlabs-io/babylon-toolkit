@@ -7,9 +7,9 @@
  * app — no cross-window plumbing).
  *
  * It is a controller only: it never renders the cards itself. It manages a list
- * of mock items (each a deposit / withdrawal / collateral / loan at some state)
- * that render inside the REAL dashboard, vaults and loans sections (see
- * demoDeposit.ts). It is mounted once for those routes (see dev/GodModeMount).
+ * of mock items (each a deposit / collateral / loan at some state) that render
+ * inside the REAL dashboard, vaults and loans sections (see demoDeposit.ts).
+ * It is mounted once for those routes (see dev/GodModeMount).
  *
  * Chrome is intentionally theme-independent (fixed zinc colors) and inline, not
  * routed through copy.ts — none of it is shown to depositors.
@@ -26,6 +26,19 @@ import {
 import { createPortal } from "react-dom";
 
 import type { ProtocolStatus } from "@/components/shared/protocolStatus";
+import { setActivityOverride } from "@/overrides/activity";
+import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
+import {
+  setBorrowCapacityOverride,
+  setHealthFactorOverride,
+} from "@/overrides/borrowCapacity";
+import { setCollateralOverride } from "@/overrides/collateral";
+import { setDepositOverride } from "@/overrides/deposits";
+import { setLoanOverride } from "@/overrides/loans";
+import {
+  setMaxVaultsOverride,
+  setProtocolStatusOverride,
+} from "@/overrides/protocolStatus";
 import { clearArtifactDownloadReceipts } from "@/utils/artifactDownloadStorage";
 
 import {
@@ -36,6 +49,7 @@ import {
   setDebugHealthFactorOverride,
   setDebugMaxVaultsOverride,
   setDebugProtocolStatusOverride,
+  useDebugBorrowCapacity,
   useDebugBorrowCapacityStateOverride,
   useDebugHealthFactorOverride,
   useDebugMaxVaultsOverride,
@@ -45,6 +59,7 @@ import {
   DEMO_ARTIFACT_SCENARIO_LABELS,
   DEMO_ARTIFACT_SCENARIOS,
   type DemoArtifactScenario,
+  demoFetchAndDownloadArtifacts,
   setArtifactDownloadMockEnabled,
   setArtifactDownloadScenario,
   useArtifactDownloadMockEnabled,
@@ -53,6 +68,10 @@ import {
 import {
   addDemoItem,
   amountUnitFor,
+  buildActivitiesDemo,
+  buildCollateralsDemo,
+  buildDepositsDemo,
+  buildLoansDemo,
   DEMO_BORROW_SYMBOL_OPTIONS,
   type DemoBorrowSymbol,
   type DemoCta,
@@ -85,7 +104,6 @@ import {
 
 const TYPE_LABELS: Record<DemoType, string> = {
   deposit: "Deposit",
-  withdrawal: "Withdrawal",
   collateral: "Collateral",
   loan: "Loan",
   activity: "Activity",
@@ -302,6 +320,38 @@ function DemoControls() {
   const [clearedReceipts, setClearedReceipts] = useState<number | null>(null);
   const borrowSymbol = useDemoBorrowSymbol();
 
+  // Publish the resolved deposit-family aggregates for the real dashboard
+  // sections to read. "Inject demo" gates all four: merely adding a mock item
+  // must not inject it until the toggle opts in.
+  useEffect(() => {
+    setDepositOverride(enabled ? buildDepositsDemo(items, hideReal) : null);
+  }, [enabled, items, hideReal]);
+
+  useEffect(() => {
+    setActivityOverride(
+      enabled ? buildActivitiesDemo(items, hideReal, borrowSymbol) : null,
+    );
+  }, [enabled, items, hideReal, borrowSymbol]);
+
+  useEffect(() => {
+    setCollateralOverride(
+      enabled ? buildCollateralsDemo(items, hideReal) : null,
+    );
+  }, [enabled, items, hideReal]);
+
+  useEffect(() => {
+    setLoanOverride(
+      enabled ? buildLoansDemo(items, hideReal, borrowSymbol) : null,
+    );
+  }, [enabled, items, hideReal, borrowSymbol]);
+
+  // Independent of "Inject demo" — see the toggle's own label below.
+  useEffect(() => {
+    setArtifactDownloadOverride(
+      mockArtifactDownload ? demoFetchAndDownloadArtifacts : null,
+    );
+  }, [mockArtifactDownload]);
+
   return (
     <div className="space-y-3">
       <label className="flex cursor-pointer items-center justify-between gap-2 text-sm">
@@ -479,6 +529,14 @@ function NotificationOverrideControls() {
   const maxVaultsOverride = useDebugMaxVaultsOverride();
   const protocolStatusOverride = useDebugProtocolStatusOverride();
 
+  useEffect(() => {
+    setMaxVaultsOverride(maxVaultsOverride);
+  }, [maxVaultsOverride]);
+
+  useEffect(() => {
+    setProtocolStatusOverride(protocolStatusOverride);
+  }, [protocolStatusOverride]);
+
   return (
     <div className="space-y-2">
       <div className={PANEL_SECTION_TITLE_CLASS}>Notifications</div>
@@ -534,6 +592,17 @@ const BORROW_CAPACITY_LABELS: Record<DebugBorrowCapacityState, string> = {
 function LoansOverrideControls() {
   const healthFactorOverride = useDebugHealthFactorOverride();
   const borrowCapacityOverride = useDebugBorrowCapacityStateOverride();
+  // Resolved {loading, error} | null snapshot — see debugPositionStore's
+  // DEBUG_BORROW_CAPACITY_SNAPSHOTS for why the Error stays dev-only there.
+  const resolvedBorrowCapacity = useDebugBorrowCapacity();
+
+  useEffect(() => {
+    setHealthFactorOverride(healthFactorOverride);
+  }, [healthFactorOverride]);
+
+  useEffect(() => {
+    setBorrowCapacityOverride(resolvedBorrowCapacity);
+  }, [resolvedBorrowCapacity]);
 
   return (
     <div className="space-y-2">

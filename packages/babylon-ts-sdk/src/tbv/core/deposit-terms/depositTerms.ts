@@ -103,6 +103,9 @@ export interface DepositTerms {
  *
  * Seam invariant: any derive invalidates a prior approval, so the SDK
  * re-approves after every derive and before the next terms-bound signature.
+ * The re-approval sites are `PeginManager.preparePegin`,
+ * `runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
+ * which derives immediately before approving — see `ensurePrePeginTermsApproval`).
  */
 export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;

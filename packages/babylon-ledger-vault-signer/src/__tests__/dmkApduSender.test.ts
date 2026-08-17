@@ -117,11 +117,25 @@ describe("createDmkApduSender", () => {
     // 0x6E00 (bad CLA) is what the dashboard or a wrong app returns — the most
     // likely first-contact failure, since raw sendApdu never opens an app.
     const sendApdu = vi.fn().mockResolvedValue({ statusCode: new Uint8Array([0x6e, 0x00]), data: new Uint8Array() });
-    const handle = { dmk: { sendApdu }, sessionId: "s1", appName: "BOLOS" } as unknown as DmkSessionHandle;
+    const handle = {
+      dmk: { sendApdu },
+      sessionId: "s1",
+      appName: "BOLOS",
+      appVersion: "1.6.0",
+    } as unknown as DmkSessionHandle;
 
     const call = createDmkApduSender(handle)({ cla: 0xe1, ins: 0x81, p1: 0, p2: 0, data: new Uint8Array() });
     await expect(call).rejects.toThrow(/open the Babylon Vault app/);
-    await expect(call).rejects.toThrow(/"BOLOS"/);
+    await expect(call).rejects.toThrow(/"BOLOS" v1\.6\.0/);
+  });
+
+  it("weaves the failing APDU's ins/p1 into the error message", async () => {
+    // ins ≠ p1 so a swapped wiring would read "ins 0x02 p1 0x80" and fail.
+    const { handle } = handleWith({ statusCode: new Uint8Array([0x6f, 0x42]), data: new Uint8Array() });
+
+    await expect(
+      createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0x02, p2: 0x00, data: new Uint8Array() }),
+    ).rejects.toThrow(/ins 0x80 p1 0x02, sw 0x6f42/);
   });
 
   it("surfaces an unmapped status word as hex rather than guessing", async () => {
@@ -166,5 +180,15 @@ describe("createDmkApduSender", () => {
         data: new Uint8Array(256),
       }),
     ).rejects.toThrow(/Lc is a single byte/);
+  });
+
+  it("accepts a 255-byte payload — the Lc boundary deriveContextHash's full continuation chunks hit", async () => {
+    const { handle, sendApdu } = handleWith(ok());
+
+    await createDmkApduSender(handle)({ cla: 0xe1, ins: 0x80, p1: 0, p2: 0, data: new Uint8Array(255).fill(0xab) });
+
+    const wire = sendApdu.mock.calls[0][0].apdu;
+    expect(wire.length).toBe(260);
+    expect(wire[4]).toBe(0xff);
   });
 });

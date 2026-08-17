@@ -1694,6 +1694,20 @@ Key format: "txid:vout" (e.g. "abc123...def:0").
 When provided, matching inputs skip the mempool API fetch.
 Useful for split transactions where outputs are unconfirmed.
 
+##### depositTerms?
+
+```ts
+optional depositTerms: DepositTerms;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+Approved deposit terms. REQUIRED when `config.btcWallet` supports deposit
+approval (`supportsDepositApproval`) — the device signs the Pre-PegIn only
+from an approved intent matching this tx. Pass `PreparePeginResult.
+depositTerms` for fresh flows, or a resume rebuild. For non-approval
+wallets it is ignored, but still validated against the tx's txid if given.
+
 ***
 
 ### PopSignature
@@ -2151,7 +2165,7 @@ WOTS hash, payout script). The estimate is approximate — calldata-byte
 gas is correct, contract-side branches that depend on the real values may
 diverge — but it lands within the usual gas-estimate margin.
 
-Passes MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP for the
+Passes [MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP](deposit-terms.md#max_acceptable_commission_bps_cap) for the
 `maxAcceptableCommissionBps` argument so the simulation does not revert on
 the contract's commission-drift check regardless of the VP's current
 commission. The real submit path resolves an accurate, drift-checked value

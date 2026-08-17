@@ -80,11 +80,10 @@ import {
   mockVpProxy,
 } from "./fixtures";
 
-test("dashboard reflects seeded BTC balance", async ({
+test("vaults page reflects seeded BTC balance", async ({
   page,
   seededBtcWallet,
   installWalletSentinel,
-  appShell,
   dashboard,
 }) => {
   const wallet = seededBtcWallet({ amount: 250_000n });
@@ -92,8 +91,8 @@ test("dashboard reflects seeded BTC balance", async ({
   await mockVpProxy(page);
   await installWalletSentinel({ btc: wallet });
 
-  await appShell.goto();
-  await expect(dashboard.vaultCard(/BTC/i)).toBeVisible();
+  await dashboard.goto();
+  await expect(dashboard.vaultRow(/BTC/i)).toBeVisible();
 });
 ```
 

@@ -1,8 +1,8 @@
 # Third-party notices
 
-This file covers third-party source vendored into this repository's package tree
-and bundled into published artifacts. It is not an exhaustive inventory of every
-bundled npm dependency — those retain their own license files. Vendored source:
+This file covers third-party source vendored into this repository's package tree.
+It is not an exhaustive inventory of every bundled npm dependency — those retain
+their own license files. Vendored source:
 
 ---
 
@@ -11,11 +11,14 @@ bundled npm dependency — those retain their own license files. Vendored source
 - Project: LedgerHQ/app-bitcoin (formerly app-bitcoin-new)
 - Source: https://github.com/LedgerHQ/app-bitcoin
 - Version: ledger-bitcoin@0.3.0 (commit 0a9e9e141f3340d29e7c6181177d4e5e9483a9f7)
-- Files: bundled from packages/babylon-ledger-vault-signer/src/vendor/ledger-bitcoin/
+- Files: vendored under packages/babylon-ledger-vault-signer/src/vendor/ledger-bitcoin/
+  (source-in-tree; not yet reachable from the published bundle)
 - License: Apache License 2.0
 - Modifications: see the per-file provenance headers in the vendored source
-  (explicit Buffer import, defensive strict-null guards, formatting; the
-  object-level PSBT conversion was removed).
+  (explicit Buffer import, defensive strict-null guards, formatting; psbtv2.ts
+  additionally drops `fromBitcoinJS` and unifies the serialization key
+  comparator to byte-lexicographic order; clientCommands.ts adds an optional
+  `onYield` validator hook to `YieldCommand` / `ClientCommandInterpreter`).
 
 ### Apache License 2.0
 

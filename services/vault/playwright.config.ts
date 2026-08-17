@@ -22,6 +22,16 @@ export const MOCK_ENV_VARS = {
   NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: "http://localhost:9999/graphql",
   NEXT_PUBLIC_TBV_VP_PROXY_URL: "http://localhost:9998",
   NEXT_PUBLIC_ETH_RPC_URL: "http://localhost:9997/rpc",
+  // Both are required by `validateEnvVars` (src/config/env.ts), and their
+  // absence here was invisible on a developer machine: vite-plugin-environment
+  // reads `.env` files as well as the process env, and `services/vault/.env`
+  // supplies them. A clean runner has no `.env`, so validation failed,
+  // `envInitError` was set, and the app rendered the blocking "Configuration
+  // Error" modal on every screen instead of itself. Anything spawned from this
+  // object must therefore stand on its own, without a `.env` behind it.
+  // Sepolia + signet is the pairing `configureBabylonConfig` accepts.
+  NEXT_PUBLIC_ETH_CHAINID: "11155111",
+  NEXT_PUBLIC_BTC_NETWORK: "signet",
   // Pinned mempool base so route handlers in
   // `services/vault/e2e/fixtures/networkRoutes.ts` can match
   // deterministic paths. Without this the dApp falls through to a

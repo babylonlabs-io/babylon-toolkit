@@ -16,14 +16,14 @@ import { EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import {
-  resolveShownHealthFactor,
-  useDebugBorrowCapacity,
-  useDebugHealthFactorOverride,
-} from "@/dev/debugPositionStore";
-import { useDemoLoan } from "@/dev/demoDeposit";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
+import {
+  resolveShownHealthFactor,
+  useBorrowCapacityOverride,
+  useHealthFactorOverride,
+} from "@/overrides/borrowCapacity";
+import { useLoanOverride } from "@/overrides/loans";
 import { parseReserveId } from "@/routes";
 import { formatUsdValue } from "@/utils/formatting";
 
@@ -69,7 +69,7 @@ export default function Loans() {
   // is set — so the Loans page can be exercised without a borrow position, or
   // a wallet. Every mock row is `displayOnly`, so ActiveLoansList disables its
   // actions and the real borrow/repay flows never see one. Inert in production.
-  const demoLoans = useDemoLoan();
+  const demoLoans = useLoanOverride();
   const displayLoans = useMemo(() => {
     if (!demoLoans) return activeLoans;
     return [...demoLoans.rows, ...(demoLoans.hideReal ? [] : activeLoans)];
@@ -79,8 +79,8 @@ export default function Loans() {
 
   // God-mode summary overrides (dev only; null unless the panel forces them,
   // compile-time null in production builds).
-  const healthFactorOverride = useDebugHealthFactorOverride();
-  const borrowCapacityOverride = useDebugBorrowCapacity();
+  const healthFactorOverride = useHealthFactorOverride();
+  const borrowCapacityOverride = useBorrowCapacityOverride();
   const {
     healthFactor: shownHealthFactor,
     healthFactorStatus: shownHealthFactorStatus,

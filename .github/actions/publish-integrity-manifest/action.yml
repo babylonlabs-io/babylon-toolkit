@@ -1,0 +1,70 @@
+name: Publish integrity manifest
+description: >
+  Publish the per-deploy sha256 checksum manifests as an immutable per-sha
+  GitHub release for the frontend integrity checker (devops-backlog#253).
+  One release per (service, environment, sha), tag fm-<service>-<env>-<sha>,
+  files attached at create time (this repo has Immutable Releases enabled, so
+  attach-at-create is the only path that works — and it makes write-once a
+  platform guarantee). Same-sha rebuilds take the next free -rN slot; the
+  checker probes slots upward and verifies against the highest.
+
+inputs:
+  service:
+    description: Service prefix as used in the checksum filenames (simple-staking | vault)
+    required: true
+  environment:
+    description: Matrix environment value — part of the manifest name contract with the checker
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SERVICE: ${{ inputs.service }}
+        ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        PREFIX="${SERVICE}-${ENVIRONMENT}-${GITHUB_SHA}"
+        FILES=("/tmp/${PREFIX}-files-checksum.txt" "/tmp/${PREFIX}-global-checksum.txt")
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          TAG="fm-${PREFIX}"; [ "$i" -gt 1 ] && TAG="${TAG}-r${i}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${PREFIX}-files-checksum.txt"
+          if curl -sfIL -o /dev/null "$URL"; then
+            echo "slot ${TAG} already published — trying next"
+            continue
+          fi
+          if ERR=$(gh release create "$TAG" "${FILES[@]}" \
+               --title "Frontend manifest ${PREFIX}" \
+               --notes "sha256 manifest for the frontend integrity checker (devops-backlog#253). Do not delete." \
+               --latest=false 2>&1); then
+            # The public download URL is eventually consistent — Immutable
+            # Releases finalizes after create returns, so the asset can 404
+            # for a few seconds even though the upload succeeded. Give the
+            # CDN a bounded window before declaring the publish broken.
+            for _ in 1 2 3 4 5 6; do
+              if curl -sfIL -o /dev/null "$URL"; then
+                echo "published ${TAG}"
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "::error::manifest not retrievable at ${URL} 30s after create"
+            exit 1
+          fi
+          # Failed create: re-probe the public URL the checker reads. Only a
+          # slot PUBLISHED by a concurrent run is a race worth advancing past —
+          # anything else (transient API error, draft, permission) must fail
+          # loudly. Advancing on it would leave a numbering gap, and the
+          # checker stops at the first missing slot, so later slots would be
+          # silently invisible. This also avoids depending on gh's error text.
+          if curl -sfIL -o /dev/null "$URL"; then
+            echo "slot ${TAG} published by a concurrent run — trying next slot"
+            continue
+          fi
+          echo "::error::gh release create ${TAG} failed and ${URL} is not retrievable: ${ERR}"
+          exit 1
+        done
+        echo "::error::could not publish manifest for ${PREFIX} after 10 slots"
+        exit 1

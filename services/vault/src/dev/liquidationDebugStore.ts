@@ -61,26 +61,6 @@ export function useLiquidationDebugState(): LiquidationDebugState {
   return useSyncExternalStore(subscribe, getState, getState);
 }
 
-/**
- * Resolve the card's two flags from the live position and the debug state, so
- * the forcing rule lives next to the store instead of in the dashboard's JSX.
- */
-export function resolveLiquidationCardState(
-  debugState: LiquidationDebugState,
-  live: { hasCollateral: boolean; hasLoans: boolean },
-): { hasCollateral: boolean; hasLoans: boolean } {
-  switch (debugState) {
-    case "no-deposit":
-      return { hasCollateral: false, hasLoans: false };
-    case "no-loan":
-      return { hasCollateral: true, hasLoans: false };
-    case "position":
-      return { hasCollateral: true, hasLoans: true };
-    case "auto":
-      return live;
-  }
-}
-
 /** The `/liquidations` page's stat-card figures, set directly from the panel. */
 export interface LiquidationPositionOverride {
   collateralBtc: number;
@@ -136,15 +116,4 @@ export function useLiquidationPositionOverrideValues(): LiquidationPositionOverr
     getPositionOverrideValues,
     getPositionOverrideValues,
   );
-}
-
-/**
- * The position override for consumers: null means use the live (or cascade)
- * figures. Mock is all-or-nothing, like the rest of god mode — a consumer
- * never blends `positionOverrideValues` with live data.
- */
-export function useLiquidationPositionOverride(): LiquidationPositionOverride | null {
-  const enabled = useLiquidationPositionOverrideEnabled();
-  const values = useLiquidationPositionOverrideValues();
-  return enabled ? values : null;
 }
