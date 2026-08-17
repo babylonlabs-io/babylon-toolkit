@@ -44,6 +44,11 @@ import {
   TELEMETRY_STAGE,
 } from "@/infrastructure/telemetryEvents";
 import {
+  isEthRegistrationFinal,
+  waitForEthRegistrationDepth,
+  type RegistrationDepthProgress,
+} from "@/services/vault/ethConfirmationGate";
+import {
   ActivationNotPossibleError,
   isTerminalActivationError,
 } from "@/utils/errors";
@@ -129,6 +134,12 @@ export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
   broadcastError: string | null;
+  /**
+   * Live Ethereum confirmation depth while the finality gate holds a resume
+   * broadcast. `null` outside that window — which is the overwhelmingly common
+   * case, since a resumed deposit is usually long past the required depth.
+   */
+  ethConfirmationDetail: RegistrationDepthProgress | null;
   handleBroadcast: (params: BroadcastPrePeginParams) => Promise<void>;
   // Activation state
   activating: boolean;
@@ -147,6 +158,8 @@ export function useVaultActions(): UseVaultActionsReturn {
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [ethConfirmationDetail, setEthConfirmationDetail] =
+    useState<RegistrationDepthProgress | null>(null);
 
   // Activation state
   const [activating, setActivating] = useState(false);
@@ -247,6 +260,42 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error(
           `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
         );
+      }
+
+      // Ethereum finality gate. Same rule as the inline deposit flow: the
+      // Pre-PegIn must not be broadcast while the registration is still
+      // reorg-exposed, or a reorg leaves the BTC locked in an HTLC whose vault
+      // record no longer exists. Depth comes from `createdAt` (the ETH block
+      // the registration mined at), which needs no transaction hash — the
+      // reason this works on a cross-device resume with no local record.
+      //
+      // Deliberately ahead of the wallet-liveness probe and everything after
+      // it: no popup, no UTXO read and no signing should happen for a deposit
+      // we may refuse to broadcast. Any deposit registered more than ~2 min ago
+      // clears the fast path below without a poll or a progress panel.
+      if (!(await isEthRegistrationFinal(onChainVault.createdAt))) {
+        let finalBasicInfo;
+        try {
+          ({ basicInfo: finalBasicInfo } = await waitForEthRegistrationDepth({
+            vaultIds: [vaultId],
+            onProgress: setEthConfirmationDetail,
+          }));
+        } finally {
+          if (mountedRef.current) setEthConfirmationDetail(null);
+        }
+
+        // The PENDING gate above read pre-wait state and the wait can span
+        // minutes. `prePeginTxHash` cannot go stale — vaultId commits to it,
+        // so any re-mined registration under this id carries the same hash —
+        // but `status` can, so re-assert it on the post-wait observation.
+        if (finalBasicInfo.status !== OnChainBtcVaultStatus.PENDING) {
+          const label =
+            OnChainBtcVaultStatus[finalBasicInfo.status] ??
+            `UNKNOWN(${finalBasicInfo.status})`;
+          throw new Error(
+            `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
+          );
+        }
       }
 
       // Get BTC wallet provider
@@ -664,6 +713,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   return {
     broadcasting,
     broadcastError,
+    ethConfirmationDetail,
     handleBroadcast,
     activating,
     activationError,

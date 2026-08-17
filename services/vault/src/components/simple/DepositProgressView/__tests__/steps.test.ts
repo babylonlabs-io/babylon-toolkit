@@ -126,6 +126,51 @@ describe("buildStepItems payout-signing counters", () => {
   });
 });
 
+describe("buildStepItems Ethereum confirmation counter", () => {
+  const ethStep = (items: ReturnType<typeof buildStepItems>) =>
+    items[getVisualStep(DepositFlowStep.SUBMIT_PEGIN) - 1];
+
+  it("puts the confirmation counter on the ETH registration step while the gate holds", () => {
+    const items = buildStepItems(null, null, {
+      confirmations: 3,
+      required: 8,
+    });
+    expect(ethStep(items).description).toBe(
+      COPY.deposit.steps.signingCounter(3, 8),
+    );
+  });
+
+  it("leaves the ETH registration step bare outside the gate's window", () => {
+    // Step 4 also covers the wallet popup and the receipt wait, where there is
+    // nothing to count yet.
+    expect(ethStep(buildStepItems(null)).description).toBeUndefined();
+  });
+
+  it("does not add the counter to any other step", () => {
+    const items = buildStepItems(null, null, {
+      confirmations: 3,
+      required: 8,
+    });
+    const withDescription = items
+      .map((item, index) => ({ index, description: item.description }))
+      .filter((entry) => entry.description !== undefined);
+    expect(withDescription).toEqual([
+      {
+        index: getVisualStep(DepositFlowStep.SUBMIT_PEGIN) - 1,
+        description: COPY.deposit.steps.signingCounter(3, 8),
+      },
+    ]);
+  });
+
+  it("keeps the visual step count unchanged", () => {
+    // The counter is a sub-state of an existing step; adding a 16th step would
+    // renumber every consumer of getVisualStep, including the e2e step machine.
+    expect(
+      buildStepItems(null, null, { confirmations: 3, required: 8 }),
+    ).toHaveLength(TOTAL_VISUAL_STEPS);
+  });
+});
+
 describe("STEP_GROUPS", () => {
   it("covers every visual step from 1..TOTAL_VISUAL_STEPS with no gaps or overlaps", () => {
     expect(STEP_GROUPS[0].startStep).toBe(1);

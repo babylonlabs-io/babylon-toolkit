@@ -384,6 +384,21 @@ export const COPY = {
         "Waiting for vault provider to prepare claim and payout transactions...",
       bitcoinTx: "Pre-Pegin Bitcoin transaction",
     },
+    ethConfirmation: {
+      confirmations: "Confirmations",
+      confirmationsValue: (confirmed: number, required: number) =>
+        `${confirmed} of ${required}`,
+      estRemaining: "Est. remaining",
+      estRemainingValue: (seconds: number, blocksLeft: number) =>
+        `~${seconds} sec (${blocksLeft} Ethereum ${
+          blocksLeft === 1 ? "block" : "blocks"
+        })`,
+      finalizing: "Finalizing...",
+      // Explains why the flow pauses here rather than moving straight to the
+      // Bitcoin signature the user is expecting next.
+      rationale:
+        "Waiting for your Ethereum registration to be confirmed before broadcasting to Bitcoin. This protects your deposit if the Ethereum network reorganizes.",
+    },
     waitDetails: {
       status: "Status",
       // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
@@ -746,6 +761,18 @@ export const COPY = {
       copyDiagnostics: "Copy error details",
       diagnosticsCopied: "Copied",
       diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
+      // Ethereum finality gate (see services/vault/ethConfirmationGate.ts).
+      // Both fire before the Pre-PegIn broadcast, so no Bitcoin has moved —
+      // say that first, because stopping right after an on-chain registration
+      // reads as alarming and is not.
+      ethRegistrationNotFinal: {
+        title: "Ethereum confirmation timed out",
+        body: "Your Ethereum registration was submitted but hasn't been confirmed deeply enough yet. No Bitcoin has been broadcast and nothing is at risk. Resume this deposit from your dashboard once the network settles.",
+      },
+      ethRegistrationMissing: {
+        title: TRANSACTION_FAILED_TITLE,
+        body: "Your Ethereum registration is no longer visible on-chain, so the deposit was stopped before any Bitcoin was broadcast. Please start a new deposit.",
+      },
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",

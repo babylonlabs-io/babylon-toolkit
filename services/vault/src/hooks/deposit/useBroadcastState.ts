@@ -15,6 +15,7 @@ import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 
@@ -40,6 +41,12 @@ export interface UseBroadcastStateResult {
   broadcasting: boolean;
   /** Error message if broadcast failed */
   error: string | null;
+  /**
+   * Live Ethereum confirmation depth while the finality gate holds this
+   * broadcast. `null` for any deposit already past the required depth, which
+   * is nearly every resume.
+   */
+  ethConfirmationDetail: RegistrationDepthProgress | null;
   /** Handler to initiate broadcast */
   handleBroadcast: () => Promise<void>;
 }
@@ -53,6 +60,7 @@ export function useBroadcastState({
   const {
     broadcasting: vaultBroadcasting,
     broadcastError,
+    ethConfirmationDetail,
     handleBroadcast: vaultHandleBroadcast,
   } = useVaultActions();
   const [localBroadcasting, setLocalBroadcasting] = useState(false);
@@ -126,6 +134,7 @@ export function useBroadcastState({
   return {
     broadcasting: isBroadcasting,
     error: broadcastError,
+    ethConfirmationDetail,
     handleBroadcast,
   };
 }

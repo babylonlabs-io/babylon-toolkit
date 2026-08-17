@@ -194,12 +194,22 @@ export function ResumeBroadcastContent({
   onClose,
   onSuccess,
 }: ResumeBroadcastContentProps) {
-  const { broadcasting, error, handleBroadcast } = useBroadcastState({
-    activity,
-    batchVaultIds,
-    depositorEthAddress,
-    onSuccess,
-  });
+  const { broadcasting, error, ethConfirmationDetail, handleBroadcast } =
+    useBroadcastState({
+      activity,
+      batchVaultIds,
+      depositorEthAddress,
+      onSuccess,
+    });
+
+  // While the Ethereum finality gate holds, the honest step is the ETH
+  // registration — it genuinely is not final yet — not the BTC broadcast the
+  // user has not been asked to sign. Only ever true for a deposit registered
+  // in the last ~1.6 min; every older resume renders the broadcast step
+  // exactly as before.
+  const step = ethConfirmationDetail
+    ? DepositFlowStep.SUBMIT_PEGIN
+    : DepositFlowStep.BROADCAST_PRE_PEGIN;
 
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
@@ -214,7 +224,7 @@ export function ResumeBroadcastContent({
   );
 
   const derived = computeDepositDerivedState(
-    DepositFlowStep.BROADCAST_PRE_PEGIN,
+    step,
     broadcasting,
     false,
     error != null,
@@ -224,15 +234,11 @@ export function ResumeBroadcastContent({
   // step, so the active-vault index is irrelevant — what matters is that the
   // multi-column UI lights up when the deposit is a split.
   const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(
-      batchVaultIds,
-      activity.id,
-      DepositFlowStep.BROADCAST_PRE_PEGIN,
-    );
+    useSplitVaultProgress(batchVaultIds, activity.id, step);
 
   return (
     <DepositProgressView
-      currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+      currentStep={step}
       offchainParamsVersion={activity.offchainParamsVersion}
       error={error ? mapDepositError(error) : null}
       isComplete={derived.isComplete}
@@ -241,6 +247,7 @@ export function ResumeBroadcastContent({
       canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       peginSigningProgress={null}
+      ethConfirmationDetail={ethConfirmationDetail}
       vaultCount={vaultCount}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
