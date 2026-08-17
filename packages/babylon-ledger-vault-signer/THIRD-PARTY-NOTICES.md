@@ -18,11 +18,20 @@ their own license files. Vendored source:
   section of that directory's README)
 - License: Apache License 2.0
 - Modifications: see the per-file provenance headers in the vendored source
-  (explicit Buffer import, defensive strict-null guards, formatting; psbtv2.ts
-  additionally drops `fromBitcoinJS`, unifies the serialization key comparator
-  to byte-lexicographic order, and adds two BIP-371 `psbtIn` enum members plus
-  a public `getInputEntriesOfType` reader; clientCommands.ts adds an optional
-  `onYield` validator hook to `YieldCommand` / `ClientCommandInterpreter`).
+  (explicit Buffer import, defensive strict-null guards, formatting; varint.ts
+  additionally makes `parseVarint` reject the non-minimal "overlong" CompactSize
+  encodings upstream accepts; psbtv2.ts additionally drops `fromBitcoinJS`,
+  unifies the serialization key comparator to byte-lexicographic order, rejects
+  repeated keypairs and trailing bytes on deserialize, and adds two BIP-371
+  `psbtIn` enum members plus a public `getInputEntriesOfType` reader;
+  clientCommands.ts adds an optional `onYield` validator hook to `YieldCommand`
+  / `ClientCommandInterpreter`; buffertools.ts additionally makes
+  `unsafeTo64bitLE` reject input that is not a non-negative safe integer, which
+  upstream wrapped or encoded as zero; merkelizedPsbt.ts additionally requires
+  the input/output map counts to equal the declared `PSBT_GLOBAL_*_COUNT`s in
+  both directions, where upstream ignored surplus maps; merkle.ts additionally
+  throws a typed `Error` rather than a raw `TypeError` on an out-of-bounds leaf
+  index).
 
 ### Apache License 2.0
 

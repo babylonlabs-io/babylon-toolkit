@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import { isLedgerSignPsbtAbortedError } from "../errors";
 import type { RawApduSender } from "../rawApdu";
-import { signVaultPsbt } from "../signPsbt";
+import { signVaultPsbt, type SignVaultPsbtParams } from "../signPsbt";
 import { tapLeafHash } from "../tapLeafHash";
 
 const VECTORS_DIR = join(__dirname, "..", "vendor", "ledger-bitcoin", "__tests__", "vectors", "signpsbt");
@@ -137,6 +137,7 @@ describe("signVaultPsbt", () => {
       onProgress: () => {
         throw new Error("caller's progress handler is broken");
       },
+      signal: new AbortController().signal,
     });
 
     expect(sent()).toBe(script.length);
@@ -185,5 +186,32 @@ describe("signVaultPsbt", () => {
 
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
     expect(sent()).toBe(1);
+  });
+
+  it("requires a signal — params without one must not typecheck", () => {
+    // @ts-expect-error `signal` is required; the loop has no round cap and no
+    // internal timeout, so a caller without a signal cannot bound the ceremony.
+    const withoutSignal: SignVaultPsbtParams = {
+      psbtHex: vector.psbt_hex,
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+    };
+
+    expect(withoutSignal.depositorXOnlyHex).toBe(TEST_DEPOSITOR_KEY_HEX);
+  });
+
+  it("threads the connect-time app identity into terminal status-word diagnostics", async () => {
+    const script: ScriptedExchange[] = [
+      { expectApduHex: SIGN_PSBT_HEADER_HEX + vector.sign_psbt_cdata_hex, respondSw: 0x6e00, respondDataHex: "" },
+    ];
+    const { send } = createScriptedSender(script);
+
+    await expect(
+      signVaultPsbt(send, {
+        psbtHex: vector.psbt_hex,
+        depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+        signal: new AbortController().signal,
+        appIdentity: { appName: "Babylon Vault", appVersion: "0.1.0" },
+      }),
+    ).rejects.toThrow(/app at connect time: "Babylon Vault" v0\.1\.0/);
   });
 });

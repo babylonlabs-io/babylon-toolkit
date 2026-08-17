@@ -2,6 +2,15 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 
+const DIST_DIR = path.resolve(__dirname, "dist");
+
+// beforeWriteFile receives an ABSOLUTE destination path (vite-plugin-dts@4.5.4,
+// dist/index.mjs: `resolve(outDir, relative(entryRoot, filePath))`), so the test is
+// anchored to dist and matched per path segment. A bare substring match dropped every
+// declaration — including dist/index.d.ts — when the checkout itself lived under a
+// directory named "vendor", and the build still exited 0.
+const isVendorDeclaration = (filePath: string) => path.relative(DIST_DIR, filePath).split(/[\\/]/).includes("vendor");
+
 export default defineConfig({
   plugins: [
     dts({
@@ -14,7 +23,7 @@ export default defineConfig({
       exclude: ["src/**/__tests__/**"],
       // No vendored .d.ts ships: the first-party modules type the vendored
       // surfaces structurally, so no emitted declaration references src/vendor.
-      beforeWriteFile: (filePath) => (/[\\/]vendor[\\/]/.test(filePath) ? false : undefined),
+      beforeWriteFile: (filePath) => (isVendorDeclaration(filePath) ? false : undefined),
     }),
   ],
   build: {

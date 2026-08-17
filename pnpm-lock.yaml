@@ -750,6 +750,9 @@ importers:
       bitcoinjs-lib:
         specifier: 6.1.7
         version: 6.1.7
+      buffer:
+        specifier: 6.0.3
+        version: 6.0.3
       core-js:
         specifier: 3.41.0
         version: 3.41.0

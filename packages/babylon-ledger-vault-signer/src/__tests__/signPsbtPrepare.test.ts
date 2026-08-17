@@ -7,14 +7,14 @@
  * - §2.2 rejections: every prepare-time throw is typed and pre-I/O.
  */
 
-import { crypto as bcrypto } from "bitcoinjs-lib";
+import { crypto as bcrypto, Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
 import { isLedgerSignPsbtProtocolError } from "../errors";
-import { buildSignPsbtApdu, buildSignPsbtCdata, prepareSignPsbt } from "../signPsbtPrepare";
+import { buildSignPsbtApdu, prepareSignPsbt } from "../signPsbtPrepare";
 import { MerkelizedPsbt } from "../vendor/ledger-bitcoin/merkelizedPsbt";
 import { hashLeaf, Merkle } from "../vendor/ledger-bitcoin/merkle";
 import { PsbtV2 } from "../vendor/ledger-bitcoin/psbtv2";
@@ -69,6 +69,16 @@ function depositorKeyFor(name: string, vector: SignPsbtVector): string {
   return entry[1];
 }
 
+function expectPrepareRejects(psbtHex: string, depositorXOnlyHex: string, messagePattern: RegExp): void {
+  try {
+    prepareSignPsbt({ psbtHex, depositorXOnlyHex });
+    throw new Error("prepareSignPsbt did not throw");
+  } catch (error) {
+    expect(isLedgerSignPsbtProtocolError(error)).toBe(true);
+    expect((error as Error).message).toMatch(messagePattern);
+  }
+}
+
 describe("SIGN_PSBT cdata + APDU golden (G1, 22 fixtures)", () => {
   it.each(ALL_VECTOR_NAMES.map((name) => [name]))("%s", (name) => {
     const vector = loadVector(name);
@@ -80,41 +90,6 @@ describe("SIGN_PSBT cdata + APDU golden (G1, 22 fixtures)", () => {
     const apdu = buildSignPsbtApdu(prepared.cdata);
     expect({ cla: apdu.cla, ins: apdu.ins, p1: apdu.p1, p2: apdu.p2 }).toEqual(vector.apdu);
     expect(Buffer.from(apdu.data).toString("hex")).toBe(vector.sign_psbt_cdata_hex);
-  });
-});
-
-describe("header builder wallet fields (#2221/#2222 seam)", () => {
-  function merkelize(psbtHex: string): MerkelizedPsbt {
-    const psbt = new PsbtV2();
-    psbt.deserialize(Buffer.from(psbtHex, "hex"));
-    return new MerkelizedPsbt(psbt);
-  }
-
-  it("places a caller-provided walletId/walletHmac in the 64-byte tail", () => {
-    const vector = loadVector("generated__deposit-flow__pegin__0");
-    const merkelized = merkelize(vector.psbt_hex);
-    const walletId = Buffer.alloc(32, 0xaa);
-    const walletHmac = Buffer.alloc(32, 0xbb);
-    const cdata = Buffer.from(buildSignPsbtCdata(merkelized, { walletId, walletHmac }));
-
-    // Same head as the zero-tail golden, custom tail.
-    const golden = Buffer.from(vector.sign_psbt_cdata_hex, "hex");
-    expect(cdata.subarray(0, cdata.length - 64).toString("hex")).toBe(
-      golden.subarray(0, golden.length - 64).toString("hex"),
-    );
-    expect(cdata.subarray(cdata.length - 64).toString("hex")).toBe("aa".repeat(32) + "bb".repeat(32));
-  });
-
-  it("rejects wallet fields that are not exactly 32 bytes", () => {
-    const vector = loadVector("generated__deposit-flow__pegin__0");
-    const merkelized = merkelize(vector.psbt_hex);
-    try {
-      buildSignPsbtCdata(merkelized, { walletId: Buffer.alloc(31, 0xaa) });
-      throw new Error("buildSignPsbtCdata did not throw");
-    } catch (error) {
-      expect(isLedgerSignPsbtProtocolError(error)).toBe(true);
-      expect((error as Error).message).toMatch(/32 bytes/);
-    }
   });
 });
 
@@ -210,16 +185,6 @@ describe("interpreter completeness after seeding (G4, 22 fixtures)", () => {
 describe("prepare-time rejections (§2.2 — all typed, all pre-I/O)", () => {
   const VALID_PSBT_HEX = loadVector("generated__deposit-flow__pegin__0").psbt_hex;
 
-  function expectPrepareRejects(psbtHex: string, depositorXOnlyHex: string, messagePattern: RegExp): void {
-    try {
-      prepareSignPsbt({ psbtHex, depositorXOnlyHex });
-      throw new Error("prepareSignPsbt did not throw");
-    } catch (error) {
-      expect(isLedgerSignPsbtProtocolError(error)).toBe(true);
-      expect((error as Error).message).toMatch(messagePattern);
-    }
-  }
-
   it.each([
     ["uppercase hex", TEST_DEPOSITOR_KEY_HEX.toUpperCase()],
     ["63 chars", TEST_DEPOSITOR_KEY_HEX.slice(0, 63)],
@@ -262,5 +227,102 @@ describe("prepare-time rejections (§2.2 — all typed, all pre-I/O)", () => {
     // rejected inside PsbtV2.deserialize and surfaces as a typed error.
     const versionOnePsbtHex = "70736274ff" + "01fb" + "0401000000" + "00";
     expectPrepareRejects(versionOnePsbtHex, TEST_DEPOSITOR_KEY_HEX, /PSBT rejected at parse/);
+  });
+
+  it("rejects a PSBT keypair whose key length is a non-minimal CompactSize", () => {
+    // The parser differential, end to end: bip174 advances by the CANONICAL
+    // width, so this keypair leaves it 2 bytes early — landing exactly on the
+    // final separator, which is why bitcoinjs still accepts the bytes and the
+    // merge-target gate passes. Only the strict decode rejects it.
+    const nonMinimalKeypair =
+      "fd0300" + // key length 3, written as a 3-byte CompactSize instead of 1
+      "5003aa" + // key: unknown output keytype 0x50 ‖ key data 0x03 0xaa
+      "01" + // value length 1
+      "ff"; // value
+    const craftedHex = VALID_PSBT_HEX.slice(0, -2) + nonMinimalKeypair + "00";
+
+    expectPrepareRejects(craftedHex, TEST_DEPOSITOR_KEY_HEX, /PSBT rejected at parse: Non-minimal varint/);
+  });
+});
+
+describe("already-signed inputs are rejected before any device I/O", () => {
+  // Without this gate the collision only surfaces in bip174 at merge — after
+  // the ceremony ran and the depositor approved. A retry is the live trigger.
+  const TAPSCRIPT_VECTOR = "generated__deposit-flow__pegin__0";
+  const KEYPATH_VECTOR = "generated__deposit-flow__pre_pegin__0";
+
+  /** The leaf hashes prepare will request for input 0 of the tapscript fixture. */
+  function expectedLeafHashHexesOfInput0(psbtHex: string): ReadonlySet<string> {
+    const expectation = prepareSignPsbt({ psbtHex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX }).table.byInput.get(0);
+    if (expectation?.kind !== "tapscript") throw new Error("fixture input 0 is not a tapscript input");
+    return expectation.expectedLeafHashHexes;
+  }
+
+  it("rejects an input already carrying our tapScriptSig for a leaf this round signs", () => {
+    const psbtHex = loadVector(TAPSCRIPT_VECTOR).psbt_hex;
+    const [signedLeafHashHex] = [...expectedLeafHashHexesOfInput0(psbtHex)];
+    const psbt = Psbt.fromHex(psbtHex);
+    psbt.updateInput(0, {
+      tapScriptSig: [
+        {
+          pubkey: Buffer.from(TEST_DEPOSITOR_KEY_HEX, "hex"),
+          leafHash: Buffer.from(signedLeafHashHex, "hex"),
+          signature: Buffer.alloc(64, 0x11),
+        },
+      ],
+    });
+
+    expectPrepareRejects(psbt.toHex(), TEST_DEPOSITOR_KEY_HEX, /input 0 already carries a tapScriptSig/);
+  });
+
+  it("accepts an input carrying another signer's tapScriptSig on the same leaf", () => {
+    // bip174's dupe key is (pubkey ‖ leafHash), so a co-signer's entry on our
+    // leaf never collides — the gate must not over-reject it.
+    const psbtHex = loadVector(TAPSCRIPT_VECTOR).psbt_hex;
+    const [signedLeafHashHex] = [...expectedLeafHashHexesOfInput0(psbtHex)];
+    const psbt = Psbt.fromHex(psbtHex);
+    psbt.updateInput(0, {
+      tapScriptSig: [
+        {
+          pubkey: Buffer.from("25d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517", "hex"),
+          leafHash: Buffer.from(signedLeafHashHex, "hex"),
+          signature: Buffer.alloc(64, 0x11),
+        },
+      ],
+    });
+
+    const prepared = prepareSignPsbt({ psbtHex: psbt.toHex(), depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    expect(prepared.table.expectedYieldCount).toBe(1);
+  });
+
+  it("accepts an input carrying our own tapScriptSig on a leaf this round does not sign", () => {
+    // The other half of the (key, leaf) conjunction: our signature on a leaf
+    // outside this round's set is no bip174 collision, so rejecting it would
+    // block the multi-leaf retry the gate exists to let through.
+    const psbtHex = loadVector(TAPSCRIPT_VECTOR).psbt_hex;
+    const foreignLeafHashHex = "ff".repeat(32);
+    expect(expectedLeafHashHexesOfInput0(psbtHex).has(foreignLeafHashHex)).toBe(false);
+
+    const psbt = Psbt.fromHex(psbtHex);
+    psbt.updateInput(0, {
+      tapScriptSig: [
+        {
+          pubkey: Buffer.from(TEST_DEPOSITOR_KEY_HEX, "hex"),
+          leafHash: Buffer.from(foreignLeafHashHex, "hex"),
+          signature: Buffer.alloc(64, 0x11),
+        },
+      ],
+    });
+
+    const prepared = prepareSignPsbt({ psbtHex: psbt.toHex(), depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    expect(prepared.table.expectedYieldCount).toBe(1);
+  });
+
+  it("rejects an input already carrying a tapKeySig when this round signs its keypath", () => {
+    const vector = loadVector(KEYPATH_VECTOR);
+    const psbt = Psbt.fromHex(vector.psbt_hex);
+    psbt.updateInput(0, { tapKeySig: Buffer.alloc(64, 0x22) });
+
+    expectPrepareRejects(psbt.toHex(), depositorKeyFor(KEYPATH_VECTOR, vector), /input 0 already carries a tapKeySig/);
   });
 });

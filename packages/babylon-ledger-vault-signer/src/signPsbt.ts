@@ -11,9 +11,9 @@
  * @module ledger-vault-signer/signPsbt
  */
 
-import { LedgerSignPsbtProtocolError } from "./errors";
+import { LedgerSignPsbtProtocolError, toCollectedYieldRefs } from "./errors";
 import type { CollectedYield } from "./expectedSignatures";
-import type { RawApduSender } from "./rawApdu";
+import type { AppIdentity, RawApduSender } from "./rawApdu";
 import { runSignPsbtLoop, type SignPsbtProgress } from "./signPsbtLoop";
 import { mergeYields } from "./signPsbtMerge";
 import { prepareSignPsbt } from "./signPsbtPrepare";
@@ -34,13 +34,17 @@ export interface SignVaultPsbtParams {
   readonly onProgress?: (progress: SignPsbtProgress) => void;
   /**
    * Host liveness control, checked before the initial send and before every
-   * CONTINUE. The loop has no round cap and no internal timeout (the abort
-   * signal is by design the only way to bound it) — production callers MUST
-   * always pass a signal; omit it only in tests with a scripted transport.
-   * The check runs between exchanges: an in-flight transport call that hangs
-   * is not itself cancelled, so a bounded transport remains the caller's job.
+   * CONTINUE. Required: the loop has no round cap and no internal timeout, so
+   * the signal is by design the only way to bound it. The check runs between
+   * exchanges — an in-flight transport call that hangs is not itself
+   * cancelled, so a bounded transport remains the caller's job.
    */
-  readonly signal?: AbortSignal;
+  readonly signal: AbortSignal;
+  /**
+   * Connect-time app name/version, woven into terminal status-word
+   * diagnostics. Never gates control flow.
+   */
+  readonly appIdentity?: AppIdentity;
   /**
    * Provider's `loopAbandoned` flag: resend the initial SIGN_PSBT APDU once
    * if it answers 0x6A80 (the dispatcher eats exactly one non-CONTINUE APDU
@@ -65,10 +69,10 @@ export interface SignVaultPsbtResult {
  * per-YIELD assertions, check set-equal completion, then merge the yields
  * into the original PSBT. Throws the typed SIGN_PSBT errors from `errors.ts`.
  *
- * Production callers MUST pass `params.signal`: the loop is unbounded by
- * design (no round cap, no internal timeout), so the abort signal is the only
- * way to stop a device that never answers 0x9000. The signal is observed
- * between exchanges — a transport call that itself hangs is not cancelled.
+ * `params.signal` is required: the loop is unbounded by design (no round cap,
+ * no internal timeout), so the abort signal is the only way to stop a device
+ * that never answers 0x9000. It is observed between exchanges — a transport
+ * call that itself hangs is not cancelled.
  */
 export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtParams): Promise<SignVaultPsbtResult> {
   const prepared = prepareSignPsbt({ psbtHex: params.psbtHex, depositorXOnlyHex: params.depositorXOnlyHex });
@@ -76,15 +80,18 @@ export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtPa
   const yields = await runSignPsbtLoop(send, prepared, {
     onProgress: params.onProgress,
     signal: params.signal,
+    appIdentity: params.appIdentity,
     resendOnceOnIncorrectData: params.resendOnceOnIncorrectData,
   });
   let signedPsbtHex: string;
   try {
     signedPsbtHex = mergeYields(prepared.originalPsbtHex, yields);
   } catch (error) {
-    // Post-ceremony merge failures stay inside the typed contract.
+    // Post-ceremony merge failures stay inside the typed contract. The error
+    // names WHICH yields arrived, never their bytes (CLAUDE.md §7).
     throw new LedgerSignPsbtProtocolError(
       `merge failed after signing: ${error instanceof Error ? error.message : String(error)}`,
+      toCollectedYieldRefs(yields),
     );
   }
   // Finding-3 hardening: detach from the collector's live backing array.

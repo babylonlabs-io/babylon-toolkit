@@ -3,7 +3,7 @@
  * one wire encoding: the non-throwing {@link RawApduSender} for the SIGN_PSBT
  * interrupt/continue loop (#2219, where 0xE000 is data), and the throwing
  * {@link ApduSender} the DERIVE/APPROVE ceremony rides, re-based on the raw
- * sender via `classifyStatusWord`. Debugging:
+ * sender via the shared `createThrowingApduSender`. Debugging:
  * `globalThis.__LEDGER_VAULT_APDU_TRACE__ = true` logs header + status word
  * per exchange — never payload bytes (pubkeys, context preimage).
  *
@@ -11,7 +11,7 @@
  */
 
 import type { DmkSessionHandle } from "./dmkSession";
-import { classifyStatusWord, hex2, hex4, type Apdu, type RawApduSender } from "./rawApdu";
+import { createThrowingApduSender, hex2, hex4, type Apdu, type RawApduSender } from "./rawApdu";
 import type { ApduSender } from "./vaultCommands";
 
 const STATUS_WORD_BYTES = 2;
@@ -92,19 +92,12 @@ export function createDmkRawApduSender(handle: DmkSessionHandle): RawApduSender 
 
 /**
  * Build the ceremony's throwing sender: the raw sender plus the shared
- * status-word classification (typed error on anything but 0x9000).
+ * status-word classification (typed error on anything but 0x9000), carrying
+ * the connect-time app identity so 0x6E00 names the app that answered.
  */
 export function createDmkApduSender(handle: DmkSessionHandle): ApduSender {
-  const sendRaw = createDmkRawApduSender(handle);
-  return async (apdu) => {
-    const { sw, data } = await sendRaw(apdu);
-    const error = classifyStatusWord(sw, {
-      ins: apdu.ins,
-      p1: apdu.p1,
-      appName: handle.appName,
-      appVersion: handle.appVersion,
-    });
-    if (error) throw error;
-    return data;
-  };
+  return createThrowingApduSender(createDmkRawApduSender(handle), {
+    appName: handle.appName,
+    appVersion: handle.appVersion,
+  });
 }

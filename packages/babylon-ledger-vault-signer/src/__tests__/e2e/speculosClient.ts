@@ -10,15 +10,18 @@
  * @module ledger-vault-signer/__tests__/e2e/speculosClient
  */
 
-import { classifyStatusWord, type RawApduSender } from "../../rawApdu";
+import { createThrowingApduSender, hex2, hex4, type RawApduSender } from "../../rawApdu";
 import type { ApduSender } from "../../vaultCommands";
 
 /** BOLOS-level GET_APP_AND_VERSION (any app answers it). */
 const CLA_BOLOS = 0xb0;
 const INS_GET_APP_AND_VERSION = 0x01;
-const SW_OK = 0x9000;
+/** ISO-7816 success; exported so tests build responses without a bare literal. */
+export const SW_OK = 0x9000;
 /** `format(1)=0x01 ‖ nameLen ‖ name ‖ versionLen ‖ version …` (verified live). */
 const APP_AND_VERSION_FORMAT = 0x01;
+/** Shortest legal response: format byte + both length bytes, name and version empty. */
+const MIN_APP_AND_VERSION_BYTES = 3;
 
 const MAX_APDU_DATA_BYTES = 0xff;
 const STATUS_WORD_HEX_CHARS = 4;
@@ -89,15 +92,13 @@ export function createSpeculosRawApduSender(baseUrl: string): RawApduSender {
   };
 }
 
-/** The ceremony's throwing sender: raw sender + the shared SW classification. */
+/**
+ * The ceremony's throwing sender, built by the same shared helper the DMK
+ * transport uses so both raise identical typed errors. No app identity: this
+ * client reads the app separately via {@link getAppAndVersion}.
+ */
 export function createSpeculosApduSender(baseUrl: string): ApduSender {
-  const sendRaw = createSpeculosRawApduSender(baseUrl);
-  return async (apdu) => {
-    const { sw, data } = await sendRaw(apdu);
-    const error = classifyStatusWord(sw, { ins: apdu.ins, p1: apdu.p1 });
-    if (error) throw error;
-    return data;
-  };
+  return createThrowingApduSender(createSpeculosRawApduSender(baseUrl));
 }
 
 /** All text lines of the currently displayed screen, joined with " | ". */
@@ -156,7 +157,12 @@ export interface AppAndVersion {
   readonly version: string;
 }
 
-/** GET_APP_AND_VERSION (`B0 01 00 00 00`), parsed per the live byte layout. */
+/**
+ * GET_APP_AND_VERSION (`B0 01 00 00 00`), parsed per the live byte layout.
+ * Reference client: LedgerHQ/ledger-live@2ec1cda
+ * `libs/ledger-live-common/src/hw/getAppAndVersion.ts`. Each rejection carries
+ * its own message so no two guards are indistinguishable to a caller or a test.
+ */
 export async function getAppAndVersion(sendRaw: RawApduSender): Promise<AppAndVersion> {
   const { sw, data } = await sendRaw({
     cla: CLA_BOLOS,
@@ -166,22 +172,34 @@ export async function getAppAndVersion(sendRaw: RawApduSender): Promise<AppAndVe
     data: new Uint8Array(0),
   });
   if (sw !== SW_OK) {
-    throw new Error(`GET_APP_AND_VERSION answered sw 0x${sw.toString(16)}`);
+    throw new Error(`GET_APP_AND_VERSION answered sw 0x${hex4(sw)}`);
   }
-  if (data.length < 3 || data[0] !== APP_AND_VERSION_FORMAT) {
-    throw new Error(`GET_APP_AND_VERSION answered an unknown format (${toHex(data)})`);
+  // Lengths only, never the response bytes: this client also drives real devices.
+  if (data.length < MIN_APP_AND_VERSION_BYTES) {
+    throw new Error(
+      `GET_APP_AND_VERSION answered ${data.length} bytes; the format and length prefixes alone need ${MIN_APP_AND_VERSION_BYTES}`,
+    );
+  }
+  if (data[0] !== APP_AND_VERSION_FORMAT) {
+    throw new Error(
+      `GET_APP_AND_VERSION answered format 0x${hex2(data[0])}, expected 0x${hex2(APP_AND_VERSION_FORMAT)}`,
+    );
   }
   const nameLen = data[1];
   const nameEnd = 2 + nameLen;
   // Check BEFORE reading the version-length byte: an out-of-range read yields
   // undefined, and the NaN that follows makes every `>` bound below false.
   if (nameEnd >= data.length) {
-    throw new Error(`GET_APP_AND_VERSION response truncated (${toHex(data)})`);
+    throw new Error(
+      `GET_APP_AND_VERSION response truncated: name length ${nameLen} leaves no version-length byte in ${data.length} bytes`,
+    );
   }
   const versionLen = data[nameEnd];
   const versionEnd = nameEnd + 1 + versionLen;
   if (versionEnd > data.length) {
-    throw new Error(`GET_APP_AND_VERSION response truncated (${toHex(data)})`);
+    throw new Error(
+      `GET_APP_AND_VERSION response truncated: version length ${versionLen} needs ${versionEnd} bytes, response has ${data.length}`,
+    );
   }
   const decoder = new TextDecoder();
   return {

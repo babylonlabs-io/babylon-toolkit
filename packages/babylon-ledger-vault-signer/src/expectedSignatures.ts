@@ -7,13 +7,20 @@
  * BEFORE the signature is recorded. A mismatch aborts the ceremony — a
  * misrouted signature must never reach the merge. Unit of expectation is
  * (input, leaf), not input; completion is set equality in both directions.
+ * Building the table also asserts each tapscript input's control block really
+ * commits to its leaf, so a leaf the spent output never paid to is never armed.
  *
- * YIELD wire shape (base app `sign_input.c:47-87`, protocol v1 / P2=1):
+ * Firmware citations in this file are pinned, because the same path on another
+ * branch shows the opposite behaviour: `base:` = LedgerHQ/app-bitcoin @
+ * `e400d8d8` (`src/handler/sign_psbt/`, `src/common/`), `fw:` =
+ * LedgerHQ/app-babylon-vault `fix/feedback` @ `90cf41f` (`src/`).
+ *
+ * YIELD wire shape (`base:sign_input.c:47-87`, protocol v1 / P2=1):
  * `varint(input_index) ‖ augm_len(1) ‖ pubkey_augm(augm_len) ‖ signature` —
  * tapscript: augm = untweaked x-only key(32) ‖ tapleaf_hash(32), keypath:
  * augm = tweaked output key(32); Schnorr sig is exactly 64 bytes at
  * SIGHASH_DEFAULT (a 65th byte means a non-zero sighash byte,
- * `sign_input.c:202-206` — reject, never strip).
+ * `base:sign_input.c:197-201` — reject, never strip).
  *
  * @module ledger-vault-signer/expectedSignatures
  */
@@ -30,9 +37,24 @@ import { parseVarint, sanitizeBigintToNumber } from "./vendor/ledger-bitcoin/var
 /** BIP-341 tapscript leaf version — the only one our builders emit. */
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 const X_ONLY_KEY_BYTES = 32;
-/** Tapscript augm = x-only key(32) ‖ tapleaf hash(32) — base `sign_input.c:66`. */
+/** BIP-371 TAP_LEAF_SCRIPT value = script ‖ leaf_version(1): ≥1 script byte + the version byte. */
+const MIN_TAP_LEAF_SCRIPT_VALUE_BYTES = 2;
+/** BIP-341 control block head: `leaf_version|parity`(1) ‖ internal x-only key(32). */
+const CONTROL_BLOCK_HEAD_BYTES = 33;
+/** BIP-341 merkle path element (one sibling hash per taptree level). */
+const TAPROOT_MERKLE_NODE_BYTES = 32;
+/** BIP-341: bit 0 of control-block byte 0 is the taproot output key's y-parity. */
+const CONTROL_BLOCK_PARITY_MASK = 0x01;
+/** BIP-341 tagged-hash tags for the taptree fold and the output-key tweak. */
+const TAPBRANCH_TAG = "TapBranch";
+const TAPTWEAK_TAG = "TapTweak";
+/**
+ * Tapscript augm = x-only key(32) ‖ tapleaf hash(32). Line 66 fixes only the
+ * +32 delta; `:206-207` is what pins the taproot `pubkey_len` at 32 (the ECDSA
+ * call site at `:117` yields 33) — `base:sign_input.c:66,206-207`.
+ */
 const AUGM_TAPSCRIPT_BYTES = 64;
-/** Keypath augm = tweaked x-only output key(32) — base `sign_input.c:208-215`. */
+/** Keypath augm = tweaked x-only output key(32) — `base:sign_input.c:66,206-207,419-429`. */
 const AUGM_KEYPATH_BYTES = 32;
 /** BIP-340 Schnorr signature at SIGHASH_DEFAULT — no trailing sighash byte. */
 const SCHNORR_SIG_BYTES = 64;
@@ -49,7 +71,8 @@ export type InputSigExpectation =
       readonly kind: "tapscript";
       /** TapLeaf hashes (lowercase hex) of this input's TAP_LEAF_SCRIPT entries. */
       readonly expectedLeafHashHexes: ReadonlySet<string>;
-      /** UNTWEAKED depositor x-only key — `sign_input.c:211` with `tweak_data=NULL` on every vault path. */
+      /** UNTWEAKED depositor x-only key — the tapscript branch leaves `tweak_data` NULL
+       * (`base:sign_input.c:430-433`), so no tweak is applied (`base:sign_input.c:159-161`). */
       readonly expectedSignerXOnlyHex: string;
     }
   | {
@@ -105,16 +128,12 @@ export interface BuildExpectedSignatureTableParams {
   readonly depositorXOnlyHex: string;
 }
 
-// bitcoinjs `initEccLib` re-verifies only when handed a DIFFERENT instance —
-// init once so a second tiny-secp256k1 copy in the bundle can't thrash the cache.
-let eccInitialized = false;
-
 /** BIP-86/BIP-341 keypath-only P2TR scriptPubKey of an x-only internal key. */
 function bip86OutputScript(xOnlyKeyHex: string): Buffer {
-  if (!eccInitialized) {
-    initEccLib(ecc);
-    eccInitialized = true;
-  }
+  // Not memoized: bitcoinjs re-verifies only when handed a DIFFERENT instance
+  // (`bitcoinjs-lib@6.1.7 src/ecc_lib.js:13-23`), so a "done" flag would
+  // silently skip that check once another instance reached the same copy.
+  initEccLib(ecc);
   const output = payments.p2tr({ internalPubkey: Buffer.from(xOnlyKeyHex, "hex") }).output;
   if (!output) {
     throw new LedgerSignPsbtProtocolError("p2tr produced no output script for the depositor key");
@@ -128,9 +147,76 @@ function p2wpkhOutputScript(xOnlyKeyHex: string, parityPrefix: number): Buffer {
   return Buffer.concat([P2WPKH_SCRIPT_PREFIX, bcrypto.hash160(compressed)]);
 }
 
+/** BIP-341 P2TR scriptPubKey shape: `OP_1 ‖ push-32 ‖ output key(32)`. */
+function isP2trScript(script: Buffer): boolean {
+  return (
+    script.length === P2TR_SCRIPT_BYTES && script.subarray(0, P2TR_SCRIPT_PREFIX.length).equals(P2TR_SCRIPT_PREFIX)
+  );
+}
+
+/**
+ * Assert the input's control block actually commits to the leaf we hashed:
+ * fold the control block's merkle path onto the leaf hash and tweak its
+ * internal key with the resulting root (BIP-341), then require the recomputed
+ * taproot output key AND its y-parity to equal the ones the witnessUtxo pays
+ * to. Without this the host would accept a signature over a leaf the spent
+ * output never committed to. The firmware requires the same binding on the
+ * flows it reconstructs (wire spec §8, Refund row →
+ * `fw:sign_psbt_validate.c:513-562`, `_refund_verify_taproot_commitment`).
+ */
+function assertControlBlockCommitsToLeaf(
+  inputIndex: number,
+  controlBlock: Buffer,
+  leafHash: Buffer,
+  scriptPubKey: Buffer,
+): void {
+  if (!isP2trScript(scriptPubKey)) {
+    throw new LedgerSignPsbtProtocolError(`input ${inputIndex} is tapscript but its witnessUtxo script is not P2TR`);
+  }
+  const pathBytes = controlBlock.length - CONTROL_BLOCK_HEAD_BYTES;
+  if (pathBytes < 0 || pathBytes % TAPROOT_MERKLE_NODE_BYTES !== 0) {
+    throw new LedgerSignPsbtProtocolError(
+      `input ${inputIndex} control block length ${controlBlock.length} is not ` +
+        `${CONTROL_BLOCK_HEAD_BYTES} plus a multiple of ${TAPROOT_MERKLE_NODE_BYTES}`,
+    );
+  }
+  const internalKey = controlBlock.subarray(1, CONTROL_BLOCK_HEAD_BYTES);
+  if (!ecc.isXOnlyPoint(internalKey)) {
+    throw new LedgerSignPsbtProtocolError(`input ${inputIndex} control block internal key is not an x-only point`);
+  }
+  let node = leafHash;
+  for (let offset = CONTROL_BLOCK_HEAD_BYTES; offset < controlBlock.length; offset += TAPROOT_MERKLE_NODE_BYTES) {
+    const sibling = controlBlock.subarray(offset, offset + TAPROOT_MERKLE_NODE_BYTES);
+    // BIP-341 orders each branch pair lexicographically before hashing.
+    const pair = Buffer.compare(node, sibling) < 0 ? [node, sibling] : [sibling, node];
+    node = bcrypto.taggedHash(TAPBRANCH_TAG, Buffer.concat(pair));
+  }
+  const tweak = bcrypto.taggedHash(TAPTWEAK_TAG, Buffer.concat([internalKey, node]));
+  const tweaked = ecc.xOnlyPointAddTweak(internalKey, tweak);
+  if (!tweaked) {
+    // null = tweaked point at infinity; unreachable for a real key, but the
+    // commitment is unverifiable when it happens, so it is never a pass.
+    throw new LedgerSignPsbtProtocolError(`input ${inputIndex} control block internal key has no taproot output key`);
+  }
+  const outputKey = scriptPubKey.subarray(P2TR_SCRIPT_PREFIX.length);
+  // Separate arms: this one binds the leaf to the spent output, the parity bit
+  // below is a 1-bit consistency check — one message would hide which failed.
+  if (!outputKey.equals(Buffer.from(tweaked.xOnlyPubkey))) {
+    throw new LedgerSignPsbtProtocolError(
+      `input ${inputIndex} control block does not commit to its TAP_LEAF_SCRIPT ` +
+        `(recomputed taproot output key differs from the witnessUtxo witness program)`,
+    );
+  }
+  if (tweaked.parity !== (controlBlock[0] & CONTROL_BLOCK_PARITY_MASK)) {
+    throw new LedgerSignPsbtProtocolError(
+      `input ${inputIndex} control block parity bit disagrees with the recomputed taproot output key`,
+    );
+  }
+}
+
 /**
  * Classify every input of the committed map model (build rules per the B1-c
- * spec §3.1; BIP-371 key types verified against base app `psbt.h:37-42`).
+ * spec §3.1; BIP-371 key types verified against `base:psbt.h:37-42`).
  * Throws `LedgerSignPsbtProtocolError` on any rule violation — all before any
  * device I/O.
  */
@@ -147,18 +233,23 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
   ];
 
   for (let inputIndex = 0; inputIndex < inputCount; inputIndex++) {
+    // A leaf input also carries TAP_INTERNAL_KEY (NUMS) by spec — wire spec §8,
+    // PegIn row — so the leaf branch wins and never looks at the internal key.
     const leafEntries = psbt.getInputEntriesOfType(inputIndex, psbtIn.TAP_LEAF_SCRIPT);
     if (leafEntries.length > 0) {
       // Exactly one leaf per input for now — >1 is an ambiguous leaf set,
-      // mirroring fw `sign_psbt_validate.c:2981,3004` and the ts-sdk rule.
+      // mirroring `fw:sign_psbt_validate.c:2981,3004` and the ts-sdk rule.
       if (leafEntries.length > 1) {
         throw new LedgerSignPsbtProtocolError(
           `input ${inputIndex} carries an ambiguous leaf set (${leafEntries.length} TAP_LEAF_SCRIPT entries)`,
         );
       }
       const value = leafEntries[0].value;
-      if (value.length < 1) {
-        throw new LedgerSignPsbtProtocolError(`input ${inputIndex} TAP_LEAF_SCRIPT value is empty`);
+      if (value.length < MIN_TAP_LEAF_SCRIPT_VALUE_BYTES) {
+        throw new LedgerSignPsbtProtocolError(
+          `input ${inputIndex} TAP_LEAF_SCRIPT value length ${value.length} is below the ` +
+            `${MIN_TAP_LEAF_SCRIPT_VALUE_BYTES}-byte minimum (script byte plus the leaf-version byte)`,
+        );
       }
       // BIP-371: value = script ‖ leaf_version (1 trailing byte).
       const leafVersion = value[value.length - 1];
@@ -169,14 +260,17 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
       }
       // Firmware requires witnessUtxo on every segwit input; catch its absence
       // in the zero-I/O preflight instead of burning an approved intent on-device.
-      if (!psbt.getInputWitnessUtxo(inputIndex)) {
+      const leafWitnessUtxo = psbt.getInputWitnessUtxo(inputIndex);
+      if (!leafWitnessUtxo) {
         throw new LedgerSignPsbtProtocolError(`input ${inputIndex} is tapscript but has no witnessUtxo`);
       }
       const script = value.subarray(0, value.length - 1);
-      const leafHashHex = tapLeafHash(TAPSCRIPT_LEAF_VERSION, script).toString("hex");
+      const leafHash = tapLeafHash(TAPSCRIPT_LEAF_VERSION, script);
+      // BIP-371 keyData of a TAP_LEAF_SCRIPT entry IS the control block.
+      assertControlBlockCommitsToLeaf(inputIndex, leafEntries[0].keyData, leafHash, leafWitnessUtxo.scriptPubKey);
       byInput.set(inputIndex, {
         kind: "tapscript",
-        expectedLeafHashHexes: new Set([leafHashHex]),
+        expectedLeafHashHexes: new Set([leafHash.toString("hex")]),
         expectedSignerXOnlyHex: depositorXOnlyHex,
       });
       continue;
@@ -197,7 +291,7 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
         throw new LedgerSignPsbtProtocolError(`input ${inputIndex} is keypath but has no witnessUtxo`);
       }
       const script = witnessUtxo.scriptPubKey;
-      if (script.length !== P2TR_SCRIPT_BYTES || !script.subarray(0, 2).equals(P2TR_SCRIPT_PREFIX)) {
+      if (!isP2trScript(script)) {
         throw new LedgerSignPsbtProtocolError(`input ${inputIndex} witnessUtxo script is not P2TR`);
       }
       // Pins "witness program" == "BIP-86 tweak of OUR key" independently.
@@ -208,14 +302,17 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
       }
       byInput.set(inputIndex, {
         kind: "taproot-keypath",
-        expectedOutputKeyHex: script.subarray(2).toString("hex"),
+        expectedOutputKeyHex: script.subarray(P2TR_SCRIPT_PREFIX.length).toString("hex"),
       });
       continue;
     }
 
     // Not signed by the device (Payout input 1, NoPayout inputs 1-2 today).
     // Ownership scan: a depositor-owned UTXO here means our builder dropped
-    // the device-required metadata — fail before burning a ceremony.
+    // the device-required metadata — fail before burning a ceremony. Deliberately
+    // limited to these inputs: a Pre-PegIn keypath input legitimately IS the
+    // depositor's BIP-86 P2TR, and leaf semantics (including where the depositor
+    // key sits) are the device's job — the host's is the commitment asserted above.
     const witnessUtxo = psbt.getInputWitnessUtxo(inputIndex);
     if (
       witnessUtxo &&
@@ -262,12 +359,28 @@ function seenKeyOf(yielded: CollectedYield): string {
   return yielded.kind === "tapscript" ? `${yielded.inputIndex}:${yielded.leafHashHex}` : `${yielded.inputIndex}`;
 }
 
+/**
+ * A short tail is a malformed payload, not a claim about which key signed; only
+ * a longer one is the device appending a non-zero sighash byte
+ * (`base:sign_input.c:197-201` — reject, never strip).
+ */
+function assertSignatureLength(length: number, inputIndex: number): void {
+  if (length < SCHNORR_SIG_BYTES) {
+    throw new LedgerSignPsbtProtocolError(
+      `YIELD payload truncated inside the signature (${length} of ${SCHNORR_SIG_BYTES} bytes on input ${inputIndex})`,
+    );
+  }
+  if (length !== SCHNORR_SIG_BYTES) {
+    throw new LedgerYieldMismatchError("non-default-sighash", inputIndex);
+  }
+}
+
 export function createYieldCollector(table: ExpectedSignatureTable): YieldCollector {
   const yields: CollectedYield[] = [];
   const seen = new Set<string>();
 
   const assertAndRecord = (payload: Buffer): void => {
-    // Payload = request minus the 0x10 code byte, exactly base `sign_input.c:47-87`.
+    // Payload = request minus the 0x10 code byte, exactly `base:sign_input.c:47-87`.
     let inputIndex: number;
     let offset: number;
     try {
@@ -305,9 +418,7 @@ export function createYieldCollector(table: ExpectedSignatureTable): YieldCollec
       if (!expectation.expectedLeafHashHexes.has(leafHashHex)) {
         throw new LedgerYieldMismatchError("unknown-leaf-hash", inputIndex);
       }
-      if (signature.length !== SCHNORR_SIG_BYTES) {
-        throw new LedgerYieldMismatchError("non-default-sighash", inputIndex);
-      }
+      assertSignatureLength(signature.length, inputIndex);
       const recorded: CollectedYield = {
         kind: "tapscript",
         inputIndex,
@@ -336,9 +447,7 @@ export function createYieldCollector(table: ExpectedSignatureTable): YieldCollec
       if (outputKeyHex !== expectation.expectedOutputKeyHex) {
         throw new LedgerYieldMismatchError("wrong-signer-key", inputIndex);
       }
-      if (signature.length !== SCHNORR_SIG_BYTES) {
-        throw new LedgerYieldMismatchError("non-default-sighash", inputIndex);
-      }
+      assertSignatureLength(signature.length, inputIndex);
       const recorded: CollectedYield = {
         kind: "taproot-keypath",
         inputIndex,

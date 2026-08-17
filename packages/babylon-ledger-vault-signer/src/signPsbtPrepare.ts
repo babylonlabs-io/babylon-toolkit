@@ -7,6 +7,10 @@
  * a round may wait on anything but the transport. Any throw here means zero
  * device I/O.
  *
+ * Every `base:` citation resolves at `LedgerHQ/app-bitcoin` branch `baseapp`
+ * @ `e400d8d8`, the `bitcoin_app_base` rev `app-babylon-vault` pins — earlier
+ * revs of that branch differ (`has_no_wallet_policy` is absent at `132d911`).
+ *
  * @module ledger-vault-signer/signPsbtPrepare
  */
 
@@ -39,27 +43,33 @@ const P2_PROTOCOL_V1 = 0x01;
 
 /** `wallet_id` and `wallet_hmac` are each 32 bytes (`base:init_global_state.c:63-114`). */
 const WALLET_FIELD_BYTES = 32;
+/**
+ * No-policy mode: an all-zero `wallet_id` routes into the vault validators
+ * (`has_no_wallet_policy`, `base:init_global_state.c:192-198`), which treat
+ * every input/output as external — nothing is marked internal because both
+ * preprocess passes return early on that flag (`base:preprocess_inputs.c:66-68`,
+ * `base:preprocess_outputs.c:54-56`). A non-zero id would make the device fetch a
+ * serialized policy this module never seeds — a mid-loop "unknown preimage".
+ */
+const NO_WALLET_POLICY_ID = new Uint8Array(WALLET_FIELD_BYTES);
+/**
+ * Derived apps have no registered policies, so all-zero is the only sendable
+ * hmac: a non-zero one is refused with SW_NOT_SUPPORTED
+ * (`base:init_global_state.c:184-187`), REGISTER_WALLET is a stub
+ * (`base:register_wallet.c:27-33`), and the app declares no SLIP-21 policy
+ * path (`base:Makefile:58-81`).
+ */
+const NO_WALLET_POLICY_HMAC = new Uint8Array(WALLET_FIELD_BYTES);
 
 const DEPOSITOR_X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 const PSBT_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/;
-
-/**
- * #2221/#2222 seam. Both fields default to 32 zero bytes: all-zero `wallet_id`
- * routes into the vault validators (`has_no_wallet_policy`,
- * `base:init_global_state.c:192-198`), and a non-zero `wallet_hmac` is
- * `SW_NOT_SUPPORTED` — B1 hard-zeroes both.
- */
-export interface SignPsbtHeaderOptions {
-  readonly walletId?: Uint8Array;
-  readonly walletHmac?: Uint8Array;
-}
 
 /**
  * The commitment surface of the vendored `MerkelizedPsbt` the header builder
  * consumes — structural, so no vendored symbol reaches the emitted
  * declarations (vendor d.ts is excluded from dist; see `vite.config.ts`).
  */
-export interface SignPsbtCommitments {
+interface SignPsbtCommitments {
   readonly inputMapCommitments: readonly Buffer[];
   readonly outputMapCommitments: readonly Buffer[];
   getGlobalKeysValuesRoot(): Buffer;
@@ -83,14 +93,7 @@ export interface SignPsbtInterpreter {
  * outputsRoot(32) ‖ walletId(32) ‖ walletHmac(32)`.
  * Built from parts — never assert a fixed length (varints grow past 252).
  */
-export function buildSignPsbtCdata(merkelized: SignPsbtCommitments, options?: SignPsbtHeaderOptions): Uint8Array {
-  const walletId = options?.walletId ?? new Uint8Array(WALLET_FIELD_BYTES);
-  const walletHmac = options?.walletHmac ?? new Uint8Array(WALLET_FIELD_BYTES);
-  if (walletId.length !== WALLET_FIELD_BYTES || walletHmac.length !== WALLET_FIELD_BYTES) {
-    throw new LedgerSignPsbtProtocolError(
-      `walletId and walletHmac must be ${WALLET_FIELD_BYTES} bytes (got ${walletId.length}/${walletHmac.length})`,
-    );
-  }
+function buildSignPsbtCdata(merkelized: SignPsbtCommitments): Uint8Array {
   // Outer trees hash each per-map COMMITMENT as a 0x00-prefixed leaf
   // (`js:appClient.ts:317-325`; consumed at `base:get_merkleized_map.c:20-39`).
   const inputsRoot = new Merkle(merkelized.inputMapCommitments.map((commitment) => hashLeaf(commitment))).getRoot();
@@ -102,8 +105,8 @@ export function buildSignPsbtCdata(merkelized: SignPsbtCommitments, options?: Si
       inputsRoot,
       createVarint(merkelized.getGlobalOutputCount()),
       outputsRoot,
-      Buffer.from(walletId),
-      Buffer.from(walletHmac),
+      Buffer.from(NO_WALLET_POLICY_ID),
+      Buffer.from(NO_WALLET_POLICY_HMAC),
     ]),
   );
 }
@@ -111,6 +114,38 @@ export function buildSignPsbtCdata(merkelized: SignPsbtCommitments, options?: Si
 /** The initial SIGN_PSBT APDU: `E1 04 00 01 ‖ cdata` (`js:appClient.ts:85-92`). */
 export function buildSignPsbtApdu(cdata: Uint8Array): Apdu {
   return { cla: CLA_APP, ins: INS_SIGN_PSBT, p1: P1_SIGN_PSBT, p2: P2_PROTOCOL_V1, data: cdata };
+}
+
+/**
+ * Reject an input already carrying a signature this round would collide with.
+ * bip174 refuses a duplicate (pubkey, leafHash) tapScriptSig and any second
+ * tapKeySig (`bip174@2.1.1` `converter/input/tapScriptSig.js:52-63`,
+ * `tapKeySig.js:32-35`) — but only at merge, long after the user approved on
+ * device. Retrying with an already-signed PSBT is the realistic trigger.
+ */
+function assertNoConflictingSignatures(mergeTarget: BitcoinjsPsbt, table: ExpectedSignatureTable): void {
+  for (const [inputIndex, expectation] of table.byInput) {
+    const input = mergeTarget.data.inputs[inputIndex];
+    if (expectation.kind === "tapscript") {
+      // Same (key, leaf) notion the table and bip174's dupe set both key on.
+      const conflicts = input.tapScriptSig?.some(
+        (existing) =>
+          existing.pubkey.toString("hex") === expectation.expectedSignerXOnlyHex &&
+          expectation.expectedLeafHashHexes.has(existing.leafHash.toString("hex")),
+      );
+      if (conflicts) {
+        throw new LedgerSignPsbtProtocolError(
+          `input ${inputIndex} already carries a tapScriptSig for a (key, leaf) we sign — pass an unsigned PSBT`,
+        );
+      }
+      continue;
+    }
+    if (input.tapKeySig) {
+      throw new LedgerSignPsbtProtocolError(
+        `input ${inputIndex} already carries a tapKeySig and this round signs its keypath — pass an unsigned PSBT`,
+      );
+    }
+  }
 }
 
 export interface PrepareSignPsbtParams {
@@ -134,8 +169,9 @@ export interface PreparedSignPsbt {
 
 /**
  * Deserialize → normalize v0→v2 → merkelize → expected-signature table →
- * seeded interpreter → cdata. Pure and synchronous; throws typed
- * `LedgerSignPsbtProtocolError` on every rejection, all before any device I/O.
+ * already-signed gate → seeded interpreter → cdata. Pure and synchronous;
+ * throws typed `LedgerSignPsbtProtocolError` on every rejection, all before any
+ * device I/O.
  */
 export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt {
   const { psbtHex, depositorXOnlyHex } = params;
@@ -150,8 +186,9 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   // The merge stage folds signatures back via bitcoinjs Psbt — assert
   // parseability BEFORE any device I/O so a PsbtV2-acceptable-but-
   // bitcoinjs-rejected PSBT cannot burn an approved intent and then fail.
+  let mergeTarget: BitcoinjsPsbt;
   try {
-    BitcoinjsPsbt.fromHex(psbtHex);
+    mergeTarget = BitcoinjsPsbt.fromHex(psbtHex);
   } catch (error) {
     throw new LedgerSignPsbtProtocolError(
       `PSBT rejected at parse (merge target): ${error instanceof Error ? error.message : String(error)}`,
@@ -183,6 +220,7 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
       `PSBT rejected at preflight: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+  assertNoConflictingSignatures(mergeTarget, table);
   const collector = createYieldCollector(table);
 
   // ONE yield mechanism: the onYield seam — the loop never parses YIELDs.

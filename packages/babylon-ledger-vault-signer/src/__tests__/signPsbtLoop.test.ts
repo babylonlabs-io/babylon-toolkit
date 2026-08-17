@@ -25,11 +25,13 @@ import {
   isLedgerDeviceLockedError,
   isLedgerSignPsbtAbortedError,
   isLedgerSignPsbtIncompleteError,
+  isLedgerSignPsbtProtocolError,
+  type CollectedYieldRef,
   type LedgerYieldMismatchKind,
 } from "../errors";
 import { createYieldCollector, type ExpectedSignatureTable } from "../expectedSignatures";
 import type { Apdu, RawApduSender } from "../rawApdu";
-import { runSignPsbtLoop, type SignPsbtProgress } from "../signPsbtLoop";
+import { runSignPsbtLoop, type RunSignPsbtLoopOptions, type SignPsbtProgress } from "../signPsbtLoop";
 import { prepareSignPsbt, type PreparedSignPsbt } from "../signPsbtPrepare";
 import { ClientCommandInterpreter } from "../vendor/ledger-bitcoin/clientCommands";
 import { createVarint } from "../vendor/ledger-bitcoin/varint";
@@ -57,6 +59,8 @@ const TEST_DEPOSITOR_KEY_HEX = "e49662aea97a89551401ce54de10474b24b4ab71383b69cf
 const TEST_SIG_HEX = "cd".repeat(64);
 const CONTINUE_HEADER_HEX = "f8010000";
 const SIGN_PSBT_HEADER_HEX = "e1040001";
+/** The loop requires a signal; cases that never abort share this one. */
+const NEVER_ABORTED = new AbortController().signal;
 
 interface ScriptedExchange {
   readonly expectApduHex: string;
@@ -167,7 +171,10 @@ describe("happy-path trace replay through the loop (T1, T11, T12)", () => {
     const { send, sent } = createScriptedSender(script);
     const progress: SignPsbtProgress[] = [];
 
-    const yields = await runSignPsbtLoop(send, prepared, { onProgress: (p) => progress.push(p) });
+    const yields = await runSignPsbtLoop(send, prepared, {
+      onProgress: (p) => progress.push(p),
+      signal: NEVER_ABORTED,
+    });
 
     expect(sent()).toBe(script.length);
     expect(yields.length).toBe(expectedYieldCount);
@@ -225,7 +232,7 @@ describe("happy-path trace replay through the loop (T1, T11, T12)", () => {
     const script = scriptFromTraces(initialApduHexOf(prepared), traces);
     const { send, sent } = createScriptedSender(script);
 
-    const yields = await runSignPsbtLoop(send, prepared, {});
+    const yields = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED });
 
     expect(sent()).toBe(script.length);
     expect(yields.length).toBe(1);
@@ -248,7 +255,7 @@ describe("resend-once on 0x6A80 (T2-T5)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    const yields = await runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true });
+    const yields = await runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true, signal: NEVER_ABORTED });
 
     expect(yields.length).toBe(1);
     expect(sent()).toBe(script.length);
@@ -285,7 +292,7 @@ describe("resend-once on 0x6A80 (T2-T5)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, {})).rejects.toMatchObject({
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerDeviceError.name,
       statusWord: 0x6a80,
     });
@@ -301,7 +308,9 @@ describe("resend-once on 0x6A80 (T2-T5)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true })).rejects.toMatchObject({
+    await expect(
+      runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true, signal: NEVER_ABORTED }),
+    ).rejects.toMatchObject({
       statusWord: 0x6a80,
     });
     expect(sent()).toBe(2);
@@ -316,7 +325,9 @@ describe("resend-once on 0x6A80 (T2-T5)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true })).rejects.toMatchObject({
+    await expect(
+      runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true, signal: NEVER_ABORTED }),
+    ).rejects.toMatchObject({
       statusWord: 0xb007,
     });
     expect(sent()).toBe(2);
@@ -337,7 +348,7 @@ describe("terminal status words mid-loop (T6)", () => {
     const script = firstRoundScript(prepared, traceFile.traces[0], 0x6985);
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, {})).rejects.toMatchObject({
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerUserRefusedError.name,
       statusWord: 0x6985,
     });
@@ -350,11 +361,44 @@ describe("terminal status words mid-loop (T6)", () => {
     const script = firstRoundScript(prepared, traceFile.traces[0], 0x5515);
     const { send } = createScriptedSender(script);
 
-    const outcome = await runSignPsbtLoop(send, prepared, {}).then(
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
       () => undefined,
       (error: unknown) => error,
     );
     expect(isLedgerDeviceLockedError(outcome)).toBe(true);
+  });
+
+  it("names the connect-time app on 0x6E00 when the caller supplied one", async () => {
+    // 0x6E00 is what the dashboard answers once the app has exited on host
+    // silence — the diagnosis needs the app the session actually connected to.
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0x6e00, respondDataHex: "" },
+    ];
+    const { send } = createScriptedSender(script);
+
+    await expect(
+      runSignPsbtLoop(send, prepared, {
+        signal: NEVER_ABORTED,
+        appIdentity: { appName: "Babylon Vault", appVersion: "0.1.0" },
+      }),
+    ).rejects.toThrow(/app at connect time: "Babylon Vault" v0\.1\.0/);
+  });
+
+  it("omits the app hint on 0x6E00 when the caller supplied no app identity", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0x6e00, respondDataHex: "" },
+    ];
+    const { send } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(LedgerDeviceError);
+    expect((outcome as LedgerDeviceError).message).not.toMatch(/app at connect time/);
   });
 });
 
@@ -391,6 +435,67 @@ describe("abort signal (T7 + entry check)", () => {
       LedgerSignPsbtAbortedError,
     );
     expect(sent()).toBe(1);
+  });
+
+  it("stops a device that answers 0xE000 forever — the signal is the only bound", async () => {
+    // No round cap by design (see the module header): without the abort this
+    // sender keeps the loop going indefinitely, which is why the signal is
+    // required. GET_MERKLE_LEAF_INDEX is the one command with no response
+    // queue, so replaying it every round is safe.
+    const traceFile = loadJson<TraceFile>(join(TRACES_DIR, "generated__deposit-flow__pegin__0.json"));
+    const prepared = prepareFromVector(traceFile.vector_id);
+    const replayable = traceFile.traces.find((trace) => trace.command_name === "GET_MERKLE_LEAF_INDEX");
+    if (!replayable) throw new Error("the pegin trace has no GET_MERKLE_LEAF_INDEX round");
+    const requestData = Uint8Array.from(Buffer.from(replayable.request_hex, "hex"));
+    const controller = new AbortController();
+    const ROUNDS_BEFORE_ABORT = 5;
+    let rounds = 0;
+    const send: RawApduSender = async () => {
+      rounds += 1;
+      if (rounds === ROUNDS_BEFORE_ABORT) controller.abort();
+      return { sw: 0xe000, data: requestData };
+    };
+
+    await expect(runSignPsbtLoop(send, prepared, { signal: controller.signal })).rejects.toBeInstanceOf(
+      LedgerSignPsbtAbortedError,
+    );
+    expect(rounds).toBe(ROUNDS_BEFORE_ABORT);
+  });
+
+  it("requires a signal in the options bag — omitting it must not typecheck", () => {
+    // @ts-expect-error `signal` is required; if this ever compiles, the loop is unbounded again.
+    const withoutSignal: RunSignPsbtLoopOptions = { resendOnceOnIncorrectData: true };
+
+    expect(withoutSignal.resendOnceOnIncorrectData).toBe(true);
+  });
+
+  it("reports how many yields had already arrived when the host aborted", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const controller = new AbortController();
+    const validYieldHex = tapscriptYieldRequestHex(
+      0,
+      TEST_DEPOSITOR_KEY_HEX,
+      tableLeafHex(prepared.table, 0),
+      TEST_SIG_HEX,
+    );
+    const script: ScriptedExchange[] = [
+      {
+        expectApduHex: initialApduHexOf(prepared),
+        respondSw: 0xe000,
+        respondDataHex: validYieldHex,
+        onRespond: () => controller.abort(),
+      },
+    ];
+    const { send } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: controller.signal }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
+    expect(outcome.yieldedCount).toBe(1);
   });
 });
 
@@ -449,7 +554,7 @@ describe("YIELD assertions abort the ceremony (T8, T9)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, {})).rejects.toMatchObject({
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerYieldMismatchError.name,
       kind,
     });
@@ -470,7 +575,7 @@ describe("YIELD assertions abort the ceremony (T8, T9)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, {})).rejects.toMatchObject({
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerYieldMismatchError.name,
       kind: "duplicate-yield",
     });
@@ -490,7 +595,7 @@ describe("YIELD assertions abort the ceremony (T8, T9)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, {})).rejects.toMatchObject({
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerYieldMismatchError.name,
       kind: "unexpected-input",
       inputIndex: 1,
@@ -507,7 +612,7 @@ describe("completion check (T10)", () => {
     ];
     const { send } = createScriptedSender(script);
 
-    const outcome = await runSignPsbtLoop(send, prepared, {}).then(
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
       () => undefined,
       (error: unknown) => error,
     );
@@ -530,8 +635,107 @@ describe("protocol failures stop the loop (T13, T14)", () => {
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, {})).rejects.toBeInstanceOf(LedgerSignPsbtProtocolError);
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toBeInstanceOf(
+      LedgerSignPsbtProtocolError,
+    );
     expect(sent()).toBe(1);
+  });
+
+  it("carries the accepted yields by identity only — never their signature bytes", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const leafHex = tableLeafHex(prepared.table, 0);
+    const validYieldHex = tapscriptYieldRequestHex(0, TEST_DEPOSITOR_KEY_HEX, leafHex, TEST_SIG_HEX);
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: validYieldHex },
+      // Truncated inside the varint: the YIELD parser raises the protocol error
+      // and cannot itself see the yield accepted on the round before.
+      { expectApduHex: CONTINUE_HEADER_HEX, respondSw: 0xe000, respondDataHex: "10" + "fd01" },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(isLedgerSignPsbtProtocolError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtProtocolError(outcome)) throw new Error("expected a protocol error");
+    expect(outcome.collectedYields).toEqual([{ inputIndex: 0, leafHashHex: leafHex }]);
+    expect(outcome.collectedYields[0]).not.toHaveProperty("signature");
+    expect(sent()).toBe(2);
+  });
+
+  it("re-raises a typed parser failure at its own detail, not wrapped as a client-command failure", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const script: ScriptedExchange[] = [
+      // Truncated inside the varint — the collector raises a typed protocol error.
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: "10" + "fd01" },
+    ];
+    const { send } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(isLedgerSignPsbtProtocolError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtProtocolError(outcome)) throw new Error("expected a protocol error");
+    expect(outcome.detail).toMatch(/^unparseable YIELD payload:/);
+    expect(outcome.message).not.toContain("client command failed");
+  });
+
+  it("carries the accepted yields when a NON-typed interpreter failure hits after a valid YIELD", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const leafHex = tableLeafHex(prepared.table, 0);
+    const validYieldHex = tapscriptYieldRequestHex(0, TEST_DEPOSITOR_KEY_HEX, leafHex, TEST_SIG_HEX);
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: validYieldHex },
+      // Unknown command code 0x99: the interpreter throws a plain Error
+      // (`vendor/ledger-bitcoin/clientCommands.ts:373-375`) — generic-wrap branch.
+      { expectApduHex: CONTINUE_HEADER_HEX, respondSw: 0xe000, respondDataHex: "99" },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(isLedgerSignPsbtProtocolError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtProtocolError(outcome)) throw new Error("expected a protocol error");
+    expect(outcome.detail).toMatch(/^client command failed:/);
+    expect(outcome.collectedYields).toEqual([{ inputIndex: 0, leafHashHex: leafHex }]);
+    expect(sent()).toBe(2);
+  });
+
+  it("refuses a signature at the type level — the compiler keeps bytes off the error", () => {
+    const withSignature = {
+      inputIndex: 0,
+      leafHashHex: "ab".repeat(32),
+      signature: Uint8Array.from(Buffer.from(TEST_SIG_HEX, "hex")),
+    };
+    // @ts-expect-error `signature?: never` on CollectedYieldRef; if this ever
+    // compiles, a full CollectedYield can ride the thrown error again.
+    const ref: CollectedYieldRef = withSignature;
+
+    expect(ref.inputIndex).toBe(0);
+  });
+
+  it("carries no yields when the failure hits before any YIELD arrived", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: "99" },
+    ];
+    const { send } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(isLedgerSignPsbtProtocolError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtProtocolError(outcome)) throw new Error("expected a protocol error");
+    expect(outcome.collectedYields).toEqual([]);
   });
 });
 

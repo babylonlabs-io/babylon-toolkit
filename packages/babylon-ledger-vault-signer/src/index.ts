@@ -36,6 +36,7 @@ export {
   isLedgerSignPsbtProtocolError,
   isLedgerUserRefusedError,
   isLedgerYieldMismatchError,
+  type CollectedYieldRef,
   type LedgerYieldMismatchKind,
 } from "./errors";
 export {
@@ -45,7 +46,7 @@ export {
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
-export { type Apdu, type RawApduResponse, type RawApduSender } from "./rawApdu";
+export { type Apdu, type AppIdentity, type RawApduResponse, type RawApduSender } from "./rawApdu";
 export {
   signVaultPsbt,
   type CollectedYield,

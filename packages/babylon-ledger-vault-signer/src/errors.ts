@@ -113,6 +113,36 @@ export class LedgerSignPsbtIncompleteError extends Error {
 }
 
 /**
+ * Non-secret identity of one accepted YIELD: which input it signed, and for a
+ * tapscript spend which taptree leaf — a public value the input's control
+ * block already commits to. It deliberately carries NO signature material:
+ * an Error is the object most likely to be `console.error`'d or shipped to
+ * telemetry, and both that and `JSON.stringify` serialize own enumerable
+ * properties, so anything attached here is effectively logged (CLAUDE.md
+ * critical path #7 — never log signatures or payload bytes).
+ */
+export interface CollectedYieldRef {
+  readonly inputIndex: number;
+  /** Lowercase-hex tapleaf hash; absent on keypath spends. */
+  readonly leafHashHex?: string;
+  /** Type-level guard: makes a full `CollectedYield` fail to assign here. */
+  readonly signature?: never;
+}
+
+/**
+ * Strip accepted yields down to their identity. The parameter is structural so
+ * this module imports nothing, and every returned object is fresh — no
+ * signature bytes ride along by reference.
+ */
+export function toCollectedYieldRefs(
+  yields: readonly { readonly inputIndex: number; readonly leafHashHex?: string }[],
+): readonly CollectedYieldRef[] {
+  return yields.map(({ inputIndex, leafHashHex }) =>
+    leafHashHex === undefined ? { inputIndex } : { inputIndex, leafHashHex },
+  );
+}
+
+/**
  * A host-side SIGN_PSBT protocol failure: a prepare-time rejection, an
  * unparseable YIELD payload, or an interpreter request outside the committed
  * PSBT material. With our commitments seeded up front, these mean host bug or
@@ -120,11 +150,20 @@ export class LedgerSignPsbtIncompleteError extends Error {
  */
 export class LedgerSignPsbtProtocolError extends Error {
   readonly detail: string;
+  /**
+   * Which yields the device had already delivered when the failure hit, by
+   * identity only (see {@link CollectedYieldRef}); empty for prepare-time
+   * rejections, which run before any device I/O. Diagnostics only — nothing in
+   * this package reads them, and whether a failed ceremony burns the device
+   * signatures is unresolved, so there is no retry or resume path here.
+   */
+  readonly collectedYields: readonly CollectedYieldRef[];
 
-  constructor(detail: string) {
+  constructor(detail: string, collectedYields: readonly CollectedYieldRef[] = []) {
     super(`SIGN_PSBT protocol failure: ${detail}`);
     this.name = LEDGER_SIGN_PSBT_PROTOCOL_ERROR_NAME;
     this.detail = detail;
+    this.collectedYields = collectedYields;
   }
 }
 
@@ -146,9 +185,13 @@ export class LedgerSignPsbtProtocolError extends Error {
  *   a transport failure — full re-ceremony required.
  */
 export class LedgerSignPsbtAbortedError extends Error {
-  constructor() {
+  /** Yields the device had already delivered when the host stopped sending. */
+  readonly yieldedCount: number;
+
+  constructor(yieldedCount: number) {
     super("SIGN_PSBT was abandoned host-side before completion");
     this.name = LEDGER_SIGN_PSBT_ABORTED_ERROR_NAME;
+    this.yieldedCount = yieldedCount;
   }
 }
 

@@ -18,12 +18,6 @@ v6-compatible source and gate it with golden vectors.
 - Each file's header records its upstream path, version, upstream sha256, and the
   exact modifications made (§4(b)).
 - **Known upstream behaviour (kept):**
-  - `parseVarint` accepts non-canonical (overlong) encodings — e.g. `fd0100`
-    decodes to `1` — with no minimality check, matching upstream and the Python
-    oracle. Resolved with `psbtv2`: it parses length varints through
-    `sanitizeBigintToNumber(readVarInt())` and re-serializes every map through
-    `createVarint` (`serializeMap`), so overlong lengths in a hostile PSBT are
-    re-emitted canonically — parse-accept, emit-canonical.
   - `policy.ts` `serialize()` writes the descriptor-template length in UTF-16
     code units but hashes its UTF-8 bytes; the Python oracle (`wallet.py:70`)
     counts UTF-8 for both, and encodes name/keys as UTF-8 where the JS uses
@@ -43,6 +37,52 @@ v6-compatible source and gate it with golden vectors.
 Everything else — protocol logic, byte layout, function surface — is verbatim,
 with the exceptions recorded per file header; the substantive ones:
 
+- `varint.ts`: **behaviour change** — `parseVarint` rejects non-minimal
+  (overlong) CompactSize encodings with a `RangeError`; upstream and the Python
+  oracle accept them (`fd0100` decodes to `1`). It joins the `psbtv2.ts` parse
+  gates (repeated keypair, trailing bytes — see that file's header) in
+  rejecting bytes upstream accepts. WHY: overlong lengths create a _parser
+  differential_ against `bitcoinjs-lib`'s bip174. bip174 advances its cursor by
+  the CANONICAL width
+  (`bip174@2.1.1 src/lib/parser/fromBuffer.js:10-11` —
+  `offset += varuint.encodingLength(keyLen)`) while `parseVarint` returns the
+  TRUE wire width, so the same bytes deserialize into two different keypair
+  sets. Take the crafted 13-byte keypair `01 fc fd0800 deadbeefcafe0000`: both
+  parsers read a 1-byte key of type `0xfc` and a value of length 8 — what
+  differs is where that value starts and where the map ends. bip174 advances
+  one byte past `fd0800` (`encodingLength(8) === 1`), takes `0800deadbeefcafe`
+  as the value, then reads the `00` at offset 11 as the map terminator;
+  `PsbtV2` advances the true 3, takes `deadbeefcafe0000`, consumes all 13 bytes
+  and is still inside the map. From there the two models sit at different
+  offsets, so every later keypair and map boundary can differ.
+  `prepareSignPsbt`'s merge target is a bitcoinjs `Psbt`, so a ceremony driven
+  by the `PsbtV2` model would run to completion and then merge into a target
+  parsed into a different keypair set, failing at `finalizeInput`. Fail-closed
+  for funds today (device commitment, on-device display and the
+  expected-signature table all derive from the SAME `PsbtV2`) and not
+  production-reachable — no production caller feeds attacker bytes — but it
+  makes "bip174 already validated these bytes" a bypassable mitigation, so the
+  differential is closed at the parser instead. Canonical encodings are
+  unaffected: `createVarint` only ever emits minimal forms, so every
+  serialize→parse path and every oracle-generated vector is untouched, and the
+  `psbtv2` parse-accept/emit-canonical round-trip now rejects rather than
+  normalizes. The device-fed parse sites are unaffected too — the firmware
+  writes both varints we parse through the SDK's `varint_write`, which sizes
+  via `varint_size` and so always picks the minimal width
+  (`LedgerHQ/ledger-secure-sdk` `lib_standard_app/varint.c` — `varint_size`
+  `:25-40`, `varint_write` `:79-104`; blob `fb199f91`, byte-identical on
+  `master@6862436` and on `API_LEVEL_25`/`26`/`27`). Both call sites live in the
+  base app pinned as `app-babylon-vault@develop`'s `bitcoin_app_base` submodule
+  (`LedgerHQ/app-bitcoin@baseapp`, commit `e400d8d8`): the
+  GET_MERKLE_LEAF_PROOF `tree_size`/`leaf_index` at
+  `src/handler/lib/get_merkle_leaf_hash.c:33-37` (parsed at
+  `clientCommands.ts:177-178`) and the YIELD input index at
+  `src/handler/sign_psbt/sign_input.c:62` (parsed by `parseVarint(payload, 0)`
+  in `expectedSignatures.ts`'s `createYieldCollector`). A device that emitted
+  an overlong form would now fail closed. Same rule Bitcoin Core enforces in
+  `ReadCompactSize`
+  (`bitcoin/bitcoin src/serialize.h:333-358`, blob `a1395c47` —
+  `"non-canonical ReadCompactSize()"`). Re-apply on any upstream re-diff.
 - `psbtv2.ts`: `fromBitcoinJS` is dropped — it throws on taproot inputs,
   exactly our case; the map-level `normalizeToV2` is the path we use.
 - `psbtv2.ts`: the `serializeMap` key comparator is unified from
@@ -66,6 +106,20 @@ with the exceptions recorded per file header; the substantive ones:
   `protected` with no generic public getter; the SIGN_PSBT expected-signature
   table reads per-input taproot entries through this accessor so the table is
   built from the exact map model the device Merkle-verifies.
+- `buffertools.ts`: **behaviour change** — `unsafeTo64bitLE` rejects any input
+  that is not a non-negative safe integer; upstream only capped values above
+  `MAX_SAFE_INTEGER`, so negatives two's-complement wrapped and `NaN` encoded
+  as zero — silent corruption for an amount field.
+- `merkelizedPsbt.ts`: **behaviour change** — symmetric map-count guards in the
+  constructor: the input/output map counts must equal the declared
+  `PSBT_GLOBAL_INPUT_COUNT` / `PSBT_GLOBAL_OUTPUT_COUNT` in BOTH directions.
+  Upstream `TypeError`s on missing maps and silently ignores surplus ones, and
+  `psbt.copy` already copied those surplus maps, so `serialize()` would emit
+  maps the commitment never covers. Valid PSBTs are unchanged.
+- `merkle.ts`: **behaviour change** — `getLeafHash` / `getProof` throw a typed
+  `Error("Index out of bounds")` on an invalid index instead of upstream's raw
+  `TypeError` (`getLeafHash` was unguarded; `getProof` guarded only
+  `index >= length`, not negatives); valid indices unchanged.
 
 Vendored so far: `varint.ts`, `merkle.ts`, `merkleMap.ts`, `buffertools.ts`,
 `psbtv2.ts`, `merkelizedPsbt.ts`, `clientCommands.ts`, `policy.ts` — the
@@ -77,9 +131,10 @@ From #2219 B1-d, `src/index.ts` → `signPsbt.ts` reaches this directory, so the
 vendored JavaScript is bundled into the published `dist/`. Verified against
 `dist/index.js.map`'s `sources` after a build: `varint`, `buffertools`,
 `psbtv2`, `merkle`, `merkleMap`, `merkelizedPsbt`, `clientCommands` are inlined
-(1,643 of the 1,735 vendored lines); `policy.ts` is reachable only through a
-type position (`addKnownWalletPolicy`'s parameter) and stays tree-shaken out
-until #2221/#2222 use it. `bitcoinjs-lib` and `buffer` remain vite externals.
+(1,690 of the 1,789 vendored lines — everything except `policy.ts`'s 99);
+`policy.ts` is reachable only through a type position
+(`addKnownWalletPolicy`'s parameter) and stays tree-shaken out until
+#2221/#2222 use it. `bitcoinjs-lib` and `buffer` remain vite externals.
 
 - **Attribution** lives in `THIRD-PARTY-NOTICES.md`, shipped via package.json
   `files`. `esbuild.legalComments: "none"` strips the per-file Apache-2.0
@@ -92,7 +147,7 @@ until #2221/#2222 use it. `bitcoinjs-lib` and `buffer` remain vite externals.
   declarations before write. **Review check on every public-API change: never
   re-export a vendored type** (`PsbtV2`, `PartialSignature`,
   `ClientCommandInterpreter`, …) — return a first-party shape instead.
-- The audit surface is therefore ~1.7 kLOC of Apache-2.0 source pinned at
+- The audit surface is therefore ~1.8 kLOC of Apache-2.0 source pinned at
   `0a9e9e14`. Provenance headers plus the golden-vector gates below are what
   makes that surface auditable — not its absence from the bundle.
 
