@@ -115,7 +115,7 @@ export function BorrowMetricsCard({
       <div className={ROW_CLASS}>
         <div className="flex items-center gap-1 text-accent-secondary">
           {COPY.loans.healthFactorLabel}
-          <Hint tooltip={COPY.loans.healthFactorTooltip} />
+          <Hint tooltip={COPY.tooltips.healthFactor} />
         </div>
         <span className="flex items-center gap-2 text-accent-primary">
           {healthFactorOriginal && originalColor ? (

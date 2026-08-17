@@ -1,3 +1,4 @@
+import { Hint } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 
@@ -23,21 +24,33 @@ const SECTION_TITLE_CLASS =
   "text-base uppercase leading-[1.5] tracking-[0.15px] text-accent-secondary";
 const ROW_CLASS = "flex w-full items-center justify-between text-sm";
 const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
+// `Hint` renders a block-level wrapper, so a label that carries one must be a
+// block element itself.
+const HINTED_LABEL_CLASS = "flex items-center gap-1";
 
 function DetailRow({
   label,
   value,
   labelClassName,
+  tooltip,
 }: {
   label: string;
   value: string;
   labelClassName?: string;
+  tooltip?: string;
 }) {
   return (
     <div className={ROW_CLASS}>
-      <span className={twJoin("text-accent-primary", labelClassName)}>
+      <div
+        className={twJoin(
+          HINTED_LABEL_CLASS,
+          "text-accent-primary",
+          labelClassName,
+        )}
+      >
         {label}
-      </span>
+        {tooltip ? <Hint tooltip={tooltip} /> : null}
+      </div>
       <span className="text-accent-primary">{value}</span>
     </div>
   );
@@ -69,11 +82,13 @@ function SeizureRow({
   amount,
   unit,
   emphasis,
+  tooltip,
 }: {
   label: string;
   amount: string;
   unit: string;
   emphasis?: boolean;
+  tooltip?: string;
 }) {
   return (
     <div
@@ -83,15 +98,17 @@ function SeizureRow({
           "border-t border-secondary-strokeLight bg-background-contrast",
       )}
     >
-      <span
+      <div
         className={twJoin(
+          HINTED_LABEL_CLASS,
           emphasis
             ? "text-base leading-[1.5] tracking-[0.15px] text-accent-primary"
             : "text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary",
         )}
       >
         {label}
-      </span>
+        {tooltip ? <Hint tooltip={tooltip} /> : null}
+      </div>
       <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
         {amount} <span className="text-accent-secondary">{unit}</span>
       </span>
@@ -174,11 +191,13 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
           ))}
           <SeizureRow
             label={COPY.liquidations.events.targetSeizure}
+            tooltip={COPY.liquidations.events.targetSeizureTooltip}
             amount={card.targetSeizure.amount}
             unit={card.targetSeizure.unit}
           />
           <SeizureRow
             label={COPY.liquidations.events.overSeizure}
+            tooltip={COPY.liquidations.events.overSeizureTooltip}
             amount={card.overSeizure.amount}
             unit={card.overSeizure.unit}
           />
@@ -208,6 +227,7 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
           <DetailRow
             label={card.fairness.label}
             value={card.fairness.value}
+            tooltip={card.fairness.tooltip}
             labelClassName="text-info-light"
           />
         </div>

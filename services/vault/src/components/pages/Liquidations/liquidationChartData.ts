@@ -72,7 +72,7 @@ export interface LiquidationEventCard {
   debtRepaidLabel: string;
   liquidatorProfitLabel: string;
   /** Full group shows a wBTC fairness payment; safe groups show fairness debt repaid. */
-  fairness: { label: string; value: string };
+  fairness: { label: string; value: string; tooltip?: string };
   btcRemainingLabel: string;
   debtRemainingLabel: string;
   hfAfterLabel: string;
@@ -234,6 +234,7 @@ function toCard(
     ? {
         label: COPY.liquidations.events.fairnessPaymentWbtc,
         value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / group.liquidationPrice)})`,
+        tooltip: COPY.liquidations.events.fairnessPaymentTooltip,
       }
     : {
         label: COPY.liquidations.events.fairnessDebtRepaid,
