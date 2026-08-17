@@ -13,7 +13,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { ContractStatus } from "@/models/peginStateMachine";
-import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
+import {
+  assertUtxosAvailable,
+  broadcastPrePeginTransaction,
+  fetchVaultById,
+} from "@/services/vault";
 import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
 import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
@@ -199,6 +203,7 @@ const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
 const mockWaitForEthRegistrationDepth = vi.mocked(waitForEthRegistrationDepth);
+const mockAssertUtxosAvailable = vi.mocked(assertUtxosAvailable);
 
 /**
  * Build a fake reader that returns a combined basic+protocol payload from
@@ -1460,6 +1465,10 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
     mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
     mockFetchVaultById.mockResolvedValue(baseVault as never);
+    // Implementations survive clearAllMocks, so re-assert the default here
+    // rather than at the end of the test that overrides it — a failing test
+    // would otherwise leak a never-resolving mock into the rest of the file.
+    mockAssertUtxosAvailable.mockResolvedValue(undefined);
     mockWaitForEthRegistrationDepth.mockResolvedValue({
       confirmations: 8,
       basicInfo: { status: OnChainBtcVaultStatus.PENDING },
@@ -1623,6 +1632,42 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
 
     await act(async () => {
       releaseWait?.();
+      await broadcastPromise;
+    });
+
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not start signing when the modal unmounts after finality but before the broadcast", async () => {
+    // Several network round-trips sit between the finality gate and the
+    // signature (UTXO availability, version and key re-checks). Unmounting
+    // during one of them must not still raise a signing popup.
+    let releaseUtxoCheck: (() => void) | undefined;
+    mockAssertUtxosAvailable.mockImplementation((async () => {
+      await new Promise<void>((resolve) => {
+        releaseUtxoCheck = resolve;
+      });
+    }) as never);
+
+    const { result, unmount } = renderHook(() => useVaultActions());
+
+    let broadcastPromise: Promise<void> | undefined;
+    await act(async () => {
+      broadcastPromise = result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      unmount();
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)));
+    });
+
+    await act(async () => {
+      releaseUtxoCheck?.();
       await broadcastPromise;
     });
 

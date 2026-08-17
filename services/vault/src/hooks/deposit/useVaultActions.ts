@@ -458,6 +458,14 @@ export function useVaultActions(): UseVaultActionsReturn {
           depositorBtcPubkey,
           fundedTxFee,
         });
+        // Last cancellation point before the wallet signs. Several network
+        // round-trips (UTXO availability, version/key re-checks, and on the
+        // intent path the terms rebuild) sit between the finality gate and
+        // here, and the modal can be dismissed during any of them. Past this
+        // line the flow is committed: aborting mid-signature would leave the
+        // device ceremony half-run for no benefit.
+        if (signal.aborted) return;
+
         await broadcastPrePeginTransaction({
           unsignedTxHex,
           btcWalletProvider: {
@@ -482,6 +490,14 @@ export function useVaultActions(): UseVaultActionsReturn {
           localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
             ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
             : undefined;
+        // Last cancellation point before the wallet signs. Several network
+        // round-trips (UTXO availability, version/key re-checks, and on the
+        // intent path the terms rebuild) sit between the finality gate and
+        // here, and the modal can be dismissed during any of them. Past this
+        // line the flow is committed: aborting mid-signature would leave the
+        // device ceremony half-run for no benefit.
+        if (signal.aborted) return;
+
         await broadcastPrePeginTransaction({
           unsignedTxHex,
           btcWalletProvider: {
