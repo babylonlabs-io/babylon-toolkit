@@ -11,7 +11,7 @@
  */
 
 export { getXOnlyPublicKeyHex } from "./derivation";
-export { createDmkApduSender } from "./dmkApduSender";
+export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
 export { closeDmk, connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
 export { assertDepositTermsDeviceCompatible } from "./envelope";
 export {
@@ -48,12 +48,15 @@ export {
 } from "./intentTlv";
 export { type Apdu, type AppIdentity, type RawApduResponse, type RawApduSender } from "./rawApdu";
 export {
+  signPreparedVaultPsbt,
   signVaultPsbt,
   type CollectedYield,
+  type SignPreparedVaultPsbtOptions,
   type SignPsbtProgress,
   type SignVaultPsbtParams,
   type SignVaultPsbtResult,
 } from "./signPsbt";
+export { prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
 export {
   DEPOSIT_TERMS_REJECTED_ERROR_NAME,
   DepositTermsRejectedError,

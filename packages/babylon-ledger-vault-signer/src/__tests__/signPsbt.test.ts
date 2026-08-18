@@ -17,7 +17,8 @@ import { describe, expect, it } from "vitest";
 
 import { isLedgerSignPsbtAbortedError } from "../errors";
 import type { RawApduSender } from "../rawApdu";
-import { signVaultPsbt, type SignVaultPsbtParams } from "../signPsbt";
+import { signPreparedVaultPsbt, signVaultPsbt, type SignVaultPsbtParams } from "../signPsbt";
+import { prepareSignPsbt } from "../signPsbtPrepare";
 import { tapLeafHash } from "../tapLeafHash";
 
 const VECTORS_DIR = join(__dirname, "..", "vendor", "ledger-bitcoin", "__tests__", "vectors", "signpsbt");
@@ -160,6 +161,9 @@ describe("signVaultPsbt", () => {
     );
 
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
+    // No dispatcher was interrupted — the caller must not arm resend-once.
+    expect(outcome.sentInitialApdu).toBe(false);
     expect(sent()).toBe(0);
   });
 
@@ -185,7 +189,30 @@ describe("signVaultPsbt", () => {
     );
 
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
+    expect(outcome.sentInitialApdu).toBe(true);
     expect(sent()).toBe(1);
+  });
+
+  it("staged API signs identically: prepareSignPsbt + signPreparedVaultPsbt === signVaultPsbt", async () => {
+    const script = peginScript(fixtureLeafHashHex());
+    const composedSender = createScriptedSender(script);
+    const composed = await signVaultPsbt(composedSender.send, {
+      psbtHex: vector.psbt_hex,
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signal: new AbortController().signal,
+    });
+
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    const stagedSender = createScriptedSender(script);
+    const staged = await signPreparedVaultPsbt(stagedSender.send, prepared, {
+      signal: new AbortController().signal,
+    });
+
+    expect(composedSender.sent()).toBe(script.length);
+    expect(stagedSender.sent()).toBe(script.length);
+    expect(staged.signedPsbtHex).toBe(composed.signedPsbtHex);
+    expect(staged.yields).toEqual(composed.yields);
   });
 
   it("requires a signal — params without one must not typecheck", () => {

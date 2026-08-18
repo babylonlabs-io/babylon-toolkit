@@ -475,6 +475,35 @@ describe("abort signal (T7 + entry check)", () => {
     expect(withoutSignal.resendOnceOnIncorrectData).toBe(true);
   });
 
+  it("an abort racing the armed resend skips the recovery resend, sentInitialApdu true", async () => {
+    // The one 0x6A80 site with resend-once armed: the initial APDU went out,
+    // so the abort must report an interrupted dispatcher — but never resend.
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const controller = new AbortController();
+    const script: ScriptedExchange[] = [
+      {
+        expectApduHex: initialApduHexOf(prepared),
+        respondSw: 0x6a80,
+        respondDataHex: "",
+        onRespond: () => controller.abort(),
+      },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, {
+      signal: controller.signal,
+      resendOnceOnIncorrectData: true,
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
+    expect(outcome.sentInitialApdu).toBe(true);
+    expect(sent()).toBe(1);
+  });
+
   it("reports how many yields had already arrived when the host aborted", async () => {
     const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
     const controller = new AbortController();

@@ -91,8 +91,8 @@ export async function runSignPsbtLoop(
 ): Promise<readonly CollectedYield[]> {
   const { collector, interpreter, table } = prepared;
   if (opts.signal.aborted) {
-    // Abandoned before any I/O.
-    throw new LedgerSignPsbtAbortedError(collector.yields.length);
+    // Abandoned before any I/O — no dispatcher interrupted (sentInitialApdu false).
+    throw new LedgerSignPsbtAbortedError(collector.yields.length, false);
   }
 
   const signPsbtApdu = buildSignPsbtApdu(prepared.cdata);
@@ -101,7 +101,7 @@ export async function runSignPsbtLoop(
   if (response.sw === SW_INCORRECT_DATA && opts.resendOnceOnIncorrectData === true) {
     if (opts.signal.aborted) {
       // Abort raced the first exchange — do not issue the recovery resend.
-      throw new LedgerSignPsbtAbortedError(collector.yields.length);
+      throw new LedgerSignPsbtAbortedError(collector.yields.length, true);
     }
     // Resend the SAME APDU once; this branch is structurally unreachable a
     // second time — any later 0x6A80 (including on the resend) is terminal.
@@ -147,7 +147,7 @@ export async function runSignPsbtLoop(
     }
     if (opts.signal.aborted) {
       // Stop sending — the CONTINUE for this round is never sent.
-      throw new LedgerSignPsbtAbortedError(collector.yields.length);
+      throw new LedgerSignPsbtAbortedError(collector.yields.length, true);
     }
     lastSentApdu = { cla: CLA_FRAMEWORK, ins: INS_CONTINUE, p1: P1_CONTINUE, p2: P2_CONTINUE, data: continueData };
     response = await send(lastSentApdu);

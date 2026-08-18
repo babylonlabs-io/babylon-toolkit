@@ -16,7 +16,7 @@ import type { CollectedYield } from "./expectedSignatures";
 import type { AppIdentity, RawApduSender } from "./rawApdu";
 import { runSignPsbtLoop, type SignPsbtProgress } from "./signPsbtLoop";
 import { mergeYields } from "./signPsbtMerge";
-import { prepareSignPsbt } from "./signPsbtPrepare";
+import { prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
 
 export type { CollectedYield } from "./expectedSignatures";
 export type { SignPsbtProgress } from "./signPsbtLoop";
@@ -63,25 +63,29 @@ export interface SignVaultPsbtResult {
   readonly yields: readonly CollectedYield[];
 }
 
+/** The device-facing half of {@link SignVaultPsbtParams} — everything but the PSBT itself. */
+export type SignPreparedVaultPsbtOptions = Omit<SignVaultPsbtParams, "psbtHex" | "depositorXOnlyHex">;
+
 /**
- * Sign a vault PSBT on the device: build the expected-signature table (zero
- * device I/O on any rejection), drive the interrupt/continue loop with
- * per-YIELD assertions, check set-equal completion, then merge the yields
- * into the original PSBT. Throws the typed SIGN_PSBT errors from `errors.ts`.
- *
- * `params.signal` is required: the loop is unbounded by design (no round cap,
- * no internal timeout), so the abort signal is the only way to stop a device
- * that never answers 0x9000. It is observed between exchanges — a transport
- * call that itself hangs is not cancelled.
+ * Device half of the staged API: drive the interrupt/continue loop for an
+ * already-prepared PSBT, then merge. A caller that needs the expected-signature
+ * table BEFORE any device I/O (e.g. the provider's keypath pre-rejection,
+ * #2219 B3 plan D5/D7) prepares via `prepareSignPsbt`, inspects
+ * `prepared.table`, and hands the SAME object here — no double-prepare, no
+ * parse gap. Everything a prepared object signs, this signs identically to
+ * {@link signVaultPsbt}.
  */
-export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtParams): Promise<SignVaultPsbtResult> {
-  const prepared = prepareSignPsbt({ psbtHex: params.psbtHex, depositorXOnlyHex: params.depositorXOnlyHex });
+export async function signPreparedVaultPsbt(
+  send: RawApduSender,
+  prepared: PreparedSignPsbt,
+  options: SignPreparedVaultPsbtOptions,
+): Promise<SignVaultPsbtResult> {
   // Completion (collector.assertComplete) runs inside the loop's completing state.
   const yields = await runSignPsbtLoop(send, prepared, {
-    onProgress: params.onProgress,
-    signal: params.signal,
-    appIdentity: params.appIdentity,
-    resendOnceOnIncorrectData: params.resendOnceOnIncorrectData,
+    onProgress: options.onProgress,
+    signal: options.signal,
+    appIdentity: options.appIdentity,
+    resendOnceOnIncorrectData: options.resendOnceOnIncorrectData,
   });
   let signedPsbtHex: string;
   try {
@@ -96,4 +100,20 @@ export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtPa
   }
   // Finding-3 hardening: detach from the collector's live backing array.
   return { signedPsbtHex, yields: [...yields] };
+}
+
+/**
+ * Sign a vault PSBT on the device: build the expected-signature table (zero
+ * device I/O on any rejection), drive the interrupt/continue loop with
+ * per-YIELD assertions, check set-equal completion, then merge the yields
+ * into the original PSBT. Throws the typed SIGN_PSBT errors from `errors.ts`.
+ *
+ * `params.signal` is required: the loop is unbounded by design (no round cap,
+ * no internal timeout), so the abort signal is the only way to stop a device
+ * that never answers 0x9000. It is observed between exchanges — a transport
+ * call that itself hangs is not cancelled.
+ */
+export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtParams): Promise<SignVaultPsbtResult> {
+  const prepared = prepareSignPsbt({ psbtHex: params.psbtHex, depositorXOnlyHex: params.depositorXOnlyHex });
+  return signPreparedVaultPsbt(send, prepared, params);
 }
