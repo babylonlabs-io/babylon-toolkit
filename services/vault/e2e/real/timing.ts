@@ -59,9 +59,11 @@ export const SPLIT_ALLOCATION_TIMEOUT_MS = 30_000;
 
 // ── pegin: step machine ──────────────────────────────────────────────────────
 /**
- * Overall budget for the 15-step signing machine. It spans multiple on-chain gates — Pre-PegIn
- * inclusion (~10 min/block), the WOTS-key gate (~20 min), and the payout gate (~3 min) — so a real
- * peg-in runs 30 min–2 hr. Budgeted generously; the action imposes NO short per-step timeout.
+ * Overall budget for the 15-step signing machine. It spans multiple on-chain gates — the Ethereum
+ * finality gate between steps 4 and 5 (8 confirmations, ~1.6 min, during which step 4 legitimately
+ * dwells with no UI transition), Pre-PegIn inclusion (~10 min/block), the WOTS-key gate (~20 min),
+ * and the payout gate (~3 min) — so a real peg-in runs 30 min–2 hr. Budgeted generously; the action
+ * imposes NO short per-step timeout, which is what lets those dwells pass without a special case.
  */
 export const PEGIN_STEP_MACHINE_BUDGET_MS = 2.5 * 60 * 60 * 1_000;
 /** How often to poll the progress UI (advance the step log, handle the Activate/Skip dapp gates). */

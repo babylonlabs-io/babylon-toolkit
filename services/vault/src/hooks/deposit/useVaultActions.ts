@@ -16,10 +16,7 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import {
-  calculateBtcTxHash,
-  UtxoNotAvailableError,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -44,8 +41,14 @@ import {
   TELEMETRY_STAGE,
 } from "@/infrastructure/telemetryEvents";
 import {
+  waitForEthRegistrationDepth,
+  type RegistrationDepthProgress,
+} from "@/services/vault/ethConfirmationGate";
+import {
   ActivationNotPossibleError,
   isTerminalActivationError,
+  mapDepositError,
+  type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
@@ -128,7 +131,18 @@ export interface ActivateVaultParams {
 export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
-  broadcastError: string | null;
+  /**
+   * Broadcast failure, already classified into user-facing copy. Mapped at the
+   * catch site rather than stored as a string, so typed errors reach the
+   * mapper with their prototype intact.
+   */
+  broadcastError: DepositErrorContent | null;
+  /**
+   * Live Ethereum confirmation depth while the finality gate holds a resume
+   * broadcast. `null` outside that window — which is the overwhelmingly common
+   * case, since a resumed deposit is usually long past the required depth.
+   */
+  ethConfirmationDetail: RegistrationDepthProgress | null;
   handleBroadcast: (params: BroadcastPrePeginParams) => Promise<void>;
   // Activation state
   activating: boolean;
@@ -146,7 +160,10 @@ export function useVaultActions(): UseVaultActionsReturn {
 
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [broadcastError, setBroadcastError] =
+    useState<DepositErrorContent | null>(null);
+  const [ethConfirmationDetail, setEthConfirmationDetail] =
+    useState<RegistrationDepthProgress | null>(null);
 
   // Activation state
   const [activating, setActivating] = useState(false);
@@ -158,10 +175,25 @@ export function useVaultActions(): UseVaultActionsReturn {
   // the deposit modal) can unmount mid-flight; without this guard those
   // post-await setters fire on an unmounted component.
   const mountedRef = useRef(true);
+  // Cancels an in-flight broadcast. `mountedRef` only suppresses setState — it
+  // does not stop the flow, and the Ethereum finality gate can hold
+  // `handleBroadcast` for ~1.6 min, which is ample time for the user to close
+  // the modal. Without this the abandoned flow would carry on and raise a BTC
+  // wallet popup with no UI behind it.
+  const broadcastAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
     return () => {
       mountedRef.current = false;
+      // Abort on real unmount only. StrictMode re-runs the effect synchronously
+      // in the same task, so this microtask fires after the remount has already
+      // set mountedRef back to true — matching useDepositFlow's abort seam.
+      queueMicrotask(() => {
+        if (!mountedRef.current) {
+          broadcastAbortRef.current?.abort();
+          broadcastAbortRef.current = null;
+        }
+      });
     };
   }, []);
 
@@ -185,6 +217,10 @@ export function useVaultActions(): UseVaultActionsReturn {
     setBroadcasting(true);
     setBroadcastError(null);
 
+    const abortController = new AbortController();
+    broadcastAbortRef.current = abortController;
+    const { signal } = abortController;
+
     try {
       // Fetch vault data from GraphQL
       const vault = await fetchVaultById(vaultId);
@@ -195,7 +231,9 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (vault.status !== ContractStatus.PENDING) {
         throw new Error(
-          `Cannot broadcast: BTC Vault is in ${ContractStatus[vault.status]} state. Broadcast is only valid during PENDING.`,
+          COPY.deposit.errors.cannotBroadcastInState(
+            ContractStatus[vault.status],
+          ),
         );
       }
 
@@ -245,7 +283,60 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[onChainVault.status] ??
           `UNKNOWN(${onChainVault.status})`;
         throw new Error(
-          `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
+          COPY.deposit.errors.cannotBroadcastInOnChainState(label),
+        );
+      }
+
+      // Ethereum finality gate. Same rule as the inline deposit flow: the
+      // Pre-PegIn must not be broadcast while the registration is still
+      // reorg-exposed, or a reorg leaves the BTC locked in an HTLC whose vault
+      // record no longer exists. Depth comes from `createdAt` (the ETH block
+      // the registration mined at), which needs no transaction hash — the
+      // reason this works on a cross-device resume with no local record.
+      //
+      // Deliberately ahead of the wallet-liveness probe and everything after
+      // it: no popup, no UTXO read and no signing should happen for a deposit
+      // we may refuse to broadcast.
+      //
+      // Runs unconditionally, with no "already deep enough" shortcut computed
+      // from the `createdAt` read above. A shortcut would authorise the
+      // broadcast from a vault reading taken several RPC round-trips earlier
+      // and never look at the registry again; the wait re-reads live vault
+      // state and hands back the observation the status check below uses. For
+      // an already-final deposit — nearly every resume — it costs one extra
+      // contract read and returns without polling or rendering a counter.
+      let finalBasicInfo;
+      try {
+        ({ basicInfo: finalBasicInfo } = await waitForEthRegistrationDepth({
+          vaultIds: [vaultId],
+          // Publish only while the gate is actually holding. An already-final
+          // deposit reports its (large) depth once on the way out, and
+          // rendering that would flash a nonsensical "50000 of 8" counter.
+          onProgress: (progress) => {
+            if (progress.confirmations < progress.required) {
+              setEthConfirmationDetail(progress);
+            }
+          },
+          signal,
+        }));
+      } finally {
+        if (mountedRef.current) setEthConfirmationDetail(null);
+      }
+
+      // The modal can be dismissed during a wait that spans minutes. Stop here
+      // rather than surfacing a BTC wallet popup for a flow whose UI is gone.
+      if (signal.aborted) return;
+
+      // The PENDING gate above read pre-wait state and the wait can span
+      // minutes. `prePeginTxHash` cannot go stale — vaultId commits to it, so
+      // any re-mined registration under this id carries the same hash — but
+      // `status` can, so re-assert it on the post-wait observation.
+      if (finalBasicInfo.status !== OnChainBtcVaultStatus.PENDING) {
+        const label =
+          OnChainBtcVaultStatus[finalBasicInfo.status] ??
+          `UNKNOWN(${finalBasicInfo.status})`;
+        throw new Error(
+          COPY.deposit.errors.cannotBroadcastInOnChainState(label),
         );
       }
 
@@ -374,6 +465,14 @@ export function useVaultActions(): UseVaultActionsReturn {
           depositorBtcPubkey,
           fundedTxFee,
         });
+        // Last cancellation point before the wallet signs. Several network
+        // round-trips (UTXO availability, version/key re-checks, and on the
+        // intent path the terms rebuild) sit between the finality gate and
+        // here, and the modal can be dismissed during any of them. Past this
+        // line the flow is committed: aborting mid-signature would leave the
+        // device ceremony half-run for no benefit.
+        if (signal.aborted) return;
+
         await broadcastPrePeginTransaction({
           unsignedTxHex,
           btcWalletProvider: {
@@ -398,6 +497,14 @@ export function useVaultActions(): UseVaultActionsReturn {
           localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
             ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
             : undefined;
+        // Last cancellation point before the wallet signs. Several network
+        // round-trips (UTXO availability, version/key re-checks, and on the
+        // intent path the terms rebuild) sit between the finality gate and
+        // here, and the modal can be dismissed during any of them. Past this
+        // line the flow is committed: aborting mid-signature would leave the
+        // device ceremony half-run for no benefit.
+        if (signal.aborted) return;
+
         await broadcastPrePeginTransaction({
           unsignedTxHex,
           btcWalletProvider: {
@@ -428,22 +535,22 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (mountedRef.current) setBroadcasting(false);
     } catch (err) {
       if (mountedRef.current) {
-        let errorMessage: string;
-
-        // DepositTermsRejectedError arrives message-preserved, so mapDepositError
-        // classifies it like the fresh path today. broadcastError is string by
-        // contract; when #2110 adds a typed branch, thread the typed error to
-        // the mapper here (as useDepositFlow does).
-        if (err instanceof UtxoNotAvailableError) {
-          // UTXO not available - provide specific error message
-          errorMessage = err.message;
-        } else if (err instanceof Error) {
-          errorMessage = err.message;
-        } else {
-          errorMessage = "Failed to broadcast transaction";
-        }
-
-        setBroadcastError(errorMessage);
+        // Classify here, while the typed error is still intact — the same seam
+        // useDepositFlow uses. Flattening to `err.message` first would strip
+        // the prototype and name that every `instanceof` branch in the mapper
+        // narrows on, silently downgrading precise errors to message matching:
+        // a finality-gate timeout would land in the "broadcast failed" bucket
+        // and tell the user their Bitcoin broadcast failed when nothing was
+        // ever sent.
+        setBroadcastError(mapDepositError(err));
+        // Mapping replaces the raw message with friendly copy, and only the
+        // fallback branch carries `diagnostics`. Log the original so a mapped
+        // failure is still diagnosable — `useBroadcastState`'s catch cannot do
+        // it, because this function resolves rather than rethrowing.
+        logger.error(err instanceof Error ? err : new Error(String(err)), {
+          tags: { vaultId: shortId(vaultId) },
+          data: { context: "Resume broadcast failed" },
+        });
         setBroadcasting(false);
       }
     }
@@ -664,6 +771,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   return {
     broadcasting,
     broadcastError,
+    ethConfirmationDetail,
     handleBroadcast,
     activating,
     activationError,

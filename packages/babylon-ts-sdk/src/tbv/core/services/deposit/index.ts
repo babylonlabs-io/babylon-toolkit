@@ -5,6 +5,18 @@ export type {
   WotsKeySubmitter,
 } from "./interfaces";
 export {
+  PEGIN_ETH_CONFIRMATIONS,
+  PeginRegistrationMissingError,
+  PeginRegistrationNotFinalError,
+  isPeginRegistrationMissingError,
+  isPeginRegistrationNotFinalError,
+  waitForPeginRegistrationDepth,
+  type PeginRegistrationDepthResult,
+  type RegistrationDepthParams,
+  type RegistrationDepthProgress,
+  type WaitForPeginRegistrationDepthParams,
+} from "./peginRegistrationDepth";
+export {
   ContractStatus,
   PeginAction,
   canPerformAction,
