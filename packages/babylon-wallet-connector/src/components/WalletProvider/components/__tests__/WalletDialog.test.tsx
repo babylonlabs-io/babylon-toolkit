@@ -158,8 +158,7 @@ describe("confirming the dialog", () => {
     });
 
     expect(JSON.parse(store.get(WALLET_CONFIRMATION_RECEIPT_KEY)!)).toMatchObject({
-      version: 1,
-      requiredChains: ["ETH"],
+      version: 2,
       entries: [{ chain: "ETH", walletId: "metamask" }],
     });
   });
@@ -196,5 +195,49 @@ describe("confirming the dialog", () => {
 
     expect(confirm).not.toHaveBeenCalled();
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+  });
+
+  it("records the optional chains the user also had connected, so navigation cannot invalidate the approval", async () => {
+    harness.connectors = {
+      ...harness.connectors,
+      BTC: { config: { network: "signet" }, connectedWallet: wallet("unisat", BTC_ACCOUNT), disconnect: vi.fn() },
+    };
+    setup({
+      requiredChainIds: ["ETH"],
+      selectedWallets: { BTC: wallet("unisat", BTC_ACCOUNT), ETH: wallet("metamask", ETH_ACCOUNT) },
+    });
+
+    await act(async () => {
+      screen.getByText("confirm").click();
+    });
+
+    expect(JSON.parse(store.get(WALLET_CONFIRMATION_RECEIPT_KEY)!).entries.map((e: { chain: string }) => e.chain)).toEqual([
+      "BTC",
+      "ETH",
+    ]);
+  });
+
+  it("refuses to confirm a required chain whose wallet has no account, rather than confirming with nothing recorded", async () => {
+    const onError = vi.fn();
+    harness.widgetState = {
+      visible: true,
+      screen: { type: "CHAINS" },
+      confirmed: false,
+      selectedWallets: { ETH: { id: "metamask", name: "metamask" } as IWallet },
+      requiredChainIds: ["ETH"],
+      close,
+      confirm,
+      displayChains: vi.fn(),
+      displayError: vi.fn(),
+    };
+    render(<WalletDialog persistent storage={storage} config={[]} onError={onError} />);
+
+    await act(async () => {
+      screen.getByText("confirm").click();
+    });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("ETH") }));
   });
 });

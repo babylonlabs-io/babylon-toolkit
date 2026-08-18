@@ -1,10 +1,10 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import { useLifeCycleHooks, type WalletLifecycleConnection } from "@/context/LifecycleHooks.context";
 import { createConfirmationReceipt, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
-import type { ChainId, HashMap } from "@/core/types";
+import type { ChainId, HashMap, IWallet } from "@/core/types";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
 import { useWidgetState } from "@/hooks/useWidgetState";
@@ -26,6 +26,14 @@ function findPrimaryConnection(
   }
 
   return connections[0];
+}
+
+function collectConnections(
+  selectedWallets: Record<string, IWallet | undefined>,
+): WalletLifecycleConnection[] {
+  return Object.entries(selectedWallets).flatMap<WalletLifecycleConnection>(([chain, wallet]) =>
+    wallet?.account ? [{ chain: chain as ChainId, wallet, account: wallet.account }] : [],
+  );
 }
 
 interface WalletDialogProps {
@@ -57,6 +65,11 @@ export function WalletDialog({
   const walletWidgets = useWalletWidgets(connectors, config, onError);
   const { connect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
 
+  // Read inside `handleConfirm` after awaiting the host's hooks, so the
+  // confirmation reflects the connections as they stand then.
+  const selectedWalletsRef = useRef(selectedWallets);
+  selectedWalletsRef.current = selectedWallets;
+
   // Closing without confirming leaves the connectors connected, so the user can
   // reopen and finish where they left off. The receipt written on confirm is
   // the single gate that lets a later reload auto-confirm — no receipt, no
@@ -68,9 +81,17 @@ export function WalletDialog({
   const handleConfirm = useCallback(async () => {
     try {
       if (!confirmed) {
-        const connections = Object.entries(selectedWallets).flatMap<WalletLifecycleConnection>(([chain, wallet]) =>
-          wallet?.account ? [{ chain: chain as ChainId, wallet, account: wallet.account }] : [],
-        );
+        const connections = collectConnections(selectedWallets);
+
+        // A required chain whose wallet is selected but has no account would
+        // otherwise drop silently out of `connections` and be confirmed with
+        // nothing recorded for it, leaving the next reload to ask again with no
+        // signal that anything went wrong.
+        const uncovered = requiredChainIds.filter((chainId) => !connections.some(({ chain }) => chain === chainId));
+        if (uncovered.length > 0) {
+          throw new Error(`No connected account for required chain${uncovered.length > 1 ? "s" : ""}: ${uncovered.join(", ")}`);
+        }
+
         const primary = findPrimaryConnection(connections, requiredChainIds);
 
         if (primary) {
@@ -83,11 +104,18 @@ export function WalletDialog({
         }
         await onConfirm?.(connections);
 
+        // The host's hooks are awaited, and a required wallet can disconnect
+        // while they run. Re-read the live selection rather than confirming
+        // against the snapshot taken before the await, which would recreate an
+        // approval for a wallet that is no longer there.
+        const settled = collectConnections(selectedWalletsRef.current);
+        const lost = requiredChainIds.filter((chainId) => !settled.some(({ chain }) => chain === chainId));
+        if (lost.length > 0) {
+          throw new Error(`Wallet disconnected while confirming: ${lost.join(", ")}`);
+        }
+
         if (persistent) {
-          const receipt = createConfirmationReceipt(requiredChainIds, connections, connectors);
-          if (receipt) {
-            storage.set(WALLET_CONFIRMATION_RECEIPT_KEY, receipt);
-          }
+          storage.set(WALLET_CONFIRMATION_RECEIPT_KEY, createConfirmationReceipt(settled, connectors));
         }
       }
 

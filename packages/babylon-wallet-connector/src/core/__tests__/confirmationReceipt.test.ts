@@ -42,27 +42,18 @@ function connection(chain: "BTC" | "ETH", walletId: string, account: Account): C
 }
 
 describe("createConfirmationReceipt", () => {
-  it("returns undefined when a required chain has no connection", () => {
+  it("records every connected chain, not just the required ones", () => {
     const receipt = createConfirmationReceipt(
-      ["BTC", "ETH"],
-      [connection("ETH", "metamask", ETH_ACCOUNT)],
-      connectors({ ethWallet: wallet("metamask", ETH_ACCOUNT) }),
-    );
-
-    expect(receipt).toBeUndefined();
-  });
-
-  it("records only the required chains, ignoring connected optional ones", () => {
-    const receipt = createConfirmationReceipt(
-      ["ETH"],
       [connection("ETH", "metamask", ETH_ACCOUNT), connection("BTC", "unisat", BTC_ACCOUNT)],
       connectors({ btcWallet: wallet("unisat", BTC_ACCOUNT), ethWallet: wallet("metamask", ETH_ACCOUNT) }),
     );
 
-    expect(JSON.parse(receipt!)).toMatchObject({
-      version: 1,
-      requiredChains: ["ETH"],
-      entries: [{ chain: "ETH", walletId: "metamask", address: "0xDepositor", network: "11155111" }],
+    expect(JSON.parse(receipt)).toMatchObject({
+      version: 2,
+      entries: [
+        { chain: "BTC", walletId: "unisat", address: "bc1pdepositor", network: "signet" },
+        { chain: "ETH", walletId: "metamask", address: "0xDepositor", network: "11155111" },
+      ],
     });
   });
 });
@@ -70,7 +61,6 @@ describe("createConfirmationReceipt", () => {
 describe("isValidConfirmationReceipt", () => {
   const live = connectors({ btcWallet: wallet("unisat", BTC_ACCOUNT), ethWallet: wallet("metamask", ETH_ACCOUNT) });
   const receipt = createConfirmationReceipt(
-    ["BTC", "ETH"],
     [connection("BTC", "unisat", BTC_ACCOUNT), connection("ETH", "metamask", ETH_ACCOUNT)],
     live,
   );
@@ -79,7 +69,7 @@ describe("isValidConfirmationReceipt", () => {
     expect(isValidConfirmationReceipt(receipt, ["BTC", "ETH"], live)).toBe(true);
   });
 
-  it("accepts the same required set declared in a different order", () => {
+  it("ignores the order the required set is declared in", () => {
     expect(isValidConfirmationReceipt(receipt, ["ETH", "BTC"], live)).toBe(true);
   });
 
@@ -111,22 +101,26 @@ describe("isValidConfirmationReceipt", () => {
     expect(isValidConfirmationReceipt(receipt, ["BTC", "ETH"], mainnet)).toBe(false);
   });
 
-  it("rejects a receipt that does not cover a newly required chain", () => {
-    const ethOnly = createConfirmationReceipt(["ETH"], [connection("ETH", "metamask", ETH_ACCOUNT)], live);
+  it("rejects a receipt that does not name a newly required chain", () => {
+    const ethOnly = createConfirmationReceipt([connection("ETH", "metamask", ETH_ACCOUNT)], live);
 
     expect(isValidConfirmationReceipt(ethOnly, ["BTC", "ETH"], live)).toBe(false);
+  });
+
+  // A host that derives its requirements per route narrows and widens this set
+  // as the user navigates. An approval covering both chains has to satisfy each
+  // leg, or routine navigation signs the user out.
+  it("accepts a receipt covering more chains than are currently required", () => {
+    expect(isValidConfirmationReceipt(receipt, ["BBN"], live)).toBe(false);
+    expect(isValidConfirmationReceipt(receipt, ["ETH"], live)).toBe(true);
+    expect(isValidConfirmationReceipt(receipt, ["BTC"], live)).toBe(true);
+    expect(isValidConfirmationReceipt(receipt, ["BTC", "ETH"], live)).toBe(true);
   });
 
   it("rejects missing, malformed and wrong-version receipts", () => {
     expect(isValidConfirmationReceipt(undefined, ["ETH"], live)).toBe(false);
     expect(isValidConfirmationReceipt("not json", ["ETH"], live)).toBe(false);
-    expect(
-      isValidConfirmationReceipt(
-        JSON.stringify({ version: 2, requiredChains: ["ETH"], entries: [] }),
-        ["ETH"],
-        live,
-      ),
-    ).toBe(false);
+    expect(isValidConfirmationReceipt(JSON.stringify({ version: 1, entries: [] }), ["ETH"], live)).toBe(false);
   });
 
   it("rejects a receipt when the required chain is no longer connected", () => {

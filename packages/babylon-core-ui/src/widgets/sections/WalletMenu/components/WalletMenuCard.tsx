@@ -207,6 +207,7 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
 
           {onDisconnect && (
             <button
+              type="button"
               onClick={onDisconnect}
               aria-label={disconnectLabel ?? `Disconnect ${walletType} wallet`}
               className="flex-shrink-0 self-start text-xs font-medium text-error-main transition-opacity hover:opacity-80"

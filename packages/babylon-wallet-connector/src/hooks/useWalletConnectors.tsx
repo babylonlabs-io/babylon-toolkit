@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
@@ -64,25 +64,10 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     displayChains,
     displayError,
     confirm,
+    unconfirm,
     requiredChainIds,
   } = useWidgetState();
   const { verifyBTCAddress } = useLifeCycleHooks();
-
-  // Auto-confirm on reload is a restoration convenience, not a general
-  // consequence of "connector plus storage exists". Capture the requirement set
-  // this provider mounted with and keep a one-way eligibility bit: opening the
-  // dialog, confirming once, losing a required connector, or gaining a new
-  // requirement all move the session onto the explicit-confirmation path for
-  // the rest of this mount.
-  const initialRequiredChainIdsRef = useRef(new Set(requiredChainIds));
-  const coldStartRestoreEligibleRef = useRef(true);
-  const requirementsExpanded = requiredChainIds.some((chainId) => !initialRequiredChainIdsRef.current.has(chainId));
-
-  useEffect(() => {
-    if (visible || confirmed || requirementsExpanded) {
-      coldStartRestoreEligibleRef.current = false;
-    }
-  }, [confirmed, requirementsExpanded, visible]);
 
   // Connecting event
   useEffect(() => {
@@ -236,7 +221,6 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
           // of, so the receipt must not survive to auto-confirm a later
           // reconnect. An optional chain leaving is not a consent change.
           if (requiredChainIds.includes(connector.id)) {
-            coldStartRestoreEligibleRef.current = false;
             accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
           }
           removeWallet?.(connector.id);
@@ -292,52 +276,67 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
   }, [onError, displayChains, displayError, connectors]);
 
-  // Cold-start restore. Every required chain must be back with the same
-  // wallet, account and network the receipt recorded; anything else needs an
-  // explicit confirmation.
+  // Keeps the confirmation in step with the stored approval.
+  //
+  // One effect rather than a one-way "eligible for restore" latch: a host may
+  // narrow and widen its requirements as the user navigates, and a latch cannot
+  // re-open once it has closed, so the session could never recover. The stored
+  // receipt is the authority in both directions - it grants the confirmation
+  // when it covers the required chains, and withdraws it when it stops doing so.
   useEffect(() => {
+    if (!persistent || visible) return;
+
     const requiredConnectors = requiredChainIds
       .map((chainId) => connectors[chainId as keyof typeof connectors])
       .filter((connector): connector is NonNullable<typeof connector> => Boolean(connector));
     const allRequiredConnectorsAvailable = requiredConnectors.length === requiredChainIds.length;
-
-    const hasStorage = requiredConnectors.every((connector) => accountStorage.has(connector.id));
     const allConnected = requiredConnectors.every((connector) => connector.connectedWallet !== null);
-    const hasConfirmationReceipt = isValidConfirmationReceipt(
-      accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY),
-      requiredChainIds,
-      connectors,
-    );
+    const hasStorage = requiredConnectors.every((connector) => accountStorage.has(connector.id));
 
-    if (
-      persistent &&
-      coldStartRestoreEligibleRef.current &&
-      !visible &&
-      !confirmed &&
-      !requirementsExpanded &&
-      requiredChainIds.length &&
+    const stored = accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY);
+    const covered =
       allRequiredConnectorsAvailable &&
+      allConnected &&
       hasStorage &&
-      hasConfirmationReceipt &&
-      allConnected
-    ) {
-      // Flip before publishing the confirmation so a connector bump cannot run
-      // this restoration path twice.
-      coldStartRestoreEligibleRef.current = false;
+      isValidConfirmationReceipt(stored, requiredChainIds, connectors);
+
+    if (covered && !confirmed) {
       confirm?.();
       displayChains?.();
+      return;
+    }
+
+    // The approval no longer covers what is being asked for - a chain the user
+    // never approved, or an account/wallet/network that has changed underneath
+    // it. Withdraw the confirmation so the host stops treating the session as
+    // signed in, and let the user confirm again explicitly.
+    if (!covered && confirmed && stored !== undefined) {
+      unconfirm?.();
     }
   }, [
     persistent,
     connectors,
     requiredChainIds,
     confirm,
+    unconfirm,
     displayChains,
     accountStorage,
     visible,
     confirmed,
-    requirementsExpanded,
   ]);
+
+  // The approval slides with the session it belongs to. Chain entries are
+  // re-stamped on every connect, including auto-reconnect, so without this the
+  // receipt would be the only entry that expires and any reload an hour after
+  // the single confirm would be a hard sign-out.
+  useEffect(() => {
+    if (!persistent || !confirmed) return;
+
+    const stored = accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY);
+    if (stored && isValidConfirmationReceipt(stored, requiredChainIds, connectors)) {
+      accountStorage.set(WALLET_CONFIRMATION_RECEIPT_KEY, stored);
+    }
+  }, [persistent, confirmed, connectors, requiredChainIds, accountStorage]);
 
   const connect = useCallback(
     async (chain: IChain, wallet: IWallet) => {

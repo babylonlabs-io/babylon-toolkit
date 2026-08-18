@@ -3,6 +3,8 @@ import type { Account, ChainId, IWallet } from "@/core/types";
 
 export const WALLET_CONFIRMATION_RECEIPT_KEY = "__babylon-wallet-confirmation-v1__";
 
+const RECEIPT_VERSION = 2;
+
 export interface ConfirmationConnection {
   chain: ChainId;
   wallet: IWallet;
@@ -18,13 +20,8 @@ interface ConfirmationReceiptEntry {
 }
 
 interface ConfirmationReceipt {
-  version: 1;
-  requiredChains: ChainId[];
+  version: typeof RECEIPT_VERSION;
   entries: ConfirmationReceiptEntry[];
-}
-
-function normalizedRequiredChains(requiredChainIds: readonly string[]): ChainId[] {
-  return [...new Set(requiredChainIds)].sort() as ChainId[];
 }
 
 function connectorFor(connectors: Connectors, chain: ChainId) {
@@ -32,7 +29,7 @@ function connectorFor(connectors: Connectors, chain: ChainId) {
 }
 
 /**
- * The network a chain's connector is pointed at. A receipt minted on signet
+ * The network a chain's connector is pointed at. A receipt approved on signet
  * must not restore a session against mainnet, so this participates in the
  * match alongside the account identity.
  */
@@ -64,43 +61,40 @@ function isReceiptEntry(value: unknown): value is ConfirmationReceiptEntry {
 }
 
 /**
- * Serializes exactly what a successful confirmation covered: the required
- * chains, and the wallet, account and network the user approved for each.
+ * Serializes what the user approved: the wallet, account and network of every
+ * chain connected at the moment they confirmed.
  *
- * Returns undefined when any required chain is missing a connection, so a
- * partial approval can never be written as a whole one.
+ * Deliberately records the connected set rather than the required set. A host
+ * that varies its requirements per route would otherwise mint a receipt on one
+ * route that cannot satisfy the next, and sign the user out on navigation.
  */
 export function createConfirmationReceipt(
-  requiredChainIds: readonly string[],
   connections: readonly ConfirmationConnection[],
   connectors: Connectors,
-): string | undefined {
-  const requiredChains = normalizedRequiredChains(requiredChainIds);
-  const entries: ConfirmationReceiptEntry[] = [];
-
-  for (const chain of requiredChains) {
-    const connection = connections.find((candidate) => candidate.chain === chain);
-    if (!connection?.account || !connectorFor(connectors, chain)) return undefined;
-
-    entries.push({
-      chain,
+): string {
+  const entries = connections
+    .filter((connection) => connection.account && connectorFor(connectors, connection.chain))
+    .map<ConfirmationReceiptEntry>((connection) => ({
+      chain: connection.chain,
       walletId: connection.wallet.id,
       address: connection.account.address,
       publicKeyHex: connection.account.publicKeyHex,
-      network: networkIdentity(connectors, chain),
-    });
-  }
+      network: networkIdentity(connectors, connection.chain),
+    }))
+    .sort((left, right) => left.chain.localeCompare(right.chain));
 
-  return JSON.stringify({ version: 1, requiredChains, entries } satisfies ConfirmationReceipt);
+  return JSON.stringify({ version: RECEIPT_VERSION, entries } satisfies ConfirmationReceipt);
 }
 
 /**
- * Validates a stored receipt against the connections that were just restored.
+ * True when the stored approval covers every currently-required chain and each
+ * one still matches the live connection.
  *
- * Every required chain must match on wallet, address, public key and network.
- * A different account, a different wallet, a different network or a changed
- * requirement set all fail the match, which sends the user back through an
- * explicit confirmation rather than inheriting the previous one.
+ * Coverage, not equality: a receipt may name chains that are not required right
+ * now, which is what lets a host narrow and widen its requirements — per route,
+ * say — without invalidating an approval the user already gave. A required
+ * chain the receipt does not name is never covered, so consent is still never
+ * inherited by a chain, account, wallet or network the user did not approve.
  */
 export function isValidConfirmationReceipt(
   serialized: string | undefined,
@@ -119,24 +113,17 @@ export function isValidConfirmationReceipt(
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
 
   const receipt = parsed as Partial<ConfirmationReceipt>;
-  const requiredChains = normalizedRequiredChains(requiredChainIds);
 
-  if (
-    receipt.version !== 1 ||
-    !Array.isArray(receipt.requiredChains) ||
-    !Array.isArray(receipt.entries) ||
-    !receipt.requiredChains.every((chain) => typeof chain === "string") ||
-    !receipt.entries.every(isReceiptEntry) ||
-    receipt.requiredChains.length !== requiredChains.length ||
-    receipt.entries.length !== requiredChains.length ||
-    receipt.requiredChains.some((chain, index) => chain !== requiredChains[index])
-  ) {
+  if (receipt.version !== RECEIPT_VERSION || !Array.isArray(receipt.entries) || !receipt.entries.every(isReceiptEntry)) {
     return false;
   }
 
   const entries = receipt.entries;
 
-  return requiredChains.every((chain) => {
+  // An empty requirement set is satisfied by any receipt, but never by none:
+  // the caller still has to have an approval on file.
+  return requiredChainIds.every((chainId) => {
+    const chain = chainId as ChainId;
     const wallet = connectorFor(connectors, chain)?.connectedWallet;
     const account = wallet?.account;
     const entry = entries.find((candidate) => candidate.chain === chain);
@@ -151,4 +138,18 @@ export function isValidConfirmationReceipt(
         entry.network === networkIdentity(connectors, chain),
     );
   });
+}
+
+/** Chains the stored approval names, whether or not they are required now. */
+export function confirmedChains(serialized: string | undefined): ChainId[] {
+  if (!serialized) return [];
+
+  try {
+    const parsed = JSON.parse(serialized) as Partial<ConfirmationReceipt>;
+    if (parsed?.version !== RECEIPT_VERSION || !Array.isArray(parsed.entries)) return [];
+
+    return parsed.entries.filter(isReceiptEntry).map((entry) => entry.chain);
+  } catch {
+    return [];
+  }
 }

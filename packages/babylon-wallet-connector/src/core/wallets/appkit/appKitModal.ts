@@ -5,6 +5,8 @@ import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 import type { Chain } from "viem";
 
+import { ERROR_CODES, WalletError } from "@/error";
+
 import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { createETHWagmiAdapter } from "../eth/appkit/modal";
 
@@ -67,6 +69,20 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   const existingModal = getAppKitModal();
   // Don't reinitialize if already initialized
   if (existingModal) {
+    // AppKit allows one modal per page, and its adapters are fixed at creation.
+    // If that modal was built by the Ethereum-only initializer on the `./eth`
+    // entry, it has no Bitcoin adapter and cannot gain one, so returning it for
+    // a config that asks for Bitcoin would hand back a modal that silently
+    // cannot connect a Bitcoin wallet.
+    if (config.btc?.network && !bitcoinAdapter) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_INITIALIZATION_FAILED,
+        message:
+          "AppKit was already initialized without Bitcoin support. A page can only have one AppKit modal, so a host that needs Bitcoin must not initialize the Ethereum-only modal first.",
+        chainId: "BTC",
+      });
+    }
+
     return {
       modal: existingModal,
       wagmiConfig: wagmiAdapter?.wagmiConfig,

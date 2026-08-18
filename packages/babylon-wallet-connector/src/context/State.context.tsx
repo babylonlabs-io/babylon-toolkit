@@ -47,6 +47,8 @@ export interface Actions {
   selectWallet?: (chain: string, wallet: IWallet) => void;
   removeWallet?: (chain: string) => void;
   confirm?: () => void;
+  /** Withdraws the confirmation without disconnecting anything. */
+  unconfirm?: () => void;
   reset?: () => void;
 }
 
@@ -81,14 +83,6 @@ function filterWalletsByValidChains(
   }, {} as Record<string, IWallet | undefined>);
 }
 
-// True when `next` asks for a chain `previous` did not. Narrowing or
-// reordering the requirement set is not an expansion.
-function hasNewRequiredChain(previous: readonly string[], next: readonly string[]): boolean {
-  const previousIds = new Set(previous);
-
-  return next.some((chainId) => !previousIds.has(chainId));
-}
-
 export function StateProvider({ children, chains, requiredChainIds, storage }: PropsWithChildren<StateProviderProps>) {
   const [state, setState] = useState<State>(() => ({
     ...defaultState,
@@ -97,14 +91,13 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
   }));
   const stateRef = useRef(state);
   stateRef.current = state;
-  const previousRequiredChainIdsRef = useRef([...requiredChainIds]);
 
+  // A change to the requirement set is not itself a consent change. Hosts that
+  // derive requirements per route narrow and widen this list as the user
+  // navigates, and tearing the confirmation down here would sign them out on
+  // routine navigation. Whether the stored approval still covers the new set is
+  // decided in `useWalletConnectors`, which can see the live connections.
   useEffect(() => {
-    if (hasNewRequiredChain(previousRequiredChainIdsRef.current, requiredChainIds)) {
-      storage?.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
-    }
-    previousRequiredChainIdsRef.current = [...requiredChainIds];
-
     setState((state) => {
       const newChains = chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {});
       const validChainIds = new Set(chains.map((chain) => chain.id));
@@ -112,16 +105,12 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
 
       return {
         ...state,
-        // A confirmation only ever covered the requirement set the user was
-        // shown. Asking for a chain that was not in that set must send them
-        // back through an explicit confirmation.
-        confirmed: hasNewRequiredChain(state.requiredChainIds, requiredChainIds) ? false : state.confirmed,
         chains: newChains,
         selectedWallets: filteredWallets,
         requiredChainIds: [...requiredChainIds],
       };
     });
-  }, [chains, requiredChainIds, storage]);
+  }, [chains, requiredChainIds]);
 
   const actions: Actions = useMemo(
     () => ({
@@ -184,6 +173,10 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
 
       confirm: () => {
         setState((state) => ({ ...state, confirmed: true }));
+      },
+
+      unconfirm: () => {
+        setState((state) => (state.confirmed ? { ...state, confirmed: false } : state));
       },
     }),
     [storage],

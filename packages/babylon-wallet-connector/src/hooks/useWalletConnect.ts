@@ -28,7 +28,11 @@ export function useWalletConnect() {
    */
   const open = useCallback(
     (chain?: ChainId) => {
-      if (chain && chainMap[chain]) {
+      // Membership, not truthiness, for the same reason as `disconnect` below:
+      // React's bivariant handler types let a consumer write `onClick={open}`,
+      // which calls this with a MouseEvent. Testing the key explicitly means
+      // that lands on the chain list rather than depending on a lookup miss.
+      if (chain !== undefined && Object.prototype.hasOwnProperty.call(chainMap, chain)) {
         displayWallets?.(chain);
       } else {
         displayChains?.();

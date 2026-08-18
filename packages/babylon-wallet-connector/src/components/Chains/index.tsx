@@ -8,6 +8,10 @@ import type { IChain, IWallet } from "@/core/types";
 
 const DISABLED_CONNECT_BG = "disabled:!bg-[#CCCCCC] dark:disabled:!bg-secondary-strokeDark";
 
+const SELECT_WALLET_TITLE_PREFIX = "Select ";
+const SELECT_WALLET_TITLE_SUFFIX = " Wallet";
+const OPTIONAL_CHAIN_TITLE_SUFFIX = " (Optional)";
+
 interface ChainsProps {
   disabled?: boolean;
   chains: IChain[];
@@ -50,7 +54,9 @@ export const Chains = memo(
             return (
               <ChainButton
                 key={chain.id}
-                title={`Select ${chain.name} Wallet${optional ? " (Optional)" : ""}`}
+                title={`${SELECT_WALLET_TITLE_PREFIX}${chain.name}${SELECT_WALLET_TITLE_SUFFIX}${
+                  optional ? OPTIONAL_CHAIN_TITLE_SUFFIX : ""
+                }`}
                 logo={chain.icon}
                 alt={chain.name}
                 onClick={() => void onSelectChain?.(chain)}

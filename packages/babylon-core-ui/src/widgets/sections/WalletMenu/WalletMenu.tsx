@@ -191,6 +191,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
 
         {connectAction && (
           <button
+            type="button"
             onClick={handleConnectAction}
             data-testid={connectAction["data-testid"]}
             className="flex w-full items-center justify-center rounded-[4px] bg-[#F9F9F9] p-3 text-sm font-medium text-accent-primary transition-opacity hover:opacity-80 dark:bg-[#2F2F2F] md:p-4"

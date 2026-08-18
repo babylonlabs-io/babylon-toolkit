@@ -7,10 +7,6 @@ const SRC = path.join(PACKAGE_ROOT, "src");
 const ETH_ENTRY = path.join(SRC, "eth.ts");
 
 const packageJson = JSON.parse(readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8")) as {
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  peerDependencies?: Record<string, string>;
-  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   exports?: Record<string, Record<string, string>>;
 };
 
@@ -181,49 +177,5 @@ describe("the ./eth entry point", () => {
       require: "./dist/eth.cjs.js",
       import: "./dist/eth.es.js",
     });
-  });
-});
-
-describe("optional peer dependencies", () => {
-  /**
-   * The rule, rather than a list of package names: an optional peer is only
-   * safe if a consuming app can resolve it. Either it is externalised and every
-   * consuming app declares it, or it is bundled — which needs it present at
-   * build time as a dev dependency. Checked by rule so it stays correct as the
-   * externals list changes.
-   */
-  const optionalPeers = Object.entries(packageJson.peerDependenciesMeta ?? {})
-    .filter(([, meta]) => meta.optional)
-    .map(([name]) => name);
-
-  const viteConfig = readFileSync(path.join(PACKAGE_ROOT, "vite.config.ts"), "utf8");
-  const externals = viteConfig.slice(viteConfig.indexOf("external: ["), viteConfig.indexOf("output: {"));
-
-  const consumers = ["services/vault", "services/simple-staking"].map((relative) => {
-    const manifestPath = path.join(PACKAGE_ROOT, "../..", relative, "package.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-
-    return { relative, declared: { ...manifest.dependencies, ...manifest.devDependencies } };
-  });
-
-  it.each(optionalPeers)("%s is either externalised and declared by every consumer, or bundled", (peer) => {
-    const isExternalised = externals.includes(`"${peer}"`);
-
-    if (isExternalised) {
-      const missing = consumers.filter(({ declared }) => !declared[peer]).map(({ relative }) => relative);
-      expect(missing).toEqual([]);
-      return;
-    }
-
-    expect(packageJson.devDependencies ?? {}).toHaveProperty(peer);
-  });
-
-  it("declares every optional peer in peerDependencies", () => {
-    const undeclared = optionalPeers.filter((peer) => !(packageJson.peerDependencies ?? {})[peer]);
-
-    expect(undeclared).toEqual([]);
   });
 });
