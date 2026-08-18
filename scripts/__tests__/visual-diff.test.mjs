@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -114,4 +115,87 @@ test("compareOne reports a size change on its own terms", async () => {
   assert.equal(result.baselineSize, "64x64");
   assert.equal(result.candidateSize, "64x96");
   assert.equal(result.changedPixels, null);
+});
+
+// The silent-green path this manifest exists to close. Both sides of the
+// comparison run the same stashed harness against the same committed fixture,
+// so a capture failure takes the same screens out on BOTH sides - and a screen
+// absent from both never enters the union the diff iterates, so it can never
+// be reported as REMOVED. Without an expected set the run says "no visual
+// changes" for screens nobody photographed.
+test("a screen in the manifest but absent from both sides is reported as never captured", async () => {
+  const dir = await scratch();
+  await writePng(path.join(dir, "baseline", "kept.png"), 64, 64);
+  await writePng(path.join(dir, "candidate", "kept.png"), 64, 64);
+  for (const side of ["baseline", "candidate"]) {
+    await fs.writeFile(
+      path.join(dir, side, "expected-screens.txt"),
+      "kept.png\nwithheld.png\n",
+    );
+  }
+
+  const script = path.join(import.meta.dirname, "..", "visual-diff.mjs");
+  const run = spawnSync(
+    process.execPath,
+    [
+      script,
+      "--baseline",
+      path.join(dir, "baseline"),
+      "--candidate",
+      path.join(dir, "candidate"),
+      "--out",
+      path.join(dir, "report"),
+      "--expected-baseline",
+      path.join(dir, "baseline", "expected-screens.txt"),
+      "--expected-candidate",
+      path.join(dir, "candidate", "expected-screens.txt"),
+      "--fail-on-change",
+      "true",
+    ],
+    { encoding: "utf8" },
+  );
+
+  const summary = JSON.parse(
+    await fs.readFile(path.join(dir, "report", "summary.json"), "utf8"),
+  );
+
+  // The comparison itself is clean - that is exactly the trap.
+  assert.equal(summary.changedCount, 0);
+  assert.deepEqual(summary.absentScreens, ["withheld.png"]);
+  assert.equal(summary.expectedCount, 2);
+  assert.match(run.stdout, /Never captured on either side \(1 of 2/);
+  assert.equal(run.status, 1);
+});
+
+test("a capture with no manifest is reported as unknown rather than complete", async () => {
+  const dir = await scratch();
+  await writePng(path.join(dir, "baseline", "kept.png"), 64, 64);
+  await writePng(path.join(dir, "candidate", "kept.png"), 64, 64);
+
+  const script = path.join(import.meta.dirname, "..", "visual-diff.mjs");
+  const run = spawnSync(
+    process.execPath,
+    [
+      script,
+      "--baseline",
+      path.join(dir, "baseline"),
+      "--candidate",
+      path.join(dir, "candidate"),
+      "--out",
+      path.join(dir, "report"),
+      "--expected-baseline",
+      path.join(dir, "baseline", "expected-screens.txt"),
+      "--expected-candidate",
+      path.join(dir, "candidate", "expected-screens.txt"),
+    ],
+    { encoding: "utf8" },
+  );
+
+  const summary = JSON.parse(
+    await fs.readFile(path.join(dir, "report", "summary.json"), "utf8"),
+  );
+
+  assert.equal(summary.expectedCount, null);
+  assert.deepEqual(summary.absentScreens, []);
+  assert.match(run.stdout, /No expected-screens manifest on either side/);
 });

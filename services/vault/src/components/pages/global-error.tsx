@@ -36,7 +36,14 @@ export default function GlobalError({
     : resetErrorBoundary;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    // `app-error-state` is read by the visual capture
+    // (services/vault/e2e/visual/capture.ts) so a crashed render can never
+    // become an accepted baseline. Same testid as the Aave config fallback:
+    // the capture asks "is this an error surface", not which one.
+    <div
+      data-testid="app-error-state"
+      className="flex min-h-screen items-center justify-center bg-gray-50 px-4"
+    >
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
         <h1 className="mb-4 text-2xl font-bold text-red-600">{heading}</h1>
         <p className="mb-4 text-gray-700">{body}</p>

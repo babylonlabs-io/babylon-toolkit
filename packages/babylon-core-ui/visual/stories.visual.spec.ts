@@ -27,6 +27,14 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR =
   process.env.VISUAL_OUT_DIR ?? path.join(currentDir, "__captures__");
 
+/**
+ * Name of the manifest written beside the PNGs, listing the screens this side
+ * intended to produce. Must match the vault capture's
+ * (`services/vault/e2e/visual/capture.ts`) and the name
+ * `.github/workflows/visual-regression.yml` passes to `visual-diff.mjs`.
+ */
+const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
+
 /** Height the story frame is rendered at before it is measured. Stories
  *  are captured full-page, so this only sets the initial layout width /
  *  minimum height, not the final image height. */
@@ -136,6 +144,28 @@ const storyIds = await readStoryIds();
 
 test.beforeAll(async () => {
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
+
+  // Declare which screens this side intends to produce, so the diff step can
+  // tell "nothing changed" from "nothing was photographed". A story that
+  // throws writes no PNG, and because both sides of the comparison run the
+  // same stashed harness, it throws identically on both - a screen absent from
+  // both never enters the diff's name set at all and the run reports clean.
+  //
+  // Written per side at collection time, not derived at diff time: both sides
+  // build Storybook to the same `storybook-static/` path, so by the time the
+  // diff runs the candidate's `index.json` has been overwritten by the
+  // baseline's and the expected set is no longer recoverable.
+  //
+  // `workers: 2` means this hook runs once per worker. Each writes its own
+  // file and renames it onto the shared name - the content is identical either
+  // way, and rename is atomic, so a reader never sees a half-written manifest.
+  const manifest = path.join(OUTPUT_DIR, EXPECTED_SCREENS_MANIFEST);
+  const staging = `${manifest}.${process.env.TEST_WORKER_INDEX ?? "0"}`;
+  await fs.writeFile(
+    staging,
+    `${storyIds.map((storyId) => `${storyId}.png`).join("\n")}\n`,
+  );
+  await fs.rename(staging, manifest);
 });
 
 for (const storyId of storyIds) {

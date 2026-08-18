@@ -159,7 +159,15 @@ jobs:
           set -euo pipefail
           H="${{ runner.temp }}/harness"
           mkdir -p "$H"
-          cp -R services/vault/e2e/visual "$H/vault-visual"
+          # The WHOLE e2e tree, not just e2e/visual. The capture now depends on
+          # `e2e/fixtures` - the recorded-backend replay, the committed
+          # recording it reads, and the injected wallets - and those are as
+          # much a part of the instrument as the spec that calls them.
+          # Restoring only e2e/visual leaves the baseline side importing the
+          # merge-base's fixtures - which, for the commit that introduces
+          # them, do not exist at all, so the baseline captures nothing and
+          # the run degrades to "no comparison" without ever going red.
+          cp -R services/vault/e2e "$H/vault-e2e"
           cp services/vault/playwright.visual.config.ts "$H/"
           # The visual config imports MOCK_ENV_VARS from playwright.config.ts,
           # and that export only exists on the PR side. Left unstashed, the
@@ -180,6 +188,13 @@ jobs:
       # Advisory check: one story that never settles must not cost the whole
       # report. The diff step reports whichever side is missing instead, and
       # the summary/comment branch on whether the comparison actually ran.
+      #
+      # That is only sound while a failed capture writes NO screenshot: the
+      # missing surface IS the signal. `capture()` therefore stages its
+      # photograph in memory and `writeCaptures()` flushes it only after the
+      # gates in `e2e/visual/capture.ts` pass. Write a PNG before asserting and
+      # both sides come back complete, the diff compares two error cards, and
+      # this step's failure is discarded into a green check.
       - name: Capture candidate (PR head)
         id: capture-candidate
         continue-on-error: true
@@ -194,9 +209,21 @@ jobs:
         run: |
           set -euo pipefail
           H="${{ runner.temp }}/harness"
-          rm -rf services/vault/e2e/visual packages/babylon-core-ui/visual
-          mkdir -p services/vault/e2e packages/babylon-core-ui .github/scripts
-          cp -R "$H/vault-visual" services/vault/e2e/visual
+          # `node_modules/.vite` goes too. services/vault/vite.config.ts lists
+          # @babylonlabs-io/core-ui and @babylonlabs-io/wallet-connector in
+          # optimizeDeps.include, so both are PRE-BUNDLED into that directory,
+          # and Vite's dep hash covers the lockfile and the vite config - never
+          # the linked package's content, which is identical across the two
+          # captures. Left in place, the baseline reuses the candidate run's
+          # prebundle and renders HEAD's core-ui and wallet-connector: a PR
+          # that only changes core-ui padding would report all 20 vault screens
+          # clean. This is the documented "restart with --force after changing
+          # a linked dep" footgun, and it is what makes the note on the
+          # "Capture baseline" step below true rather than aspirational.
+          rm -rf services/vault/e2e packages/babylon-core-ui/visual \
+                 services/vault/node_modules/.vite
+          mkdir -p services/vault packages/babylon-core-ui .github/scripts
+          cp -R "$H/vault-e2e" services/vault/e2e
           cp "$H/playwright.visual.config.ts" services/vault/
           cp "$H/playwright.config.ts" services/vault/
           cp -R "$H/core-ui-visual" packages/babylon-core-ui/visual
@@ -246,14 +273,17 @@ jobs:
             OUT="${{ runner.temp }}/visual/report/${SURFACE}"
             # Either capture may have been cut short (both are
             # continue-on-error), so name the missing side rather than
-            # letting the diff die on a bare ENOENT.
-            if [ ! -d "$CAND" ] || [ -z "$(ls -A "$CAND" 2>/dev/null)" ]; then
+            # letting the diff die on a bare ENOENT. Emptiness is measured in
+            # PNGs, not in directory entries: each capture now also writes an
+            # expected-screens manifest, and a directory holding only that
+            # manifest is a capture that produced nothing.
+            if [ ! -d "$CAND" ] || [ -z "$(find "$CAND" -name '*.png' -print -quit 2>/dev/null)" ]; then
               echo "No candidate captures for ${SURFACE} - capture did not complete." \
                 | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
               MISSING="${MISSING}${MISSING:+ }${SURFACE}"
               continue
             fi
-            if [ ! -d "$BASE" ] || [ -z "$(ls -A "$BASE" 2>/dev/null)" ]; then
+            if [ ! -d "$BASE" ] || [ -z "$(find "$BASE" -name '*.png' -print -quit 2>/dev/null)" ]; then
               echo "No baseline captures for ${SURFACE} - nothing to compare against." \
                 | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
               MISSING="${MISSING}${MISSING:+ }${SURFACE}"
@@ -263,11 +293,25 @@ jobs:
             echo "### ${SURFACE}" | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
             node scripts/visual-diff.mjs \
               --baseline "$BASE" --candidate "$CAND" --out "$OUT" \
+              --expected-baseline "$BASE/expected-screens.txt" \
+              --expected-candidate "$CAND/expected-screens.txt" \
               --baseline-ref "${{ steps.refs.outputs.merge_base }}" \
               --candidate-ref "${{ steps.refs.outputs.head_sha }}" \
               | tee -a "${{ runner.temp }}/visual/payload/diff-output.txt"
             N="$(node -e "console.log(require('${OUT}/summary.json').changedCount)")"
             TOTAL_CHANGED=$((TOTAL_CHANGED + N))
+            # A screen withheld on BOTH sides is invisible to changed_count -
+            # it never enters the diff's name set - so a failed gate would
+            # otherwise land on the ":white_check_mark: No visual changes"
+            # branch. Both sides run the same stashed harness, which makes
+            # that symmetry the normal shape of a capture failure rather than
+            # an unlucky one. Folded into MISSING because that channel is
+            # already wired to every consumer: the embed gate, the job
+            # summary, the PR comment and this job's outputs.
+            SHORT="$(node -e "const s=require('${OUT}/summary.json'); console.log(s.expectedCount === null ? 'unknown' : s.absentScreens.length)")"
+            if [ "${SHORT}" != "0" ]; then
+              MISSING="${MISSING}${MISSING:+ }${SURFACE}"
+            fi
           done
           echo "changed_count=${TOTAL_CHANGED}" >> "$GITHUB_OUTPUT"
           # Distinguishes "compared, nothing changed" from "compared nothing".

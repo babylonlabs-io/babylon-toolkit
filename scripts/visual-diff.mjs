@@ -254,6 +254,27 @@ async function copyDir(from, to) {
   }
 }
 
+/**
+ * Read a capture's expected-screens manifest.
+ *
+ * Returns null when there is no manifest, which the caller must not treat as
+ * "nothing expected": a capture that wrote PNGs but no manifest was not the
+ * stashed harness, and the safe reading of that is "unknown", not "complete".
+ */
+async function readExpected(manifestPath) {
+  if (!manifestPath) return null;
+  let raw;
+  try {
+    raw = await fs.readFile(manifestPath, "utf8");
+  } catch {
+    return null;
+  }
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const baselineDir = args.get("baseline");
@@ -262,7 +283,8 @@ async function main() {
 
   if (!baselineDir || !candidateDir || !outDir) {
     throw new Error(
-      "Usage: visual-diff.mjs --baseline <dir> --candidate <dir> --out <dir> [--fail-on-change]",
+      "Usage: visual-diff.mjs --baseline <dir> --candidate <dir> --out <dir> " +
+        "[--expected-baseline <file>] [--expected-candidate <file>] [--fail-on-change]",
     );
   }
 
@@ -271,6 +293,28 @@ async function main() {
   const baselineNames = await listPngs(baselineDir);
   const candidateNames = await listPngs(candidateDir);
   const allNames = [...new Set([...baselineNames, ...candidateNames])].sort();
+
+  // A screen absent from BOTH sides is invisible to everything below: it is
+  // never constructed, so it can never be ADDED, REMOVED or CHANGED, and the
+  // run reports "no visual changes" for a comparison that never looked at it.
+  // Because both sides are photographed by the same stashed harness against
+  // the same committed fixture, that symmetric shortfall is the DEFAULT
+  // failure mode here, not the rare one - a stale recording or a drifted
+  // testid takes the same screens out on both sides.
+  //
+  // Kept in `meta` rather than pushed into `results` as a fifth status:
+  // `visual-embed.mjs` composes an image for every non-UNCHANGED result, and
+  // there is no PNG on either side to compose from.
+  const expectedLists = [
+    await readExpected(args.get("expected-baseline")),
+    await readExpected(args.get("expected-candidate")),
+  ].filter((list) => list !== null);
+  const expected =
+    expectedLists.length === 0
+      ? null
+      : [...new Set(expectedLists.flat())].sort();
+  const absentScreens =
+    expected?.filter((name) => !allNames.includes(name)) ?? [];
 
   const results = [];
   for (const name of allNames) {
@@ -307,6 +351,11 @@ async function main() {
     candidateRef: args.get("candidate-ref") ?? "HEAD",
     totalCount: results.length,
     changedCount: changed.length,
+    // null means no manifest was found on either side. The workflow treats
+    // that as a shortfall too: it can only happen when the capture that ran
+    // was not the stashed harness, which is not a state to report clean.
+    expectedCount: expected === null ? null : expected.length,
+    absentScreens,
   };
 
   await fs.writeFile(
@@ -337,7 +386,25 @@ async function main() {
     );
   }
 
-  if (changed.length > 0 && args.get("fail-on-change") === "true") {
+  // Printed after the change list so it is the last thing a reader sees, and
+  // on stdout so the workflow's `tee` carries it into the report comment.
+  if (expected === null) {
+    process.stdout.write(
+      `No expected-screens manifest on either side - cannot tell whether ` +
+        `every screen was captured. This run is not a full comparison.\n`,
+    );
+  } else if (absentScreens.length > 0) {
+    process.stdout.write(
+      `Never captured on either side (${absentScreens.length} of ` +
+        `${expected.length} expected screens):\n` +
+        `${absentScreens.map((name) => `  ${name}`).join("\n")}\n`,
+    );
+  }
+
+  if (
+    args.get("fail-on-change") === "true" &&
+    (changed.length > 0 || expected === null || absentScreens.length > 0)
+  ) {
     process.exitCode = 1;
   }
 }
