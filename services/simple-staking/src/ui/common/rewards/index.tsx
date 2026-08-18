@@ -136,7 +136,9 @@ function RewardsPageContent() {
           fluid={true}
           size="large"
           color="primary"
-          onClick={openWidget}
+          // Wrapped because `open` now takes an optional chain, and React would
+          // otherwise hand it the click event as one.
+          onClick={() => openWidget()}
           className="mt-6"
         >
           Connect Wallet

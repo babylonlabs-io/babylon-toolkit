@@ -28,7 +28,11 @@ export const WalletNotConnected = () => {
         </Text>
       </div>
 
-      <Button variant="outlined" onClick={open} className="text-primary-dark">
+      <Button
+        variant="outlined"
+        onClick={() => open()}
+        className="text-primary-dark"
+      >
         Connect Wallets
       </Button>
     </div>

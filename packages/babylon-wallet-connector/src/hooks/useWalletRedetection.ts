@@ -5,8 +5,7 @@ import { WALLET_MODAL_OPEN_EVENT } from "@/constants/walletEvents";
 import { createWalletConnector } from "@/core";
 import type { HashMap, IProvider } from "@/core/types";
 import type { WalletConnector } from "@/core/WalletConnector";
-import metadata from "@/core/wallets";
-import type { ChainConfigArr, Connectors } from "@/context/Chain.context";
+import type { ChainConfigArr, ChainMetadataMap, Connectors } from "@/context/Chain.context";
 
 import { selectRedetectReconnectTargets } from "./redetectReconnect";
 
@@ -39,6 +38,8 @@ interface UseWalletRedetectionParams {
    * wallet auto-reconnects it (see the reconnect block below).
    */
   persistent: boolean;
+  /** Chain metadata for the entry point in use — see `ChainMetadataMap`. */
+  metadata: ChainMetadataMap;
 }
 
 /**
@@ -84,6 +85,7 @@ export function useWalletRedetection({
   storage,
   disabledWallets,
   persistent,
+  metadata,
 }: UseWalletRedetectionParams): void {
   // Mirror the latest connectors into a ref so the effect reads current
   // state without depending on it (which would re-run it).
@@ -131,7 +133,12 @@ export function useWalletRedetection({
       //    detection in init() (e.g. UniSat) and swap the now-installed ones in.
       const stale = (
         Object.values(connectorsRef.current).filter(Boolean) as WalletConnector<string, IProvider, any>[]
-      ).filter((c) => !c.connectedWallet && c.wallets.some((w) => w.id !== "injectable" && !w.installed));
+      ).filter(
+        (c) =>
+          Boolean(metadata[c.id as keyof ChainMetadataMap]) &&
+          !c.connectedWallet &&
+          c.wallets.some((w) => w.id !== "injectable" && !w.installed),
+      );
 
       let swapIn: WalletConnector<string, IProvider, any>[] = [];
       if (stale.length > 0) {
@@ -142,7 +149,7 @@ export function useWalletRedetection({
               // stored-session reconnect is done explicitly in step 2 so it can
               // also cover connectors an earlier detect-only pass already swapped in.
               persistent: false,
-              metadata: metadata[c.id as keyof typeof metadata],
+              metadata: metadata[c.id as keyof ChainMetadataMap]!,
               context,
               config: config.find((cc) => cc.chain === c.id)?.config,
               accountStorage: storage,
@@ -252,5 +259,5 @@ export function useWalletRedetection({
         window.removeEventListener(WALLET_MODAL_OPEN_EVENT, redetectInteractive);
       }
     };
-  }, [connectorsBuilt, config, context, storage, disabledWallets, setConnectors, persistent]);
+  }, [connectorsBuilt, config, context, storage, disabledWallets, setConnectors, persistent, metadata]);
 }

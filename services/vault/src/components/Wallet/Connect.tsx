@@ -31,7 +31,11 @@ interface ConnectProps {
 }
 
 export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
-  const { open, disconnect } = useWalletConnect();
+  const {
+    connected: walletSessionConfirmed,
+    open,
+    disconnect,
+  } = useWalletConnect();
 
   const {
     connected: btcConnected,
@@ -55,7 +59,14 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
 
-  const isWalletConnected = btcConnected && ethConnected;
+  // `walletSessionConfirmed` is the dialog's own confirmation - the Connect
+  // press the "By clicking Connect you agree with the Terms of Use" copy hangs
+  // off. Closing the dialog now leaves a successful connection up rather than
+  // tearing it down, so without this gate a user could select both wallets,
+  // dismiss with X, and reach the full deposit UI having never accepted the
+  // terms. simple-staking gates its menu the same way.
+  const isWalletConnected =
+    walletSessionConfirmed && btcConnected && ethConnected;
 
   // Single source for both the UTXO query gate and the menu render branch below.
   const canShowWalletMenu = isWalletConnected && !isGeoBlocked && !isGeoLoading;

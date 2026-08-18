@@ -16,8 +16,10 @@ import {
 import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
-import { getAppKitModal } from "@/core/wallets/appkit/appKitModal";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+// Read the modal from the shared singleton rather than from `appKitModal`,
+// which pulls the Bitcoin adapter in with it.
+import { getAppKitModal } from "@/core/wallets/appkit/state";
 
 import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 

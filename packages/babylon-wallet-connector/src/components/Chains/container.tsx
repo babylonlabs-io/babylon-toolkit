@@ -1,9 +1,14 @@
 import { useCallback, useMemo } from "react";
 
 import type { IChain } from "@/core/types";
-import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
-import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
-import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
+// Connector ids come from the shared constants module, not from each chain's
+// wallet metadata — importing the metadata here would put every Bitcoin wallet
+// adapter into the `./eth` graph, since this screen is part of the dialog.
+import {
+  APPKIT_BTC_CONNECTOR_ID,
+  APPKIT_ETH_CONNECTOR_ID,
+  APPKIT_OPEN_EVENT,
+} from "@/core/wallets/appkit/constants";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWidgetState } from "@/hooks/useWidgetState";
 import { useChainProviders } from "@/context/Chain.context";
@@ -26,7 +31,7 @@ interface ContainerProps {
 }
 
 export function ChainsContainer(props: ContainerProps) {
-  const { chains, selectedWallets, displayWallets } = useWidgetState();
+  const { chains, requiredChainIds, selectedWallets, displayWallets } = useWidgetState();
   const { selected } = useWalletConnect();
   const connectors = useChainProviders();
 
@@ -90,6 +95,7 @@ export function ChainsContainer(props: ContainerProps) {
     <Chains
       disabled={!selected}
       chains={chainArr}
+      requiredChainIds={requiredChainIds}
       selectedWallets={selectedWallets}
       onSelectChain={handleSelectChain}
       {...props}

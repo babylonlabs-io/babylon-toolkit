@@ -1,4 +1,4 @@
-import okxLogo from "./btc/okx/logo.svg";
+import okxLogo from "./icons/okx.svg";
 import { MONOCHROME_MARK_BACKGROUND } from "./constants";
 
 /**

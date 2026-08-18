@@ -13,7 +13,27 @@ export interface WalletMenuProps {
   bbnAddress?: string;
   ethAddress?: string;
   selectedWallets: Partial<Record<WalletChain, { name: string; icon: string; iconBackground?: string }>>;
-  onDisconnect: () => void;
+  /**
+   * Called with no chain by the disconnect-everything button, and with a
+   * single chain by each wallet card's own control. Handlers must honour the
+   * argument, or a per-wallet disconnect will drop the whole session.
+   */
+  onDisconnect: (chain?: WalletChain) => void;
+  /**
+   * Renders per-wallet disconnect controls. Off by default so a host that has
+   * not adopted the per-chain handler keeps the all-or-nothing behaviour.
+   */
+  perChainDisconnect?: boolean;
+  /**
+   * Row offering a chain the user has not connected — the Bitcoin capability
+   * in an Ethereum-first session. The label is the app's, since only it knows
+   * what the chain is for.
+   */
+  connectAction?: {
+    label: string;
+    onClick: () => void;
+    "data-testid"?: string;
+  };
   forceOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
 
@@ -48,6 +68,8 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   ethAddress,
   selectedWallets,
   onDisconnect,
+  perChainDisconnect = false,
+  connectAction,
   forceOpen = false,
   onOpenChange,
   btcBalances,
@@ -78,6 +100,19 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
     setIsOpen(false);
     onDisconnect();
   }, [onDisconnect]);
+
+  const handleDisconnectChain = useCallback(
+    (chain: WalletChain) => () => {
+      setIsOpen(false);
+      onDisconnect(chain);
+    },
+    [onDisconnect],
+  );
+
+  const handleConnectAction = useCallback(() => {
+    setIsOpen(false);
+    connectAction?.onClick();
+  }, [connectAction]);
 
   const createFormatBalance = (coinSymbol?: string) => {
     if (!formatBalance || !coinSymbol) return undefined;
@@ -115,6 +150,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               isBalanceLoading={balancesLoading}
               hasUnconfirmedTransactions={hasUnconfirmedTransactions}
               formatBalance={createFormatBalance(btcSymbol)}
+              onDisconnect={perChainDisconnect ? handleDisconnectChain("BTC") : undefined}
             />
           )}
 
@@ -131,6 +167,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               coinSymbol={bbnSymbol}
               isBalanceLoading={balancesLoading}
               formatBalance={createFormatBalance(bbnSymbol)}
+              onDisconnect={perChainDisconnect ? handleDisconnectChain("BBN") : undefined}
             />
           )}
 
@@ -147,9 +184,21 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               coinSymbol={ethSymbol}
               isBalanceLoading={balancesLoading}
               formatBalance={createFormatBalance(ethSymbol)}
+              onDisconnect={perChainDisconnect ? handleDisconnectChain("ETH") : undefined}
             />
           )}
         </div>
+
+        {connectAction && (
+          <button
+            type="button"
+            onClick={handleConnectAction}
+            data-testid={connectAction["data-testid"]}
+            className="flex w-full items-center justify-center rounded-[4px] bg-[#F9F9F9] p-3 text-sm font-medium text-accent-primary transition-opacity hover:opacity-80 dark:bg-[#2F2F2F] md:p-4"
+          >
+            {connectAction.label}
+          </button>
+        )}
 
         {/* Optional settings section (provided by presets) */}
         {settingsSection}

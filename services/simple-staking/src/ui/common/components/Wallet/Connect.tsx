@@ -98,17 +98,29 @@ export const Connect: React.FC<ConnectProps> = ({
 
   // Widget states
   const { selectedWallets } = useWidgetState();
-  const { disconnect } = useWalletConnect();
+  const { connected: walletSessionConfirmed, disconnect } = useWalletConnect();
 
   const { isApiNormal, isGeoBlocked } = useHealthCheck();
 
+  // `walletSessionConfirmed` is what the rest of the app signs in on (see
+  // useIsLoggedIn). Without it here, a restored session whose confirmation
+  // cannot be verified would render this menu as connected while every page
+  // treated the user as signed out, and with no Connect button to recover.
   const isConnected = useMemo(() => {
+    if (!walletSessionConfirmed) return false;
+
     if (isBabyRoute) {
       return bbnConnected && !isGeoBlocked;
     } else {
       return btcConnected && bbnConnected && !isGeoBlocked;
     }
-  }, [isBabyRoute, btcConnected, bbnConnected, isGeoBlocked]);
+  }, [
+    walletSessionConfirmed,
+    isBabyRoute,
+    btcConnected,
+    bbnConnected,
+    isGeoBlocked,
+  ]);
 
   const isLoading = useMemo(() => {
     // Only disable the button if we're already connected, API is down, or there's an active connection process

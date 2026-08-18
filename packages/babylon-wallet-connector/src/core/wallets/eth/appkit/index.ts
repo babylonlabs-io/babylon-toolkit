@@ -1,14 +1,12 @@
 import type { ETHConfig, IETHProvider, WalletMetadata } from "@/core/types";
 import { Network } from "@/core/types";
+import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/appkit/constants";
 
 import { AppKitProvider } from "./provider";
 
 const WALLET_PROVIDER_NAME = "AppKit";
 
-/**
- * Unique identifier for AppKit ETH wallet connector
- */
-export const APPKIT_ETH_CONNECTOR_ID = "appkit-eth-connector";
+export { APPKIT_ETH_CONNECTOR_ID };
 
 /**
  * AppKit wallet metadata for ETH chain

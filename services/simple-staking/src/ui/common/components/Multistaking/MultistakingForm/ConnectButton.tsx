@@ -9,7 +9,7 @@ export function ConnectButton() {
 
   return (
     <Button
-      onClick={open}
+      onClick={() => open()}
       className={"mt-2 w-full"}
       disabled={isGeoBlocked}
       data-testid="connect-wallets-button"
