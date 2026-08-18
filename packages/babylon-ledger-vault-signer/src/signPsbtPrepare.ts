@@ -116,6 +116,26 @@ export function buildSignPsbtApdu(cdata: Uint8Array): Apdu {
   return { cla: CLA_APP, ins: INS_SIGN_PSBT, p1: P1_SIGN_PSBT, p2: P2_PROTOCOL_V1, data: cdata };
 }
 
+/** BIP-341 SIGHASH_DEFAULT (0x00) — the only type any vault flow signs (wire spec §5). */
+const SIGHASH_DEFAULT = 0;
+
+/**
+ * An explicit non-default PSBT_IN_SIGHASH_TYPE on an input this round signs
+ * would make the device sign it and append the sighash byte
+ * (`base:sign_input.c:197-201`) — the 65-byte yield then dies at the
+ * collector's length check AFTER the user approved. Reject before any I/O.
+ */
+function assertDefaultSighashTypes(mergeTarget: BitcoinjsPsbt, table: ExpectedSignatureTable): void {
+  for (const [inputIndex] of table.byInput) {
+    const sighashType = mergeTarget.data.inputs[inputIndex].sighashType;
+    if (sighashType !== undefined && sighashType !== SIGHASH_DEFAULT) {
+      throw new LedgerSignPsbtProtocolError(
+        `input ${inputIndex} requests sighash type ${sighashType}, but vault flows sign SIGHASH_DEFAULT only`,
+      );
+    }
+  }
+}
+
 /**
  * Reject an input already carrying a signature this round would collide with.
  * bip174 refuses a duplicate (pubkey, leafHash) tapScriptSig and any second
@@ -232,6 +252,7 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
     );
   }
   assertNoConflictingSignatures(mergeTarget, table);
+  assertDefaultSighashTypes(mergeTarget, table);
   const collector = createYieldCollector(table);
 
   // ONE yield mechanism: the onYield seam — the loop never parses YIELDs.

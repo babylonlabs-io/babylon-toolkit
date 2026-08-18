@@ -305,6 +305,32 @@ describe("already-signed inputs are rejected before any device I/O", () => {
     expectPrepareRejects(psbt.toHex(), TEST_DEPOSITOR_KEY_HEX, /input 0 is already finalized/);
   });
 
+  it("rejects a tapscript input requesting a non-default sighash type", () => {
+    // The device would sign it and append the sighash byte — the 65-byte yield
+    // then fails only AFTER the user approved. Gate is pre-I/O.
+    const psbt = Psbt.fromHex(loadVector(TAPSCRIPT_VECTOR).psbt_hex);
+    psbt.data.inputs[0].sighashType = 1;
+
+    expectPrepareRejects(psbt.toHex(), TEST_DEPOSITOR_KEY_HEX, /input 0 requests sighash type 1/);
+  });
+
+  it("rejects a keypath input requesting a non-default sighash type", () => {
+    const vector = loadVector(KEYPATH_VECTOR);
+    const psbt = Psbt.fromHex(vector.psbt_hex);
+    psbt.data.inputs[0].sighashType = 1;
+
+    expectPrepareRejects(psbt.toHex(), depositorKeyFor(KEYPATH_VECTOR, vector), /input 0 requests sighash type 1/);
+  });
+
+  it("accepts an input with an explicit SIGHASH_DEFAULT entry", () => {
+    // BIP-371 permits an explicit 0x00 entry; it means the same as absence.
+    const psbt = Psbt.fromHex(loadVector(TAPSCRIPT_VECTOR).psbt_hex);
+    psbt.data.inputs[0].sighashType = 0;
+
+    const prepared = prepareSignPsbt({ psbtHex: psbt.toHex(), depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    expect(prepared.table.byInput.get(0)?.kind).toBe("tapscript");
+  });
+
   it("accepts a finalized input this round does not sign", () => {
     // Payout input 1 is witnessUtxo-only, so it never enters the table — a
     // co-signed, already-finalized input must not trip the gate.
