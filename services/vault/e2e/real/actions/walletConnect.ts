@@ -17,7 +17,7 @@
  * it running afterwards (pegin) or uninstall it (observe, where the human then drives the peg-in).
  * Address verification is NOT done here — that is the `connect` action's own success check.
  */
-import type { Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
 
 import type { BtcWalletId, EthWalletId } from "../config";
 import {
@@ -33,6 +33,20 @@ import type { ActionContext } from "./types";
 
 /** The Reown AppKit list entry to click per ETH wallet. */
 const ETH_APPKIT_NAME: Record<EthWalletId, RegExp> = { metamask: /metamask/i };
+
+/** Sweep approvals repeatedly for `durationMs` — a wait that also clears anything sitting pending. */
+async function sweepUntil(
+  context: BrowserContext,
+  page: Page,
+  log: (m: string) => void,
+  durationMs: number,
+): Promise<void> {
+  const deadline = Date.now() + durationMs;
+  while (Date.now() < deadline) {
+    await sweepApprovals(context, page, log);
+    await page.waitForTimeout(CONNECT_STATE_POLL_MS);
+  }
+}
 
 /**
  * The header's connected wallet menu (the avatar-group trigger, src/components/Wallet/Connect.tsx). It
@@ -72,30 +86,43 @@ export async function connectWallets(ctx: ActionContext): Promise<void> {
     .getByText(ETH_APPKIT_NAME[ctx.eth.id] ?? /metamask/i, { exact: false })
     .first()
     .click({ timeout: STEP_TIMEOUT_MS });
-  await page.waitForTimeout(APPROVAL_WAIT_MS);
+  // Sweep DURING this wait rather than sleeping through it. MetaMask's connect approval is not
+  // reliably picked up by the event approver — in practice it is this sweep that clears it (its log
+  // lines come from `sweepApprovals`, not the 'page' handler), most likely because the window is
+  // reused rather than opened fresh. Sleeping here left the approval pending long enough for the
+  // dApp's own connect modal to fall back to "Try again", and that modal then stayed up as a
+  // portal-root overlay covering the nav — so the run died on the NEXT click, far from the cause.
+  await sweepUntil(context, page, log, APPROVAL_WAIT_MS);
 
   log("Finalizing (Connect)");
-  await page
-    .locator('[data-testid="chains-connect-button"]')
-    .click({ timeout: STEP_TIMEOUT_MS })
-    .catch(() => {});
 
-  log("Waiting for connected state (header wallet menu)");
   // Poll for the connected state while actively sweeping approval popups. MetaMask can insert an EXTRA
   // approval AFTER the initial connect — a "Review permissions / Use your enabled networks" prompt whose
   // Confirm (page-container-footer-next) must be clicked before the app flips to connected. That prompt
   // can land after the popup approver's per-window rounds have ended (or in a reused window that fires no
   // 'page' event), so a one-shot waitFor would just time out with it hanging. Sweeping each tick clicks
   // it (clickApprove already matches that Confirm), the same way the borrow/repay confirm loops do.
+  //
+  // The modal's own Connect is retried each tick rather than clicked once up front: it stays disabled
+  // until BOTH wallets have reported in, so a single early click is silently dropped and the modal then
+  // sits open forever. The header can already show the connected wallet menu at that point, so the menu
+  // alone is not proof of success — this only returns once the modal is actually GONE. Leaving it open
+  // is what covered the app in a portal-root overlay and broke the first click after connect.
+  const finalize = page.locator('[data-testid="chains-connect-button"]');
   const walletMenu = page.locator(WALLET_MENU_TRIGGER_TESTID).first();
   const deadline = Date.now() + CONNECT_STATE_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (await walletMenu.isVisible().catch(() => false)) return;
+    const modalOpen = await finalize.isVisible().catch(() => false);
+    if (!modalOpen && (await walletMenu.isVisible().catch(() => false))) return;
+    // Short timeout on purpose: the button is visible-but-disabled until both wallets report in, and
+    // a full STEP_TIMEOUT_MS wait here would block the tick and starve the approval sweep below.
+    if (modalOpen)
+      await finalize.click({ timeout: CONNECT_STATE_POLL_MS }).catch(() => {});
     await sweepApprovals(context, page, log);
     await page.waitForTimeout(CONNECT_STATE_POLL_MS);
   }
   throw new Error(
-    `connect: the connected state (header wallet menu) did not appear within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s — a wallet approval popup (e.g. MetaMask "Review permissions") may be unconfirmed.`,
+    `connect: the Connect Wallets modal did not close into the connected state (header wallet menu) within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s — a wallet approval (e.g. MetaMask "Review permissions") may be unconfirmed.`,
   );
 }
 
