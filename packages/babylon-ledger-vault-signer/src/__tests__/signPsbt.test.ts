@@ -215,6 +215,37 @@ describe("signVaultPsbt", () => {
     expect(staged.yields).toEqual(composed.yields);
   });
 
+  it("rejects reuse of a prepared signing state after success, with zero device I/O", async () => {
+    // The prepared object's collector/interpreter are mutable ceremony state —
+    // a second run would repeat a non-idempotent ceremony with stale yields.
+    const script = peginScript(fixtureLeafHashHex());
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    await signPreparedVaultPsbt(createScriptedSender(script).send, prepared, {
+      signal: new AbortController().signal,
+    });
+
+    const { send, sent } = createScriptedSender(script);
+    await expect(signPreparedVaultPsbt(send, prepared, { signal: new AbortController().signal })).rejects.toThrow(
+      /already used/,
+    );
+    expect(sent()).toBe(0);
+  });
+
+  it("rejects reuse of a prepared signing state after an abort", async () => {
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    const aborted = new AbortController();
+    aborted.abort();
+    await expect(
+      signPreparedVaultPsbt(createScriptedSender([]).send, prepared, { signal: aborted.signal }),
+    ).rejects.toThrow(/abandoned/);
+
+    const { send, sent } = createScriptedSender([]);
+    await expect(signPreparedVaultPsbt(send, prepared, { signal: new AbortController().signal })).rejects.toThrow(
+      /already used/,
+    );
+    expect(sent()).toBe(0);
+  });
+
   it("requires a signal — params without one must not typecheck", () => {
     // @ts-expect-error `signal` is required; the loop has no round cap and no
     // internal timeout, so a caller without a signal cannot bound the ceremony.

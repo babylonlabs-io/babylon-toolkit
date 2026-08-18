@@ -371,7 +371,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     const generation = this.connectionGeneration;
     const send = this.requireSender();
     // Fail actionably now rather than with an opaque status word mid-ceremony.
-    if (!(await isSessionAlive(this.requireSession()))) {
+    if (!(await this.probeSessionAlive(this.requireSession()))) {
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
         message: `${WALLET_PROVIDER_NAME} was disconnected; reconnect the device and retry.`,
@@ -547,7 +547,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     // dead session means the device state is gone (unplug wipes it) — the
     // mirror and replay bookkeeping must not survive it. Generation-guarded:
     // a reconnect may already have re-established fresh state.
-    if (!(await isSessionAlive(session))) {
+    if (!(await this.probeSessionAlive(session))) {
       if (generation === this.connectionGeneration) {
         this.deviceState = { phase: "idle" };
         this.signedFingerprints = new Set();
@@ -707,6 +707,18 @@ export class LedgerVaultProvider implements IBTCProvider {
         },
         { cause: error instanceof Error ? error : undefined },
       );
+    }
+  }
+
+  /**
+   * Liveness probe for the ceremony gates: `isSessionAlive` rethrows DMK's
+   * plain `{_tag}` objects, which would otherwise escape unmapped.
+   */
+  private async probeSessionAlive(session: DmkSessionHandle): Promise<boolean> {
+    try {
+      return await isSessionAlive(session);
+    } catch (error) {
+      throw toSignerWalletError(error) ?? error;
     }
   }
 

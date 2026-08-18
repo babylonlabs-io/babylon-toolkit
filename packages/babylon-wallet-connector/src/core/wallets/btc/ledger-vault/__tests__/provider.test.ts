@@ -323,6 +323,7 @@ describe("LedgerVaultProvider", () => {
       const provider = await derived();
 
       await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/no approved intent/);
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
@@ -330,6 +331,7 @@ describe("LedgerVaultProvider", () => {
       const provider = await approved();
 
       await expect(provider.signPsbt(PSBT_A, { autoFinalized: true })).rejects.toThrow(/never finalizes/);
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
@@ -337,6 +339,7 @@ describe("LedgerVaultProvider", () => {
       const provider = await approved();
 
       await expect(provider.signPsbt("zz")).rejects.toMatchObject({ code: ERROR_CODES.INVALID_PARAMS });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
@@ -433,6 +436,21 @@ describe("LedgerVaultProvider", () => {
       // A was signed before the gate stopped B; the intent is untouched.
       expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
       await expect(provider.signPsbt(PSBT_C)).resolves.toBe(`signed:${PSBT_C}`);
+      // A's signature is lost with the batch, and its fingerprint blocks a retry
+      // under this intent — the documented fail-fast contract.
+      await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/already signed/);
+    });
+
+    it("maps a throwing liveness probe onto a WalletError", async () => {
+      // isSessionAlive rethrows DMK's plain {_tag} objects — they must not
+      // escape signPsbt unmapped.
+      const provider = await approved();
+      dmkSessionMock.isSessionAlive.mockRejectedValueOnce({
+        _tag: "TransportError",
+        originalError: { message: "hid gone" },
+      });
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_FAILED });
     });
 
     it("admits one device ceremony at a time", async () => {

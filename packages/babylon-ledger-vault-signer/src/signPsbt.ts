@@ -66,6 +66,11 @@ export interface SignVaultPsbtResult {
 /** The device-facing half of {@link SignVaultPsbtParams} — everything but the PSBT itself. */
 export type SignPreparedVaultPsbtOptions = Omit<SignVaultPsbtParams, "psbtHex" | "depositorXOnlyHex">;
 
+// A prepared object is single-use: its collector and interpreter are mutable
+// ceremony state, so a second run would re-send SIGN_PSBT with stale yields —
+// repeating a non-idempotent device ceremony before any host check could fire.
+const consumedPrepared = new WeakSet<PreparedSignPsbt>();
+
 /**
  * Device half of the staged API: drive the interrupt/continue loop for an
  * already-prepared PSBT, then merge. A caller that needs the expected-signature
@@ -80,6 +85,14 @@ export async function signPreparedVaultPsbt(
   prepared: PreparedSignPsbt,
   options: SignPreparedVaultPsbtOptions,
 ): Promise<SignVaultPsbtResult> {
+  // Claimed synchronously BEFORE the first await, so success, abort, and
+  // concurrent reuse are all rejected with zero device I/O.
+  if (consumedPrepared.has(prepared)) {
+    throw new LedgerSignPsbtProtocolError(
+      "prepared signing state was already used — call prepareSignPsbt again for a retry",
+    );
+  }
+  consumedPrepared.add(prepared);
   // Completion (collector.assertComplete) runs inside the loop's completing state.
   const yields = await runSignPsbtLoop(send, prepared, {
     onProgress: options.onProgress,
