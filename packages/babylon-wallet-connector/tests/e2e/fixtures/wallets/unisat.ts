@@ -18,7 +18,7 @@
  *  - The receive address is truncated in the DOM — read the full value via the clipboard, validated
  *    against the on-screen truncation so a stale clipboard can't yield a false result.
  */
-import { type BrowserContext, type Page } from "@playwright/test";
+import { type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
@@ -109,16 +109,24 @@ async function enterMnemonic(page: Page, words: string[]): Promise<void> {
  */
 async function advanceFromImport(page: Page): Promise<void> {
   const addressTypeScreen = page.getByText(TAPROOT_ROW);
+  let everClicked = false;
   for (let i = 0; i < IMPORT_CONTINUE_ATTEMPTS; i++) {
     if ((await addressTypeScreen.count()) > 0) return;
-    await clickTestId(page, IMPORT_TESTID.CONTINUE);
+    everClicked = (await clickTestId(page, IMPORT_TESTID.CONTINUE)) || everClicked;
     await page.waitForTimeout(SETTLE.MEDIUM);
   }
-  if ((await addressTypeScreen.count()) === 0)
+  if ((await addressTypeScreen.count()) > 0) return;
+  // Separate causes, separate messages: a Continue we never found is a renamed testid, whereas one we
+  // clicked without advancing means UniSat rejected the phrase.
+  if (!everClicked)
     throw new Error(
-      `UniSat: Continue ([data-testid="${IMPORT_TESTID.CONTINUE}"]) did not advance past the import ` +
-        "screen — the phrase was rejected, or the address-type screen changed.",
+      `UniSat: Continue ([data-testid="${IMPORT_TESTID.CONTINUE}"]) was never present on the import ` +
+        "screen — its testid likely changed.",
     );
+  throw new Error(
+    `UniSat: Continue ([data-testid="${IMPORT_TESTID.CONTINUE}"]) did not advance past the import ` +
+      "screen — the phrase was rejected, or the address-type screen changed.",
+  );
 }
 
 /**
@@ -161,7 +169,15 @@ async function selectSignetTaproot(page: Page): Promise<void> {
         `UniSat: the Taproot card derives at a path other than ${UNISAT_TAPROOT_RECEIVE_PATH} — the custom ` +
           `derivation path did not take. Card label: ${label.replace(/\s+/g, " ").trim()}`,
       );
-    await clickTestId(page, `${ADDRESS_TYPE_TESTID.CARD_PREFIX}${i}`);
+    // Click the card we just validated, NOT `${CARD_PREFIX}${i}`: the testid suffix is the index of
+    // UniSat's own render loop, which emits `null` for cards it hides (a legacy type with no assets,
+    // or a scanned type with no funded address). Those gaps leave the suffixes out of step with DOM
+    // position, so rebuilding the selector from `i` can select a different card — silently picking the
+    // wrong address type.
+    if (!(await clickLocator(page, cards.nth(i))))
+      throw new Error(
+        "UniSat: the Taproot card matched but could not be clicked (no bounding box).",
+      );
     await page.waitForTimeout(SETTLE.SHORT);
     return;
   }
@@ -210,18 +226,19 @@ async function readReceiveAddress(page: Page): Promise<string | null> {
 /** UniSat's longest "Automatic Lock Time" option (its dropdown tops out here). */
 const UNISAT_MAX_AUTO_LOCK = "4Hours";
 
-/** Coordinate-click a UniSat control by testid (its buttons are pointer-events:none div/span). */
-async function clickTestId(page: Page, testid: string): Promise<boolean> {
-  const box = await page
-    .locator(`[data-testid="${testid}"]`)
-    .first()
-    .boundingBox()
-    .catch(() => null);
+/** Coordinate-click a located UniSat control (its buttons are pointer-events:none div/span). */
+async function clickLocator(page: Page, locator: Locator): Promise<boolean> {
+  const box = await locator.boundingBox().catch(() => null);
   if (!box) return false;
   await page.mouse
     .click(box.x + box.width / 2, box.y + box.height / 2)
     .catch(() => {});
   return true;
+}
+
+/** Coordinate-click a UniSat control by testid. */
+async function clickTestId(page: Page, testid: string): Promise<boolean> {
+  return clickLocator(page, page.locator(`[data-testid="${testid}"]`).first());
 }
 
 /**
