@@ -627,8 +627,12 @@ describe("Error Formatting", () => {
     });
 
     it("maps an empty vault record to the shared registration-confirming copy", () => {
+      // One binding for the id: the reader echoes it into the message, and
+      // the assertion below proves it does not survive into the UI. Two
+      // literals could drift apart and quietly stop testing that.
+      const vaultId = "0xabc";
       const error = new Error(
-        "Vault 0xabc not found on-chain or has no pegin transaction",
+        `Vault ${vaultId} not found on-chain or has no pegin transaction`,
       );
 
       const result = formatPayoutSignatureError(error);
@@ -640,7 +644,7 @@ describe("Error Formatting", () => {
         message: COPY.deposit.errors.vaultRegistrationNotYetVisible.body,
       });
       // The raw vault id must not reach the user.
-      expect(result.message).not.toContain("0xabc");
+      expect(result.message).not.toContain(vaultId);
     });
 
     it("shows error code instead of raw message for unknown JsonRpcError codes", () => {
