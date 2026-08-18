@@ -57,6 +57,7 @@
     ],
     "projectsRelationship": "independent",
     "releaseTagPattern": "{projectName}/{version}",
+    "releaseTagPatternStrictPreid": true,
     "changelog": {
       "automaticFromRef": true,
       "projectChangelogs": {

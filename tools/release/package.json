@@ -4,10 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "run": "tsx index.ts",
-    "dry-run": "DRY_RUN=true tsx index.ts"
+    "dry-run": "DRY_RUN=true tsx src/index.ts",
+    "lint": "eslint .",
+    "run": "tsx src/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "nx": "21.3.7"
+  },
+  "devDependencies": {
+    "@internal/eslint-config": "workspace:*",
+    "typescript": "^5.8.3",
+    "vitest": "4.0.9"
   }
 }
