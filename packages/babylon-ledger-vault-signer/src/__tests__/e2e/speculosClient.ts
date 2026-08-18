@@ -32,6 +32,8 @@ const PRESS_SETTLE_MS = 150;
 const MAX_NAV_PRESSES = 40;
 /** How long to wait for a blocking APDU to put its review screen up. */
 const REVIEW_SCREEN_WAIT_MS = 15_000;
+/** Timeout for one events-poll fetch against the Speculos REST API. */
+const EVENTS_POLL_TIMEOUT_MS = 10_000;
 /** The vault app's idle dashboard shows this line ("… app is ready"). */
 const IDLE_SCREEN_TEXT = "app is ready";
 
@@ -103,7 +105,9 @@ export function createSpeculosApduSender(baseUrl: string): ApduSender {
 
 /** All text lines of the currently displayed screen, joined with " | ". */
 export async function readScreenText(baseUrl: string): Promise<string> {
-  const response = await fetch(`${baseUrl}/events?currentscreenonly=true`, { signal: AbortSignal.timeout(10_000) });
+  const response = await fetch(`${baseUrl}/events?currentscreenonly=true`, {
+    signal: AbortSignal.timeout(EVENTS_POLL_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Speculos GET /events answered HTTP ${response.status}`);
   }

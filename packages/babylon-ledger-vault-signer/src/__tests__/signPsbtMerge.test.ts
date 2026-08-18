@@ -110,7 +110,7 @@ describe("mergeYields (G5)", () => {
     const psbtHex = loadPsbtHex("generated__deposit-flow__pegin__0");
     const yields = yieldsFor(psbtHex, TEST_DEPOSITOR_KEY_HEX);
 
-    expect(() => mergeYields(psbtHex, [...yields, ...yields])).toThrow();
+    expect(() => mergeYields(psbtHex, [...yields, ...yields])).toThrow("Can not add duplicate data to array");
   });
 
   it("throws when merging a tapKeySig into an already-signed input instead of overwriting", () => {
@@ -120,6 +120,6 @@ describe("mergeYields (G5)", () => {
 
     const mergedHex = mergeYields(psbtHex, yields);
 
-    expect(() => mergeYields(mergedHex, yields)).toThrow();
+    expect(() => mergeYields(mergedHex, yields)).toThrow("Can not add duplicate data to input");
   });
 });
