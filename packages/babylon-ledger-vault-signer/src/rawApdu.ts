@@ -12,6 +12,9 @@
  * terminal words are classified by the caller via {@link classifyStatusWord},
  * so raw-seam consumers and the throwing sender raise identical typed errors.
  *
+ * `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`
+ * (`src/boilerplate/dispatcher.c`); the same path on `develop` differs.
+ *
  * @module ledger-vault-signer/rawApdu
  */
 
@@ -85,13 +88,21 @@ export function hex4(value: number): string {
   return value.toString(16).padStart(4, "0");
 }
 
-/** Request context woven into the error message (and the 0x6E00 app hint). */
-export interface StatusWordContext {
-  readonly ins: number;
-  readonly p1: number;
-  /** App name/version at connect time ("BOLOS" = dashboard). Diagnostic only. */
+/**
+ * App name/version captured at connect time ("BOLOS" = dashboard). Diagnostics
+ * only: it is woven into the 0x6E00 message and never gates control flow.
+ * Optional because the raw seam is an opaque function — a caller driving a bare
+ * transport (the Speculos e2e client) has nothing to report.
+ */
+export interface AppIdentity {
   readonly appName?: string;
   readonly appVersion?: string;
+}
+
+/** Request context woven into the error message (and the 0x6E00 app hint). */
+export interface StatusWordContext extends AppIdentity {
+  readonly ins: number;
+  readonly p1: number;
 }
 
 /**
@@ -128,4 +139,24 @@ export function classifyStatusWord(
     `${known ?? "The device rejected the request"} ` +
       `(ins 0x${hex2(context.ins)} p1 0x${hex2(context.p1)}, sw 0x${hex4(sw)})${appHint}`,
   );
+}
+
+/**
+ * Re-base a {@link RawApduSender} as the ceremony's throwing sender: data on
+ * 0x9000, the shared typed error otherwise. The single place that pairing is
+ * written — `createDmkApduSender` and the Speculos e2e client's sender both
+ * re-base on it, so a decline reads identically over either transport. The
+ * 0x6E00 app hint appears only when the caller supplies an identity (the
+ * Speculos client has none). Structural return type is `ApduSender`.
+ */
+export function createThrowingApduSender(
+  sendRaw: RawApduSender,
+  appIdentity?: AppIdentity,
+): (apdu: Apdu) => Promise<Uint8Array> {
+  return async (apdu) => {
+    const { sw, data } = await sendRaw(apdu);
+    const error = classifyStatusWord(sw, { ...appIdentity, ins: apdu.ins, p1: apdu.p1 });
+    if (error) throw error;
+    return data;
+  };
 }

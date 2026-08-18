@@ -8,9 +8,14 @@
 import { describe, expect, it } from "vitest";
 
 import { LEDGER_DEVICE_ERROR_NAME, LEDGER_DEVICE_LOCKED_ERROR_NAME, LEDGER_USER_REFUSED_ERROR_NAME } from "../errors";
-import { classifyStatusWord } from "../rawApdu";
+import { classifyStatusWord, createThrowingApduSender, type Apdu, type RawApduSender } from "../rawApdu";
 
 const context = { ins: 0x80, p1: 0x02 };
+const apdu: Apdu = { cla: 0xe1, ins: 0x80, p1: 0x02, p2: 0x00, data: new Uint8Array() };
+
+function rawSenderAnswering(sw: number, data = new Uint8Array()): RawApduSender {
+  return async () => ({ sw, data });
+}
 
 describe("classifyStatusWord", () => {
   it("returns undefined for 0x9000 — success is not an error", () => {
@@ -65,5 +70,41 @@ describe("classifyStatusWord", () => {
     const error = classifyStatusWord(0x6e00, context);
     expect(error?.message).toMatch(/open the Babylon Vault app/);
     expect(error?.message).not.toMatch(/app at connect time/);
+  });
+});
+
+describe("createThrowingApduSender", () => {
+  it("returns the response data on 0x9000", async () => {
+    const root = new Uint8Array(32).fill(7);
+
+    await expect(createThrowingApduSender(rawSenderAnswering(0x9000, root))(apdu)).resolves.toEqual(root);
+  });
+
+  it("throws the shared typed error on a terminal status word", async () => {
+    // `createDmkApduSender` and `createSpeculosApduSender` both re-base on this
+    // helper, so a decline reads identically over either transport.
+    await expect(createThrowingApduSender(rawSenderAnswering(0x6985))(apdu)).rejects.toMatchObject({
+      name: LEDGER_USER_REFUSED_ERROR_NAME,
+      statusWord: 0x6985,
+    });
+  });
+
+  it("weaves the supplied app identity into the 0x6E00 hint", async () => {
+    const send = createThrowingApduSender(rawSenderAnswering(0x6e00), { appName: "BOLOS", appVersion: "1.6.0" });
+
+    await expect(send(apdu)).rejects.toThrow(/app at connect time: "BOLOS" v1\.6\.0/);
+  });
+
+  it("omits the app hint when built without an app identity", async () => {
+    const send = createThrowingApduSender(rawSenderAnswering(0x6e00));
+
+    const outcome = await send(apdu).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(Error);
+    expect((outcome as Error).message).toMatch(/open the Babylon Vault app/);
+    expect((outcome as Error).message).not.toMatch(/app at connect time/);
   });
 });
