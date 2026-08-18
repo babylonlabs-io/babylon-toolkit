@@ -240,7 +240,7 @@ export function ResumeBroadcastContent({
     <DepositProgressView
       currentStep={step}
       offchainParamsVersion={activity.offchainParamsVersion}
-      error={error ? mapDepositError(error) : null}
+      error={error}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}

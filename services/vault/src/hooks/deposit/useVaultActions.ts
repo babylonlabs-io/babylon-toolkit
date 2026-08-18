@@ -16,10 +16,7 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import {
-  calculateBtcTxHash,
-  UtxoNotAvailableError,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -50,6 +47,8 @@ import {
 import {
   ActivationNotPossibleError,
   isTerminalActivationError,
+  mapDepositError,
+  type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
@@ -132,7 +131,12 @@ export interface ActivateVaultParams {
 export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
-  broadcastError: string | null;
+  /**
+   * Broadcast failure, already classified into user-facing copy. Mapped at the
+   * catch site rather than stored as a string, so typed errors reach the
+   * mapper with their prototype intact.
+   */
+  broadcastError: DepositErrorContent | null;
   /**
    * Live Ethereum confirmation depth while the finality gate holds a resume
    * broadcast. `null` outside that window — which is the overwhelmingly common
@@ -156,7 +160,8 @@ export function useVaultActions(): UseVaultActionsReturn {
 
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [broadcastError, setBroadcastError] =
+    useState<DepositErrorContent | null>(null);
   const [ethConfirmationDetail, setEthConfirmationDetail] =
     useState<RegistrationDepthProgress | null>(null);
 
@@ -226,7 +231,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (vault.status !== ContractStatus.PENDING) {
         throw new Error(
-          `Cannot broadcast: BTC Vault is in ${ContractStatus[vault.status]} state. Broadcast is only valid during PENDING.`,
+          `Cannot continue: BTC Vault is in ${ContractStatus[vault.status]} state. This step is only valid while the vault is PENDING.`,
         );
       }
 
@@ -276,7 +281,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[onChainVault.status] ??
           `UNKNOWN(${onChainVault.status})`;
         throw new Error(
-          `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
+          `Cannot continue: on-chain BTC Vault is in ${label} state. This step is only valid while the vault is PENDING.`,
         );
       }
 
@@ -329,7 +334,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[finalBasicInfo.status] ??
           `UNKNOWN(${finalBasicInfo.status})`;
         throw new Error(
-          `Cannot broadcast: on-chain BTC Vault is in ${label} state. Broadcast is only valid during PENDING.`,
+          `Cannot continue: on-chain BTC Vault is in ${label} state. This step is only valid while the vault is PENDING.`,
         );
       }
 
@@ -528,22 +533,22 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (mountedRef.current) setBroadcasting(false);
     } catch (err) {
       if (mountedRef.current) {
-        let errorMessage: string;
-
-        // DepositTermsRejectedError arrives message-preserved, so mapDepositError
-        // classifies it like the fresh path today. broadcastError is string by
-        // contract; when #2110 adds a typed branch, thread the typed error to
-        // the mapper here (as useDepositFlow does).
-        if (err instanceof UtxoNotAvailableError) {
-          // UTXO not available - provide specific error message
-          errorMessage = err.message;
-        } else if (err instanceof Error) {
-          errorMessage = err.message;
-        } else {
-          errorMessage = "Failed to broadcast transaction";
-        }
-
-        setBroadcastError(errorMessage);
+        // Classify here, while the typed error is still intact — the same seam
+        // useDepositFlow uses. Flattening to `err.message` first would strip
+        // the prototype and name that every `instanceof` branch in the mapper
+        // narrows on, silently downgrading precise errors to message matching:
+        // a finality-gate timeout would land in the "broadcast failed" bucket
+        // and tell the user their Bitcoin broadcast failed when nothing was
+        // ever sent.
+        setBroadcastError(mapDepositError(err));
+        // Mapping replaces the raw message with friendly copy, and only the
+        // fallback branch carries `diagnostics`. Log the original so a mapped
+        // failure is still diagnosable — `useBroadcastState`'s catch cannot do
+        // it, because this function resolves rather than rethrowing.
+        logger.error(err instanceof Error ? err : new Error(String(err)), {
+          tags: { vaultId: shortId(vaultId) },
+          data: { context: "Resume broadcast failed" },
+        });
         setBroadcasting(false);
       }
     }

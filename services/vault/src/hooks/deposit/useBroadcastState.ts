@@ -16,6 +16,7 @@ import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
+import type { DepositErrorContent } from "@/utils/errors";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 
@@ -39,8 +40,8 @@ export interface UseBroadcastStateProps {
 export interface UseBroadcastStateResult {
   /** Whether a broadcast is in progress */
   broadcasting: boolean;
-  /** Error message if broadcast failed */
-  error: string | null;
+  /** Broadcast failure, already classified into user-facing copy. */
+  error: DepositErrorContent | null;
   /**
    * Live Ethereum confirmation depth while the finality gate holds this
    * broadcast. `null` for any deposit already past the required depth, which

@@ -11,9 +11,9 @@ Callers own the wallet; services own the orchestration.
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
 
-The vault is not registered on-chain at all. Thrown only on the FIRST poll,
-where it means the caller's premise was wrong rather than that a reorg took
-the registration away — retrying will not help.
+The vault is not registered on-chain, and stayed that way past the grace
+window — long enough that a lagging backend has been ruled out. Retrying
+will not help.
 
 #### Extends
 
@@ -3043,6 +3043,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistra
 
 Poll until every vault's registration is at least `required` blocks deep.
 
+A read that comes back empty is treated as "not visible yet", not as
+"absent": both callers reach this having already proven the registration
+exists, so an empty read means a lagging RPC backend or a reorg, and both
+resolve on their own.
+
 #### Parameters
 
 ##### params
@@ -3055,7 +3060,7 @@ Poll until every vault's registration is at least `required` blocks deep.
 
 #### Throws
 
-if no vault is registered on the first poll.
+if no vault has ever been observed and the grace window is spent.
 
 #### Throws
 
@@ -3063,7 +3068,7 @@ on timeout.
 
 #### Throws
 
-if aborted, or if the tip read fails on the first poll.
+if aborted.
 
 ***
 

@@ -4,6 +4,7 @@
  * a malicious transaction for signing.
  */
 
+import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
@@ -12,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { COPY } from "@/copy";
 import { ContractStatus } from "@/models/peginStateMachine";
 import {
   assertUtxosAvailable,
@@ -333,7 +335,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("Transaction mismatch");
+    expect(result.current.broadcastError?.body).toContain("Transaction mismatch");
   });
 
   it("throws when cached local tx matches GraphQL but mismatches on-chain hash", async () => {
@@ -357,7 +359,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
+    expect(result.current.broadcastError?.body).toContain(
       "Transaction integrity check failed",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -379,7 +381,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("EXPIRED");
+    expect(result.current.broadcastError?.body).toContain("EXPIRED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
@@ -398,7 +400,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("VERIFIED");
+    expect(result.current.broadcastError?.body).toContain("VERIFIED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
@@ -424,7 +426,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toMatch(/on-chain.*EXPIRED/);
+    expect(result.current.broadcastError?.body).toMatch(/on-chain.*EXPIRED/);
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
@@ -452,8 +454,8 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("EXPIRED");
-    expect(result.current.broadcastError).not.toContain("LIQUIDATED");
+    expect(result.current.broadcastError?.body).toContain("EXPIRED");
+    expect(result.current.broadcastError?.body).not.toContain("LIQUIDATED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });
@@ -491,7 +493,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       await result.current.handleBroadcast(baseBroadcastParams);
     });
 
-    expect(result.current.broadcastError).toMatch(
+    expect(result.current.broadcastError?.body).toMatch(
       /requires a newer version of the app/,
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -519,7 +521,9 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("offchainParams expected");
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.versionMismatch,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
@@ -546,7 +550,9 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("appVaultKeepers expected");
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.versionMismatch,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
@@ -572,8 +578,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
-      "universalChallengers expected",
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.versionMismatch,
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
@@ -649,7 +655,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
+    expect(result.current.broadcastError?.body).toContain(
       "Transaction integrity check failed",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -803,7 +809,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("eth_call failed");
+    expect(result.current.broadcastError?.body).toContain("eth_call failed");
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
@@ -1346,7 +1352,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     });
 
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toContain("disagree on");
+    expect(result.current.broadcastError?.body).toContain("disagree on");
   });
 
   it("skips the rebuild entirely for a software (signPsbt-only) wallet", async () => {
@@ -1556,7 +1562,7 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     // it, so a deposit we refuse to broadcast never produces a wallet popup.
     expect(mockSignPsbt).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toBe(
+    expect(result.current.broadcastError?.body).toBe(
       "still waiting for Ethereum confirmations",
     );
   });
@@ -1693,7 +1699,7 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     });
 
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toContain("VERIFIED");
+    expect(result.current.broadcastError?.body).toContain("VERIFIED");
   });
 
   it("applies the gate on a cross-device resume that has no local record", async () => {
@@ -1711,7 +1717,39 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it("surfaces a depth timeout as an error and keeps the pending entry", async () => {
+  it("surfaces a depth timeout as the Ethereum-confirmation copy, not a broadcast failure", async () => {
+    // The typed error must survive the catch with its prototype intact. If it
+    // is flattened to a string first, the mapper falls through to message
+    // matching and the user is told their Bitcoin broadcast failed — when no
+    // broadcast was ever attempted.
+    mockWaitForEthRegistrationDepth.mockRejectedValue(
+      new PeginRegistrationNotFinalError(
+        "Peg-in registration did not reach 8 Ethereum confirmations within 600000ms.",
+      ),
+    );
+    const removePendingPeginTyped = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin: removePendingPeginTyped,
+      });
+    });
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.ethRegistrationNotFinal,
+    );
+    expect(result.current.broadcastError).not.toEqual(
+      COPY.deposit.errors.broadcastFailed,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(removePendingPeginTyped).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pending entry when the depth wait fails", async () => {
     mockWaitForEthRegistrationDepth.mockRejectedValue(
       new Error("Peg-in registration did not reach 8 Ethereum confirmations"),
     );

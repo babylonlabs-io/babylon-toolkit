@@ -28,6 +28,8 @@ const VAULT_ID_B =
 
 const DEPOSITOR = "0x1111111111111111111111111111111111111111" as const;
 const POLL_MS = 6_000;
+/** Mirrors the module-private REGISTRATION_ABSENT_GRACE_POLLS. */
+const ABSENT_GRACE_POLLS = 10;
 
 function basicInfo(createdAt: bigint): VaultBasicInfo {
   return {
@@ -162,34 +164,88 @@ describe("waitForPeginRegistrationDepth", () => {
     });
   });
 
-  it("throws PeginRegistrationMissingError when the vault is absent on the first poll", async () => {
+  it("keeps polling when the first read comes back empty, then proceeds once it appears", async () => {
+    // The inline deposit flow calls this milliseconds after a 1-confirmation
+    // receipt. A load-balanced pool member one block behind answers with a
+    // valid zero struct, which no transport retry can absorb — treating that
+    // as terminal would tell a user with a paid registration to start over.
+    getBlockNumber.mockResolvedValue(107n);
+    getVaultBasicInfo
+      .mockResolvedValueOnce(absentInfo())
+      .mockResolvedValueOnce(absentInfo())
+      .mockResolvedValue(basicInfo(100n));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const pending = waitForPeginRegistrationDepth({
+      vaultRegistryReader: reader,
+      getBlockNumber,
+      vaultIds: [VAULT_ID_A],
+    });
+
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+    await expect(pending).resolves.toMatchObject({ confirmations: 8 });
+  });
+
+  it("does not arm the terminal branch when the first poll fails transiently", async () => {
+    // A read failure on poll 1 must not leave the never-seen state pinned to
+    // "first poll" — the count of absent observations is what gates the
+    // terminal branch, and a thrown read is not an observation.
+    getBlockNumber
+      .mockRejectedValueOnce(new Error("RPC timeout"))
+      .mockResolvedValue(107n);
+    getVaultBasicInfo
+      .mockResolvedValueOnce(absentInfo())
+      .mockResolvedValue(basicInfo(100n));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const pending = waitForPeginRegistrationDepth({
+      vaultRegistryReader: reader,
+      getBlockNumber,
+      vaultIds: [VAULT_ID_A],
+    });
+
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+    await expect(pending).resolves.toMatchObject({ confirmations: 8 });
+  });
+
+  it("throws PeginRegistrationMissingError once the grace window is spent", async () => {
     getBlockNumber.mockResolvedValue(107n);
     getVaultBasicInfo.mockResolvedValue(absentInfo());
+    vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(
-      waitForPeginRegistrationDepth({
-        vaultRegistryReader: reader,
-        getBlockNumber,
-        vaultIds: [VAULT_ID_A],
-      }),
-    ).rejects.toBeInstanceOf(PeginRegistrationMissingError);
+    const pending = waitForPeginRegistrationDepth({
+      vaultRegistryReader: reader,
+      getBlockNumber,
+      vaultIds: [VAULT_ID_A],
+    });
+    const assertion = expect(pending).rejects.toBeInstanceOf(
+      PeginRegistrationMissingError,
+    );
 
-    expect(getVaultBasicInfo).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(POLL_MS * (ABSENT_GRACE_POLLS + 1));
+    await assertion;
   });
 
   it("treats createdAt of 0 as absent rather than as an infinitely deep registration", async () => {
     getBlockNumber.mockResolvedValue(107n);
     // A populated depositor with a zero createdAt would compute as 108
-    // confirmations and pass the gate if it were not rejected here.
+    // confirmations and pass the gate if it were not rejected here. It gets
+    // the same grace as a zero struct — a half-populated record from a
+    // lagging backend is the same class of event.
     getVaultBasicInfo.mockResolvedValue({ ...basicInfo(0n) });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(
-      waitForPeginRegistrationDepth({
-        vaultRegistryReader: reader,
-        getBlockNumber,
-        vaultIds: [VAULT_ID_A],
-      }),
-    ).rejects.toBeInstanceOf(PeginRegistrationMissingError);
+    const pending = waitForPeginRegistrationDepth({
+      vaultRegistryReader: reader,
+      getBlockNumber,
+      vaultIds: [VAULT_ID_A],
+    });
+    const assertion = expect(pending).rejects.toBeInstanceOf(
+      PeginRegistrationMissingError,
+    );
+
+    await vi.advanceTimersByTimeAsync(POLL_MS * (ABSENT_GRACE_POLLS + 1));
+    await assertion;
   });
 
   it("survives a reorg that removes and then re-includes the registration", async () => {
