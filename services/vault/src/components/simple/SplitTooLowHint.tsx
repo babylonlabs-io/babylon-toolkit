@@ -16,6 +16,15 @@ export function SplitTooLowHint({ minDepositForSplit }: SplitTooLowHintProps) {
 
   // Centered hint that sizes to its content, wrapping to a second line when the
   // message is too long for the row.
+  //
+  // Deliberately NOT a live region, anywhere in here. It renders inside the
+  // split selector's accordion, which collapses with `visibility: hidden` while
+  // keeping its children mounted - so a live region here is outside the
+  // accessibility tree exactly when the amount crosses the minimum, which is
+  // the moment worth announcing. `UtxoSplitSelectorV3` owns an off-screen
+  // region outside the accordion for that; two would announce the same sentence
+  // twice. That also retires the reason the region was narrowed to the message
+  // span in #2263 - with no region at all, an open tooltip cannot re-announce.
   return (
     <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-3 py-2 text-center">
       <Hint
@@ -28,14 +37,7 @@ export function SplitTooLowHint({ minDepositForSplit }: SplitTooLowHintProps) {
           />
         }
       />
-      {/* The live region wraps only the message. `Hint` renders its tooltip
-          inline, so keeping it outside stops an open tooltip from re-announcing
-          the whole hint. */}
-      <span
-        role="status"
-        aria-live="polite"
-        className="min-w-0 text-sm text-accent-secondary"
-      >
+      <span className="min-w-0 text-sm text-accent-secondary">
         {hint.prefix}{" "}
         <span className="text-accent-primary">{hint.splitName}</span>
         {hint.middle}{" "}

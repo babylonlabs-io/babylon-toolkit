@@ -673,21 +673,32 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
-      // Shown inside the amount card (below "Max to Borrow") when the deposit is
-      // below the minimum needed to split across two vaults; the split selector
-      // below stays visible with its two-vault option disabled. `minBtc` already
+      // Shown inside the expanded split selector, under the two-vault option,
+      // when the deposit is below the minimum needed to split across two
+      // vaults; that option stays visible but disabled. `minBtc` already
       // carries the network coin symbol (e.g. "0.4 BTC"). The split name and
-      // minimum are
-      // emphasized (primary text) by the component; the rest stays secondary.
-      // The component joins these fragments with explicit `{" "}` separators.
+      // minimum are emphasized (primary text) by the component; the rest stays
+      // secondary. The component joins these fragments with explicit `{" "}`
+      // separators.
       splitTooLowTooltip:
         "Deposits below this amount may be fully liquidated in a single event.",
-      splitTooLowHint: (minBtc: string) => ({
-        prefix: "To use",
-        splitName: TWO_VAULT_SPLIT_NAME,
-        middle: ", increase your deposit to",
-        minimum: `at least ${minBtc}`,
-      }),
+      // `announcement` is the same sentence unsplit, for the off-screen live
+      // region that reads it out. Assembled from the fragments rather than
+      // written twice: two copies of one sentence drift, and the one nobody
+      // can see is the one that drifts unnoticed.
+      splitTooLowHint: (minBtc: string) => {
+        const prefix = "To use";
+        const splitName = TWO_VAULT_SPLIT_NAME;
+        const middle = ", increase your deposit to";
+        const minimum = `at least ${minBtc}`;
+        return {
+          prefix,
+          splitName,
+          middle,
+          minimum,
+          announcement: `${prefix} ${splitName}${middle} ${minimum}`,
+        };
+      },
       splitOptionDescription:
         "Split your BTC into two BTC Vaults to enable partial liquidation.",
       noSplitOptionDescription:
