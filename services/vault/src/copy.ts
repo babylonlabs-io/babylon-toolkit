@@ -782,6 +782,16 @@ export const COPY = {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your Ethereum registration is no longer visible on-chain, so the deposit was stopped before any Bitcoin was broadcast. Please start a new deposit.",
       },
+      // An empty vault record read back from the registry. The raw SDK message
+      // says "not found on-chain", which reads as data loss; the overwhelmingly
+      // likely cause is an RPC node that has not caught up to the block the
+      // registration was mined into, so the copy says "still confirming" and
+      // points at the resume path. Never say "not found" for a vault we just
+      // registered. See utils/errors/depositErrors.ts.
+      vaultRegistrationNotYetVisible: {
+        title: "Registration still confirming",
+        body: "Your Ethereum registration hasn't appeared on the node we're reading from yet. This usually settles within a minute. Resume this deposit from your dashboard shortly — nothing is at risk.",
+      },
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",

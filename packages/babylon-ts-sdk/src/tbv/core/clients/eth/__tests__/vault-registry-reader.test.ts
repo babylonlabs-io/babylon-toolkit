@@ -201,6 +201,43 @@ describe("ViemVaultRegistryReader", () => {
     );
   });
 
+  it("getProtocolInfoBatch names the empty vault, not the first one, when a later entry has no pegin transaction", async () => {
+    const populatedId =
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Hex;
+    const emptyId =
+      "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Hex;
+    const publicClient = createMockPublicClient({
+      protocolInfoByVaultId: new Map<Hex, unknown>([
+        [populatedId, MOCK_PROTOCOL_INFO_RESULT],
+        [emptyId, { ...MOCK_PROTOCOL_INFO_RESULT, depositorSignedPeginTx: "0x" }],
+      ]),
+    });
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    // The message is matched as a substring by the vault app's error mapper
+    // (utils/errors/depositErrors.ts) to render "still confirming" copy, so
+    // both the wording and the per-entry vault id are load-bearing.
+    await expect(
+      reader.getProtocolInfoBatch([populatedId, emptyId]),
+    ).rejects.toThrow(
+      `Vault ${emptyId} not found on-chain or has no pegin transaction`,
+    );
+  });
+
+  it("getProtocolInfoBatch returns an empty array without calling the chain", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getProtocolInfoBatch([])).resolves.toEqual([]);
+    expect(publicClient.multicall).not.toHaveBeenCalled();
+  });
+
   it("getVaultProviderGenesisBtcPubKey returns the prefix-stripped lowercase hex for a valid x-only point", async () => {
     const publicClient = createMockPublicClient({
       vpBtcKeyResult: `0x${VALID_XONLY_HEX}` as Hex,
@@ -383,100 +420,5 @@ describe("ViemVaultRegistryReader", () => {
         args: [MOCK_VAULT_ID],
       }),
     );
-  });
-
-  describe("getOffchainParamsVersionsByVaultIds", () => {
-    const VAULT_ID_A =
-      "0x1111111111111111111111111111111111111111111111111111111111111111" as Hex;
-    const VAULT_ID_B =
-      "0x2222222222222222222222222222222222222222222222222222222222222222" as Hex;
-
-    it("returns versions in input order via a single multicall", async () => {
-      const publicClient = createMockPublicClient({
-        protocolInfoByVaultId: new Map([
-          [
-            VAULT_ID_A,
-            { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 7 },
-          ],
-          [
-            VAULT_ID_B,
-            { ...MOCK_PROTOCOL_INFO_RESULT, offchainParamsVersion: 3 },
-          ],
-        ]),
-      });
-      const reader = new ViemVaultRegistryReader(
-        publicClient as never,
-        MOCK_ADDRESS,
-      );
-
-      const versions = await reader.getOffchainParamsVersionsByVaultIds([
-        VAULT_ID_A,
-        VAULT_ID_B,
-      ]);
-
-      expect(versions).toEqual([7, 3]);
-      expect(publicClient.multicall).toHaveBeenCalledTimes(1);
-    });
-
-    it("returns an empty array for an empty input without making any RPC", async () => {
-      const publicClient = createMockPublicClient();
-      const reader = new ViemVaultRegistryReader(
-        publicClient as never,
-        MOCK_ADDRESS,
-      );
-
-      const versions = await reader.getOffchainParamsVersionsByVaultIds([]);
-
-      expect(versions).toEqual([]);
-      expect(publicClient.multicall).not.toHaveBeenCalled();
-      expect(publicClient.readContract).not.toHaveBeenCalled();
-    });
-
-    it("throws if any vault has no pegin transaction", async () => {
-      const publicClient = createMockPublicClient({
-        protocolInfoByVaultId: new Map([
-          [VAULT_ID_A, MOCK_PROTOCOL_INFO_RESULT],
-          [
-            VAULT_ID_B,
-            {
-              ...MOCK_PROTOCOL_INFO_RESULT,
-              depositorSignedPeginTx: "0x" as Hex,
-            },
-          ],
-        ]),
-      });
-      const reader = new ViemVaultRegistryReader(
-        publicClient as never,
-        MOCK_ADDRESS,
-      );
-
-      await expect(
-        reader.getOffchainParamsVersionsByVaultIds([VAULT_ID_A, VAULT_ID_B]),
-      ).rejects.toThrow(/not found on-chain/);
-    });
-
-    it("throws if a vault's offchainParamsVersion is not a valid uint32", async () => {
-      // Same hardening as `getLatestOffchainParamsVersion`: a malformed
-      // RPC payload mustn't propagate as a NaN/fractional version label.
-      const publicClient = createMockPublicClient({
-        protocolInfoByVaultId: new Map([
-          [
-            VAULT_ID_A,
-            {
-              ...MOCK_PROTOCOL_INFO_RESULT,
-              offchainParamsVersion: -1,
-            },
-          ],
-        ]),
-      });
-      const reader = new ViemVaultRegistryReader(
-        publicClient as never,
-        MOCK_ADDRESS,
-      );
-
-      await expect(
-        reader.getOffchainParamsVersionsByVaultIds([VAULT_ID_A]),
-      ).rejects.toThrow(/Invalid offchainParamsVersion from contract/);
-    });
   });
 });

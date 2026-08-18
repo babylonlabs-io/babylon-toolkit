@@ -859,32 +859,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getVaultData`](#getvaultdata)
 
-##### getOffchainParamsVersionsByVaultIds()
-
-```ts
-getOffchainParamsVersionsByVaultIds(vaultIds): Promise<number[]>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
-
-Read `offchainParamsVersion` for many vaults in a single multicall.
-Reads only `getBtcVaultProtocolInfo` (one read per vault), so an N-vault
-batch costs one RPC round-trip instead of 2N parallel `eth_call`s.
-
-###### Parameters
-
-###### vaultIds
-
-readonly `` `0x${string}` ``[]
-
-###### Returns
-
-`Promise`\<`number`[]\>
-
-###### Implementation of
-
-[`VaultRegistryReader`](#vaultregistryreader).[`getOffchainParamsVersionsByVaultIds`](#getoffchainparamsversionsbyvaultids)
-
 ***
 
 ### VaultProviderRpcClient
@@ -2039,28 +2013,6 @@ value signals a wrong contract address or ABI drift, not a real rate.
 ###### Returns
 
 `Promise`\<`number`\>
-
-##### getOffchainParamsVersionsByVaultIds()
-
-```ts
-getOffchainParamsVersionsByVaultIds(vaultIds): Promise<number[]>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
-
-Read `offchainParamsVersion` for many vaults in a single multicall.
-Returns versions in the same order as the input. Throws if any vault
-is missing on-chain.
-
-###### Parameters
-
-###### vaultIds
-
-readonly `` `0x${string}` ``[]
-
-###### Returns
-
-`Promise`\<`number`[]\>
 
 ##### getVaultKeyEpochs()
 

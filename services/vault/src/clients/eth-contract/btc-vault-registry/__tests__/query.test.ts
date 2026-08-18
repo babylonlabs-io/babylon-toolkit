@@ -5,7 +5,7 @@
 
 import type { Address, Hex } from "viem";
 import { zeroAddress } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/env", () => ({
   ENV: {
@@ -24,7 +24,11 @@ vi.mock("../../sdk-readers", () => ({
   }),
 }));
 
-import { getBtcVaultBasicInfoFromChain, getVaultFromChain } from "../query";
+import {
+  getBtcVaultBasicInfoFromChain,
+  getVaultFromChain,
+  getVaultFromChainWithGrace,
+} from "../query";
 
 const VAULT_A =
   "0xaaaa000000000000000000000000000000000000000000000000000000000001" as Hex;
@@ -176,5 +180,84 @@ describe("getVaultFromChain", () => {
     await expect(getVaultFromChain(VAULT_A)).rejects.toThrow(
       /Invalid vaultCoreVersion 0 from BTCVaultRegistry.getBtcVaultProtocolInfo/,
     );
+  });
+});
+
+describe("getVaultFromChainWithGrace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const emptyRecordError = () =>
+    new Error(
+      `Vault ${VAULT_A} not found on-chain or has no pegin transaction`,
+    );
+
+  // The #1835 race: a node that has not indexed the registration's block yet
+  // answers with an empty record, then catches up moments later.
+  it("retries an empty record and returns the vault once the node catches up", async () => {
+    mockGetVaultData
+      .mockRejectedValueOnce(emptyRecordError())
+      .mockRejectedValueOnce(emptyRecordError())
+      .mockResolvedValue({
+        basic: basicInfo(60_000_000n),
+        protocol: {
+          depositorSignedPeginTx: "0xdeadbeef" as Hex,
+          universalChallengersVersion: 1n,
+          appVaultKeepersVersion: 2n,
+          offchainParamsVersion: 3n,
+          vaultCoreVersion: 1,
+          hashlock: ("0x" + "1".repeat(64)) as Hex,
+          htlcVout: 0n,
+          prePeginTxHash: ("0x" + "2".repeat(64)) as Hex,
+        },
+      });
+
+    const promise = getVaultFromChainWithGrace(VAULT_A);
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toMatchObject({ depositor: DEPOSITOR });
+    expect(mockGetVaultData).toHaveBeenCalledTimes(3);
+  });
+
+  it("rethrows the empty-record error once the retry schedule is exhausted", async () => {
+    mockGetVaultData.mockRejectedValue(emptyRecordError());
+
+    const promise = getVaultFromChainWithGrace(VAULT_A);
+    const assertion = expect(promise).rejects.toThrow("not found on-chain");
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    // Initial attempt plus one per backoff step; a longer schedule would
+    // hold the resume button past a user's patience.
+    expect(mockGetVaultData).toHaveBeenCalledTimes(5);
+  });
+
+  // Retrying a revert or a bad core version would only delay a real failure.
+  it("does not retry errors other than the empty record", async () => {
+    mockGetVaultData.mockRejectedValue(new Error("execution reverted"));
+
+    await expect(getVaultFromChainWithGrace(VAULT_A)).rejects.toThrow(
+      "execution reverted",
+    );
+    expect(mockGetVaultData).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops waiting when the caller aborts mid-backoff", async () => {
+    mockGetVaultData.mockRejectedValue(emptyRecordError());
+    const controller = new AbortController();
+
+    const promise = getVaultFromChainWithGrace(VAULT_A, controller.signal);
+    const assertion = expect(promise).rejects.toBeDefined();
+    controller.abort(new Error("unmounted"));
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(mockGetVaultData).toHaveBeenCalledTimes(1);
   });
 });

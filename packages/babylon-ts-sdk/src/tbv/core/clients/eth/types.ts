@@ -134,14 +134,6 @@ export interface VaultRegistryReader {
    */
   getVaultProviderCommission(vaultProvider: Address): Promise<number>;
   /**
-   * Read `offchainParamsVersion` for many vaults in a single multicall.
-   * Returns versions in the same order as the input. Throws if any vault
-   * is missing on-chain.
-   */
-  getOffchainParamsVersionsByVaultIds(
-    vaultIds: readonly Hex[],
-  ): Promise<number[]>;
-  /**
    * Read a vault's frozen RFC-006 key epochs.
    *
    * Uses the extended `getBtcVaultProtocolInfo` ABI. Against a registry whose

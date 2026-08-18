@@ -47,6 +47,7 @@ import {
   sanitizeErrorMessage,
 } from "./formatting";
 import { isUserCancellation, isWalletRejectionError } from "./userCancellation";
+import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
 
 export interface DepositErrorContent {
   title: string;
@@ -144,6 +145,14 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // 4. Wallet account changed mid-flow (WOTS-vs-PoP key guard).
   if (msg.includes("wallet account changed")) {
     return ERRORS.walletAccountChanged;
+  }
+
+  // 4a'. Empty vault record from the registry reader. Far more often a
+  // lagging RPC node than a missing vault, and the raw "not found on-chain"
+  // wording reads as data loss to someone who just watched their registration
+  // succeed — so surface "still confirming" instead.
+  if (isVaultRecordEmptyError(err)) {
+    return ERRORS.vaultRegistrationNotYetVisible;
   }
 
   // 4b. Wrong BTC wallet connected on resume: the submitted WOTS key hash

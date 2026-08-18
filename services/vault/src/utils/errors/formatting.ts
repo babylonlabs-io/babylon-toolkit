@@ -15,6 +15,7 @@ import {
   isUserCancellationFrame,
   isWalletRejectionError,
 } from "./userCancellation";
+import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
@@ -504,13 +505,14 @@ export function formatPayoutSignatureError(error: unknown): {
         message: "Please reconnect your Bitcoin wallet to continue.",
       };
     }
-    // Produced by the registry reader: "Vault <id> not found on-chain or has
-    // no pegin transaction".
-    if (error.message.includes("not found on-chain")) {
+    // Empty vault record from the registry reader. Usually a lagging RPC
+    // node rather than a missing deposit, so the copy points at waiting
+    // instead of asserting the deposit is gone.
+    if (isVaultRecordEmptyError(error)) {
       return {
-        title: "Deposit not found",
+        title: "Registration still confirming",
         message:
-          "The deposit transaction could not be found. It may have been processed already.",
+          "This deposit hasn't appeared on the node we're reading from yet. This usually settles within a minute — please try again shortly.",
       };
     }
     // Contract call errors (viem) — surface a meaningful message instead of swallowing

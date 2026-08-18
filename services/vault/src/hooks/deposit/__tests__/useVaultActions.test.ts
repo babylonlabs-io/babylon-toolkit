@@ -11,7 +11,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { getVaultFromChainWithGrace } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
 import { ContractStatus } from "@/models/peginStateMachine";
@@ -96,7 +96,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 }));
 
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
-  getVaultFromChain: vi.fn(() =>
+  getVaultFromChainWithGrace: vi.fn(() =>
     Promise.resolve({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
@@ -201,7 +201,7 @@ const mockFetchVaultById = vi.mocked(fetchVaultById);
 const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
-const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
+const mockGetVaultFromChain = vi.mocked(getVaultFromChainWithGrace);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
 const mockWaitForEthRegistrationDepth = vi.mocked(waitForEthRegistrationDepth);
@@ -314,7 +314,10 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError).toBeNull();
-    expect(mockGetVaultFromChain).toHaveBeenCalledWith("0xvaultId");
+    expect(mockGetVaultFromChain).toHaveBeenCalledWith(
+      "0xvaultId",
+      expect.any(AbortSignal),
+    );
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: TRUSTED_TX_HEX }),
     );
@@ -1029,10 +1032,11 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     });
 
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
-    // Raw "not found on-chain" detail is normalized to a friendly message
-    // and the vault id is not echoed back in the UI.
+    // An empty record is far more often a lagging RPC node than a missing
+    // vault, so the copy says "still confirming" rather than asserting the
+    // vault is gone — and the raw vault id never reaches the UI.
     expect(result.current.activationError).toBe(
-      "BTC Vault not found. The BTC Vault ID may be invalid.",
+      COPY.deposit.errors.vaultRegistrationNotYetVisible.body,
     );
     expect(result.current.activationError).not.toContain("0xvaultId");
   });
