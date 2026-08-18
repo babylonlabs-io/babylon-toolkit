@@ -41,6 +41,7 @@
 
 # 7. Ledger vault signer package
 /packages/babylon-ledger-vault-signer/src/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ledger-vault-signer/scripts/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 8. Non-standard wallet signing options
 /packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

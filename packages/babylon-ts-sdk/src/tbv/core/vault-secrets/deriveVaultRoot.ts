@@ -48,6 +48,20 @@ export interface DeriveContextHashCapableWallet {
   deriveContextHash(appName: string, context: string): Promise<string>;
 }
 
+/** Forward the deriveContextHash capability only when the wallet actually has it,
+ * so seam guards (ensurePrePeginTermsApproval) can fire their typed error instead
+ * of a mid-ceremony TypeError. */
+export function forwardDeriveContextHash(
+  wallet: Partial<DeriveContextHashCapableWallet>,
+): Partial<DeriveContextHashCapableWallet> {
+  return typeof wallet.deriveContextHash === "function"
+    ? {
+        deriveContextHash: (appName, context) =>
+          wallet.deriveContextHash!(appName, context),
+      }
+    : {};
+}
+
 /**
  * Derive the 32-byte vault root from a wallet by encoding the
  * canonical {@link VaultContextInput} and forwarding to

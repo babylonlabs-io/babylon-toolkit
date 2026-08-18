@@ -1,7 +1,7 @@
 import { NotificationCard } from "@/components/shared/NotificationCard";
 import { COPY } from "@/copy";
-import { useDebugMaxVaultsOverride } from "@/dev/debugPositionStore";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
+import { useMaxVaultsOverride } from "@/overrides/protocolStatus";
 
 const TEST_ID = "max-vaults-notification";
 
@@ -23,9 +23,10 @@ export function MaxVaultsNotification({
 }: MaxVaultsNotificationProps) {
   const { isAtCap, maxVaults } = useVaultCountCap(connectedAddress);
   // Dev-only god-mode override (compile-time null in production, see
-  // debugPositionStore). It carries the cap NUMBER, not a boolean: the live
-  // `maxVaults` read is null while disconnected and the copy interpolates it.
-  const capOverride = useDebugMaxVaultsOverride();
+  // overrides/protocolStatus). It carries the cap NUMBER, not a boolean: the
+  // live `maxVaults` read is null while disconnected and the copy
+  // interpolates it.
+  const capOverride = useMaxVaultsOverride();
 
   const cap = capOverride ?? maxVaults;
   const atCap = capOverride !== null || isAtCap;

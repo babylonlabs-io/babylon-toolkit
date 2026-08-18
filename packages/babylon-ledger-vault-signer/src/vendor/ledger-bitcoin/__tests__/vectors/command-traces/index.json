@@ -1,0 +1,64 @@
+{
+ "schema": "s4-command-trace-index/v1",
+ "oracle": "ledger-bitcoin==0.4.0",
+ "generator": "gen_command_traces.py",
+ "source_vectors_dir": "signpsbt/",
+ "files": [
+  {
+   "file": "deposit-flow__pre_pegin__0.json",
+   "flow": "pre_pegin",
+   "n_traces": 45,
+   "per_command": {
+    "GET_MERKLE_LEAF_PROOF": 30,
+    "GET_MERKLE_LEAF_INDEX": 9,
+    "GET_PREIMAGE": 5,
+    "YIELD": 1
+   }
+  },
+  {
+   "file": "generated__deposit-flow__pegin__0.json",
+   "flow": "pegin",
+   "n_traces": 39,
+   "per_command": {
+    "GET_MERKLE_LEAF_PROOF": 24,
+    "GET_MERKLE_LEAF_INDEX": 9,
+    "GET_PREIMAGE": 5,
+    "YIELD": 1
+   }
+  },
+  {
+   "file": "deposit-flow__claimer_payout__2.json",
+   "flow": "claimer_payout",
+   "n_traces": 47,
+   "per_command": {
+    "GET_MERKLE_LEAF_PROOF": 31,
+    "GET_MERKLE_LEAF_INDEX": 9,
+    "GET_PREIMAGE": 5,
+    "GET_MORE_ELEMENTS": 1,
+    "YIELD": 1
+   }
+  },
+  {
+   "file": "generated__deposit-flow__depositor_graph__1.json",
+   "flow": "depositor_graph",
+   "n_traces": 44,
+   "per_command": {
+    "GET_MERKLE_LEAF_PROOF": 29,
+    "GET_MERKLE_LEAF_INDEX": 9,
+    "GET_PREIMAGE": 5,
+    "YIELD": 1
+   }
+  },
+  {
+   "file": "synthetic__deep_tree.json",
+   "flow": "synthetic",
+   "n_traces": 6,
+   "per_command": {
+    "GET_MERKLE_LEAF_PROOF": 2,
+    "GET_MORE_ELEMENTS": 1,
+    "GET_MERKLE_LEAF_INDEX": 2,
+    "GET_PREIMAGE": 1
+   }
+  }
+ ]
+}

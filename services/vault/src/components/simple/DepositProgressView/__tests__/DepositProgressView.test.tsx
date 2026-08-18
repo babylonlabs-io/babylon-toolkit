@@ -1028,4 +1028,48 @@ describe("DepositProgressView", () => {
       ).not.toBeInTheDocument();
     });
   });
+  describe("Ethereum confirmation panel", () => {
+    it("renders the live counter under the ETH registration step while the gate holds", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          ethConfirmationDetail={{ confirmations: 3, required: 8 }}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ethConfirmation.rationale),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("3 of 8").length).toBeGreaterThan(0);
+    });
+
+    it("renders nothing extra on the ETH step before the gate starts counting", () => {
+      // Step 4 also covers the wallet popup and the receipt wait.
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.ethConfirmation.rationale),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not render the panel on unrelated steps", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_POP}
+          ethConfirmationDetail={{ confirmations: 3, required: 8 }}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.ethConfirmation.rationale),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

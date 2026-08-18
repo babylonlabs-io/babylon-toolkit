@@ -27,6 +27,7 @@ import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
+import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 import type { DepositErrorContent } from "@/utils/errors";
@@ -34,6 +35,7 @@ import type { DepositErrorContent } from "@/utils/errors";
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { CompletedStepsPill } from "./CompletedStepsPill";
 import { DepositCardShell } from "./DepositCardShell";
+import { EthConfirmationDetail } from "./EthConfirmationDetail";
 import { GroupedProgress } from "./GroupedProgress";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
@@ -126,6 +128,14 @@ export interface DepositProgressViewProps {
    */
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
   /**
+   * Live Ethereum confirmation depth, rendered under the active SUBMIT_PEGIN
+   * step while the finality gate holds the flow between the ETH registration
+   * receipt and the Pre-PegIn broadcast. `null`/omitted outside that window —
+   * without it, step 4 would sit on a bare spinner for ~1.6 min with no
+   * explanation.
+   */
+  ethConfirmationDetail?: RegistrationDepthProgress | null;
+  /**
    * Hint rendered under the active SUBMIT_WOTS_KEYS step. Resume passes it
    * because its cold path fires a wallet approval the step copy doesn't
    * mention — and some extensions queue that approval without a popup.
@@ -149,6 +159,7 @@ export interface DepositProgressViewProps {
 function resolveActiveStepDetail(params: {
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
+  ethConfirmationDetail?: RegistrationDepthProgress | null;
   wotsApprovalHint?: string | null;
   /** Stack the panel's rows — used for the narrow split-deposit columns. */
   stacked?: boolean;
@@ -162,12 +173,24 @@ function resolveActiveStepDetail(params: {
   const {
     currentStep,
     btcConfirmationDetail,
+    ethConfirmationDetail,
     wotsApprovalHint,
     stacked,
     isActiveVault,
   } = params;
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
     return <PeginFeeWarning />;
+  }
+  // Only while the gate is actually holding. Step 4 also covers the wallet
+  // popup and the receipt wait, which have nothing to count yet.
+  if (currentStep === DepositFlowStep.SUBMIT_PEGIN && ethConfirmationDetail) {
+    return (
+      <EthConfirmationDetail
+        confirmations={ethConfirmationDetail.confirmations}
+        required={ethConfirmationDetail.required}
+        stacked={stacked}
+      />
+    );
   }
   if (
     currentStep === DepositFlowStep.SUBMIT_WOTS_KEYS &&
@@ -220,6 +243,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     terminalMessage,
     onRetry,
     btcConfirmationDetail,
+    ethConfirmationDetail,
     wotsApprovalHint,
     offchainParamsVersion,
     started = true,
@@ -322,13 +346,19 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const showCompletedGroupsPill = completedGroups >= 1;
 
   const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress, peginSigningProgress),
-    [payoutSigningProgress, peginSigningProgress],
+    () =>
+      buildStepItems(
+        payoutSigningProgress,
+        peginSigningProgress,
+        ethConfirmationDetail,
+      ),
+    [payoutSigningProgress, peginSigningProgress, ethConfirmationDetail],
   );
 
   const activeStepDetail = resolveActiveStepDetail({
     currentStep,
     btcConfirmationDetail,
+    ethConfirmationDetail,
     wotsApprovalHint,
   });
 
@@ -344,11 +374,12 @@ export function DepositProgressView(props: DepositProgressViewProps) {
       resolveActiveStepDetail({
         currentStep: step,
         btcConfirmationDetail,
+        ethConfirmationDetail,
         wotsApprovalHint,
         stacked: opts.stacked,
         isActiveVault: opts.isActiveVault,
       }),
-    [btcConfirmationDetail, wotsApprovalHint],
+    [btcConfirmationDetail, ethConfirmationDetail, wotsApprovalHint],
   );
 
   return (

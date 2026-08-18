@@ -11,8 +11,8 @@ import {
 } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
-import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { useProtocolStatusOverride } from "@/overrides/protocolStatus";
 
 // tone per status — exhaustive over ProtocolStatus so a new ScopeStatus fails
 // the typecheck instead of silently falling through.
@@ -30,9 +30,9 @@ const STATUS_TONE: Record<ProtocolStatus, NotificationCardTone> = {
 export function ProtocolStatusBanner() {
   const gate = useProtocolGateState();
   // Dev-only god-mode override (compile-time null in production, see
-  // debugPositionStore) — forcing "healthy" is not a scenario, so releasing the
-  // override (null) is how you go back to the live gate state.
-  const statusOverride = useDebugProtocolStatusOverride();
+  // overrides/protocolStatus) — forcing "healthy" is not a scenario, so
+  // releasing the override (null) is how you go back to the live gate state.
+  const statusOverride = useProtocolStatusOverride();
   const status = statusOverride ?? resolveBannerStatus(gate);
   if (!status) {
     return null;

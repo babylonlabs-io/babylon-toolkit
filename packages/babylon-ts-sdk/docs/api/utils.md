@@ -230,6 +230,16 @@ optional confirmations: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
+Forwarded to viem verbatim.
+
+MUST NOT be used as a finality/reorg gate. viem fetches the receipt once
+and then only compares block numbers against that cached copy — it never
+re-checks that the receipt's block is still canonical, so it resolves
+happily for a transaction that has been reorged out. Setting this buys a
+delay, not a guarantee. For peg-in registration finality use
+`waitForPeginRegistrationDepth`, which re-reads live contract state on
+every poll.
+
 ##### timeout?
 
 ```ts

@@ -14,7 +14,7 @@ import { useActivitiesWithPending } from "../useActivitiesWithPending";
 
 const useActivitiesMock = vi.fn();
 const getPendingActivitiesMock = vi.fn();
-const useDemoActivityMock = vi.fn();
+const useActivityOverrideMock = vi.fn();
 
 vi.mock("../useActivities", () => ({
   useActivities: (arg: unknown) => useActivitiesMock(arg),
@@ -24,8 +24,8 @@ vi.mock("../../services/activity", () => ({
   getPendingActivities: (arg: unknown) => getPendingActivitiesMock(arg),
 }));
 
-vi.mock("../../dev/demoDeposit", () => ({
-  useDemoActivity: () => useDemoActivityMock(),
+vi.mock("../../overrides/activity", () => ({
+  useActivityOverride: () => useActivityOverrideMock(),
 }));
 
 const ADDR = "0xabc0000000000000000000000000000000000001" as const;
@@ -47,7 +47,7 @@ describe("useActivitiesWithPending", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useActivitiesMock.mockReturnValue({ data: [], isLoading: false });
-    useDemoActivityMock.mockReturnValue(null);
+    useActivityOverrideMock.mockReturnValue(null);
   });
 
   it("returns [] synchronously when userAddress is undefined, even if pending activities exist for a prior address", () => {
@@ -91,13 +91,16 @@ describe("useActivitiesWithPending — god-mode demo rows", () => {
     vi.clearAllMocks();
     getPendingActivitiesMock.mockReturnValue([]);
     useActivitiesMock.mockReturnValue({ data: [], isLoading: false });
-    useDemoActivityMock.mockReturnValue(null);
+    useActivityOverrideMock.mockReturnValue(null);
   });
 
   it("renders demo rows while disconnected, without waiting on the live query", () => {
     useActivitiesMock.mockReturnValue({ data: [], isLoading: true });
     const demoRow = makePending("demo-activity-1", 5_000);
-    useDemoActivityMock.mockReturnValue({ rows: [demoRow], hideReal: false });
+    useActivityOverrideMock.mockReturnValue({
+      rows: [demoRow],
+      hideReal: false,
+    });
 
     const { result } = renderHook(() => useActivitiesWithPending(undefined));
 
@@ -112,7 +115,7 @@ describe("useActivitiesWithPending — god-mode demo rows", () => {
       data: [makePending("confirmed-1", 1_000)],
       isLoading: true,
     });
-    useDemoActivityMock.mockReturnValue({ rows: [], hideReal: true });
+    useActivityOverrideMock.mockReturnValue({ rows: [], hideReal: true });
 
     const { result } = renderHook(() => useActivitiesWithPending(ADDR));
 
@@ -122,7 +125,7 @@ describe("useActivitiesWithPending — god-mode demo rows", () => {
 
   it("keeps the live loading state when the demo adds nothing to the feed", () => {
     useActivitiesMock.mockReturnValue({ data: [], isLoading: true });
-    useDemoActivityMock.mockReturnValue({ rows: [], hideReal: false });
+    useActivityOverrideMock.mockReturnValue({ rows: [], hideReal: false });
 
     const { result } = renderHook(() => useActivitiesWithPending(ADDR));
 
@@ -133,7 +136,7 @@ describe("useActivitiesWithPending — god-mode demo rows", () => {
     const confirmed = makePending("confirmed-1", 3_000);
     const demoOlder = makePending("demo-activity-1", 2_000);
     useActivitiesMock.mockReturnValue({ data: [confirmed], isLoading: false });
-    useDemoActivityMock.mockReturnValue({
+    useActivityOverrideMock.mockReturnValue({
       rows: [demoOlder],
       hideReal: false,
     });

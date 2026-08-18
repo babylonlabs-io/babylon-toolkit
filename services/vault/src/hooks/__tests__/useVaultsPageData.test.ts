@@ -39,8 +39,8 @@ const demoState = vi.hoisted(() => ({
   } | null,
 }));
 
-vi.mock("@/dev/demoDeposit", () => ({
-  useDemoCollateral: () => demoState.current,
+vi.mock("@/overrides/collateral", () => ({
+  useCollateralOverride: () => demoState.current,
 }));
 
 describe("useVaultsPageData", () => {

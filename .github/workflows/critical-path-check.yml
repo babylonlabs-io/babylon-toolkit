@@ -40,6 +40,7 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
             "packages/babylon-ledger-vault-signer/src/"
+            "packages/babylon-ledger-vault-signer/scripts/"
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts"
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
@@ -92,7 +93,7 @@ jobs:
               '',
               '**Required before merge:**',
               '- Two code-owner approvals',
-              '- Author can walk every changed line without an AI assistant open',
+              '- Author can walk every changed line without an AI assistant open (generated golden vectors: reviewer-repeated re-derivation instead — see the per-path rule)',
               '- Per-path rule in CLAUDE.md is satisfied',
             ].join('\n');
 

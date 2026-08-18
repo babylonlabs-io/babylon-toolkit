@@ -293,6 +293,9 @@ importers:
 
   packages/babylon-ledger-vault-signer:
     dependencies:
+      '@bitcoin-js/tiny-secp256k1-asmjs':
+        specifier: 2.2.3
+        version: 2.2.3
       '@ledgerhq/device-management-kit':
         specifier: 1.7.1
         version: 1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10)
@@ -747,6 +750,9 @@ importers:
       bitcoinjs-lib:
         specifier: 6.1.7
         version: 6.1.7
+      buffer:
+        specifier: 6.0.3
+        version: 6.0.3
       core-js:
         specifier: 3.41.0
         version: 3.41.0

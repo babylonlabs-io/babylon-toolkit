@@ -71,7 +71,7 @@ export function LoansSummary({
     }),
     {
       label: COPY.loans.healthFactorLabel,
-      tooltip: COPY.loans.healthFactorTooltip,
+      tooltip: COPY.tooltips.healthFactor,
       value: healthFactorText,
       valueNode: (
         <>

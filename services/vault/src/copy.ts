@@ -91,6 +91,16 @@ export interface EmphasisBodySegment {
 }
 
 export const COPY = {
+  // Tooltips whose concept appears on more than one screen. One key per
+  // concept, referenced from every surface, so the screens can't drift apart.
+  tooltips: {
+    // Risk card, markets collateral card, protocol parameters (LTV).
+    collateralFactor:
+      "The maximum percentage of borrowing power from the total collateral value.",
+    // Overview position cards, risk card body, borrow / repay detail cards.
+    healthFactor:
+      "Indicates the health of your position. If it falls below 1.0, your position may be liquidated.",
+  },
   pegin: {
     labels: {
       PENDING: "Pending",
@@ -374,6 +384,21 @@ export const COPY = {
         "Waiting for vault provider to prepare claim and payout transactions...",
       bitcoinTx: "Pre-Pegin Bitcoin transaction",
     },
+    ethConfirmation: {
+      confirmations: "Confirmations",
+      confirmationsValue: (confirmed: number, required: number) =>
+        `${confirmed} of ${required}`,
+      estRemaining: "Est. remaining",
+      estRemainingValue: (seconds: number, blocksLeft: number) =>
+        `~${seconds} sec (${blocksLeft} Ethereum ${
+          blocksLeft === 1 ? "block" : "blocks"
+        })`,
+      finalizing: "Finalizing...",
+      // Explains why the flow pauses here rather than moving straight to the
+      // Bitcoin signature the user is expecting next.
+      rationale:
+        "Waiting for your Ethereum registration to be confirmed before broadcasting to Bitcoin. This protects your deposit if the Ethereum network reorganizes.",
+    },
     waitDetails: {
       status: "Status",
       // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
@@ -586,7 +611,7 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
-      transactionReserveLabel: "Transaction Reserve",
+      transactionReserveLabel: "Reserve Claimer UTXO",
       transactionReserveTooltip:
         "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.",
       // The depositable maximum is labelled as the balance, with `maxTooltip`
@@ -655,6 +680,8 @@ export const COPY = {
       // minimum are
       // emphasized (primary text) by the component; the rest stays secondary.
       // The component joins these fragments with explicit `{" "}` separators.
+      splitTooLowTooltip:
+        "Deposits below this amount may be fully liquidated in a single event.",
       splitTooLowHint: (minBtc: string) => ({
         prefix: "To use",
         splitName: TWO_VAULT_SPLIT_NAME,
@@ -716,6 +743,15 @@ export const COPY = {
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTC Vault is in ${state} state. Activation is only valid when VERIFIED.`,
+      // Deliberately worded without the token "broadcast". These are state
+      // preconditions, not broadcast failures, and `mapDepositError` matches
+      // "broadcast" on the message — which would replace this precise sentence
+      // with "Broadcast failed / please try again", wrong for a terminal state
+      // like EXPIRED where retrying can never succeed.
+      cannotBroadcastInState: (state: string) =>
+        `Cannot continue: BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
+      cannotBroadcastInOnChainState: (state: string) =>
+        `Cannot continue: on-chain BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -734,6 +770,18 @@ export const COPY = {
       copyDiagnostics: "Copy error details",
       diagnosticsCopied: "Copied",
       diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
+      // Ethereum finality gate (see services/vault/ethConfirmationGate.ts).
+      // Both fire before the Pre-PegIn broadcast, so no Bitcoin has moved —
+      // say that first, because stopping right after an on-chain registration
+      // reads as alarming and is not.
+      ethRegistrationNotFinal: {
+        title: "Ethereum confirmation timed out",
+        body: "Your Ethereum registration was submitted but hasn't been confirmed deeply enough yet. No Bitcoin has been broadcast and nothing is at risk. Resume this deposit from your dashboard once the network settles.",
+      },
+      ethRegistrationMissing: {
+        title: TRANSACTION_FAILED_TITLE,
+        body: "Your Ethereum registration is no longer visible on-chain, so the deposit was stopped before any Bitcoin was broadcast. Please start a new deposit.",
+      },
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
@@ -974,11 +1022,6 @@ export const COPY = {
       body: (symbol: string) =>
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
     },
-    // The "⋯" actions menu on the Collateral summary card.
-    menu: {
-      withdraw: "Withdraw",
-      reorder: "Reorder",
-    },
   },
   // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
@@ -990,14 +1033,6 @@ export const COPY = {
       "Explore BTC Vault activity, liquidity metrics, and protocol statistics in the",
   },
   withdraw: {
-    // Collateral-selection modal opened from the Collateral "⋯" menu. Picks
-    // which vaults to withdraw before handing off to the withdrawal flow.
-    modal: {
-      title: "Withdraw",
-      subtitle:
-        "Choose the collateral you want to withdraw. Remaining BTC Vaults will move up in priority order.",
-      confirmButton: "Withdraw",
-    },
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",
@@ -1085,14 +1120,11 @@ export const COPY = {
     // Repay amount slider: prefixes the user's wallet balance shown beside Max.
     balanceLabel: "Balance",
     atRiskOfLiquidation: "At risk of liquidation",
-    borrowAprTooltip:
-      "The annual interest rate charged on your borrowed amount.",
+    borrowAprTooltip: "Borrow APR currently offered on this market",
     utilizationTooltip:
-      "The share of this market's supplied liquidity currently borrowed.",
+      "Percentage of deposited assets currently being borrowed on this market.",
     debtTooltip:
       "The total amount you currently owe for this asset, including accrued interest.",
-    healthFactorTooltip:
-      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     borrowingUnavailable:
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:
@@ -1258,12 +1290,17 @@ export const COPY = {
     // "Utilisation" is respelled to the American form this file mandates.
     stats: {
       availableLiquidity: "Available Liquidity",
+      availableLiquidityTooltip: "Available liquidity to borrow on this market",
       borrowApr: "Borrow APR",
       supplied: "Supplied",
-      suppliedTooltip:
-        "Total liquidity supplied to this market — the borrowed amount plus what is still available.",
+      suppliedTooltip: "Provided liquidity on this market",
       totalBorrowed: "Total Borrowed",
+      totalBorrowedTooltip: "Borrowed liquidity on this market",
       marketUtilization: "Market Utilization",
+      // Deliberately not the charts' `utilizationRateTooltip`: that one
+      // explains the interest-rate curve, this one the headline figure.
+      marketUtilizationTooltip:
+        "Percentage of deposited assets currently being borrowed",
     },
     collateral: {
       assetLabel: "Collateral Asset",
@@ -1271,8 +1308,6 @@ export const COPY = {
       // what the depositor supplied, not for the vaultBTC reserve token.
       assetName: "Native BTC",
       factorLabel: "Collateral Factor",
-      factorTooltip:
-        "The share of your collateral's value you can borrow against before liquidation applies.",
     },
     interestRateModel: {
       title: "Interest rate model",
@@ -1403,13 +1438,21 @@ export const COPY = {
       distance: "Distance",
       seizedVaultsSection: "Seized Vaults",
       targetSeizure: "Target seizure",
+      targetSeizureTooltip:
+        "The collateral value that the liquidator may receive during the liquidation process.",
       overSeizure: "Over seizure",
+      overSeizureTooltip:
+        "An additional portion of the collateral value that the liquidator may seize due to the nature of indivisible BTC Vaults.",
       estimatedLiquidationSection: "Estimated Liquidation",
       collateralLiquidated: "Collateral liquidated",
       debtRepaid: "Debt Repaid",
       liquidatorProfit: "Liquidator profit",
       fairnessDebtRepaid: "Fairness Debt Repaid",
       fairnessPaymentWbtc: "Fairness Payment (wBTC)",
+      // Describes the payment variant only; the debt-repaid variant of the
+      // row carries no tooltip.
+      fairnessPaymentTooltip:
+        "Payment by the liquidator to the user's wallet due to over seizure of collateral.",
       positionAfterSection: "Position After Liquidation",
       btcRemaining: "BTC remaining",
       debtRemaining: "Debt remaining",
@@ -1431,8 +1474,6 @@ export const COPY = {
     heading: "Overview",
     positionTitle: "Position",
     healthFactorLabel: "Health factor",
-    healthFactorTooltip:
-      "Your position's safety margin. If it falls below 1.0, your collateral can be liquidated.",
     totalCollateralValueLabel: "Total collateral value",
     totalCollateralValueTooltip:
       "The total value of assets used as collateral.",
@@ -1555,8 +1596,6 @@ export const COPY = {
   risk: {
     title: "Risk",
     healthFactorTitle: "Health Factor",
-    healthFactorDescription:
-      "Indicates the health of your position. When the ratio falls below 1.0, liquidation may occur.",
     healthFactorInfinity: "∞",
     status: {
       noPosition: "No Position",
@@ -1568,8 +1607,6 @@ export const COPY = {
     liquidationBtcPriceLabel: "Liquidation BTC Price",
     currentBtcPriceLabel: "Current BTC Price",
     collateralFactorLabel: "Collateral Factor",
-    collateralFactorTooltip:
-      "The maximum share of your collateral's value that can be borrowed against.",
     chart: {
       pairLabel: "BTC/USD",
       liquidationPriceLabel: "Liquidation Price",
@@ -1647,22 +1684,19 @@ export const COPY = {
     sectionTitle: "Protocol Parameters",
     minDeposit: {
       label: "Min deposit",
-      tooltip:
-        "Minimum BTC deposit required to create a BTC Vault, set by the protocol.",
+      tooltip: "The minimum amount of BTC required to make a deposit.",
     },
     minForSplit: {
       label: "Effective minimum for split",
       tooltip:
-        "Minimum deposit to split into 2 BTC Vaults. Both BTC Vaults must meet the minimum deposit requirement.",
+        "The minimum amount of BTC required to enable partial liquidation by splitting a deposit into two BTC Vaults.",
     },
     ltv: {
       label: "LTV / Collateral Factor",
-      tooltip:
-        "Maximum percentage of collateral value that can be borrowed against.",
     },
     liquidationThreshold: {
       label: "Liquidation threshold (THF)",
-      tooltip: "Target health factor at which liquidation becomes profitable.",
+      tooltip: "The ideal health factor to restore during liquidation",
     },
     liquidationBonus: {
       label: "Liquidation Bonus (LB)",

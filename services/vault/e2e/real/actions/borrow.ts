@@ -2,15 +2,16 @@
  * The "borrow" action: draw a borrowable token (Aave-style) against an activated BTC-Vault position,
  * end-to-end on real Sepolia. Two shapes, selected by the CLI:
  *   - REUSE (default): borrow against the depositor's existing collateral. run.ts already refused the
- *     run before the browser if there's no active collateral (fetchBorrowContext), so we land on the
- *     dashboard with the Borrow button enabled.
+ *     run before the browser if there's no active collateral (fetchBorrowContext), so the /loans
+ *     Borrow button is enabled as soon as we navigate there.
  *   - PEGIN-FIRST (`--pegin-first`): peg in fresh collateral first (the shared `runPeginFlow`, which
- *     ends on the dashboard with an active vault), then borrow — all in one browser session.
+ *     ends with an active vault), then borrow — all in one browser session.
  *
- * The borrow flow itself is short and has NO multi-minute on-chain gates (unlike pegin): open Loans →
- * Borrow, pick the token in the "Select asset" modal, enter the amount (a conservative fraction of the
- * real-data max, or the form's Max), submit, and approve the single MetaMask transaction. Then the
- * "Borrow successful" screen confirms it.
+ * The borrow flow itself is short and has NO multi-minute on-chain gates (unlike pegin): navigate to
+ * /loans (v3 moved the loan CTAs off the dashboard — see markdown/e2e-v3/03-borrow.md) → Borrow, pick
+ * the token in the "Select asset" picker, enter the amount (a conservative fraction of the real-data
+ * max, or the form's Max), submit, and approve the single MetaMask transaction. Then the "Borrow
+ * successful" screen confirms it.
  *
  * Selectors are testid-first (added to the src borrow controls, mirroring `activate-vault-button`) with
  * tolerant text/role/class fallbacks so a deployed build that predates the testids still works. No SDK
@@ -42,6 +43,7 @@ import {
 import { formatTokenAmount } from "../tokenAmount";
 
 import { installPopupApprover, sweepApprovals } from "./approver";
+import { goToSection } from "./navigation";
 import { runPeginFlow } from "./pegin";
 import { startRecording } from "./recording";
 import {
@@ -59,8 +61,8 @@ import {
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
-// Dashboard "Loans" section → Borrow (testid-first; the fallback matches the button only while it reads
-// exactly "Borrow", which is fine on the dashboard where the CTA isn't relabeled). The shared loan-form
+// The /loans summary → Borrow (testid-first; the anchored fallback matches that CTA only while it reads
+// exactly "Borrow", so the page's per-loan "Borrow more" row buttons can't win it). The shared loan-form
 // selectors (amount input, Max button, "Select asset" title, success-modal Done, tx-failed) live in
 // selectors.ts — borrow-specific ones stay here.
 const LOANS_BORROW_TESTID = '[data-testid="loans-borrow-button"]';
@@ -145,8 +147,9 @@ async function resolveBorrowAmount(ctx: ActionContext): Promise<BorrowAmount> {
   return { mode: "amount", value };
 }
 
-/** Open the borrow flow from the dashboard: click Loans → Borrow, wait for the "Select asset" modal. */
+/** Open the borrow flow: navigate to /loans, click Borrow, wait for the "Select asset" picker. */
 async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
+  await goToSection(page, "loans", log);
   const borrow = firstByTestid(
     page,
     LOANS_BORROW_TESTID,
@@ -155,8 +158,8 @@ async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
   await borrow.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
   // The button is gated on `hasCollateral` (collateral > 0). A JUST-activated vault (pegin-first) takes
   // a moment to propagate into the app's position read, so the button can be briefly disabled right
-  // after "Go to Dashboard". Poll for it to enable rather than failing on the first check; only treat a
-  // persistently-disabled button as "no collateral". (A reuse run already passed run.ts's collateral
+  // after the peg-in finishes. Poll for it to enable rather than failing on the first check; only treat
+  // a persistently-disabled button as "no collateral". (A reuse run already passed run.ts's collateral
   // gate, so its button is enabled almost immediately.)
   const deadline = Date.now() + BORROW_BUTTON_ENABLE_TIMEOUT_MS;
   let enabled = await borrow.isEnabled().catch(() => false);
@@ -166,9 +169,9 @@ async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
   }
   if (!enabled)
     throw new Error(
-      `The dashboard Borrow button stayed disabled for ${Math.round(BORROW_BUTTON_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s — this position has no active BTC Vault collateral to borrow against. Peg in first (or re-run with --pegin-first).`,
+      `The /loans Borrow button stayed disabled for ${Math.round(BORROW_BUTTON_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s — this position has no active BTC Vault collateral to borrow against. Peg in first (or re-run with --pegin-first).`,
     );
-  log("Opening the borrow flow (Loans → Borrow)");
+  log("Opening the borrow flow (/loans → Borrow)");
   await borrow.click();
   await page
     .getByText(ASSET_SELECT_TITLE, { exact: true })

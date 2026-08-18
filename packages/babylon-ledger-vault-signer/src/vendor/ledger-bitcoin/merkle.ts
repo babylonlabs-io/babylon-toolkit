@@ -7,10 +7,13 @@
  * Upstream sha256: 733ecf485c0b98ad3732234945506bb6dda0d9814e27f8802f1def78cdad52d0
  * Vendored:        2026-08-13
  * License:         Apache-2.0 — see ./LICENSE (verbatim upstream copy)
- * Modifications:   explicit `import { Buffer } from "buffer"`; defensive
- *                  strict-null guards on getLeafHash/getProof and a
- *                  `leaves[0] as Buffer` narrowing at the n===1 branch
- *                  (behaviour-preserving; valid indices unchanged); formatting.
+ * Modifications:   explicit `import { Buffer } from "buffer"`; strict-null
+ *                  guards on getLeafHash/getProof — invalid indices now throw a
+ *                  typed Error("Index out of bounds") instead of upstream's raw
+ *                  TypeError (getLeafHash was unguarded; getProof guarded only
+ *                  index >= length, not negatives), valid indices unchanged —
+ *                  and a `leaves[0] as Buffer` narrowing at the n===1 branch;
+ *                  formatting.
  *
  * Ledger's Merkle tree, documented at
  * https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/merkle.md

@@ -127,7 +127,7 @@ export function RiskSection({
                   {COPY.risk.healthFactorTitle}
                 </span>
                 <span className="max-w-[442px] text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-                  {COPY.risk.healthFactorDescription}
+                  {COPY.tooltips.healthFactor}
                 </span>
               </div>
               <div className="mt-3 flex shrink-0 items-center gap-2">
@@ -166,7 +166,7 @@ export function RiskSection({
               <StatCell
                 label={COPY.risk.collateralFactorLabel}
                 value={collateralFactorText}
-                tooltip={COPY.risk.collateralFactorTooltip}
+                tooltip={COPY.tooltips.collateralFactor}
                 loading={collateralFactorLoading}
               />
             </div>

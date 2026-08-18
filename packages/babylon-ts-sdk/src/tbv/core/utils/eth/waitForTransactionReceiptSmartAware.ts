@@ -41,6 +41,17 @@ export interface WaitForTransactionReceiptSmartAwareParams {
   publicClient: PublicClient;
   walletAddress: Address;
   hash: Hash;
+  /**
+   * Forwarded to viem verbatim.
+   *
+   * MUST NOT be used as a finality/reorg gate. viem fetches the receipt once
+   * and then only compares block numbers against that cached copy — it never
+   * re-checks that the receipt's block is still canonical, so it resolves
+   * happily for a transaction that has been reorged out. Setting this buys a
+   * delay, not a guarantee. For peg-in registration finality use
+   * `waitForPeginRegistrationDepth`, which re-reads live contract state on
+   * every poll.
+   */
   confirmations?: number;
   /**
    * Forwarded to viem on the EOA (externally owned account) path.

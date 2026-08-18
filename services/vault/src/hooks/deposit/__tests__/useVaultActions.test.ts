@@ -4,20 +4,41 @@
  * a malicious transaction for signing.
  */
 
+import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { COPY } from "@/copy";
 import { ContractStatus } from "@/models/peginStateMachine";
-import { broadcastPrePeginTransaction, fetchVaultById } from "@/services/vault";
+import {
+  assertUtxosAvailable,
+  broadcastPrePeginTransaction,
+  fetchVaultById,
+} from "@/services/vault";
+import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
+import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
+import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
 import { activateVaultWithSecret } from "@/services/vault/vaultActivationService";
+import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 
 import { useVaultActions } from "../useVaultActions";
 
 const mockSignPsbt = vi.hoisted(() => vi.fn().mockResolvedValue("signedPsbt"));
+const makeDefaultChainConnector = vi.hoisted(() => () => ({
+  connectedWallet: {
+    account: { address: "bc1qdepositor" },
+    provider: {
+      connectWallet: vi.fn().mockResolvedValue(undefined),
+      getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+      signPsbt: mockSignPsbt,
+    },
+  },
+}));
 const mockCalculateBtcTxHash = vi.hoisted(() =>
   vi.fn(() => "0xmatching_pre_pegin_hash"),
 );
@@ -79,8 +100,22 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
     Promise.resolve({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
       hashlock: "0xonchain_hashlock",
+      // ETH block the registration mined at. Feeds the finality gate; the
+      // default pairs with a far-ahead tip so the common case (a deposit
+      // registered long ago) takes the no-wait fast path.
+      createdAt: 1_000n,
     }),
   ),
+}));
+
+// Ethereum finality gate. Default: already final, so the gate is a no-op and
+// the pre-existing broadcast tests are unaffected. The gate's own tests drive
+// these two directly.
+vi.mock("@/services/vault/ethConfirmationGate", () => ({
+  waitForEthRegistrationDepth: vi.fn(async () => ({
+    confirmations: 8,
+    basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+  })),
 }));
 
 // Fresh on-chain pause read used by the activation preflight. Holder so tests
@@ -104,16 +139,7 @@ vi.mock("@/clients/eth-contract/pause-state/query", () => ({
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: vi.fn(() => ({})),
-  useChainConnector: vi.fn(() => ({
-    connectedWallet: {
-      account: { address: "bc1qdepositor" },
-      provider: {
-        connectWallet: vi.fn().mockResolvedValue(undefined),
-        getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-        signPsbt: mockSignPsbt,
-      },
-    },
-  })),
+  useChainConnector: vi.fn(makeDefaultChainConnector),
 }));
 
 vi.mock("wagmi/actions", () => ({
@@ -139,6 +165,14 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
 
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
+}));
+
+vi.mock("@/services/vault/rebuildDepositTerms", () => ({
+  rebuildDepositTerms: vi.fn(),
+}));
+
+vi.mock("@/services/vault/resolveFundedTxFee", () => ({
+  resolveFundedTxFeeAndUtxos: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
@@ -170,6 +204,8 @@ const mockBroadcastPrePeginTransaction = vi.mocked(
 const mockGetVaultFromChain = vi.mocked(getVaultFromChain);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
+const mockWaitForEthRegistrationDepth = vi.mocked(waitForEthRegistrationDepth);
+const mockAssertUtxosAvailable = vi.mocked(assertUtxosAvailable);
 
 /**
  * Build a fake reader that returns a combined basic+protocol payload from
@@ -234,9 +270,19 @@ function makeMatchingProtocolInfoBatch() {
 
 const baseBroadcastParams = {
   vaultId: "0xvaultId" as Hex,
+  depositorEthAddress: "0xconnected_depositor",
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
 };
+
+// Re-assert the default connector before EVERY test so a describe that
+// overrides useChainConnector's return value cannot leak a stale wallet into
+// later tests. Idempotent for tests that never override it.
+beforeEach(() => {
+  vi.mocked(useChainConnector).mockImplementation(
+    makeDefaultChainConnector as never,
+  );
+});
 
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
   beforeEach(() => {
@@ -289,7 +335,9 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("Transaction mismatch");
+    expect(result.current.broadcastError?.body).toContain(
+      "Transaction mismatch",
+    );
   });
 
   it("throws when cached local tx matches GraphQL but mismatches on-chain hash", async () => {
@@ -313,7 +361,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
+    expect(result.current.broadcastError?.body).toContain(
       "Transaction integrity check failed",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -335,7 +383,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("EXPIRED");
+    expect(result.current.broadcastError?.body).toContain("EXPIRED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
@@ -354,7 +402,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("VERIFIED");
+    expect(result.current.broadcastError?.body).toContain("VERIFIED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
@@ -380,7 +428,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toMatch(/on-chain.*EXPIRED/);
+    expect(result.current.broadcastError?.body).toMatch(/on-chain.*EXPIRED/);
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
@@ -408,8 +456,8 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("EXPIRED");
-    expect(result.current.broadcastError).not.toContain("LIQUIDATED");
+    expect(result.current.broadcastError?.body).toContain("EXPIRED");
+    expect(result.current.broadcastError?.body).not.toContain("LIQUIDATED");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });
@@ -447,7 +495,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       await result.current.handleBroadcast(baseBroadcastParams);
     });
 
-    expect(result.current.broadcastError).toMatch(
+    expect(result.current.broadcastError?.body).toMatch(
       /requires a newer version of the app/,
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -475,7 +523,9 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("offchainParams expected");
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.versionMismatch,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
@@ -502,7 +552,9 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("appVaultKeepers expected");
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.versionMismatch,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
   });
@@ -528,8 +580,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
-      "universalChallengers expected",
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.versionMismatch,
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
@@ -605,7 +657,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain(
+    expect(result.current.broadcastError?.body).toContain(
       "Transaction integrity check failed",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -759,7 +811,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
-    expect(result.current.broadcastError).toContain("eth_call failed");
+    expect(result.current.broadcastError?.body).toContain("eth_call failed");
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
@@ -1203,5 +1255,522 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
     expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
     expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+});
+
+describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", () => {
+  const RESOLVED = {
+    expectedUtxos: {
+      ["ab".repeat(32) + ":0"]: { scriptPubKey: "5120aa", value: 500_000 },
+    },
+    fundedTxFee: 1234n,
+  };
+  const REBUILT_TERMS = { prepeginTxid: "ff".repeat(32) };
+  // Single fixture for the chain read AND the `target` the hook must forward
+  // to the rebuild — the same object, not a re-read.
+  const ONCHAIN_VAULT = {
+    prePeginTxHash: "0xmatching_pre_pegin_hash",
+    hashlock: "0xonchain_hashlock",
+    status: OnChainBtcVaultStatus.PENDING,
+  };
+
+  function connectIntentWallet() {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+          deriveContextHash: vi.fn().mockResolvedValue("ab".repeat(32)),
+          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    } as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue(ONCHAIN_VAULT as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
+    vi.mocked(resolveFundedTxFeeAndUtxos).mockResolvedValue(RESOLVED as never);
+    vi.mocked(rebuildDepositTerms).mockResolvedValue(REBUILT_TERMS as never);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+  });
+
+  it("rebuilds terms from chain and forwards them (with approval capability) to the broadcast", async () => {
+    connectIntentWallet();
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    // Prevouts resolved once, mempool-only (no same-device record argument).
+    expect(resolveFundedTxFeeAndUtxos).toHaveBeenCalledWith(TRUSTED_TX_HEX);
+    expect(rebuildDepositTerms).toHaveBeenCalledWith({
+      vaultId: "0xvaultId",
+      target: ONCHAIN_VAULT,
+      fundedPrePeginTxHex: TRUSTED_TX_HEX,
+      connectedDepositorAddress: "0xconnected_depositor",
+      depositorBtcPubkey: "depositorBtcPubkey",
+      fundedTxFee: 1234n,
+    });
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unsignedTxHex: TRUSTED_TX_HEX,
+        depositTerms: REBUILT_TERMS,
+        expectedUtxos: RESOLVED.expectedUtxos,
+        btcWalletProvider: expect.objectContaining({
+          approveDepositTerms: expect.any(Function),
+          deriveContextHash: expect.any(Function),
+        }),
+      }),
+    );
+  });
+
+  it("does not broadcast (and reports the error) when the rebuild fails", async () => {
+    connectIntentWallet();
+    vi.mocked(rebuildDepositTerms).mockRejectedValue(
+      new Error(
+        "Sibling vaults of this Pre-PegIn disagree on offchainParamsVersion",
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError?.body).toContain("disagree on");
+  });
+
+  it("skips the rebuild entirely for a software (signPsbt-only) wallet", async () => {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+        },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(resolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
+    const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
+    expect("depositTerms" in broadcastArg).toBe(false);
+  });
+
+  // The seam guard (ensurePrePeginTermsApproval) must see the capability
+  // absent — an always-present wrapper property would turn its typed error
+  // into a mid-ceremony TypeError.
+  it("does not forward deriveContextHash when the intent wallet lacks it", async () => {
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: {
+        account: { address: "bc1qdepositor" },
+        provider: {
+          connectWallet: vi.fn().mockResolvedValue(undefined),
+          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+          signPsbt: mockSignPsbt,
+          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
+    expect("deriveContextHash" in broadcastArg.btcWalletProvider).toBe(false);
+    expect("approveDepositTerms" in broadcastArg.btcWalletProvider).toBe(true);
+  });
+
+  // The intent path resolves prevouts mempool-only; the local UTXO record
+  // helper belongs to the software branch and must never run here.
+  it("broadcasts even when the local UTXO record helper would throw", async () => {
+    connectIntentWallet();
+    vi.mocked(utxosToExpectedRecord).mockImplementation(() => {
+      throw new Error("stale local UTXO record");
+    });
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: {
+          ...basePendingPegin,
+          selectedUTXOs: [
+            {
+              txid: "abc123",
+              vout: 0,
+              value: "100000",
+              scriptPubKey: "0014abcdef",
+            },
+          ],
+        },
+      });
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    // Restore the factory default — implementations survive clearAllMocks.
+    vi.mocked(utxosToExpectedRecord).mockImplementation(() => ({}));
+  });
+});
+
+// ============================================================================
+// Ethereum finality gate on the resume broadcast path
+//
+// The resume path can broadcast a Pre-PegIn moments after the ETH registration
+// mined (user closes the modal, clicks Broadcast from the dashboard). Doing so
+// while the registration is still reorg-exposed can leave BTC locked in an
+// HTLC whose vault record no longer exists, so the broadcast waits for depth
+// first — including on a cross-device resume, where there is no local record
+// and no ETH transaction hash to wait on.
+// ============================================================================
+describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
+      createdAt: 1_000n,
+    } as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    // Implementations survive clearAllMocks, so re-assert the default here
+    // rather than at the end of the test that overrides it — a failing test
+    // would otherwise leak a never-resolving mock into the rest of the file.
+    mockAssertUtxosAvailable.mockResolvedValue(undefined);
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+    } as never);
+  });
+
+  it("consults the gate before broadcasting, even for an already-deep registration", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    // No "already deep enough" shortcut computed from the earlier vault read:
+    // the gate re-reads live registry state and supplies the observation the
+    // post-wait status check uses.
+    expect(mockWaitForEthRegistrationDepth).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultIds: ["0xvaultId"] }),
+    );
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.broadcastError).toBeNull();
+  });
+
+  it("shows no confirmation counter for a registration that is already final", async () => {
+    // The gate reports the (large) depth once on its way out. Rendering that
+    // would flash a nonsensical counter over a deposit that never waited.
+    mockWaitForEthRegistrationDepth.mockImplementation((async (params: {
+      onProgress?: (p: { confirmations: number; required: number }) => void;
+    }) => {
+      params.onProgress?.({ confirmations: 50_000, required: 8 });
+      return {
+        confirmations: 50_000,
+        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+      };
+    }) as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.ethConfirmationDetail).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for depth before broadcasting", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(
+      mockWaitForEthRegistrationDepth.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockBroadcastPrePeginTransaction.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not touch the BTC wallet while waiting for depth", async () => {
+    mockWaitForEthRegistrationDepth.mockRejectedValue(
+      new Error("still waiting for Ethereum confirmations"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    // The gate sits ahead of the wallet-liveness probe and everything after
+    // it, so a deposit we refuse to broadcast never produces a wallet popup.
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError?.body).toBe(
+      "still waiting for Ethereum confirmations",
+    );
+  });
+
+  it("publishes live confirmation progress while waiting and clears it after", async () => {
+    const observed: Array<{ confirmations: number; required: number }> = [];
+    mockWaitForEthRegistrationDepth.mockImplementation((async (params: {
+      onProgress?: (p: { confirmations: number; required: number }) => void;
+    }) => {
+      for (const confirmations of [5, 6, 7, 8]) {
+        params.onProgress?.({ confirmations, required: 8 });
+        observed.push({ confirmations, required: 8 });
+      }
+      return {
+        confirmations: 8,
+        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+      };
+    }) as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(observed.map((p) => p.confirmations)).toEqual([5, 6, 7, 8]);
+    // Cleared once the gate releases, so the panel does not linger over the
+    // BTC signing step that follows.
+    expect(result.current.ethConfirmationDetail).toBeNull();
+  });
+
+  it("passes an abort signal and stops before the wallet when the modal unmounts", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let releaseWait: (() => void) | undefined;
+    mockWaitForEthRegistrationDepth.mockImplementation((async (params: {
+      signal?: AbortSignal;
+    }) => {
+      capturedSignal = params.signal;
+      await new Promise<void>((resolve) => {
+        releaseWait = resolve;
+      });
+      return {
+        confirmations: 8,
+        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+      };
+    }) as never);
+
+    const { result, unmount } = renderHook(() => useVaultActions());
+
+    let broadcastPromise: Promise<void> | undefined;
+    await act(async () => {
+      broadcastPromise = result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+      await Promise.resolve();
+    });
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal!.aborted).toBe(false);
+
+    // Closing the resume modal must cancel the wait, not leave it running to
+    // raise a BTC wallet popup with no UI behind it.
+    await act(async () => {
+      unmount();
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)));
+    });
+
+    expect(capturedSignal!.aborted).toBe(true);
+
+    await act(async () => {
+      releaseWait?.();
+      await broadcastPromise;
+    });
+
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not start signing when the modal unmounts after finality but before the broadcast", async () => {
+    // Several network round-trips sit between the finality gate and the
+    // signature (UTXO availability, version and key re-checks). Unmounting
+    // during one of them must not still raise a signing popup.
+    let releaseUtxoCheck: (() => void) | undefined;
+    mockAssertUtxosAvailable.mockImplementation((async () => {
+      await new Promise<void>((resolve) => {
+        releaseUtxoCheck = resolve;
+      });
+    }) as never);
+
+    const { result, unmount } = renderHook(() => useVaultActions());
+
+    let broadcastPromise: Promise<void> | undefined;
+    await act(async () => {
+      broadcastPromise = result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      unmount();
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)));
+    });
+
+    await act(async () => {
+      releaseUtxoCheck?.();
+      await broadcastPromise;
+    });
+
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("re-checks the on-chain status after the wait and refuses a vault that left PENDING", async () => {
+    // The PENDING gate ran before the wait; a wait spanning minutes can outlive
+    // that reading, so the post-wait observation is authoritative.
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { status: OnChainBtcVaultStatus.VERIFIED },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError?.body).toContain("VERIFIED");
+  });
+
+  it("applies the gate on a cross-device resume that has no local record", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      // No pendingPegin: the depth proof comes from the chain read, not from
+      // localStorage, which is what makes this path gate-able at all.
+      await result.current.handleBroadcast({ ...baseBroadcastParams });
+    });
+
+    expect(mockWaitForEthRegistrationDepth).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultIds: ["0xvaultId"] }),
+    );
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces a depth timeout as the Ethereum-confirmation copy, not a broadcast failure", async () => {
+    // The typed error must survive the catch with its prototype intact. If it
+    // is flattened to a string first, the mapper falls through to message
+    // matching and the user is told their Bitcoin broadcast failed — when no
+    // broadcast was ever attempted.
+    mockWaitForEthRegistrationDepth.mockRejectedValue(
+      new PeginRegistrationNotFinalError(
+        "Peg-in registration did not reach 8 Ethereum confirmations within 600000ms.",
+      ),
+    );
+    const removePendingPeginTyped = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin: removePendingPeginTyped,
+      });
+    });
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.ethRegistrationNotFinal,
+    );
+    expect(result.current.broadcastError).not.toEqual(
+      COPY.deposit.errors.broadcastFailed,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(removePendingPeginTyped).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pending entry when the depth wait fails", async () => {
+    mockWaitForEthRegistrationDepth.mockRejectedValue(
+      new Error("Peg-in registration did not reach 8 Ethereum confirmations"),
+    );
+    const removePendingPegin = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin,
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    // The registration is valid and retryable — dropping the record would
+    // discard the build-version and key stamps the next attempt needs.
+    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(result.current.ethConfirmationDetail).toBeNull();
   });
 });

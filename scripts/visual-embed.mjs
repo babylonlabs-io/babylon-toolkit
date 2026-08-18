@@ -83,6 +83,38 @@ const PANEL_GUTTER_COLOUR = [120, 120, 120];
 const PANEL_PADDING_COLOUR = [232, 232, 232];
 
 /**
+ * The third panel: the after shot with every changed area ringed, so the
+ * reviewer is told where to look instead of hunting for it.
+ *
+ * Drawn on the after shot rather than beside a bare diff mask, because a
+ * mask says which pixels moved and not which control they belong to. The
+ * ring is stroked in red between two white lines - red alone disappears
+ * over the app's own red buttons and error states, which is exactly where
+ * a change is most likely to be.
+ */
+const HIGHLIGHT_COLOUR = [226, 34, 34];
+const HIGHLIGHT_HALO_COLOUR = [255, 255, 255];
+const HIGHLIGHT_STROKE_WIDTH = 3;
+const HIGHLIGHT_HALO_WIDTH = 1;
+/** Clearance between the changed pixels and the ring drawn around them. */
+const HIGHLIGHT_PADDING = 8;
+
+/**
+ * Changed pixels are clustered on a grid of this many pixels before being
+ * ringed, so a word that changed reads as one region instead of a ring per
+ * glyph. Sized under the smallest UI element worth pointing at.
+ */
+const HIGHLIGHT_CELL_SIZE = 8;
+
+/**
+ * Rings past this count are noise: a font swap or a token recolour moves
+ * something in every corner of the page, and forty rings point at nothing.
+ * Past it they collapse into one ring around the lot, which at least still
+ * says "all of this".
+ */
+const HIGHLIGHT_MAX_REGIONS = 12;
+
+/**
  * Rows of unchanged context kept above and below the changed band.
  *
  * Full-page captures are tall - a vault route at 390px wide runs past
@@ -102,16 +134,22 @@ const CROP_CONTEXT_ROWS = 96;
 const CROP_MAX_KEPT_FRACTION = 0.8;
 
 /**
- * Width the composite is reduced to before it is published.
+ * Width the composite is reduced to before it is published, and with it the
+ * widest panel that reaches the reviewer at life size.
  *
- * A comment body is about 800px wide, and GitHub scales any wider image
- * down to fit, so pixels past this point are never shown - they are paid
- * for only in clone weight, because every `git clone` of this repo fetches
- * the branch these images live on. Two side-by-side 900px Storybook frames
- * come to 1808px, so this halves them to roughly what the browser was going
- * to render anyway.
+ * Sized to the desktop capture rather than to the comment column. A comment
+ * body is about 800px wide and GitHub scales anything wider down to fit, so
+ * a budget of 800-1000 looks like the honest one - but the scaling GitHub
+ * does is undone by a click, and the reduction done here is not. A 1280px
+ * desktop screen published at 856px is 856px of detail forever; published
+ * whole it is a 0.6x thumbnail that opens at full size.
+ *
+ * Paid for in clone weight, because every `git clone` of this repo fetches
+ * the branch these images live on. `panelLayout` is what keeps that bounded:
+ * a pair too wide to sit side by side stacks instead of being reduced, so
+ * the pixel count stays what it was and only the shape changes.
  */
-const EMBED_MAX_WIDTH = 1000;
+const EMBED_MAX_WIDTH = 1280;
 
 /**
  * Ceiling on the composite's height, enforced by taking fewer rows rather
@@ -127,8 +165,22 @@ const EMBED_MAX_WIDTH = 1000;
  * EMBED_MAX_WIDTH, so halving them to fit a height budget would render each
  * phone screen at under 200px - small enough that the change being reported
  * is no longer visible. Cutting rows keeps what is shown at full size.
+ *
+ * This bounds the composite, not the panel: stacked panels divide it between
+ * them (see `panelHeightBudget`), so adding the highlight panel spends the
+ * budget three ways rather than growing the published file.
  */
 const MAX_COMPOSITE_HEIGHT = 2400;
+
+/**
+ * How the two panels are arranged. A single panel is its own case: an added
+ * or removed screen has no counterpart to sit beside or under.
+ */
+const LAYOUT = {
+  SIDE_BY_SIDE: "side-by-side",
+  STACKED: "stacked",
+  SINGLE: "single",
+};
 
 /** Separates a Storybook title path from its story name, and a vault route
  *  from its viewport: `components-inputs-actions-button--fluid`,
@@ -312,13 +364,16 @@ function changedRowBand(baseline, candidate) {
  *
  * `clipped` says the ceiling bit, so the caption can admit the picture is
  * a slice instead of letting the reviewer assume they saw all of it.
+ *
+ * `maxHeight` is the budget for ONE panel, which is not the same as the
+ * composite's: stacking spends the composite's height twice over.
  */
-function cropWindow(band, height) {
+function cropWindow(band, height, maxHeight = MAX_COMPOSITE_HEIGHT) {
   if (band === null) {
     return {
       top: 0,
-      height: Math.min(height, MAX_COMPOSITE_HEIGHT),
-      clipped: height > MAX_COMPOSITE_HEIGHT,
+      height: Math.min(height, maxHeight),
+      clipped: height > maxHeight,
     };
   }
 
@@ -329,15 +384,15 @@ function cropWindow(band, height) {
 
   const wantedTop = keepWholePage ? 0 : bandTop;
   const wantedHeight = keepWholePage ? height : bandBottom - bandTop;
-  if (wantedHeight <= MAX_COMPOSITE_HEIGHT) {
+  if (wantedHeight <= maxHeight) {
     return { top: wantedTop, height: wantedHeight, clipped: false };
   }
 
   // Rule 2. Start at the band, pulled back only as far as is needed to
   // fill the window against the bottom of the page.
   return {
-    top: Math.min(bandTop, Math.max(0, height - MAX_COMPOSITE_HEIGHT)),
-    height: MAX_COMPOSITE_HEIGHT,
+    top: Math.min(bandTop, Math.max(0, height - maxHeight)),
+    height: maxHeight,
     clipped: true,
   };
 }
@@ -351,58 +406,283 @@ function fill(target, colour) {
   }
 }
 
-/** Copies `window` rows of `source` into `target` with its left edge at `x`. */
-function blit(source, target, x, window) {
+/**
+ * Boxes around the areas that changed, in full-image coordinates.
+ *
+ * Works on a grid rather than on pixels: neighbouring cells that both hold
+ * a changed pixel join into one region, so a repainted button is one box
+ * and not one per letter of its label. Exact byte comparison, matching
+ * `changedRowBand` - both sides render on the same machine, and a box drawn
+ * around a pixel of antialiasing jitter costs a reviewer nothing next to
+ * one that misses a real change.
+ *
+ * Empty when the sides differ in size: there is no shared coordinate space
+ * to point into, and the size change is itself what the caption reports.
+ */
+function changedRegions(baseline, candidate) {
+  if (
+    baseline.width !== candidate.width ||
+    baseline.height !== candidate.height
+  ) {
+    return [];
+  }
+
+  const cellsAcross = Math.ceil(baseline.width / HIGHLIGHT_CELL_SIZE);
+  const cellsDown = Math.ceil(baseline.height / HIGHLIGHT_CELL_SIZE);
+  const changed = new Uint8Array(cellsAcross * cellsDown);
+
+  for (let y = 0; y < baseline.height; y += 1) {
+    for (let x = 0; x < baseline.width; x += 1) {
+      const i = (y * baseline.width + x) * 4;
+      const same =
+        baseline.data[i] === candidate.data[i] &&
+        baseline.data[i + 1] === candidate.data[i + 1] &&
+        baseline.data[i + 2] === candidate.data[i + 2];
+      if (same) continue;
+      const cell =
+        Math.floor(y / HIGHLIGHT_CELL_SIZE) * cellsAcross +
+        Math.floor(x / HIGHLIGHT_CELL_SIZE);
+      changed[cell] = 1;
+      // The rest of this cell cannot change the answer.
+      x = (Math.floor(x / HIGHLIGHT_CELL_SIZE) + 1) * HIGHLIGHT_CELL_SIZE - 1;
+    }
+  }
+
+  const regions = [];
+  const seen = new Uint8Array(changed.length);
+  for (let start = 0; start < changed.length; start += 1) {
+    if (changed[start] === 0 || seen[start] === 1) continue;
+
+    // Flood fill this cluster, tracking its bounds as it grows. Iterative:
+    // a full-page change is thousands of cells deep and would blow a
+    // recursive stack.
+    const pending = [start];
+    seen[start] = 1;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+
+    while (pending.length > 0) {
+      const cell = pending.pop();
+      const cellX = cell % cellsAcross;
+      const cellY = Math.floor(cell / cellsAcross);
+      left = Math.min(left, cellX);
+      top = Math.min(top, cellY);
+      right = Math.max(right, cellX);
+      bottom = Math.max(bottom, cellY);
+
+      const neighbours = [
+        cellX > 0 ? cell - 1 : -1,
+        cellX < cellsAcross - 1 ? cell + 1 : -1,
+        cellY > 0 ? cell - cellsAcross : -1,
+        cellY < cellsDown - 1 ? cell + cellsAcross : -1,
+      ];
+      for (const next of neighbours) {
+        if (next === -1 || seen[next] === 1 || changed[next] === 0) continue;
+        seen[next] = 1;
+        pending.push(next);
+      }
+    }
+
+    regions.push({
+      left: left * HIGHLIGHT_CELL_SIZE,
+      top: top * HIGHLIGHT_CELL_SIZE,
+      right: Math.min(baseline.width, (right + 1) * HIGHLIGHT_CELL_SIZE),
+      bottom: Math.min(baseline.height, (bottom + 1) * HIGHLIGHT_CELL_SIZE),
+    });
+  }
+
+  if (regions.length <= HIGHLIGHT_MAX_REGIONS) return regions;
+  return [
+    {
+      left: Math.min(...regions.map((r) => r.left)),
+      top: Math.min(...regions.map((r) => r.top)),
+      right: Math.max(...regions.map((r) => r.right)),
+      bottom: Math.max(...regions.map((r) => r.bottom)),
+    },
+  ];
+}
+
+/** Paints a solid block, used for the gutter between the two panels. */
+function paintRect(target, left, top, width, height, colour) {
+  for (let y = top; y < top + height; y += 1) {
+    for (let x = left; x < left + width; x += 1) {
+      const i = (y * target.width + x) * 4;
+      target.data[i] = colour[0];
+      target.data[i + 1] = colour[1];
+      target.data[i + 2] = colour[2];
+      target.data[i + 3] = 255;
+    }
+  }
+}
+
+/** Paints the four edges of `box`, clipped to the target. */
+function strokeRect(target, box, thickness, colour) {
+  const left = Math.max(0, box.left);
+  const top = Math.max(0, box.top);
+  const right = Math.min(target.width, box.right);
+  const bottom = Math.min(target.height, box.bottom);
+  const width = right - left;
+  const height = bottom - top;
+  if (width <= 0 || height <= 0) return;
+
+  const across = Math.min(thickness, height);
+  const down = Math.min(thickness, width);
+  paintRect(target, left, top, width, across, colour);
+  paintRect(target, left, bottom - across, width, across, colour);
+  paintRect(target, left, top, down, height, colour);
+  paintRect(target, right - down, top, down, height, colour);
+}
+
+function inset(box, by) {
+  return {
+    left: box.left + by,
+    top: box.top + by,
+    right: box.right - by,
+    bottom: box.bottom - by,
+  };
+}
+
+/**
+ * The after shot with a ring around every changed area.
+ *
+ * A copy, never the capture itself: the same PNG object is blitted into the
+ * after panel, and drawing on it would ring the change in the picture that
+ * is supposed to show what shipped.
+ */
+function highlightPanel(candidate, regions) {
+  const panel = {
+    width: candidate.width,
+    height: candidate.height,
+    data: Buffer.from(candidate.data),
+  };
+
+  for (const region of regions) {
+    const outer = {
+      left: region.left - HIGHLIGHT_PADDING,
+      top: region.top - HIGHLIGHT_PADDING,
+      right: region.right + HIGHLIGHT_PADDING,
+      bottom: region.bottom + HIGHLIGHT_PADDING,
+    };
+    strokeRect(panel, outer, HIGHLIGHT_HALO_WIDTH, HIGHLIGHT_HALO_COLOUR);
+    strokeRect(
+      panel,
+      inset(outer, HIGHLIGHT_HALO_WIDTH),
+      HIGHLIGHT_STROKE_WIDTH,
+      HIGHLIGHT_COLOUR,
+    );
+    strokeRect(
+      panel,
+      inset(outer, HIGHLIGHT_HALO_WIDTH + HIGHLIGHT_STROKE_WIDTH),
+      HIGHLIGHT_HALO_WIDTH,
+      HIGHLIGHT_HALO_COLOUR,
+    );
+  }
+
+  return panel;
+}
+
+/** Copies `window` rows of `source` into `target` with its top-left at `x`, `y`. */
+function blit(source, target, x, y, window) {
   const rows = Math.min(window.height, Math.max(0, source.height - window.top));
   for (let row = 0; row < rows; row += 1) {
     const from = (window.top + row) * source.width * 4;
-    const to = (row * target.width + x) * 4;
+    const to = ((y + row) * target.width + x) * 4;
     source.data.copy(target.data, to, from, from + source.width * 4);
   }
 }
 
 /**
- * Stitches the two sides into one image, before on the left, and reports how
- * much of the screen's height that image ended up covering.
+ * Whether a pair is drawn side by side or stacked.
  *
- * Side by side rather than stacked because the panels are then the same
- * distance from the eye at every scroll position, and because a stacked
- * pair of full-page captures is twice as tall as an already-tall page.
- * A missing side (an added or removed screen) renders as one panel.
+ * Side by side stays the default: the panels are then the same distance from
+ * the eye at every scroll position, and the pair is no taller than one
+ * already-tall page. It holds only while the pair fits the published width,
+ * because the alternative past that point is reduction, and reduction is
+ * what costs the reviewer the picture. Two 1280px vault screens side by side
+ * come to 2568px; the integer reduction that fits 1280 renders each screen
+ * 428px wide - a third of life size, in a column that then scales it again.
+ *
+ * Stacked, the same two panels publish 1280px wide and life size for the
+ * same pixel count: the height they cost is the width they keep.
+ */
+function panelLayout(panelWidth, panelCount) {
+  if (panelCount < 2) return LAYOUT.SINGLE;
+  const across =
+    panelWidth * panelCount + PANEL_GUTTER_WIDTH * (panelCount - 1);
+  return across <= EMBED_MAX_WIDTH ? LAYOUT.SIDE_BY_SIDE : LAYOUT.STACKED;
+}
+
+/**
+ * Rows one panel may cover. Stacked panels divide the composite's ceiling
+ * between them, so adding the highlight panel costs height rather than
+ * doubling the file; anything else gets the ceiling whole.
+ */
+function panelHeightBudget(layout, panelCount) {
+  if (layout !== LAYOUT.STACKED) return MAX_COMPOSITE_HEIGHT;
+  const gutters = PANEL_GUTTER_WIDTH * (panelCount - 1);
+  return Math.floor((MAX_COMPOSITE_HEIGHT - gutters) / panelCount);
+}
+
+/**
+ * Stitches the sides into one image - before, after, and where it changed -
+ * in whichever direction `panelLayout` picked, and reports how much of the
+ * screen's height that image ended up covering.
+ *
+ * A missing side (an added or removed screen) renders as one panel, and so
+ * takes no highlight: there is nothing to have changed against.
  */
 function composeBeforeAfter(baseline, candidate) {
   const present = [baseline, candidate].filter((png) => png !== null);
   if (present.length === 0) throw new Error("Neither side of the pair was readable.");
 
-  const panelWidth = Math.max(...present.map((png) => png.width));
-  const band = baseline && candidate ? changedRowBand(baseline, candidate) : null;
-  const fullHeight = Math.max(...present.map((png) => png.height));
-  const window = cropWindow(band, fullHeight);
+  const pair = baseline !== null && candidate !== null;
+  const band = pair ? changedRowBand(baseline, candidate) : null;
+  const regions = pair ? changedRegions(baseline, candidate) : [];
+  const panels = regions.length > 0
+    ? [...present, highlightPanel(candidate, regions)]
+    : present;
 
-  const width =
-    present.length === 2 ? panelWidth * 2 + PANEL_GUTTER_WIDTH : panelWidth;
-  const composite = new PNG({ width, height: window.height });
+  const panelWidth = Math.max(...present.map((png) => png.width));
+  const layout = panelLayout(panelWidth, panels.length);
+  const fullHeight = Math.max(...present.map((png) => png.height));
+  const window = cropWindow(
+    band,
+    fullHeight,
+    panelHeightBudget(layout, panels.length),
+  );
+
+  const across = layout === LAYOUT.SIDE_BY_SIDE;
+  const gutters = PANEL_GUTTER_WIDTH * (panels.length - 1);
+  const width = across ? panelWidth * panels.length + gutters : panelWidth;
+  const height = across ? window.height : window.height * panels.length + gutters;
+  const composite = new PNG({ width, height });
   fill(composite, PANEL_PADDING_COLOUR);
 
-  if (present.length === 2) {
-    for (let y = 0; y < window.height; y += 1) {
-      for (let x = 0; x < PANEL_GUTTER_WIDTH; x += 1) {
-        const i = (y * width + panelWidth + x) * 4;
-        composite.data[i] = PANEL_GUTTER_COLOUR[0];
-        composite.data[i + 1] = PANEL_GUTTER_COLOUR[1];
-        composite.data[i + 2] = PANEL_GUTTER_COLOUR[2];
-        composite.data[i + 3] = 255;
+  const step = (across ? panelWidth : window.height) + PANEL_GUTTER_WIDTH;
+  for (const [index, panel] of panels.entries()) {
+    const offset = index * step;
+    if (index > 0) {
+      const gutterAt = offset - PANEL_GUTTER_WIDTH;
+      if (across) {
+        paintRect(composite, gutterAt, 0, PANEL_GUTTER_WIDTH, height, PANEL_GUTTER_COLOUR);
+      } else {
+        paintRect(composite, 0, gutterAt, width, PANEL_GUTTER_WIDTH, PANEL_GUTTER_COLOUR);
       }
     }
-    blit(baseline, composite, 0, window);
-    blit(candidate, composite, panelWidth + PANEL_GUTTER_WIDTH, window);
-  } else {
-    blit(present[0], composite, 0, window);
+    blit(panel, composite, across ? offset : 0, across ? 0 : offset, window);
   }
 
   return {
     composite,
-    coverage: { shown: window.height, total: fullHeight, clipped: window.clipped },
+    coverage: {
+      shown: window.height,
+      total: fullHeight,
+      clipped: window.clipped,
+      layout,
+      panels: panels.length,
+    },
   };
 }
 
@@ -479,8 +759,25 @@ async function composeComposite(reportDir, surface, name) {
  * Which panel is which is spelled out rather than left to a convention.
  * Nothing is drawn into the image itself to say so, and "before / after"
  * on its own reads as a pair of alternatives as easily as an ordering.
+ * The wording follows the layout the picture was actually composed with -
+ * a caption that says "on the left" over a stacked pair is worse than none.
  */
-const PANEL_ORDER_NOTE = "before on the left, after on the right";
+const PANEL_ORDER_NOTE = {
+  [LAYOUT.SIDE_BY_SIDE]: {
+    2: "before on the left, after on the right",
+    3: "left to right: before, after, and what changed ringed in red",
+  },
+  [LAYOUT.STACKED]: {
+    2: "before on top, after underneath",
+    3: "top to bottom: before, after, and what changed ringed in red",
+  },
+};
+
+function panelOrderNote(coverage) {
+  const byCount =
+    PANEL_ORDER_NOTE[coverage?.layout] ?? PANEL_ORDER_NOTE[LAYOUT.SIDE_BY_SIDE];
+  return byCount[coverage?.panels === 3 ? 3 : 2];
+}
 
 function screenCaption(result, coverage) {
   const clipped =
@@ -493,10 +790,11 @@ function screenCaption(result, coverage) {
   if (result.status === STATUS.REMOVED) {
     return `removed by this PR - before only${clipped}`;
   }
+  const order = panelOrderNote(coverage);
   if (result.status === STATUS.SIZE_CHANGED) {
-    return `${result.baselineSize} to ${result.candidateSize} - ${PANEL_ORDER_NOTE}${clipped}`;
+    return `${result.baselineSize} to ${result.candidateSize} - ${order}${clipped}`;
   }
-  return `${formatPercent(result.changedRatio)} of pixels - ${PANEL_ORDER_NOTE}${clipped}`;
+  return `${formatPercent(result.changedRatio)} of pixels - ${order}${clipped}`;
 }
 
 /**
@@ -523,11 +821,21 @@ function groupHeadline(group) {
 }
 
 /** Describes the picture for a reader who cannot see it. */
-function screenAltText(screen) {
+function screenAltText(screen, coverage) {
   const stem = screen.name.replace(/\.png$/, "");
   if (screen.status === STATUS.ADDED) return `${stem}, this PR only`;
   if (screen.status === STATUS.REMOVED) return `${stem}, merge-base only`;
-  return `${stem}, merge-base on the left and this PR on the right`;
+
+  const stacked = coverage?.layout === LAYOUT.STACKED;
+  if (coverage?.panels === 3) {
+    return stacked
+      ? `${stem}, merge-base on top, this PR below it, and the changed areas ringed underneath`
+      : `${stem}, merge-base on the left, this PR in the middle, and the changed areas ringed on the right`;
+  }
+  const where = stacked
+    ? "on top and this PR underneath"
+    : "on the left and this PR on the right";
+  return `${stem}, merge-base ${where}`;
 }
 
 function renderGroup(group, embeddedNames, coverage, baseUrl, expanded) {
@@ -547,11 +855,10 @@ function renderGroup(group, embeddedNames, coverage, baseUrl, expanded) {
 
   for (const screen of shown) {
     const url = `${baseUrl}/${group.surface}/${encodeURIComponent(screen.name)}`;
-    lines.push(
-      `**${screen.variant}** - ${screenCaption(screen, coverage.get(`${group.surface}/${screen.name}`))}`,
-    );
+    const picture = coverage.get(`${group.surface}/${screen.name}`);
+    lines.push(`**${screen.variant}** - ${screenCaption(screen, picture)}`);
     lines.push("");
-    lines.push(`![${screenAltText(screen)}](${url})`);
+    lines.push(`![${screenAltText(screen, picture)}](${url})`);
     lines.push("");
   }
 
@@ -833,7 +1140,15 @@ async function main() {
 // pinning: each of their comments records a rule that was already got wrong
 // once, and each is invisible in the rendered comment when it regresses -
 // a wrong crop still produces a picture, just not of the change.
-export { changedRowBand, cropWindow, selectEmbeddedGroups };
+export {
+  changedRegions,
+  changedRowBand,
+  composeBeforeAfter,
+  cropWindow,
+  panelLayout,
+  screenCaption,
+  selectEmbeddedGroups,
+};
 
 // Only run as a CLI, so importing this from a test does not compose a
 // report. visual-diff.mjs guards the same way for the same reason.

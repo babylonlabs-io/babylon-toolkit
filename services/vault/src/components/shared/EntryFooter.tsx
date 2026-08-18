@@ -42,7 +42,7 @@ export function EntryFooter() {
       <div
         className={`${ENTRY_CONTENT_CLASS} flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between sm:gap-4`}
       >
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col items-start gap-3">
           <LogoMark className="h-6 w-auto text-secondary-main dark:text-accent-primary" />
           <p className="text-sm tracking-[0.17px] text-accent-secondary">
             {COPY.footer.copyright(new Date().getFullYear())}

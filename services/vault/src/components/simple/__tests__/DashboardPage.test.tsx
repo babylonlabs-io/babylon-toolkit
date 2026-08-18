@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
-import { setDebugHealthFactorOverride } from "@/dev/debugPositionStore";
+import { setHealthFactorOverride } from "@/overrides/borrowCapacity";
 
 import { DashboardPage } from "../DashboardPage";
 
@@ -66,15 +66,8 @@ vi.mock("@/hooks/usePrices", () => ({
   usePrices: () => pricesMock,
 }));
 
-vi.mock("@/dev/debugPositionStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/dev/debugPositionStore")>()),
-  useDebugPositionOverride: () => ({ result: null, status: null }),
-  useDebugManualMode: () => false,
-}));
-
 vi.mock("@/dev/demoDeposit", () => ({
   useDemoCollateral: () => null,
-  useDemoWithdrawal: () => null,
 }));
 
 vi.mock("@/applications/aave/context", () => ({
@@ -114,7 +107,7 @@ beforeEach(() => {
   featureFlagsMock.isGodModePanelEnabled = false;
   pricesMock.prices = {};
   pricesMock.metadata = {};
-  setDebugHealthFactorOverride(null);
+  setHealthFactorOverride(null);
 });
 
 describe("DashboardPage composition", () => {
@@ -139,7 +132,7 @@ describe("DashboardPage risk card under a forced health factor", () => {
   });
 
   it("charts the liquidation price and distance implied by the forced value", () => {
-    setDebugHealthFactorOverride(2.4);
+    setHealthFactorOverride(2.4);
 
     render(<DashboardPage />);
 
@@ -150,7 +143,7 @@ describe("DashboardPage risk card under a forced health factor", () => {
   });
 
   it("clamps the distance to zero when the forced value is below 1", () => {
-    setDebugHealthFactorOverride(0.95);
+    setHealthFactorOverride(0.95);
 
     render(<DashboardPage />);
 
@@ -160,7 +153,7 @@ describe("DashboardPage risk card under a forced health factor", () => {
 
   it("shows placeholders rather than live stats when no usable BTC price backs the forced value", () => {
     pricesMock.metadata = { BTC: { isStale: true, fetchFailed: false } };
-    setDebugHealthFactorOverride(2.4);
+    setHealthFactorOverride(2.4);
 
     render(<DashboardPage />);
 

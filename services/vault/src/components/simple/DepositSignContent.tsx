@@ -59,6 +59,7 @@ export function DepositSignContent({
     peginSigningProgress,
     perVaultSteps,
     btcConfirmationDetail,
+    ethConfirmationDetail,
   } = useDepositFlow({
     vaultAmounts,
     ...flowParams,
@@ -208,6 +209,7 @@ export function DepositSignContent({
         started={started}
         onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}
+        ethConfirmationDetail={ethConfirmationDetail}
       />
     </>
   );

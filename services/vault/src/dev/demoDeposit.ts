@@ -3,15 +3,14 @@
  *
  * The god-mode panel builds a LIST of mock items that render inside the REAL
  * dashboard sections, so you can preview many states at once. Each item has a
- * TYPE (deposit / withdrawal / collateral / loan / activity) and a STATE; the
- * state decides which section it lands in (e.g. a deposit in an expired state
- * renders under Expired Deposits; a withdrawal in the payout-sent state under
- * Withdrawals; a loan under Active Loans on the v3 Loans page; an activity row
- * in the v3 Activity feed).
+ * TYPE (deposit / collateral / loan / activity) and a STATE; the state decides
+ * which section it lands in (e.g. a deposit in an expired state renders under
+ * Expired Deposits; a loan under Active Loans on the v3 Loans page; an
+ * activity row in the v3 Activity feed).
  *
  * How it stays safe and fully inert when off:
- *  - States are built by the REAL state machines (getPeginState /
- *    getPegoutDisplayState), so the gallery can't drift from production.
+ *  - States are built by the REAL state machine (getPeginState), so the
+ *    gallery can't drift from production.
  *  - Demo activities are injected ONLY into the section render lists (never into
  *    `allActivities`), so they are never polled. Click handlers no-op for them,
  *    with one deliberate exception: owned flow-state deposit cards open the real
@@ -26,7 +25,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { Hex } from "viem";
 
-import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import type { ActiveLoanRow } from "@/applications/aave/hooks/useActiveLoans";
 import {
   getStepLabel,
@@ -35,18 +33,12 @@ import {
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
-import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
 import {
   ContractStatus,
   getPeginState,
   type GetPeginStateOptions,
   LocalStorageStatus,
 } from "@/models/peginStateMachine";
-import {
-  ClaimerPegoutStatusValue,
-  getPegoutDisplayState,
-  TIMED_OUT_STATE,
-} from "@/models/pegoutStateMachine";
 import { VAULT_COLLATERAL_ASSET } from "@/services/activity/projection";
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 import type { VaultActivity } from "@/types/activity";
@@ -63,19 +55,14 @@ export type DemoCta = "primary" | "outlined" | "none";
  *  with, and the unit of the value that mock actually renders. */
 export type DemoAmountUnit = string;
 
-/** Deposit / withdrawal / collateral cards render the literal "BTC" (see
- *  `buildActivity`), while activity rows render the network-aware collateral
- *  symbol ("sBTC" on signet) — so the label a mock's amount field carries has
- *  to follow whichever list builds it, not one global spelling. */
+/** Deposit / collateral cards render the literal "BTC" (see `buildActivity`),
+ *  while activity rows render the network-aware collateral symbol ("sBTC" on
+ *  signet) — so the label a mock's amount field carries has to follow
+ *  whichever list builds it, not one global spelling. */
 const BTC_AMOUNT_UNIT = "BTC";
 
 /** The kind of thing a mock item represents. */
-export type DemoType =
-  | "deposit"
-  | "withdrawal"
-  | "collateral"
-  | "loan"
-  | "activity";
+export type DemoType = "deposit" | "collateral" | "loan" | "activity";
 
 /** One mock item the panel manages. `batched` only applies to deposits. */
 export interface DemoItem {
@@ -110,9 +97,6 @@ const DEMO_BATCH_PREPEGIN = `0x${"bc".repeat(32)}`;
 const DEMO_OWNER_PUBKEY = "a".repeat(64);
 const DEMO_PEGIN_TX = `0x${"d1".repeat(32)}` as Hex;
 const DEMO_PREPEGIN_TX = `0x${"e1".repeat(32)}` as Hex;
-const DEMO_CLAIM_TXID = "c".repeat(64);
-const DEMO_ASSERT_TXID = "a2".repeat(32);
-const DEMO_PEGOUT_PEGIN_TXID = "d1".repeat(32);
 const DEFAULT_DEMO_AMOUNT = "0.0375";
 const DEMO_REQUIRED_DEPTH = 6;
 /** Fixed timestamp (2025-10-16 11:48:47 UTC) so date rows are stable. */
@@ -389,66 +373,6 @@ export const ACTIVATION_CONFIRMING_SCENARIO_INDEX = flowScenarioIndex(
 /** Terminal ACTIVE state the simulated confirmation lands on. */
 export const ACTIVATED_SCENARIO_INDEX =
   DEPOSIT_SCENARIOS.indexOf(ACTIVATED_SCENARIO);
-
-// --- Withdrawal (peg-out) scenarios ----------------------------------------
-
-/** One controllable withdrawal (peg-out) state. Withdrawals never show a CTA. */
-export interface WithdrawalScenario extends BaseScenario {
-  claimerStatus?: ClaimerPegoutStatusValue;
-  found: boolean;
-  timedOut?: boolean;
-}
-
-export const WITHDRAWAL_SCENARIOS: WithdrawalScenario[] = [
-  {
-    key: "wd-initiating",
-    label: "Initiating",
-    expectedCta: "none",
-    found: false,
-  },
-  {
-    key: "wd-claim-received",
-    label: "Submitted (claim received)",
-    expectedCta: "none",
-    claimerStatus: ClaimerPegoutStatusValue.CLAIM_EVENT_RECEIVED,
-    found: true,
-  },
-  {
-    key: "wd-claim-broadcast",
-    label: "In progress (claim broadcast)",
-    expectedCta: "none",
-    claimerStatus: ClaimerPegoutStatusValue.CLAIM_BROADCAST,
-    found: true,
-  },
-  {
-    key: "wd-assert-broadcast",
-    label: "Challenge period (assert broadcast)",
-    expectedCta: "none",
-    claimerStatus: ClaimerPegoutStatusValue.ASSERT_BROADCAST,
-    found: true,
-  },
-  {
-    key: "wd-payout-sent",
-    label: "Payout sent",
-    expectedCta: "none",
-    claimerStatus: ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
-    found: true,
-  },
-  {
-    key: "wd-blocked",
-    label: "Blocked (contact support)",
-    expectedCta: "none",
-    claimerStatus: ClaimerPegoutStatusValue.PAYOUT_BLOCKED,
-    found: true,
-  },
-  {
-    key: "wd-timed-out",
-    label: "Status unavailable (timed out)",
-    expectedCta: "none",
-    found: false,
-    timedOut: true,
-  },
-];
 
 // --- Collateral (active vault) scenarios -----------------------------------
 
@@ -803,7 +727,6 @@ export function scenariosForType(
   type: DemoType,
   borrowSymbol: DemoBorrowSymbol,
 ): BaseScenario[] {
-  if (type === "withdrawal") return WITHDRAWAL_SCENARIOS;
   if (type === "collateral") return COLLATERAL_SCENARIOS;
   if (type === "loan") return loanScenarios(borrowSymbol);
   if (type === "activity") return activityScenarios(borrowSymbol);
@@ -832,14 +755,6 @@ export function amountUnitFor(
 /** Which dashboard section a mock item renders in (panel hint, derived from
  *  type + state). */
 export function itemSectionHint(item: DemoItem): string {
-  if (item.type === "withdrawal") {
-    // v2 only: the v3 /vaults page has no withdrawal section yet (the
-    // relocation step of #2041), so a withdrawal mock renders nothing there.
-    const scenario = WITHDRAWAL_SCENARIOS[item.stateIndex];
-    return scenario?.claimerStatus === ClaimerPegoutStatusValue.PAYOUT_BROADCAST
-      ? "Withdrawals (v2 only)"
-      : "Pending Withdrawals (v2 only)";
-  }
   if (item.type === "collateral") {
     return "BTC Vaults (v2) / Active Vaults (v3 Vaults)";
   }
@@ -892,54 +807,6 @@ function buildActivity(
   };
 }
 
-function buildWithdrawVault(id: Hex, amount: string): RedeemedVaultInfo {
-  return {
-    id,
-    peginTxHash: DEMO_PEGIN_TX,
-    prePeginTxHash: DEMO_PREPEGIN_TX,
-    amountBtc: Number.parseFloat(amount) || 0,
-    providerName: DEMO_VAULT_PROVIDER.name ?? "demo-vault-provider",
-    vaultProviderAddress: DEMO_PROVIDER_ID,
-    createdAt: DEMO_TIMESTAMP,
-    offchainParamsVersion: 0,
-  };
-}
-
-function buildPegoutResult(scenario: WithdrawalScenario): PegoutPollingResult {
-  if (scenario.timedOut) {
-    return { displayState: TIMED_OUT_STATE };
-  }
-  if (!scenario.claimerStatus) {
-    return {
-      displayState: getPegoutDisplayState(undefined, false),
-      response: {
-        pegin_txid: DEMO_PEGOUT_PEGIN_TXID,
-        found: false,
-        claimer: null,
-        challengers: [],
-      },
-    };
-  }
-  return {
-    displayState: getPegoutDisplayState(scenario.claimerStatus, true),
-    response: {
-      pegin_txid: DEMO_PEGOUT_PEGIN_TXID,
-      found: true,
-      claimer: {
-        status: scenario.claimerStatus,
-        failed:
-          scenario.claimerStatus === ClaimerPegoutStatusValue.PAYOUT_BLOCKED,
-        claim_txid: DEMO_CLAIM_TXID,
-        claimer_pubkey: DEMO_OWNER_PUBKEY,
-        assert_txid: DEMO_ASSERT_TXID,
-        created_at: DEMO_AT_SECONDS,
-        updated_at: DEMO_AT_SECONDS,
-      },
-      challengers: [],
-    },
-  };
-}
-
 function buildCollateralEntry(
   id: Hex,
   scenario: CollateralScenario,
@@ -970,12 +837,6 @@ export interface ActiveDemo {
   expiredActivities: VaultActivity[];
   resultsById: Map<string, DepositPollingResult>;
   provider: VaultProvider;
-  hideReal: boolean;
-}
-
-export interface ActiveDemoWithdrawal {
-  vaults: RedeemedVaultInfo[];
-  statuses: Map<string, PegoutPollingResult>;
   hideReal: boolean;
 }
 
@@ -1028,23 +889,6 @@ export function buildDepositsDemo(
     provider: DEMO_VAULT_PROVIDER,
     hideReal,
   };
-}
-
-export function buildWithdrawalsDemo(
-  items: DemoItem[],
-  hideReal: boolean,
-): ActiveDemoWithdrawal {
-  const vaults: RedeemedVaultInfo[] = [];
-  const statuses = new Map<string, PegoutPollingResult>();
-  for (const item of items) {
-    if (item.type !== "withdrawal") continue;
-    const scenario =
-      WITHDRAWAL_SCENARIOS[item.stateIndex] ?? WITHDRAWAL_SCENARIOS[0];
-    const id = itemHexId(item.key);
-    vaults.push(buildWithdrawVault(id, safeAmount(item.amount)));
-    statuses.set(id, buildPegoutResult(scenario));
-  }
-  return { vaults, statuses, hideReal };
 }
 
 export function buildCollateralsDemo(
@@ -1370,21 +1214,6 @@ export function useDemoDeposit(): ActiveDemo | null {
     () =>
       import.meta.env.DEV && flagOn && enabled
         ? buildDepositsDemo(items, hideReal)
-        : null,
-    [flagOn, enabled, items, hideReal],
-  );
-}
-
-/** Aggregate demo withdrawals to inject, or null when off. */
-export function useDemoWithdrawal(): ActiveDemoWithdrawal | null {
-  const enabled = useDemoEnabled();
-  const hideReal = useDemoHideReal();
-  const items = useDemoItems();
-  const flagOn = featureFlags.isGodModePanelEnabled;
-  return useMemo(
-    () =>
-      import.meta.env.DEV && flagOn && enabled
-        ? buildWithdrawalsDemo(items, hideReal)
         : null,
     [flagOn, enabled, items, hideReal],
   );

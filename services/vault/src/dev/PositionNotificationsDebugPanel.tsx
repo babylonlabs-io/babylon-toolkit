@@ -28,12 +28,12 @@ import {
   resetDebugManualParams,
   setDebugManualMode,
   setDebugManualParams,
-  setDebugPositionOverride,
   setDebugSimulateStalePrice,
   useDebugManualMode,
   useDebugManualParams,
   useDebugSimulateStalePrice,
 } from "@/dev/debugPositionStore";
+import { setPositionCascadeOverride } from "@/overrides/position";
 
 import {
   PANEL_BUTTON_CLASS,
@@ -468,20 +468,31 @@ export function PositionNotificationsDebugPanel() {
   const displayResult = manualMode ? manualResult : hookResult;
 
   // Publish the derived override so the dashboard banner reflects the debug
-  // state. Live mode publishes the live result (a no-op override); manual mode
-  // publishes the simulated result; stale-price publishes the status only.
+  // state. Live mode publishes nothing (every consumer already falls back to
+  // the live calculation); manual mode publishes the simulated cascade;
+  // stale-price publishes the status with no cascade to chart.
   useEffect(() => {
     if (simulateStalePrice) {
-      setDebugPositionOverride(null, "stale-price");
+      setPositionCascadeOverride({
+        result: null,
+        status: "stale-price",
+        params: manualParams,
+      });
+    } else if (manualMode && manualResult) {
+      setPositionCascadeOverride({
+        result: manualResult,
+        status: null,
+        params: manualParams,
+      });
     } else {
-      setDebugPositionOverride(displayResult, null);
+      setPositionCascadeOverride(null);
     }
-  }, [displayResult, simulateStalePrice]);
+  }, [manualMode, manualResult, manualParams, simulateStalePrice]);
 
   // Stop overriding the banner once this panel unmounts (god-mode hidden or the
   // popped-out window closed) — otherwise the last manual / stale-price override
   // would linger in the module store and keep driving the dashboard banner.
-  useEffect(() => () => setDebugPositionOverride(null, null), []);
+  useEffect(() => () => setPositionCascadeOverride(null), []);
 
   return (
     <details className={PANEL_SECTION_CLASS}>

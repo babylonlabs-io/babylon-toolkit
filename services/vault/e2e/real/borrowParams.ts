@@ -270,6 +270,26 @@ export async function fetchCollateralSats(
 }
 
 /**
+ * Read how many BTC Vaults the depositor's on-chain position currently holds (`position.vaultIds`, the
+ * same quantity `fetchWithdrawContext` reports as `vaultCount`). Same single `getPosition` read as
+ * `fetchCollateralSats`, so it's cheap to poll.
+ *
+ * This is the ONLY trustworthy answer to "did the peg-in land?". The /vaults row count cannot answer
+ * it: the app renders an optimistic row per just-activated vault straight from in-memory activation
+ * state (ActivatingVaultsContext, 90s TTL, no indexer involved) under the same `vault-row-<vaultId>`
+ * testid as a real one — so counting rows after driving N activations just measures the N rows those
+ * activations created. Returns 0 when no position exists yet (a first-ever vault, before activation
+ * creates one).
+ */
+export async function fetchActiveVaultCount(
+  network: NetworkName,
+  ethAddress: string,
+): Promise<number> {
+  const { position } = await openPosition(network, ethAddress);
+  return position?.vaultIds.length ?? 0;
+}
+
+/**
  * Max tokens borrowable while keeping health factor ≥ MIN_HEALTH_FACTOR_FOR_BORROW — the exact formula
  * of the app's `calculateMaxBorrowTokens` (the helper itself is app-side, but `BPS_SCALE` +
  * `MIN_HEALTH_FACTOR_FOR_BORROW` are SDK-exported). Not floored to token precision here — the caller

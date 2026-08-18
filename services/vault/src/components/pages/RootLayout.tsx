@@ -34,9 +34,9 @@ import { useAddressType } from "@/context/addressType";
 import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
-import { useDebugProtocolStatusOverride } from "@/dev/debugPositionStore";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
+import { useProtocolStatusOverride } from "@/overrides/protocolStatus";
 
 import {
   AaveConfigProvider,
@@ -98,7 +98,7 @@ export default function RootLayout() {
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't
   // leave a second banner visible.
-  const statusOverride = useDebugProtocolStatusOverride();
+  const statusOverride = useProtocolStatusOverride();
   const hasProtocolStatus =
     (statusOverride ?? resolveBannerStatus(gate)) !== null;
   // Deposit kill-switch banner. Suppressed when a frozen/paused status banner is

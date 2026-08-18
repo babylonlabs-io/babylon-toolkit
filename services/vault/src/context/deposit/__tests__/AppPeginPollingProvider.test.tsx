@@ -46,8 +46,8 @@ vi.mock("@/hooks/useVaultDeposits", () => ({
 }));
 
 // A demo aggregate exists, but the provider must not be fed from it.
-vi.mock("@/dev/demoDeposit", () => ({
-  useDemoDeposit: () => ({
+vi.mock("@/overrides/deposits", () => ({
+  useDepositOverride: () => ({
     pendingActivities: [{ id: DEMO_ID }],
     resultsById: new Map(),
   }),

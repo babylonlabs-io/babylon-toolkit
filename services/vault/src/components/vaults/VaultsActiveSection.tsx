@@ -50,7 +50,14 @@ function ActiveVaultRow({
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
 
   return (
-    <ListRowCard className={LIST_ROW_MIN_HEIGHT_CLASS}>
+    // This row's data-testid is a real-wallet E2E hook
+    // (e2e/real/actions/withdraw.ts, e2e/real/actions/stepMachine.ts) — carry it
+    // over if you move or rename the element. It keys on the on-chain vaultId,
+    // which is what the withdraw flow selects on.
+    <ListRowCard
+      testId={`vault-row-${vault.vaultId}`}
+      className={LIST_ROW_MIN_HEIGHT_CLASS}
+    >
       {/* Amount + liquidation ordinal */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
@@ -123,8 +130,12 @@ function ActiveVaultRow({
       </div>
 
       <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+        {/* This control's data-testid is a real-wallet E2E hook
+            (e2e/real/actions/withdraw.ts) — carry it over if you move or rename
+            the element. Its disabled state is the harness's eligibility gate. */}
         <button
           type="button"
+          data-testid="vault-withdraw-button"
           onClick={() => onWithdraw(vault.vaultId)}
           disabled={
             isWithdrawDisabled ||

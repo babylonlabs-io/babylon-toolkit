@@ -1,0 +1,3 @@
+# Oracle for gen_vectors.py — the exact package the vault firmware's device
+# tests drive SIGN_PSBT through (app-babylon-vault/tests/requirements.txt).
+ledger-bitcoin==0.4.0

@@ -56,6 +56,10 @@ import {
 } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import {
+  waitForEthRegistrationDepth,
+  type RegistrationDepthProgress,
+} from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -179,6 +183,12 @@ export interface UseDepositFlowReturn {
     requiredDepth: number;
     depositIds: readonly string[];
   } | null;
+  /**
+   * Live depth of the Ethereum registration while the finality gate holds the
+   * flow between the ETH receipt and the Pre-PegIn broadcast. `null` outside
+   * that window — the flow is only here for ~1.6 min per deposit.
+   */
+  ethConfirmationDetail: RegistrationDepthProgress | null;
 }
 
 export interface PeginCreationResult {
@@ -271,6 +281,8 @@ export function useDepositFlow(
     requiredDepth: number;
     depositIds: readonly string[];
   } | null>(null);
+  const [ethConfirmationDetail, setEthConfirmationDetail] =
+    useState<RegistrationDepthProgress | null>(null);
 
   const payoutClaimersDoneRef = useRef(false);
 
@@ -750,6 +762,30 @@ export function useDepositFlow(
               });
             }
           }
+        }
+
+        // ========================================================================
+        // Ethereum finality gate. Committing BTC to the HTLC while the
+        // registration is still reorg-exposed can strand the deposit: the vault
+        // record vanishes from the chain while the BTC stays locked until the
+        // HTLC refund timelock (~3 days).
+        //
+        // Placed AFTER the pending records are persisted above. Those records
+        // carry the build-version and participant-key stamps, and the resume
+        // path SKIPS both of those checks when the stamp is absent — so a tab
+        // close during this ~1.6 min wait must not be able to leave a
+        // stamp-less record behind. As a bonus, the two verification reads
+        // below now run against state that is itself 8 blocks past the
+        // registration instead of racing it.
+        // ========================================================================
+        try {
+          await waitForEthRegistrationDepth({
+            vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
+            onProgress: setEthConfirmationDetail,
+            signal,
+          });
+        } finally {
+          setEthConfirmationDetail(null);
         }
 
         // Verify on-chain registration locked under the same versions we built scripts against.
@@ -1383,5 +1419,6 @@ export function useDepositFlow(
     peginSigningProgress,
     perVaultSteps,
     btcConfirmationDetail,
+    ethConfirmationDetail,
   };
 }

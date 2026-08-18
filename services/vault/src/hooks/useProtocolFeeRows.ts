@@ -62,7 +62,7 @@ function buildFeeRows(
     rows.push({
       label: COPY.protocolFees.ltv.label,
       value: `${(CF * PERCENT_SCALE).toFixed(0)}%`,
-      tooltip: COPY.protocolFees.ltv.tooltip,
+      tooltip: COPY.tooltips.collateralFactor,
     });
 
     rows.push({

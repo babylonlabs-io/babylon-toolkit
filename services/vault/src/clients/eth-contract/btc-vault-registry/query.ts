@@ -52,6 +52,13 @@ export interface OnChainVaultData {
    * would mislabel a chain read.
    */
   status: number;
+  /**
+   * Ethereum **block number** the registration was mined at (not a timestamp
+   * — the contract compares it against `block.number`). Feeds the activation
+   * deadline check and the Pre-PegIn broadcast finality gate, which measures
+   * confirmation depth as `tip - createdAt + 1`.
+   */
+  createdAt: bigint;
 }
 
 /**
@@ -90,6 +97,7 @@ export async function getVaultFromChain(
     prePeginTxHash: protocol.prePeginTxHash,
     vaultProviderCommissionBps: Number(protocol.vaultProviderCommissionBps),
     status: basic.status,
+    createdAt: basic.createdAt,
   };
 }
 

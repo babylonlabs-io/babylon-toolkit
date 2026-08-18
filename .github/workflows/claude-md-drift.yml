@@ -42,6 +42,7 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
             "packages/babylon-ledger-vault-signer/src/"
+            "packages/babylon-ledger-vault-signer/scripts/"
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts"
           )
 

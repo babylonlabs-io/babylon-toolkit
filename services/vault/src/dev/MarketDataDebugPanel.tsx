@@ -8,6 +8,10 @@
  * data.
  */
 
+import { useEffect } from "react";
+
+import { setMarketDataOverride } from "@/overrides/marketData";
+
 import { setDemoMarketDataEnabled, useDemoMarketData } from "./demoMarketData";
 import {
   PANEL_HINT_CLASS,
@@ -19,6 +23,10 @@ import {
 export function MarketDataDebugPanel() {
   const demoMarketData = useDemoMarketData();
   const enabled = demoMarketData !== null;
+
+  useEffect(() => {
+    setMarketDataOverride(demoMarketData);
+  }, [demoMarketData]);
 
   return (
     <details className={PANEL_SECTION_CLASS}>
