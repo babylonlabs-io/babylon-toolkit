@@ -209,7 +209,10 @@ describe("ViemVaultRegistryReader", () => {
     const publicClient = createMockPublicClient({
       protocolInfoByVaultId: new Map<Hex, unknown>([
         [populatedId, MOCK_PROTOCOL_INFO_RESULT],
-        [emptyId, { ...MOCK_PROTOCOL_INFO_RESULT, depositorSignedPeginTx: "0x" }],
+        [
+          emptyId,
+          { ...MOCK_PROTOCOL_INFO_RESULT, depositorSignedPeginTx: "0x" },
+        ],
       ]),
     });
     const reader = new ViemVaultRegistryReader(

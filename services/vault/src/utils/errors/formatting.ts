@@ -507,12 +507,13 @@ export function formatPayoutSignatureError(error: unknown): {
     }
     // Empty vault record from the registry reader. Usually a lagging RPC
     // node rather than a missing deposit, so the copy points at waiting
-    // instead of asserting the deposit is gone.
+    // instead of asserting the deposit is gone. Shares the deposit-flow
+    // entry deliberately: same condition, same cause, so payout signing and
+    // the deposit mapper must not drift apart on wording.
     if (isVaultRecordEmptyError(error)) {
       return {
-        title: "Registration still confirming",
-        message:
-          "This deposit hasn't appeared on the node we're reading from yet. This usually settles within a minute — please try again shortly.",
+        title: COPY.deposit.errors.vaultRegistrationNotYetVisible.title,
+        message: COPY.deposit.errors.vaultRegistrationNotYetVisible.body,
       };
     }
     // Contract call errors (viem) — surface a meaningful message instead of swallowing
