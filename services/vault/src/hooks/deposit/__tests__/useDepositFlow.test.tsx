@@ -47,6 +47,16 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
 }));
 
+// The Ethereum finality gate polls the chain for ~1.6 min in production. It is
+// a real await in the flow, so every test would hang without a stub; the tests
+// that care about the gate itself override this per-case.
+vi.mock("@/services/vault/ethConfirmationGate", () => ({
+  waitForEthRegistrationDepth: vi.fn(async () => ({
+    confirmations: 8,
+    basicInfo: { status: 0 },
+  })),
+}));
+
 // Local override of the global gate mock so we can drive a frozen/paused scope.
 const depositGateMock = vi.hoisted(() => ({
   value: { protocol: null as string | null, aave: null as string | null },
@@ -693,6 +703,84 @@ describe("useDepositFlow", () => {
           }),
         );
       });
+    });
+
+    it("waits for Ethereum finality before broadcasting the Pre-PegIn", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+      });
+      expect(waitForEthRegistrationDepth).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vaultIds: ["0xVault0Id", "0xVault1Id"],
+        }),
+      );
+      expect(
+        waitForEthRegistrationDepth.mock.invocationCallOrder[0],
+      ).toBeLessThan(broadcastPrePeginTransaction.mock.invocationCallOrder[0]);
+    });
+
+    it("persists the pending records BEFORE the finality wait so a tab close stays resumable", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      });
+      // The records carry the build-version and participant-key stamps, and
+      // the resume path skips both of those checks when the stamp is absent.
+      // Waiting first would open a ~1.6 min window in which closing the tab
+      // silently downgrades the resume path's guard set.
+      expect(addPendingPegin.mock.invocationCallOrder[0]).toBeLessThan(
+        waitForEthRegistrationDepth.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("does not broadcast and keeps the pending records when the finality wait fails", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { addPendingPegin, removePendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      waitForEthRegistrationDepth.mockRejectedValueOnce(
+        new Error("Peg-in registration did not reach 8 Ethereum confirmations"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+      });
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      // The registration is on-chain and valid; the deposit is resumable, so
+      // the records must survive.
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      expect(removePendingPegin).not.toHaveBeenCalled();
+      expect(result.current.ethConfirmationDetail).toBeNull();
     });
 
     it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {

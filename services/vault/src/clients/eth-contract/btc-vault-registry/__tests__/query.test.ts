@@ -138,6 +138,21 @@ describe("getVaultFromChain", () => {
     expect(result.prePeginTxHash).toBe(("0x" + "2".repeat(64)) as Hex);
   });
 
+  // `createdAt` is the ETH block the registration mined at; the Pre-PegIn
+  // broadcast finality gate measures confirmation depth from it. Dropping it
+  // in the basic+protocol merge would leave the gate comparing against
+  // `undefined`.
+  it("surfaces basic.createdAt as the registration block number", async () => {
+    mockGetVaultData.mockResolvedValue({
+      basic: { ...basicInfo(60_000_000n), createdAt: 21_000_000n },
+      protocol: protocolInfo(),
+    });
+
+    const result = await getVaultFromChain(VAULT_A);
+
+    expect(result.createdAt).toBe(21_000_000n);
+  });
+
   it("surfaces the stamped vaultCoreVersion for resume flows", async () => {
     mockGetVaultData.mockResolvedValue({
       basic: basicInfo(60_000_000n),

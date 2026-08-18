@@ -6,6 +6,10 @@
  */
 
 import {
+  PeginRegistrationMissingError,
+  PeginRegistrationNotFinalError,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
   JsonRpcError,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -36,6 +40,39 @@ describe("mapDepositError", () => {
       "User rejected the PSBT signing request",
     );
     expect(mapDepositError(err)).toEqual(ERRORS.signingRejected);
+  });
+
+  it("maps a finality-gate timeout to the Ethereum-confirmation callout", () => {
+    const err = new PeginRegistrationNotFinalError(
+      "Peg-in registration did not reach 8 Ethereum confirmations within 600000ms.",
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.ethRegistrationNotFinal);
+  });
+
+  it("does NOT classify a finality-gate timeout as a broadcast failure", () => {
+    // The gate stops the flow before anything reaches Bitcoin. Telling the
+    // user their broadcast failed would be the opposite of what happened, and
+    // would invite a retry of something that never ran. This is the exact
+    // inversion that shipped when the typed error was flattened to a string
+    // before reaching the mapper.
+    const err = new PeginRegistrationNotFinalError(
+      "Peg-in registration did not reach 8 Ethereum confirmations within 600000ms.",
+    );
+    expect(mapDepositError(err)).not.toEqual(ERRORS.broadcastFailed);
+  });
+
+  it("maps a missing registration to the not-visible-on-chain callout", () => {
+    const err = new PeginRegistrationMissingError(
+      "Vault 0xabc is still not visible on-chain after 11 reads.",
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.ethRegistrationMissing);
+  });
+
+  it("does not leak the raw vault id for a missing registration", () => {
+    const err = new PeginRegistrationMissingError(
+      "Vault 0xdeadbeefdeadbeef is still not visible on-chain after 11 reads.",
+    );
+    expect(JSON.stringify(mapDepositError(err))).not.toContain("0xdeadbeef");
   });
 
   it("maps a vault-provider JsonRpcError to its VP title and body", () => {

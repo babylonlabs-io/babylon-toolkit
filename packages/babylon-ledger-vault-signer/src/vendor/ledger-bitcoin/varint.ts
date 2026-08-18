@@ -11,6 +11,10 @@
  *                  global — this package ships to the browser); defensive
  *                  strict-null guards (`const first = data[offset]` + explicit
  *                  `=== undefined` checks; behaviour-preserving); formatting.
+ *                  BEHAVIOUR CHANGE — `parseVarint` rejects non-minimal
+ *                  (overlong) CompactSize encodings, which upstream accepts;
+ *                  closes a parser differential against `bitcoinjs-lib`'s
+ *                  bip174. See ./README.md, `varint.ts` bullet.
  */
 
 import { Buffer } from "buffer";
@@ -71,6 +75,13 @@ function getVarintSize(value: number | bigint): 1 | 3 | 5 | 9 {
   else return 9;
 }
 
+// Smallest value each multi-byte CompactSize width may legally encode — the
+// `getVarintSize` width boundaries read backwards. Below its width's minimum a
+// value fits a shorter form, so the encoding is non-minimal.
+const MIN_VALUE_FOR_3_BYTE_VARINT = BigInt(0xfd);
+const MIN_VALUE_FOR_5_BYTE_VARINT = BigInt(0xffff) + BigInt(1);
+const MIN_VALUE_FOR_9_BYTE_VARINT = BigInt(0xffffffff) + BigInt(1);
+
 /**
  * Parses a Bitcoin-style variable length integer from a buffer, starting at the given `offset`. Returns a pair
  * containing the parsed `BigInt`, and its length in bytes from the buffer.
@@ -82,6 +93,7 @@ function getVarintSize(value: number | bigint): 1 | 3 | 5 | 9 {
  *
  * @throws `RangeError` if offset is negative.
  * @throws `Error` if the buffer's end is reached withut parsing being completed.
+ * @throws `RangeError` if the encoding is non-minimal (LOCAL DIVERGENCE — upstream accepts them).
  */
 export function parseVarint(data: Buffer, offset: number): readonly [bigint, number] {
   if (offset < 0) {
@@ -96,11 +108,34 @@ export function parseVarint(data: Buffer, offset: number): readonly [bigint, num
     return [BigInt(first), 1];
   } else {
     let size: number;
-    if (first === 0xfd) size = 2;
-    else if (first === 0xfe) size = 4;
-    else size = 8;
+    let minimum: bigint;
+    if (first === 0xfd) {
+      size = 2;
+      minimum = MIN_VALUE_FOR_3_BYTE_VARINT;
+    } else if (first === 0xfe) {
+      size = 4;
+      minimum = MIN_VALUE_FOR_5_BYTE_VARINT;
+    } else {
+      size = 8;
+      minimum = MIN_VALUE_FOR_9_BYTE_VARINT;
+    }
 
-    return [smallEndianToBigint(data, offset + 1, size), size + 1];
+    const value = smallEndianToBigint(data, offset + 1, size);
+
+    // LOCAL DIVERGENCE from upstream (behaviour change). An overlong length
+    // desynchronizes this parser from bip174, which advances by the CANONICAL
+    // width (bip174@2.1.1 src/lib/parser/fromBuffer.js:10-11 —
+    // `offset += varuint.encodingLength(keyLen)`) while we return the true wire
+    // width. Same rule as Bitcoin Core's ReadCompactSize (bitcoin/bitcoin
+    // src/serialize.h:333-358, blob a1395c47 — "non-canonical ReadCompactSize()").
+    if (value < minimum) {
+      throw RangeError(
+        `Non-minimal varint at offset ${offset}: a ${size + 1}-byte CompactSize must encode a ` +
+          `value of at least ${minimum}; re-encode it in its canonical (shorter) form`,
+      );
+    }
+
+    return [value, size + 1];
   }
 }
 

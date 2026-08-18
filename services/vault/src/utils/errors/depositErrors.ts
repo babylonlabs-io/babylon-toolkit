@@ -14,6 +14,8 @@
  *  - Vault-provider RPC — JsonRpcError from the VP (syncing, timeout, network,
  *    proxy timeout/unavailable, generic). Delegated to `mapVpRpcError`.
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
+ *  - Ethereum registration finality — the registration never reached the
+ *    required confirmation depth, or disappeared from chain state entirely.
  *  - Wallet not connected / wallet client missing.
  *  - Wallet account changed mid-flow (the WOTS-vs-PoP key guard).
  *  - Wrong wallet connected on resume (WOTS hash mismatch).
@@ -29,6 +31,8 @@
 
 import {
   isParticipantKeyDriftError,
+  isPeginRegistrationMissingError,
+  isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -123,6 +127,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // inviting a retry.
   if (isParticipantKeyDriftError(err)) {
     return ERRORS.participantKeyDrift;
+  }
+
+  // 3c. Ethereum registration finality gate. Both cases stop the flow BEFORE
+  // the Pre-PegIn is broadcast, so no Bitcoin has moved — the copy leads with
+  // that, because a failure at this point looks alarming and is not.
+  if (isPeginRegistrationNotFinalError(err)) {
+    return ERRORS.ethRegistrationNotFinal;
+  }
+  if (isPeginRegistrationMissingError(err)) {
+    return ERRORS.ethRegistrationMissing;
   }
 
   const msg = lowerMessage(err);

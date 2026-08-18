@@ -1067,6 +1067,14 @@ export class PeginManager {
    * 5. Finalizes and extracts the transaction
    * 6. Broadcasts via mempool API
    *
+   * IMPORTANT — this method does NOT gate on Ethereum finality. Committing
+   * BTC to the HTLC while the peg-in registration is still reorg-exposed can
+   * strand the deposit: the vault record disappears from the chain while the
+   * BTC stays locked until the HTLC refund timelock. Callers must await
+   * `waitForPeginRegistrationDepth` for the registered vault(s) before calling
+   * this. The gate is not applied here because the params carry no vault ID —
+   * adding one would be a breaking signature change.
+   *
    * @param params - Transaction hex and depositor public key
    * @returns The broadcasted Bitcoin transaction ID
    * @throws Error if signing or broadcasting fails

@@ -13,9 +13,9 @@
  * `sorted_key_order`.
  *
  * Raw `serialize()` bytes are compared to the oracle only via the `splitMaps`
- * round-trip (which parse-accepts overlong varints); canonical varint emission
- * is separately closed by the shared `createVarint` encoder + `varint.json`
- * goldens + the two ported upstream round-trips that DO pin raw bytes.
+ * round-trip; canonical varint emission is separately closed by the shared
+ * `createVarint` encoder + `varint.json` goldens + the two ported upstream
+ * round-trips that DO pin raw bytes.
  */
 
 import { Buffer } from "buffer";

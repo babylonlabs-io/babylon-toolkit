@@ -384,6 +384,21 @@ export const COPY = {
         "Waiting for vault provider to prepare claim and payout transactions...",
       bitcoinTx: "Pre-Pegin Bitcoin transaction",
     },
+    ethConfirmation: {
+      confirmations: "Confirmations",
+      confirmationsValue: (confirmed: number, required: number) =>
+        `${confirmed} of ${required}`,
+      estRemaining: "Est. remaining",
+      estRemainingValue: (seconds: number, blocksLeft: number) =>
+        `~${seconds} sec (${blocksLeft} Ethereum ${
+          blocksLeft === 1 ? "block" : "blocks"
+        })`,
+      finalizing: "Finalizing...",
+      // Explains why the flow pauses here rather than moving straight to the
+      // Bitcoin signature the user is expecting next.
+      rationale:
+        "Waiting for your Ethereum registration to be confirmed before broadcasting to Bitcoin. This protects your deposit if the Ethereum network reorganizes.",
+    },
     waitDetails: {
       status: "Status",
       // Fallback status used at the AWAIT_PAYOUT_TRANSACTIONS step on the
@@ -739,6 +754,15 @@ export const COPY = {
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTC Vault is in ${state} state. Activation is only valid when VERIFIED.`,
+      // Deliberately worded without the token "broadcast". These are state
+      // preconditions, not broadcast failures, and `mapDepositError` matches
+      // "broadcast" on the message — which would replace this precise sentence
+      // with "Broadcast failed / please try again", wrong for a terminal state
+      // like EXPIRED where retrying can never succeed.
+      cannotBroadcastInState: (state: string) =>
+        `Cannot continue: BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
+      cannotBroadcastInOnChainState: (state: string) =>
+        `Cannot continue: on-chain BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -757,6 +781,18 @@ export const COPY = {
       copyDiagnostics: "Copy error details",
       diagnosticsCopied: "Copied",
       diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
+      // Ethereum finality gate (see services/vault/ethConfirmationGate.ts).
+      // Both fire before the Pre-PegIn broadcast, so no Bitcoin has moved —
+      // say that first, because stopping right after an on-chain registration
+      // reads as alarming and is not.
+      ethRegistrationNotFinal: {
+        title: "Ethereum confirmation timed out",
+        body: "Your Ethereum registration was submitted but hasn't been confirmed deeply enough yet. No Bitcoin has been broadcast and nothing is at risk. Resume this deposit from your dashboard once the network settles.",
+      },
+      ethRegistrationMissing: {
+        title: TRANSACTION_FAILED_TITLE,
+        body: "Your Ethereum registration is no longer visible on-chain, so the deposit was stopped before any Bitcoin was broadcast. Please start a new deposit.",
+      },
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
