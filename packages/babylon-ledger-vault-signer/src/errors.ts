@@ -189,9 +189,8 @@ export class LedgerSignPsbtAbortedError extends Error {
   /** Yields the device had already delivered when the host stopped sending. */
   readonly yieldedCount: number;
   /**
-   * False only when the abort fired BEFORE the initial SIGN_PSBT APDU went
-   * out: no dispatcher was interrupted, so the caller must NOT arm the
-   * resend-once recovery (it would mask one genuine 0x6A80 later).
+   * False only when the abort fired before the initial APDU went out — no
+   * dispatcher was interrupted, so callers must not arm the resend-once recovery.
    */
   readonly sentInitialApdu: boolean;
 

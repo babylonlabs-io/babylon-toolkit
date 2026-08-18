@@ -66,9 +66,8 @@ export interface SignVaultPsbtResult {
 /** The device-facing half of {@link SignVaultPsbtParams} — everything but the PSBT itself. */
 export type SignPreparedVaultPsbtOptions = Omit<SignVaultPsbtParams, "psbtHex" | "depositorXOnlyHex">;
 
-// A prepared object is single-use: its collector and interpreter are mutable
-// ceremony state, so a second run would re-send SIGN_PSBT with stale yields —
-// repeating a non-idempotent device ceremony before any host check could fire.
+// Single-use: a prepared object's mutable collector/interpreter would replay a
+// non-idempotent device ceremony with stale yields on a second run.
 const consumedPrepared = new WeakSet<PreparedSignPsbt>();
 
 /**
