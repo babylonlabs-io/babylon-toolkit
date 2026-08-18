@@ -231,7 +231,9 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (vault.status !== ContractStatus.PENDING) {
         throw new Error(
-          `Cannot continue: BTC Vault is in ${ContractStatus[vault.status]} state. This step is only valid while the vault is PENDING.`,
+          COPY.deposit.errors.cannotBroadcastInState(
+            ContractStatus[vault.status],
+          ),
         );
       }
 
@@ -281,7 +283,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[onChainVault.status] ??
           `UNKNOWN(${onChainVault.status})`;
         throw new Error(
-          `Cannot continue: on-chain BTC Vault is in ${label} state. This step is only valid while the vault is PENDING.`,
+          COPY.deposit.errors.cannotBroadcastInOnChainState(label),
         );
       }
 
@@ -334,7 +336,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           OnChainBtcVaultStatus[finalBasicInfo.status] ??
           `UNKNOWN(${finalBasicInfo.status})`;
         throw new Error(
-          `Cannot continue: on-chain BTC Vault is in ${label} state. This step is only valid while the vault is PENDING.`,
+          COPY.deposit.errors.cannotBroadcastInOnChainState(label),
         );
       }
 

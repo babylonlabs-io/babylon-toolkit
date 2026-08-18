@@ -335,7 +335,9 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
       });
     });
 
-    expect(result.current.broadcastError?.body).toContain("Transaction mismatch");
+    expect(result.current.broadcastError?.body).toContain(
+      "Transaction mismatch",
+    );
   });
 
   it("throws when cached local tx matches GraphQL but mismatches on-chain hash", async () => {

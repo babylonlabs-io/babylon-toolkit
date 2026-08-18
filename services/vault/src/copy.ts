@@ -743,6 +743,15 @@ export const COPY = {
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTC Vault is in ${state} state. Activation is only valid when VERIFIED.`,
+      // Deliberately worded without the token "broadcast". These are state
+      // preconditions, not broadcast failures, and `mapDepositError` matches
+      // "broadcast" on the message — which would replace this precise sentence
+      // with "Broadcast failed / please try again", wrong for a terminal state
+      // like EXPIRED where retrying can never succeed.
+      cannotBroadcastInState: (state: string) =>
+        `Cannot continue: BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
+      cannotBroadcastInOnChainState: (state: string) =>
+        `Cannot continue: on-chain BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",

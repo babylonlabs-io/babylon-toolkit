@@ -16,9 +16,9 @@ import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
-import type { DepositErrorContent } from "@/utils/errors";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
+import type { DepositErrorContent } from "@/utils/errors";
 
 import { useVaultActions } from "./useVaultActions";
 
