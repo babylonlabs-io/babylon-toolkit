@@ -312,6 +312,30 @@ const DIFFERENT_WALLET_SCENARIOS: DemoScenario[] = [
   },
 ];
 
+/** The activation-observation window (`peginActivationDelay`). A VERIFIED vault
+ *  that the registry will not accept an activation for yet, so the Activate CTA
+ *  is withheld and the wait is explained instead. Two variants because the gate
+ *  resolves to two shapes: a known block count, and an unresolved read that
+ *  fails closed with no duration to show. Neither is a new flow *step* — both
+ *  are the RETRIEVE_SECRET step wearing the floor state — so they live in their
+ *  own segment rather than shifting the step slider. */
+const ACTIVATION_WINDOW_SCENARIOS: DemoScenario[] = [
+  {
+    key: "activation-window-waiting",
+    label: "Awaiting activation window",
+    expectedCta: "none",
+    contractStatus: ContractStatus.VERIFIED,
+    options: { activationFloorBlocksRemaining: 140 },
+  },
+  {
+    key: "activation-window-unknown",
+    label: "Activation window unknown (fails closed)",
+    expectedCta: "none",
+    contractStatus: ContractStatus.VERIFIED,
+    options: { activationFloorBlocksRemaining: null },
+  },
+];
+
 /** Resting state after the whole walk: the contract reports the vault ACTIVE.
  *  Also the terminal the simulated activation lands on. */
 const ACTIVATED_SCENARIO: DemoScenario = {
@@ -338,6 +362,7 @@ export const DEPOSIT_SCENARIOS: DemoScenario[] = [
   ...DEPOSIT_FLOW_SCENARIOS,
   ...DEPOSIT_EXPIRED_SCENARIOS,
   ...DIFFERENT_WALLET_SCENARIOS,
+  ...ACTIVATION_WINDOW_SCENARIOS,
 ];
 
 /** Length of the "Normal" flow segment leading {@link DEPOSIT_SCENARIOS}. */
@@ -349,6 +374,11 @@ export const DEPOSIT_EXPIRED_SCENARIO_COUNT = DEPOSIT_EXPIRED_SCENARIOS.length;
 /** Length of the trailing "Different wallet" segment. */
 export const DEPOSIT_DIFFERENT_WALLET_SCENARIO_COUNT =
   DIFFERENT_WALLET_SCENARIOS.length;
+
+/** Length of the trailing "Activation window" segment. Appended last so every
+ *  index above it — including the flow indices below — is unaffected. */
+export const DEPOSIT_ACTIVATION_WINDOW_SCENARIO_COUNT =
+  ACTIVATION_WINDOW_SCENARIOS.length;
 
 /** Index into {@link DEPOSIT_SCENARIOS} for a pending-flow step (the flow
  *  scenarios lead the list, so the config index carries over). */
