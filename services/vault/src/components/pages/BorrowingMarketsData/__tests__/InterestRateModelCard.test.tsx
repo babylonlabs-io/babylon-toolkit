@@ -296,6 +296,25 @@ describe("InterestRateModelCard", () => {
     expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
   });
 
+  it("degrades to a chart with no kink marker when the curve has no exact kink sample", () => {
+    // parseIrmPayload rejects such a curve at the fetch boundary, so this is
+    // the second line of defence. It must not throw: the nearest boundary is
+    // the app-wide one, so a throw here trades the whole app for the global
+    // error screen over one missing marker.
+    vi.mocked(useInterestRateModelCurve).mockReturnValue({
+      ...FULL_HOOK_RESULT,
+      kinkUtilizationPercent: 81,
+    });
+
+    const { container } = renderCard();
+
+    expect(screen.getByTestId("interest-rate-model-card")).toBeInTheDocument();
+    expect(screen.queryByText(/Optimal \(Kink\)/)).not.toBeInTheDocument();
+    // The current marker still renders — only the kink rule is dropped.
+    expect(container.querySelectorAll(".bbn-line-chart__rule")).toHaveLength(1);
+    expect(screen.getByText("Current 68%")).toBeInTheDocument();
+  });
+
   it("shows the unavailable message when the curve is null", () => {
     vi.mocked(useInterestRateModelCurve).mockReturnValue({
       curve: null,

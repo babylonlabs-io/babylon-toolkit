@@ -14,6 +14,11 @@
  * curve or the retained last-good curve plus a non-null `error` field; the
  * hook's `error` return is read straight off that data.
  *
+ * That path is invisible to `QueryCache.onError` by construction, so the
+ * queryFn reports the failure itself — once, on the ok -> error edge, not on
+ * every retry. A broken endpoint therefore still raises exactly one Sentry
+ * issue per outage per session instead of either sixty an hour or none.
+ *
  * Cached for an hour, deliberately: the curve is a pure function of the
  * strategy's governance-set parameters and the sampled utilization ratios
  * (see the client module doc), so it only changes when governance updates the
@@ -41,6 +46,14 @@
  * last-good shape is still correct and the retry can heal silently without
  * blanking a chart the user was already looking at.
  *
+ * Retention is capped by `RETAINED_CURVE_MAX_AGE_MS`, measured from the last
+ * SUCCESSFUL read (`fetchedAt`), not from the last refetch. Without a cap a
+ * market whose endpoint stays broken chains its retained curve forward for as
+ * long as the tab is open, with no age bound at all. Past the cap the curve is
+ * dropped and the card falls to its "Chart unavailable" state — a stuck
+ * outage becomes visible rather than silently frozen behind a shape nobody
+ * can date.
+ *
  * Accepted drift window: after a governance parameter update, the stats bar's
  * Borrow APR moves within 60s while this curve and its kink callout can lag
  * up to an hour on the same screen. That's the one user-visible cost of the
@@ -60,12 +73,22 @@ import {
   fetchIrmCurve,
   type IrmCurvePoint,
 } from "@/clients/indexer/aaveIrmClient";
+import { logger } from "@/infrastructure";
 
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
 const QUERY_KEY = "aaveIrmCurve";
 const CURVE_CACHE_MS = 60 * 60 * 1000;
 const ERROR_REFETCH_INTERVAL_MS = 60_000;
+/**
+ * Ceiling on the age of a RETAINED curve, measured from the last successful
+ * read. Deliberately larger than `CURVE_CACHE_MS`: the healthy refetch lands
+ * exactly on the cache boundary, so a ceiling equal to the window would drop
+ * the shape on the very first failed refetch and there would be no retention
+ * left to speak of. This leaves an hour of 60s retries to heal a blip, and
+ * still bounds how old a served shape can get.
+ */
+const RETAINED_CURVE_MAX_AGE_MS = 2 * CURVE_CACHE_MS;
 
 export interface UseInterestRateModelCurveResult {
   curve: IrmCurvePoint[] | null;
@@ -80,6 +103,13 @@ interface CurveQueryData {
   kinkUtilizationPercent: number | null;
   maxAprPercent: number | null;
   error: Error | null;
+  /**
+   * `Date.now()` of the last read that actually succeeded — NOT of this
+   * entry. React Query's own `dataUpdatedAt` cannot serve here: the queryFn
+   * always resolves, so a failed refetch still counts as an update and would
+   * refresh the stamp forever.
+   */
+  fetchedAt: number | null;
 }
 
 export function useInterestRateModelCurve({
@@ -104,12 +134,13 @@ export function useInterestRateModelCurve({
       reserve === null
         ? skipToken
         : async ({ signal }): Promise<CurveQueryData> => {
+            const prev = queryClient.getQueryData<CurveQueryData>(queryKey);
             try {
               const result = await fetchIrmCurve({
                 reserveId: reserve.reserveId,
                 signal,
               });
-              return { ...result, error: null };
+              return { ...result, error: null, fetchedAt: Date.now() };
             } catch (err) {
               // A cancelled fetch is React Query discarding this attempt, not
               // a failed read — rethrow it rather than caching error-shaped
@@ -117,12 +148,38 @@ export function useInterestRateModelCurve({
               if (signal.aborted) {
                 throw err;
               }
-              const prev = queryClient.getQueryData<CurveQueryData>(queryKey);
+              const error = err instanceof Error ? err : new Error(String(err));
+
+              // Reported here, not through `QueryCache.onError`: the queryFn
+              // resolves, so the global handler never sees this. Only on the
+              // ok -> error edge — billing every 60s refetch would recreate
+              // the alert storm `queryClient.ts` documents.
+              if (prev === undefined || prev.error === null) {
+                logger.error(error, {
+                  tags: { query: QUERY_KEY },
+                  data: { reserveId: reserve.reserveId.toString() },
+                });
+              }
+
+              // The retained curve is only served while it is still within the
+              // window the module doc promises. Past that it is dropped, which
+              // surfaces the outage as the card's "Chart unavailable" state
+              // instead of showing an unbounded-age shape as if it were fresh.
+              const retainable =
+                prev?.fetchedAt !== null &&
+                prev?.fetchedAt !== undefined &&
+                Date.now() - prev.fetchedAt < RETAINED_CURVE_MAX_AGE_MS;
+
               return {
-                curve: prev?.curve ?? null,
-                kinkUtilizationPercent: prev?.kinkUtilizationPercent ?? null,
-                maxAprPercent: prev?.maxAprPercent ?? null,
-                error: err instanceof Error ? err : new Error(String(err)),
+                curve: retainable ? (prev?.curve ?? null) : null,
+                kinkUtilizationPercent: retainable
+                  ? (prev?.kinkUtilizationPercent ?? null)
+                  : null,
+                maxAprPercent: retainable
+                  ? (prev?.maxAprPercent ?? null)
+                  : null,
+                error,
+                fetchedAt: retainable ? (prev?.fetchedAt ?? null) : null,
               };
             }
           },

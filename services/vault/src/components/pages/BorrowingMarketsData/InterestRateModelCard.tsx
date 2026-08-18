@@ -134,11 +134,16 @@ export function InterestRateModelCard({
 
   // The curve always includes an exact sample at the kink utilization (see
   // useInterestRateModelCurve module doc) — looked up by equality, never
-  // interpolated. That invariant is load-bearing, so its failure throws
-  // rather than degrading to a chart with no kink marker. The "Current"
-  // marker derives entirely from the live utilization — its callout APR is
-  // read off the cached curve at that x, so the dot and the label can never
-  // disagree (previously they came from two independently-polled queries).
+  // interpolated. `parseIrmPayload` enforces that at the fetch boundary, so a
+  // curve reaching this component has already been rejected if the sample is
+  // absent. This lookup is the second line of defence, and it degrades to a
+  // chart with no kink marker rather than throwing: the curve is untrusted
+  // HTTP data now, and the only boundary above this render is the app-wide one
+  // (`main.tsx`), so a throw here would swap the whole app for the global
+  // error screen over one missing marker. The "Current" marker derives
+  // entirely from the live utilization — its callout APR is read off the
+  // cached curve at that x, so the dot and the label can never disagree
+  // (previously they came from two independently-polled queries).
   const markers = useMemo<LineChartMarker[]>(() => {
     if (curve === null || kinkUtilizationPercent === null) {
       return [];
@@ -147,33 +152,31 @@ export function InterestRateModelCard({
     const kinkPoint = curve.find(
       (point) => point.utilizationPercent === kinkUtilizationPercent,
     );
-    if (kinkPoint === undefined) {
-      throw new Error(
-        `IRM curve is missing its exact kink sample at ${kinkUtilizationPercent}% utilization`,
-      );
-    }
 
-    const kinkMarker: LineChartMarker = {
-      key: "kink",
-      x: kinkUtilizationPercent,
-      title: COPY.marketData.charts.optimalCallout(
-        formatWholeUtilizationPercent(kinkUtilizationPercent),
-      ),
-      lines: [
-        COPY.marketData.charts.calloutApr(
-          formatAprPercent(kinkPoint.aprPercent),
-        ),
-      ],
-      style: "dashed",
-      color: MARKER_COLOR,
-    };
+    const kinkMarker: LineChartMarker | null =
+      kinkPoint === undefined
+        ? null
+        : {
+            key: "kink",
+            x: kinkUtilizationPercent,
+            title: COPY.marketData.charts.optimalCallout(
+              formatWholeUtilizationPercent(kinkUtilizationPercent),
+            ),
+            lines: [
+              COPY.marketData.charts.calloutApr(
+                formatAprPercent(kinkPoint.aprPercent),
+              ),
+            ],
+            style: "dashed",
+            color: MARKER_COLOR,
+          };
 
     if (currentUtilizationPercent === null) {
-      return [kinkMarker];
+      return kinkMarker === null ? [] : [kinkMarker];
     }
 
     return [
-      kinkMarker,
+      ...(kinkMarker === null ? [] : [kinkMarker]),
       {
         key: "current",
         x: currentUtilizationPercent,

@@ -206,17 +206,65 @@ describe("fetchIrmCurve", () => {
     );
   });
 
-  it("throws when a point's aprRay is missing or not a string", async () => {
+  it("accepts points with no aprRay — the field is sent but never consumed", async () => {
+    // Requiring a field no client reads would let the indexer blank every IRM
+    // chart by trimming it.
     mockFetch.mockResolvedValueOnce(
       jsonResponse(
         validPayload({
-          points: [{ utilizationPercent: 0, aprPercent: 0 }],
+          points: [
+            { utilizationPercent: 0, aprPercent: 0 },
+            { utilizationPercent: 80, aprPercent: 4 },
+            { utilizationPercent: 100, aprPercent: 64 },
+          ],
         }),
       ),
     );
     const { fetchIrmCurve } = await import("../aaveIrmClient");
 
-    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(/aprRay/);
+    const result = await fetchIrmCurve({ reserveId: 1n });
+
+    expect(result.curve).toEqual([
+      { utilizationPercent: 0, aprPercent: 0 },
+      { utilizationPercent: 80, aprPercent: 4 },
+      { utilizationPercent: 100, aprPercent: 64 },
+    ]);
+  });
+
+  it("rejects with the timeout error when the response body never settles", async () => {
+    // The timeout has to bound `response.text()`, not just `fetch` — a stalled
+    // body on an otherwise-200 response is exactly the hang it exists for.
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+    vi.useFakeTimers();
+    try {
+      // Models the browser: a body read on an aborted request rejects with an
+      // AbortError. A mock that simply never settles would hang instead, and
+      // pass whether or not the timeout covers `text()`.
+      mockFetch.mockImplementationOnce(
+        async (_url: string, init: { signal: AbortSignal }) => ({
+          ok: true,
+          status: 200,
+          text: () =>
+            new Promise<string>((_resolve, reject) => {
+              init.signal.addEventListener("abort", () =>
+                reject(
+                  Object.assign(new Error("The operation was aborted."), {
+                    name: "AbortError",
+                  }),
+                ),
+              );
+            }),
+        }),
+      );
+
+      const pending = fetchIrmCurve({ reserveId: 1n });
+      const assertion = expect(pending).rejects.toThrow(/timed out after/);
+
+      await vi.advanceTimersByTimeAsync(30_000 + 1);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("throws a named error when fetch itself rejects", async () => {

@@ -98,16 +98,14 @@ function parseIrmPayload(payload: unknown, endpoint: string): IrmCurve {
         `IRM curve point ${index} from ${endpoint} is not an object`,
       );
     }
-    const { utilizationPercent, aprRay, aprPercent } = point as {
+    // `aprRay` is deliberately not read or required. The endpoint sends it as
+    // the unrounded source figure, but nothing here consumes it, so demanding
+    // it would let the indexer blank every chart by trimming a field no client
+    // uses.
+    const { utilizationPercent, aprPercent } = point as {
       utilizationPercent?: unknown;
-      aprRay?: unknown;
       aprPercent?: unknown;
     };
-    if (typeof aprRay !== "string") {
-      throw new Error(
-        `IRM curve point ${index} from ${endpoint} has a non-string "aprRay": ${JSON.stringify(aprRay)}`,
-      );
-    }
     return {
       utilizationPercent: assertFiniteNumberAt(
         utilizationPercent,
