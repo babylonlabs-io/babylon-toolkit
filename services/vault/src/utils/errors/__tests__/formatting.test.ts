@@ -18,6 +18,8 @@ import {
 } from "viem";
 import { describe, expect, it } from "vitest";
 
+import { COPY } from "@/copy";
+
 import {
   formatErrorDiagnostics,
   formatErrorMessage,
@@ -622,6 +624,27 @@ describe("Error Formatting", () => {
 
       expect(result.title).toBe("Vault provider syncing");
       expect(result.message).toContain("hasn't ingested");
+    });
+
+    it("maps an empty vault record to the shared registration-confirming copy", () => {
+      // One binding for the id: the reader echoes it into the message, and
+      // the assertion below proves it does not survive into the UI. Two
+      // literals could drift apart and quietly stop testing that.
+      const vaultId = "0xabc";
+      const error = new Error(
+        `Vault ${vaultId} not found on-chain or has no pegin transaction`,
+      );
+
+      const result = formatPayoutSignatureError(error);
+
+      // Same condition as the deposit mapper, so it must reuse the same
+      // copy entry rather than growing a second wording for one state.
+      expect(result).toEqual({
+        title: COPY.deposit.errors.vaultRegistrationNotYetVisible.title,
+        message: COPY.deposit.errors.vaultRegistrationNotYetVisible.body,
+      });
+      // The raw vault id must not reach the user.
+      expect(result.message).not.toContain(vaultId);
     });
 
     it("shows error code instead of raw message for unknown JsonRpcError codes", () => {

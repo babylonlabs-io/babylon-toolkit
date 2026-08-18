@@ -315,6 +315,12 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
         !result.depositorSignedPeginTx ||
         result.depositorSignedPeginTx === "0x"
       ) {
+        // An empty record is not proof the vault is absent: a lagging RPC
+        // node returns HTTP 200 with a zero struct, so no retry below this
+        // layer can see it. Single-shot is only safe because the finality
+        // gate (`waitForPeginRegistrationDepth`) runs first on the deposit
+        // path — move this ahead of it and the read-after-write race returns.
+        // The vault app matches this message to render "still confirming".
         throw new Error(
           `Vault ${vaultIds[i]} not found on-chain or has no pegin transaction`,
         );
@@ -399,39 +405,4 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     return { basic, protocol };
   }
 
-  /**
-   * Read `offchainParamsVersion` for many vaults in a single multicall.
-   * Reads only `getBtcVaultProtocolInfo` (one read per vault), so an N-vault
-   * batch costs one RPC round-trip instead of 2N parallel `eth_call`s.
-   */
-  async getOffchainParamsVersionsByVaultIds(
-    vaultIds: readonly Hex[],
-  ): Promise<number[]> {
-    if (vaultIds.length === 0) return [];
-
-    const results = await this.publicClient.multicall({
-      contracts: vaultIds.map((vaultId) => ({
-        address: this.contractAddress,
-        abi: BTCVaultRegistryABI as Abi,
-        functionName: "getBtcVaultProtocolInfo" as const,
-        args: [vaultId] as const,
-      })),
-      allowFailure: false,
-    });
-
-    return results.map((info) => {
-      const protocolInfo = info as unknown as VaultProtocolInfo;
-      if (
-        !protocolInfo.depositorSignedPeginTx ||
-        protocolInfo.depositorSignedPeginTx === "0x"
-      ) {
-        throw new Error(
-          "Vault not found on-chain or has no pegin transaction while reading offchain params version",
-        );
-      }
-      const version = Number(protocolInfo.offchainParamsVersion);
-      assertValidOffchainParamsVersion(version);
-      return version;
-    });
-  }
 }

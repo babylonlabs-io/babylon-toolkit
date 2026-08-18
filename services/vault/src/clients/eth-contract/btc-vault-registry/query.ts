@@ -10,6 +10,8 @@ import { assertValidVaultCoreVersion } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { KeyEpochs } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type Address, type Hex, zeroAddress } from "viem";
 
+import { isVaultRecordEmptyError } from "@/utils/errors";
+
 import { getVaultRegistryReader } from "../sdk-readers";
 
 /**
@@ -99,6 +101,65 @@ export async function getVaultFromChain(
     status: basic.status,
     createdAt: basic.createdAt,
   };
+}
+
+/**
+ * Backoff schedule (ms) for {@link getVaultFromChainWithGrace}. Totals ~15s,
+ * long enough to outlast normal RPC index lag while staying inside a user's
+ * patience for a button press.
+ */
+const EMPTY_RECORD_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000];
+
+/**
+ * {@link getVaultFromChain} that tolerates a transiently empty record.
+ *
+ * A vault registered moments ago can read back empty from a load-balanced RPC
+ * node that has not indexed the registration's block yet — the node answers
+ * HTTP 200 with a zero struct, so viem's transport retry cannot see it. This
+ * is the read-after-write race behind #1835.
+ *
+ * Retries **only** the empty-record case; every other error (revert, network,
+ * bad core version) propagates on the first attempt, because retrying those
+ * would just delay a real failure. If the record is still empty after the
+ * schedule, the reader's error is rethrown and callers map it to
+ * "still confirming" copy rather than "not found".
+ */
+export async function getVaultFromChainWithGrace(
+  vaultId: Hex,
+  signal?: AbortSignal,
+): Promise<OnChainVaultData> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await getVaultFromChain(vaultId);
+    } catch (err) {
+      if (
+        !isVaultRecordEmptyError(err) ||
+        attempt >= EMPTY_RECORD_RETRY_DELAYS_MS.length
+      ) {
+        throw err;
+      }
+      await waitOrAbort(EMPTY_RECORD_RETRY_DELAYS_MS[attempt], signal);
+    }
+  }
+}
+
+/** Sleep that rejects with the caller's abort reason instead of resolving. */
+function waitOrAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /**

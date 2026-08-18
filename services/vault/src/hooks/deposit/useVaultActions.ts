@@ -47,12 +47,13 @@ import {
 import {
   ActivationNotPossibleError,
   isTerminalActivationError,
+  isVaultRecordEmptyError,
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
-import { getVaultFromChain } from "../../clients/eth-contract/btc-vault-registry/query";
+import { getVaultFromChainWithGrace } from "../../clients/eth-contract/btc-vault-registry/query";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
 import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
 import {
@@ -256,7 +257,12 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // prePeginTxHash on-chain commits to all inputs/outputs — any tx
       // substitution between build and broadcast produces a different hash.
-      const onChainVault = await getVaultFromChain(vaultId);
+      //
+      // Uses the grace variant: this runs ahead of the finality gate below, so
+      // unlike the reads after it, it gets no protection from the gate's own
+      // empty-read tolerance. Resuming seconds after a registration is the
+      // documented #1835 repro.
+      const onChainVault = await getVaultFromChainWithGrace(vaultId, signal);
       // Fail closed before any signing when this build's WASM can't
       // construct the vault's stamped graph version (e.g. an old deployed
       // build resuming a vault registered after a protocol version bump).
@@ -754,10 +760,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (mountedRef.current) {
         const rawMessage =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";
-        // Normalize the on-chain "vault not found" message so we don't leak
-        // implementation detail like the raw vault id into the UI.
-        const errorMessage = rawMessage.includes("not found on-chain")
-          ? "BTC Vault not found. The BTC Vault ID may be invalid."
+        // Normalize the empty-record error so we don't leak the raw vault id
+        // into the UI, and don't claim the vault is gone when a lagging RPC
+        // node is the likelier cause.
+        const errorMessage = isVaultRecordEmptyError(err)
+          ? COPY.deposit.errors.vaultRegistrationNotYetVisible.body
           : rawMessage;
         setActivationError(errorMessage);
         // Classify from the typed error before it is flattened to a string — a
