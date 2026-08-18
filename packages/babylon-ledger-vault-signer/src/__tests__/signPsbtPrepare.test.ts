@@ -223,10 +223,22 @@ describe("prepare-time rejections (§2.2 — all typed, all pre-I/O)", () => {
   });
 
   it("wraps the vendored parse throw for an unsupported PSBT version", () => {
-    // magic ‖ global map { VERSION(0xfb) → 1 } ‖ end-of-map — version 1 is
-    // rejected inside PsbtV2.deserialize and surfaces as a typed error.
-    const versionOnePsbtHex = "70736274ff" + "01fb" + "0401000000" + "00";
-    expectPrepareRejects(versionOnePsbtHex, TEST_DEPOSITOR_KEY_HEX, /PSBT rejected at parse/);
+    // A bitcoinjs-ACCEPTABLE v0 PSBT with a global VERSION keypair (01fb
+    // 0401000000) spliced in after the magic. The merge-target gate runs first,
+    // so a bare magic+VERSION stub never reaches PsbtV2 — it dies earlier on
+    // "Only one UNSIGNED_TX allowed" and would pass even with the version guard
+    // deleted. The matcher's colon-space is what excludes the "(merge target)"
+    // wrapper, so only the vendored rejection satisfies it.
+    const versionOnePsbtHex =
+      "70736274ff01fb040100000001005e02000000010101010101010101010101010101010101010101010101010101010101010101" +
+      "0000000000ffffffff01840300000000000022512003030303030303030303030303030303030303030303030303030303030303" +
+      "03000000000001012be8030000000000002251200202020202020202020202020202020202020202020202020202020202020202" +
+      "0000";
+    expectPrepareRejects(
+      versionOnePsbtHex,
+      TEST_DEPOSITOR_KEY_HEX,
+      /PSBT rejected at parse: Only PSBTs of version 0 or 2 are supported/,
+    );
   });
 
   it("rejects a PSBT keypair whose key length is a non-minimal CompactSize", () => {
@@ -273,6 +285,34 @@ describe("already-signed inputs are rejected before any device I/O", () => {
     });
 
     expectPrepareRejects(psbt.toHex(), TEST_DEPOSITOR_KEY_HEX, /input 0 already carries a tapScriptSig/);
+  });
+
+  it("rejects an input that is already finalized", () => {
+    // Nothing downstream catches this at all: bip174 has no finalized guard,
+    // the merge writes the partial sig next to the final witness, and the
+    // SDK's finalize fallback then ships the stale witness — after the device
+    // signed and the user approved.
+    const psbt = Psbt.fromHex(loadVector(TAPSCRIPT_VECTOR).psbt_hex);
+    psbt.data.inputs[0].finalScriptWitness = Buffer.from("0101ff", "hex");
+
+    expectPrepareRejects(psbt.toHex(), TEST_DEPOSITOR_KEY_HEX, /input 0 is already finalized/);
+  });
+
+  it("rejects an input that is already finalized via finalScriptSig", () => {
+    const psbt = Psbt.fromHex(loadVector(TAPSCRIPT_VECTOR).psbt_hex);
+    psbt.data.inputs[0].finalScriptSig = Buffer.from("00", "hex");
+
+    expectPrepareRejects(psbt.toHex(), TEST_DEPOSITOR_KEY_HEX, /input 0 is already finalized/);
+  });
+
+  it("accepts a finalized input this round does not sign", () => {
+    // Payout input 1 is witnessUtxo-only, so it never enters the table — a
+    // co-signed, already-finalized input must not trip the gate.
+    const psbt = Psbt.fromHex(loadVector("deposit-flow__claimer_payout__2").psbt_hex);
+    psbt.data.inputs[1].finalScriptWitness = Buffer.from("0101ff", "hex");
+
+    const prepared = prepareSignPsbt({ psbtHex: psbt.toHex(), depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    expect(prepared.table.byInput.has(1)).toBe(false);
   });
 
   it("accepts an input carrying another signer's tapScriptSig on the same leaf", () => {

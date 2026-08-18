@@ -111,6 +111,12 @@ function tableLeafHex(table: ExpectedSignatureTable, inputIndex: number): string
   return leafHex;
 }
 
+function tableOutputKeyHex(table: ExpectedSignatureTable, inputIndex: number): string {
+  const expectation = table.byInput.get(inputIndex);
+  if (expectation?.kind !== "taproot-keypath") throw new Error(`input ${inputIndex} is not keypath in the table`);
+  return expectation.expectedOutputKeyHex;
+}
+
 /** Chain traces into exchanges: each request rides 0xE000, each response rides the next CONTINUE. */
 function scriptFromTraces(initialApduHex: string, traces: readonly Trace[]): ScriptedExchange[] {
   const exchanges: ScriptedExchange[] = [];
@@ -561,6 +567,57 @@ describe("YIELD assertions abort the ceremony (T8, T9)", () => {
     expect(sent()).toBe(1);
   });
 
+  // Keypath collector twins: pre_pegin is the flow whose table entries are
+  // taproot-keypath, so these rows exercise the throws only a keypath table
+  // entry can reach.
+  const KEYPATH_MUTATIONS: MutationCase[] = [
+    {
+      label: "tapscript augm on a keypath input",
+      kind: "wrong-spend-type",
+      requestHex: () => tapscriptYieldRequestHex(0, TEST_DEPOSITOR_KEY_HEX, "bb".repeat(32), TEST_SIG_HEX),
+    },
+    {
+      label: "flipped output-key byte",
+      kind: "wrong-signer-key",
+      requestHex: (p) => keypathYieldRequestHex(0, flipFirstHexByte(tableOutputKeyHex(p.table, 0)), TEST_SIG_HEX),
+    },
+    {
+      label: "65-byte keypath signature (non-zero sighash byte appended)",
+      kind: "non-default-sighash",
+      requestHex: (p) => keypathYieldRequestHex(0, tableOutputKeyHex(p.table, 0), TEST_SIG_HEX + "01"),
+    },
+  ];
+
+  it.each(KEYPATH_MUTATIONS)("$label -> $kind, no further sends", async ({ kind, requestHex }) => {
+    const prepared = prepareFromVector("deposit-flow__pre_pegin__0");
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: requestHex(prepared) },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
+      name: LedgerYieldMismatchError.name,
+      kind,
+    });
+    expect(sent()).toBe(1);
+  });
+
+  it("a duplicate keypath YIELD for the same (input, output key) aborts on the second delivery", async () => {
+    const prepared = prepareFromVector("deposit-flow__pre_pegin__0");
+    const validYieldHex = keypathYieldRequestHex(0, tableOutputKeyHex(prepared.table, 0), TEST_SIG_HEX);
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: validYieldHex },
+      { expectApduHex: CONTINUE_HEADER_HEX, respondSw: 0xe000, respondDataHex: validYieldHex },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
+      name: LedgerYieldMismatchError.name,
+      kind: "duplicate-yield",
+    });
+    expect(sent()).toBe(2);
+  });
+
   it("a duplicate YIELD for the same (input, leaf) aborts on the second delivery", async () => {
     const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
     const validYieldHex = tapscriptYieldRequestHex(
@@ -623,20 +680,80 @@ describe("completion check (T10)", () => {
 });
 
 describe("protocol failures stop the loop (T13, T14)", () => {
+  // Each row carries its own message pattern: the requests fail at different
+  // production sites, and a shared `toBeInstanceOf` matcher stays green if any
+  // of them collapses into another.
   it.each([
-    ["unknown client-command code", "99"],
-    ["GET_PREIMAGE for an unknown hash", "4000" + "ee".repeat(32)],
-    ["YIELD truncated inside the varint", "10" + "fd01"],
-    ["YIELD truncated inside the augm block", "10" + "00" + "40" + "aa".repeat(8)],
-  ])("%s -> LedgerSignPsbtProtocolError, no further sends", async (_label, requestHex) => {
+    ["unknown client-command code", "99", /Unexpected command code/],
+    ["GET_PREIMAGE for an unknown hash", "4000" + "ee".repeat(32), /Requested unknown preimage for/],
+    ["YIELD truncated inside the varint", "10" + "fd01", /^unparseable YIELD payload:/],
+    ["YIELD ends after the varint", "10" + "00", /YIELD payload truncated before the augmented-pubkey length/],
+    [
+      "YIELD truncated inside the augm block",
+      "10" + "00" + "40" + "aa".repeat(8),
+      /YIELD payload truncated inside the augmented pubkey/,
+    ],
+  ])("%s -> LedgerSignPsbtProtocolError, no further sends", async (_label, requestHex, messagePattern) => {
     const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
     const script: ScriptedExchange[] = [
       { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: requestHex },
     ];
     const { send, sent } = createScriptedSender(script);
 
-    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toBeInstanceOf(
-      LedgerSignPsbtProtocolError,
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(LedgerSignPsbtProtocolError);
+    expect((outcome as LedgerSignPsbtProtocolError).detail).toMatch(messagePattern);
+    expect(sent()).toBe(1);
+  });
+
+  it("YIELD with a short-but-nonempty signature -> LedgerSignPsbtProtocolError, no further sends", async () => {
+    // Pins the short arm of the shared signature-length check: under 64 bytes
+    // is a malformed payload, not a `non-default-sighash` mismatch.
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const shortSigYieldHex = tapscriptYieldRequestHex(
+      0,
+      TEST_DEPOSITOR_KEY_HEX,
+      tableLeafHex(prepared.table, 0),
+      "cd".repeat(8),
+    );
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: shortSigYieldHex },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(LedgerSignPsbtProtocolError);
+    expect((outcome as LedgerSignPsbtProtocolError).detail).toMatch(/YIELD payload truncated inside the signature/);
+    expect(sent()).toBe(1);
+  });
+
+  it("YIELD truncated inside the keypath augm block -> LedgerSignPsbtProtocolError, no further sends", async () => {
+    // The keypath twin of the augm-truncation row above: that length check
+    // sits after the branch's spend-type gate, so only a fixture whose input 0
+    // is keypath in the table can reach it.
+    const prepared = prepareFromVector("deposit-flow__pre_pegin__0");
+    const truncatedKeypathYieldHex = "10" + "00" + "20" + "aa".repeat(8);
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: truncatedKeypathYieldHex },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(LedgerSignPsbtProtocolError);
+    expect((outcome as LedgerSignPsbtProtocolError).detail).toMatch(
+      /YIELD payload truncated inside the augmented pubkey/,
     );
     expect(sent()).toBe(1);
   });

@@ -34,6 +34,13 @@ v6-compatible source and gate it with golden vectors.
 - Strict-null / strict-index fixes for this repo's strict `tsconfig`.
 - Prettier/quote formatting to the package style.
 
+The repo's general code-style guidance (naming magic numbers, extracting
+constants) yields to upstream fidelity inside this directory: a cosmetic rename
+turns a line that currently diffs clean into a hand-merge obligation on the next
+re-diff, for no behavioural gain. Name a literal here only when its
+justification lives off-file — the protocol caps in `clientCommands.ts` are
+named so each can carry a firmware citation, which a bare number could not.
+
 Everything else — protocol logic, byte layout, function surface — is verbatim,
 with the exceptions recorded per file header; the substantive ones:
 

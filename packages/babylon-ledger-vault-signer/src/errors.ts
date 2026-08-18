@@ -170,7 +170,8 @@ export class LedgerSignPsbtProtocolError extends Error {
 /**
  * The host abandoned the SIGN_PSBT loop (abort signal) — the loop stops
  * sending, nothing else. What the device does next (verified at base app rev
- * `e400d8d8` + fw `6fcad4fd`):
+ * `e400d8d8` + fw `90cf41f`; the `6fcad4fd`→`90cf41f` delta is payout-validation
+ * only and touches neither path below):
  *
  * - Within ~5 s (50 ticks, `base:io_ext.h:28`) the device sits blocked
  *   awaiting CONTINUE; the next non-CONTINUE APDU is eaten with 0x6A80 and the

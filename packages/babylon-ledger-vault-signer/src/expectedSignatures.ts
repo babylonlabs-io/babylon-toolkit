@@ -313,6 +313,8 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     // limited to these inputs: a Pre-PegIn keypath input legitimately IS the
     // depositor's BIP-86 P2TR, and leaf semantics (including where the depositor
     // key sits) are the device's job — the host's is the commitment asserted above.
+    // Recognises only P2TR/P2WPKH shapes of the connected key; P2SH-P2WPKH and
+    // P2PKH depositor UTXOs are deliberately out of scope (tripwire, not a guarantee).
     const witnessUtxo = psbt.getInputWitnessUtxo(inputIndex);
     if (
       witnessUtxo &&

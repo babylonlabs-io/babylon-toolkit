@@ -126,6 +126,17 @@ export function buildSignPsbtApdu(cdata: Uint8Array): Apdu {
 function assertNoConflictingSignatures(mergeTarget: BitcoinjsPsbt, table: ExpectedSignatureTable): void {
   for (const [inputIndex, expectation] of table.byInput) {
     const input = mergeTarget.data.inputs[inputIndex];
+    // A finalized input is silently signable: bip174 has no finalized guard, so
+    // the merge writes the partial sig ALONGSIDE the final witness instead of
+    // throwing — and nothing downstream notices: extraction reads the merged
+    // tapScriptSig fine (`peginInput.ts:233-240`) and `finalizePeginInputPsbt`'s
+    // allFinalized fallback (`peginInput.ts:272-292`) then ships the STALE
+    // witness. Reject here, where a throw still costs zero device I/O.
+    if (input.finalScriptWitness || input.finalScriptSig) {
+      throw new LedgerSignPsbtProtocolError(
+        `input ${inputIndex} is already finalized and this round signs it — pass an unsigned PSBT`,
+      );
+    }
     if (expectation.kind === "tapscript") {
       // Same (key, leaf) notion the table and bip174's dupe set both key on.
       const conflicts = input.tapScriptSig?.some(
