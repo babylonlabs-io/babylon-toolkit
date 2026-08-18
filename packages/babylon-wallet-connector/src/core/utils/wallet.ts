@@ -7,8 +7,6 @@ import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { COMPRESSED_PUBLIC_KEY_HEX_LENGTH, toXOnlyPublicKeyHex } from "@/core/utils/publicKey";
 import { ERROR_CODES, WalletError } from "@/error";
 
-export { COMPRESSED_PUBLIC_KEY_HEX_LENGTH, toXOnlyPublicKeyHex };
-
 const NETWORKS = {
   [Network.MAINNET]: {
     name: "Mainnet",
@@ -40,6 +38,8 @@ const NETWORKS = {
 };
 
 export const getTaprootAddress = (publicKey: string, network: Network) => {
+  initBTCCurve();
+
   const xOnlyHex = toXOnlyPublicKeyHex(publicKey);
 
   const internalPubkey = Buffer.from(xOnlyHex, "hex");
@@ -139,35 +139,26 @@ export const generateP2TRAddressFromXpub = (
   path: string,
   network: BitcoinNetwork,
 ): { address: string; publicKeyHex: string; scriptPubKeyHex: string } => {
+  initBTCCurve();
+
   // Keystone uses xpub as the extended public key, hence we don't need to pass the network
   const pubkeyBuffer = getPublicKeyFromXpub(xpub, path);
   const childNodeXOnlyPubkey = toXOnly(pubkeyBuffer);
-  let address: string;
-  let output: Buffer;
-  try {
-    const res = payments.p2tr({
-      internalPubkey: childNodeXOnlyPubkey,
-      network,
+  const { address, output } = payments.p2tr({
+    internalPubkey: childNodeXOnlyPubkey,
+    network,
+  });
+
+  if (!address || !output) {
+    throw new WalletError({
+      code: ERROR_CODES.ADDRESS_GENERATION_FAILED,
+      message: "Failed to generate taproot address or script from extended public key",
     });
-    address = res.address!;
-    output = res.output!;
-  } catch (error: Error | any) {
-    if (error instanceof Error && error.message.includes("ECC")) {
-      // initialize the BTC curve if not already initialized
-      initBTCCurve();
-      const res = payments.p2tr({
-        internalPubkey: childNodeXOnlyPubkey,
-        network,
-      });
-      address = res.address!;
-      output = res.output!;
-    } else {
-      throw error;
-    }
   }
+
   return {
-    address: address!,
+    address,
     publicKeyHex: pubkeyBuffer.toString("hex"),
-    scriptPubKeyHex: output!.toString("hex"),
+    scriptPubKeyHex: output.toString("hex"),
   };
 };

@@ -45,3 +45,16 @@
 
 # 8. Non-standard wallet signing options
 /packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 9. Dependency-free reimplementations of Bitcoin primitives
+# Registered ahead of the code arriving with the optional-BTC work (#2228),
+# except onChainBtcPubkey.ts, which already exists and is guarded from now.
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/wasm/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/wasm-loader.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/raw.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/raw-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/utils/btc/scriptPubKeyAddress.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

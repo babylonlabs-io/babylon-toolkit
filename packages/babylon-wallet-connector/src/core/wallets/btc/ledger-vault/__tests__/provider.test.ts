@@ -17,16 +17,11 @@ import {
   LedgerDeviceLockedError,
   LedgerUserRefusedError,
 } from "@babylonlabs-io/ledger-vault-signer";
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
-import { initEccLib } from "bitcoinjs-lib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Network } from "@/core/types";
 import { getTaprootAddress } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
-
-// p2tr derivation needs a live ECC library (required for BIP-341 tweaking).
-initEccLib(ecc);
 
 /** BIP-86 first-address vector: x-only key and its published P2TR address. */
 const VECTOR_XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
