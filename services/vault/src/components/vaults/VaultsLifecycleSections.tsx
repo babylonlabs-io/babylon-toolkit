@@ -27,6 +27,7 @@ import {
   LIST_ROW_COLUMN_CLASS,
   LIST_ROW_LEADING_COLUMN_CLASS,
   LIST_ROW_MIN_HEIGHT_CLASS,
+  LIST_ROW_STATUS_COLUMN_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
@@ -194,7 +195,7 @@ function PendingRow({
       </div>
 
       {/* Status + progress */}
-      <div className={`flex flex-col gap-1 ${LIST_ROW_COLUMN_CLASS}`}>
+      <div className={`flex flex-col gap-1 ${LIST_ROW_STATUS_COLUMN_CLASS}`}>
         {peginState ? (
           <span className="flex items-center gap-1">
             <span

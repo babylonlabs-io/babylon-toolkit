@@ -27,6 +27,22 @@ import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
 export const LIST_ROW_COLUMN_CLASS = "min-w-[120px] grow basis-[144px]";
 
 /**
+ * The status cell. Same basis as a plain data column — so the viewport width at
+ * which the action button wraps is unchanged — but it takes a double share of
+ * the leftover slack, matching the leading cell.
+ *
+ * Slack was previously split 2:1:1:1 between the leading, status, provider and
+ * hash cells, which left the leading cell roomy while the status label wrapped:
+ * the basis above is sized for a 108px label, and the longest status is now
+ * `COPY.pegin.statusLabel.AWAITING_ACTIVATION_WINDOW`. Widening the basis would
+ * have fixed the wrap at every width but raised the action button's wrap
+ * threshold, which the comment above deliberately keeps as low as possible.
+ * Grow factors divide only the surplus, so they cost nothing at narrow widths.
+ */
+export const LIST_ROW_STATUS_COLUMN_CLASS =
+  "min-w-[120px] grow-[2] basis-[144px]";
+
+/**
  * The leading cell — a logo beside a two-line amount / sub-line block. Its
  * basis fits the longest sub-line the rows produce (the refund-maturity
  * notice from `COPY.vaults.statusHints.refundMaturing`, measured at 343px in
