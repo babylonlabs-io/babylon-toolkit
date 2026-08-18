@@ -20,9 +20,11 @@
  * what makes the images renderable inside a comment - GitHub cannot embed an
  * image out of a run artifact.
  *
- * Only a slice of the changed screens is embedded (see the caps below). The
- * body always also carries the complete text list, so the reviewer can see
- * that the pictures are a sample rather than the whole story.
+ * Only a slice of the changed screens is embedded (see the caps below), and
+ * on a busy run the set is published reduced so that all of it still fits
+ * the comment - the artifact keeps the full-resolution originals. The body
+ * always also carries the complete text list, so the reviewer can see that
+ * the pictures are a sample rather than the whole story.
  */
 
 import { createHash } from "node:crypto";
@@ -171,6 +173,49 @@ const EMBED_MAX_WIDTH = 1280;
  * budget three ways rather than growing the published file.
  */
 const MAX_COMPOSITE_HEIGHT = 2400;
+
+/**
+ * Everything one comment's pictures may weigh, and the widths the set is
+ * allowed to be published at to get under it.
+ *
+ * The publish step enforces a hard per-PR ceiling on what lands on the
+ * images branch, and until this budget existed nothing on this side knew
+ * about it: the caps above bound the count and the dimensions but not the
+ * bytes, so five tall vault composites came to 678KB against a 512KB
+ * ceiling and the step refused the lot. Refusing is the worst outcome
+ * available - the comment falls back to a list of filenames, which is the
+ * state this whole script exists to replace - so the size is settled here,
+ * where a picture can be made smaller, rather than there, where it can only
+ * be dropped.
+ *
+ * Below the workflow's ceiling rather than equal to it, because the two
+ * count slightly different things: this counts the PNGs, that counts what
+ * the publish step finds on disk. `visual-embed.test.mjs` pins the order of
+ * the pair, which is the check that was missing when the ceiling was set.
+ *
+ * The ladder is walked top down and the first rung the whole set fits under
+ * wins, so the ordinary pull request that moves one screen still publishes
+ * it at the capture's own width - the reduction is what a busy run pays,
+ * not what every run pays. The rungs are sizes worth having rather than a
+ * subdivision: 1280 is a desktop capture at life size, 960 and 800 bracket
+ * what a comment column actually renders, and 640 is the floor, past which
+ * a phone panel in a three-panel composite is 210px wide and the change it
+ * is meant to show stops being legible. A set that will not fit even at the
+ * floor drops its lowest-ranked picture instead of shrinking further, and
+ * says so in the comment.
+ */
+const PUBLISHED_TOTAL_BYTE_BUDGET = 448 * 1024;
+const PUBLISHED_WIDTH_LADDER = [EMBED_MAX_WIDTH, 960, 800, 640];
+
+/**
+ * Published as truecolour with no alpha channel.
+ *
+ * Every source here is an opaque screenshot and the reduction below writes
+ * 255 into every pixel it produces, so the channel carries one constant
+ * value down the whole file - around a tenth of the published bytes spent
+ * saying "not transparent".
+ */
+const PUBLISHED_COLOUR_TYPE = 2;
 
 /**
  * How the two panels are arranged. A single panel is its own case: an added
@@ -687,33 +732,50 @@ function composeBeforeAfter(baseline, candidate) {
 }
 
 /**
- * Shrinks by an integer factor, averaging each block of source pixels.
+ * Shrinks to a target width, averaging each block of source pixels.
  *
  * Averaging rather than dropping pixels: nearest-neighbour would sample a
  * one-pixel-wide border change on some rows and miss it on others, so a
  * hairline that moved would flicker in and out of the published image.
  * An average always carries some of the new colour into the block.
+ *
+ * The block is fractional - a factor of 1.6 averages two source columns in
+ * some places and one in others - because the widths worth publishing at
+ * are not integer divisions of a capture. Restricted to whole factors, the
+ * only rung under a 1280px capture is 640px, so a set that needed to lose a
+ * fifth of its bytes would lose three quarters of its detail instead.
+ *
+ * The blocks are half open, so they partition the source rather than
+ * overlapping at every boundary that does not fall on a whole pixel. An
+ * overlap would average the same column into two neighbours, which blurs
+ * exactly the thin edges the reduction is trying to keep.
  */
-function downscale(source, maxWidth) {
-  const factor = Math.ceil(source.width / maxWidth);
-  if (factor <= 1) return source;
+function reduceToWidth(source, width) {
+  if (source.width <= width) return source;
 
-  const width = Math.ceil(source.width / factor);
-  const height = Math.ceil(source.height / factor);
+  const columnScale = source.width / width;
+  const height = Math.max(1, Math.round(source.height / columnScale));
+  const rowScale = source.height / height;
   const target = new PNG({ width, height });
 
   for (let y = 0; y < height; y += 1) {
+    const top = Math.floor(y * rowScale);
+    const bottom = Math.min(
+      source.height,
+      Math.max(top + 1, Math.floor((y + 1) * rowScale)),
+    );
     for (let x = 0; x < width; x += 1) {
+      const left = Math.floor(x * columnScale);
+      const right = Math.min(
+        source.width,
+        Math.max(left + 1, Math.floor((x + 1) * columnScale)),
+      );
       let red = 0;
       let green = 0;
       let blue = 0;
       let sampled = 0;
-      for (let dy = 0; dy < factor; dy += 1) {
-        const sourceY = y * factor + dy;
-        if (sourceY >= source.height) break;
-        for (let dx = 0; dx < factor; dx += 1) {
-          const sourceX = x * factor + dx;
-          if (sourceX >= source.width) break;
+      for (let sourceY = top; sourceY < bottom; sourceY += 1) {
+        for (let sourceX = left; sourceX < right; sourceX += 1) {
           const i = (sourceY * source.width + sourceX) * 4;
           red += source.data[i];
           green += source.data[i + 1];
@@ -732,12 +794,13 @@ function downscale(source, maxWidth) {
 }
 
 /**
- * Composes one before/after picture and hands back the bytes rather than
- * writing them.
+ * Composes one before/after picture and hands back the image rather than
+ * writing it.
  *
- * Split that way so the caller can decide not to write: it hashes what
- * comes back to drop pixel-identical twins, and a throw here costs one
- * screen instead of the file it would otherwise have written.
+ * Split that way so the caller can decide not to write: it hashes the
+ * pixels to drop identical twins, `fitPublishedImages` decides what width
+ * the whole set can afford before any of it is encoded, and a throw here
+ * costs one screen instead of the file it would otherwise have written.
  */
 async function composeComposite(reportDir, surface, name) {
   const baseline = await readPngIfPresent(
@@ -747,10 +810,72 @@ async function composeComposite(reportDir, surface, name) {
     path.join(reportDir, surface, "candidate", name),
   );
   const { composite, coverage } = composeBeforeAfter(baseline, candidate);
-  return {
-    coverage,
-    bytes: PNG.sync.write(downscale(composite, EMBED_MAX_WIDTH)),
+  return { coverage, composite };
+}
+
+/** Encodes one composite at a published width. */
+function encodeAtWidth(composite, width) {
+  return PNG.sync.write(reduceToWidth(composite, width), {
+    colorType: PUBLISHED_COLOUR_TYPE,
+  });
+}
+
+/**
+ * Decides what the set of pictures is published at, and what it costs.
+ *
+ * The whole set moves to one rung together rather than each picture being
+ * sized against its own share of the budget. Two reasons, and the second is
+ * the one that matters: a comment where the vault screen is life size and
+ * the story beside it is half size reads as though the small one mattered
+ * less, and a per-picture share makes what a reviewer sees depend on how
+ * many OTHER screens happened to change in the same push.
+ *
+ * Pictures are given up only once the floor rung is still over budget, and
+ * from the bottom of the ranking, so what goes is what the selection above
+ * already judged least worth showing. Then the ladder is walked again from
+ * the top: with one picture gone the rest may fit at a rung that keeps them
+ * readable, which is worth more than holding a picture nobody can read.
+ *
+ * Encodings are cached per picture and rung. The walk revisits both, and
+ * deflating a 1280x2400 composite is ~100ms - enough for a rung-by-rung
+ * search on a full set to become the slowest thing in the job.
+ */
+function fitPublishedImages(pictures, budget = PUBLISHED_TOTAL_BYTE_BUDGET) {
+  const encoded = new Map();
+  const bytesAt = (picture, width) => {
+    const key = `${picture.index}:${width}`;
+    if (!encoded.has(key)) {
+      encoded.set(key, encodeAtWidth(picture.composite, width));
+    }
+    return encoded.get(key);
   };
+
+  const kept = pictures.map((picture, index) => ({ ...picture, index }));
+  const dropped = [];
+
+  while (kept.length > 0) {
+    for (const width of PUBLISHED_WIDTH_LADDER) {
+      const bytes = kept.map((picture) => bytesAt(picture, width));
+      const total = bytes.reduce((sum, buffer) => sum + buffer.length, 0);
+      if (total > budget) continue;
+      return {
+        width,
+        published: kept.map((picture, index) => ({
+          ...picture,
+          bytes: bytes[index],
+        })),
+        dropped,
+      };
+    }
+    // Lowest-ranked first: `pictures` arrives in the order the comment
+    // will read in, so the tail is the end of it.
+    dropped.unshift(kept.pop());
+  }
+
+  // One picture that cannot fit at the floor. Publishing it anyway would
+  // trip the workflow's ceiling and cost the comment every picture, so it
+  // goes the same way as the rest and the text listing carries the run.
+  return { width: PUBLISHED_WIDTH_LADDER.at(-1), published: [], dropped };
 }
 
 /**
@@ -886,6 +1011,7 @@ function renderBody({
   ranked,
   embedded,
   coverage,
+  publishedWidth,
   baseUrl,
   runUrl,
   candidateRef,
@@ -950,12 +1076,19 @@ function renderBody({
   lines.push("");
   lines.push("</details>");
   lines.push("");
+  // Said outright when the pictures are not life size. A reviewer measuring
+  // a control against the picture would otherwise be measuring it against
+  // whatever reduction that run's budget happened to force.
+  const reduced =
+    publishedWidth === null
+      ? ""
+      : `, reduced to ${publishedWidth}px wide so the set fits in a comment`;
   // Deliberately not "the N most-changed": the selection reserves slots per
   // surface, so a pictured vault screen can have moved less than a Storybook
   // story that got no picture. Claiming a strict ranking would send a
   // reviewer looking for a worst offender that is not there.
   lines.push(
-    `<sub>${embedded.length} screen${embedded.length === 1 ? "" : "s"} pictured, cropped to the part that changed - a sample across the ` +
+    `<sub>${embedded.length} screen${embedded.length === 1 ? "" : "s"} pictured, cropped to the part that changed${reduced} - a sample across the ` +
       `worst-hit groups on each surface, not a ranking. Full-resolution before / after / diff for every screen: ` +
       `[open the run](${runUrl}#artifacts), download **visual-report**, open \`index.html\`.</sub>`,
   );
@@ -1069,15 +1202,15 @@ async function main() {
   const ranked = rankGroups(surfaces.flatMap((surface) => surface.groups));
   const embedded = selectEmbeddedScreens(ranked);
 
-  await fs.mkdir(outDir, { recursive: true });
   const coverage = new Map();
-  // What actually got written, which is not always what was selected. A
-  // screen drops out here on a compose failure or as a duplicate, and the
-  // body has to be rendered from this rather than from `embedded` - a group
-  // that renders an image URL for a file nobody wrote is a broken image in
-  // the comment. Dropping out is not silent: renderGroup folds the screen
-  // into its "N more changed screens in this group" line and the full text
-  // listing still names it.
+  // What actually got composed, which is not always what was selected, and
+  // is in turn not always what gets published. A screen drops out here on a
+  // compose failure or as a duplicate, and below it if the set will not fit
+  // the byte budget. The body has to be rendered from what survives both -
+  // a group that renders an image URL for a file nobody wrote is a broken
+  // image in the comment. Dropping out is not silent: renderGroup folds the
+  // screen into its "N more changed screens in this group" line and the
+  // full text listing still names it.
   const composed = [];
   const digests = new Map();
   for (const entry of embedded) {
@@ -1103,7 +1236,12 @@ async function main() {
     // slots on one fact is the thing the caps exist to prevent. Note this
     // frees the slot rather than reassigning it: selection has already run,
     // so the comment shows fewer pictures, not a different one.
-    const digest = createHash("sha256").update(picture.bytes).digest("hex");
+    // Hashed on the pixels rather than on an encoding, so a twin is caught
+    // before the width the set is published at has been decided - and stays
+    // caught whatever that width turns out to be.
+    const digest = createHash("sha256")
+      .update(picture.composite.data)
+      .digest("hex");
     const twin = digests.get(digest);
     if (twin) {
       process.stderr.write(`Skipping ${key}: pixel-identical to ${twin}.\n`);
@@ -1111,18 +1249,38 @@ async function main() {
     }
     digests.set(digest, key);
 
-    const target = path.join(outDir, entry.surface, entry.screen.name);
+    composed.push({ key, entry, ...picture });
+  }
+
+  const { width, published, dropped } = fitPublishedImages(composed);
+  for (const picture of dropped) {
+    process.stderr.write(
+      `Skipping ${picture.key}: the set does not fit the published byte budget.\n`,
+    );
+  }
+
+  await fs.mkdir(outDir, { recursive: true });
+  for (const picture of published) {
+    const { surface, screen } = picture.entry;
+    const target = path.join(outDir, surface, screen.name);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, picture.bytes);
-    coverage.set(key, picture.coverage);
-    composed.push(entry);
+    coverage.set(picture.key, picture.coverage);
   }
+
+  // Only when a picture actually lost pixels. The top rung is the width the
+  // composites are already built at, so on the ordinary run nothing is
+  // reduced and the comment should not claim otherwise.
+  const wasReduced = published.some(
+    (picture) => picture.composite.width > width,
+  );
 
   const body = renderBody({
     surfaces,
     ranked,
-    embedded: composed,
+    embedded: published.map((picture) => picture.entry),
     coverage,
+    publishedWidth: wasReduced ? width : null,
     baseUrl: baseUrl.replace(/\/+$/, ""),
     runUrl,
     candidateRef,
@@ -1130,22 +1288,31 @@ async function main() {
   });
   await fs.writeFile(bodyFile, `${body}\n`);
 
+  const at = wasReduced ? ` at ${width}px wide` : "";
+  const short =
+    dropped.length > 0
+      ? `, ${dropped.length} left out to stay inside the byte budget`
+      : "";
   process.stdout.write(
-    `Composed ${composed.length} before/after image(s) into ${outDir}.\n`,
+    `Composed ${published.length} before/after image(s) into ${outDir}${at}${short}.\n`,
   );
 }
 
-// The pure selection and cropping rules, exported for the unit tests in
-// `scripts/__tests__/visual-embed.test.mjs`. These three are the ones worth
-// pinning: each of their comments records a rule that was already got wrong
-// once, and each is invisible in the rendered comment when it regresses -
-// a wrong crop still produces a picture, just not of the change.
+// The pure selection, cropping and sizing rules, exported for the unit
+// tests in `scripts/__tests__/visual-embed.test.mjs`. These are the ones
+// worth pinning: each of their comments records a rule that was already got
+// wrong once, and each is invisible in the rendered comment when it
+// regresses - a wrong crop still produces a picture, just not of the
+// change, and a budget that does not bind produces no picture at all.
 export {
   changedRegions,
   changedRowBand,
   composeBeforeAfter,
   cropWindow,
+  fitPublishedImages,
   panelLayout,
+  PUBLISHED_TOTAL_BYTE_BUDGET,
+  reduceToWidth,
   screenCaption,
   selectEmbeddedGroups,
 };

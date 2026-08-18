@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { PNG } from "pngjs";
 
 import {
   changedRegions,
   changedRowBand,
   composeBeforeAfter,
   cropWindow,
+  fitPublishedImages,
   panelLayout,
+  PUBLISHED_TOTAL_BYTE_BUDGET,
+  reduceToWidth,
   screenCaption,
   selectEmbeddedGroups,
 } from "../visual-embed.mjs";
@@ -294,5 +302,166 @@ test("selectEmbeddedGroups under-serves the last surface once a third is added",
   assert.deepEqual(
     keys.filter((key) => key.startsWith("c")),
     ["c1"],
+  );
+});
+
+/**
+ * A composite-shaped image made of flat blocks, which is how a screenshot
+ * of a UI compresses. Deliberately not noise: noise barely compresses at
+ * all, so a 1280px pair of it weighs more than any real run could and every
+ * budget below would be spent by the fixture rather than by the code.
+ */
+function textured(width, height) {
+  const image = new PNG({ width, height });
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const block = (Math.floor(y / 8) * 7 + Math.floor(x / 24) * 13) % 5;
+      const i = (y * width + x) * 4;
+      image.data[i] = 40 + block * 50;
+      image.data[i + 1] = 200 - block * 30;
+      image.data[i + 2] = 90 + block * 20;
+      image.data[i + 3] = 255;
+    }
+  }
+  return image;
+}
+
+/** What one picture costs at a published width. */
+function cost(composite, width) {
+  return PNG.sync.write(reduceToWidth(composite, width), { colorType: 2 })
+    .length;
+}
+
+test("reduceToWidth leaves a picture already inside the width alone", () => {
+  const composite = textured(320, 40);
+
+  assert.equal(reduceToWidth(composite, 640), composite);
+});
+
+// The rule the fractional block exists for. At an integer factor every
+// output column samples the same number of source columns and a lone
+// changed column always lands in one of them; at 1.6 it does not, and a
+// nearest-neighbour reduction would skip it on some columns.
+test("reduceToWidth carries a one-column change into a fractional reduction", () => {
+  const composite = new PNG({ width: 10, height: 1 });
+  composite.data.fill(0);
+  for (let i = 3; i < composite.data.length; i += 4) composite.data[i] = 255;
+  composite.data[4 * 4] = 255;
+  composite.data[4 * 4 + 1] = 255;
+  composite.data[4 * 4 + 2] = 255;
+
+  const reduced = reduceToWidth(composite, 7);
+
+  assert.equal(reduced.width, 7);
+  const lit = [];
+  for (let x = 0; x < reduced.width; x += 1) {
+    if (reduced.data[x * 4] > 0) lit.push(x);
+  }
+  assert.deepEqual(lit, [3]);
+});
+
+test("fitPublishedImages publishes at the composite's own width when the set fits", () => {
+  const pictures = [
+    { key: "vault/a.png", composite: textured(1280, 160) },
+    { key: "vault/b.png", composite: textured(1280, 160) },
+  ];
+
+  const fit = fitPublishedImages(pictures, PUBLISHED_TOTAL_BYTE_BUDGET);
+
+  assert.equal(fit.width, 1280);
+  assert.deepEqual(
+    fit.published.map((picture) => picture.key),
+    ["vault/a.png", "vault/b.png"],
+  );
+  assert.deepEqual(fit.dropped, []);
+});
+
+test("fitPublishedImages publishes without an alpha channel", () => {
+  const pictures = [{ key: "vault/a.png", composite: textured(1280, 160) }];
+
+  const fit = fitPublishedImages(pictures, PUBLISHED_TOTAL_BYTE_BUDGET);
+
+  // Byte 25 of a PNG is the IHDR colour type: 2 is truecolour, 6 carries an
+  // alpha channel that every source here holds constant at 255.
+  assert.equal(fit.published[0].bytes[25], 2);
+});
+
+test("fitPublishedImages reduces the whole set rather than dropping a picture", () => {
+  const pictures = [
+    { key: "vault/a.png", composite: textured(1280, 160) },
+    { key: "vault/b.png", composite: textured(1280, 160) },
+  ];
+  const budget =
+    cost(pictures[0].composite, 1280) + cost(pictures[1].composite, 1280) - 1;
+
+  const fit = fitPublishedImages(pictures, budget);
+
+  assert.ok(fit.width < 1280, `published at ${fit.width}px`);
+  assert.equal(fit.published.length, 2);
+  assert.deepEqual(fit.dropped, []);
+  for (const picture of fit.published) {
+    assert.equal(PNG.sync.read(picture.bytes).width, fit.width);
+  }
+});
+
+// Lowest-ranked, not cheapest: the selection above already decided which
+// screen is worth showing, and trading it for a smaller neighbour would
+// quietly overrule that.
+test("fitPublishedImages gives up the lowest-ranked picture when the floor still busts the budget", () => {
+  const pictures = [
+    { key: "vault/a.png", composite: textured(1280, 160) },
+    { key: "vault/b.png", composite: textured(1280, 160) },
+  ];
+  const budget =
+    cost(pictures[0].composite, 640) + cost(pictures[1].composite, 640) - 1;
+
+  const fit = fitPublishedImages(pictures, budget);
+
+  assert.deepEqual(
+    fit.published.map((picture) => picture.key),
+    ["vault/a.png"],
+  );
+  assert.deepEqual(
+    fit.dropped.map((picture) => picture.key),
+    ["vault/b.png"],
+  );
+});
+
+// The invariant the whole budget rests on. Publishing over it hands the
+// workflow's publish step a set it refuses outright, which costs the
+// comment every picture rather than the one that would not fit.
+test("fitPublishedImages publishes nothing rather than exceeding the budget", () => {
+  const pictures = [{ key: "vault/a.png", composite: textured(1280, 160) }];
+
+  const fit = fitPublishedImages(pictures, 1);
+
+  assert.deepEqual(fit.published, []);
+  assert.deepEqual(
+    fit.dropped.map((picture) => picture.key),
+    ["vault/a.png"],
+  );
+});
+
+// Two caps in two files that have to stay ordered. They were not, and the
+// gap is what this budget exists to close: the workflow refused a 678KB set
+// against its 512KB ceiling, and nothing on this side knew the ceiling was
+// there.
+test("the workflow's publish ceiling stays above the budget this script fits to", () => {
+  const workflow = fs.readFileSync(
+    path.resolve(
+      fileURLToPath(import.meta.url),
+      "../../../.github/workflows/visual-regression.yml",
+    ),
+    "utf8",
+  );
+
+  const ceiling = workflow.match(
+    /MAX_PUBLISHED_BYTES=\$\(\(\s*(\d+)\s*\*\s*1024\s*\)\)/,
+  );
+
+  assert.ok(ceiling, "MAX_PUBLISHED_BYTES not found in the workflow");
+  assert.ok(
+    Number(ceiling[1]) * 1024 > PUBLISHED_TOTAL_BYTE_BUDGET,
+    `ceiling ${ceiling[1]}KB must exceed the ${PUBLISHED_TOTAL_BYTE_BUDGET}-byte budget`,
   );
 });
