@@ -7,7 +7,12 @@
  * Hard-won gotchas (see also the headed inspector `setup/inspectWallets.ts`):
  *  - UniSat derives taproot with coin type 0' even on signet; force the signet-correct account path
  *    `m/86'/1'/0'/0` (UniSat appends the `/0` index) and explicitly select the Taproot (P2TR) row.
- *  - Seed boxes need real key events — use pressSequentially, not fill().
+ *    That path field is behind an opt-in checkbox, and skipping it fails SILENTLY — the import still
+ *    yields a well-formed `tb1p…` address, just at the wrong path — so the card label is asserted.
+ *  - The import screen has no 12/24 selector: it auto-detects the word count. Before any word is
+ *    committed it is a single textarea that commits on Space/Enter (splitting on whitespace), and
+ *    once words exist that textarea unmounts in favour of a chip grid — so the whole phrase goes in
+ *    as one fill+Enter, never word by word.
  *  - Its buttons are <div>/<span> with pointer-events:none text — click by coordinates (tap/advance).
  *  - The "Compatibility Tips" modal must have its checkbox ticked before OK is honored.
  *  - The receive address is truncated in the DOM — read the full value via the clipboard, validated
@@ -17,11 +22,26 @@ import { type BrowserContext, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
-import { CLIPBOARD_POLL, SETTLE, TYPE_DELAY_MS } from "../../utils/timing";
+import { CLIPBOARD_POLL, SETTLE, WAIT_FOR } from "../../utils/timing";
 import { addrMatches, advance, clickText, tap, tapTopmost } from "../../utils/walletUi";
 
 /** Signet-correct BIP86 account path; UniSat appends the `/0` receive index → m/86'/1'/0'/0/0. */
 const UNISAT_TAPROOT_ACCOUNT_PATH = "m/86'/1'/0'/0";
+
+/** The Taproot row on the address-type screen — also that screen's marker (see `advanceFromImport`). */
+const TAPROOT_ROW = /Taproot \(P2TR\)/i;
+
+/** The receive path the Taproot card must show once the signet account path has been applied. */
+const UNISAT_TAPROOT_RECEIVE_PATH = `${UNISAT_TAPROOT_ACCOUNT_PATH}/0`;
+
+/** Testids on UniSat's address-type screen. */
+const ADDRESS_TYPE_TESTID = {
+  /** Opt-in for the custom derivation path; the input below is only mounted once it is ticked. */
+  CUSTOM_PATH_TOGGLE: "custom-hdpath-enabled-checkbox-input",
+  CUSTOM_PATH_INPUT: "custom-hdpath-input",
+  /** Prefix of the per-address-type cards; each label carries the path it would derive at. */
+  CARD_PREFIX: "address-type-card-",
+} as const;
 
 /** How many times to re-try dismissing the "Compatibility Tips" modal before giving up. */
 const MODAL_DISMISS_ATTEMPTS = 4;
@@ -39,23 +59,115 @@ async function dismissModals(page: Page): Promise<void> {
   }
 }
 
+/** Testids on UniSat's mnemonic-import screen. */
+const IMPORT_TESTID = {
+  /** The single textarea rendered while no word has been committed yet. */
+  INITIAL_INPUT: "mnemonic-import-initial-input",
+  /** Prefix of the per-word chips rendered once words have been committed. */
+  WORD_PREFIX: "mnemonic-import-word-",
+  CONTINUE: "mnemonic-import-continue-button",
+} as const;
+
+/** How many times to click the import screen's Continue before giving up. */
+const IMPORT_CONTINUE_ATTEMPTS = 4;
+
 /**
- * Switch UniSat's restore-screen seed grid to `count` words. The screen defaults to a 12-input grid and
- * exposes a word-count selector, but its options are bare <span>s with no testid/role/class — so we
- * can't target them structurally. The option LABEL always contains the count as digits, though ("24
- * words" / "24 слова" / "24 词"), so we match the DIGITS — which are the same in every UI language — and
- * exclude the numbered seed-row labels ("24."). Picking the option resizes the grid.
+ * Enter the whole recovery phrase on UniSat's import screen.
+ *
+ * There is no word-count selector to drive: the screen auto-detects 12 vs 24. Until a word is
+ * committed it renders a single textarea whose Space/Enter handler commits its buffer, splitting on
+ * whitespace — and that first commit unmounts the textarea in favour of a grid of per-word chips.
+ * So the phrase goes in as ONE fill + Enter (typing it word by word would lose the textarea after
+ * the first space), and the chip count is what proves every word actually landed.
  */
-async function selectSeedWordCount(page: Page, count: number): Promise<void> {
-  // \b<count>\b not followed by a "." (so a "24." row label can't match), anywhere in the label.
-  const target = new RegExp(`\\b${count}\\b(?!\\.)`);
-  const option = page.getByText(target).first();
-  await option.click({ force: true }).catch(() => {});
+async function enterMnemonic(page: Page, words: string[]): Promise<void> {
+  const initial = page.locator(`[data-testid="${IMPORT_TESTID.INITIAL_INPUT}"]`);
+  await initial.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
+  if ((await initial.count()) === 0)
+    throw new Error(
+      `UniSat: the seed textarea ([data-testid="${IMPORT_TESTID.INITIAL_INPUT}"]) never appeared. Its ` +
+        "restore UI likely changed; re-derive enterMnemonic (unisat.ts) against the installed extension.",
+    );
+
+  await initial.fill(words.join(" "));
+  await initial.press("Enter");
+  await page.waitForTimeout(SETTLE.BRIEF);
+
+  const committed = await page.locator(`[data-testid^="${IMPORT_TESTID.WORD_PREFIX}"]`).count();
+  if (committed !== words.length)
+    throw new Error(
+      `UniSat: the import screen committed ${committed} seed words but the phrase has ${words.length} — ` +
+        "the whole phrase was not accepted.",
+    );
+}
+
+/**
+ * Leave the import screen for the address-type screen. Continue stays disabled until UniSat has
+ * validated the phrase, and it is a pointer-events:none div — so click by coordinates and confirm we
+ * actually advanced (the Taproot row is the address-type screen's marker) instead of assuming a click
+ * on a still-disabled button did anything.
+ */
+async function advanceFromImport(page: Page): Promise<void> {
+  const addressTypeScreen = page.getByText(TAPROOT_ROW);
+  for (let i = 0; i < IMPORT_CONTINUE_ATTEMPTS; i++) {
+    if ((await addressTypeScreen.count()) > 0) return;
+    await clickTestId(page, IMPORT_TESTID.CONTINUE);
+    await page.waitForTimeout(SETTLE.MEDIUM);
+  }
+  if ((await addressTypeScreen.count()) === 0)
+    throw new Error(
+      `UniSat: Continue ([data-testid="${IMPORT_TESTID.CONTINUE}"]) did not advance past the import ` +
+        "screen — the phrase was rejected, or the address-type screen changed.",
+    );
+}
+
+/**
+ * Address-type screen: force the signet-correct derivation path, then select the Taproot (P2TR) card.
+ *
+ * UniSat derives taproot with coin type 0' even on signet, so the custom path has to be set — and it
+ * sits behind an opt-in checkbox whose input is only mounted once ticked. Getting this wrong is
+ * silent: the import still succeeds and still yields a well-formed `tb1p…` address, just at the wrong
+ * path. So both controls are required, and the chosen card's own label — which renders the path it
+ * would derive at — is asserted before the row is picked.
+ */
+async function selectSignetTaproot(page: Page): Promise<void> {
+  const toggle = page.locator(`[data-testid="${ADDRESS_TYPE_TESTID.CUSTOM_PATH_TOGGLE}"]`);
+  if ((await toggle.count()) === 0)
+    throw new Error(
+      `UniSat: the custom-derivation-path opt-in ([data-testid="${ADDRESS_TYPE_TESTID.CUSTOM_PATH_TOGGLE}"]) ` +
+        "is missing from the address-type screen; without it the wallet derives taproot at coin type 0'.",
+    );
+  await toggle.first().check({ force: true });
   await page.waitForTimeout(SETTLE.SHORT);
-  if ((await page.locator("input:visible, textarea:visible").count()) >= count) return;
-  // Fallback: the selector may be a closed dropdown — click it again after a settle to open + pick.
-  await option.click({ force: true }).catch(() => {});
-  await page.waitForTimeout(SETTLE.SHORT);
+
+  const customPath = page.locator(`[data-testid="${ADDRESS_TYPE_TESTID.CUSTOM_PATH_INPUT}"]`);
+  await customPath.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
+  if ((await customPath.count()) === 0)
+    throw new Error(
+      `UniSat: the derivation-path field ([data-testid="${ADDRESS_TYPE_TESTID.CUSTOM_PATH_INPUT}"]) did not ` +
+        "appear after enabling the custom path.",
+    );
+  await customPath.first().fill(UNISAT_TAPROOT_ACCOUNT_PATH);
+  // The cards re-derive their addresses off the new path before their labels update.
+  await page.waitForTimeout(SETTLE.MEDIUM);
+
+  const cards = page.locator(`[data-testid^="${ADDRESS_TYPE_TESTID.CARD_PREFIX}"]`);
+  const cardCount = await cards.count();
+  for (let i = 0; i < cardCount; i++) {
+    const label = await cards.nth(i).innerText().catch(() => "");
+    if (!TAPROOT_ROW.test(label)) continue;
+    if (!label.includes(UNISAT_TAPROOT_RECEIVE_PATH))
+      throw new Error(
+        `UniSat: the Taproot card derives at a path other than ${UNISAT_TAPROOT_RECEIVE_PATH} — the custom ` +
+          `derivation path did not take. Card label: ${label.replace(/\s+/g, " ").trim()}`,
+      );
+    await clickTestId(page, `${ADDRESS_TYPE_TESTID.CARD_PREFIX}${i}`);
+    await page.waitForTimeout(SETTLE.SHORT);
+    return;
+  }
+  throw new Error(
+    `UniSat: no Taproot (P2TR) card on the address-type screen (${cardCount} cards found).`,
+  );
 }
 
 /** Switch the network to Bitcoin Signet: pill → expand "Bitcoin Testnet" → "Bitcoin Signet". */
@@ -180,37 +292,14 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   await page.waitForTimeout(SETTLE.BRIEF);
   await clickText(page, /^UniSat Wallet$/);
 
-  // Seed-entry screen — type each word with real key events.
+  // Seed-entry screen — the phrase goes in as one commit; UniSat auto-detects 12 vs 24 words.
   await page.waitForTimeout(SETTLE.BRIEF);
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
-  // The restore screen defaults to a 12-input grid with a "<n> words" selector. A 24-word phrase needs
-  // the grid switched to 24 first, or the extra words are dropped — so match the grid to the phrase.
-  let seedInputs = page.locator("input:visible, textarea:visible");
-  if ((await seedInputs.count()) !== words.length) {
-    await selectSeedWordCount(page, words.length);
-    seedInputs = page.locator("input:visible, textarea:visible");
-  }
-  const seedCount = await seedInputs.count();
-  if (seedCount < words.length)
-    throw new Error(
-      `UniSat: seed grid shows ${seedCount} inputs but the phrase has ${words.length} words — the word-count selector did not switch. Its restore UI likely changed; re-derive selectSeedWordCount (unisat.ts).`,
-    );
-  for (let i = 0; i < words.length; i++) {
-    await seedInputs.nth(i).click();
-    await seedInputs.nth(i).pressSequentially(words[i], { delay: TYPE_DELAY_MS });
-  }
-  await page.waitForTimeout(SETTLE.BRIEF);
-  await advance(page, /continue|import|next|confirm/i);
+  await enterMnemonic(page, words);
+  await advanceFromImport(page);
 
   // Address-type screen — force the signet-correct path and select the Taproot (P2TR) row.
-  await page.waitForTimeout(SETTLE.MODAL);
-  const customPath = page.getByPlaceholder(/Custom HD Wallet Derivation Path/i);
-  if ((await customPath.count()) > 0) {
-    await customPath.first().click();
-    await customPath.first().fill(UNISAT_TAPROOT_ACCOUNT_PATH);
-    await page.waitForTimeout(SETTLE.BRIEF);
-  }
-  await tap(page, /Taproot \(P2TR\)/i);
+  await selectSignetTaproot(page);
   await advance(page, /continue|import|confirm|next|ok|done/i);
 
   // Wallet home (mainnet by default) → switch to signet and read the taproot address.

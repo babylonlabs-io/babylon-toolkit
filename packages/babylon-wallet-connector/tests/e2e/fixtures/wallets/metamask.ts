@@ -14,14 +14,16 @@
  *  - Onboarding does NOT auto-complete: the wallet stays stuck at /onboarding/completion until
  *    "Open wallet" is clicked (which also opens the side panel).
  *  - The side panel (`sidepanel.html`) is invisible to context.pages() and in-page window.close() is
- *    blocked by LavaMoat — close it at the browser level via CDP Target.closeTarget.
+ *    blocked by LavaMoat — close it at the browser level via CDP Target.closeTarget. Since 13.44
+ *    MetaMask opens there BY DEFAULT, which hides every approval from the approver, so the import
+ *    switches it back to pop-up mode (see `usePopupApprovals`).
  *  - A fresh home.html tab opens locked/at a residual onboarding step — settle it (unlock/passkey).
  */
 import { type BrowserContext, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
-import { SETTLE, TYPE_DELAY_MS } from "../../utils/timing";
+import { SETTLE, TYPE_DELAY_MS, WAIT_FOR } from "../../utils/timing";
 import { clickText, clickWhenEnabled, scanEthAddress } from "../../utils/walletUi";
 
 /** MetaMask-specific timeouts/loop bounds (values preserved from the verified onboarding flow). */
@@ -100,42 +102,52 @@ async function readAddress(page: Page): Promise<string | null> {
   return truncated ? truncated[0] : null;
 }
 
+/** Account-menu item that toggles between popup and side-panel view; its label names the TARGET view. */
+const MM_VIEW_TOGGLE_TESTID = "global-menu-toggle-view";
+
+/**
+ * Where to click inside the 32x32 account-options button. MetaMask overlays an unread-notifications
+ * badge (`notifications-tag-counter__unread-dot`) at the button's top-right, which intercepts a normal
+ * centre click; the bottom-left corner is clear of it.
+ */
+const MM_MENU_CLICK_POSITION = { x: 4, y: 28 } as const;
+
 /** The auto-lock value MetaMask ships with (its Security settings show it as a word, not minutes). */
 const MM_EXPECTED_AUTO_LOCK = "Never";
 
+/** MetaMask's Security-and-password settings route, navigated to directly (see `verifyAutoLockNever`). */
+const MM_SECURITY_SETTINGS_ROUTE = "#/settings/security-and-password";
+
 /**
  * Verify MetaMask's auto-lock is "Never" so the wallet doesn't re-lock during a run (steps 4 and 14 of
- * a peg-in are MetaMask transactions; a locked wallet stalls them). Path: account options
- * (account-options-menu-button) → Settings (global-menu-settings) → "Security and password" → the
- * "Auto lock" row. Fails loudly if it isn't "Never" (or the row can't be found) — that's the signal to
- * capture MetaMask's auto-lock SETTER and switch this from a verify to a set. The per-wallet spec
+ * a peg-in are MetaMask transactions; a locked wallet stalls them).
+ *
+ * Goes straight to the Security settings ROUTE rather than driving account options → Settings →
+ * "Security and password". MetaMask renders an unread-notifications badge that intermittently
+ * overlays the account-options button and swallows the click (Playwright reports
+ * `notifications-tag-counter__unread-dot … intercepts pointer events`), and LavaMoat's scuttling
+ * blocks the usual `dispatchEvent` escape hatch — so the menu path is a race we cannot win. The route
+ * reaches the same screen with nothing to intercept.
+ *
+ * Fails loudly if it isn't "Never" (or the row can't be found) — that's the signal to capture
+ * MetaMask's auto-lock SETTER and switch this from a verify to a set. The per-wallet spec
  * (test:e2e:metamask) exercises this.
  */
 async function verifyAutoLockNever(page: Page): Promise<void> {
-  await page
-    .getByTestId("account-options-menu-button")
-    .first()
-    .click()
-    .catch(() => {});
-  await page.waitForTimeout(SETTLE.SHORT);
-  const settings = page.getByTestId("global-menu-settings").first();
-  if ((await settings.count()) === 0)
+  const base = (page.url().match(/^(chrome-extension:\/\/[a-p]{32})\//) ?? [])[1];
+  if (!base)
     throw new Error(
-      "MetaMask auto-lock: Settings menu item (global-menu-settings) not found",
+      `MetaMask auto-lock: expected a chrome-extension wallet page, got "${page.url()}"`,
     );
-  await settings.click().catch(() => {});
-  await page.waitForTimeout(SETTLE.MODAL);
-  const section = page.getByText("Security and password", { exact: true }).first();
-  if ((await section.count()) === 0)
-    throw new Error(
-      'MetaMask auto-lock: "Security and password" section not found',
-    );
-  await section.click().catch(() => {});
+  await page.goto(`${base}/home.html${MM_SECURITY_SETTINGS_ROUTE}`).catch(() => {});
   await page.waitForTimeout(SETTLE.MODAL);
 
   const label = page.getByText("Auto lock", { exact: true }).first();
+  await label.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
   if ((await label.count()) === 0)
-    throw new Error('MetaMask auto-lock: "Auto lock" row not found');
+    throw new Error(
+      `MetaMask auto-lock: "Auto lock" row not found at ${MM_SECURITY_SETTINGS_ROUTE} — the settings route or layout changed`,
+    );
   // The row div holds the label <p> and the current-value <p> side by side; read the whole row.
   const rowText = (await label.locator("xpath=..").innerText().catch(() => ""))
     .replace(/\s+/g, " ")
@@ -144,6 +156,58 @@ async function verifyAutoLockNever(page: Page): Promise<void> {
     throw new Error(
       `MetaMask auto-lock: expected "${MM_EXPECTED_AUTO_LOCK}" but the Auto lock row reads "${rowText}"`,
     );
+}
+
+/**
+ * Put MetaMask back into POPUP mode, so approvals open as `notification.html` windows.
+ *
+ * As of 13.44 MetaMask "opens in the side panel by default" (its own migration toast). Chrome does not
+ * expose a side panel as a Playwright page — no `page` event fires and it never appears in
+ * `context.pages()` — so an approval raised there is invisible to the pop-up approver and a run simply
+ * stalls with the request unconfirmed. Flipping the preference restores the pre-13.44 behaviour, which
+ * every approval path in this harness is already built around.
+ *
+ * The toggle only renders in the popup/side-panel view (never in the expanded tab), so this drives it
+ * from `sidepanel.html` opened AS A TAB — the same trick that makes the panel reachable at all. The
+ * account-options button needs an off-centre click to dodge the unread-notifications badge.
+ *
+ * Confirmed by the panel document closing itself, which is what switching view modes does. Note the
+ * toggle's LABEL cannot be used: it names the current view, and read from `sidepanel.html` that is
+ * always "Switch to popup" whatever the stored preference is. Failing silently here would reintroduce
+ * an invisible-approval stall that only surfaces much later as an unexplained timeout, so it throws.
+ */
+async function usePopupApprovals(
+  context: BrowserContext,
+  base: string,
+): Promise<void> {
+  const panel = await context.newPage();
+  try {
+    await panel.goto(`${base}/sidepanel.html`).catch(() => {});
+    await panel.waitForTimeout(SETTLE.LONG);
+    await panel
+      .getByTestId("account-options-menu-button")
+      .first()
+      .click({ position: MM_MENU_CLICK_POSITION, timeout: WAIT_FOR.ELEMENT_MS })
+      .catch(() => {});
+    await panel.waitForTimeout(SETTLE.MODAL);
+
+    const toggle = panel
+      .locator(`[data-testid="${MM_VIEW_TOGGLE_TESTID}"]`)
+      .first();
+    if ((await toggle.count().catch(() => 0)) === 0)
+      throw new Error(
+        `MetaMask: view toggle (${MM_VIEW_TOGGLE_TESTID}) not found in the side-panel view — cannot put approvals into pop-ups, which the approver requires.`,
+      );
+    await toggle.click({ timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
+    await panel.waitForTimeout(SETTLE.MODAL).catch(() => {});
+
+    if (!panel.isClosed())
+      throw new Error(
+        "MetaMask: failed to switch to pop-up mode — the side-panel document is still open. Approvals would open in the side panel, where the approver cannot reach them.",
+      );
+  } finally {
+    await panel.close().catch(() => {});
+  }
 }
 
 /**
@@ -252,6 +316,9 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
 
   // Confirm auto-lock won't re-lock the wallet mid-run (expected to already be "Never").
   await verifyAutoLockNever(walletPage);
+
+  // Approvals must open as pop-up windows; the side panel is invisible to Playwright.
+  await usePopupApprovals(context, base);
 
   await walletPage.close().catch(() => {}); // done — the wallet persists in the profile
   if (!address) throw new Error("MetaMask: could not read an address after import");
