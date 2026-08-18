@@ -40,7 +40,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // flow. Normally unreachable — the UI holds Activate closed for the window —
   // so this is the fallback for a governance change mid-flow.
   ActivationDelayNotElapsed:
-    "The BTC Vault activation window has not opened yet. Please wait a few minutes and try again.",
+    "The BTC Vault activation window has not opened yet. The deposit list shows how long is left.",
   InvalidSecret:
     "The secret does not match the BTC Vault's hashlock. Please verify your secret and try again.",
   InvalidHashlock: "The BTC Vault does not have a valid hashlock configured.",
