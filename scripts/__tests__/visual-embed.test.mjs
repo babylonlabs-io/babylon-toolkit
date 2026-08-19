@@ -13,6 +13,8 @@ import {
   cropWindow,
   fitPublishedImages,
   panelLayout,
+  PUBLISHED_BYTE_MARGIN,
+  PUBLISHED_COLOUR_TYPE,
   PUBLISHED_TOTAL_BYTE_BUDGET,
   reduceToWidth,
   screenCaption,
@@ -328,8 +330,9 @@ function textured(width, height) {
 
 /** What one picture costs at a published width. */
 function cost(composite, width) {
-  return PNG.sync.write(reduceToWidth(composite, width), { colorType: 2 })
-    .length;
+  return PNG.sync.write(reduceToWidth(composite, width), {
+    colorType: PUBLISHED_COLOUR_TYPE,
+  }).length;
 }
 
 test("reduceToWidth leaves a picture already inside the width alone", () => {
@@ -346,9 +349,9 @@ test("reduceToWidth carries a one-column change into a fractional reduction", ()
   const composite = new PNG({ width: 10, height: 1 });
   composite.data.fill(0);
   for (let i = 3; i < composite.data.length; i += 4) composite.data[i] = 255;
-  composite.data[4 * 4] = 255;
-  composite.data[4 * 4 + 1] = 255;
-  composite.data[4 * 4 + 2] = 255;
+  composite.data[3 * 4] = 255;
+  composite.data[3 * 4 + 1] = 255;
+  composite.data[3 * 4 + 2] = 255;
 
   const reduced = reduceToWidth(composite, 7);
 
@@ -357,7 +360,12 @@ test("reduceToWidth carries a one-column change into a fractional reduction", ()
   for (let x = 0; x < reduced.width; x += 1) {
     if (reduced.data[x * 4] > 0) lit.push(x);
   }
-  assert.deepEqual(lit, [3]);
+  // Column 2 averages the lit source column with one dark neighbour, so it
+  // comes back at half. A nearest-neighbour reduction samples
+  // Math.floor(2 * 10/7) = 2 -> source column 2, which is dark, and reports
+  // nothing lit at all.
+  assert.deepEqual(lit, [2]);
+  assert.equal(reduced.data[2 * 4], 128);
 });
 
 test("fitPublishedImages publishes at the composite's own width when the set fits", () => {
@@ -425,6 +433,11 @@ test("fitPublishedImages gives up the lowest-ranked picture when the floor still
     fit.dropped.map((picture) => picture.key),
     ["vault/b.png"],
   );
+  // The ladder restarts from the top once a picture is gone: what is left
+  // fits at full width, and holding it at the floor would be a reduction
+  // nothing asked for. An implementation resuming at the rung it failed on
+  // would publish this at 640.
+  assert.equal(fit.width, 1280);
 });
 
 // The invariant the whole budget rests on. Publishing over it hands the
@@ -442,6 +455,156 @@ test("fitPublishedImages publishes nothing rather than exceeding the budget", ()
   );
 });
 
+// The block that runs to the source edge. `width * columnScale` is exactly
+// `source.width` in real arithmetic but lands a hair under it in IEEE-754,
+// so flooring the last block's end used to leave the final source column
+// unread - the right edge of the rightmost panel, and the hairline this
+// averaging exists to keep.
+test("reduceToWidth carries the last source column into the reduction", () => {
+  const composite = new PNG({ width: 803, height: 4 });
+  for (let y = 0; y < 4; y += 1) {
+    for (let x = 0; x < 803; x += 1) {
+      const i = (y * 803 + x) * 4;
+      composite.data[i] = x === 802 ? 255 : 0;
+      composite.data[i + 3] = 255;
+    }
+  }
+
+  const reduced = reduceToWidth(composite, 800);
+
+  assert.ok(
+    reduced.data[(reduced.width - 1) * 4] > 0,
+    "the last source column was dropped",
+  );
+});
+
+test("reduceToWidth carries the last source row into the reduction", () => {
+  // 642x200 -> 640 is one of the sizes where the last block's computed end
+  // lands short of the source; 642x400 is not, and would pass either way.
+  const composite = new PNG({ width: 642, height: 200 });
+  for (let y = 0; y < 200; y += 1) {
+    for (let x = 0; x < 642; x += 1) {
+      const i = (y * 642 + x) * 4;
+      composite.data[i] = y === 199 ? 255 : 0;
+      composite.data[i + 3] = 255;
+    }
+  }
+
+  const reduced = reduceToWidth(composite, 640);
+
+  assert.ok(
+    reduced.data[(reduced.height - 1) * reduced.width * 4] > 0,
+    "the last source row was dropped",
+  );
+});
+
+// Height is derived from the column scale, and nothing else keeps a reduced
+// composite from being squashed. A regression that scaled width alone still
+// writes a valid PNG and still fits the budget.
+test("reduceToWidth keeps the composite's shape", () => {
+  const reduced = reduceToWidth(textured(1280, 800), 640);
+
+  assert.equal(reduced.width, 640);
+  assert.equal(reduced.height, 400);
+});
+
+// The floor exists so a reviewer sees both surfaces. Taking the tail would
+// give up exactly the screens it protects: groups are ranked globally, and
+// a shipped route moving 1% of a tall page ranks below a story moving 17%
+// of a small frame.
+test("fitPublishedImages keeps every surface pictured when it has to give one up", () => {
+  const pictures = [
+    { key: "storybook/s1.png", composite: textured(1280, 300) },
+    { key: "storybook/s2.png", composite: textured(1280, 300) },
+    { key: "storybook/s3.png", composite: textured(1280, 300) },
+    { key: "vault/v1.png", composite: textured(1280, 300) },
+    { key: "vault/v2.png", composite: textured(1280, 300) },
+  ];
+  const budget = cost(pictures[0].composite, 640) * 3 + 100;
+
+  const fit = fitPublishedImages(pictures, budget);
+
+  assert.ok(
+    fit.published.some((picture) => picture.key.startsWith("vault/")),
+    `vault lost every picture: ${fit.published.map((p) => p.key).join(", ")}`,
+  );
+  assert.deepEqual(
+    fit.dropped.map((picture) => picture.key),
+    ["storybook/s3.png", "vault/v2.png"],
+  );
+});
+
+// One picture too big for the budget used to evict every picture that would
+// have fit, one at a time, before finally going itself - and the comment
+// fell back to the filename listing it exists to replace.
+test("fitPublishedImages gives up an oversized picture rather than the set around it", () => {
+  const pictures = [
+    { key: "vault/heavy.png", composite: textured(1280, 2400) },
+    { key: "vault/a.png", composite: textured(40, 20) },
+    { key: "vault/b.png", composite: textured(40, 20) },
+  ];
+
+  const fit = fitPublishedImages(pictures, 20 * 1024);
+
+  assert.deepEqual(
+    fit.published.map((picture) => picture.key),
+    ["vault/a.png", "vault/b.png"],
+  );
+  assert.deepEqual(
+    fit.dropped.map((picture) => picture.key),
+    ["vault/heavy.png"],
+  );
+});
+
+// Encoding moved out of the per-screen try/catch when it moved in here, so
+// one unencodable composite took every picture in the run with it.
+test("fitPublishedImages gives up a picture it cannot encode", () => {
+  const pictures = [
+    { key: "vault/broken.png", composite: { width: 8, height: 8, data: null } },
+    { key: "vault/a.png", composite: textured(40, 20) },
+  ];
+
+  const fit = fitPublishedImages(pictures, PUBLISHED_TOTAL_BYTE_BUDGET);
+
+  assert.deepEqual(
+    fit.published.map((picture) => picture.key),
+    ["vault/a.png"],
+  );
+  assert.equal(fit.dropped.length, 1);
+  assert.match(fit.dropped[0].reason, /could not be encoded/);
+});
+
+// The rung is a cap, not a scale factor. A mobile composite already inside
+// it is published untouched, and saying the whole set is at the rung tells
+// a reviewer measuring a control the wrong thing.
+test("fitPublishedImages reports the width each picture is actually published at", () => {
+  const pictures = [
+    { key: "vault/wide.png", composite: textured(1280, 300) },
+    { key: "vault/narrow.png", composite: textured(788, 300) },
+  ];
+  const budget =
+    cost(pictures[0].composite, 1280) + cost(pictures[1].composite, 1280) - 1;
+
+  const fit = fitPublishedImages(pictures, budget);
+
+  assert.ok(fit.width < 1280, `published at ${fit.width}px`);
+  assert.equal(fit.reduced, true);
+  assert.deepEqual(
+    fit.published.map((picture) => picture.publishedWidth),
+    [fit.width, 788],
+  );
+});
+
+test("fitPublishedImages reports nothing reduced when every composite is inside the rung", () => {
+  const fit = fitPublishedImages(
+    [{ key: "vault/narrow.png", composite: textured(788, 300) }],
+    PUBLISHED_TOTAL_BYTE_BUDGET,
+  );
+
+  assert.equal(fit.reduced, false);
+  assert.equal(fit.published[0].publishedWidth, 788);
+});
+
 // Two caps in two files that have to stay ordered. They were not, and the
 // gap is what this budget exists to close: the workflow refused a 678KB set
 // against its 512KB ceiling, and nothing on this side knew the ceiling was
@@ -455,13 +618,30 @@ test("the workflow's publish ceiling stays above the budget this script fits to"
     "utf8",
   );
 
-  const ceiling = workflow.match(
-    /MAX_PUBLISHED_BYTES=\$\(\(\s*(\d+)\s*\*\s*1024\s*\)\)/,
+  // Matched as an arithmetic expression rather than as one spelling of it:
+  // `512 * 1024` and `1024 * 512` are the same ceiling, and a pattern that
+  // only knows the first fails the whole visual job on a harmless edit.
+  const assignment = workflow.match(/MAX_PUBLISHED_BYTES=\$\(\((.+?)\)\)/);
+
+  assert.ok(assignment, "MAX_PUBLISHED_BYTES not found in the workflow");
+  assert.match(
+    assignment[1],
+    /^[\d\s*+]+$/,
+    `MAX_PUBLISHED_BYTES is not a plain arithmetic expression: ${assignment[1]}`,
+  );
+  const ceiling = Number(
+    new Function(`return (${assignment[1]});`)(),
   );
 
-  assert.ok(ceiling, "MAX_PUBLISHED_BYTES not found in the workflow");
   assert.ok(
-    Number(ceiling[1]) * 1024 > PUBLISHED_TOTAL_BYTE_BUDGET,
-    `ceiling ${ceiling[1]}KB must exceed the ${PUBLISHED_TOTAL_BYTE_BUDGET}-byte budget`,
+    Number.isFinite(ceiling) && ceiling > 0,
+    `MAX_PUBLISHED_BYTES did not evaluate to a size: ${assignment[1]}`,
+  );
+  // The margin, not just the order. The run this budget was measured on
+  // cleared it by 2KB, so a ceiling one byte above the budget would pass a
+  // check on ordering alone while leaving no room at all.
+  assert.ok(
+    ceiling >= PUBLISHED_TOTAL_BYTE_BUDGET + PUBLISHED_BYTE_MARGIN,
+    `ceiling ${ceiling} must clear the ${PUBLISHED_TOTAL_BYTE_BUDGET}-byte budget by ${PUBLISHED_BYTE_MARGIN} bytes`,
   );
 });

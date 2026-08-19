@@ -188,10 +188,13 @@ const MAX_COMPOSITE_HEIGHT = 2400;
  * where a picture can be made smaller, rather than there, where it can only
  * be dropped.
  *
- * Below the workflow's ceiling rather than equal to it, because the two
- * count slightly different things: this counts the PNGs, that counts what
- * the publish step finds on disk. `visual-embed.test.mjs` pins the order of
- * the pair, which is the check that was missing when the ceiling was set.
+ * Below the workflow's ceiling rather than equal to it, by a deliberate
+ * margin. The two count the same thing - the workflow sums the apparent
+ * size of exactly the PNGs written here - so the gap buys nothing but room
+ * to be wrong. It is worth having: the run this budget was measured on
+ * cleared it by 2KB, and the encoder's output moves with the content of a
+ * capture. `visual-embed.test.mjs` pins the margin, not just the order,
+ * which is the check that was missing when the ceiling was set.
  *
  * The ladder is walked top down and the first rung the whole set fits under
  * wins, so the ordinary pull request that moves one screen still publishes
@@ -200,20 +203,35 @@ const MAX_COMPOSITE_HEIGHT = 2400;
  * subdivision: 1280 is a desktop capture at life size, 960 and 800 bracket
  * what a comment column actually renders, and 640 is the floor, past which
  * a phone panel in a three-panel composite is 210px wide and the change it
- * is meant to show stops being legible. A set that will not fit even at the
- * floor drops its lowest-ranked picture instead of shrinking further, and
- * says so in the comment.
+ * is meant to show stops being legible.
+ *
+ * The ladder buys less than its pixel counts suggest - measured on UI-like
+ * content, 1280 to 640 is a 75% pixel cut for around a 28% byte cut - so a
+ * busy vault-heavy run can reach the floor and still need to give a picture
+ * up. When it does it keeps both surfaces pictured rather than keeping the
+ * count up, on the same reasoning as MIN_EMBEDDED_GROUPS_PER_SURFACE: two
+ * surfaces at the floor tell a reviewer more than one surface at 800px.
+ * Anything given up is named in the comment.
  */
 const PUBLISHED_TOTAL_BYTE_BUDGET = 448 * 1024;
+
+/**
+ * How far under the workflow's ceiling the budget above has to sit. Pinned
+ * so that closing the gap is a deliberate edit rather than a rounding.
+ */
+const PUBLISHED_BYTE_MARGIN = 64 * 1024;
 const PUBLISHED_WIDTH_LADDER = [EMBED_MAX_WIDTH, 960, 800, 640];
 
 /**
  * Published as truecolour with no alpha channel.
  *
- * Every source here is an opaque screenshot and the reduction below writes
- * 255 into every pixel it produces, so the channel carries one constant
- * value down the whole file - around a tenth of the published bytes spent
- * saying "not transparent".
+ * Every pixel that reaches the encoder is opaque: `fill` and `paintRect`
+ * write 255, the captures carry no transparency of their own, and the
+ * reduction writes 255 into every pixel it produces. A composite already
+ * inside the rung is published untouched, so the reduction is not what
+ * makes this safe on the ordinary run - the sources being opaque is. The
+ * channel would otherwise carry one constant value down the whole file,
+ * around a tenth of the published bytes spent saying "not transparent".
  */
 const PUBLISHED_COLOUR_TYPE = 2;
 
@@ -760,16 +778,28 @@ function reduceToWidth(source, width) {
 
   for (let y = 0; y < height; y += 1) {
     const top = Math.floor(y * rowScale);
-    const bottom = Math.min(
-      source.height,
-      Math.max(top + 1, Math.floor((y + 1) * rowScale)),
-    );
+    // The last block runs to the edge rather than to its computed end.
+    // `height * rowScale` is exactly `source.height` in real arithmetic but
+    // usually lands a hair under it in IEEE-754, so `Math.floor` would leave
+    // the final source row unread - the bottom of the bottom panel, which is
+    // real capture content and exactly the hairline this averaging exists to
+    // keep. Same for the last column and the right edge.
+    const bottom =
+      y === height - 1
+        ? source.height
+        : Math.min(
+            source.height,
+            Math.max(top + 1, Math.floor((y + 1) * rowScale)),
+          );
     for (let x = 0; x < width; x += 1) {
       const left = Math.floor(x * columnScale);
-      const right = Math.min(
-        source.width,
-        Math.max(left + 1, Math.floor((x + 1) * columnScale)),
-      );
+      const right =
+        x === width - 1
+          ? source.width
+          : Math.min(
+              source.width,
+              Math.max(left + 1, Math.floor((x + 1) * columnScale)),
+            );
       let red = 0;
       let green = 0;
       let blue = 0;
@@ -820,6 +850,39 @@ function encodeAtWidth(composite, width) {
   });
 }
 
+/** The surface a picture belongs to, which is the first segment of its key. */
+function pictureSurface(picture) {
+  return picture.key.split("/")[0];
+}
+
+/**
+ * Which picture the set gives up next.
+ *
+ * Not simply the last one. Pictures arrive in global rank order, and by the
+ * same reasoning as MIN_EMBEDDED_GROUPS_PER_SURFACE the globally lowest-ranked
+ * groups are the vault ones - a shipped route moving 1% of a tall page ranks
+ * below a story moving 17% of a small frame. Taking the tail would give up
+ * exactly the screens that floor exists to protect, and they are also the tall
+ * expensive composites, so each drop would buy the most bytes and do the most
+ * damage. A token repaint would publish a Storybook-only comment.
+ *
+ * So the surface holding the most pictures gives one up, and within it the
+ * lowest-ranked. Both surfaces stay pictured until one has nothing left.
+ */
+function indexOfMostExpendable(pictures) {
+  const held = new Map();
+  for (const picture of pictures) {
+    const surface = pictureSurface(picture);
+    held.set(surface, (held.get(surface) ?? 0) + 1);
+  }
+  const mostHeld = Math.max(...held.values());
+
+  for (let index = pictures.length - 1; index >= 0; index -= 1) {
+    if (held.get(pictureSurface(pictures[index])) === mostHeld) return index;
+  }
+  return pictures.length - 1;
+}
+
 /**
  * Decides what the set of pictures is published at, and what it costs.
  *
@@ -830,52 +893,104 @@ function encodeAtWidth(composite, width) {
  * less, and a per-picture share makes what a reviewer sees depend on how
  * many OTHER screens happened to change in the same push.
  *
- * Pictures are given up only once the floor rung is still over budget, and
- * from the bottom of the ranking, so what goes is what the selection above
- * already judged least worth showing. Then the ladder is walked again from
- * the top: with one picture gone the rest may fit at a rung that keeps them
- * readable, which is worth more than holding a picture nobody can read.
+ * The rung is a cap, not a scale factor: a composite already inside it is
+ * published untouched. A mobile two-panel composite is 788px wide, so the
+ * top three rungs cost it exactly the same bytes.
  *
- * Encodings are cached per picture and rung. The walk revisits both, and
- * deflating a 1280x2400 composite is ~100ms - enough for a rung-by-rung
- * search on a full set to become the slowest thing in the job.
+ * Every rung is measured rather than assumed. Narrower is not reliably
+ * fewer bytes - box averaging at a fractional scale turns flat UI regions
+ * into gradients that deflate worse, and a 1186px composite measured here
+ * costs 26KB untouched against 45KB at the 640 rung. The walk still takes
+ * the widest rung that fits, so a rung that costs more than a wider one can
+ * never be chosen.
+ *
+ * Pictures are given up only once the floor rung is still over budget, and
+ * a picture that cannot fit even alone goes first, so one oversized
+ * composite cannot take the whole set down with it on the way to being
+ * dropped itself.
+ *
+ * Encodings are cached per picture and applied width. The walk revisits
+ * both, and deflating a 1280x2400 composite is ~100ms - enough for a
+ * rung-by-rung search on a full set to become the slowest thing in the job.
  */
 function fitPublishedImages(pictures, budget = PUBLISHED_TOTAL_BYTE_BUDGET) {
+  const floorWidth = PUBLISHED_WIDTH_LADDER.at(-1);
   const encoded = new Map();
+
+  // Keyed on the width actually applied, not the rung: `reduceToWidth`
+  // hands back the source untouched when it is already narrow enough, so a
+  // 788px mobile composite is byte-identical at the top three rungs and
+  // would otherwise be deflated and cached three times over.
   const bytesAt = (picture, width) => {
-    const key = `${picture.index}:${width}`;
+    const applied = Math.min(width, picture.composite.width);
+    const key = `${picture.index}:${applied}`;
     if (!encoded.has(key)) {
-      encoded.set(key, encodeAtWidth(picture.composite, width));
+      encoded.set(key, encodeAtWidth(picture.composite, applied));
     }
     return encoded.get(key);
   };
 
-  const kept = pictures.map((picture, index) => ({ ...picture, index }));
+  // Null once the running total passes the budget: a rung already over by
+  // the second picture should not pay to encode the rest of the set.
+  const totalAt = (set, width) => {
+    let total = 0;
+    for (const picture of set) {
+      total += bytesAt(picture, width).length;
+      if (total > budget) return null;
+    }
+    return total;
+  };
+
   const dropped = [];
+  const give = (picture, reason) => dropped.push({ ...picture, reason });
+
+  // A picture that cannot fit even on its own, and a picture that cannot be
+  // encoded at all. Both are settled before the walk: left in the set, the
+  // first would evict every picture that WOULD have fit before finally going
+  // itself, and the second would throw out of a step whose whole purpose is
+  // to degrade one picture at a time.
+  const kept = [];
+  for (const [index, picture] of pictures.entries()) {
+    const indexed = { ...picture, index };
+    let floorBytes;
+    try {
+      floorBytes = bytesAt(indexed, floorWidth);
+    } catch (error) {
+      give(indexed, `could not be encoded (${error.message})`);
+      continue;
+    }
+    if (floorBytes.length > budget) {
+      give(indexed, "is larger on its own than the whole published byte budget");
+      continue;
+    }
+    kept.push(indexed);
+  }
 
   while (kept.length > 0) {
     for (const width of PUBLISHED_WIDTH_LADDER) {
-      const bytes = kept.map((picture) => bytesAt(picture, width));
-      const total = bytes.reduce((sum, buffer) => sum + buffer.length, 0);
-      if (total > budget) continue;
+      if (totalAt(kept, width) === null) continue;
       return {
         width,
-        published: kept.map((picture, index) => ({
+        // Whether any picture actually lost pixels. The rung is a cap, so on
+        // a set of narrow composites the whole ladder changes nothing.
+        reduced: kept.some((picture) => picture.composite.width > width),
+        published: kept.map(({ composite, ...picture }) => ({
           ...picture,
-          bytes: bytes[index],
+          bytes: bytesAt({ ...picture, composite }, width),
+          // What this picture is actually published at, which is the rung
+          // only when the composite was wider than it to begin with.
+          publishedWidth: Math.min(width, composite.width),
         })),
         dropped,
       };
     }
-    // Lowest-ranked first: `pictures` arrives in the order the comment
-    // will read in, so the tail is the end of it.
-    dropped.unshift(kept.pop());
+    give(
+      kept.splice(indexOfMostExpendable(kept), 1)[0],
+      "did not fit the published byte budget alongside the rest of the set",
+    );
   }
 
-  // One picture that cannot fit at the floor. Publishing it anyway would
-  // trip the workflow's ceiling and cost the comment every picture, so it
-  // goes the same way as the rest and the text listing carries the run.
-  return { width: PUBLISHED_WIDTH_LADDER.at(-1), published: [], dropped };
+  return { width: floorWidth, reduced: false, published: [], dropped };
 }
 
 /**
@@ -1012,6 +1127,7 @@ function renderBody({
   embedded,
   coverage,
   publishedWidth,
+  droppedCount = 0,
   baseUrl,
   runUrl,
   candidateRef,
@@ -1043,8 +1159,11 @@ function renderBody({
         group.surface === surface.name &&
         group.screens.some((screen) => embeddedNames.has(`${surface.name}/${screen.name}`)),
     );
-    if (pictured.length === 0) continue;
     const groupCount = ranked.filter((group) => group.surface === surface.name).length;
+    // Only a surface with nothing to say is left out. A surface whose
+    // pictures were all dropped for size still gets its heading and its
+    // count, so the reviewer can see it was omitted rather than fine.
+    if (groupCount === 0) continue;
     lines.push(
       `#### ${surface.name} - ${surface.changedCount} of ${surface.totalCount} screens changed`,
     );
@@ -1082,14 +1201,19 @@ function renderBody({
   const reduced =
     publishedWidth === null
       ? ""
-      : `, reduced to ${publishedWidth}px wide so the set fits in a comment`;
+      : `, published at most ${publishedWidth}px wide so the set fits in a comment`;
+  const givenUp =
+    droppedCount === 0
+      ? ""
+      : `. ${droppedCount} more ${droppedCount === 1 ? "picture was" : "pictures were"} left out to stay inside that budget - ` +
+        `they are named in the run log and their screens are in the full list above`;
   // Deliberately not "the N most-changed": the selection reserves slots per
   // surface, so a pictured vault screen can have moved less than a Storybook
   // story that got no picture. Claiming a strict ranking would send a
   // reviewer looking for a worst offender that is not there.
   lines.push(
     `<sub>${embedded.length} screen${embedded.length === 1 ? "" : "s"} pictured, cropped to the part that changed${reduced} - a sample across the ` +
-      `worst-hit groups on each surface, not a ranking. Full-resolution before / after / diff for every screen: ` +
+      `worst-hit groups on each surface, not a ranking${givenUp}. Full-resolution before / after / diff for every screen: ` +
       `[open the run](${runUrl}#artifacts), download **visual-report**, open \`index.html\`.</sub>`,
   );
   lines.push("");
@@ -1240,6 +1364,9 @@ async function main() {
     // before the width the set is published at has been decided - and stays
     // caught whatever that width turns out to be.
     const digest = createHash("sha256")
+      // Dimensions first: two composites with the same pixel count in a
+      // different shape share a pixel buffer and are not the same picture.
+      .update(`${picture.composite.width}x${picture.composite.height}:`)
       .update(picture.composite.data)
       .digest("hex");
     const twin = digests.get(digest);
@@ -1252,11 +1379,9 @@ async function main() {
     composed.push({ key, entry, ...picture });
   }
 
-  const { width, published, dropped } = fitPublishedImages(composed);
+  const { width, reduced, published, dropped } = fitPublishedImages(composed);
   for (const picture of dropped) {
-    process.stderr.write(
-      `Skipping ${picture.key}: the set does not fit the published byte budget.\n`,
-    );
+    process.stderr.write(`Skipping ${picture.key}: it ${picture.reason}.\n`);
   }
 
   await fs.mkdir(outDir, { recursive: true });
@@ -1268,19 +1393,13 @@ async function main() {
     coverage.set(picture.key, picture.coverage);
   }
 
-  // Only when a picture actually lost pixels. The top rung is the width the
-  // composites are already built at, so on the ordinary run nothing is
-  // reduced and the comment should not claim otherwise.
-  const wasReduced = published.some(
-    (picture) => picture.composite.width > width,
-  );
-
   const body = renderBody({
     surfaces,
     ranked,
     embedded: published.map((picture) => picture.entry),
     coverage,
-    publishedWidth: wasReduced ? width : null,
+    publishedWidth: reduced ? width : null,
+    droppedCount: dropped.length,
     baseUrl: baseUrl.replace(/\/+$/, ""),
     runUrl,
     candidateRef,
@@ -1288,7 +1407,7 @@ async function main() {
   });
   await fs.writeFile(bodyFile, `${body}\n`);
 
-  const at = wasReduced ? ` at ${width}px wide` : "";
+  const at = reduced ? ` at most ${width}px wide` : "";
   const short =
     dropped.length > 0
       ? `, ${dropped.length} left out to stay inside the byte budget`
@@ -1311,6 +1430,8 @@ export {
   cropWindow,
   fitPublishedImages,
   panelLayout,
+  PUBLISHED_BYTE_MARGIN,
+  PUBLISHED_COLOUR_TYPE,
   PUBLISHED_TOTAL_BYTE_BUDGET,
   reduceToWidth,
   screenCaption,
