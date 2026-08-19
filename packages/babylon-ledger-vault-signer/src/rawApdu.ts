@@ -58,6 +58,11 @@ const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
 /** CLA not supported — what the dashboard or a wrong app returns. */
 const SW_CLA_NOT_SUPPORTED = 0x6e00;
 
+/** SW_BAD_STATE — the loaded intent/root is gone (`fw:sw.h` via `base:src/boilerplate/sw.h:80` @ e400d8d8). */
+export const SW_BAD_STATE = 0xb007;
+/** SW_CAP_EXCEEDED — per-type signature cap or dedup-mask breach; intent nullified (`fw:sign_psbt_validate.c:50` @ 90cf41f1). */
+export const SW_CAP_EXCEEDED = 0xb00a;
+
 /**
  * Vault status words (`app-babylon-vault` `sw.h`, #2110) plus the base-app
  * codes from the signer kit's published `BTC_APP_ERRORS`, mirrored so nothing
@@ -73,10 +78,10 @@ const STATUS_WORDS: Record<number, string> = {
   0x6d00: "The running app does not support this instruction",
   [SW_CLA_NOT_SUPPORTED]: "The running app does not handle vault instructions — open the Babylon Vault app",
   0xb000: "The device reported a wrong response length",
-  0xb007: "The device is not in the expected state for this step",
+  [SW_BAD_STATE]: "The device is not in the expected state for this step",
   0xb008: "The device rejected a signature or HMAC as invalid",
   0xb009: "The device rejected the CPFP anchor",
-  0xb00a: "The device has already signed the maximum number of these transactions",
+  [SW_CAP_EXCEEDED]: "The device has already signed the maximum number of these transactions",
   0x6f00: "The device reported an internal error",
 };
 

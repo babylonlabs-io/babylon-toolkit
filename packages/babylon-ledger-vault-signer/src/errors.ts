@@ -188,11 +188,17 @@ export class LedgerSignPsbtProtocolError extends Error {
 export class LedgerSignPsbtAbortedError extends Error {
   /** Yields the device had already delivered when the host stopped sending. */
   readonly yieldedCount: number;
+  /**
+   * True only when the abort left a dispatcher mid-interruption (device
+   * awaiting CONTINUE) — the one state the resend-once recovery exists for.
+   */
+  readonly dispatcherInterrupted: boolean;
 
-  constructor(yieldedCount: number) {
+  constructor(yieldedCount: number, dispatcherInterrupted: boolean) {
     super("SIGN_PSBT was abandoned host-side before completion");
     this.name = LEDGER_SIGN_PSBT_ABORTED_ERROR_NAME;
     this.yieldedCount = yieldedCount;
+    this.dispatcherInterrupted = dispatcherInterrupted;
   }
 }
 

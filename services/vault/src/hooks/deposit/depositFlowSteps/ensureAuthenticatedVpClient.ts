@@ -17,6 +17,7 @@ import {
   hexToUint8Array,
   parseFundingOutpointsFromTx,
   stripHexPrefix,
+  supportsDepositApproval,
   uint8ArrayToHex,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
@@ -43,6 +44,14 @@ export interface EnsureAuthenticatedVpClientParams {
   peginTxHash: string;
   providerAddress: string;
   depositorBtcPubkey: string;
+  /**
+   * Payout-signing retry path only: for approval wallets the derive is ALSO
+   * the device-ceremony precondition (mirror: idle → derived), so a cached
+   * token would strand every retry after a signing failure at "no approved
+   * intent". Leave unset elsewhere — the cache hit is what keeps WOTS submit,
+   * resume, and artifact download popup-free.
+   */
+  requireFreshDeviceCeremony?: boolean;
 }
 
 export async function ensureAuthenticatedVpClient(
@@ -51,9 +60,17 @@ export async function ensureAuthenticatedVpClient(
   const peginTxid = stripHexPrefix(params.peginTxHash);
   const baseUrl = getVpProxyUrl(params.providerAddress);
 
-  const cached = vpTokenRegistry.peek(peginTxid);
-  if (cached) {
-    return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
+  // See {@link EnsureAuthenticatedVpClientParams.requireFreshDeviceCeremony}.
+  if (
+    params.requireFreshDeviceCeremony &&
+    supportsDepositApproval(params.btcWallet)
+  ) {
+    vpTokenRegistry.release(peginTxid);
+  } else {
+    const cached = vpTokenRegistry.peek(peginTxid);
+    if (cached) {
+      return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
+    }
   }
 
   // Cold path only: validate the indexer-supplied Pre-PegIn tx against

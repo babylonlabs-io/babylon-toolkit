@@ -14,7 +14,7 @@
  * @module ledger-vault-signer/signPsbtPrepare
  */
 
-import { Psbt as BitcoinjsPsbt } from "bitcoinjs-lib";
+import { Psbt as BitcoinjsPsbt, Transaction as BitcoinjsTransaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { LedgerSignPsbtProtocolError } from "./errors";
@@ -186,16 +186,50 @@ export interface PrepareSignPsbtParams {
   readonly depositorXOnlyHex: string;
 }
 
+declare const preparedSignPsbtBrand: unique symbol;
+
+/**
+ * Opaque handle from `prepareSignPsbt`: only `table` and `unsignedTxid` are
+ * public — the live ceremony state (interpreter, collector, cdata) is held
+ * module-privately so external callers cannot touch or serialize it.
+ */
 export interface PreparedSignPsbt {
+  /** The expected-signature table, for pre-I/O policy checks and progress totals. */
+  readonly table: ExpectedSignatureTable;
+  /** Display-order txid of the unsigned tx — a stable signing-request identity. */
+  readonly unsignedTxid: string;
+  readonly [preparedSignPsbtBrand]: true;
+}
+
+interface PreparedSignPsbtState {
   readonly cdata: Uint8Array;
-  /** Seeded; onYield wired to the collector. Discard on abort — never reuse. */
+  /** Seeded; onYield wired to the collector. Single-use ceremony state. */
   readonly interpreter: SignPsbtInterpreter;
   /** Owns table + seen set + per-YIELD/completion assertions. */
   readonly collector: YieldCollector;
-  /** The collector's table, exposed for tests and progress totals. */
-  readonly table: ExpectedSignatureTable;
   /** Merge target — the v0 bytes, untouched. */
   readonly originalPsbtHex: string;
+}
+
+const preparedStates = new WeakMap<PreparedSignPsbt, PreparedSignPsbtState>();
+
+/** @internal Package-only: assemble a prepared handle over explicit ceremony state. */
+export function makePreparedSignPsbt(
+  publicPart: { table: ExpectedSignatureTable; unsignedTxid: string },
+  state: PreparedSignPsbtState,
+): PreparedSignPsbt {
+  const prepared = { ...publicPart } as PreparedSignPsbt;
+  preparedStates.set(prepared, state);
+  return prepared;
+}
+
+/** @internal Package-only: resolve the ceremony state behind a prepared handle. */
+export function getPreparedSignPsbtState(prepared: PreparedSignPsbt): PreparedSignPsbtState {
+  const state = preparedStates.get(prepared);
+  if (!state) {
+    throw new LedgerSignPsbtProtocolError("unrecognised prepared signing state — use prepareSignPsbt's return value");
+  }
+  return state;
 }
 
 /**
@@ -211,7 +245,7 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   }
   // Buffer.from(hex) silently truncates at the first invalid character.
   if (!PSBT_HEX_RE.test(psbtHex)) {
-    throw new LedgerSignPsbtProtocolError("psbtHex is not even-length hex");
+    throw new LedgerSignPsbtProtocolError("psbtHex is not even-length hexadecimal");
   }
 
   // The merge stage folds signatures back via bitcoinjs Psbt — assert
@@ -269,11 +303,9 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   interpreter.addKnownList(merkelized.inputMapCommitments);
   interpreter.addKnownList(merkelized.outputMapCommitments);
 
-  return {
-    cdata: buildSignPsbtCdata(merkelized),
-    interpreter,
-    collector,
-    table,
-    originalPsbtHex: psbtHex,
-  };
+  // The brand is type-only; forged objects miss the WeakMap and die typed.
+  return makePreparedSignPsbt(
+    { table, unsignedTxid: BitcoinjsTransaction.fromBuffer(mergeTarget.data.globalMap.unsignedTx.toBuffer()).getId() },
+    { cdata: buildSignPsbtCdata(merkelized), interpreter, collector, originalPsbtHex: psbtHex },
+  );
 }

@@ -11,7 +11,7 @@
  */
 
 export { getXOnlyPublicKeyHex } from "./derivation";
-export { createDmkApduSender } from "./dmkApduSender";
+export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
 export { closeDmk, connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
 export { assertDepositTermsDeviceCompatible } from "./envelope";
 export {
@@ -39,6 +39,7 @@ export {
   type CollectedYieldRef,
   type LedgerYieldMismatchKind,
 } from "./errors";
+export type { ExpectedSignatureTable, InputSigExpectation } from "./expectedSignatures";
 export {
   encodeIntentGroup,
   encodeIntentScalars,
@@ -46,14 +47,24 @@ export {
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
-export { type Apdu, type AppIdentity, type RawApduResponse, type RawApduSender } from "./rawApdu";
 export {
+  SW_BAD_STATE,
+  SW_CAP_EXCEEDED,
+  type Apdu,
+  type AppIdentity,
+  type RawApduResponse,
+  type RawApduSender,
+} from "./rawApdu";
+export {
+  signPreparedVaultPsbt,
   signVaultPsbt,
   type CollectedYield,
+  type SignPreparedVaultPsbtOptions,
   type SignPsbtProgress,
   type SignVaultPsbtParams,
   type SignVaultPsbtResult,
 } from "./signPsbt";
+export { prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
 export {
   DEPOSIT_TERMS_REJECTED_ERROR_NAME,
   DepositTermsRejectedError,

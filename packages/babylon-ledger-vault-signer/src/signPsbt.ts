@@ -16,7 +16,7 @@ import type { CollectedYield } from "./expectedSignatures";
 import type { AppIdentity, RawApduSender } from "./rawApdu";
 import { runSignPsbtLoop, type SignPsbtProgress } from "./signPsbtLoop";
 import { mergeYields } from "./signPsbtMerge";
-import { prepareSignPsbt } from "./signPsbtPrepare";
+import { getPreparedSignPsbtState, prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
 
 export type { CollectedYield } from "./expectedSignatures";
 export type { SignPsbtProgress } from "./signPsbtLoop";
@@ -63,6 +63,54 @@ export interface SignVaultPsbtResult {
   readonly yields: readonly CollectedYield[];
 }
 
+/** The device-facing half of {@link SignVaultPsbtParams} — everything but the PSBT itself. */
+export type SignPreparedVaultPsbtOptions = Omit<SignVaultPsbtParams, "psbtHex" | "depositorXOnlyHex">;
+
+// Single-use: a prepared object's mutable collector/interpreter would replay a
+// non-idempotent device ceremony with stale yields on a second run.
+const consumedPrepared = new WeakSet<PreparedSignPsbt>();
+
+/**
+ * Device half of the staged API: drive the interrupt/continue loop for an
+ * already-prepared PSBT, then merge. A caller that needs the expected-signature
+ * table BEFORE any device I/O (e.g. the provider's keypath pre-rejection,
+ * #2219 B3 plan D5/D7) prepares via `prepareSignPsbt`, inspects
+ * `prepared.table`, and hands the SAME object here — no double-prepare, no
+ * parse gap. Everything a prepared object signs, this signs identically to
+ * {@link signVaultPsbt}.
+ */
+export async function signPreparedVaultPsbt(
+  send: RawApduSender,
+  prepared: PreparedSignPsbt,
+  options: SignPreparedVaultPsbtOptions,
+): Promise<SignVaultPsbtResult> {
+  // Resolve first so a forged handle dies as "unrecognised", then claim —
+  // synchronously BEFORE the first await, so success, abort, and concurrent
+  // reuse are all rejected with zero device I/O.
+  const { originalPsbtHex } = getPreparedSignPsbtState(prepared);
+  if (consumedPrepared.has(prepared)) {
+    throw new LedgerSignPsbtProtocolError(
+      "prepared signing state was already used — call prepareSignPsbt again for a retry",
+    );
+  }
+  consumedPrepared.add(prepared);
+  // Completion (collector.assertComplete) runs inside the loop's completing state.
+  const yields = await runSignPsbtLoop(send, prepared, options);
+  let signedPsbtHex: string;
+  try {
+    signedPsbtHex = mergeYields(originalPsbtHex, yields);
+  } catch (error) {
+    // Post-ceremony merge failures stay inside the typed contract. The error
+    // names WHICH yields arrived, never their bytes (CLAUDE.md §7).
+    throw new LedgerSignPsbtProtocolError(
+      `merge failed after signing: ${error instanceof Error ? error.message : String(error)}`,
+      toCollectedYieldRefs(yields),
+    );
+  }
+  // Finding-3 hardening: detach from the collector's live backing array.
+  return { signedPsbtHex, yields: [...yields] };
+}
+
 /**
  * Sign a vault PSBT on the device: build the expected-signature table (zero
  * device I/O on any rejection), drive the interrupt/continue loop with
@@ -75,25 +123,7 @@ export interface SignVaultPsbtResult {
  * call that itself hangs is not cancelled.
  */
 export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtParams): Promise<SignVaultPsbtResult> {
-  const prepared = prepareSignPsbt({ psbtHex: params.psbtHex, depositorXOnlyHex: params.depositorXOnlyHex });
-  // Completion (collector.assertComplete) runs inside the loop's completing state.
-  const yields = await runSignPsbtLoop(send, prepared, {
-    onProgress: params.onProgress,
-    signal: params.signal,
-    appIdentity: params.appIdentity,
-    resendOnceOnIncorrectData: params.resendOnceOnIncorrectData,
-  });
-  let signedPsbtHex: string;
-  try {
-    signedPsbtHex = mergeYields(prepared.originalPsbtHex, yields);
-  } catch (error) {
-    // Post-ceremony merge failures stay inside the typed contract. The error
-    // names WHICH yields arrived, never their bytes (CLAUDE.md §7).
-    throw new LedgerSignPsbtProtocolError(
-      `merge failed after signing: ${error instanceof Error ? error.message : String(error)}`,
-      toCollectedYieldRefs(yields),
-    );
-  }
-  // Finding-3 hardening: detach from the collector's live backing array.
-  return { signedPsbtHex, yields: [...yields] };
+  const { psbtHex, depositorXOnlyHex, ...options } = params;
+  const prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex });
+  return signPreparedVaultPsbt(send, prepared, options);
 }

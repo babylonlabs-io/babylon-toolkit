@@ -32,7 +32,12 @@ import {
 import { createYieldCollector, type ExpectedSignatureTable } from "../expectedSignatures";
 import type { Apdu, RawApduSender } from "../rawApdu";
 import { runSignPsbtLoop, type RunSignPsbtLoopOptions, type SignPsbtProgress } from "../signPsbtLoop";
-import { prepareSignPsbt, type PreparedSignPsbt } from "../signPsbtPrepare";
+import {
+  getPreparedSignPsbtState,
+  makePreparedSignPsbt,
+  prepareSignPsbt,
+  type PreparedSignPsbt,
+} from "../signPsbtPrepare";
 import { ClientCommandInterpreter } from "../vendor/ledger-bitcoin/clientCommands";
 import { createVarint } from "../vendor/ledger-bitcoin/varint";
 
@@ -91,7 +96,7 @@ function createScriptedSender(script: readonly ScriptedExchange[]): { send: RawA
 }
 
 function initialApduHexOf(prepared: PreparedSignPsbt): string {
-  return SIGN_PSBT_HEADER_HEX + Buffer.from(prepared.cdata).toString("hex");
+  return SIGN_PSBT_HEADER_HEX + Buffer.from(getPreparedSignPsbtState(prepared).cdata).toString("hex");
 }
 
 /** `0x10 ‖ varint(i) ‖ 0x40 ‖ signer(32) ‖ leaf(32) ‖ sig(64)` — wire-spec §5 tapscript YIELD. */
@@ -219,13 +224,10 @@ describe("happy-path trace replay through the loop (T1, T11, T12)", () => {
     const collector = createYieldCollector(table);
     const interpreter = new ClientCommandInterpreter(undefined, (payload) => collector.assertAndRecord(payload));
     interpreter.addKnownList(elements);
-    const prepared: PreparedSignPsbt = {
-      cdata: Uint8Array.from(Buffer.alloc(4, 0x11)),
-      interpreter,
-      collector,
-      table,
-      originalPsbtHex: "",
-    };
+    const prepared = makePreparedSignPsbt(
+      { table, unsignedTxid: "00".repeat(32) },
+      { cdata: Uint8Array.from(Buffer.alloc(4, 0x11)), interpreter, collector, originalPsbtHex: "" },
+    );
 
     const traces = [
       ...traceFile.traces,
@@ -287,7 +289,7 @@ describe("resend-once on 0x6A80 (T2-T5)", () => {
         resendOnceOnIncorrectData: true,
         signal: controller.signal,
       }),
-    ).rejects.toMatchObject({ name: LedgerSignPsbtAbortedError.name });
+    ).rejects.toMatchObject({ name: LedgerSignPsbtAbortedError.name, dispatcherInterrupted: false });
     expect(sent()).toBe(1);
   });
 

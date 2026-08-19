@@ -17,7 +17,8 @@ import { describe, expect, it } from "vitest";
 
 import { isLedgerSignPsbtAbortedError } from "../errors";
 import type { RawApduSender } from "../rawApdu";
-import { signVaultPsbt, type SignVaultPsbtParams } from "../signPsbt";
+import { signPreparedVaultPsbt, signVaultPsbt, type SignVaultPsbtParams } from "../signPsbt";
+import { prepareSignPsbt } from "../signPsbtPrepare";
 import { tapLeafHash } from "../tapLeafHash";
 
 const VECTORS_DIR = join(__dirname, "..", "vendor", "ledger-bitcoin", "__tests__", "vectors", "signpsbt");
@@ -160,6 +161,9 @@ describe("signVaultPsbt", () => {
     );
 
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
+    // No dispatcher was interrupted — the caller must not arm resend-once.
+    expect(outcome.dispatcherInterrupted).toBe(false);
     expect(sent()).toBe(0);
   });
 
@@ -185,7 +189,85 @@ describe("signVaultPsbt", () => {
     );
 
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
+    if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
+    // The 0xE000 arrived, so a dispatcher is mid-interruption awaiting CONTINUE.
+    expect(outcome.dispatcherInterrupted).toBe(true);
     expect(sent()).toBe(1);
+  });
+
+  it("staged API signs identically: prepareSignPsbt + signPreparedVaultPsbt === signVaultPsbt", async () => {
+    const script = peginScript(fixtureLeafHashHex());
+    const composedSender = createScriptedSender(script);
+    const composed = await signVaultPsbt(composedSender.send, {
+      psbtHex: vector.psbt_hex,
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signal: new AbortController().signal,
+    });
+
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    const stagedSender = createScriptedSender(script);
+    const staged = await signPreparedVaultPsbt(stagedSender.send, prepared, {
+      signal: new AbortController().signal,
+    });
+
+    expect(composedSender.sent()).toBe(script.length);
+    expect(stagedSender.sent()).toBe(script.length);
+    expect(staged.signedPsbtHex).toBe(composed.signedPsbtHex);
+    expect(staged.yields).toEqual(composed.yields);
+  });
+
+  it("threads resendOnceOnIncorrectData through the composed entry point", async () => {
+    // Pins the options forwarding: a first-exchange 0x6A80 with the recovery
+    // armed resends the identical APDU once, then the ceremony completes.
+    const leafHashHex = fixtureLeafHashHex();
+    const script = peginScript(leafHashHex);
+    const initialHex = script[0].expectApduHex;
+    const withEatenFirst: ScriptedExchange[] = [
+      { expectApduHex: initialHex, respondSw: 0x6a80, respondDataHex: "" },
+      ...script,
+    ];
+    const { send, sent } = createScriptedSender(withEatenFirst);
+
+    const result = await signVaultPsbt(send, {
+      psbtHex: vector.psbt_hex,
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signal: new AbortController().signal,
+      resendOnceOnIncorrectData: true,
+    });
+
+    expect(sent()).toBe(withEatenFirst.length);
+    expect(result.yields).toHaveLength(1);
+  });
+
+  it("rejects reuse of a prepared signing state after success, with zero device I/O", async () => {
+    // The prepared object's collector/interpreter are mutable ceremony state —
+    // a second run would repeat a non-idempotent ceremony with stale yields.
+    const script = peginScript(fixtureLeafHashHex());
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    await signPreparedVaultPsbt(createScriptedSender(script).send, prepared, {
+      signal: new AbortController().signal,
+    });
+
+    const { send, sent } = createScriptedSender(script);
+    await expect(signPreparedVaultPsbt(send, prepared, { signal: new AbortController().signal })).rejects.toThrow(
+      /already used/,
+    );
+    expect(sent()).toBe(0);
+  });
+
+  it("rejects reuse of a prepared signing state after an abort", async () => {
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    const aborted = new AbortController();
+    aborted.abort();
+    await expect(
+      signPreparedVaultPsbt(createScriptedSender([]).send, prepared, { signal: aborted.signal }),
+    ).rejects.toThrow(/abandoned/);
+
+    const { send, sent } = createScriptedSender([]);
+    await expect(signPreparedVaultPsbt(send, prepared, { signal: new AbortController().signal })).rejects.toThrow(
+      /already used/,
+    );
+    expect(sent()).toBe(0);
   });
 
   it("requires a signal — params without one must not typecheck", () => {
