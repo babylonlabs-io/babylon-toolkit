@@ -65,7 +65,7 @@ jobs:
         run: pnpm exec nx run-many --target=build --all
 
       - name: Typecheck the release driver
-        run: pnpm --filter @internal/release run typecheck
+        run: pnpm exec nx run @internal/release:typecheck
 
       - name: Lint all
         run: pnpm exec nx run-many --target=lint --all

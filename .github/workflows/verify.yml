@@ -70,7 +70,7 @@ jobs:
         run: pnpm build
 
       - name: Typecheck the release driver
-        run: pnpm --filter @internal/release run typecheck
+        run: pnpm exec nx run @internal/release:typecheck
 
       # tsx and vitest both strip types without checking them, and the driver
       # has no build target, so this is the only place its TypeScript is

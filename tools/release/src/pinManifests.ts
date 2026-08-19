@@ -67,11 +67,10 @@ export const materializeAndPinManifests = async ({
   writeManifest,
   dryRun,
 }: PinManifestsOptions): Promise<void> => {
-  const resolvedVersions = await resolveReleasedVersions({
+  const resolvedVersions = resolveReleasedVersions(
     projectsVersionData,
-    releasePackages,
-    releaseTags,
-  });
+    releasePackages
+  );
 
   const publishing = new Set(
     projectsToPublish.map(
@@ -151,20 +150,15 @@ export const materializeAndPinManifests = async ({
  * reports it for projects it is not bumping too. That makes `newVersion ??
  * currentVersion` the truthful version of any sibling.
  *
- * A version nx did not take from a tag came from the on-disk fallback and is
- * rejected: `babylon-tbv-rust-wasm`'s on-disk `0.1.0` is real semver and really
- * is on the registry, so it would otherwise pass every other gate while
- * shipping a build 14 minor versions stale.
+ * Whether that version really came from a tag is checked where it is used as a
+ * pin rather than here. A package under the release globs that has never been
+ * released has no tag and no truthful version, but it only matters once
+ * something published depends on it.
  */
-const resolveReleasedVersions = async ({
-  projectsVersionData,
-  releasePackages,
-  releaseTags,
-}: {
-  projectsVersionData: ProjectsVersionData;
-  releasePackages: ReleasePackages;
-  releaseTags: ReleaseTagReader;
-}): Promise<ResolvedVersions> => {
+const resolveReleasedVersions = (
+  projectsVersionData: ProjectsVersionData,
+  releasePackages: ReleasePackages
+): ResolvedVersions => {
   const resolved = new Map<string, SiblingRelease>();
 
   for (const [projectName, versions] of Object.entries(projectsVersionData)) {
@@ -172,14 +166,6 @@ const resolveReleasedVersions = async ({
       releasePackages,
       projectName
     );
-
-    if (versions.newVersion === null) {
-      assertVersionWasReleased(
-        packageName,
-        versions.currentVersion,
-        await releaseTags.readReleasedVersions(projectName)
-      );
-    }
 
     resolved.set(packageName, {
       packageName,
@@ -253,7 +239,20 @@ const resolveSibling = async ({
   }
 
   const resolved = resolvedVersions.get(packageName);
-  if (resolved) return resolved;
+  if (resolved) {
+    if (!resolved.publishedByThisRun) {
+      // A version nx did not take from a tag came from the on-disk fallback.
+      // `babylon-tbv-rust-wasm`'s on-disk 0.1.0 is real semver and really is on
+      // the registry, so it would otherwise pass every other gate here while
+      // shipping a build 14 minor versions stale.
+      assertVersionWasReleased(
+        packageName,
+        resolved.version,
+        await releaseTags.readReleasedVersions(packageName)
+      );
+    }
+    return resolved;
+  }
 
   // nx filtered this sibling out of the run entirely, which happens on the
   // release-candidate path where only one project is versioned.

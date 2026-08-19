@@ -277,6 +277,48 @@ describe('materializeAndPinManifests', () => {
     ).rejects.toThrow('does not exist on the registry');
   });
 
+  it('lets a never-released package through when nothing published depends on it', async () => {
+    // A new package under the release globs has no tag and so no truthful
+    // version, but nx still versions it. Blocking on that would stop every
+    // unrelated package from releasing.
+    const writeManifest = vi.fn();
+
+    await materializeAndPinManifests({
+      projectsToPublish: ['@babylonlabs-io/ts-sdk'],
+      projectsVersionData: {
+        '@babylonlabs-io/ts-sdk': {
+          currentVersion: '0.62.1',
+          newVersion: '0.62.2',
+        },
+        '@babylonlabs-io/brand-new': {
+          currentVersion: '0.0.0-semantic-release',
+          newVersion: null,
+        },
+      },
+      releasePackages: new Map([
+        releasePackage(
+          '@babylonlabs-io/ts-sdk',
+          '/packages/babylon-ts-sdk/package.json',
+          { name: '@babylonlabs-io/ts-sdk', version: '0.62.1' }
+        ),
+        releasePackage(
+          '@babylonlabs-io/brand-new',
+          '/packages/babylon-brand-new/package.json',
+          { name: '@babylonlabs-io/brand-new', version: '0.0.0-semantic-release' }
+        ),
+      ]),
+      registry: registryWith({}),
+      releaseTags: releaseTagsFor({}),
+      writeManifest,
+      dryRun: false,
+    });
+
+    expect(writeManifest).toHaveBeenCalledWith(
+      '/packages/babylon-ts-sdk/package.json',
+      expect.objectContaining({ version: '0.62.2' })
+    );
+  });
+
   it('refuses a version nx read off disk because no release tag matched', async () => {
     await expect(
       materializeAndPinManifests({
