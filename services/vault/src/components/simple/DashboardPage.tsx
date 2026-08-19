@@ -62,21 +62,27 @@ export function DashboardPage() {
   // change.
   const cascadeOverride = usePositionCascadeOverride();
   const liquidationCardOverride = useLiquidationCardOverride();
-  // No live source yet: the chart renders only from the god-mode cascade,
-  // behind its own flag. Elsewhere it stays absent rather than charting a real
-  // position from placeholder numbers.
-  const liquidationCascade = useMemo(
-    () =>
-      featureFlags.isLiquidationAnalysisChartEnabled && cascadeOverride?.result
-        ? {
-            result: cascadeOverride.result,
-            btcPrice: cascadeOverride.params.btcPrice,
-            collateralFactor: cascadeOverride.params.CF,
-            vaultsTotal: cascadeOverride.params.vaults.length,
-          }
-        : null,
-    [cascadeOverride],
-  );
+  const { result: positionNotifications, params: positionParams } =
+    usePositionNotifications(isConnected ? address : undefined);
+  // The chart takes the god-mode cascade when the panel publishes one, else the
+  // live position cascade. A status-only override (stale price) carries no
+  // cascade, so it falls through to live. Null when neither has a result: the
+  // section shows its empty states rather than charting placeholder numbers.
+  const liquidationCascade = useMemo(() => {
+    if (!featureFlags.isLiquidationAnalysisChartEnabled) return null;
+    const cascade = cascadeOverride?.result
+      ? { result: cascadeOverride.result, params: cascadeOverride.params }
+      : positionNotifications && positionParams
+        ? { result: positionNotifications, params: positionParams }
+        : null;
+    if (!cascade) return null;
+    return {
+      result: cascade.result,
+      btcPrice: cascade.params.btcPrice,
+      collateralFactor: cascade.params.CF,
+      vaultsTotal: cascade.params.vaults.length,
+    };
+  }, [cascadeOverride, positionNotifications, positionParams]);
   const {
     collateralBtc,
     collateralValueUsd,
@@ -103,9 +109,6 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
 
-  const { result: positionNotifications } = usePositionNotifications(
-    isConnected ? address : undefined,
-  );
   const { prices, metadata } = usePrices();
 
   const liquidationNotificationsEnabled =
