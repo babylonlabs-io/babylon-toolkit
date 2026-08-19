@@ -31,7 +31,6 @@ import { Router } from "../router";
 import { getReserveDetailRoute } from "../routes";
 
 const featureFlagsState = vi.hoisted(() => ({
-  isLiquidationAnalysisChartEnabled: true,
   isExploreEnabled: true,
 }));
 
@@ -220,7 +219,6 @@ function renderAt(path: string): RenderResult {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  featureFlagsState.isLiquidationAnalysisChartEnabled = true;
   featureFlagsState.isExploreEnabled = true;
 });
 
@@ -284,26 +282,6 @@ describe("Router — / and /activity keep their original components", () => {
 describe("Router — section routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("redirects /liquidations to / when the liquidation-analysis flag is off", async () => {
-    featureFlagsState.isLiquidationAnalysisChartEnabled = false;
-    renderAt("/liquidations");
-
-    await waitFor(() => {
-      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId(LIQUIDATIONS_TESTID)).not.toBeInTheDocument();
-  });
-
-  it("redirects a deep link under /liquidations when its flag is off", async () => {
-    featureFlagsState.isLiquidationAnalysisChartEnabled = false;
-    renderAt("/liquidations/some-deep-link");
-
-    await waitFor(() => {
-      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
   });
 
   it("renders the market detail page at /markets/:reserveId", async () => {

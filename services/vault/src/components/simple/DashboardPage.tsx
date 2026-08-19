@@ -69,7 +69,6 @@ export function DashboardPage() {
   // cascade, so it falls through to live. Null when neither has a result: the
   // section shows its empty states rather than charting placeholder numbers.
   const liquidationCascade = useMemo(() => {
-    if (!featureFlags.isLiquidationAnalysisChartEnabled) return null;
     const cascade = cascadeOverride?.result
       ? { result: cascadeOverride.result, params: cascadeOverride.params }
       : positionNotifications && positionParams

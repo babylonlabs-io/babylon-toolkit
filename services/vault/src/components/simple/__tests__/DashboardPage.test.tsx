@@ -16,7 +16,6 @@ const featureFlagsMock = vi.hoisted(() => ({
   isLiquidationNotificationsEnabled: false,
   isGodModePanelEnabled: false,
   isPositionDebugPanelEnabled: false,
-  isLiquidationAnalysisChartEnabled: false,
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
@@ -136,7 +135,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
-  featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
   positionNotificationsMock.result = null;
   positionNotificationsMock.params = null;
   setPositionCascadeOverride(null);
@@ -225,10 +223,6 @@ const OVERRIDE_PARAMS: CalculatorParams = {
 const OVERRIDE_RESULT = calculate(OVERRIDE_PARAMS);
 
 describe("DashboardPage embedded liquidation preview", () => {
-  beforeEach(() => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = true;
-  });
-
   it("charts the live position cascade built from the live calculator params", () => {
     positionNotificationsMock.result = LIVE_RESULT;
     positionNotificationsMock.params = LIVE_PARAMS;
@@ -279,19 +273,6 @@ describe("DashboardPage embedded liquidation preview", () => {
   });
 
   it("charts nothing when neither the override nor the live position has a result", () => {
-    render(<DashboardPage />);
-
-    expect(screen.getByTestId("liquidation-analysis")).toHaveAttribute(
-      "data-cascade",
-      "no",
-    );
-  });
-
-  it("charts nothing with the flag off, even with a live cascade", () => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
-    positionNotificationsMock.result = LIVE_RESULT;
-    positionNotificationsMock.params = LIVE_PARAMS;
-
     render(<DashboardPage />);
 
     expect(screen.getByTestId("liquidation-analysis")).toHaveAttribute(
