@@ -26,6 +26,15 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
       run: |
         set -euo pipefail
+        # The public download URL is eventually consistent — Immutable Releases
+        # finalizes after create returns, so the asset can 404 for a while even
+        # though the upload succeeded. 30s proved too short: the CDN regularly
+        # takes 30-60s, and every one of those "failed" releases existed and
+        # served fine minutes later, while the re-run burned a -rN slot. Give
+        # it a generous bounded window before declaring the publish broken.
+        PROPAGATION_TIMEOUT_SECONDS=600
+        PROBE_INTERVAL_SECONDS=10
+        PROBE_MAX_TIME_SECONDS=15
         PREFIX="${SERVICE}-${ENVIRONMENT}-${GITHUB_SHA}"
         FILES=("/tmp/${PREFIX}-files-checksum.txt" "/tmp/${PREFIX}-global-checksum.txt")
         for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -39,18 +48,17 @@ runs:
                --title "Frontend manifest ${PREFIX}" \
                --notes "sha256 manifest for the frontend integrity checker (devops-backlog#253). Do not delete." \
                --latest=false 2>&1); then
-            # The public download URL is eventually consistent — Immutable
-            # Releases finalizes after create returns, so the asset can 404
-            # for a few seconds even though the upload succeeded. Give the
-            # CDN a bounded window before declaring the publish broken.
-            for _ in 1 2 3 4 5 6; do
-              if curl -sfIL -o /dev/null "$URL"; then
+            # Wall-clock deadline (bash SECONDS) and a per-probe --max-time so
+            # a stalled request cannot stretch the window past the bound.
+            DEADLINE=$((SECONDS + PROPAGATION_TIMEOUT_SECONDS))
+            while [ "$SECONDS" -lt "$DEADLINE" ]; do
+              if curl -sfIL --max-time "$PROBE_MAX_TIME_SECONDS" -o /dev/null "$URL"; then
                 echo "published ${TAG}"
                 exit 0
               fi
-              sleep 5
+              sleep "$PROBE_INTERVAL_SECONDS"
             done
-            echo "::error::manifest not retrievable at ${URL} 30s after create"
+            echo "::error::manifest not retrievable at ${URL} ${PROPAGATION_TIMEOUT_SECONDS}s after create"
             exit 1
           fi
           # Failed create: re-probe the public URL the checker reads. Only a
