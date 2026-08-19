@@ -5,12 +5,16 @@ import { releaseChangelog, releasePublish, releaseVersion } from 'nx/release';
 
 import { execCommand } from './exec.js';
 import { materializeAndPinManifests } from './pinManifests.js';
-import { assertEveryProjectPublished } from './publishResults.js';
+import {
+  assertEveryProjectPublished,
+  assertProjectsArePublishable,
+} from './publishResults.js';
 import { createRegistryClient } from './registry.js';
 import { createReleaseTagReader } from './releaseTags.js';
 import {
   readReleaseConfig,
   readReleasePackages,
+  releasePackageForProject,
   writeManifest,
 } from './workspace.js';
 
@@ -63,14 +67,25 @@ const release = async () => {
   }
 
   const releaseConfig = readReleaseConfig(WORKSPACE_ROOT);
+  const releasePackages = readReleasePackages(
+    WORKSPACE_ROOT,
+    releaseConfig.projectGlobs
+  );
+
+  assertProjectsArePublishable(
+    projectsToPublish.map((projectName) => {
+      const { packageName, manifest } = releasePackageForProject(
+        releasePackages,
+        projectName
+      );
+      return { projectName, packageName, isPrivate: manifest.private === true };
+    })
+  );
 
   await materializeAndPinManifests({
     projectsToPublish,
     projectsVersionData,
-    releasePackages: readReleasePackages(
-      WORKSPACE_ROOT,
-      releaseConfig.projectGlobs
-    ),
+    releasePackages,
     registry: createRegistryClient(releaseConfig.registryUrl),
     releaseTags: createReleaseTagReader(releaseConfig.releaseTagPattern, (args) =>
       execCommand('git', [...args])
