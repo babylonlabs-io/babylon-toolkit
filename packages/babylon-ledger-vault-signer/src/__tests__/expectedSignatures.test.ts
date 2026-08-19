@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest";
 
 import { isLedgerSignPsbtProtocolError } from "../errors";
 import { buildExpectedSignatureTable, type ExpectedSignaturePsbt } from "../expectedSignatures";
-import { prepareSignPsbt } from "../signPsbtPrepare";
+import { getPreparedSignPsbtState, prepareSignPsbt } from "../signPsbtPrepare";
 
 initEccLib(ecc);
 
@@ -449,10 +449,12 @@ describe("tapscript control block must commit to its leaf, driven by PegIn fixtu
 describe("YieldCollector treats a short signature as a malformed payload", () => {
   it("raises a protocol error, not a yield mismatch, for a signature shorter than 64 bytes", () => {
     const vector = loadVector("generated__deposit-flow__pegin__0");
-    const { collector, table } = prepareSignPsbt({
+    const prepared = prepareSignPsbt({
       psbtHex: vector.psbt_hex,
       depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
     });
+    const { collector } = getPreparedSignPsbtState(prepared);
+    const { table } = prepared;
     const expectation = table.byInput.get(0);
     if (expectation?.kind !== "tapscript") throw new Error("input 0 must classify tapscript");
     // Tapscript YIELD payload (0x10 code byte already stripped by the interpreter):

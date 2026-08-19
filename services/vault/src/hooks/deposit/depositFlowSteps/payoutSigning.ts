@@ -98,6 +98,9 @@ export async function signAndSubmitPayouts(
     peginTxHash,
     providerAddress: vaultProviderAddress,
     depositorBtcPubkey,
+    // A signing failure idles the device mirror; the retry must re-derive or
+    // approval wallets strand at "no approved intent" forever.
+    requireFreshDeviceCeremony: true,
   });
 
   await runDepositorPresignFlow({

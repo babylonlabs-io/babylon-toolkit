@@ -141,4 +141,74 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultProtocolInfo).not.toHaveBeenCalled();
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
   });
+
+  it("approval wallet without the flag keeps the cache hit — WOTS/resume stay popup-free", async () => {
+    const approvalWallet = {
+      deriveContextHash: vi.fn(),
+      approveDepositTerms: vi.fn(),
+    } as never;
+    await ensureAuthenticatedVpClient({
+      btcWallet: approvalWallet,
+      vaultId: VAULT_ID,
+      unsignedPrePeginTxHex: "deadbeef",
+      peginTxHash: PEGIN_TX_HASH,
+      providerAddress: PROVIDER_ADDRESS,
+      depositorBtcPubkey: "ab".repeat(32),
+    });
+    vi.clearAllMocks();
+
+    await ensureAuthenticatedVpClient({
+      btcWallet: approvalWallet,
+      vaultId: VAULT_ID,
+      unsignedPrePeginTxHex: "deadbeef",
+      peginTxHash: PEGIN_TX_HASH,
+      providerAddress: PROVIDER_ADDRESS,
+      depositorBtcPubkey: "ab".repeat(32),
+    });
+
+    expect(deriveVaultRoot).not.toHaveBeenCalled();
+  });
+
+  it("approval wallet: bypasses the token cache so every attempt re-derives", async () => {
+    // For approval wallets the derive is also the device-ceremony
+    // precondition — a cache hit here would strand a retry after a signing
+    // failure at "no approved intent" forever.
+    const approvalWallet = {
+      deriveContextHash: vi.fn(),
+      approveDepositTerms: vi.fn(),
+    } as never;
+    await ensureAuthenticatedVpClient({
+      btcWallet: approvalWallet,
+      vaultId: VAULT_ID,
+      unsignedPrePeginTxHex: "deadbeef",
+      peginTxHash: PEGIN_TX_HASH,
+      providerAddress: PROVIDER_ADDRESS,
+      depositorBtcPubkey: "ab".repeat(32),
+      requireFreshDeviceCeremony: true,
+    });
+    vi.clearAllMocks();
+    (deriveVaultRoot as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Uint8Array(32).fill(0xcc),
+    );
+    (expandAuthAnchor as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Uint8Array(32).fill(0xab),
+    );
+    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(VALID_XONLY);
+    mockGetVaultProtocolInfo.mockResolvedValue({
+      prePeginTxHash: ON_CHAIN_PRE_PEGIN_HASH,
+    });
+    vi.mocked(calculateBtcTxHash).mockReturnValue(ON_CHAIN_PRE_PEGIN_HASH);
+
+    await ensureAuthenticatedVpClient({
+      btcWallet: approvalWallet,
+      vaultId: VAULT_ID,
+      unsignedPrePeginTxHex: "deadbeef",
+      peginTxHash: PEGIN_TX_HASH,
+      providerAddress: PROVIDER_ADDRESS,
+      depositorBtcPubkey: "ab".repeat(32),
+      requireFreshDeviceCeremony: true,
+    });
+
+    expect(deriveVaultRoot).toHaveBeenCalledTimes(1);
+  });
 });

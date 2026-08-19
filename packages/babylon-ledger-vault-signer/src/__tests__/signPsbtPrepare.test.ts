@@ -7,14 +7,14 @@
  * - §2.2 rejections: every prepare-time throw is typed and pre-I/O.
  */
 
-import { crypto as bcrypto, Psbt } from "bitcoinjs-lib";
+import { crypto as bcrypto, Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
 import { isLedgerSignPsbtProtocolError } from "../errors";
-import { buildSignPsbtApdu, prepareSignPsbt } from "../signPsbtPrepare";
+import { buildSignPsbtApdu, getPreparedSignPsbtState, prepareSignPsbt } from "../signPsbtPrepare";
 import { MerkelizedPsbt } from "../vendor/ledger-bitcoin/merkelizedPsbt";
 import { hashLeaf, Merkle } from "../vendor/ledger-bitcoin/merkle";
 import { PsbtV2 } from "../vendor/ledger-bitcoin/psbtv2";
@@ -84,12 +84,30 @@ describe("SIGN_PSBT cdata + APDU golden (G1, 22 fixtures)", () => {
     const vector = loadVector(name);
     const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: depositorKeyFor(name, vector) });
 
-    expect(Buffer.from(prepared.cdata).toString("hex")).toBe(vector.sign_psbt_cdata_hex);
-    expect(prepared.originalPsbtHex).toBe(vector.psbt_hex);
+    const state = getPreparedSignPsbtState(prepared);
+    expect(Buffer.from(state.cdata).toString("hex")).toBe(vector.sign_psbt_cdata_hex);
+    expect(state.originalPsbtHex).toBe(vector.psbt_hex);
+    // Display-order txid of the unsigned tx — the replay guard's identity key.
+    expect(prepared.unsignedTxid).toBe(
+      Transaction.fromBuffer(Psbt.fromHex(vector.psbt_hex).data.globalMap.unsignedTx.toBuffer()).getId(),
+    );
 
-    const apdu = buildSignPsbtApdu(prepared.cdata);
+    const apdu = buildSignPsbtApdu(state.cdata);
     expect({ cla: apdu.cla, ins: apdu.ins, p1: apdu.p1, p2: apdu.p2 }).toEqual(vector.apdu);
     expect(Buffer.from(apdu.data).toString("hex")).toBe(vector.sign_psbt_cdata_hex);
+  });
+
+  it("unsignedTxid is serialization-insensitive — hex casing must not change the identity", () => {
+    // The provider's replay guard keys on this; a case-variant of the same
+    // bytes reaching a different key would reopen the NoPayout replay hole.
+    const vector = loadVector("generated__deposit-flow__pegin__0");
+    const lower = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
+    const upper = prepareSignPsbt({
+      psbtHex: vector.psbt_hex.toUpperCase(),
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+    });
+
+    expect(upper.unsignedTxid).toBe(lower.unsignedTxid);
   });
 });
 
@@ -144,7 +162,7 @@ describe("interpreter completeness after seeding (G4, 22 fixtures)", () => {
   it.each(ALL_VECTOR_NAMES.map((name) => [name]))("%s: every committed element and tree is answerable", (name) => {
     const vector = loadVector(name);
     const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: depositorKeyFor(name, vector) });
-    const { interpreter } = prepared;
+    const { interpreter } = getPreparedSignPsbtState(prepared);
 
     // Independent reconstruction of what the device may ask for.
     const psbt = new PsbtV2();
@@ -193,9 +211,9 @@ describe("prepare-time rejections (§2.2 — all typed, all pre-I/O)", () => {
     expectPrepareRejects(VALID_PSBT_HEX, badKey, /64 lowercase hex/);
   });
 
-  it("rejects a psbtHex that is not even-length hex", () => {
-    expectPrepareRejects(VALID_PSBT_HEX + "z", TEST_DEPOSITOR_KEY_HEX, /not even-length hex/);
-    expectPrepareRejects(VALID_PSBT_HEX.slice(0, -1), TEST_DEPOSITOR_KEY_HEX, /not even-length hex/);
+  it("rejects a psbtHex that is not even-length hexadecimal", () => {
+    expectPrepareRejects(VALID_PSBT_HEX + "z", TEST_DEPOSITOR_KEY_HEX, /not even-length hexadecimal/);
+    expectPrepareRejects(VALID_PSBT_HEX.slice(0, -1), TEST_DEPOSITOR_KEY_HEX, /not even-length hexadecimal/);
   });
 
   it("rejects a tapscript input with no witnessUtxo before any device work", () => {

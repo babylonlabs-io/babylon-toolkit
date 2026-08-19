@@ -39,6 +39,7 @@ export {
   type CollectedYieldRef,
   type LedgerYieldMismatchKind,
 } from "./errors";
+export type { ExpectedSignatureTable, InputSigExpectation } from "./expectedSignatures";
 export {
   encodeIntentGroup,
   encodeIntentScalars,
@@ -46,7 +47,14 @@ export {
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
-export { type Apdu, type AppIdentity, type RawApduResponse, type RawApduSender } from "./rawApdu";
+export {
+  SW_BAD_STATE,
+  SW_CAP_EXCEEDED,
+  type Apdu,
+  type AppIdentity,
+  type RawApduResponse,
+  type RawApduSender,
+} from "./rawApdu";
 export {
   signPreparedVaultPsbt,
   signVaultPsbt,

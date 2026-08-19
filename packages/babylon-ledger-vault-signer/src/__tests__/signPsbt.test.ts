@@ -163,7 +163,7 @@ describe("signVaultPsbt", () => {
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
     if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
     // No dispatcher was interrupted — the caller must not arm resend-once.
-    expect(outcome.sentInitialApdu).toBe(false);
+    expect(outcome.dispatcherInterrupted).toBe(false);
     expect(sent()).toBe(0);
   });
 
@@ -190,7 +190,8 @@ describe("signVaultPsbt", () => {
 
     expect(isLedgerSignPsbtAbortedError(outcome)).toBe(true);
     if (!isLedgerSignPsbtAbortedError(outcome)) throw new Error("expected an aborted error");
-    expect(outcome.sentInitialApdu).toBe(true);
+    // The 0xE000 arrived, so a dispatcher is mid-interruption awaiting CONTINUE.
+    expect(outcome.dispatcherInterrupted).toBe(true);
     expect(sent()).toBe(1);
   });
 
@@ -213,6 +214,29 @@ describe("signVaultPsbt", () => {
     expect(stagedSender.sent()).toBe(script.length);
     expect(staged.signedPsbtHex).toBe(composed.signedPsbtHex);
     expect(staged.yields).toEqual(composed.yields);
+  });
+
+  it("threads resendOnceOnIncorrectData through the composed entry point", async () => {
+    // Pins the options forwarding: a first-exchange 0x6A80 with the recovery
+    // armed resends the identical APDU once, then the ceremony completes.
+    const leafHashHex = fixtureLeafHashHex();
+    const script = peginScript(leafHashHex);
+    const initialHex = script[0].expectApduHex;
+    const withEatenFirst: ScriptedExchange[] = [
+      { expectApduHex: initialHex, respondSw: 0x6a80, respondDataHex: "" },
+      ...script,
+    ];
+    const { send, sent } = createScriptedSender(withEatenFirst);
+
+    const result = await signVaultPsbt(send, {
+      psbtHex: vector.psbt_hex,
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signal: new AbortController().signal,
+      resendOnceOnIncorrectData: true,
+    });
+
+    expect(sent()).toBe(withEatenFirst.length);
+    expect(result.yields).toHaveLength(1);
   });
 
   it("rejects reuse of a prepared signing state after success, with zero device I/O", async () => {

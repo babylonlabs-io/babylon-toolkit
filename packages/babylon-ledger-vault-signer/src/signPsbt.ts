@@ -16,7 +16,7 @@ import type { CollectedYield } from "./expectedSignatures";
 import type { AppIdentity, RawApduSender } from "./rawApdu";
 import { runSignPsbtLoop, type SignPsbtProgress } from "./signPsbtLoop";
 import { mergeYields } from "./signPsbtMerge";
-import { prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
+import { getPreparedSignPsbtState, prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
 
 export type { CollectedYield } from "./expectedSignatures";
 export type { SignPsbtProgress } from "./signPsbtLoop";
@@ -84,8 +84,10 @@ export async function signPreparedVaultPsbt(
   prepared: PreparedSignPsbt,
   options: SignPreparedVaultPsbtOptions,
 ): Promise<SignVaultPsbtResult> {
-  // Claimed synchronously BEFORE the first await, so success, abort, and
-  // concurrent reuse are all rejected with zero device I/O.
+  // Resolve first so a forged handle dies as "unrecognised", then claim —
+  // synchronously BEFORE the first await, so success, abort, and concurrent
+  // reuse are all rejected with zero device I/O.
+  const { originalPsbtHex } = getPreparedSignPsbtState(prepared);
   if (consumedPrepared.has(prepared)) {
     throw new LedgerSignPsbtProtocolError(
       "prepared signing state was already used — call prepareSignPsbt again for a retry",
@@ -93,15 +95,10 @@ export async function signPreparedVaultPsbt(
   }
   consumedPrepared.add(prepared);
   // Completion (collector.assertComplete) runs inside the loop's completing state.
-  const yields = await runSignPsbtLoop(send, prepared, {
-    onProgress: options.onProgress,
-    signal: options.signal,
-    appIdentity: options.appIdentity,
-    resendOnceOnIncorrectData: options.resendOnceOnIncorrectData,
-  });
+  const yields = await runSignPsbtLoop(send, prepared, options);
   let signedPsbtHex: string;
   try {
-    signedPsbtHex = mergeYields(prepared.originalPsbtHex, yields);
+    signedPsbtHex = mergeYields(originalPsbtHex, yields);
   } catch (error) {
     // Post-ceremony merge failures stay inside the typed contract. The error
     // names WHICH yields arrived, never their bytes (CLAUDE.md §7).
@@ -126,6 +123,7 @@ export async function signPreparedVaultPsbt(
  * call that itself hangs is not cancelled.
  */
 export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtParams): Promise<SignVaultPsbtResult> {
-  const prepared = prepareSignPsbt({ psbtHex: params.psbtHex, depositorXOnlyHex: params.depositorXOnlyHex });
-  return signPreparedVaultPsbt(send, prepared, params);
+  const { psbtHex, depositorXOnlyHex, ...options } = params;
+  const prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex });
+  return signPreparedVaultPsbt(send, prepared, options);
 }
