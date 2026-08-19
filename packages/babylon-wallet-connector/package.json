@@ -1,6 +1,6 @@
 {
   "name": "@babylonlabs-io/wallet-connector",
-  "version": "1.67.2",
+  "version": "1.69.0",
   "type": "module",
   "types": "dist/index.d.ts",
   "publishConfig": {

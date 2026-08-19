@@ -2,11 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertSiblingIsInstallable,
+  assertVersionWasReleased,
   findSiblingPinViolations,
+  findSurvivingLocalProtocols,
+  formatViolations,
   pinSiblingDependencies,
   type PackageManifest,
   type SiblingRelease,
 } from '../manifest.js';
+
+const wasm = (version: string, publishedByThisRun = false): SiblingRelease => ({
+  packageName: '@babylonlabs-io/babylon-tbv-rust-wasm',
+  version,
+  publishedByThisRun,
+});
 
 describe('pinSiblingDependencies', () => {
   it('pins a sibling at the version this release resolved, not the stale one on disk', () => {
@@ -22,18 +31,11 @@ describe('pinSiblingDependencies', () => {
         buffer: '6.0.3',
       },
     };
-    const siblings = new Map<string, SiblingRelease>([
-      [
-        '@babylonlabs-io/babylon-tbv-rust-wasm',
-        {
-          packageName: '@babylonlabs-io/babylon-tbv-rust-wasm',
-          version: '0.15.0',
-          publishedByThisRun: false,
-        },
-      ],
-    ]);
 
-    const pinned = pinSiblingDependencies(manifest, siblings);
+    const pinned = pinSiblingDependencies(
+      manifest,
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
+    );
 
     expect(pinned.manifest.dependencies).toEqual({
       '@babylonlabs-io/babylon-tbv-rust-wasm': '0.15.0',
@@ -49,16 +51,58 @@ describe('pinSiblingDependencies', () => {
     ]);
   });
 
-  it('leaves devDependencies alone', () => {
-    // Every package depends on the private @internal/eslint-config there.
-    // Consumers never install devDependencies, and the package is not
-    // releasable, so rewriting it would fail the release for no benefit.
-    const manifest: PackageManifest = {
-      name: '@babylonlabs-io/core-ui',
-      devDependencies: { '@internal/eslint-config': 'workspace:*' },
-    };
+  it('keeps the range a workspace caret asked for', () => {
+    const pinned = pinSiblingDependencies(
+      {
+        name: '@babylonlabs-io/wallet-connector',
+        peerDependencies: {
+          '@babylonlabs-io/babylon-tbv-rust-wasm': 'workspace:^',
+        },
+      },
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
+    );
 
-    const pinned = pinSiblingDependencies(manifest, new Map());
+    expect(pinned.manifest.peerDependencies).toEqual({
+      '@babylonlabs-io/babylon-tbv-rust-wasm': '^0.15.0',
+    });
+  });
+
+  it('leaves a workspace range it cannot translate for the violation check to reject', () => {
+    const pinned = pinSiblingDependencies(
+      {
+        name: '@babylonlabs-io/ts-sdk',
+        dependencies: {
+          '@babylonlabs-io/babylon-tbv-rust-wasm': 'workspace:>=0.15.0',
+        },
+      },
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
+    );
+
+    expect(pinned.rewrites).toEqual([]);
+    expect(
+      pinned.manifest.dependencies?.['@babylonlabs-io/babylon-tbv-rust-wasm']
+    ).toBe('workspace:>=0.15.0');
+  });
+
+  it('leaves devDependencies alone even for a package it knows about', () => {
+    // @internal/eslint-config is private and unreleasable. Consumers never
+    // install devDependencies, so rewriting it would fail every release.
+    const pinned = pinSiblingDependencies(
+      {
+        name: '@babylonlabs-io/core-ui',
+        devDependencies: { '@internal/eslint-config': 'workspace:*' },
+      },
+      new Map([
+        [
+          '@internal/eslint-config',
+          {
+            packageName: '@internal/eslint-config',
+            version: '0.0.0',
+            publishedByThisRun: false,
+          },
+        ],
+      ])
+    );
 
     expect(pinned.manifest.devDependencies).toEqual({
       '@internal/eslint-config': 'workspace:*',
@@ -73,25 +117,16 @@ describe('findSiblingPinViolations', () => {
     // path used `npm publish`, which cannot resolve `workspace:` at all.
     const violations = findSiblingPinViolations(
       {
-        name: '@babylonlabs-io/ts-sdk',
         dependencies: {
           '@babylonlabs-io/babylon-tbv-rust-wasm': 'workspace:*',
         },
       },
-      new Map<string, SiblingRelease>([
-        [
-          '@babylonlabs-io/babylon-tbv-rust-wasm',
-          {
-            packageName: '@babylonlabs-io/babylon-tbv-rust-wasm',
-            version: '0.15.0',
-            publishedByThisRun: false,
-          },
-        ],
-      ])
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
     );
 
-    expect(violations).toHaveLength(1);
-    expect(violations[0].reason).toContain('workspace:*');
+    expect(violations.map((violation) => violation.code)).toEqual([
+      'local-protocol',
+    ]);
   });
 
   it('rejects a pin that disagrees with the version being released', () => {
@@ -99,12 +134,11 @@ describe('findSiblingPinViolations', () => {
     // version that does not exist while the released one was 0.4.0.
     const violations = findSiblingPinViolations(
       {
-        name: '@babylonlabs-io/wallet-connector',
         dependencies: {
           '@babylonlabs-io/ledger-vault-signer': '0.0.0-semantic-release',
         },
       },
-      new Map<string, SiblingRelease>([
+      new Map([
         [
           '@babylonlabs-io/ledger-vault-signer',
           {
@@ -116,19 +150,13 @@ describe('findSiblingPinViolations', () => {
       ])
     );
 
-    expect(violations).toHaveLength(1);
-    expect(violations[0].reason).toContain(
-      'this release resolves @babylonlabs-io/ledger-vault-signer to 0.4.0'
-    );
+    expect(violations.map((violation) => violation.code)).toEqual(['mismatch']);
   });
 
   it('rejects a sibling that resolved to the placeholder version nx writes when no git tag matched', () => {
     const violations = findSiblingPinViolations(
-      {
-        name: '@babylonlabs-io/wallet-connector',
-        dependencies: { '@babylonlabs-io/core-ui': '0.0.0-semantic-release' },
-      },
-      new Map<string, SiblingRelease>([
+      { dependencies: { '@babylonlabs-io/core-ui': '0.0.0-semantic-release' } },
+      new Map([
         [
           '@babylonlabs-io/core-ui',
           {
@@ -140,54 +168,77 @@ describe('findSiblingPinViolations', () => {
       ])
     );
 
-    expect(violations).toHaveLength(1);
-    expect(violations[0].reason).toContain('placeholder version');
+    expect(violations.map((violation) => violation.code)).toEqual([
+      'placeholder',
+    ]);
   });
 
   it('rejects a sibling pinned with a wildcard', () => {
     const violations = findSiblingPinViolations(
-      {
-        name: '@babylonlabs-io/wallet-connector',
-        dependencies: { '@babylonlabs-io/core-ui': '*' },
-      },
-      new Map<string, SiblingRelease>([
-        [
-          '@babylonlabs-io/core-ui',
-          {
-            packageName: '@babylonlabs-io/core-ui',
-            version: '1.108.1',
-            publishedByThisRun: false,
-          },
-        ],
-      ])
+      { dependencies: { '@babylonlabs-io/babylon-tbv-rust-wasm': '*' } },
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
     );
 
-    expect(violations).toHaveLength(1);
-    expect(violations[0].reason).toContain('floats to whatever version is newest');
+    expect(violations.map((violation) => violation.code)).toEqual(['wildcard']);
   });
 
-  it('accepts a manifest already pinned at the resolved version', () => {
+  it('rejects a sibling pinned with a floating range', () => {
+    const violations = findSiblingPinViolations(
+      { dependencies: { '@babylonlabs-io/babylon-tbv-rust-wasm': '>=0.15.0' } },
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
+    );
+
+    expect(violations.map((violation) => violation.code)).toEqual(['inexact']);
+  });
+
+  it('accepts a caret range on the version being released', () => {
     const violations = findSiblingPinViolations(
       {
-        name: '@babylonlabs-io/ts-sdk',
-        dependencies: {
-          '@babylonlabs-io/babylon-tbv-rust-wasm': '0.15.0',
-          buffer: '6.0.3',
+        peerDependencies: {
+          '@babylonlabs-io/babylon-tbv-rust-wasm': '^0.15.0',
         },
       },
-      new Map<string, SiblingRelease>([
-        [
-          '@babylonlabs-io/babylon-tbv-rust-wasm',
-          {
-            packageName: '@babylonlabs-io/babylon-tbv-rust-wasm',
-            version: '0.15.0',
-            publishedByThisRun: false,
-          },
-        ],
-      ])
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
     );
 
     expect(violations).toEqual([]);
+  });
+
+  it('checks optionalDependencies too', () => {
+    const violations = findSiblingPinViolations(
+      {
+        optionalDependencies: {
+          '@babylonlabs-io/babylon-tbv-rust-wasm': 'workspace:*',
+        },
+      },
+      new Map([['@babylonlabs-io/babylon-tbv-rust-wasm', wasm('0.15.0')]])
+    );
+
+    expect(violations.map((violation) => violation.section)).toEqual([
+      'optionalDependencies',
+    ]);
+  });
+});
+
+describe('findSurvivingLocalProtocols', () => {
+  it('reports a local protocol on a package that is not a release sibling', () => {
+    // Nothing does this today, but the whole point of this gate is that
+    // "nothing does that today" is how the shipped breakage happened.
+    const violations = findSurvivingLocalProtocols({
+      dependencies: { '@internal/some-tool': 'workspace:*' },
+    });
+
+    expect(violations.map((violation) => violation.code)).toEqual([
+      'local-protocol',
+    ]);
+  });
+
+  it('ignores devDependencies, which consumers never install', () => {
+    expect(
+      findSurvivingLocalProtocols({
+        devDependencies: { '@internal/eslint-config': 'workspace:*' },
+      })
+    ).toEqual([]);
   });
 });
 
@@ -222,27 +273,61 @@ describe('assertSiblingIsInstallable', () => {
 
   it('accepts a version this run is about to publish, which cannot be on the registry yet', () => {
     expect(() =>
-      assertSiblingIsInstallable(
-        {
-          packageName: '@babylonlabs-io/core-ui',
-          version: '1.109.0',
-          publishedByThisRun: true,
-        },
-        ['1.108.1']
-      )
+      assertSiblingIsInstallable(wasm('0.16.0', true), ['0.15.0'])
     ).not.toThrow();
   });
 
   it('accepts a version that is already on the registry', () => {
     expect(() =>
-      assertSiblingIsInstallable(
-        {
-          packageName: '@babylonlabs-io/babylon-tbv-rust-wasm',
-          version: '0.15.0',
-          publishedByThisRun: false,
-        },
-        ['0.14.0', '0.15.0']
+      assertSiblingIsInstallable(wasm('0.15.0'), ['0.14.0', '0.15.0'])
+    ).not.toThrow();
+  });
+});
+
+describe('assertVersionWasReleased', () => {
+  it('refuses the on-disk version nx falls back to when no tag matched', () => {
+    // 0.1.0 is real semver and really is on the registry, so every other gate
+    // would pass while shipping a build 14 minor versions stale.
+    expect(() =>
+      assertVersionWasReleased(
+        '@babylonlabs-io/babylon-tbv-rust-wasm',
+        '0.1.0',
+        ['0.15.0', '0.14.0']
+      )
+    ).toThrow('has no release tag');
+  });
+
+  it('accepts a version that has a release tag', () => {
+    expect(() =>
+      assertVersionWasReleased(
+        '@babylonlabs-io/babylon-tbv-rust-wasm',
+        '0.15.0',
+        ['0.15.0', '0.14.0']
       )
     ).not.toThrow();
+  });
+});
+
+describe('formatViolations', () => {
+  it('names the package, every broken spec and the file to fix', () => {
+    const message = formatViolations(
+      '@babylonlabs-io/ts-sdk',
+      'packages/babylon-ts-sdk/package.json',
+      [
+        {
+          code: 'mismatch',
+          section: 'dependencies',
+          dependencyName: '@babylonlabs-io/babylon-tbv-rust-wasm',
+          spec: '0.1.0',
+          reason: 'pins "0.1.0" but this release resolves it to 0.15.0',
+        },
+      ]
+    );
+
+    expect(message).toContain('@babylonlabs-io/ts-sdk cannot be published');
+    expect(message).toContain(
+      'dependencies.@babylonlabs-io/babylon-tbv-rust-wasm pins "0.1.0"'
+    );
+    expect(message).toContain('packages/babylon-ts-sdk/package.json');
   });
 });

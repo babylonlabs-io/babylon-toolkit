@@ -1,24 +1,21 @@
 import {
   PUBLISHED_DEPENDENCY_SECTIONS,
   assertSiblingIsInstallable,
+  assertVersionWasReleased,
   findSiblingPinViolations,
+  findSurvivingLocalProtocols,
   formatViolations,
   isExactVersion,
   pinSiblingDependencies,
   type PackageManifest,
   type SiblingRelease,
 } from './manifest.js';
-import { execCommand } from './exec.js';
 import type { RegistryClient } from './registry.js';
+import { latestStableVersion, type ReleaseTagReader } from './releaseTags.js';
 import {
   releasePackageForProject,
-  writeManifest,
-  type ReleaseConfig,
   type ReleasePackages,
 } from './workspace.js';
-
-const RELEASE_TAG_VERSION_PLACEHOLDER = '{version}';
-const RELEASE_TAG_PROJECT_PLACEHOLDER = '{projectName}';
 
 /** Whatever `releaseVersion` reported, narrowed to what this module needs. */
 export interface ProjectVersions {
@@ -31,12 +28,18 @@ export type ProjectsVersionData = Record<string, ProjectVersions>;
 /** The version each releasable package will have once this run finishes. */
 type ResolvedVersions = ReadonlyMap<string, SiblingRelease>;
 
+export type WriteManifest = (
+  manifestPath: string,
+  manifest: PackageManifest
+) => void;
+
 export interface PinManifestsOptions {
   readonly projectsToPublish: readonly string[];
   readonly projectsVersionData: ProjectsVersionData;
   readonly releasePackages: ReleasePackages;
-  readonly releaseConfig: ReleaseConfig;
   readonly registry: RegistryClient;
+  readonly releaseTags: ReleaseTagReader;
+  readonly writeManifest: WriteManifest;
   readonly dryRun: boolean;
 }
 
@@ -59,15 +62,23 @@ export const materializeAndPinManifests = async ({
   projectsToPublish,
   projectsVersionData,
   releasePackages,
-  releaseConfig,
   registry,
+  releaseTags,
+  writeManifest,
   dryRun,
 }: PinManifestsOptions): Promise<void> => {
-  const resolvedVersions = resolveReleasedVersions(
+  const resolvedVersions = await resolveReleasedVersions({
     projectsVersionData,
-    releasePackages
+    releasePackages,
+    releaseTags,
+  });
+
+  const publishing = new Set(
+    projectsToPublish.map(
+      (projectName) =>
+        releasePackageForProject(releasePackages, projectName).packageName
+    )
   );
-  const publishing = new Set(projectsToPublish);
 
   for (const [packageName, releasePackage] of releasePackages) {
     const changes: string[] = [];
@@ -84,11 +95,17 @@ export const materializeAndPinManifests = async ({
         manifest,
         releasePackages,
         resolvedVersions,
-        releaseTagPattern: releaseConfig.releaseTagPattern,
+        releaseTags,
       });
 
       const pinned = pinSiblingDependencies(manifest, siblings);
-      const violations = findSiblingPinViolations(pinned.manifest, siblings);
+
+      const violations = [
+        ...findSiblingPinViolations(pinned.manifest, siblings),
+        // Independent of sibling discovery on purpose: a dependency the driver
+        // failed to recognise would otherwise ship its local protocol verbatim.
+        ...findSurvivingLocalProtocols(pinned.manifest),
+      ];
       if (violations.length > 0) {
         throw new Error(
           formatViolations(packageName, releasePackage.manifestPath, violations)
@@ -96,6 +113,10 @@ export const materializeAndPinManifests = async ({
       }
 
       for (const sibling of siblings.values()) {
+        // Checked before the lookup, not after: a version this run publishes
+        // cannot be on the registry yet, and a transient registry error on an
+        // answer that would be discarded must not abort the release.
+        if (sibling.publishedByThisRun) continue;
         assertSiblingIsInstallable(
           sibling,
           await registry.fetchPublishedVersions(sibling.packageName)
@@ -128,12 +149,22 @@ export const materializeAndPinManifests = async ({
 /**
  * nx resolves every release-set project's current version from its git tag, and
  * reports it for projects it is not bumping too. That makes `newVersion ??
- * currentVersion` the truthful version of any sibling, with no registry lookup.
+ * currentVersion` the truthful version of any sibling.
+ *
+ * A version nx did not take from a tag came from the on-disk fallback and is
+ * rejected: `babylon-tbv-rust-wasm`'s on-disk `0.1.0` is real semver and really
+ * is on the registry, so it would otherwise pass every other gate while
+ * shipping a build 14 minor versions stale.
  */
-const resolveReleasedVersions = (
-  projectsVersionData: ProjectsVersionData,
-  releasePackages: ReleasePackages
-): ResolvedVersions => {
+const resolveReleasedVersions = async ({
+  projectsVersionData,
+  releasePackages,
+  releaseTags,
+}: {
+  projectsVersionData: ProjectsVersionData;
+  releasePackages: ReleasePackages;
+  releaseTags: ReleaseTagReader;
+}): Promise<ResolvedVersions> => {
   const resolved = new Map<string, SiblingRelease>();
 
   for (const [projectName, versions] of Object.entries(projectsVersionData)) {
@@ -141,6 +172,15 @@ const resolveReleasedVersions = (
       releasePackages,
       projectName
     );
+
+    if (versions.newVersion === null) {
+      assertVersionWasReleased(
+        packageName,
+        versions.currentVersion,
+        await releaseTags.readReleasedVersions(projectName)
+      );
+    }
+
     resolved.set(packageName, {
       packageName,
       version: versions.newVersion ?? versions.currentVersion,
@@ -155,12 +195,12 @@ const resolveSiblings = async ({
   manifest,
   releasePackages,
   resolvedVersions,
-  releaseTagPattern,
+  releaseTags,
 }: {
   manifest: PackageManifest;
   releasePackages: ReleasePackages;
   resolvedVersions: ResolvedVersions;
-  releaseTagPattern: string;
+  releaseTags: ReleaseTagReader;
 }): Promise<ReadonlyMap<string, SiblingRelease>> => {
   const siblings = new Map<string, SiblingRelease>();
 
@@ -176,7 +216,7 @@ const resolveSiblings = async ({
           consumerName: manifest.name ?? '(unnamed package)',
           releasePackages,
           resolvedVersions,
-          releaseTagPattern,
+          releaseTags,
         })
       );
     }
@@ -190,13 +230,13 @@ const resolveSibling = async ({
   consumerName,
   releasePackages,
   resolvedVersions,
-  releaseTagPattern,
+  releaseTags,
 }: {
   packageName: string;
   consumerName: string;
   releasePackages: ReleasePackages;
   resolvedVersions: ResolvedVersions;
-  releaseTagPattern: string;
+  releaseTags: ReleaseTagReader;
 }): Promise<SiblingRelease> => {
   const siblingPackage = releasePackageForProject(releasePackages, packageName);
 
@@ -213,61 +253,24 @@ const resolveSibling = async ({
   }
 
   const resolved = resolvedVersions.get(packageName);
-  const version =
-    resolved?.version ??
-    (await latestReleasedVersionFromGitTags(packageName, releaseTagPattern));
+  if (resolved) return resolved;
+
+  // nx filtered this sibling out of the run entirely, which happens on the
+  // release-candidate path where only one project is versioned.
+  const version = latestStableVersion(
+    await releaseTags.readReleasedVersions(packageName)
+  );
 
   if (!version) {
     throw new Error(
-      `${consumerName} depends on ${packageName}, but ${packageName} is not part of this release run and has no release tag to read a published version from.`
+      `${consumerName} depends on ${packageName}, but ${packageName} is not part of this release run and has no stable release tag to read a published version from.`
     );
   }
   if (!isExactVersion(version)) {
     throw new Error(
-      `${consumerName} depends on ${packageName}, which resolved to "${version}" - not an exact version, so it cannot be published as a pin.`
+      `${consumerName} depends on ${packageName}, whose latest release tag reads "${version}" - not an exact version, so it cannot be published as a pin.`
     );
   }
 
-  return {
-    packageName,
-    version,
-    publishedByThisRun: resolved?.publishedByThisRun ?? false,
-  };
-};
-
-/**
- * Used when nx filtered a sibling out of the run entirely, which happens on the
- * release-candidate path where only one project is versioned.
- */
-const latestReleasedVersionFromGitTags = async (
-  projectName: string,
-  releaseTagPattern: string
-): Promise<string | undefined> => {
-  if (!releaseTagPattern.endsWith(RELEASE_TAG_VERSION_PLACEHOLDER)) {
-    throw new Error(
-      `The release driver can only read versions back from a releaseTagPattern ending in "${RELEASE_TAG_VERSION_PLACEHOLDER}", but nx.json has "${releaseTagPattern}".`
-    );
-  }
-
-  const prefix = releaseTagPattern
-    .slice(0, -RELEASE_TAG_VERSION_PLACEHOLDER.length)
-    .replace(RELEASE_TAG_PROJECT_PLACEHOLDER, projectName);
-
-  const tags = await execCommand('git', [
-    'tag',
-    '--list',
-    `${prefix}*`,
-    '--sort=-v:refname',
-  ]);
-
-  return tags
-    .split('\n')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.startsWith(prefix))
-    .map((tag) => tag.slice(prefix.length))
-    .find(
-      // git's version sort ranks 1.0.0-rc.1 above 1.0.0, and a stable dependent
-      // must never pin a prerelease.
-      (version) => isExactVersion(version) && !version.includes('-')
-    );
+  return { packageName, version, publishedByThisRun: false };
 };

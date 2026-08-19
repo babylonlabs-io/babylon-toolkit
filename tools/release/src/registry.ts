@@ -9,6 +9,12 @@ const ABBREVIATED_PACKUMENT_ACCEPT = 'application/vnd.npm.install-v1+json';
 
 const NOT_FOUND_STATUS = 404;
 
+/**
+ * Bounds a registry that accepts the connection and then never answers. Without
+ * it the release job hangs until the CI step limit kills it, with no error.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export interface RegistryClient {
   /** Every published version, or null when the registry has no such package. */
   fetchPublishedVersions(packageName: string): Promise<readonly string[] | null>;
@@ -16,15 +22,21 @@ export interface RegistryClient {
 
 export const createRegistryClient = (registryUrl: string): RegistryClient => {
   const baseUrl = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`;
-  const inFlight = new Map<string, Promise<readonly string[] | null>>();
+
+  /**
+   * Rejections are cached as deliberately as successes: this gate fails closed,
+   * so one unanswered lookup must not become a second chance on retry within
+   * the same run.
+   */
+  const answers = new Map<string, Promise<readonly string[] | null>>();
 
   return {
     fetchPublishedVersions(packageName) {
-      const cached = inFlight.get(packageName);
+      const cached = answers.get(packageName);
       if (cached) return cached;
 
       const pending = requestPublishedVersions(baseUrl, packageName);
-      inFlight.set(packageName, pending);
+      answers.set(packageName, pending);
       return pending;
     },
   };
@@ -40,6 +52,7 @@ const requestPublishedVersions = async (
   try {
     response = await fetch(url, {
       headers: { accept: ABBREVIATED_PACKUMENT_ACCEPT },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (cause) {
     throw new Error(

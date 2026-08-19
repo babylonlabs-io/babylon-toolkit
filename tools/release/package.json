@@ -7,7 +7,8 @@
     "dry-run": "DRY_RUN=true tsx src/index.ts",
     "lint": "eslint .",
     "run": "tsx src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "nx": "21.3.7"

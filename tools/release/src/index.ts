@@ -5,8 +5,14 @@ import { releaseChangelog, releasePublish, releaseVersion } from 'nx/release';
 
 import { execCommand } from './exec.js';
 import { materializeAndPinManifests } from './pinManifests.js';
+import { assertEveryProjectPublished } from './publishResults.js';
 import { createRegistryClient } from './registry.js';
-import { readReleaseConfig, readReleasePackages } from './workspace.js';
+import { createReleaseTagReader } from './releaseTags.js';
+import {
+  readReleaseConfig,
+  readReleasePackages,
+  writeManifest,
+} from './workspace.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
@@ -30,9 +36,6 @@ const WORKSPACE_ROOT = resolve(
   '..'
 );
 
-/** `nx/release` exports no result types, so they are derived from its functions. */
-type PublishResults = Awaited<ReturnType<typeof releasePublish>>;
-
 const release = async () => {
   const { workspaceVersion, projectsVersionData } = await releaseVersion({
     projects: RELEASE_PROJECTS.length > 0 ? RELEASE_PROJECTS : undefined,
@@ -45,27 +48,34 @@ const release = async () => {
     dryRun: DRY_RUN,
   });
 
+  /**
+   * A superset of RELEASE_PROJECTS: nx adds out-of-filter dependents through
+   * `updateDependents` and bumps them too. Everything downstream has to use
+   * this list, or a dependent gets published with no tag and no changelog.
+   */
   const projectsToPublish = Object.entries(projectsVersionData)
     .filter(([, project]) => project.newVersion !== null)
     .map(([projectName]) => projectName);
 
   if (projectsToPublish.length === 0) {
     console.log('No project release needed');
-    process.exit(0);
+    return;
   }
 
   const releaseConfig = readReleaseConfig(WORKSPACE_ROOT);
-  const releasePackages = readReleasePackages(
-    WORKSPACE_ROOT,
-    releaseConfig.projectGlobs
-  );
 
   await materializeAndPinManifests({
     projectsToPublish,
     projectsVersionData,
-    releasePackages,
-    releaseConfig,
+    releasePackages: readReleasePackages(
+      WORKSPACE_ROOT,
+      releaseConfig.projectGlobs
+    ),
     registry: createRegistryClient(releaseConfig.registryUrl),
+    releaseTags: createReleaseTagReader(releaseConfig.releaseTagPattern, (args) =>
+      execCommand('git', [...args])
+    ),
+    writeManifest,
     dryRun: DRY_RUN,
   });
 
@@ -76,7 +86,9 @@ const release = async () => {
     verbose: true,
   });
 
-  assertEveryProjectPublished(projectsToPublish, publishResults, DRY_RUN);
+  assertEveryProjectPublished(projectsToPublish, publishResults, {
+    dryRun: DRY_RUN,
+  });
 
   /**
    * Tagging runs only after a fully successful publish. The other order leaves a
@@ -84,20 +96,27 @@ const release = async () => {
    * forward from tags that version can never be published afterwards - which is
    * how `wallet-connector@1.66.1` came to pin a permanent 404.
    */
-  await releaseChangelog({
-    // Must match the filter releaseVersion ran with: releaseChangelog reads a
-    // version for every project it is asked about and throws on a gap.
-    projects: RELEASE_PROJECTS.length > 0 ? RELEASE_PROJECTS : undefined,
-    dryRun: DRY_RUN,
-    versionData: projectsVersionData,
-    version: workspaceVersion,
-    gitCommit: false,
-    gitTag: true,
-    gitPush: false,
-    // Prereleases get a tag but no GitHub release, matching what the RC path did before.
-    createRelease: RELEASE_PREID ? false : undefined,
-    verbose: true,
-  });
+  try {
+    await releaseChangelog({
+      projects: projectsToPublish,
+      dryRun: DRY_RUN,
+      versionData: projectsVersionData,
+      version: workspaceVersion,
+      gitCommit: false,
+      gitTag: true,
+      gitPush: false,
+      // Prereleases get a tag but no GitHub release, matching what the RC path did before.
+      createRelease: RELEASE_PREID ? false : undefined,
+      verbose: true,
+    });
+  } catch (error) {
+    // Without this the operator sees only the tagging error and cannot tell
+    // that the packages are already immutable on the registry.
+    console.error(
+      `Tagging failed AFTER a successful publish. These are already on the registry and must not be republished: ${projectsToPublish.join(', ')}. Create their tags by hand rather than re-running the release.`
+    );
+    throw error;
+  }
 
   /**
    * We intentionally not commit all the version changes but only push the tags
@@ -105,41 +124,6 @@ const release = async () => {
   if (!DRY_RUN) {
     await pushReleaseTags();
   }
-};
-
-/**
- * A project with no entry in the results was dropped before the executor ran -
- * nx does that silently for any package without a publish target, which is every
- * package marked private. Checking only the exit codes passes vacuously then.
- */
-const assertEveryProjectPublished = (
-  projectsToPublish: readonly string[],
-  publishResults: PublishResults,
-  dryRun: boolean
-): void => {
-  const failed = projectsToPublish.filter(
-    (projectName) => publishResults[projectName]?.code !== 0
-  );
-
-  if (failed.length === 0) return;
-
-  const summary = `These projects were versioned but did not publish successfully: ${failed.join(', ')}.`;
-
-  /**
-   * A dry run never writes the new version to disk, so `pnpm publish
-   * --dry-run` reads the previous one and reports it as already published.
-   * That says nothing about whether a real release would work.
-   */
-  if (dryRun) {
-    console.warn(`${summary} Expected during a dry run, which does not write the new versions to disk.`);
-    return;
-  }
-
-  // When a publish target fails, we want to fail the CI
-  console.error(
-    `${summary} No git tags were created, so re-running the release will retry the same versions.`
-  );
-  process.exit(1);
 };
 
 const pushReleaseTags = async () => {
@@ -160,11 +144,14 @@ const pushReleaseTags = async () => {
     await execCommand('git', commandArgs);
   } catch (error) {
     /**
-     * Tags for a GitHub release already reach the remote through the releases
-     * API, so this push is usually a no-op. Everything of value has been
-     * published by this point, and failing here would report a successful
-     * release as broken.
+     * On the stable path nx has already created the tag through the GitHub
+     * releases API, so this push is a no-op and failing the job would report a
+     * successful release as broken. A prerelease creates no GitHub release, so
+     * this push is the only route to the remote: losing it leaves the version
+     * on npm untagged, and every later dispatch re-derives the same version and
+     * silently no-ops.
      */
+    if (RELEASE_PREID) throw error;
     console.warn(`Could not push to the remote: ${error}`);
   }
 };
