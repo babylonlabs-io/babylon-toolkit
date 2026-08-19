@@ -118,12 +118,14 @@ runs:
             echo "published ${TAG} at ${GITHUB_SHA}"
 
             DEADLINE=$((SECONDS + CDN_PROBE_TIMEOUT_SECONDS))
-            while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            while :; do
               if curl -sfIL --max-time "$API_MAX_TIME_SECONDS" -o /dev/null "$URL"; then
                 echo "${URL} is retrievable"
                 exit 0
               fi
-              sleep "$CDN_PROBE_INTERVAL_SECONDS"
+              REMAINING=$((DEADLINE - SECONDS))
+              [ "$REMAINING" -gt 0 ] || break
+              sleep "$((REMAINING < CDN_PROBE_INTERVAL_SECONDS ? REMAINING : CDN_PROBE_INTERVAL_SECONDS))"
             done
             echo "::warning::${URL} not yet retrievable ${CDN_PROBE_TIMEOUT_SECONDS}s after publish; the release is complete and the CDN will catch up"
             exit 0
