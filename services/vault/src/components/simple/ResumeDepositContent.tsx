@@ -105,7 +105,7 @@ export function ResumeSignContent({
   onClose,
   onSuccess,
 }: ResumeSignContentProps) {
-  const { signing, progress, error, isComplete, handleSign } =
+  const { signing, progress, error, errorTerminal, isComplete, handleSign } =
     usePayoutSigningState({
       activity,
       btcPublicKey,
@@ -161,7 +161,15 @@ export function ResumeSignContent({
       // errors with actionable guard titles (missing/mismatched payout address,
       // wallet liveness, etc.). Pass them through directly so the callout keeps
       // that title instead of collapsing to the generic mapped fallback.
-      error={error ? { title: error.title, body: error.message } : null}
+      error={
+        error
+          ? {
+              title: error.title,
+              body: error.message,
+              diagnostics: error.diagnostics,
+            }
+          : null
+      }
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -175,7 +183,10 @@ export function ResumeSignContent({
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
-      onRetry={error ? handleSign : undefined}
+      // A terminal refusal (ack window elapsed, signing already over, device
+      // rejected the terms) re-runs the whole chain-read chain and fails
+      // identically — no Retry CTA, same seam as the activation branch.
+      onRetry={error && !errorTerminal ? handleSign : undefined}
     />
   );
 }

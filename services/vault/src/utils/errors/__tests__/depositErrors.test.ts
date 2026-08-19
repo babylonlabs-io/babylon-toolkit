@@ -23,6 +23,7 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   mapDepositError,
 } from "../depositErrors";
+import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 const ERRORS = COPY.deposit.errors;
@@ -362,6 +363,41 @@ describe("mapDepositError", () => {
     expect(mapDepositError(chainWithCodeAtDepth(11))).not.toEqual(
       ERRORS.walletMethodNotSupported,
     );
+  });
+
+  it("lets a typed top-frame rejection win over an inner unsupported-method cause", () => {
+    // Outer frame is EIP-1193 4001 with no cancellation wording; the cause
+    // carries the unsupported-method code. The rejection is the accurate
+    // reading, and the documented invariant is that an inner unsupported
+    // code never overrides a meaningful outer error.
+    const err = Object.assign(new Error("request failed"), {
+      code: 4001,
+      cause: new FakeWalletError(
+        "WALLET_METHOD_NOT_SUPPORTED",
+        "SomeWallet does not support deriveContextHash",
+      ),
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.signingRejected);
+  });
+
+  it("keeps the VP mapping for the vault provider's PEGIN_NOT_FOUND (code 4001) — it is not an EIP-1193 rejection", () => {
+    const err = new JsonRpcError(
+      RpcErrorCode.PEGIN_NOT_FOUND,
+      "PegIn not found",
+    );
+    expect(mapDepositError(err)).not.toEqual(ERRORS.signingRejected);
+    expect(mapDepositError(err).title).toBe(
+      COPY.deposit.errors.vp.syncing.title,
+    );
+  });
+
+  it("maps the typed depositor-wallet mismatch from the terms rebuild to its own callout", () => {
+    const err = new DepositorWalletMismatchError({
+      vaultId: "0xabc",
+      expectedDepositor: "0x1111111111111111111111111111111111111111",
+      connectedDepositor: "0x2222222222222222222222222222222222222222",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.wrongDepositorWallet);
   });
 
   it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {

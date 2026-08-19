@@ -9,10 +9,13 @@
  * an error reaches the view it is already a friendly { title, body }.
  *
  * Enumerated error sources (the map's spec):
- *  - Wallet rejection — user declines a signing prompt (CONNECTION_REJECTED, or
- *    "user rejected" / "denied" in the message).
  *  - Vault-provider RPC — JsonRpcError from the VP (syncing, timeout, network,
- *    proxy timeout/unavailable, generic). Delegated to `mapVpRpcError`.
+ *    proxy timeout/unavailable, generic). Delegated to `mapVpRpcError`. Runs
+ *    first: the VP's PEGIN_NOT_FOUND is numeric 4001, same as EIP-1193's
+ *    userRejectedRequest.
+ *  - Wallet rejection — user declines a signing prompt (typed top frame:
+ *    EIP-1193 4001 / viem UserRejectedRequestError / CONNECTION_REJECTED; or,
+ *    later and cause-walking, "user rejected" / "denied" wording).
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
  *  - Ethereum registration finality — the registration never reached the
  *    required confirmation depth, or disappeared from chain state entirely.
@@ -20,6 +23,8 @@
  *    terms before approval (typed SDK error; can be terminal).
  *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate
  *    (broadcast stage keeps its historical broadcast-bucket copy).
+ *  - Depositor wallet mismatch — the DepositTerms rebuild's typed refusal when
+ *    the connected Ethereum account is not the vault's depositor.
  *  - Wallet method not supported — the connected wallet lacks a required
  *    method (coded, cause-walking; runs after every typed bucket above).
  *  - Wallet not connected / wallet client missing.
@@ -47,13 +52,17 @@ import { type ReactNode } from "react";
 
 import { COPY } from "@/copy";
 
+import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
   classifyError,
   formatErrorDiagnostics,
   mapVpRpcError,
   sanitizeErrorMessage,
 } from "./formatting";
-import { isUserCancellation, isWalletRejectionError } from "./userCancellation";
+import {
+  isTypedUserRejectionFrame,
+  isUserCancellation,
+} from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
 import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
@@ -115,15 +124,19 @@ function lowerMessage(err: unknown): string {
  * Pure: no side effects, safe to unit-test directly.
  */
 export function mapDepositError(err: unknown): DepositErrorContent {
-  // 1. Wallet rejection (coded) — most specific signal.
-  if (isWalletRejectionError(err)) {
-    return ERRORS.signingRejected;
-  }
-
-  // 2. Vault-provider JSON-RPC errors — reuse the shared VP mapping.
+  // 1. Vault-provider JSON-RPC errors — reuse the shared VP mapping. Must
+  // run before the typed-rejection check: the VP's PEGIN_NOT_FOUND is the
+  // numeric code 4001, which EIP-1193 also uses for userRejectedRequest.
   if (err instanceof JsonRpcError) {
     const { title, message } = mapVpRpcError(err);
     return { title, body: message };
+  }
+
+  // 2. Typed top-frame user rejection (EIP-1193 4001, viem, wallet-connector
+  // code) — most specific wallet signal. Top frame only; the cause-walking
+  // wording check is step 6, deliberately below the typed buckets.
+  if (isTypedUserRejectionFrame(err)) {
+    return ERRORS.signingRejected;
   }
 
   // 3. Protocol-parameter version mismatch (registered vault drifted).
@@ -162,9 +175,15 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.broadcastFailed;
   }
 
-  // 3f. Wallet lacks a required method. Cause-walking, so it must run AFTER
+  // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild.
+  if (isDepositorWalletMismatchError(err)) {
+    return ERRORS.wrongDepositorWallet;
+  }
+
+  // 3g. Wallet lacks a required method. Cause-walking, so it must run AFTER
   // every typed bucket above — an inner unsupported-method code must never
-  // override a meaningful outer wallet/VP/contract error.
+  // override a meaningful outer wallet/VP/contract error (step 2 already
+  // claimed any typed top-frame rejection).
   if (isWalletMethodNotSupported(err)) {
     return ERRORS.walletMethodNotSupported;
   }
@@ -240,8 +259,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return { title: COPY.wallet.liveness.errorTitle, body: livenessBody };
   }
 
-  // 6. Wallet signing rejection. The coded path (step 1) checks only the
-  // top-level code, so it misses rejections the broadcast step re-wrapped;
+  // 6. Wallet signing rejection. The typed path (step 2) checks only the
+  // top-level frame, so it misses rejections the broadcast step re-wrapped;
   // this cause-walking check catches them by wording or by the coded inner
   // frame the wrapper now preserves as `cause`. Checked before the broadcast
   // bucket so "Failed to broadcast ...: user rejected" reads as a rejection.

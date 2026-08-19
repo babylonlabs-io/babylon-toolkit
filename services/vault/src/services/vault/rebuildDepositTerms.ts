@@ -31,6 +31,7 @@ import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import {
+  DepositorWalletMismatchError,
   VaultLifecycleStateError,
   type VaultLifecycleStage,
 } from "@/utils/errors";
@@ -199,10 +200,11 @@ async function discoverSiblings(
   target: OnChainVaultData,
 ): Promise<OrderedSibling[]> {
   if (target.depositor.toLowerCase() !== connectedDepositor.toLowerCase()) {
-    throw new Error(
-      `Vault ${targetVaultId} is owned by ${target.depositor}, but the connected ` +
-        `wallet is ${connectedDepositor}. Connect with the depositor wallet to resume.`,
-    );
+    throw new DepositorWalletMismatchError({
+      vaultId: targetVaultId,
+      expectedDepositor: target.depositor,
+      connectedDepositor,
+    });
   }
 
   const txHashLower = target.prePeginTxHash.toLowerCase();
@@ -264,7 +266,8 @@ async function assertAckWindowOpen(
   ]);
   const ackDeadlineBlock = target.createdAt + tbvParams.pegInAckTimeout;
   // Exact contract mirror, all block numbers: expired iff
-  // block.number > createdAt + pegInAckTimeout (PeginLogic.sol:481, :807).
+  // block.number > createdAt + pegInAckTimeout (PeginLogic.submitACK, and the
+  // contrapositive in PeginLogic.reportExpired; vault-contracts-aave-v4 @ 2e87a85a).
   if (currentBlock > ackDeadlineBlock) {
     throw new VaultLifecycleStateError(
       `Vault ${vaultId} passed its acknowledgment deadline at block ` +
@@ -346,6 +349,24 @@ async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
   return { offchainParams, timelockPegin, participantKeys };
 }
 
+/**
+ * Presign preflight: the two target-only gates `submitACK` itself enforces, in
+ * the contract's order — `status == Pending`, then the ack window
+ * (PeginLogic.submitACK, vault-contracts-aave-v4 @ 2e87a85a). Cheap (one block
+ * read + one params read) and decidable from the target alone, so callers run
+ * it BEFORE the mempool/indexer/sibling reads that precede the full rebuild:
+ * for a stalled deposit the refund copy must win over a transient read error.
+ * `rebuildDepositTerms` re-runs both gates itself — this is an early exit, not
+ * a substitute.
+ */
+export async function assertPresignTargetSignable(
+  vaultId: Hex,
+  target: OnChainVaultData,
+): Promise<void> {
+  assertBatchLifecycleStatus("presign", { vaultId, vault: target }, []);
+  await assertAckWindowOpen(vaultId, target);
+}
+
 export async function rebuildDepositTerms(
   params: RebuildDepositTermsParams,
 ): Promise<DepositTerms> {
@@ -361,7 +382,8 @@ export async function rebuildDepositTerms(
     params.connectedDepositorAddress,
     target,
   );
-  // Runs after the status gate, so the refusal reports the still-PENDING status.
+  // Runs after the status gate, so the refusal reports the still-PENDING
+  // status — the same order as submitACK's two preconditions.
   if (params.lifecycle === "presign") {
     await assertAckWindowOpen(params.vaultId, target);
   }

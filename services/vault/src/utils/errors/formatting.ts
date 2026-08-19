@@ -13,9 +13,10 @@ import {
 
 import { COPY } from "@/copy";
 
+import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
+  isTypedUserRejectionFrame,
   isUserCancellationFrame,
-  isWalletRejectionError,
 } from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
@@ -478,14 +479,20 @@ export function formatErrorMessage(error: unknown): string {
 
 /**
  * Format payout signature errors with user-friendly messages. Typed
- * classifications run first (VP RPC, wallet rejection, deposit-terms
- * rejection, lifecycle refusal), then the cause-walking method-not-supported
- * check, then message-level matching — mirroring `mapDepositError`'s
- * precedence so the two mappers cannot disagree on the same error.
+ * classifications run first (VP RPC, top-frame typed user rejection,
+ * deposit-terms rejection, lifecycle refusal, depositor mismatch), then the
+ * cause-walking method-not-supported check, then message-level matching.
+ *
+ * Same typed-bucket ORDER as `mapDepositError`, not identical behaviour: the
+ * deposit mapper additionally walks `cause` for cancellation wording (its
+ * broadcast step re-wraps wallet errors); this mapper is deliberately
+ * code-only for rejections (#1484) because nothing on the presign path
+ * re-wraps, and a wording match would misread other wallet codes.
  */
 export function formatPayoutSignatureError(error: unknown): {
   title: string;
   message: string;
+  diagnostics?: string;
 } {
   const PSE = COPY.deposit.payoutSignatureErrors;
 
@@ -493,7 +500,10 @@ export function formatPayoutSignatureError(error: unknown): {
     return mapVpRpcError(error);
   }
 
-  if (isWalletRejectionError(error)) {
+  // Typed top-frame rejection (EIP-1193 4001, viem, wallet-connector code).
+  // Runs before the cause-walking unsupported-method bucket below so an outer
+  // rejection wrapping an inner unsupported-method cause reads as a rejection.
+  if (isTypedUserRejectionFrame(error)) {
     return PSE.signingRejected;
   }
 
@@ -517,13 +527,17 @@ export function formatPayoutSignatureError(error: unknown): {
     return timedOut ? PSE.ackWindowElapsed : PSE.signaturesNoLongerNeeded;
   }
 
+  // Typed depositor-wallet refusal from the terms rebuild — the most
+  // user-fixable error the rebuild can throw, so it never hits the fallback.
+  if (isDepositorWalletMismatchError(error)) {
+    return PSE.wrongDepositorWallet;
+  }
+
   // Cause-walking, so it must run AFTER every typed bucket above — an inner
   // unsupported-method code must never override a meaningful outer error.
+  // Resume-specific copy: an in-flight deposit cannot switch wallets.
   if (isWalletMethodNotSupported(error)) {
-    return {
-      title: COPY.deposit.errors.walletMethodNotSupported.title,
-      message: COPY.deposit.errors.walletMethodNotSupported.body,
-    };
+    return PSE.walletMethodNotSupported;
   }
 
   if (error instanceof Error) {
@@ -532,6 +546,14 @@ export function formatPayoutSignatureError(error: unknown): {
     }
     if (error.message.includes("BTC wallet not connected")) {
       return PSE.walletNotConnected;
+    }
+    // assertVaultCoreVersionSupported throws the user-facing body verbatim
+    // (same match as mapDepositError 4c') — the rebuild runs it on presign.
+    if (error.message === COPY.deposit.errors.appVersionUnsupported.body) {
+      return {
+        title: COPY.deposit.errors.appVersionUnsupported.title,
+        message: COPY.deposit.errors.appVersionUnsupported.body,
+      };
     }
     // Empty vault record from the registry reader. Usually a lagging RPC
     // node rather than a missing deposit, so the copy points at waiting
@@ -549,7 +571,10 @@ export function formatPayoutSignatureError(error: unknown): {
       return PSE.contractCallFailed;
     }
 
-    return PSE.unexpected;
+    // Generic title/body stay generic (raw `Error.message` is never shown,
+    // #1290); the raw error rides along as `diagnostics` for a bug report,
+    // mirroring `mapDepositError`'s fallback bucket.
+    return { ...PSE.unexpected, diagnostics: formatErrorDiagnostics(error) };
   }
 
   // WASM panics and some wallet providers throw strings or plain objects.

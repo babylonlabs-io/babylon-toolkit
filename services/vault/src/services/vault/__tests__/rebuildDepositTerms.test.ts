@@ -7,7 +7,10 @@ import { Transaction } from "bitcoinjs-lib";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { VaultLifecycleStateError } from "@/utils/errors";
+import {
+  DepositorWalletMismatchError,
+  VaultLifecycleStateError,
+} from "@/utils/errors";
 
 import {
   getVaultFromChain,
@@ -24,6 +27,7 @@ import { fetchVaultIdsByDepositor } from "../fetchVaults";
 import {
   assertBatchLifecycleStatus,
   assertContiguousHtlcVector,
+  assertPresignTargetSignable,
   assertSiblingBatchHomogeneous,
   rebuildDepositTerms,
 } from "../rebuildDepositTerms";
@@ -78,7 +82,7 @@ vi.mock("../vaultPayoutSignatureService", async (importOriginal) => ({
 // ETH block the registration mined at + the ack window read for presign mode.
 const TARGET_CREATED_AT_BLOCK = 1_000n;
 const PEGIN_ACK_TIMEOUT_BLOCKS = 144n;
-// Contract boundary (PeginLogic.sol:481/:807): expired iff block > deadline.
+// Contract boundary (PeginLogic.submitACK / reportExpired, vault-contracts-aave-v4 @ 2e87a85a): expired iff block > deadline.
 const ACK_DEADLINE_BLOCK = TARGET_CREATED_AT_BLOCK + PEGIN_ACK_TIMEOUT_BLOCKS;
 
 // Only the fields the lifecycle/homogeneity asserts read matter here; the cast
@@ -415,14 +419,23 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
     expect(mockGetTBVProtocolParams).not.toHaveBeenCalled();
   });
 
-  it("refuses when the connected wallet is not the on-chain depositor", async () => {
-    await expect(
-      rebuildDepositTerms({
-        ...baseParams(),
-        connectedDepositorAddress:
-          "0x9999000000000000000000000000000000000099" as `0x${string}`,
-      }),
-    ).rejects.toThrow(/owned by/);
+  it("refuses with the typed depositor-mismatch error when the connected wallet is not the on-chain depositor", async () => {
+    const connected =
+      "0x9999000000000000000000000000000000000099" as `0x${string}`;
+    const caught = await rebuildDepositTerms({
+      ...baseParams(),
+      connectedDepositorAddress: connected,
+    }).then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(caught).toBeInstanceOf(DepositorWalletMismatchError);
+    expect(caught).toMatchObject({
+      vaultId: TARGET_ID,
+      expectedDepositor: targetVault.depositor,
+      connectedDepositor: connected,
+    });
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
   });
 
@@ -509,6 +522,52 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       rebuildDepositTerms({ ...baseParams(), lifecycle: "presign" }),
     ).rejects.toThrow(/rpc unavailable/);
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+  });
+
+  // The hoisted preflight: same two gates, same order, no sibling/mempool reads.
+  it("assertPresignTargetSignable passes a PENDING target inside the ack window without touching siblings", async () => {
+    await expect(
+      assertPresignTargetSignable(TARGET_ID, targetVault),
+    ).resolves.toBeUndefined();
+    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+    expect(getVaultFromChain).not.toHaveBeenCalled();
+  });
+
+  it("assertPresignTargetSignable refuses a non-PENDING target before reading the ack window", async () => {
+    const caught = await assertPresignTargetSignable(TARGET_ID, {
+      ...targetVault,
+      status: OnChainBtcVaultStatus.VERIFIED,
+    }).then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(caught).toBeInstanceOf(VaultLifecycleStateError);
+    expect(caught).toMatchObject({
+      reason: "invalid-status",
+      stage: "presign",
+      status: OnChainBtcVaultStatus.VERIFIED,
+    });
+    expect(mockGetBlockNumber).not.toHaveBeenCalled();
+  });
+
+  it("assertPresignTargetSignable refuses one block past the ack deadline with the still-PENDING status", async () => {
+    mockGetBlockNumber.mockResolvedValue(ACK_DEADLINE_BLOCK + 1n);
+
+    const caught = await assertPresignTargetSignable(
+      TARGET_ID,
+      targetVault,
+    ).then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(caught).toBeInstanceOf(VaultLifecycleStateError);
+    expect(caught).toMatchObject({
+      reason: "ack-window-elapsed",
+      stage: "presign",
+      status: OnChainBtcVaultStatus.PENDING,
+    });
   });
 
   /** A funded Pre-PegIn tx with `htlcCount` HTLC outputs and the auth-anchor

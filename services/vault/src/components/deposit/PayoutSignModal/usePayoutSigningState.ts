@@ -9,6 +9,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   forwardDepositApproval,
+  isDepositTermsRejectedError,
   stripHexPrefix,
   supportsDepositApproval,
   type DepositTerms,
@@ -32,7 +33,10 @@ import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/pa
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import { fetchVaultPayoutScriptPubKey } from "../../../services/vault/fetchVaults";
-import { rebuildDepositTerms } from "../../../services/vault/rebuildDepositTerms";
+import {
+  assertPresignTargetSignable,
+  rebuildDepositTerms,
+} from "../../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../../services/vault/resolveFundedTxFee";
 import type { VaultActivity } from "../../../types/activity";
 import {
@@ -42,10 +46,13 @@ import {
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
+import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
 
 export interface SigningError {
   title: string;
   message: string;
+  /** Raw error for the "copy details" action; only the generic fallback sets it. */
+  diagnostics?: string;
 }
 
 export interface UsePayoutSigningStateProps {
@@ -62,6 +69,11 @@ export interface UsePayoutSigningStateResult {
   progress: PayoutSigningProgress;
   /** Error state if signing failed */
   error: SigningError | null;
+  /**
+   * True when `error` is a refusal retrying cannot change (presign lifecycle
+   * refusal, device rejected the deposit terms) — callers hide the retry CTA.
+   */
+  errorTerminal: boolean;
   /** Whether signing completed successfully */
   isComplete: boolean;
   /** Handler to initiate signing */
@@ -86,6 +98,7 @@ export function usePayoutSigningState({
     total: 0,
   });
   const [error, setError] = useState<SigningError | null>(null);
+  const [errorTerminal, setErrorTerminal] = useState(false);
 
   const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
   const btcConnector = useChainConnector("BTC");
@@ -126,6 +139,9 @@ export function usePayoutSigningState({
   const handleSign = useCallback(async () => {
     if (inFlightRef.current || signing) return;
     inFlightRef.current = true;
+    // A new attempt starts non-terminal: a guard error after a terminal
+    // refusal is a fresh, recoverable error and must get its Retry back.
+    setErrorTerminal(false);
 
     // Single outer try/finally so the reentrancy lock is always cleared —
     // including on synchronous throws from the guards (e.g.
@@ -206,13 +222,16 @@ export function usePayoutSigningState({
         return;
       }
 
-      // Approval wallets rebuild deposit terms from the funded Pre-PegIn hex
-      // below; a localStorage-only merged activity shape can lack it.
-      const wallet = btcWalletProvider as BitcoinWallet;
-      if (supportsDepositApproval(wallet) && !activity.unsignedPrePeginTx) {
+      // Every wallet needs the funded Pre-PegIn hex on this path: the cold VP
+      // auth path hashes it and parses funding outpoints from it, and approval
+      // wallets also rebuild deposit terms from it. A localStorage-only merged
+      // activity shape can lack it — guard once, for all wallets, like the
+      // WOTS and activation resume paths do.
+      if (!activity.unsignedPrePeginTx) {
         setError(COPY.deposit.payoutSigningGuards.missingPrePeginTransaction);
         return;
       }
+      const wallet = btcWalletProvider as BitcoinWallet;
 
       // The wallet may have locked/disconnected since the modal opened. Probe
       // it before signing so a locked wallet surfaces an actionable error
@@ -302,6 +321,9 @@ export function usePayoutSigningState({
         let depositTerms: DepositTerms | undefined;
         if (supportsDepositApproval(wallet)) {
           const onChainVault = await getVaultFromChain(activity.id);
+          // Cheap, decisive gates first: a stalled/ack-expired deposit must
+          // surface its refund copy even if a mempool prevout read fails.
+          await assertPresignTargetSignable(activity.id, onChainVault);
           const { fundedTxFee } = await resolveFundedTxFeeAndUtxos(
             activity.unsignedPrePeginTx,
           );
@@ -356,16 +378,28 @@ export function usePayoutSigningState({
           setSigning(false);
           return;
         }
-        // Critical-path #3 presign failure on the resume path — previously
-        // only surfaced to UI state, invisible to Sentry.
-        captureFunnelFailure(
-          TELEMETRY_STAGE.ACTIVATION_PAYOUTS,
-          err,
-          activity.id,
-          {
-            tags: { providerId: shortId(vaultProviderAddress) },
-          },
-        );
+        // A presign lifecycle refusal (ack window elapsed, target already
+        // past PENDING) is the routine outcome for a stalled deposit — and
+        // the resume modal auto-fires this handler on mount — so it is not a
+        // payout-signing failure and must not inflate the funnel-stage alert.
+        const presignRefusal =
+          isVaultLifecycleStateError(err) && err.stage === "presign";
+        if (!presignRefusal) {
+          // Critical-path #3 presign failure on the resume path — previously
+          // only surfaced to UI state, invisible to Sentry.
+          captureFunnelFailure(
+            TELEMETRY_STAGE.ACTIVATION_PAYOUTS,
+            err,
+            activity.id,
+            {
+              tags: { providerId: shortId(vaultProviderAddress) },
+            },
+          );
+        }
+        // Decide terminality from the typed error BEFORE formatting flattens
+        // it to copy: a lifecycle refusal or a device envelope rejection can
+        // never succeed on retry.
+        setErrorTerminal(presignRefusal || isDepositTermsRejectedError(err));
         setError(formatPayoutSignatureError(err));
         setSigning(false);
       }
@@ -389,5 +423,5 @@ export function usePayoutSigningState({
     onSuccess,
   ]);
 
-  return { signing, progress, error, isComplete, handleSign };
+  return { signing, progress, error, errorTerminal, isComplete, handleSign };
 }

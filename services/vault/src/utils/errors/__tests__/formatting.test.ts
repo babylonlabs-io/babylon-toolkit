@@ -22,6 +22,7 @@ import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
 
+import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
 import {
   formatErrorDiagnostics,
   formatErrorMessage,
@@ -770,7 +771,7 @@ describe("Error Formatting", () => {
         "SomeWallet does not support deriveContextHash",
       );
       expect(formatPayoutSignatureError(unsupported).title).toBe(
-        COPY.deposit.errors.walletMethodNotSupported.title,
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.title,
       );
     });
 
@@ -857,20 +858,25 @@ describe("Error Formatting", () => {
         status: OnChainBtcVaultStatus.EXPIRED,
         vaultId: "0xabc",
       });
-      expect(formatPayoutSignatureError(err)).toEqual(
+      expect(formatPayoutSignatureError(err)).toMatchObject(
         COPY.deposit.payoutSignatureErrors.unexpected,
       );
     });
 
-    it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the unsupported-wallet copy", () => {
+    it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the resume-specific unsupported-wallet copy", () => {
       const err = new FakeWalletError(
         "WALLET_METHOD_NOT_SUPPORTED",
         "SomeWallet does not support deriveContextHash",
       );
-      expect(formatPayoutSignatureError(err)).toEqual({
-        title: COPY.deposit.errors.walletMethodNotSupported.title,
-        message: COPY.deposit.errors.walletMethodNotSupported.body,
-      });
+      // Resume copy, not the fresh-deposit copy: an in-flight deposit cannot
+      // be moved to a different wallet, so it must not say "reconnect with a
+      // supported wallet".
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported,
+      );
+      expect(
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.message,
+      ).not.toContain("supported wallet");
     });
 
     it("finds WALLET_METHOD_NOT_SUPPORTED nested in a wrapper's cause chain", () => {
@@ -880,8 +886,61 @@ describe("Error Formatting", () => {
       );
       const wrapped = new Error("payout signing failed", { cause: inner });
       expect(formatPayoutSignatureError(wrapped).title).toBe(
-        COPY.deposit.errors.walletMethodNotSupported.title,
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.title,
       );
+    });
+
+    it("lets a typed top-frame rejection win over an inner unsupported-method cause", () => {
+      // Outer frame is EIP-1193 4001; the inner cause carries the
+      // unsupported-method code. The rejection is the accurate reading.
+      const err = Object.assign(new Error("User rejected the request."), {
+        code: 4001,
+        cause: new FakeWalletError(
+          "WALLET_METHOD_NOT_SUPPORTED",
+          "SomeWallet does not support deriveContextHash",
+        ),
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.signingRejected,
+      );
+    });
+
+    it("maps viem's UserRejectedRequestError to the rejection copy", () => {
+      const err = new UserRejectedRequestError(new Error("denied"));
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.signingRejected,
+      );
+    });
+
+    it("maps the typed depositor-wallet mismatch to its own copy", () => {
+      const err = new DepositorWalletMismatchError({
+        vaultId: "0xabc",
+        expectedDepositor: "0x1111111111111111111111111111111111111111",
+        connectedDepositor: "0x2222222222222222222222222222222222222222",
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.wrongDepositorWallet,
+      );
+    });
+
+    it("maps the app-version-unsupported throw to the app-update copy", () => {
+      const err = new Error(COPY.deposit.errors.appVersionUnsupported.body);
+      expect(formatPayoutSignatureError(err)).toEqual({
+        title: COPY.deposit.errors.appVersionUnsupported.title,
+        message: COPY.deposit.errors.appVersionUnsupported.body,
+      });
+    });
+
+    it("attaches raw diagnostics to the generic Error fallback without leaking them into the message", () => {
+      const err = new Error("sibling batch disagrees on fee rate: 3 vs 5");
+      const result = formatPayoutSignatureError(err);
+      expect(result.title).toBe(
+        COPY.deposit.payoutSignatureErrors.unexpected.title,
+      );
+      expect(result.message).toBe(
+        COPY.deposit.payoutSignatureErrors.unexpected.message,
+      );
+      expect(result.diagnostics).toContain("sibling batch disagrees");
     });
 
     it("keeps the VP mapping when a JsonRpcError carries an unrelated unsupported-method cause", () => {

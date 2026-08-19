@@ -134,6 +134,7 @@ vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
     signing: false,
     progress: { phase: "claimers", completed: 0, total: 0 },
     error: null,
+    errorTerminal: false,
     isComplete: false,
     handleSign: vi.fn(),
   })),
@@ -674,6 +675,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       signing: false,
       progress: { phase: "claimers", completed: 0, total: 0 },
       error: null,
+      errorTerminal: false,
       isComplete: true,
       handleSign: vi.fn(),
     });
@@ -727,6 +729,39 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     // COMPLETED — the whole flow is done, so no stale "ready to activate".
     expect(getByTestId("step").textContent).toBe("16");
     expect(getByTestId("terminal").textContent).toBe("");
+  });
+
+  it("suppresses Retry on a terminal signing refusal and keeps the hook's title/body", () => {
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: false,
+      progress: { phase: "auth", completed: 0, total: 0 },
+      error: COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
+      errorTerminal: true,
+      isComplete: false,
+      handleSign: vi.fn(),
+    });
+
+    const { getByTestId } = renderSign();
+
+    expect(getByTestId("error-title").textContent).toBe(
+      COPY.deposit.payoutSignatureErrors.ackWindowElapsed.title,
+    );
+    expect(getByTestId("has-retry").textContent).toBe("false");
+  });
+
+  it("keeps Retry for a non-terminal signing failure", () => {
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: false,
+      progress: { phase: "auth", completed: 0, total: 0 },
+      error: COPY.deposit.payoutSignatureErrors.unexpected,
+      errorTerminal: false,
+      isComplete: false,
+      handleSign: vi.fn(),
+    });
+
+    const { getByTestId } = renderSign();
+
+    expect(getByTestId("has-retry").textContent).toBe("true");
   });
 });
 

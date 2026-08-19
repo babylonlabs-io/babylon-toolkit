@@ -867,6 +867,12 @@ export const COPY = {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
       },
+      // Typed DepositorWalletMismatchError from the terms rebuild (Ethereum
+      // account, not the BTC wallet the WOTS guard above covers).
+      wrongDepositorWallet: {
+        title: "Wrong wallet connected",
+        body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
+      },
       commissionChanged: {
         title: "Commission changed",
         body: "The vault provider raised its commission since you selected it. Please refresh to see the new commission and start the deposit again.",
@@ -974,7 +980,7 @@ export const COPY = {
       missingPrePeginTransaction: {
         title: "Missing Pre-Pegin transaction",
         message:
-          "The original Pre-Pegin transaction is not available yet, and your wallet requires it to approve payout signing. Please try again later.",
+          "The original Pre-Pegin transaction is not available yet, and payout signing cannot start without it. Please try again later.",
       },
     },
     // ----------------------------------------------------------------------
@@ -1013,6 +1019,21 @@ export const COPY = {
         title: "No signatures needed",
         message:
           "This deposit has already moved past payout signing, so no further signatures are needed. Check your dashboard for its current status.",
+      },
+      // Typed DepositorWalletMismatchError from the terms rebuild: the deposit
+      // is bound to the Ethereum account that registered it.
+      wrongDepositorWallet: {
+        title: "Wrong wallet connected",
+        message:
+          "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to continue signing.",
+      },
+      // Resume-specific variant of deposit.errors.walletMethodNotSupported: an
+      // in-flight deposit is bound to the wallet that derived its secrets, so
+      // "reconnect with a supported wallet" is not a recovery path here.
+      walletMethodNotSupported: {
+        title: "Wallet action not supported",
+        message:
+          "Your connected wallet can't perform an action this deposit requires, and the deposit can only continue with the wallet that created it. Try again after updating the app or that wallet, or contact support.",
       },
       unexpected: {
         title: PAYOUT_SIGNING_ERROR_TITLE,
