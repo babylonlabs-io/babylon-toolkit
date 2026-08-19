@@ -48,6 +48,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   expandHashlockSecret: vi.fn(() => new Uint8Array(32)),
   expandWotsSeed: vi.fn(() => new Uint8Array(32)),
   hexToUint8Array: vi.fn(() => new Uint8Array(32)),
+  isDepositTermsRejectedError: vi.fn(() => false),
   isWotsMismatchError: vi.fn(() => false),
   isRegisteredVaultVersionMismatchError: vi.fn(() => false),
   isParticipantKeyDriftError: vi.fn(() => false),
@@ -440,6 +441,31 @@ describe("ResumeWotsContent — submission marker", () => {
     });
   });
 
+  it("maps a coded wallet rejection to the signing-rejected callout", async () => {
+    // The error state stores the caught value un-flattened, so the wallet
+    // code (not just the message) reaches mapDepositError at the render seam.
+    mockSubmitWotsPublicKey.mockRejectedValue(
+      Object.assign(new Error("nope"), { code: "CONNECTION_REJECTED" }),
+    );
+
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.signingRejected.title,
+      );
+    });
+    expect(getByTestId("error").textContent).toBe(
+      COPY.deposit.errors.signingRejected.body,
+    );
+  });
+
   it("waits for a click instead of auto-submitting when the suppression lapsed", async () => {
     // The TTL expiring re-offers SUBMIT_WOTS_KEY, which remounts this
     // component. Auto-firing there would open a wallet prompt at a modal the
@@ -821,6 +847,25 @@ describe("ResumeActivationContent — activated success terminal", () => {
     );
     expect(getByTestId("error-title").textContent).not.toBe(
       COPY.deposit.errors.activationDeadlinePassed.title,
+    );
+  });
+
+  it("maps a coded wallet rejection during secret derivation to the signing-rejected callout", async () => {
+    // The local error state stores the caught value un-flattened, so the
+    // wallet code (not just the message) reaches mapDepositError at render.
+    mockDeriveVaultRoot.mockRejectedValue(
+      Object.assign(new Error("nope"), { code: "CONNECTION_REJECTED" }),
+    );
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() => {
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.signingRejected.title,
+      );
+    });
+    expect(getByTestId("error").textContent).toBe(
+      COPY.deposit.errors.signingRejected.body,
     );
   });
 });

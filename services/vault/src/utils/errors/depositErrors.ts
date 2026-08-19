@@ -16,6 +16,12 @@
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
  *  - Ethereum registration finality — the registration never reached the
  *    required confirmation depth, or disappeared from chain state entirely.
+ *  - Deposit-terms rejection — the signing device's envelope refused the
+ *    terms before approval (typed SDK error; can be terminal).
+ *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate
+ *    (broadcast stage keeps its historical broadcast-bucket copy).
+ *  - Wallet method not supported — the connected wallet lacks a required
+ *    method (coded, cause-walking; runs after every typed bucket above).
  *  - Wallet not connected / wallet client missing.
  *  - Wallet account changed mid-flow (the WOTS-vs-PoP key guard).
  *  - Wrong wallet connected on resume (WOTS hash mismatch).
@@ -30,6 +36,7 @@
  */
 
 import {
+  isDepositTermsRejectedError,
   isParticipantKeyDriftError,
   isPeginRegistrationMissingError,
   isPeginRegistrationNotFinalError,
@@ -47,7 +54,9 @@ import {
   sanitizeErrorMessage,
 } from "./formatting";
 import { isUserCancellation, isWalletRejectionError } from "./userCancellation";
+import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
 export interface DepositErrorContent {
   title: string;
@@ -140,6 +149,26 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.ethRegistrationMissing;
   }
 
+  // 3d. Device-envelope rejection of the deposit terms. Can be terminal for
+  // this deposit, so the copy points at support instead of a retry.
+  if (isDepositTermsRejectedError(err)) {
+    return ERRORS.depositTermsRejected;
+  }
+
+  // 3e. Typed lifecycle refusal from the DepositTerms rebuild. The broadcast
+  // stage keeps the copy its generic-message predecessor landed on (the old
+  // message contained "broadcast", so it hit the broadcast bucket below).
+  if (isVaultLifecycleStateError(err) && err.stage === "broadcast") {
+    return ERRORS.broadcastFailed;
+  }
+
+  // 3f. Wallet lacks a required method. Cause-walking, so it must run AFTER
+  // every typed bucket above — an inner unsupported-method code must never
+  // override a meaningful outer wallet/VP/contract error.
+  if (isWalletMethodNotSupported(err)) {
+    return ERRORS.walletMethodNotSupported;
+  }
+
   const msg = lowerMessage(err);
 
   // 4. Wallet account changed mid-flow (WOTS-vs-PoP key guard).
@@ -211,10 +240,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return { title: COPY.wallet.liveness.errorTitle, body: livenessBody };
   }
 
-  // 6. Wallet signing rejection. The coded path (step 1) misses rejections that
-  // happen inside the broadcast step, because that catch re-wraps them in a
-  // fresh Error (losing the code). Checked before the broadcast bucket so
-  // "Failed to broadcast ...: user rejected" reads as a rejection.
+  // 6. Wallet signing rejection. The coded path (step 1) checks only the
+  // top-level code, so it misses rejections the broadcast step re-wrapped;
+  // this cause-walking check catches them by wording or by the coded inner
+  // frame the wrapper now preserves as `cause`. Checked before the broadcast
+  // bucket so "Failed to broadcast ...: user rejected" reads as a rejection.
   //
   // Shares its vocabulary with the Sentry-side drop rather than keeping a local
   // wording list: a cancellation that telemetry correctly suppressed used to

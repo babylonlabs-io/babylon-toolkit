@@ -69,6 +69,15 @@ import { getVpProxyUrl } from "@/utils/rpc";
 import { DepositProgressView } from "./DepositProgressView";
 import { VaultActivatedView } from "./VaultActivatedView";
 
+/**
+ * Caught-error state wrapper: keeps the typed error intact for the render-seam
+ * `mapDepositError` call (flattening to `.message` loses wallet codes and
+ * `cause` chains) while giving `unknown` well-defined truthiness in state.
+ */
+interface CaughtError {
+  raw: unknown;
+}
+
 // ---------------------------------------------------------------------------
 // Sign Payouts Content
 // ---------------------------------------------------------------------------
@@ -309,7 +318,7 @@ export function ResumeWotsContent({
   // banner from `isComplete = !loading && !error`. A re-offer has not
   // submitted anything yet, so it starts idle.
   const [loading, setLoading] = useState(!isReoffer);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<CaughtError | null>(null);
 
   // Track mount for setState guards after the long async chain below.
   // The hosting modal can be closed mid-flight (PostDepositContinuationView
@@ -330,7 +339,7 @@ export function ResumeWotsContent({
 
   const handleSubmit = useCallback(async () => {
     if (!btcWalletProvider || !connectedBtcAddress) {
-      setError("BTC wallet is not connected");
+      setError({ raw: COPY.deposit.resume.walletNotConnected });
       setLoading(false);
       return;
     }
@@ -473,15 +482,13 @@ export function ResumeWotsContent({
         extra: { wotsMismatch: isWotsMismatchError(err) },
       });
       if (mountedRef.current) {
-        const msg =
-          err instanceof Error ? err.message : "Failed to submit WOTS key";
         // VP-side mismatch gets the same wording as the local pre-flight
         // so the user can act on either path.
-        if (isWotsMismatchError(err)) {
-          setError(COPY.deposit.resume.wotsMismatchError);
-        } else {
-          setError(msg);
-        }
+        setError({
+          raw: isWotsMismatchError(err)
+            ? COPY.deposit.resume.wotsMismatchError
+            : err,
+        });
         setLoading(false);
       }
     } finally {
@@ -579,7 +586,7 @@ export function ResumeWotsContent({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error ? mapDepositError(error) : null}
+      error={error ? mapDepositError(error.raw) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -630,7 +637,7 @@ export function ResumeActivationContent({
   // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
   // first render must show processing.
   const [loading, setLoading] = useState(true);
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<CaughtError | null>(null);
 
   // Track mount for setState guards after the long async chain below.
   // The hosting modal can be closed mid-flight, so the post-await
@@ -657,14 +664,16 @@ export function ResumeActivationContent({
 
   const handleSubmit = useCallback(async () => {
     if (!btcWalletProvider || !connectedBtcAddress) {
-      setLocalError("BTC wallet is not connected");
+      setLocalError({
+        raw: COPY.deposit.resume.walletNotConnected,
+      });
       setLoading(false);
       return;
     }
     if (!activity.unsignedPrePeginTx) {
-      setLocalError(
-        "Missing Pre-Pegin transaction; cannot recover HTLC secret",
-      );
+      setLocalError({
+        raw: COPY.deposit.resume.secretRecoveryMissingPrePegin,
+      });
       setLoading(false);
       return;
     }
@@ -690,9 +699,7 @@ export function ResumeActivationContent({
       // never secret bytes. Only the UI update below is mount-gated.
       captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_SECRET, err, activity.id);
       if (mountedRef.current) {
-        const msg =
-          err instanceof Error ? err.message : "Failed to activate BTC Vault";
-        setLocalError(msg);
+        setLocalError({ raw: err });
       }
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -710,7 +717,8 @@ export function ResumeActivationContent({
   // "not connected" error surfaces.
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
-  const error = localError ?? activationError;
+  const error: CaughtError | null =
+    localError ?? (activationError != null ? { raw: activationError } : null);
   // Terminal only applies to the activation failure (deadline passed), never a
   // local pre-flight error — which localError would override via `??` above.
   const isTerminal = localError == null && errorTerminal;
@@ -751,7 +759,7 @@ export function ResumeActivationContent({
         error
           ? isTerminal
             ? COPY.deposit.errors.activationDeadlinePassed
-            : mapDepositError(error)
+            : mapDepositError(error.raw)
           : null
       }
       isComplete={derived.isComplete}

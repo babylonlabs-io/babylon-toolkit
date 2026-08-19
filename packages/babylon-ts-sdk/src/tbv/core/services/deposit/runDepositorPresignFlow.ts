@@ -117,8 +117,9 @@ export interface RunDepositorPresignFlowParams {
   /** Signing context built from on-chain data */
   signingContext: PayoutSigningContext;
   /**
-   * Required for approval-capable wallets; fresh flows thread
-   * PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
+   * Required for approval-capable wallets. Fresh flows pass
+   * PreparePeginResult.depositTerms; resume flows rebuild them from
+   * on-chain state (the vault app's rebuildDepositTerms).
    */
   depositTerms?: DepositTerms;
   /** Maximum polling timeout in milliseconds (default: 20 min) */
@@ -443,8 +444,8 @@ export async function runDepositorPresignFlow(
   signal?.throwIfAborted();
 
   // Approval-capable wallets must approve before any signing call they
-  // authorize, and the terms must match what we sign. Fresh-flow only — the
-  // resume path passes no depositTerms.
+  // authorize, and the terms must match what we sign. Conditional because
+  // non-approval wallets pass no terms.
   if (depositTerms !== undefined) {
     assertDepositTermsMatchSigningContext(depositTerms, signingContext);
   }
@@ -453,8 +454,8 @@ export async function runDepositorPresignFlow(
     if (!depositTerms) {
       throw new Error(
         "runDepositorPresignFlow: this wallet requires approved deposit terms but none were " +
-          "provided. Fresh deposits must pass PreparePeginResult.depositTerms; resume-path " +
-          "rebuild is not wired yet.",
+          "provided. Fresh deposits must pass PreparePeginResult.depositTerms; resume flows " +
+          "must rebuild them from on-chain state (the vault app's rebuildDepositTerms).",
       );
     }
     // The provider validates its own device envelope inside

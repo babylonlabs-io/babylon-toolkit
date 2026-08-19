@@ -348,6 +348,10 @@ export async function broadcastPrePeginTransaction(
       throw error;
     }
     const message = error == null ? "Unknown error" : formatError(error);
-    throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`);
+    // `cause` keeps the typed inner error visible to the cause-walking
+    // classifiers (user cancellation, method-not-supported) in the mappers.
+    throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`, {
+      cause: error,
+    });
   }
 }

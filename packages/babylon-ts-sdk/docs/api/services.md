@@ -1184,8 +1184,9 @@ optional depositTerms: DepositTerms;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
-Required for approval-capable wallets; fresh flows thread
-PreparePeginResult.depositTerms. Resume-path rebuild is not wired yet.
+Required for approval-capable wallets. Fresh flows pass
+PreparePeginResult.depositTerms; resume flows rebuild them from
+on-chain state (the vault app's rebuildDepositTerms).
 
 ##### timeoutMs?
 

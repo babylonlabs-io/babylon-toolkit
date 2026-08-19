@@ -39,6 +39,24 @@ vi.mock("../../../../services/vault/fetchVaults", () => ({
     mockFetchVaultPayoutScriptPubKey(...args),
 }));
 
+// Presign terms-rebuild collaborators (approval wallets only). Mocked as
+// modules so the software-wallet path can assert they are never even called.
+const mockGetVaultFromChain = vi.fn();
+vi.mock("../../../../clients/eth-contract/btc-vault-registry/query", () => ({
+  getVaultFromChain: (...args: unknown[]) => mockGetVaultFromChain(...args),
+}));
+
+const mockResolveFundedTxFeeAndUtxos = vi.fn();
+vi.mock("../../../../services/vault/resolveFundedTxFee", () => ({
+  resolveFundedTxFeeAndUtxos: (...args: unknown[]) =>
+    mockResolveFundedTxFeeAndUtxos(...args),
+}));
+
+const mockRebuildDepositTerms = vi.fn();
+vi.mock("../../../../services/vault/rebuildDepositTerms", () => ({
+  rebuildDepositTerms: (...args: unknown[]) => mockRebuildDepositTerms(...args),
+}));
+
 let mockBtcConnector: {
   connectedWallet?: {
     account?: { address: string };
@@ -97,6 +115,10 @@ const PROVIDER = { btcPubKey: "0xvpkey" };
 const BTC_WALLET = { signPsbt: vi.fn() };
 const onSuccess = vi.fn();
 
+const ON_CHAIN_VAULT = { marker: "on-chain-vault" };
+const REBUILT_TERMS = { marker: "rebuilt-terms" };
+const FUNDED_TX_FEE = 1234n;
+
 function setupHappyPath() {
   mockFindProvider.mockReturnValue(PROVIDER);
   mockBtcConnector = {
@@ -133,6 +155,12 @@ describe("usePayoutSigningState", () => {
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
     mockVerifyBtcWalletLiveness.mockResolvedValue(undefined);
     mockFetchVaultPayoutScriptPubKey.mockResolvedValue(null);
+    mockGetVaultFromChain.mockResolvedValue(ON_CHAIN_VAULT);
+    mockResolveFundedTxFeeAndUtxos.mockResolvedValue({
+      expectedUtxos: {},
+      fundedTxFee: FUNDED_TX_FEE,
+    });
+    mockRebuildDepositTerms.mockResolvedValue(REBUILT_TERMS);
   });
 
   describe("happy path", () => {
@@ -717,6 +745,131 @@ describe("usePayoutSigningState", () => {
       const terms = { marker: "payout-wrapper-terms" };
       await call.btcWallet.approveDepositTerms(terms);
       expect(underlyingWallet.approvedWith).toEqual([terms]);
+    });
+  });
+
+  describe("presign deposit-terms rebuild (approval wallets)", () => {
+    // Minimal approval-capable wallet: supportsDepositApproval only probes
+    // for an approveDepositTerms function.
+    function connectApprovalWallet() {
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: { signPsbt: vi.fn(), approveDepositTerms: vi.fn() },
+        },
+      };
+    }
+
+    it("refuses to sign when an approval wallet has no funded Pre-PegIn hex to rebuild terms from", async () => {
+      connectApprovalWallet();
+
+      const { result } = renderHookWithProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        activity: { ...ACTIVITY, unsignedPrePeginTx: undefined } as any,
+      });
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error?.title).toBe("Missing Pre-Pegin transaction");
+      expect(mockGetVaultFromChain).not.toHaveBeenCalled();
+      expect(mockResolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
+      expect(mockRebuildDepositTerms).not.toHaveBeenCalled();
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
+
+    it("rebuilds presign terms chain-fresh and threads them into signAndSubmitPayouts", async () => {
+      connectApprovalWallet();
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockGetVaultFromChain).toHaveBeenCalledWith(ACTIVITY.id);
+      expect(mockResolveFundedTxFeeAndUtxos).toHaveBeenCalledWith(
+        ACTIVITY.unsignedPrePeginTx,
+      );
+      expect(mockRebuildDepositTerms).toHaveBeenCalledWith({
+        vaultId: ACTIVITY.id,
+        target: ON_CHAIN_VAULT,
+        fundedPrePeginTxHex: ACTIVITY.unsignedPrePeginTx,
+        connectedDepositorAddress: "0xeth",
+        depositorBtcPubkey: "0x" + "ab".repeat(32),
+        fundedTxFee: FUNDED_TX_FEE,
+        lifecycle: "presign",
+      });
+      expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+      expect(mockSignAndSubmitPayouts.mock.calls[0][0].depositTerms).toBe(
+        REBUILT_TERMS,
+      );
+      expect(result.current.isComplete).toBe(true);
+    });
+
+    it("adds no rebuild calls and no depositTerms key for software wallets", async () => {
+      // setupHappyPath (beforeEach) connects the plain signPsbt-only wallet.
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockGetVaultFromChain).not.toHaveBeenCalled();
+      expect(mockResolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
+      expect(mockRebuildDepositTerms).not.toHaveBeenCalled();
+
+      // Pre-change param shape, key-identical: no depositTerms key at all
+      // (not even an explicit undefined).
+      const call = mockSignAndSubmitPayouts.mock.calls[0][0];
+      expect("depositTerms" in call).toBe(false);
+      expect(Object.keys(call).sort()).toEqual(
+        [
+          "btcWallet",
+          "depositorBtcPubkey",
+          "depositorEthAddress",
+          "onProgress",
+          "peginTxHash",
+          "providerBtcPubKey",
+          "registeredPayoutScriptPubKey",
+          "signal",
+          "unsignedPrePeginTxHex",
+          "vaultId",
+        ].sort(),
+      );
+      expect(call.vaultId).toBe(ACTIVITY.id);
+      expect(call.peginTxHash).toBe(ACTIVITY.peginTxHash);
+      expect(call.depositorBtcPubkey).toBe("0x" + "ab".repeat(32));
+      expect(call.providerBtcPubKey).toBe(PROVIDER.btcPubKey);
+      expect(call.registeredPayoutScriptPubKey).toBe(
+        ACTIVITY.depositorPayoutBtcAddress,
+      );
+      expect(call.depositorEthAddress).toBe("0xeth");
+      expect(call.unsignedPrePeginTxHex).toBe(ACTIVITY.unsignedPrePeginTx);
+      expect(result.current.isComplete).toBe(true);
+    });
+
+    it("surfaces a rebuild failure through the modal's mapped error state", async () => {
+      connectApprovalWallet();
+      mockRebuildDepositTerms.mockRejectedValueOnce(
+        new Error("resume refused"),
+      );
+
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      // Mapped by formatPayoutSignatureError (stubbed above), not a guard title.
+      expect(result.current.error).toEqual({
+        title: "Sign Error",
+        message: "resume refused",
+      });
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+      expect(result.current.signing).toBe(false);
+      expect(result.current.isComplete).toBe(false);
     });
   });
 });

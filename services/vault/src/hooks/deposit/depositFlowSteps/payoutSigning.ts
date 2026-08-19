@@ -42,7 +42,7 @@ export interface SignAndSubmitPayoutsParams {
   btcWallet: BitcoinWallet;
   depositorEthAddress: Address;
   unsignedPrePeginTxHex: string;
-  /** Required for approval-capable wallets on a fresh flow; resume path omits it. */
+  /** Required for approval-capable wallets; the resume path rebuilds it from chain. */
   depositTerms?: DepositTerms;
   signal?: AbortSignal;
   onProgress?: (progress: PayoutSigningProgress | null) => void;

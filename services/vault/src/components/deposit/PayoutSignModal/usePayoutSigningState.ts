@@ -10,6 +10,8 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   forwardDepositApproval,
   stripHexPrefix,
+  supportsDepositApproval,
+  type DepositTerms,
   type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
@@ -24,11 +26,14 @@ import {
 } from "@/infrastructure/telemetryEvents";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
+import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { signAndSubmitPayouts } from "../../../hooks/deposit/depositFlowSteps/payoutSigning";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { LocalStorageStatus } from "../../../models/peginStateMachine";
 import { fetchVaultPayoutScriptPubKey } from "../../../services/vault/fetchVaults";
+import { rebuildDepositTerms } from "../../../services/vault/rebuildDepositTerms";
+import { resolveFundedTxFeeAndUtxos } from "../../../services/vault/resolveFundedTxFee";
 import type { VaultActivity } from "../../../types/activity";
 import {
   btcAddressToScriptPubKeyHex,
@@ -201,6 +206,14 @@ export function usePayoutSigningState({
         return;
       }
 
+      // Approval wallets rebuild deposit terms from the funded Pre-PegIn hex
+      // below; a localStorage-only merged activity shape can lack it.
+      const wallet = btcWalletProvider as BitcoinWallet;
+      if (supportsDepositApproval(wallet) && !activity.unsignedPrePeginTx) {
+        setError(COPY.deposit.payoutSigningGuards.missingPrePeginTransaction);
+        return;
+      }
+
       // The wallet may have locked/disconnected since the modal opened. Probe
       // it before signing so a locked wallet surfaces an actionable error
       // instead of a silent no-op (modal opens, no signing popup appears).
@@ -232,7 +245,6 @@ export function usePayoutSigningState({
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
-      const wallet = btcWalletProvider as BitcoinWallet;
       const graphProgressWallet: BitcoinWallet & Partial<DepositTermsApprover> =
         {
           ...wallet,
@@ -285,6 +297,31 @@ export function usePayoutSigningState({
         };
 
       try {
+        // Approval (intent) wallets have nothing in memory to approve on
+        // resume — rebuild the terms from chain + WASM, never browser storage.
+        let depositTerms: DepositTerms | undefined;
+        if (supportsDepositApproval(wallet)) {
+          const onChainVault = await getVaultFromChain(activity.id);
+          const { fundedTxFee } = await resolveFundedTxFeeAndUtxos(
+            activity.unsignedPrePeginTx,
+          );
+          depositTerms = await rebuildDepositTerms({
+            vaultId: activity.id,
+            target: onChainVault,
+            fundedPrePeginTxHex: activity.unsignedPrePeginTx,
+            connectedDepositorAddress: depositorEthAddress,
+            depositorBtcPubkey: btcPublicKey,
+            fundedTxFee,
+            lifecycle: "presign",
+          });
+          // Last cancellation point before wallet/device interaction — the
+          // rebuild's chain reads leave a window where the modal may close.
+          if (abortRef.current.signal.aborted) {
+            setSigning(false);
+            return;
+          }
+        }
+
         await signAndSubmitPayouts({
           vaultId: activity.id,
           peginTxHash: activity.peginTxHash,
@@ -294,6 +331,9 @@ export function usePayoutSigningState({
           btcWallet: graphProgressWallet,
           depositorEthAddress,
           unsignedPrePeginTxHex: activity.unsignedPrePeginTx,
+          // Spread keeps the software-wallet params identical to before —
+          // no `depositTerms` key at all rather than an explicit undefined.
+          ...(depositTerms ? { depositTerms } : {}),
           signal: abortRef.current.signal,
           onProgress: (next) => {
             if (next === null) return;

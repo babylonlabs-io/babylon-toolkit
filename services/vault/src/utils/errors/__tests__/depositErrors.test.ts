@@ -6,11 +6,13 @@
  */
 
 import {
+  DepositTermsRejectedError,
   PeginRegistrationMissingError,
   PeginRegistrationNotFinalError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JsonRpcError,
+  OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it } from "vitest";
@@ -21,6 +23,7 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   mapDepositError,
 } from "../depositErrors";
+import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 const ERRORS = COPY.deposit.errors;
 
@@ -246,5 +249,135 @@ describe("mapDepositError", () => {
     expect(
       mapDepositError(new Error(COPY.deposit.resume.wotsMismatchError)),
     ).toEqual(ERRORS.wrongWalletAccount);
+  });
+
+  it("maps a DepositTermsRejectedError instance to the terms-rejected callout", () => {
+    const err = new DepositTermsRejectedError("terms outside device envelope");
+    expect(mapDepositError(err)).toEqual(ERRORS.depositTermsRejected);
+  });
+
+  it("maps the documented structural rejection shape (foreign realm) to the terms-rejected callout", () => {
+    // Providers cannot import the SDK class, so the wire contract is the
+    // shape: name + reason. The guard must match it without instanceof.
+    const err = {
+      name: "DepositTermsRejectedError",
+      reason: "device-envelope",
+      message: "terms outside device envelope",
+    };
+    expect(mapDepositError(err)).toEqual(ERRORS.depositTermsRejected);
+  });
+
+  it("lets a name-only DepositTermsRejectedError shape (contract violation) fall through", () => {
+    const err = {
+      name: "DepositTermsRejectedError",
+      message: "no reason field",
+    };
+    expect(mapDepositError(err)).not.toEqual(ERRORS.depositTermsRejected);
+  });
+
+  it("maps a broadcast-stage lifecycle refusal to the broadcast callout, by type not message", () => {
+    // Same user-visible outcome as the generic-message predecessor (whose
+    // message contained "broadcast"); the message here deliberately doesn't,
+    // so only the typed branch can produce this mapping.
+    const err = new VaultLifecycleStateError("resume refused", {
+      reason: "invalid-status",
+      stage: "broadcast",
+      role: "sibling",
+      status: OnChainBtcVaultStatus.EXPIRED,
+      vaultId: "0xabc",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.broadcastFailed);
+  });
+
+  it("does NOT map a presign-stage lifecycle refusal to the broadcast callout", () => {
+    // Presign refusals belong to formatPayoutSignatureError; here they keep
+    // the raw-message fallback instead of claiming a broadcast failed.
+    const err = new VaultLifecycleStateError("presign refused", {
+      reason: "ack-window-elapsed",
+      stage: "presign",
+      role: "target",
+      status: OnChainBtcVaultStatus.PENDING,
+      vaultId: "0xabc",
+    });
+    const result = mapDepositError(err);
+    expect(result).not.toEqual(ERRORS.broadcastFailed);
+    expect(result.title).toBe(ERRORS.defaultTitle);
+  });
+
+  it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the unsupported-wallet callout", () => {
+    const err = new FakeWalletError(
+      "WALLET_METHOD_NOT_SUPPORTED",
+      "SomeWallet does not support deriveContextHash",
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.walletMethodNotSupported);
+  });
+
+  it("finds WALLET_METHOD_NOT_SUPPORTED through a broadcast wrapper's cause chain", () => {
+    // The broadcast catch re-wraps with { cause }; the coded inner error must
+    // beat the "broadcast" substring bucket the wrapper message would hit.
+    const inner = new FakeWalletError(
+      "WALLET_METHOD_NOT_SUPPORTED",
+      "SomeWallet does not support deriveContextHash",
+    );
+    const wrapped = new Error(
+      "Failed to broadcast Pre-PegIn transaction: unsupported",
+      { cause: inner },
+    );
+    expect(mapDepositError(wrapped)).toEqual(ERRORS.walletMethodNotSupported);
+  });
+
+  it("keeps the VP mapping when a JsonRpcError carries an unrelated unsupported-method cause", () => {
+    // Precedence: typed classifications run before the cause walk, so the
+    // meaningful outer VP error must win over the nested code.
+    const err = Object.assign(
+      new JsonRpcError(RpcErrorCode.PEGIN_NOT_FOUND, "PegIn not found"),
+      { cause: { code: "WALLET_METHOD_NOT_SUPPORTED" } },
+    );
+    const result = mapDepositError(err);
+    expect(result.title).toBe("Vault provider syncing");
+  });
+
+  it("terminates on a cyclic cause chain without classifying it as unsupported-method", () => {
+    const err = new Error("cyclic failure");
+    (err as { cause?: unknown }).cause = err;
+    const result = mapDepositError(err);
+    expect(result).not.toEqual(ERRORS.walletMethodNotSupported);
+    expect(result.title).toBe(ERRORS.defaultTitle);
+  });
+
+  it("honors the cause-walk depth limit for the unsupported-method code", () => {
+    // Innermost frame carries the code; wrap it `depth` times so it sits at
+    // cause-depth `depth` from the mapped error.
+    const chainWithCodeAtDepth = (depth: number): Error => {
+      let cur: unknown = { code: "WALLET_METHOD_NOT_SUPPORTED" };
+      for (let i = 0; i < depth; i++) {
+        cur = new Error(`wrapper ${i}`, { cause: cur });
+      }
+      return cur as Error;
+    };
+
+    expect(mapDepositError(chainWithCodeAtDepth(10))).toEqual(
+      ERRORS.walletMethodNotSupported,
+    );
+    expect(mapDepositError(chainWithCodeAtDepth(11))).not.toEqual(
+      ERRORS.walletMethodNotSupported,
+    );
+  });
+
+  it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {
+    // Pins the { cause } side effect at the broadcast wrap sites: a coded
+    // rejection whose message carries no cancellation wording used to flatten
+    // into the wrapper and read as a broadcast failure.
+    const rejection = new FakeWalletError("CONNECTION_REJECTED", "nope");
+    const withCause = new Error(
+      "Failed to broadcast batch Pre-PegIn transaction: nope",
+      { cause: rejection },
+    );
+    expect(mapDepositError(withCause)).toEqual(ERRORS.signingRejected);
+
+    const withoutCause = new Error(
+      "Failed to broadcast batch Pre-PegIn transaction: nope",
+    );
+    expect(mapDepositError(withoutCause)).toEqual(ERRORS.broadcastFailed);
   });
 });

@@ -3,9 +3,11 @@
  * Transform errors to user-friendly messages
  */
 
+import { isDepositTermsRejectedError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JSON_RPC_ERROR_CODES,
   JsonRpcError,
+  OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
@@ -15,7 +17,9 @@ import {
   isUserCancellationFrame,
   isWalletRejectionError,
 } from "./userCancellation";
+import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
 /** EIP-1193 provider error codes used by the classifier below. */
 const EIP1193 = {
@@ -473,37 +477,61 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 /**
- * Format payout signature errors with user-friendly messages
+ * Format payout signature errors with user-friendly messages. Typed
+ * classifications run first (VP RPC, wallet rejection, deposit-terms
+ * rejection, lifecycle refusal), then the cause-walking method-not-supported
+ * check, then message-level matching — mirroring `mapDepositError`'s
+ * precedence so the two mappers cannot disagree on the same error.
  */
 export function formatPayoutSignatureError(error: unknown): {
   title: string;
   message: string;
 } {
+  const PSE = COPY.deposit.payoutSignatureErrors;
+
   if (error instanceof JsonRpcError) {
     return mapVpRpcError(error);
   }
 
   if (isWalletRejectionError(error)) {
+    return PSE.signingRejected;
+  }
+
+  // Device-envelope rejection of the deposit terms. Can be terminal for this
+  // deposit, so the copy points at support instead of a retry.
+  if (isDepositTermsRejectedError(error)) {
     return {
-      title: "Signing rejected",
-      message:
-        "You rejected the signing request in your wallet. Approve the request to continue, or click Retry to try again.",
+      title: COPY.deposit.errors.depositTermsRejected.title,
+      message: COPY.deposit.errors.depositTermsRejected.body,
+    };
+  }
+
+  // Typed lifecycle refusal from the presign-terms rebuild. An elapsed ack
+  // window — or an already-EXPIRED target — is routine for a stalled deposit,
+  // so it gets refund copy; any other status means signing is simply over.
+  if (isVaultLifecycleStateError(error) && error.stage === "presign") {
+    const timedOut =
+      error.reason === "ack-window-elapsed" ||
+      (error.reason === "invalid-status" &&
+        error.status === OnChainBtcVaultStatus.EXPIRED);
+    return timedOut ? PSE.ackWindowElapsed : PSE.signaturesNoLongerNeeded;
+  }
+
+  // Cause-walking, so it must run AFTER every typed bucket above — an inner
+  // unsupported-method code must never override a meaningful outer error.
+  if (isWalletMethodNotSupported(error)) {
+    return {
+      title: COPY.deposit.errors.walletMethodNotSupported.title,
+      message: COPY.deposit.errors.walletMethodNotSupported.body,
     };
   }
 
   if (error instanceof Error) {
     if (error.message.includes("Vault provider not found")) {
-      return {
-        title: "Vault provider not found",
-        message:
-          "The vault provider for this deposit could not be found. Please contact support.",
-      };
+      return PSE.providerNotFound;
     }
     if (error.message.includes("BTC wallet not connected")) {
-      return {
-        title: "Wallet not connected",
-        message: "Please reconnect your Bitcoin wallet to continue.",
-      };
+      return PSE.walletNotConnected;
     }
     // Empty vault record from the registry reader. Usually a lagging RPC
     // node rather than a missing deposit, so the copy points at waiting
@@ -518,18 +546,10 @@ export function formatPayoutSignatureError(error: unknown): {
     }
     // Contract call errors (viem) — surface a meaningful message instead of swallowing
     if (error.message.includes("reverted")) {
-      return {
-        title: "Contract call failed",
-        message:
-          "A contract call failed during payout signing. The on-chain BTC Vault data may be unavailable. Please try again or contact support.",
-      };
+      return PSE.contractCallFailed;
     }
 
-    return {
-      title: "Payout signing error",
-      message:
-        "An unexpected error occurred while signing payouts. Please try again or contact support.",
-    };
+    return PSE.unexpected;
   }
 
   // WASM panics and some wallet providers throw strings or plain objects.
@@ -547,10 +567,7 @@ export function formatPayoutSignatureError(error: unknown): {
     msg = (error as { message: string }).message;
   }
   return {
-    title: "Payout signing error",
-    message:
-      msg && msg !== "[object Object]"
-        ? msg
-        : "An unexpected error occurred while signing payouts.",
+    title: PSE.fallback.title,
+    message: msg && msg !== "[object Object]" ? msg : PSE.fallback.message,
   };
 }
