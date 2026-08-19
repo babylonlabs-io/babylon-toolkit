@@ -128,7 +128,7 @@ const HUB_RATE_ABI = [
   },
 ] as const;
 
-export const IR_STRATEGY_ABI = [
+const IR_STRATEGY_ABI = [
   {
     type: "function",
     name: "calculateInterestRate",
@@ -145,7 +145,7 @@ export const IR_STRATEGY_ABI = [
 ] as const;
 
 /** The totals snapshot the Hub feeds its rate strategy, plus the strategy address. */
-export interface HubAssetTotals {
+interface HubAssetTotals {
   liquidity: bigint;
   /** getAssetOwed[0] — the strategy curve uses `drawn`; the premium is ignored. */
   drawn: bigint;
@@ -158,7 +158,7 @@ export interface HubAssetTotals {
   irStrategy: Address;
 }
 
-export type HubAssetTotalsResult =
+type HubAssetTotalsResult =
   | { totals: HubAssetTotals; error: null }
   | { totals: null; error: Error };
 
@@ -170,7 +170,7 @@ export type HubAssetTotalsResult =
  * denominator. Reads are isolated with `allowFailure`; any revert or
  * network-level throw comes back as an error rather than a throw.
  */
-export async function readHubAssetTotalsSafe(
+async function readHubAssetTotalsSafe(
   hub: Address,
   assetIdArg: bigint,
 ): Promise<HubAssetTotalsResult> {

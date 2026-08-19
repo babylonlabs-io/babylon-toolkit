@@ -125,8 +125,6 @@ describe("BorrowingMarketsData", () => {
     mockUseInterestRateModelCurve.mockReturnValue({
       curve: null,
       kinkUtilizationPercent: null,
-      currentUtilizationPercent: null,
-      currentAprPercent: null,
       maxAprPercent: null,
       isLoading: false,
       error: null,

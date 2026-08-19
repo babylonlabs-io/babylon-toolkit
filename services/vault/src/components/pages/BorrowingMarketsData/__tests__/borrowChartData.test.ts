@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aprAtUtilization,
   fittedRateDomain,
   hasSubDailySpacing,
   historyTooltipDate,
@@ -135,6 +136,35 @@ describe("percentAxis", () => {
       domain: [0, 24],
       ticks: [{ value: 0, label: "0%" }],
     });
+  });
+});
+
+describe("aprAtUtilization", () => {
+  const CURVE = [
+    { utilizationPercent: 0, aprPercent: 0 },
+    { utilizationPercent: 50, aprPercent: 5 },
+    { utilizationPercent: 80, aprPercent: 12 },
+    { utilizationPercent: 100, aprPercent: 24 },
+  ];
+
+  it("returns the exact sample's APR when utilization lands on a sample", () => {
+    expect(aprAtUtilization(CURVE, 80)).toBe(12);
+  });
+
+  it("linearly interpolates between the two neighboring samples", () => {
+    expect(aprAtUtilization(CURVE, 65)).toBeCloseTo(8.5, 10);
+  });
+
+  it("clamps to the first sample's APR below the curve's start", () => {
+    expect(aprAtUtilization(CURVE, -10)).toBe(0);
+  });
+
+  it("clamps to the last sample's APR above the curve's end", () => {
+    expect(aprAtUtilization(CURVE, 150)).toBe(24);
+  });
+
+  it("throws on an empty curve rather than returning a fake APR", () => {
+    expect(() => aprAtUtilization([], 50)).toThrow();
   });
 });
 

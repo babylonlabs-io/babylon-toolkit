@@ -8,6 +8,7 @@
 import type { ChartAxisTick } from "@babylonlabs-io/core-ui";
 
 import type { BorrowRateHistoryPoint } from "@/clients/indexer/aaveHistoryClient";
+import type { IrmCurvePoint } from "@/clients/indexer/aaveIrmClient";
 import { formatAprPercent } from "@/utils/formatting";
 
 /** Headroom added to a non-flat domain, as a fraction of its span. */
@@ -88,6 +89,37 @@ export function percentAxis(
     return { value, label: `${value}%` };
   });
   return { domain: [0, top], ticks };
+}
+
+/**
+ * Borrow APR at `utilizationPercent`, linearly interpolated between the two
+ * neighboring samples (exact for the on-chain piecewise-linear strategy,
+ * whose kink is always an exact sample). Clamped to the curve's ends.
+ *
+ * Precondition: `curve` must be sorted strictly ascending by
+ * `utilizationPercent` (the indexer client validates this at parse — see
+ * `aaveIrmClient.ts`).
+ */
+export function aprAtUtilization(
+  curve: IrmCurvePoint[],
+  utilizationPercent: number,
+): number {
+  if (curve.length === 0) {
+    throw new Error("aprAtUtilization requires a non-empty curve");
+  }
+  const first = curve[0];
+  const last = curve[curve.length - 1];
+  if (utilizationPercent <= first.utilizationPercent) return first.aprPercent;
+  if (utilizationPercent >= last.utilizationPercent) return last.aprPercent;
+  for (let i = 1; i < curve.length; i++) {
+    const b = curve[i];
+    if (utilizationPercent > b.utilizationPercent) continue;
+    const a = curve[i - 1];
+    const span = b.utilizationPercent - a.utilizationPercent;
+    const t = (utilizationPercent - a.utilizationPercent) / span;
+    return a.aprPercent + t * (b.aprPercent - a.aprPercent);
+  }
+  throw new Error("aprAtUtilization: curve must be sorted ascending");
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1_000;
