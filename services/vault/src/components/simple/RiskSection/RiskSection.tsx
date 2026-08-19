@@ -172,7 +172,7 @@ export function RiskSection({
             </div>
           </div>
 
-          <div className="w-full shrink-0 xl:w-[460px]">
+          <div className="w-full xl:w-[460px]">
             <RiskPriceRail
               state={state}
               currentPriceUsd={btcPriceUsd}
