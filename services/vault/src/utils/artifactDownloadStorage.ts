@@ -38,7 +38,7 @@ export interface ArtifactDownloadReceipt {
   peginTxid: string;
   filename: string;
   byteLength: number;
-  /** SHA-256 of the response body, lowercase hex. */
+  /** SHA-256 of the saved file, lowercase hex. */
   sha256: string;
   savedAt: number;
   method: ArtifactSaveMethod;
