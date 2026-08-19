@@ -42,6 +42,7 @@ function makeInputs(
 ): DepositPollingInputs {
   return {
     activity: makeExpiredActivity(),
+    activationFloorBlocksRemaining: undefined,
     pendingPegins: [],
     pendingDepositorSignatures: undefined,
     errors: undefined,

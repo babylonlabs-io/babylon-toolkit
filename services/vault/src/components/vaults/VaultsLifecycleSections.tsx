@@ -27,6 +27,7 @@ import {
   LIST_ROW_COLUMN_CLASS,
   LIST_ROW_LEADING_COLUMN_CLASS,
   LIST_ROW_MIN_HEIGHT_CLASS,
+  LIST_ROW_STATUS_COLUMN_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
@@ -177,18 +178,24 @@ function PendingRow({
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
           <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
-            {step !== null
-              ? COPY.deposit.progress.stepPrefix(
-                  getVisualStep(step),
-                  TOTAL_VISUAL_STEPS,
-                )
-              : (peginState?.inlineSubtext ?? "")}
+            {/* Subtext wins when a state sets one: it is state-specific
+                (e.g. an activation-window countdown) and therefore more
+                informative than the generic step position. States that set it
+                and still have a step are exactly the ones that need it. */}
+            {peginState?.inlineSubtext
+              ? peginState.inlineSubtext
+              : step !== null
+                ? COPY.deposit.progress.stepPrefix(
+                    getVisualStep(step),
+                    TOTAL_VISUAL_STEPS,
+                  )
+                : ""}
           </span>
         </div>
       </div>
 
       {/* Status + progress */}
-      <div className={`flex flex-col gap-1 ${LIST_ROW_COLUMN_CLASS}`}>
+      <div className={`flex flex-col gap-1 ${LIST_ROW_STATUS_COLUMN_CLASS}`}>
         {peginState ? (
           <span className="flex items-center gap-1">
             <span

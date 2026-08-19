@@ -58,6 +58,12 @@ vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
   useStuckVaultChainConfirm: () => new Set<string>(),
 }));
 
+// Floor gate is feature-flagged off by default; stub it so the provider renders
+// without a QueryClient, exactly as the deadline gate above is stubbed.
+vi.mock("../../../hooks/useActivationFloorGate", () => ({
+  useActivationFloorGate: () => new Map<string, number | null>(),
+}));
+
 // The provider reads params through the non-blocking hook, not the blocking
 // context — stub it so the provider renders in isolation.
 vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({

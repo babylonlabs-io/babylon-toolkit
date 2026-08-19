@@ -1,4 +1,7 @@
 // Ethereum L1 consensus slot time; missed slots only make real intervals >= 12s, so 12s yields a safe UPPER bound on elapsed blocks.
+// Exported for the activation-floor waiting text, which converts a remaining
+// block count into an approximate duration. That direction is display-only —
+// the floor gate itself compares block numbers, never elapsed wall-clock time.
 export const ETH_SLOT_SECONDS = 12;
 
 const MILLISECONDS_PER_SECOND = 1000;

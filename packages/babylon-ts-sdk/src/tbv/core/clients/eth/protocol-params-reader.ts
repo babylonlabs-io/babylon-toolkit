@@ -185,6 +185,30 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
   }
 
   /**
+   * Returned as `bigint` with no `Number` narrowing: the registry compares it
+   * against `block.number`, so callers must do the same arithmetic the
+   * contract does. `0` is the documented "disabled" case and is returned as
+   * `0n`. A missing getter or a non-bigint payload throws — never coerced to
+   * `0`, which would fail open and skip the observation window.
+   *
+   * @throws If the deployment does not expose `peginActivationDelay()`, or
+   *   the decoded payload is not a `bigint`.
+   */
+  async getPeginActivationDelay(): Promise<bigint> {
+    const raw: unknown = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: ProtocolParamsABI,
+      functionName: "peginActivationDelay",
+    });
+    if (typeof raw !== "bigint") {
+      throw new Error(
+        `Invalid peginActivationDelay from contract: must be a bigint, got ${typeof raw}`,
+      );
+    }
+    return raw;
+  }
+
+  /**
    * Read TBV protocol params, latest offchain params, and the latest version
    * label atomically via multicall. The version is paired with the params so
    * that a governance update between separate reads cannot let JS build BTC

@@ -30,6 +30,7 @@ import {
   isActivateAndRedeemBlocked,
   isActivationBlocked,
 } from "@/components/shared/protocolStatus";
+import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
@@ -45,6 +46,10 @@ import {
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
 import {
+  activationFloorBlocksRemaining,
+  activationFloorMinutesRemaining,
+} from "@/utils/activationFloor";
+import {
   ActivationNotPossibleError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
@@ -54,8 +59,12 @@ import {
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getVaultFromChainWithGrace } from "../../clients/eth-contract/btc-vault-registry/query";
+import { ethClient } from "../../clients/eth-contract/client";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
-import { getVaultRegistryReader } from "../../clients/eth-contract/sdk-readers";
+import {
+  getProtocolParamsReader,
+  getVaultRegistryReader,
+} from "../../clients/eth-contract/sdk-readers";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -156,6 +165,13 @@ export interface UseVaultActionsReturn {
 /**
  * Custom hook for vault actions (broadcast)
  */
+/**
+ * Marks an activation abort caused by an unreadable activation floor. Carried on
+ * `Error.name` rather than a shared flag so the catch block classifies the error
+ * that actually propagated — see `onFloorReadFailure`.
+ */
+const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
+
 export function useVaultActions(): UseVaultActionsReturn {
   const gate = useProtocolGateState();
 
@@ -627,11 +643,64 @@ export function useVaultActions(): UseVaultActionsReturn {
       // calldata if the protocol paused in that window. A failed pause read
       // falls back to the cached gate (activation is time-critical — an RPC
       // blip must not trap a depositor whose activation deadline is near).
-      const [{ basic: basicInfo, protocol: protocolInfo }, freshPauseState] =
-        await Promise.all([
-          reader.getVaultData(vaultId),
-          getOnChainPauseState().catch(() => null),
-        ]);
+      // The delay read is deliberately NOT `.catch`-ed like the pause read
+      // below: an unreadable delay must reject rather than fall through,
+      // because proceeding would put the secret into `simulateContract`
+      // calldata for a call the contract will refuse. The block-number read
+      // is the exception — delay 0 disables the floor, so a `getBlockNumber`
+      // blip must not abort that path; a missing block with delay > 0 still
+      // aborts below. Skipped entirely when the feature is off — the getter
+      // does not exist on every deployment yet.
+      // Redeem path is exempt from the floor (see the check below), so it does
+      // not need these reads either.
+      const floorEnabled =
+        FeatureFlags.isActivationDelayEnabled && !redeemImmediately;
+      // Re-throws (so the gate still fails closed) but re-labels first: an
+      // unreadable window is an expected interruption, not a reveal failure.
+      // Without this the `activation.reveal` funnel counts every click on a
+      // misconfigured environment as a failed reveal, and the depositor sees
+      // raw viem text instead of copy we own.
+      const onFloorReadFailure = (cause: unknown): never => {
+        // Deliberately does NOT set `expectedInterruption` here. This runs in a
+        // `.catch` on a sibling of the `Promise.all` below, and `Promise.all`
+        // settles on the FIRST rejection — so a slower floor read could flip
+        // the flag for a `getVaultData` failure that has nothing to do with the
+        // floor, suppressing a real reveal failure from telemetry. The tag is
+        // read in the catch block, where the error that actually propagated is
+        // the one being classified.
+        const err = new Error(COPY.pegin.messages.activationWindowUnavailable, {
+          cause,
+        });
+        err.name = FLOOR_UNAVAILABLE_ERROR_NAME;
+        throw err;
+      };
+      const [
+        { basic: basicInfo, protocol: protocolInfo },
+        freshPauseState,
+        currentBlock,
+        peginActivationDelay,
+      ] = await Promise.all([
+        reader.getVaultData(vaultId),
+        getOnChainPauseState().catch(() => null),
+        // `cacheTime: 0` because viem caches getBlockNumber for ~4s by
+        // default; a stale-behind head inflates the remaining count and can
+        // gate a window that is actually open.
+        // Block number is only required when the delay is non-zero. Catching
+        // to `undefined` (instead of aborting the whole `Promise.all`) lets a
+        // delay of 0 proceed even if `getBlockNumber` blips — delay 0 must
+        // never gate. A missing block with delay > 0 still aborts below.
+        floorEnabled
+          ? ethClient
+              .getPublicClient()
+              .getBlockNumber({ cacheTime: 0 })
+              .catch(() => undefined)
+          : Promise.resolve(undefined),
+        floorEnabled
+          ? getProtocolParamsReader()
+              .then((r) => r.getPeginActivationDelay())
+              .catch(onFloorReadFailure)
+          : Promise.resolve(undefined),
+      ]);
 
       const effectiveGate = freshPauseState
         ? composeGateState(freshPauseState)
@@ -676,6 +745,54 @@ export function useVaultActions(): UseVaultActionsReturn {
         // dead-end, not a transient.
         expectedInterruption = true;
         throw new Error(message);
+      }
+
+      // Activation floor, re-checked on fresh reads immediately before the
+      // secret is used. The dashboard gate can be up to a poll interval stale,
+      // and `peginActivationDelay` is governance-mutable and read live by the
+      // registry, so a raise between render and click would otherwise reach
+      // simulation. Retryable: the floor clears purely by waiting.
+      //
+      // NOT applied to the redeem path. `_requireActivationDelayElapsed` guards
+      // `activateVaultWithSecret` only; `activateVaultWithSecretAndRedeem` is
+      // deliberately exempt on-chain because it mints no vaultBTC and invokes
+      // no adapter callback. Gating it here would block the escape hatch the
+      // "Activation incomplete" state advertises as the way to recover BTC —
+      // for a contract call that would have succeeded.
+      if (floorEnabled) {
+        // Shaped so the absence of a value ABORTS rather than skips. Unreachable
+        // today for the delay (a failed read rejects above), but the gate must
+        // not quietly become fail-open if a future reader returns undefined
+        // instead of throwing where the getter is missing.
+        if (peginActivationDelay === undefined) {
+          // `throw` at the call site: TS does not narrow through a
+          // `never`-returning arrow held in a const.
+          throw onFloorReadFailure(
+            new Error("activation floor inputs missing after a settled read"),
+          );
+        }
+        // Delay of 0 disables the floor: do not require block/`verifiedAt`.
+        if (peginActivationDelay !== 0n) {
+          if (currentBlock === undefined || protocolInfo.verifiedAt === 0n) {
+            throw onFloorReadFailure(
+              new Error("activation floor inputs missing after a settled read"),
+            );
+          }
+          const blocksRemaining = activationFloorBlocksRemaining({
+            currentBlock,
+            verifiedAt: protocolInfo.verifiedAt,
+            peginActivationDelay,
+          });
+          if (blocksRemaining > 0) {
+            expectedInterruption = true;
+            throw new Error(
+              COPY.pegin.messages.activationWindowNotOpen(
+                blocksRemaining,
+                activationFloorMinutesRemaining(blocksRemaining),
+              ),
+            );
+          }
+        }
       }
 
       // Validate secret against hashlock before sending ETH tx.
@@ -754,7 +871,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       // Skipped for expected pre-reveal interruptions and for anything thrown
       // after the reveal landed on-chain — either would count a non-failure
       // against the activation.reveal rate.
-      if (!expectedInterruption && !revealed) {
+      // A floor read that could not complete is an expected interruption, but
+      // only when it is the error that actually surfaced.
+      const floorUnavailable =
+        err instanceof Error && err.name === FLOOR_UNAVAILABLE_ERROR_NAME;
+      if (!expectedInterruption && !floorUnavailable && !revealed) {
         captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
       }
       if (mountedRef.current) {

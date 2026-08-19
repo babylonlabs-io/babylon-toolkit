@@ -17,6 +17,10 @@ import {
 import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import {
+  activationFloorMinutesRemaining,
+  isActivationFloorGating,
+} from "@/utils/activationFloor";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 export type {
@@ -107,9 +111,18 @@ export interface PeginState {
   /**
    * Short message intended for the inline subtext slot under the amount
    * (e.g. "Your refund will be claimable in ~18 blocks (~3h)"). The full sentence stays
-   * in `message` for the tooltip. Set for maturing / unknown EXPIRED only.
+   * in `message` for the tooltip. Set for maturing / unknown EXPIRED, and for
+   * a VERIFIED vault waiting out the activation floor — that second producer
+   * is why the row prefers this over the step counter.
    */
   inlineSubtext?: string;
+  /**
+   * Set ONLY when the activation-floor branch rendered — i.e. the floor is the
+   * reason there is no action. Lets `getActionStatus` tell that apart from the
+   * other VERIFIED no-action states (activation submitted, deadline expired),
+   * which must keep their own presentation and their View-details control.
+   */
+  activationFloorBlocksRemaining?: number | null;
 }
 
 export interface GetPeginStateOptions {
@@ -160,6 +173,18 @@ export interface GetPeginStateOptions {
    * (missing or ambiguous probe data keeps the normal flow).
    */
   htlcSpentByPeginTx?: boolean;
+  /**
+   * Blocks still to wait before `activateVaultWithSecret` is permitted — the
+   * registry's lower bound (`verifiedAt + peginActivationDelay`). The opposite
+   * end of the window from `activationDeadlinePassed`, and deliberately a
+   * separate field: this vault is healthy and waiting, NOT expired, so it must
+   * keep the pending variant and its progress step.
+   *
+   * - `undefined` → not gated (window open, or the feature is off)
+   * - `number` → gated, that many blocks remain
+   * - `null` → gated, remaining unknown (a chain read failed; fail-closed)
+   */
+  activationFloorBlocksRemaining?: number | null;
   /**
    * True only when the deposit can be refunded *now*: the Pre-PegIn tx
    * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
@@ -411,13 +436,28 @@ export function getPeginState(
             a !== SdkPeginAction.ACTIVATE_AND_REDEEM,
         )
       : chainAdjustedActions;
-  const actions = mapActions(deadlineAdjustedActions);
+  // VERIFIED but before its on-chain activation floor: the contract would
+  // revert ActivationDelayNotElapsed. Strips the same action as the deadline
+  // filter above, but for the opposite reason — too early, not too late — and
+  // unlike that one this state is transient and resolves on its own. Fails
+  // CLOSED: `null` (remaining unknown) also strips, because an unresolved
+  // floor must not let the secret reach simulation calldata.
+  const floorAdjustedActions =
+    contractStatus === ContractStatus.VERIFIED &&
+    isActivationFloorGating(options.activationFloorBlocksRemaining)
+      ? deadlineAdjustedActions.filter(
+          (a) => a !== SdkPeginAction.ACTIVATE_VAULT,
+        )
+      : deadlineAdjustedActions;
+  const actions = mapActions(floorAdjustedActions);
   const display = getDisplay(contractStatus, actions, options);
 
   return {
     contractStatus,
     localStatus: options.localStatus,
     availableActions: actions,
+    // `activationFloorBlocksRemaining` rides in on `display` — set by the floor
+    // branch alone, so it marks that branch rather than every VERIFIED vault.
     ...display,
   };
 }
@@ -514,6 +554,14 @@ function isRefundBroadcastWithinTtl(
 
 interface DisplayInfo {
   displayLabel: PeginDisplayLabel;
+  /**
+   * Set only by the activation-floor branch. Living here rather than being
+   * copied from options onto every VERIFIED state is what lets consumers read
+   * it as "the floor is why there is no action" — a VERIFIED vault that is
+   * Processing or past its deadline also has no action, and must not be
+   * mistaken for one that is waiting out the floor.
+   */
+  activationFloorBlocksRemaining?: number | null;
   displayVariant: "pending" | "active" | "inactive" | "warning" | "danger";
   message?: string;
   awaitingPayoutPrep?: boolean;
@@ -652,6 +700,41 @@ function getDisplay(
         displayVariant: "warning",
         message: COPY.pegin.messages.activationIncomplete,
         inlineSubtext: COPY.pegin.messages.activationIncompleteSubtext,
+      };
+    }
+    // Verified, but the activation floor has not elapsed. Checked AFTER the
+    // deadline and stuck-state branches: both of those are real problems, and
+    // once the peg-in has been swept it no longer matters how long until
+    // activation opens. Keeps the pending variant deliberately — this vault is
+    // healthy and simply waiting, so it must not read as expired and must keep
+    // its progress step.
+    if (isActivationFloorGating(options.activationFloorBlocksRemaining)) {
+      const blocks = options.activationFloorBlocksRemaining;
+      return {
+        // NOT "Ready to activate" — it demonstrably is not, and pairing that
+        // badge with a disabled button and a countdown reads as a broken UI.
+        displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_ACTIVATION_WINDOW,
+        displayVariant: "pending",
+        // A null remainder means a chain read failed, so no numbers are
+        // quoted — the wait is real but its length is not known.
+        activationFloorBlocksRemaining: blocks,
+        // Always-visible; `message` alone would hide the wait behind an
+        // info-icon tooltip, which is exactly the silent wait this feature
+        // exists to remove (and is unreachable on touch).
+        inlineSubtext:
+          blocks === null
+            ? COPY.pegin.messages.activationWindowSubtextUnknown
+            : COPY.pegin.messages.activationWindowSubtext(
+                blocks,
+                activationFloorMinutesRemaining(blocks),
+              ),
+        message:
+          blocks === null
+            ? COPY.pegin.messages.activationWindowTooltip
+            : COPY.pegin.messages.activationWindowOpening(
+                blocks,
+                activationFloorMinutesRemaining(blocks),
+              ),
       };
     }
     return {

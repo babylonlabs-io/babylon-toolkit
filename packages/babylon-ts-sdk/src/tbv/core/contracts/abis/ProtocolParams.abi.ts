@@ -339,4 +339,20 @@ export const ProtocolParamsABI = [
     outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
     stateMutability: "view",
   },
+  // Observation window between a vault's final ACK and its activation, in ETH
+  // blocks, measured from `verifiedAt`. Read through this standalone getter
+  // rather than as a 7th component of `getTBVProtocolParams` above: the field
+  // was appended to the struct, so a 7-component tuple decodes only against
+  // deployments that carry it and throws `PositionOutOfBoundsError` against
+  // the 6-word return of those that don't. Deployments are currently split
+  // (devnet has it, testnet/staging do not), and that tuple feeds
+  // `getPegInConfiguration` -> `ProtocolParamsContext`, whose failure blanks
+  // the app. `uint256` (not the `uint64` storage width) — the accessor widens.
+  {
+    type: "function",
+    name: "peginActivationDelay",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
 ] as const;

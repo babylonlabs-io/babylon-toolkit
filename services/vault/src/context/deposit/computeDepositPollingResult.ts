@@ -105,6 +105,13 @@ export interface DepositPollingInputs {
    * normally. See `useStuckVaultChainConfirm`.
    */
   stuckStateConfirmedOnChain: boolean;
+  /**
+   * Blocks left before the on-chain activation floor opens for THIS deposit.
+   * `undefined` = not gated, `null` = gated with an unknown remainder
+   * (fail-closed). Resolved by the caller, mirroring
+   * `activationDeadlinePassed`. See `useActivationFloorGate`.
+   */
+  activationFloorBlocksRemaining: number | null | undefined;
   isLoading: boolean;
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
@@ -149,6 +156,7 @@ export function computeDepositPollingResult(
     refundTimelock,
     activationDeadlinePassed,
     stuckStateConfirmedOnChain,
+    activationFloorBlocksRemaining,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
@@ -315,6 +323,7 @@ export function computeDepositPollingResult(
     expiredAt: activity.expiredAt,
     activationDeadlinePassed,
     htlcSpentByPeginTx,
+    activationFloorBlocksRemaining,
     canRefund,
     refundMaturityState,
     refundMaturesInBlocks,

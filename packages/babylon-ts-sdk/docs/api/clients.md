@@ -278,6 +278,33 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 
 [`ProtocolParamsReader`](#protocolparamsreader).[`getTimelockPeginByVersion`](#gettimelockpeginbyversion-2)
 
+##### getPeginActivationDelay()
+
+```ts
+getPeginActivationDelay(): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts)
+
+Returned as `bigint` with no `Number` narrowing: the registry compares it
+against `block.number`, so callers must do the same arithmetic the
+contract does. `0` is the documented "disabled" case and is returned as
+`0n`. A missing getter or a non-bigint payload throws — never coerced to
+`0`, which would fail open and skip the observation window.
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+###### Throws
+
+If the deployment does not expose `peginActivationDelay()`, or
+  the decoded payload is not a `bigint`.
+
+###### Implementation of
+
+[`ProtocolParamsReader`](#protocolparamsreader).[`getPeginActivationDelay`](#getpeginactivationdelay-2)
+
 ##### getPegInConfiguration()
 
 ```ts
@@ -1720,6 +1747,10 @@ verifiedAt: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
+ETH block number stamped at the Pending→Verified transition.
+Compared against `block.number` (inclusive:
+`block.number >= verifiedAt + peginActivationDelay`), never a unix timestamp.
+
 ##### depositorWotsPkHash
 
 ```ts
@@ -2508,6 +2539,31 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ###### Returns
 
 `Promise`\<[`PegInConfiguration`](#peginconfiguration)\>
+
+##### getPeginActivationDelay()
+
+```ts
+getPeginActivationDelay(): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Observation window enforced between a vault's final ACK and its
+activation, in ETH blocks measured from `verifiedAt`. `0` disables it.
+
+Deliberately its own read rather than a field on
+[PegInConfiguration](#peginconfiguration): the parameter is absent from deployments that
+predate it, so folding it into the shared multicall would make every
+protocol-param read fail wherever it is missing.
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+###### Throws
+
+If the deployment does not expose `peginActivationDelay()`, or
+  the decoded payload is not a `bigint`.
 
 ##### fetchAllOffchainParams()
 

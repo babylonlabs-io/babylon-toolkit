@@ -108,6 +108,7 @@ export const COPY = {
       AWAITING_KEY: "Awaiting key",
       PROCESSING: "Processing",
       READY_TO_ACTIVATE: "Ready to activate",
+      AWAITING_ACTIVATION_WINDOW: "Awaiting activation window",
       ACTIVATION_INCOMPLETE: "Activation incomplete",
       AVAILABLE: "Available",
       IN_USE: "In use",
@@ -166,6 +167,33 @@ export const COPY = {
       // tooltip-only); same reassuring tone.
       activationIncompleteSubtext:
         "Your BTC is not lost — withdraw to receive it back.",
+      // Activation floor. Blocks lead because they are the fact the contract
+      // checks; the minutes figure is an estimate derived from slot time, so it
+      // is bracketed as approximate. Mirrors the refundMaturing shape.
+      activationWindowOpening: (blocks: number, minutes: number) =>
+        `Your BTC Vault is verified. Activation opens in ${blocks} Ethereum ${
+          blocks === 1 ? "block" : "blocks"
+        } (~${minutes} min).`,
+      activationWindowTooltip:
+        "Activation opens a short time after verification. This is a protocol requirement.",
+      // Compact form for the always-visible slot under the amount. The full
+      // sentence stays in `message` (the info-icon tooltip); this is what a
+      // depositor sees without interacting, so it must survive `truncate`.
+      activationWindowSubtext: (blocks: number, minutes: number) =>
+        `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
+      activationWindowSubtextUnknown: "Waiting for the activation window",
+      // Error-slot framing of the same wait. `activationWindowOpening` leads
+      // with "Your BTC Vault is verified", which reads as a status line rather
+      // than a failure when it lands in the red error callout after a click.
+      activationWindowNotOpen: (blocks: number, minutes: number) =>
+        `Activation is not open yet — ${blocks} Ethereum ${
+          blocks === 1 ? "block" : "blocks"
+        } to go (~${minutes} min). You can try again once the window opens.`,
+      // The window state could not be read at all. Distinct from the countdown
+      // above: we cannot say how long, only that we will not reveal the secret
+      // against an unverifiable gate.
+      activationWindowUnavailable:
+        "Could not confirm the BTC Vault activation window. Nothing was submitted — please try again in a moment.",
       inUseCannotRedeem:
         "BTC Vault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:

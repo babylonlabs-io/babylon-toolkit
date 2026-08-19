@@ -22,6 +22,7 @@ import {
 } from "react";
 import type { Hex } from "viem";
 
+import { useActivationFloorGate } from "@/hooks/useActivationFloorGate";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { useDepositOverride } from "@/overrides/deposits";
@@ -244,6 +245,9 @@ export function PeginPollingProvider({
     activities,
     params.pegInActivationTimeout,
   );
+  // Lower bound on activation, the mirror of the deadline gate above. Feature
+  // -flagged and fails closed — see `useActivationFloorGate`.
+  const activationFloorBlocks = useActivationFloorGate(activities);
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
   );
@@ -602,6 +606,9 @@ export function PeginPollingProvider({
         stuckStateConfirmedOnChain: stuckConfirmedIds.has(
           activity.id.toLowerCase(),
         ),
+        activationFloorBlocksRemaining: activationFloorBlocks.get(
+          activity.id.toLowerCase(),
+        ),
         // Params still resolving is a loading state, not a resolved "depth
         // unknown" — otherwise a cold load reads as a stalled deposit. A params
         // *failure* is not: the queries have exhausted their retries and will
@@ -632,6 +639,7 @@ export function PeginPollingProvider({
       resolveRefundTimelock,
       activationDeadlinePassedIds,
       stuckConfirmedIds,
+      activationFloorBlocks,
       isLoading,
       params.ready,
       params.error,
