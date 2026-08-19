@@ -32,11 +32,15 @@ import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
 
 import {
   describePeginParamsCandidate,
+  describeUnresolvedVersion,
   type PeginParamsCandidate,
+  type UnresolvedVersion,
 } from "./peginParamsCandidates";
 import {
   PeginParamsAmbiguousError,
+  PeginParamsIncompleteSpaceError,
   PeginParamsNotFoundError,
+  PeginSizingIntegrityError,
   UnanchoredPrePeginError,
 } from "./recoveryErrors";
 
@@ -70,13 +74,35 @@ export interface ReconstructPeginParamsInput {
   network: Network;
   /** The space to search, from `buildPeginParamsCandidates`. */
   candidates: readonly PeginParamsCandidate[];
+  /**
+   * Versions the caller enumerated over but could not resolve. Required, and
+   * `[]` is the explicit claim that the enumeration was complete — so a caller
+   * cannot arrive at a trusted answer by forgetting to mention its gaps.
+   *
+   * A non-empty list turns a sole match into a
+   * {@link PeginParamsIncompleteSpaceError}: uniqueness only rules out a wrong
+   * answer when the right answer was in the space to begin with.
+   */
+  unresolvedVersions: readonly UnresolvedVersion[];
 }
 
 export interface ReconstructPeginParamsResult {
   /** The single candidate whose rebuild matched the funded transaction. */
   candidate: PeginParamsCandidate;
+  /**
+   * Terms projected from the matched candidate.
+   *
+   * The transaction pins the participant keys, `timelockRefund`, and each
+   * HTLC's scriptPubKey and total value. It does NOT pin how that value splits
+   * into `peginAmount`, `depositorClaimValue` and `peginMaxFee` — that split
+   * follows from the matched candidate's fee-side parameters, which the
+   * transaction carries no evidence of.
+   */
   terms: DepositTerms;
-  /** Per-vault `peginAmount`, inverted from the observed HTLC output values. */
+  /**
+   * Per-vault `peginAmount`, inverted from the observed HTLC output values.
+   * Only as sound as the matched candidate's reserve — see {@link terms}.
+   */
   peginAmounts: readonly bigint[];
   /** The transaction's `SHA256(authAnchor)` commitment, for the refund rebuild. */
   authAnchorHash: string;
@@ -91,6 +117,7 @@ interface PeginSizing {
   p2aAnchorValue: bigint;
 }
 
+/** Identity of the inputs that determine a candidate's reserve, for memoising it. */
 function sizingCacheKey(candidate: PeginParamsCandidate): string {
   const { offchainParams: params, participants } = candidate;
   return [
@@ -104,6 +131,22 @@ function sizingCacheKey(candidate: PeginParamsCandidate): string {
   ].join("|");
 }
 
+/**
+ * Compute the amount-independent reserve for one candidate, asserting the WASM
+ * outputs before they are consumed (CLAUDE.md critical path 1).
+ *
+ * Only binary-integrity invariants are asserted here — a claim value or fee of
+ * zero, or a negative anchor, is impossible for ANY valid parameter set, so it
+ * indicts the binary rather than the candidate and must escape the search loop
+ * instead of being counted as a rejection. The plausibility band on the implied
+ * reserve is deliberately NOT duplicated: it depends on the candidate's own
+ * `minPeginFeeRate`, so a candidate can legitimately fail it, and the verifier
+ * applies it where it belongs — as a candidate filter.
+ *
+ * An absent anchor reads as `0n` because the facade returns `null` for graph
+ * versions whose PegIn carries no anchor and never a zero-valued placeholder,
+ * which is the same reading `rebuildDepositTermsCore` takes.
+ */
 async function computePeginSizing(
   candidate: PeginParamsCandidate,
 ): Promise<PeginSizing> {
@@ -129,11 +172,25 @@ async function computePeginSizing(
     ),
     peginP2aAnchorOutput(candidate.vaultCoreVersion),
   ]);
-  return {
-    depositorClaimValue,
-    peginMaxFee,
-    p2aAnchorValue: anchorOutput?.value ?? 0n,
-  };
+  const p2aAnchorValue = anchorOutput?.value ?? 0n;
+
+  if (depositorClaimValue <= 0n) {
+    throw new PeginSizingIntegrityError(
+      `WASM returned non-positive depositorClaimValue ${depositorClaimValue} for graph version ${candidate.vaultCoreVersion}`,
+    );
+  }
+  if (peginMaxFee <= 0n) {
+    throw new PeginSizingIntegrityError(
+      `WASM returned non-positive peginMaxFee ${peginMaxFee} for graph version ${candidate.vaultCoreVersion}`,
+    );
+  }
+  if (p2aAnchorValue < 0n) {
+    throw new PeginSizingIntegrityError(
+      `WASM returned negative P2A anchor value ${p2aAnchorValue} for graph version ${candidate.vaultCoreVersion}`,
+    );
+  }
+
+  return { depositorClaimValue, peginMaxFee, p2aAnchorValue };
 }
 
 /**
@@ -175,6 +232,7 @@ export async function reconstructPeginParams(
     maxAcceptableCommissionBps,
     network,
     candidates,
+    unresolvedVersions,
   } = input;
 
   if (hashlocks.length === 0) {
@@ -260,6 +318,12 @@ export async function reconstructPeginParams(
         candidatesTried: candidates.length,
       });
     } catch (err) {
+      // A malformed WASM sizing output is not a property of the candidate, so
+      // counting it as a rejection would bury a broken binary under "no
+      // candidate matched". Let it out.
+      if (err instanceof PeginSizingIntegrityError) {
+        throw err;
+      }
       // A rejection is the expected outcome for all but one candidate, so it
       // cannot propagate — but it is recorded, and a sample reaches the
       // not-found error so a failed search stays diagnosable.
@@ -272,12 +336,26 @@ export async function reconstructPeginParams(
     }
   }
 
+  const unresolvedLabels = unresolvedVersions.map(describeUnresolvedVersion);
+
   if (survivors.length === 0) {
-    throw new PeginParamsNotFoundError(candidates.length, rejections);
+    throw new PeginParamsNotFoundError(
+      candidates.length,
+      rejections,
+      unresolvedLabels,
+    );
   }
   if (survivors.length > 1) {
     throw new PeginParamsAmbiguousError(
       survivors.map((s) => describePeginParamsCandidate(s.candidate)),
+    );
+  }
+  // Reported after the ambiguity check: two survivors are the more specific
+  // diagnosis, and the caller learns of the gaps from that error's labels.
+  if (unresolvedLabels.length > 0) {
+    throw new PeginParamsIncompleteSpaceError(
+      describePeginParamsCandidate(survivors[0].candidate),
+      unresolvedLabels,
     );
   }
   return survivors[0];

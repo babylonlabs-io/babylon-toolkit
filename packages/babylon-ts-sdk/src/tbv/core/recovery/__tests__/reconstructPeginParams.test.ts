@@ -34,6 +34,7 @@ import {
 import { reconstructPeginParams } from "../reconstructPeginParams";
 import {
   PeginParamsAmbiguousError,
+  PeginParamsIncompleteSpaceError,
   PeginParamsNotFoundError,
   UnanchoredPrePeginError,
 } from "../recoveryErrors";
@@ -148,6 +149,7 @@ function search(
     maxAcceptableCommissionBps: COMMISSION_BPS,
     network: NETWORK,
     candidates,
+    unresolvedVersions: [],
   });
 }
 
@@ -318,6 +320,71 @@ describe("reconstructPeginParams", () => {
     expect(ambiguous.message).toContain("offchain=9");
   });
 
+  // Uniqueness only rules out a wrong answer when the right answer was also in
+  // the space. If the true version could not be read, a look-alike sharing its
+  // timelockRefund and participants matches just as well and would be returned
+  // as the answer with the wrong version stamps and the wrong amount split.
+  it("refuses a sole match when a version could not be resolved", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 1_100_000n },
+    ];
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
+
+    const error = await reconstructPeginParams({
+      hashlocks: siblings.map((s) => s.hashlock),
+      fundedPrePeginTxHex: txHex,
+      depositorBtcPubkey: DEPOSITOR,
+      prepeginMaxFee: PREPEGIN_MAX_FEE,
+      maxAcceptableCommissionBps: COMMISSION_BPS,
+      network: NETWORK,
+      candidates: buildPeginParamsCandidates({
+        vaultCoreVersion: TRUE_CORE_VERSION,
+        offchainParams: [TRUE_OFFCHAIN],
+        participantKeySets: [TRUE_PARTICIPANTS],
+      }),
+      unresolvedVersions: [
+        { axis: "offchainParams", version: 2, reason: "failed validation" },
+      ],
+    }).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(PeginParamsIncompleteSpaceError);
+    const incomplete = error as PeginParamsIncompleteSpaceError;
+    expect(incomplete.unresolvedLabels).toEqual([
+      "offchainParams v2 (failed validation)",
+    ]);
+    expect(incomplete.matchedLabel).toContain("offchain=4");
+  });
+
+  it("names the unresolved versions when nothing matched, since they may hold the answer", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 900_000n },
+    ];
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
+
+    const error = await reconstructPeginParams({
+      hashlocks: siblings.map((s) => s.hashlock),
+      fundedPrePeginTxHex: txHex,
+      depositorBtcPubkey: DEPOSITOR,
+      prepeginMaxFee: PREPEGIN_MAX_FEE,
+      maxAcceptableCommissionBps: COMMISSION_BPS,
+      network: NETWORK,
+      candidates: buildPeginParamsCandidates({
+        vaultCoreVersion: TRUE_CORE_VERSION,
+        offchainParams: [{ ...TRUE_OFFCHAIN, timelockRefund: 1008 }],
+        participantKeySets: [TRUE_PARTICIPANTS],
+      }),
+      unresolvedVersions: [
+        { axis: "vaultKeepers", version: 1, reason: "reverted" },
+      ],
+    }).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(PeginParamsNotFoundError);
+    expect((error as PeginParamsNotFoundError).unresolvedLabels).toEqual([
+      "vaultKeepers v1 (reverted)",
+    ]);
+    expect((error as Error).message).toContain("may hold the answer");
+  });
+
   it("refuses a Pre-PegIn with no auth-anchor OP_RETURN rather than guessing the vault count", async () => {
     const tx = new Transaction();
     tx.version = 2;
@@ -373,6 +440,7 @@ describe("reconstructPeginParams", () => {
           offchainParams: [TRUE_OFFCHAIN],
           participantKeySets: [TRUE_PARTICIPANTS],
         }),
+        unresolvedVersions: [],
       }),
     ).rejects.toThrow(/at least one hashlock is required/);
   });
@@ -389,6 +457,7 @@ describe("reconstructPeginParams", () => {
         maxAcceptableCommissionBps: COMMISSION_BPS,
         network: NETWORK,
         candidates: [],
+        unresolvedVersions: [],
       }),
     ).rejects.toThrow(/candidate space is empty/);
   });
@@ -447,7 +516,7 @@ describe("why vaultCoreVersion is supplied rather than searched", () => {
 });
 
 describe("buildPeginParamsCandidates", () => {
-  it("expands the three axes into their full product", () => {
+  it("expands the two searchable axes into their full product", () => {
     const candidates = buildPeginParamsCandidates({
       vaultCoreVersion: TRUE_CORE_VERSION,
       offchainParams: [TRUE_OFFCHAIN, { ...TRUE_OFFCHAIN, version: 5 }],

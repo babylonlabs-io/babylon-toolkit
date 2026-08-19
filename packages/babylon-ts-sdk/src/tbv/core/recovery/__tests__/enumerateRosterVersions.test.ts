@@ -13,12 +13,20 @@ import type {
   UniversalChallengerReader,
   VaultKeeperReader,
 } from "../../clients/eth/types";
+import { TEST_KEYS } from "../../primitives/psbt/__tests__/helpers";
 import {
   enumerateUniversalChallengerVersions,
   enumerateVaultKeeperVersions,
 } from "../enumerateRosterVersions";
 
 const APP_ENTRY_POINT = "0x2222222222222222222222222222222222222222" as const;
+
+/** Roster entries must carry real curve points — the enumeration validates them. */
+const VALID_KEYS = [
+  TEST_KEYS.VAULT_KEEPER_1,
+  TEST_KEYS.VAULT_KEEPER_2,
+  TEST_KEYS.UNIVERSAL_CHALLENGER_1,
+];
 
 function keyPair(btcPubKey: string): AddressBTCKeyPair {
   return {
@@ -32,7 +40,7 @@ describe("enumerateVaultKeeperVersions", () => {
     const reader: VaultKeeperReader = {
       getCurrentVaultKeepersVersion: vi.fn(async () => 3),
       getVaultKeepersByVersion: vi.fn(async (_app, version) => [
-        keyPair(`${version}${"a".repeat(63)}`),
+        keyPair(VALID_KEYS[version - 1]),
       ]),
       getCurrentVaultKeepers: vi.fn(),
     };
@@ -50,10 +58,12 @@ describe("enumerateVaultKeeperVersions", () => {
     );
   });
 
-  it("strips the 0x prefix so the pubkeys are ready for the WASM oracle", async () => {
+  it("normalises keys to bare lowercase hex, ready for the WASM oracle", async () => {
     const reader: VaultKeeperReader = {
       getCurrentVaultKeepersVersion: vi.fn(async () => 1),
-      getVaultKeepersByVersion: vi.fn(async () => [keyPair("ab".repeat(32))]),
+      getVaultKeepersByVersion: vi.fn(async () => [
+        keyPair(TEST_KEYS.VAULT_KEEPER_1.toUpperCase()),
+      ]),
       getCurrentVaultKeepers: vi.fn(),
     };
 
@@ -62,7 +72,56 @@ describe("enumerateVaultKeeperVersions", () => {
       APP_ENTRY_POINT,
     );
 
-    expect(snapshot.btcPubkeys).toEqual(["ab".repeat(32)]);
+    expect(snapshot.btcPubkeys).toEqual([TEST_KEYS.VAULT_KEEPER_1]);
+  });
+
+  // A malformed key would otherwise reach the WASM oracle and come back as one
+  // more candidate that "did not match", hiding a bad RPC response.
+  it("reports a key that is not a valid x-only point as an unresolvable version", async () => {
+    const reader: VaultKeeperReader = {
+      getCurrentVaultKeepersVersion: vi.fn(async () => 1),
+      // The all-zero key is the canonical off-curve value: an unregistered
+      // operator reads back as zeroes rather than as a usable key.
+      getVaultKeepersByVersion: vi.fn(async () => [keyPair("00".repeat(32))]),
+      getCurrentVaultKeepers: vi.fn(),
+    };
+    const onSkipped = vi.fn();
+
+    const snapshots = await enumerateVaultKeeperVersions(
+      reader,
+      APP_ENTRY_POINT,
+      onSkipped,
+    );
+
+    expect(snapshots).toEqual([]);
+    expect(onSkipped.mock.calls[0][1].message).toMatch(/secp256k1 curve/);
+    expect(onSkipped.mock.calls[0][1].message).toMatch(/entry 0/);
+  });
+
+  it("refuses a non-integer latest version rather than looping on it", async () => {
+    const reader: VaultKeeperReader = {
+      getCurrentVaultKeepersVersion: vi.fn(async () => Number.NaN),
+      getVaultKeepersByVersion: vi.fn(),
+      getCurrentVaultKeepers: vi.fn(),
+    };
+
+    await expect(
+      enumerateVaultKeeperVersions(reader, APP_ENTRY_POINT),
+    ).rejects.toThrow(/must be a non-negative integer/);
+    expect(reader.getVaultKeepersByVersion).not.toHaveBeenCalled();
+  });
+
+  it("refuses a latest version past the ceiling rather than issuing that many reads", async () => {
+    const reader: VaultKeeperReader = {
+      getCurrentVaultKeepersVersion: vi.fn(async () => 10_000),
+      getVaultKeepersByVersion: vi.fn(),
+      getCurrentVaultKeepers: vi.fn(),
+    };
+
+    await expect(
+      enumerateVaultKeeperVersions(reader, APP_ENTRY_POINT),
+    ).rejects.toThrow(/exceeds the 256-version ceiling/);
+    expect(reader.getVaultKeepersByVersion).not.toHaveBeenCalled();
   });
 
   it("reports a version that fails to read instead of dropping it silently", async () => {
@@ -70,7 +129,7 @@ describe("enumerateVaultKeeperVersions", () => {
       getCurrentVaultKeepersVersion: vi.fn(async () => 2),
       getVaultKeepersByVersion: vi.fn(async (_app, version) => {
         if (version === 1) throw new Error("reverted");
-        return [keyPair("ab".repeat(32))];
+        return [keyPair(TEST_KEYS.VAULT_KEEPER_1)];
       }),
       getCurrentVaultKeepers: vi.fn(),
     };
@@ -142,7 +201,7 @@ describe("enumerateUniversalChallengerVersions", () => {
     const reader: UniversalChallengerReader = {
       getLatestUniversalChallengersVersion: vi.fn(async () => 2),
       getUniversalChallengersByVersion: vi.fn(async () => [
-        keyPair("cd".repeat(32)),
+        keyPair(TEST_KEYS.UNIVERSAL_CHALLENGER_1),
       ]),
       getCurrentUniversalChallengers: vi.fn(),
     };
@@ -150,7 +209,7 @@ describe("enumerateUniversalChallengerVersions", () => {
     const snapshots = await enumerateUniversalChallengerVersions(reader);
 
     expect(snapshots.map((s) => s.version)).toEqual([1, 2]);
-    expect(snapshots[0].btcPubkeys).toEqual(["cd".repeat(32)]);
+    expect(snapshots[0].btcPubkeys).toEqual([TEST_KEYS.UNIVERSAL_CHALLENGER_1]);
   });
 
   it("reports a version that fails to read instead of dropping it silently", async () => {

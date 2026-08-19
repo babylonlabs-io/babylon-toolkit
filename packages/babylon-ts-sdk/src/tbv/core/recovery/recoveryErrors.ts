@@ -60,11 +60,17 @@ export class PeginParamsNotFoundError extends Error {
     readonly candidatesTried: number,
     /** A bounded sample of per-candidate rejection reasons, for diagnosis. */
     readonly sampleRejections: readonly string[],
+    /** Versions that could not be read, the likeliest reason for no match. */
+    readonly unresolvedLabels: readonly string[] = [],
   ) {
     super(
       `No candidate parameter set reproduces this Pre-PegIn's HTLC outputs ` +
-        `(${candidatesTried} candidate(s) tried). Sample rejections: ` +
-        `${sampleRejections.join(" | ")}`,
+        `(${candidatesTried} candidate(s) tried). ` +
+        (unresolvedLabels.length > 0
+          ? `${unresolvedLabels.length} version(s) could not be resolved and ` +
+            `may hold the answer: ${unresolvedLabels.join(" | ")}. `
+          : "") +
+        `Sample rejections: ${sampleRejections.join(" | ")}`,
     );
     this.name = "PeginParamsNotFoundError";
   }
@@ -74,9 +80,10 @@ export class PeginParamsNotFoundError extends Error {
  * More than one candidate reproduces the funded Pre-PegIn. Fail closed.
  *
  * Every survivor byte-matched the SAME funded outputs, so they agree on each
- * HTLC scriptPubKey and value and would produce the same refund transaction.
- * They disagree on which version stamps the destroyed vault row held, so the
- * reconstruction cannot claim a single answer.
+ * HTLC scriptPubKey and on the total value of each output, and would produce
+ * the same refund transaction. What they disagree on is the SPLIT of that
+ * value into `peginAmount` and reserve, and the version stamps that determine
+ * it — neither of which the transaction carries any evidence of.
  */
 export class PeginParamsAmbiguousError extends Error {
   constructor(readonly survivorLabels: readonly string[]) {
@@ -86,5 +93,50 @@ export class PeginParamsAmbiguousError extends Error {
         `determined: ${survivorLabels.join(" | ")}. Reconstruction refused.`,
     );
     this.name = "PeginParamsAmbiguousError";
+  }
+}
+
+/**
+ * Exactly one candidate matched, but the candidate space was known to be
+ * incomplete. Fail closed.
+ *
+ * Uniqueness only detects a wrong answer when the right answer is ALSO in the
+ * space. If the true version could not be read, a different version sharing
+ * the same `timelockRefund` and participants matches the transaction just as
+ * well — the search subtracts that candidate's reserve and the verifier adds
+ * the same reserve back, so it survives — and the sole survivor would be
+ * returned with the wrong version stamps and the wrong `peginAmount` split.
+ *
+ * Resolve the versions below and search again rather than trusting the match.
+ */
+export class PeginParamsIncompleteSpaceError extends Error {
+  constructor(
+    readonly matchedLabel: string,
+    readonly unresolvedLabels: readonly string[],
+  ) {
+    super(
+      `A candidate matched this Pre-PegIn (${matchedLabel}), but ` +
+        `${unresolvedLabels.length} version(s) could not be resolved, so the ` +
+        `search space did not provably contain the true parameters: ` +
+        `${unresolvedLabels.join(" | ")}. A version sharing the matched ` +
+        `timelockRefund and participants is indistinguishable from the true ` +
+        `one, so the match cannot be trusted. Reconstruction refused.`,
+    );
+    this.name = "PeginParamsIncompleteSpaceError";
+  }
+}
+
+/**
+ * A WASM sizing call returned a value no valid parameter set can produce.
+ *
+ * Raised before the value is consumed, and deliberately NOT treated as a
+ * candidate rejection: it indicts the binary rather than the candidate, so it
+ * escapes the search instead of being counted as one more parameter set that
+ * did not match.
+ */
+export class PeginSizingIntegrityError extends Error {
+  constructor(message: string) {
+    super(`${message}. Reconstruction refused.`);
+    this.name = "PeginSizingIntegrityError";
   }
 }

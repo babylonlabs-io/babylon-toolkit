@@ -138,6 +138,34 @@ export function buildPeginParamsCandidates(
   return candidates;
 }
 
+/** Which enumeration a version belongs to. */
+export type CandidateAxis =
+  | "offchainParams"
+  | "vaultKeepers"
+  | "universalChallengers";
+
+/**
+ * A version the caller enumerated over but could not resolve into candidate
+ * data — dropped by `fetchAllOffchainParams`'s validation, or reported to a
+ * roster loop's `onSkippedVersion` observer.
+ *
+ * Recorded rather than ignored because an unresolved version is UNRESOLVABLE,
+ * not absent: it may be the very version that stamped the stranded vault, and
+ * a search space missing its answer can still return a confident look-alike.
+ */
+export interface UnresolvedVersion {
+  axis: CandidateAxis;
+  version: number;
+  reason: string;
+}
+
+/** Compact identity of an unresolved version, for error messages. */
+export function describeUnresolvedVersion(
+  unresolved: UnresolvedVersion,
+): string {
+  return `${unresolved.axis} v${unresolved.version} (${unresolved.reason})`;
+}
+
 /** Compact identity of a candidate, for error messages and result labels. */
 export function describePeginParamsCandidate(
   candidate: PeginParamsCandidate,

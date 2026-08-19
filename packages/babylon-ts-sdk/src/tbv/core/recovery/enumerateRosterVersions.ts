@@ -15,16 +15,27 @@
  * @module recovery/enumerateRosterVersions
  */
 
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
+import { assertOnChainBtcPubkey } from "../clients/eth/onChainBtcPubkey";
 import type {
   UniversalChallengerReader,
   VaultKeeperReader,
 } from "../clients/eth/types";
-import { stripHexPrefix } from "../primitives/utils/bitcoin";
 
 /** The lowest roster version the contracts assign; version 0 means "none yet". */
 const FIRST_ROSTER_VERSION = 1;
+
+/**
+ * Ceiling on how many roster versions one enumeration will read.
+ *
+ * The latest-version number is a contract read, and every version below it
+ * costs one sequential RPC round trip. A corrupt or unexpectedly large value
+ * would otherwise drive an open-ended read loop against the node, so the
+ * enumeration refuses rather than starts one. Real rosters sit in the single
+ * digits; this is a backstop, not a working limit.
+ */
+const MAX_ENUMERABLE_ROSTER_VERSIONS = 256;
 
 export interface RosterVersionSnapshot {
   version: number;
@@ -45,10 +56,23 @@ export type OnSkippedRosterVersion = (version: number, error: Error) => void;
 
 async function enumerateVersions(
   latestVersion: number,
-  read: (version: number) => Promise<{ btcPubKey: string }[]>,
+  read: (version: number) => Promise<{ btcPubKey: Hex }[]>,
   label: string,
   onSkippedVersion?: OnSkippedRosterVersion,
 ): Promise<RosterVersionSnapshot[]> {
+  if (!Number.isInteger(latestVersion) || latestVersion < 0) {
+    throw new Error(
+      `${label} enumeration: latest version must be a non-negative integer, got ${latestVersion}`,
+    );
+  }
+  if (latestVersion > MAX_ENUMERABLE_ROSTER_VERSIONS) {
+    throw new Error(
+      `${label} enumeration: latest version ${latestVersion} exceeds the ` +
+        `${MAX_ENUMERABLE_ROSTER_VERSIONS}-version ceiling; refusing to issue ` +
+        `that many sequential reads.`,
+    );
+  }
+
   const snapshots: RosterVersionSnapshot[] = [];
   for (
     let version = FIRST_ROSTER_VERSION;
@@ -62,9 +86,18 @@ async function enumerateVersions(
           `${label} version ${version} resolved to an empty roster`,
         );
       }
+      // Contract-returned keys go through the package's single x-only
+      // validator — length, hex form and curve membership — so a malformed
+      // roster names itself here instead of surfacing as an opaque unmatched
+      // candidate once it reaches the WASM oracle.
       snapshots.push({
         version,
-        btcPubkeys: roster.map((entry) => stripHexPrefix(entry.btcPubKey)),
+        btcPubkeys: roster.map((entry, index) =>
+          assertOnChainBtcPubkey(
+            entry.btcPubKey,
+            `${label} version ${version} entry ${index}`,
+          ),
+        ),
       });
     } catch (error) {
       onSkippedVersion?.(
