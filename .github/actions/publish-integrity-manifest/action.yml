@@ -8,6 +8,11 @@ description: >
   platform guarantee). Same-sha rebuilds take the next free -rN slot; the
   checker probes slots upward and verifies against the highest.
 
+  Slot occupancy, race detection and publish verification all go through the
+  Releases API, which is strongly consistent. The public download URL the
+  checker reads is served by a CDN that lags a fresh release by 30-60s, so it
+  is only probed as a soft, bounded sanity check — never as the decider.
+
 inputs:
   service:
     description: Service prefix as used in the checksum filenames (simple-staking | vault)
@@ -26,53 +31,115 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
       run: |
         set -euo pipefail
-        # The public download URL is eventually consistent — Immutable Releases
-        # finalizes after create returns, so the asset can 404 for a while even
-        # though the upload succeeded. 30s proved too short: the CDN regularly
-        # takes 30-60s, and every one of those "failed" releases existed and
-        # served fine minutes later, while the re-run burned a -rN slot. Give
-        # it a generous bounded window before declaring the publish broken.
-        PROPAGATION_TIMEOUT_SECONDS=600
-        PROBE_INTERVAL_SECONDS=10
-        PROBE_MAX_TIME_SECONDS=15
+        # Inputs land in tags, paths, URLs and workflow commands — keep them to
+        # the characters the checker's naming contract uses.
+        for INPUT in "$SERVICE" "$ENVIRONMENT"; do
+          if ! [[ "$INPUT" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::invalid service/environment input"; exit 1
+          fi
+        done
         PREFIX="${SERVICE}-${ENVIRONMENT}-${GITHUB_SHA}"
-        FILES=("/tmp/${PREFIX}-files-checksum.txt" "/tmp/${PREFIX}-global-checksum.txt")
-        for i in 1 2 3 4 5 6 7 8 9 10; do
+        FILES_MANIFEST="/tmp/${PREFIX}-files-checksum.txt"
+        GLOBAL_MANIFEST="/tmp/${PREFIX}-global-checksum.txt"
+        MAX_SLOTS=10
+        API_MAX_TIME_SECONDS=15
+        # Bounded soft probe of the public URL after the API has confirmed the
+        # publish. A miss is a warning, not a failure: the release is already
+        # immutable and complete, and failing here only made humans re-run the
+        # job and mint a byte-identical -rN slot for the same sha.
+        CDN_PROBE_TIMEOUT_SECONDS=120
+        CDN_PROBE_INTERVAL_SECONDS=10
+        SLOT_COMPLETE_GRACE_SECONDS=30
+
+        # HTTP status of GET /releases/tags/<tag>: 200 = slot taken, 404 = free.
+        # Anything else is reported by the caller; only a definitive 200 may
+        # advance a slot, because a skipped slot is a numbering gap and the
+        # checker stops at the first missing slot.
+        release_status() {
+          local code
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time "$API_MAX_TIME_SECONDS" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/$1") || code=000
+          echo "${code:-000}"
+        }
+
+        # 0 when both manifests are uploaded assets of the release, via the API.
+        slot_complete() {
+          local assets
+          assets=$(gh release view "$1" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | select(.state == "uploaded") | .name') || return 1
+          grep -qxF -- "$(basename "$FILES_MANIFEST")" <<<"$assets" &&
+            grep -qxF -- "$(basename "$GLOBAL_MANIFEST")" <<<"$assets"
+        }
+
+        # An existing release may only be skipped if it is complete — a release
+        # record without both assets is a dead slot the checker would stop at,
+        # and an immutable release cannot be repaired. A concurrent run may
+        # still be attaching, so allow a short grace period before failing.
+        require_complete_slot() {
+          local deadline=$((SECONDS + SLOT_COMPLETE_GRACE_SECONDS))
+          while :; do
+            if slot_complete "$1"; then return 0; fi
+            [ "$SECONDS" -lt "$deadline" ] || break
+            sleep "$CDN_PROBE_INTERVAL_SECONDS"
+          done
+          echo "::error::${1} exists but does not carry both manifests — dead slot, needs a human"
+          exit 1
+        }
+
+        for i in $(seq 1 "$MAX_SLOTS"); do
           TAG="fm-${PREFIX}"; [ "$i" -gt 1 ] && TAG="${TAG}-r${i}"
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${PREFIX}-files-checksum.txt"
-          if curl -sfIL -o /dev/null "$URL"; then
-            echo "slot ${TAG} already published — trying next"
-            continue
-          fi
-          if ERR=$(gh release create "$TAG" "${FILES[@]}" \
+
+          STATUS=$(release_status "$TAG")
+          case "$STATUS" in
+            200) require_complete_slot "$TAG"; echo "slot ${TAG} already published — trying next"; continue ;;
+            404) ;;
+            *) echo "::error::cannot determine whether ${TAG} exists (HTTP ${STATUS})"; exit 1 ;;
+          esac
+
+          # --target pins the tag to the commit the manifests describe. Without
+          # it GitHub tags the default-branch HEAD at creation time, which is a
+          # different commit whenever another merge lands first.
+          if ERR=$(gh release create "$TAG" "$FILES_MANIFEST" "$GLOBAL_MANIFEST" \
+               --repo "$GITHUB_REPOSITORY" \
+               --target "$GITHUB_SHA" \
                --title "Frontend manifest ${PREFIX}" \
                --notes "sha256 manifest for the frontend integrity checker (devops-backlog#253). Do not delete." \
                --latest=false 2>&1); then
-            # Wall-clock deadline (bash SECONDS) and a per-probe --max-time so
-            # a stalled request cannot stretch the window past the bound.
-            DEADLINE=$((SECONDS + PROPAGATION_TIMEOUT_SECONDS))
+            # Verify the publish through the API: both assets must be uploaded.
+            # An immutable release cannot be repaired, so a missing asset is a
+            # hard failure and the next run takes the next slot.
+            if ! slot_complete "$TAG"; then
+              echo "::error::${TAG} was created but does not carry both manifests"
+              exit 1
+            fi
+            echo "published ${TAG} at ${GITHUB_SHA}"
+
+            DEADLINE=$((SECONDS + CDN_PROBE_TIMEOUT_SECONDS))
             while [ "$SECONDS" -lt "$DEADLINE" ]; do
-              if curl -sfIL --max-time "$PROBE_MAX_TIME_SECONDS" -o /dev/null "$URL"; then
-                echo "published ${TAG}"
+              if curl -sfIL --max-time "$API_MAX_TIME_SECONDS" -o /dev/null "$URL"; then
+                echo "${URL} is retrievable"
                 exit 0
               fi
-              sleep "$PROBE_INTERVAL_SECONDS"
+              sleep "$CDN_PROBE_INTERVAL_SECONDS"
             done
-            echo "::error::manifest not retrievable at ${URL} ${PROPAGATION_TIMEOUT_SECONDS}s after create"
-            exit 1
+            echo "::warning::${URL} not yet retrievable ${CDN_PROBE_TIMEOUT_SECONDS}s after publish; the release is complete and the CDN will catch up"
+            exit 0
           fi
-          # Failed create: re-probe the public URL the checker reads. Only a
-          # slot PUBLISHED by a concurrent run is a race worth advancing past —
-          # anything else (transient API error, draft, permission) must fail
-          # loudly. Advancing on it would leave a numbering gap, and the
-          # checker stops at the first missing slot, so later slots would be
-          # silently invisible. This also avoids depending on gh's error text.
-          if curl -sfIL -o /dev/null "$URL"; then
+
+          # Failed create: re-check via the API. Only a slot PUBLISHED by a
+          # concurrent run is a race worth advancing past — anything else
+          # (transient API error, permission) must fail loudly.
+          STATUS=$(release_status "$TAG")
+          if [ "$STATUS" = "200" ]; then
+            require_complete_slot "$TAG"
             echo "slot ${TAG} published by a concurrent run — trying next slot"
             continue
           fi
-          echo "::error::gh release create ${TAG} failed and ${URL} is not retrievable: ${ERR}"
+          echo "::error::gh release create ${TAG} failed (HTTP ${STATUS} on re-check): ${ERR//[$'\r\n']/ }"
           exit 1
         done
-        echo "::error::could not publish manifest for ${PREFIX} after 10 slots"
+        echo "::error::could not publish manifest for ${PREFIX} after ${MAX_SLOTS} slots"
         exit 1
