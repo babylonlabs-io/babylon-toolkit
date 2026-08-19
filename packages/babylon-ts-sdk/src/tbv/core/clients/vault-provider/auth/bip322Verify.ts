@@ -20,8 +20,9 @@
  *   3. Build a "to_sign" transaction that spends to_spend[0] and has a
  *      single `OP_RETURN` output (value 0).
  *
- *   4. Compute the BIP-341 taproot sighash of to_sign input 0 with
- *      SIGHASH_DEFAULT (0x00).
+ *   4. Compute the BIP-341 taproot sighash of to_sign input 0 with the
+ *      caller's `hashType` (SIGHASH_DEFAULT 0x00 unless the witness item
+ *      carried a trailing SIGHASH_ALL 0x01 byte).
  *
  *   5. Verify the 64-byte Schnorr signature against the **tweaked**
  *      output key `Q = P + tap_tweak(P) * G`, where `tap_tweak(P) =
@@ -94,8 +95,12 @@ function tweakXOnlyKey(xOnly: Uint8Array): Uint8Array | null {
  *                       the BIP-322 tagged hash internally.
  * @param xOnlyPubkey  - 32-byte x-only pubkey of the signer (pre-tweak).
  * @param signature    - 64-byte raw Schnorr signature (BIP-340), as
- *                       emitted by a key-path witness with
- *                       SIGHASH_DEFAULT.
+ *                       emitted by a key-path witness. The trailing
+ *                       sighash byte of a 65-byte witness item is not
+ *                       part of it — pass it as `hashType` instead.
+ * @param hashType     - BIP-341 sighash type the signature commits to.
+ *                       `SIGHASH_DEFAULT` (0x00) for a 64-byte witness
+ *                       item, `SIGHASH_ALL` (0x01) for a 65-byte one.
  * @returns `true` if the signature verifies against the address
  *          derived from `xOnlyPubkey`; `false` otherwise.
  */
@@ -103,6 +108,7 @@ export function verifyBip322Simple(
   messageBytes: Uint8Array,
   xOnlyPubkey: Uint8Array,
   signature: Uint8Array,
+  hashType: number = Transaction.SIGHASH_DEFAULT,
 ): boolean {
   if (xOnlyPubkey.length !== X_ONLY_PUBKEY_SIZE) return false;
   if (signature.length !== SCHNORR_SIG_SIZE) return false;
@@ -159,12 +165,12 @@ export function verifyBip322Simple(
     toSign.addInput(toSpendTxid, 0, 0);
     toSign.addOutput(Buffer.from([0x6a]), ZERO_SATS); // OP_RETURN
 
-    // Step 5: taproot sighash for to_sign input 0 (SIGHASH_DEFAULT).
+    // Step 5: taproot sighash for to_sign input 0.
     const sighash = toSign.hashForWitnessV1(
       0,
       [scriptPubKey],
       [ZERO_SATS],
-      Transaction.SIGHASH_DEFAULT,
+      hashType,
     );
 
     // Step 6: tweak the x-only pubkey (no merkle root) and verify Schnorr.

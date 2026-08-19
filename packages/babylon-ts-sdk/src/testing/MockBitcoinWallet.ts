@@ -1,5 +1,4 @@
 import { sha256 } from "@noble/hashes/sha2.js";
-import { Buffer } from "buffer";
 
 import { BitcoinNetworks, type BitcoinNetwork } from "../shared/wallets/interfaces";
 import type {
@@ -49,6 +48,16 @@ const defaultDeriveContextHash = async (
   buf.set(ctxBytes, 4 + nameBytes.length + 4);
   return uint8ArrayToHex(sha256(buf));
 };
+
+/**
+ * Shape of the mock BIP-322 witness: `varint(2) ‖ varint(71) ‖ DER sig ‖
+ * varint(33) ‖ compressed pubkey` — the P2WPKH form, with the DER signature
+ * at its maximum encoded length.
+ */
+const MOCK_WITNESS_ITEM_COUNT = 2;
+const MOCK_WITNESS_DER_SIG_BYTES = 71;
+const MOCK_WITNESS_PUBKEY_BYTES = 33;
+const COMPRESSED_PUBKEY_EVEN_PREFIX = 0x02;
 
 const DEFAULT_CONFIG: Required<MockBitcoinWalletConfig> = {
   publicKeyHex:
@@ -127,12 +136,29 @@ export class MockBitcoinWallet implements BitcoinWallet {
       throw new Error("Invalid message: empty string");
     }
 
-    // In a real implementation, this would create a proper signature
-    // For the mock, we return a base64-like mock signature
-    const mockSignature = Buffer.from(
-      `mock-signature-${type}-${message}-${this.config.publicKeyHex}`,
-    ).toString("base64");
-    return mockSignature;
+    // The SDK decodes what a wallet returns (`verifyPopWitness`), so the mock
+    // has to emit a structurally valid two-item P2WPKH witness. The bytes are
+    // derived from the inputs so different messages still give different
+    // signatures; they are not a real signature and are never verified.
+    const digest = sha256(
+      new TextEncoder().encode(
+        `mock-signature-${type}-${message}-${this.config.publicKeyHex}`,
+      ),
+    );
+    const derSignature = new Uint8Array(MOCK_WITNESS_DER_SIG_BYTES);
+    for (let i = 0; i < derSignature.length; i++) {
+      derSignature[i] = digest[i % digest.length];
+    }
+    return `0x${uint8ArrayToHex(
+      Uint8Array.from([
+        MOCK_WITNESS_ITEM_COUNT,
+        MOCK_WITNESS_DER_SIG_BYTES,
+        ...derSignature,
+        MOCK_WITNESS_PUBKEY_BYTES,
+        COMPRESSED_PUBKEY_EVEN_PREFIX,
+        ...digest,
+      ]),
+    )}`;
   }
 
   async getNetwork(): Promise<BitcoinNetwork> {

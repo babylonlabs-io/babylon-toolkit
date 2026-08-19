@@ -39,7 +39,10 @@ const DEFAULT_ADDRESS = "tb1qce0n0rv27dwx37dfvhxaaly4lnwelqjuqywvka";
 const DEFAULT_NETWORK: Network = "signet" as Network;
 const DEFAULT_PROVIDER_NAME = "E2E Mock BTC";
 const DEFAULT_PROVIDER_ICON = "data:image/svg+xml;base64,PHN2Zy8+";
-const SIGNED_MESSAGE_HEX = "cd".repeat(64);
+// The SDK decodes the BIP-322 witness a wallet returns, so this has to be a
+// structurally valid two-item P2WPKH witness (the one shape it passes through
+// unverified): varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B pubkey.
+const SIGNED_MESSAGE_HEX = `0x02${"47"}${"11".repeat(71)}${"21"}${"02" + "22".repeat(32)}`;
 
 export interface MockBtcWalletOptions {
   publicKeyHex?: string;

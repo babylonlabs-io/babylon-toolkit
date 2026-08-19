@@ -39,6 +39,7 @@ import {
   normalizePopSignature,
   normalizeXOnlyPubkey,
   signPsbtsWithFallback,
+  verifyPopWitness,
 } from "./pegin";
 
 import type {
@@ -1747,6 +1748,13 @@ export class PeginManager {
    * wallet to the connected ETH account for this chain and vault
    * registry. The returned {@link PopSignature} can be reused across
    * every register call in the same session.
+   *
+   * A one-item (P2TR) witness is verified against the depositor key before
+   * it is returned — see {@link verifyPopWitness}. Two-item (P2WPKH)
+   * witnesses are not yet verified host-side.
+   *
+   * @throws If the wallet returns a malformed witness or a P2TR signature
+   *         that does not verify.
    */
   async signProofOfPossession(): Promise<PopSignature> {
     if (!this.config.ethWallet.account) {
@@ -1766,11 +1774,15 @@ export class PeginManager {
       "bip322-simple",
     );
 
-    return {
-      btcPopSignature: normalizePopSignature(raw),
-      depositorEthAddress,
+    const btcPopSignature = normalizePopSignature(raw);
+    // Fail before the Ethereum registration: vaultd rejects a bad PoP permanently.
+    verifyPopWitness(
+      new TextEncoder().encode(popMessage),
       depositorBtcPubkey,
-    };
+      btcPopSignature,
+    );
+
+    return { btcPopSignature, depositorEthAddress, depositorBtcPubkey };
   }
 
   /**

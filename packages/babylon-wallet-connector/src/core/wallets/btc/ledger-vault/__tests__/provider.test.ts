@@ -1,9 +1,9 @@
 /**
  * Provider-level tests. The DMK layers are mocked; what matters here is the
  * orchestration contract — that the envelope gate runs before any device I/O,
- * that the derive → approve state machine matches the device's, that unwired
- * methods fail with a typed capability error rather than a silent wrong
- * result, and that the intent carries the right byte order.
+ * that the derive → approve state machine matches the device's, that
+ * unsupported requests fail with a typed capability error rather than a silent
+ * wrong result, and that the intent carries the right byte order.
  */
 
 // @vitest-environment node
@@ -22,7 +22,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Network } from "@/core/types";
-import { getTaprootAddress } from "@/core/utils/wallet";
+import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
 /** BIP-86 first-address vector: x-only key and its published P2TR address. */
@@ -43,6 +43,11 @@ const dmkSessionMock = vi.hoisted(() => ({
 
 const derivationMock = vi.hoisted(() => ({
   getXOnlyPublicKeyHex: vi.fn(async () => VECTOR_XONLY),
+  getMasterFingerprintHex: vi.fn(async () => "73c5da0a"),
+  getExtendedPublicKey: vi.fn(
+    async () =>
+      "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U",
+  ),
 }));
 
 // The SIGN_PSBT core is the signer package's own tested surface; here it is
@@ -119,6 +124,8 @@ beforeEach(() => {
   h.sent.length = 0;
   h.failNext = undefined;
   derivationMock.getXOnlyPublicKeyHex.mockClear();
+  derivationMock.getMasterFingerprintHex.mockClear();
+  derivationMock.getExtendedPublicKey.mockClear();
   dmkSessionMock.connectDmkSession.mockReset();
   dmkSessionMock.connectDmkSession.mockResolvedValue(h.session);
   dmkSessionMock.isSessionAlive.mockReset();
@@ -279,11 +286,146 @@ describe("LedgerVaultProvider", () => {
     expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(2);
   });
 
-  it("fails signMessage with a capability error rather than a wrong result", async () => {
-    const provider = await connected();
+  describe("signMessage (BIP-322 PoP)", () => {
+    const POP_MESSAGE =
+      "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678";
+    const SIG = "ab".repeat(64);
 
-    await expect(provider.signMessage("m", "bip322-simple")).rejects.toMatchObject({
-      code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+    beforeEach(() => {
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({
+        signedPsbtHex: "unused",
+        yields: [
+          {
+            kind: "taproot-keypath",
+            inputIndex: 0,
+            outputKeyHex: "00".repeat(32),
+            signature: Buffer.from(SIG, "hex"),
+          },
+        ],
+      }));
+    });
+
+    it("signs a PoP under the default tr(@0/**) policy and returns the 66-byte witness as 0x-hex", async () => {
+      const p = await connected();
+
+      const out = await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      expect(out).toBe(`0x0140${SIG}`);
+      // Policy built from the device reads, with the account path (3 levels) and the testnet versions.
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(1);
+      expect(derivationMock.getExtendedPublicKey).toHaveBeenCalledTimes(1);
+      expect(derivationMock.getExtendedPublicKey).toHaveBeenCalledWith(
+        expect.anything(),
+        [86 + 0x80000000, 1 + 0x80000000, 0 + 0x80000000],
+        toNetwork(Network.SIGNET).bip32,
+      );
+      const prepareArgs = signMock.prepareSignPsbt.mock.calls[0][0];
+      expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      expect(prepareArgs.depositorXOnlyHex).toBe(VECTOR_XONLY);
+      // The PSBT handed to prepare is a PoP PSBT (version 0, message in the proprietary key).
+      expect(prepareArgs.psbtHex).toMatch(/^70736274ff/);
+      expect(Buffer.from(prepareArgs.psbtHex, "hex").toString("latin1")).toContain(POP_MESSAGE);
+    });
+
+    it("does not require an approved intent (PoP is state-independent on the device)", async () => {
+      const p = await connected(); // connected, NO deriveContextHash/approveDepositTerms
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).resolves.toMatch(/^0x0140/);
+    });
+
+    it("caches the wallet policy per connection and drops it on teardown", async () => {
+      const p = await connected();
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(1);
+
+      await p.disconnect();
+      await p.connectWallet();
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects ecdsa with WALLET_METHOD_NOT_SUPPORTED without touching the device", async () => {
+      const p = await connected();
+
+      await expect(p.signMessage(POP_MESSAGE, "ecdsa")).rejects.toMatchObject({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+      });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+    });
+
+    it("fails when the device returns no key-path yield (the no-policy silent-success shape)", async () => {
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "unused", yields: [] }));
+      const p = await connected();
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toThrow(/no key-path signature/);
+    });
+
+    it("leaves the intent mirror and signed-fingerprint set untouched", async () => {
+      const p = await connected();
+      await p.deriveContextHash("app", "aa".repeat(32));
+      await p.approveDepositTerms(TERMS);
+
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      // A tapscript signPsbt after PoP must still pass the intent gate and sign.
+      // `prepareSignPsbt`/`signPreparedVaultPsbt` are mocked in this file, so restore the
+      // file's default signing stub for this call.
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+        signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+        yields: [],
+      }));
+      await expect(p.signPsbt("70736274ff00", { autoFinalized: false })).resolves.toBe("signed:70736274ff00");
+    });
+
+    it("disconnect aborts the in-flight PoP and surfaces it as a disconnection", async () => {
+      const p = await connected();
+      // Hang until teardown's abort fires, exactly like the signPsbt loop does.
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(
+        (_send, _prepared, opts: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts.signal.addEventListener("abort", () => reject(new LedgerSignPsbtAbortedError(0, true)));
+          }),
+      );
+      const inFlight = p.signMessage(POP_MESSAGE, "bip322-simple");
+      inFlight.catch(() => {});
+      await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1));
+
+      await p.disconnect();
+
+      // Not UNKNOWN_ERROR: #2110's UX routes cancellation on this code.
+      await expect(inFlight).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+
+    it("a failed PoP leaves the approved intent and the replay guard untouched", async () => {
+      const p = await connected();
+      await p.deriveContextHash("app", "aa".repeat(32));
+      await p.approveDepositTerms(TERMS);
+      await p.signPsbt("70736274ff00", { autoFinalized: false });
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(
+        new LedgerDeviceError(0x6f42, "The device rejected the request"),
+      );
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toThrow(/signMessage/);
+
+      // The device never invalidates its vault context on a PoP, so the mirror
+      // must survive — and the earlier signature must still be fingerprinted.
+      await expect(p.signPsbt("70736274ff00", { autoFinalized: false })).rejects.toThrow(/already signed/);
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+        signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+        yields: [],
+      }));
+      await expect(p.signPsbt("70736274ff11", { autoFinalized: false })).resolves.toBe("signed:70736274ff11");
+    });
+
+    it("refuses before connecting", async () => {
+      const p = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toMatchObject({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+      });
     });
   });
 
@@ -351,7 +493,7 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
-    it("rejects a keypath table actionably — Pre-PegIn/PoP need the wallet-policy path", async () => {
+    it("rejects a keypath table actionably — Pre-PegIn needs the wallet-policy path", async () => {
       const provider = await approved();
       signMock.prepareSignPsbt.mockImplementationOnce(({ psbtHex }: { psbtHex: string }) =>
         fakePrepared(psbtHex, "taproot-keypath"),

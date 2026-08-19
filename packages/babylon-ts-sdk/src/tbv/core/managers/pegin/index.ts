@@ -19,3 +19,4 @@ export {
   normalizeXOnlyPubkey,
 } from "./normalizeWalletInputs";
 export { signPsbtsWithFallback } from "./signPsbtsWithFallback";
+export { verifyPopWitness, type PopWitnessVerdict } from "./verifyPopWitness";

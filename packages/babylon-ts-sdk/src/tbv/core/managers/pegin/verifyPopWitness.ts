@@ -1,0 +1,185 @@
+/**
+ * Host-side check of the BIP-322 proof-of-possession witness a wallet returns,
+ * before it is committed to the Ethereum registration.
+ *
+ * vaultd verifies the PoP off-chain from the consensus-encoded witness
+ * (`btc-vault crates/btc-signer/src/message.rs:94-145`): one item ⇒ P2TR
+ * key-path Schnorr over the BIP-86 tweaked key, two items ⇒ P2WPKH, anything
+ * else ⇒ `UnsupportedWitnessFormat`. A bad PoP is a PERMANENT ingestion
+ * failure (`InvalidDepositorPop`), so catching it here saves a registration.
+ * No wallet test (hardware or software) proves a returned PoP validates —
+ * this is the first place anything checks it.
+ *
+ * P2TR is verified with the package's existing BIP-322 verifier (64-byte
+ * SIGHASH_DEFAULT or 65-byte SIGHASH_ALL, matching what the `bip322` crate
+ * 0.0.10 accepts in `verify.rs:213-236`). P2WPKH witnesses pass through
+ * UNVERIFIED for now (follow-up: a P2WPKH BIP-322 verifier mirroring
+ * `message.rs:107-133`); the verdict says so.
+ *
+ * @module managers/pegin/verifyPopWitness
+ */
+
+import { Buffer } from "buffer";
+import type { Hex } from "viem";
+
+import { verifyBip322Simple } from "../../clients/vault-provider/auth/bip322Verify";
+
+const P2TR_WITNESS_ITEMS = 1;
+const P2WPKH_WITNESS_ITEMS = 2;
+const SCHNORR_SIG_BYTES = 64;
+/** BIP-341 hash types: 0x00 default (64-byte sig), 0x01 ALL (65-byte sig with trailing type byte). */
+const SIGHASH_DEFAULT = 0x00;
+const SIGHASH_ALL = 0x01;
+
+/** CompactSize discriminators; 0xff (u64) is out of range for a witness. */
+const VARINT_U16_MARKER = 0xfd;
+const VARINT_U32_MARKER = 0xfe;
+/** Smallest value each marker is allowed to carry (see NON_MINIMAL_VARINT below). */
+const VARINT_U16_MIN_VALUE = 0xfd;
+const VARINT_U32_MIN_VALUE = 0x10000;
+
+const X_ONLY_PUBKEY_HEX = /^[0-9a-f]{64}$/i;
+/** `normalizePopSignature` hands us 0x-prefixed lowercase hex; hold it to that. */
+const WITNESS_BODY_HEX = /^(?:[0-9a-f]{2})+$/;
+
+const NON_MINIMAL_VARINT =
+  "proof of possession witness has a non-minimal length encoding";
+
+export type PopWitnessVerdict =
+  | { readonly kind: "p2tr-verified" }
+  | { readonly kind: "p2wpkh-unverified" };
+
+/**
+ * Bitcoin CompactSize: 1 byte < 0xfd; 0xfd ‖ u16LE; 0xfe ‖ u32LE.
+ *
+ * Over-long encodings are rejected: rust-bitcoin's `VarInt::consensus_decode`
+ * (0.32.8 `consensus/encode.rs:493-522`) returns `NonMinimalVarInt` for a 0xfd
+ * carrying < 0xfd and a 0xfe carrying < 0x10000, so accepting them here would
+ * wave through a witness vaultd rejects permanently at ingestion.
+ */
+function readVarint(
+  bytes: Uint8Array,
+  offset: number,
+): { value: number; next: number } {
+  if (offset >= bytes.length) {
+    throw new Error("proof of possession witness is truncated");
+  }
+  const first = bytes[offset];
+  if (first < VARINT_U16_MARKER) return { value: first, next: offset + 1 };
+  if (first === VARINT_U16_MARKER) {
+    if (offset + 3 > bytes.length) {
+      throw new Error("proof of possession witness is truncated");
+    }
+    const value = bytes[offset + 1] | (bytes[offset + 2] << 8);
+    if (value < VARINT_U16_MIN_VALUE) throw new Error(NON_MINIMAL_VARINT);
+    return { value, next: offset + 3 };
+  }
+  if (first === VARINT_U32_MARKER) {
+    if (offset + 5 > bytes.length) {
+      throw new Error("proof of possession witness is truncated");
+    }
+    const value =
+      (bytes[offset + 1] |
+        (bytes[offset + 2] << 8) |
+        (bytes[offset + 3] << 16) |
+        (bytes[offset + 4] << 24)) >>>
+      0;
+    if (value < VARINT_U32_MIN_VALUE) throw new Error(NON_MINIMAL_VARINT);
+    return { value, next: offset + 5 };
+  }
+  throw new Error(
+    "proof of possession witness carries an out-of-range item length",
+  );
+}
+
+function decodeWitnessItems(witnessHex: Hex): Uint8Array[] {
+  const body = witnessHex.slice(2);
+  // Buffer.from(_, "hex") stops silently at the first invalid character.
+  if (!WITNESS_BODY_HEX.test(body)) {
+    throw new Error(
+      "proof of possession witness is not even-length lowercase hex",
+    );
+  }
+  const bytes = Uint8Array.from(Buffer.from(body, "hex"));
+  const { value: count, next: start } = readVarint(bytes, 0);
+  const items: Uint8Array[] = [];
+  let offset = start;
+  for (let i = 0; i < count; i++) {
+    const { value: len, next } = readVarint(bytes, offset);
+    if (next + len > bytes.length) {
+      throw new Error("proof of possession witness is truncated");
+    }
+    items.push(bytes.subarray(next, next + len));
+    offset = next + len;
+  }
+  if (offset !== bytes.length) {
+    throw new Error("proof of possession witness has trailing bytes");
+  }
+  return items;
+}
+
+/**
+ * Decode a consensus-encoded PoP witness and, for the P2TR shape, verify the
+ * Schnorr signature against the depositor's key.
+ *
+ * @param messageBytes     - Bytes of the PoP message that was signed.
+ * @param depositorXOnlyHex - Depositor x-only pubkey, bare 64-char hex
+ *                            (enforced, not assumed).
+ * @param witnessHex       - 0x-prefixed consensus-encoded witness.
+ * @throws If the witness is malformed, has an unsupported item count, the
+ *         depositor key is not bare x-only hex, or the P2TR signature does
+ *         not verify.
+ */
+export function verifyPopWitness(
+  messageBytes: Uint8Array,
+  depositorXOnlyHex: string,
+  witnessHex: Hex,
+): PopWitnessVerdict {
+  const items = decodeWitnessItems(witnessHex);
+
+  if (items.length === P2TR_WITNESS_ITEMS) {
+    const [item] = items;
+    // vaultd (bip322 crate `verify.rs:213-236`) accepts 64 bytes = SIGHASH_DEFAULT,
+    // or 65 bytes ending in 0x01 = SIGHASH_ALL; mirror exactly that, nothing looser.
+    let signature: Uint8Array;
+    let hashType: number;
+    if (item.length === SCHNORR_SIG_BYTES) {
+      signature = item;
+      hashType = SIGHASH_DEFAULT;
+    } else if (
+      item.length === SCHNORR_SIG_BYTES + 1 &&
+      item[SCHNORR_SIG_BYTES] === SIGHASH_ALL
+    ) {
+      signature = item.subarray(0, SCHNORR_SIG_BYTES);
+      hashType = SIGHASH_ALL;
+    } else {
+      throw new Error(
+        "proof of possession witness item must be a 64-byte Schnorr signature " +
+          "(or 65 bytes ending in 0x01)",
+      );
+    }
+
+    // Guard the caller contract: a prefixed or short key would decode to the
+    // wrong bytes and surface as "does not verify", hiding the real fault.
+    if (!X_ONLY_PUBKEY_HEX.test(depositorXOnlyHex)) {
+      throw new Error(
+        `depositor public key must be bare 64-char x-only hex, got "${depositorXOnlyHex}"`,
+      );
+    }
+    const xOnly = Uint8Array.from(Buffer.from(depositorXOnlyHex, "hex"));
+    if (!verifyBip322Simple(messageBytes, xOnly, signature, hashType)) {
+      throw new Error(
+        "proof of possession signature does not verify against the depositor key",
+      );
+    }
+    return { kind: "p2tr-verified" };
+  }
+
+  if (items.length === P2WPKH_WITNESS_ITEMS) {
+    return { kind: "p2wpkh-unverified" };
+  }
+
+  throw new Error(
+    `proof of possession witness has ${items.length} items; expected 1 (P2TR) or 2 (P2WPKH)`,
+  );
+}

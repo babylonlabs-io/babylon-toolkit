@@ -29,8 +29,10 @@ import { CLA_APP } from "./vaultCommands";
 import { ClientCommandInterpreter } from "./vendor/ledger-bitcoin/clientCommands";
 import { MerkelizedPsbt } from "./vendor/ledger-bitcoin/merkelizedPsbt";
 import { hashLeaf, Merkle } from "./vendor/ledger-bitcoin/merkle";
+import { DefaultWalletPolicy } from "./vendor/ledger-bitcoin/policy";
 import { PsbtV2 } from "./vendor/ledger-bitcoin/psbtv2";
 import { createVarint } from "./vendor/ledger-bitcoin/varint";
+import type { DefaultTaprootWalletPolicy } from "./walletPolicy";
 
 /** Base app SIGN_PSBT instruction (`base:commands.h`). */
 const INS_SIGN_PSBT = 0x04;
@@ -48,8 +50,9 @@ const WALLET_FIELD_BYTES = 32;
  * (`has_no_wallet_policy`, `base:init_global_state.c:192-198`), which treat
  * every input/output as external — nothing is marked internal because both
  * preprocess passes return early on that flag (`base:preprocess_inputs.c:66-68`,
- * `base:preprocess_outputs.c:54-56`). A non-zero id would make the device fetch a
- * serialized policy this module never seeds — a mid-loop "unknown preimage".
+ * `base:preprocess_outputs.c:54-56`). A non-zero id without the policy preimages
+ * seeded would make the device ask for an unknown preimage mid-loop — policy
+ * mode seeds them.
  */
 const NO_WALLET_POLICY_ID = new Uint8Array(WALLET_FIELD_BYTES);
 /**
@@ -63,6 +66,7 @@ const NO_WALLET_POLICY_HMAC = new Uint8Array(WALLET_FIELD_BYTES);
 
 const DEPOSITOR_X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 const PSBT_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/;
+const WALLET_ID_HEX_RE = /^[0-9a-f]{64}$/;
 
 /**
  * The commitment surface of the vendored `MerkelizedPsbt` the header builder
@@ -93,7 +97,7 @@ export interface SignPsbtInterpreter {
  * outputsRoot(32) ‖ walletId(32) ‖ walletHmac(32)`.
  * Built from parts — never assert a fixed length (varints grow past 252).
  */
-function buildSignPsbtCdata(merkelized: SignPsbtCommitments): Uint8Array {
+function buildSignPsbtCdata(merkelized: SignPsbtCommitments, walletId: Uint8Array): Uint8Array {
   // Outer trees hash each per-map COMMITMENT as a 0x00-prefixed leaf
   // (`js:appClient.ts:317-325`; consumed at `base:get_merkleized_map.c:20-39`).
   const inputsRoot = new Merkle(merkelized.inputMapCommitments.map((commitment) => hashLeaf(commitment))).getRoot();
@@ -105,7 +109,9 @@ function buildSignPsbtCdata(merkelized: SignPsbtCommitments): Uint8Array {
       inputsRoot,
       createVarint(merkelized.getGlobalOutputCount()),
       outputsRoot,
-      Buffer.from(NO_WALLET_POLICY_ID),
+      Buffer.from(walletId),
+      // Derived apps have no registered policies: the hmac is all-zero for the
+      // default policy too (`base:init_global_state.c:184-187`).
       Buffer.from(NO_WALLET_POLICY_HMAC),
     ]),
   );
@@ -184,6 +190,15 @@ export interface PrepareSignPsbtParams {
   readonly psbtHex: string;
   /** Cached GET_EXTENDED_PUBKEY read (64 lowercase hex) — pins the table. */
   readonly depositorXOnlyHex: string;
+  /**
+   * Wallet-policy mode: the SIGN_PSBT wallet_id becomes the policy id and the
+   * interpreter serves the policy preimages. Required for key-path signing
+   * (PoP, Pre-PegIn): without a policy the base app skips `sign_internal_inputs`
+   * (`base:sign_psbt.c:142-148`) and the device answers SW_OK with no yield
+   * (`app-babylon-vault/src/sign_custom_inputs.c:101-107` @ 4decf822). Omit for
+   * the no-policy tapscript flows.
+   */
+  readonly walletPolicy?: DefaultTaprootWalletPolicy;
 }
 
 declare const preparedSignPsbtBrand: unique symbol;
@@ -239,9 +254,22 @@ export function getPreparedSignPsbtState(prepared: PreparedSignPsbt): PreparedSi
  * device I/O.
  */
 export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt {
-  const { psbtHex, depositorXOnlyHex } = params;
+  const { psbtHex, depositorXOnlyHex, walletPolicy } = params;
   if (!DEPOSITOR_X_ONLY_HEX_RE.test(depositorXOnlyHex)) {
     throw new LedgerSignPsbtProtocolError("depositorXOnlyHex must be 64 lowercase hex characters");
+  }
+  // Value import only — the vendored type never appears in an exported signature.
+  let vendorPolicy: DefaultWalletPolicy | undefined;
+  if (walletPolicy !== undefined) {
+    if (!WALLET_ID_HEX_RE.test(walletPolicy.walletIdHex)) {
+      throw new LedgerSignPsbtProtocolError("walletPolicy.walletIdHex must be 64 lowercase hex characters");
+    }
+    vendorPolicy = new DefaultWalletPolicy(walletPolicy.descriptorTemplate, walletPolicy.keyInfo);
+    // The header ships walletIdHex but the interpreter seeds preimages keyed on
+    // template+keyInfo, so a mismatch dies untyped mid-loop, after device I/O.
+    if (vendorPolicy.getId().toString("hex") !== walletPolicy.walletIdHex) {
+      throw new LedgerSignPsbtProtocolError("walletPolicy.walletIdHex does not match sha256 of the serialized policy");
+    }
   }
   // Buffer.from(hex) silently truncates at the first invalid character.
   if (!PSBT_HEX_RE.test(psbtHex)) {
@@ -291,8 +319,8 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
 
   // ONE yield mechanism: the onYield seam — the loop never parses YIELDs.
   const interpreter = new ClientCommandInterpreter(undefined, (payload) => collector.assertAndRecord(payload));
-  // Reference composition: the stock client's signPsbt seeding. NO policy
-  // registration — B1 is no-policy mode only (wallet_id = 32×00).
+  // Reference composition: the stock client's signPsbt seeding — the map/list
+  // preimages both modes need; the policy preimages are seeded below.
   interpreter.addKnownMapping(merkelized.globalMerkleMap);
   for (const inputMap of merkelized.inputMerkleMaps) {
     interpreter.addKnownMapping(inputMap);
@@ -303,9 +331,18 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   interpreter.addKnownList(merkelized.inputMapCommitments);
   interpreter.addKnownList(merkelized.outputMapCommitments);
 
+  // Policy mode: the device fetches the policy serialization, then walks the
+  // key-info tree and the template (`base:sign_psbt.c` wallet header checks)
+  // before signing internal inputs. Seed all three preimages (vendored
+  // `addKnownWalletPolicy`); no-policy mode seeds nothing and keeps wallet_id zero.
+  const walletId = walletPolicy ? Buffer.from(walletPolicy.walletIdHex, "hex") : NO_WALLET_POLICY_ID;
+  if (vendorPolicy) {
+    interpreter.addKnownWalletPolicy(vendorPolicy);
+  }
+
   // The brand is type-only; forged objects miss the WeakMap and die typed.
   return makePreparedSignPsbt(
     { table, unsignedTxid: BitcoinjsTransaction.fromBuffer(mergeTarget.data.globalMap.unsignedTx.toBuffer()).getId() },
-    { cdata: buildSignPsbtCdata(merkelized), interpreter, collector, originalPsbtHex: psbtHex },
+    { cdata: buildSignPsbtCdata(merkelized, walletId), interpreter, collector, originalPsbtHex: psbtHex },
   );
 }

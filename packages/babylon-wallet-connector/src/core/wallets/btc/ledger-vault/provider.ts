@@ -1,6 +1,8 @@
 import {
   approveVaultIntent,
   assertDepositTermsDeviceCompatible,
+  buildDefaultTaprootPolicy,
+  buildPopPsbtHex,
   connectDmkSession,
   createDmkApduSender,
   createDmkRawApduSender,
@@ -10,6 +12,8 @@ import {
   encodeIntentGroup,
   encodeIntentScalars,
   encodeKeyBatches,
+  getExtendedPublicKey,
+  getMasterFingerprintHex,
   getXOnlyPublicKeyHex,
   isLedgerDeviceError,
   isLedgerDeviceLockedError,
@@ -24,12 +28,14 @@ import {
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
   type ApduSender,
+  type DefaultTaprootWalletPolicy,
   type DepositTerms,
   type DmkSessionHandle,
   type IntentScalars,
   type IntentVaultGroup,
   type PreparedSignPsbt,
   type RawApduSender,
+  type SignVaultPsbtResult,
 } from "@babylonlabs-io/ledger-vault-signer";
 
 import type { IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
@@ -57,6 +63,10 @@ const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
 const HARDENED = 0x80000000;
 
+/** BIP-322 simple P2TR witness: one item — `varint(1) ‖ varint(64) ‖ sig` (`message.rs:105-144`, `BTCProofOfPossession.sol` accepts exactly this 66-byte shape). */
+const BIP322_P2TR_WITNESS_PREFIX_HEX = "0140";
+const SCHNORR_SIG_BYTES = 64;
+
 /**
  * Mirror of the device's vault state machine (`vault_context.h`: IDLE →
  * HASH_DERIVED → INTENT_LOADED). HASH_DERIVED is single-use — every ceremony
@@ -71,6 +81,14 @@ interface SignContext {
   readonly rawSend: RawApduSender;
   readonly generation: number;
   readonly depositorXOnlyHex: string;
+}
+
+/** Device reads behind the default policy; cached per connection, cleared in teardownSession. */
+interface PolicyContext {
+  readonly policy: DefaultTaprootWalletPolicy;
+  readonly masterFingerprintHex: string;
+  /** Verbatim base58 account xpub — Part B derives the change key from it. */
+  readonly accountXpub: string;
 }
 
 /** One host-gated PSBT, ready for its device ceremony. */
@@ -102,9 +120,9 @@ function signingRequestKey(prepared: PreparedSignPsbt): string {
  * intent ceremony instead of wallet policies.
  *
  * Ships behind `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET` (default off).
- * Covers connect, the key read, the intent ceremony, and SIGN_PSBT for the
- * no-policy tapscript flows (#2219). Key-path signing (Pre-PegIn, PoP) needs
- * the wallet-policy path (#2222/#2221).
+ * Covers connect, the key read, the intent ceremony, SIGN_PSBT for the
+ * no-policy tapscript flows (#2219), and the BIP-322 PoP under the default
+ * wallet policy (#2221). Pre-PegIn key-path signing is still to come (#2222).
  */
 export class LedgerVaultProvider implements IBTCProvider {
   private session: DmkSessionHandle | undefined;
@@ -117,6 +135,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    * this one device read.
    */
   private pubkeyHexPromise: Promise<string> | undefined;
+  /** See {@link PolicyContext}. Single in-flight read per connection, like {@link pubkeyHexPromise}. */
+  private policyContextPromise: Promise<PolicyContext> | undefined;
   /**
    * In-flight connect, so two overlapping `connectWallet()` calls (a
    * double-click) share one session instead of opening — and leaking — a
@@ -188,6 +208,11 @@ export class LedgerVaultProvider implements IBTCProvider {
     ];
   }
 
+  /** `m/86'/coin'/0'` — the key-info origin of the default policy (`test_screen7_pop.py:135-142`). */
+  private get accountPath(): number[] {
+    return [BIP86_PURPOSE + HARDENED, COIN_TYPE_BY_NETWORK[this.network] + HARDENED, ACCOUNT_INDEX + HARDENED];
+  }
+
   private requireSession(): DmkSessionHandle {
     if (!this.session) {
       throw new WalletError({
@@ -208,14 +233,6 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
     }
     return this.send;
-  }
-
-  private notWired(method: string): never {
-    throw new WalletError({
-      code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
-      message: `${WALLET_PROVIDER_NAME} does not implement ${method} yet.`,
-      wallet: WALLET_PROVIDER_NAME,
-    });
   }
 
   /**
@@ -308,6 +325,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Next connect may be a different device: reset state and the pubkey cache.
     this.deviceState = { phase: "idle" };
     this.pubkeyHexPromise = undefined;
+    this.policyContextPromise = undefined;
     this.signedFingerprints = new Set();
     this.loopAbandoned = false;
     // Release the ceremony lock and stop an in-flight signing loop NOW — the
@@ -334,6 +352,35 @@ export class LedgerVaultProvider implements IBTCProvider {
       this.pubkeyHexPromise = read;
     }
     return this.pubkeyHexPromise;
+  }
+
+  /**
+   * Default `tr(@0/**)` policy over the device's master fingerprint and the
+   * verbatim account xpub — key-path signing (PoP, Pre-PegIn) needs it.
+   * Two silent reads, cached per connection; a failure clears the cache.
+   */
+  private getPolicyContext(): Promise<PolicyContext> {
+    if (!this.policyContextPromise) {
+      const send = this.requireSender();
+      const read = (async (): Promise<PolicyContext> => {
+        const [masterFingerprintHex, accountXpub] = await Promise.all([
+          getMasterFingerprintHex(send),
+          getExtendedPublicKey(send, this.accountPath, toNetwork(this.network).bip32),
+        ]);
+        const policy = buildDefaultTaprootPolicy({
+          masterFingerprintHex,
+          coinType: COIN_TYPE_BY_NETWORK[this.network],
+          accountIndex: ACCOUNT_INDEX,
+          accountXpub,
+        });
+        return { policy, masterFingerprintHex, accountXpub };
+      })().catch((error) => {
+        if (this.policyContextPromise === read) this.policyContextPromise = undefined;
+        throw error;
+      });
+      this.policyContextPromise = read;
+    }
+    return this.policyContextPromise;
   }
 
   /**
@@ -592,8 +639,11 @@ export class LedgerVaultProvider implements IBTCProvider {
    * intent, cached depositor key. A dead session tears everything down —
    * the device state is gone with it (generation-guarded against a racing
    * reconnect's fresh state).
+   *
+   * `requireIntent: false` is for the state-independent PoP — every other
+   * caller keeps the default.
    */
-  private async gateSignContext(): Promise<SignContext> {
+  private async gateSignContext(requireIntent = true): Promise<SignContext> {
     const { session, rawSend } = this.requireSignContext();
     const generation = this.connectionGeneration;
     if (!(await this.probeSessionAlive(session))) {
@@ -605,7 +655,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
     }
     this.assertSameConnection(generation);
-    if (this.deviceState.phase !== "intent-loaded") {
+    if (requireIntent && this.deviceState.phase !== "intent-loaded") {
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
         message:
@@ -663,16 +713,16 @@ export class LedgerVaultProvider implements IBTCProvider {
         { cause: error instanceof Error ? error : undefined },
       );
     }
-    // B1 signs the no-policy tapscript flows only: a keypath expectation means
-    // Pre-PegIn/PoP, which need the wallet-policy path. Reject actionably here
-    // instead of letting the device answer an opaque 0x6A80 mid-loop.
+    // signPsbt is the no-policy tapscript path: a keypath expectation here means
+    // Pre-PegIn, which needs the wallet-policy path. (PoP is key-path too, but it
+    // goes through signMessage.) Reject actionably rather than take an opaque 0x6A80.
     for (const expectation of prepared.table.byInput.values()) {
       if (expectation.kind === "taproot-keypath") {
         throw new WalletError({
           code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
           message:
             `${WALLET_PROVIDER_NAME} cannot sign key-path inputs (${label}) yet — ` +
-            `Pre-PegIn and proof-of-possession need the wallet-policy path (#2222/#2221).`,
+            `Pre-PegIn needs the wallet-policy path (#2222); proof of possession goes through signMessage.`,
           wallet: WALLET_PROVIDER_NAME,
         });
       }
@@ -720,39 +770,55 @@ export class LedgerVaultProvider implements IBTCProvider {
       this.loopAbandoned = false;
       return result.signedPsbtHex;
     } catch (error) {
-      // A stale rejection must not touch the new connection's state.
-      if (generation !== this.connectionGeneration) {
-        throw new WalletError(
-          {
-            code: ERROR_CODES.WALLET_NOT_CONNECTED,
-            message: `${WALLET_PROVIDER_NAME} connection changed during signing; restart from derivation.`,
-            wallet: WALLET_PROVIDER_NAME,
-          },
-          { cause: error instanceof Error ? error : undefined },
-        );
+      const walletError = this.classifySignFailure(error, generation, label);
+      // Mirror reset is signPsbt-only (a PoP failure never invalidates the
+      // device's vault context). Skip it for the two classifications that
+      // commit nothing: a stale rejection and an abandonment.
+      if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error)) {
+        // Pessimistically assume the device dropped the intent (error-path
+        // invalidation is mixed in firmware — never assume survival).
+        this.deviceState = { phase: "idle" };
+        this.signedFingerprints = new Set();
+        this.loopAbandoned = false;
       }
-      if (isLedgerSignPsbtAbortedError(error)) {
-        // The intent MAY survive an abandonment (hint only) — keep the mirror.
-        // Arm the one-shot 0x6A80 recovery only if a dispatcher is actually
-        // mid-interruption. NB: unreachable in B3 — teardown (the only abort
-        // source) bumps the generation first; goes live with #2110's cancel.
-        if (error.dispatcherInterrupted) this.loopAbandoned = true;
-        throw new WalletError(
-          {
-            code: ERROR_CODES.WALLET_NOT_CONNECTED,
-            message: `${label === "signPsbt" ? "" : `${label}: `}${WALLET_PROVIDER_NAME} stopped signing (disconnected); reconnect and retry.`,
-            wallet: WALLET_PROVIDER_NAME,
-          },
-          { cause: error },
-        );
-      }
-      // Everything else: pessimistically assume the device dropped the intent
-      // (error-path invalidation is mixed in firmware — never assume survival).
-      this.deviceState = { phase: "idle" };
-      this.signedFingerprints = new Set();
-      this.loopAbandoned = false;
-      throw toSignFailureWalletError(error, label);
+      throw walletError;
     }
+  }
+
+  /**
+   * Classify one device-ceremony failure, for every SIGN_PSBT caller: a
+   * disconnect must surface as WALLET_NOT_CONNECTED, never as a generic
+   * UNKNOWN_ERROR. Touches only {@link loopAbandoned} — the intent mirror is
+   * the caller's to reset, since PoP must never touch it.
+   */
+  private classifySignFailure(error: unknown, generation: number, label: string): WalletError {
+    // A stale rejection must not touch the new connection's state.
+    if (generation !== this.connectionGeneration) {
+      return new WalletError(
+        {
+          code: ERROR_CODES.WALLET_NOT_CONNECTED,
+          message: `${WALLET_PROVIDER_NAME} connection changed during signing; restart from derivation.`,
+          wallet: WALLET_PROVIDER_NAME,
+        },
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
+    if (isLedgerSignPsbtAbortedError(error)) {
+      // The intent MAY survive an abandonment (hint only) — keep the mirror.
+      // Arm the one-shot 0x6A80 recovery only if a dispatcher is actually
+      // mid-interruption. NB: unreachable while teardown (the only abort
+      // source) bumps the generation first; goes live with #2110's cancel.
+      if (error.dispatcherInterrupted) this.loopAbandoned = true;
+      return new WalletError(
+        {
+          code: ERROR_CODES.WALLET_NOT_CONNECTED,
+          message: `${label === "signPsbt" ? "" : `${label}: `}${WALLET_PROVIDER_NAME} stopped signing (disconnected); reconnect and retry.`,
+          wallet: WALLET_PROVIDER_NAME,
+        },
+        { cause: error },
+      );
+    }
+    return toSignFailureWalletError(error, label);
   }
 
   /**
@@ -780,10 +846,80 @@ export class LedgerVaultProvider implements IBTCProvider {
     return { session, rawSend };
   }
 
-  // TODO(#2221): BIP-322 PoP — a SIGN_PSBT with tx_version 0, not the base
-  // app's SIGN_MESSAGE.
+  /**
+   * BIP-322 simple proof of possession via SIGN_PSBT tx_version 0 (#2221).
+   * State-independent on the device (`sign_psbt_validate.c:3205-3213`): no
+   * approved intent is required, and signing it never touches the intent
+   * mirror or the signed-fingerprint set. When an intent IS loaded the device
+   * requires the PoP key to equal the intent's depositor key (`:2764-2769`) —
+   * both derive from `depositorPath`, so that holds by construction.
+   */
   signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> =>
-    this.notWired(`signMessage (${type}, ${message.length} chars)`);
+    this.withDeviceOperation("signMessage", () =>
+      this.withSignAbort(async (controller) => {
+        if (type !== "bip322-simple") {
+          throw new WalletError({
+            code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+            message: `${WALLET_PROVIDER_NAME} signs BIP-322 (bip322-simple) messages only; ${type} is not supported.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        const ctx = await this.gateSignContext(false);
+        const { policy, masterFingerprintHex } = await this.getPolicyContext();
+        this.assertSameConnection(ctx.generation);
+        const psbtHex = buildPopPsbtHex({
+          message,
+          depositorXOnlyHex: ctx.depositorXOnlyHex,
+          masterFingerprintHex,
+          depositorPath: this.depositorPath,
+        });
+        let prepared: PreparedSignPsbt;
+        try {
+          prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex: ctx.depositorXOnlyHex, walletPolicy: policy });
+        } catch (error) {
+          throw new WalletError(
+            {
+              code: ERROR_CODES.INVALID_PARAMS,
+              message: `signMessage rejected before device I/O: ${error instanceof Error ? error.message : String(error)}`,
+              wallet: WALLET_PROVIDER_NAME,
+            },
+            { cause: error instanceof Error ? error : undefined },
+          );
+        }
+        let result: SignVaultPsbtResult;
+        try {
+          result = await signPreparedVaultPsbt(ctx.rawSend, prepared, {
+            signal: controller.signal,
+            appIdentity:
+              ctx.session.appName !== undefined
+                ? { appName: ctx.session.appName, appVersion: ctx.session.appVersion }
+                : undefined,
+            resendOnceOnIncorrectData: this.loopAbandoned,
+          });
+        } catch (error) {
+          throw this.classifySignFailure(error, ctx.generation, "signMessage");
+        }
+        this.assertSameConnection(ctx.generation);
+        // Without a wallet policy the device answers SW_OK with NO yield
+        // (`sign_custom_inputs.c:101-107`); the collector's completion check
+        // already throws on that, this narrows the one yield we package.
+        const [yielded] = result.yields;
+        if (
+          result.yields.length !== 1 ||
+          yielded.kind !== "taproot-keypath" ||
+          yielded.signature.length !== SCHNORR_SIG_BYTES
+        ) {
+          throw new WalletError({
+            code: ERROR_CODES.INVALID_PARAMS,
+            message: `${WALLET_PROVIDER_NAME} returned no key-path signature for the proof of possession.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        // The loop ran to completion, so no dispatcher is mid-interruption.
+        this.loopAbandoned = false;
+        return `0x${BIP322_P2TR_WITNESS_PREFIX_HEX}${Buffer.from(yielded.signature).toString("hex")}`;
+      }),
+    );
 
   getNetwork = async (): Promise<Network> => this.network;
 

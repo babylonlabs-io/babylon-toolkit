@@ -128,8 +128,11 @@ export interface BuildExpectedSignatureTableParams {
   readonly depositorXOnlyHex: string;
 }
 
-/** BIP-86/BIP-341 keypath-only P2TR scriptPubKey of an x-only internal key. */
-function bip86OutputScript(xOnlyKeyHex: string): Buffer {
+/**
+ * BIP-86/BIP-341 keypath-only P2TR scriptPubKey of an x-only internal key.
+ * Exported for popPsbt.ts — package-internal.
+ */
+export function bip86OutputScript(xOnlyKeyHex: string): Buffer {
   // Not memoized: bitcoinjs re-verifies only when handed a DIFFERENT instance
   // (`bitcoinjs-lib@6.1.7 src/ecc_lib.js:13-23`), so a "done" flag would
   // silently skip that check once another instance reached the same copy.
