@@ -135,6 +135,26 @@ async function buildFundedTx(
   return tx.toHex();
 }
 
+/** The amount-independent reserve a given graph version folds into each HTLC. */
+async function reserveFor(version: number): Promise<bigint> {
+  const dcv = await computeMinClaimValue(
+    version,
+    VKS.length,
+    UCS.length,
+    TRUE_OFFCHAIN.councilQuorum,
+    TRUE_OFFCHAIN.councilSize,
+    TRUE_OFFCHAIN.protocolFeeRate,
+  );
+  const fee = await computeMinPeginFee(
+    version,
+    VKS.length,
+    UCS.length,
+    TRUE_OFFCHAIN.minPeginFeeRate,
+  );
+  const anchor = (await peginP2aAnchorOutput(version))?.value ?? 0n;
+  return dcv + fee + anchor;
+}
+
 function search(
   siblings: Sibling[],
   fundedPrePeginTxHex: string,
@@ -386,6 +406,34 @@ describe("reconstructPeginParams", () => {
     );
   });
 
+  // The value bound is the one piece of discriminating the value side can do,
+  // so it has to read as the transaction disagreeing with the candidate. Were
+  // it counted as "never evaluated" instead, every over-reserved candidate in
+  // a fallback search would become a phantom gap and refuse a sound match.
+  it("rejects a candidate whose reserve exceeds the funded output, rather than calling it a gap", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 900_000n },
+    ];
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
+
+    const error = await search(
+      siblings,
+      txHex,
+      buildPeginParamsCandidates({
+        vaultCoreVersion: TRUE_CORE_VERSION,
+        offchainParams: [
+          { ...TRUE_OFFCHAIN, version: 8, minPeginFeeRate: 1_000_000n },
+        ],
+        participantKeySets: [TRUE_PARTICIPANTS],
+      }),
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(PeginParamsNotFoundError);
+    const notFound = error as PeginParamsNotFoundError;
+    expect(notFound.unresolvedLabels).toEqual([]);
+    expect(notFound.sampleRejections[0]).toMatch(/non-positive pegin amount/);
+  });
+
   it("accepts a 0x-prefixed depositor pubkey, the form the derivation half takes", async () => {
     const siblings: Sibling[] = [
       { hashlock: "ab".repeat(32), amount: 850_000n },
@@ -432,8 +480,15 @@ describe("reconstructPeginParams", () => {
       }),
     );
 
+    // Pin the exact shift, not merely "different": the delta is the difference
+    // between the two versions' reserves, so a change in its direction or size
+    // has to fail here rather than slip through an inequality.
+    const [reserveV1, reserveV2] = await Promise.all([
+      reserveFor(1),
+      reserveFor(2),
+    ]);
     expect(result.candidate.vaultCoreVersion).toBe(2);
-    expect(result.peginAmounts[0]).not.toBe(trueAmount);
+    expect(result.peginAmounts[0]).toBe(trueAmount + reserveV1 - reserveV2);
     expect(result.terms.vaults[0].peginAmount).toBe(result.peginAmounts[0]);
   });
 
@@ -609,25 +664,6 @@ describe("why vaultCoreVersion is supplied rather than searched", () => {
   });
 
   it("reserves a different amount per version, which is what the inversion absorbs", async () => {
-    const reserveFor = async (version: number) => {
-      const dcv = await computeMinClaimValue(
-        version,
-        VKS.length,
-        UCS.length,
-        TRUE_OFFCHAIN.councilQuorum,
-        TRUE_OFFCHAIN.councilSize,
-        TRUE_OFFCHAIN.protocolFeeRate,
-      );
-      const fee = await computeMinPeginFee(
-        version,
-        VKS.length,
-        UCS.length,
-        TRUE_OFFCHAIN.minPeginFeeRate,
-      );
-      const anchor = (await peginP2aAnchorOutput(version))?.value ?? 0n;
-      return dcv + fee + anchor;
-    };
-
     expect(await reserveFor(1)).not.toBe(await reserveFor(2));
   });
 });

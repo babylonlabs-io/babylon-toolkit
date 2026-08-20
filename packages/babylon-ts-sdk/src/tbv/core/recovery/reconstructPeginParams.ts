@@ -49,9 +49,11 @@ import {
 } from "./recoveryErrors";
 
 /**
- * How many per-candidate rejection reasons a {@link PeginParamsNotFoundError}
- * carries. The full list is one line per candidate and runs to hundreds; a
- * handful is enough to tell "wrong transaction" from "roster not enumerated".
+ * How many per-candidate reasons an error message carries, for rejections and
+ * for unevaluated candidates alike. The full list is one line per candidate and
+ * runs to hundreds; a handful is enough to tell "wrong transaction" from
+ * "roster not enumerated". Only the message is capped — the counts that drive
+ * the fail-closed decisions stay exact.
  */
 const MAX_REPORTED_REJECTIONS = 5;
 
@@ -324,7 +326,11 @@ export async function reconstructPeginParams(
     fingerprint: string;
   }[] = [];
   const rejections: string[] = [];
-  const unevaluated: string[] = [];
+  // Count drives the fail-closed decision and must stay exact; only the labels
+  // that reach the error message are capped, since in the fallback search every
+  // candidate can land here and each entry embeds a full error message.
+  const unevaluatedLabels: string[] = [];
+  let unevaluatedCount = 0;
 
   for (const candidate of candidates) {
     try {
@@ -337,6 +343,19 @@ export async function reconstructPeginParams(
       const reserve =
         sizing.depositorClaimValue + sizing.peginMaxFee + sizing.p2aAnchorValue;
       const peginAmounts = observedHtlcValues.map((value) => value - reserve);
+      // A reserve larger than the funded output is the transaction positively
+      // disagreeing with this candidate — the value bound doing the one piece
+      // of discriminating it can. The verifier would reject it too, but with a
+      // generic error that would be misread as "never evaluated" and would
+      // pollute the space with phantom gaps.
+      const shortIndex = peginAmounts.findIndex((amount) => amount <= 0n);
+      if (shortIndex !== -1) {
+        throw new HtlcOutputMismatchError(
+          `HTLC output[${shortIndex}] value ${observedHtlcValues[shortIndex]} ` +
+            `is not above this candidate's reserve ${reserve}, so it implies a ` +
+            `non-positive pegin amount ${peginAmounts[shortIndex]}.`,
+        );
+      }
 
       const { offchainParams: params, participants } = candidate;
       const terms = await rebuildDepositTermsCore({
@@ -390,16 +409,20 @@ export async function reconstructPeginParams(
         // Anything else says nothing about the transaction: this candidate was
         // never actually evaluated. Treating it as a rejection would let an
         // incidental failure on the true candidate hand back a look-alike.
-        unevaluated.push(`${label} (${reason})`);
+        unevaluatedCount++;
+        if (unevaluatedLabels.length < MAX_REPORTED_REJECTIONS) {
+          unevaluatedLabels.push(`${label} (${reason})`);
+        }
       }
     }
   }
 
   // A candidate that could not be evaluated is a hole in the space in exactly
   // the same way an unreadable version is, so the two are reported together.
+  const gapCount = unresolvedVersions.length + unevaluatedCount;
   const gaps = [
     ...unresolvedVersions.map(describeUnresolvedVersion),
-    ...unevaluated,
+    ...unevaluatedLabels,
   ];
 
   if (survivors.length === 0) {
@@ -419,7 +442,7 @@ export async function reconstructPeginParams(
 
   // Reported after ambiguity: disagreeing survivors are the more specific
   // diagnosis, and that error already names them.
-  if (gaps.length > 0) {
+  if (gapCount > 0) {
     throw new PeginParamsIncompleteSpaceError(
       describePeginParamsCandidate(survivors[0].candidate),
       gaps,

@@ -45,7 +45,7 @@ If the log is unavailable, step 2 becomes a search: enumerate the version-keyed 
 | Error | Meaning | Do |
 | --- | --- | --- |
 | `VaultRootMismatchError` | Wrong wallet, account or network. The root is bound to all three, not just the seed. | Ask the depositor to reconnect on the exact account and network they deposited with. Not our bug. |
-| `UnanchoredPrePeginError` | No single auth-anchor OP_RETURN, so the HTLC count is unknowable. | Take `htlcVout` from the log instead. Legacy pre-anchor deposits cannot use step 1. |
+| `UnanchoredPrePeginError` | No single auth-anchor OP_RETURN. | Nothing — this module refuses the transaction and neither step takes an `htlcVout` override. The log does not rescue it either: the verifier needs the anchor to prove the sibling set is complete, not merely to count it. Legacy pre-anchor deposits are out of scope today. |
 | `PeginParamsNotFoundError` | Nothing matched. | Check the pubkey came from the wallet and the keys are operation keys at the right epochs. Read `unresolvedLabels` first — the answer is usually in a version that failed to resolve. |
 | `PeginParamsAmbiguousError` | Matches disagree on the projected terms. | Genuinely unknowable from the transaction. Take the version stamps from the log rather than searching. |
 | `PeginParamsIncompleteSpaceError` | Something matched, but the space had holes. | **Do not trust the match.** Resolve the named gaps and re-run. A look-alike sharing the matched `timelockRefund` and participants is indistinguishable from the truth. |
