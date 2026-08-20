@@ -121,6 +121,20 @@ describe("fetchPriceCandles", () => {
     await expect(fetchDaily()).rejects.toThrow(/non-finite "close"/);
   });
 
+  // `Number("")` is 0 and finite, so a blank field has to be rejected on its
+  // own rather than sliding through the non-finite guard as a $0 candle.
+  it("throws on a blank price instead of plotting zero", async () => {
+    mockFeedThenCandles([{ ...CANDLE_ROW, low: "  " }]);
+
+    await expect(fetchDaily()).rejects.toThrow(/non-finite "low"/);
+  });
+
+  it("throws on a blank bucket start", async () => {
+    mockFeedThenCandles([{ ...CANDLE_ROW, bucketStart: "" }]);
+
+    await expect(fetchDaily()).rejects.toThrow(/non-finite bucketStart/);
+  });
+
   it("throws on invalid decimals rather than guessing a scale", async () => {
     mockFeedThenCandles([{ ...CANDLE_ROW, decimals: -1 }]);
 
