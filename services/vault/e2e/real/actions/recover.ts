@@ -336,6 +336,16 @@ export const recoverAction: Action = {
         ? `  Multi-vault Pre-PegIn: ${group.length} siblings — the sibling path is exercised.`
         : `  Single-vault Pre-PegIn: the sibling path is NOT exercised by this run.`,
     );
+    // Coverage is ranked above spendability on purpose — nothing is broadcast,
+    // and a withdrawn deposit still proves derivation, verification, signing and
+    // the sighash check. Said out loud so it is never a silent surprise, because
+    // this same transaction could NOT be broadcast.
+    if (statusRank(target) >= REFUNDABLE_FIRST.length)
+      log(
+        `  NOTE: status "${target.status}" — this HTLC output is already spent. ` +
+          `Fine for a rehearsal, but this refund could not be broadcast. Pass ` +
+          `--txid=<prePeginTxid> to target a refundable deposit instead.`,
+      );
     log(
       `  GROUND TRUTH (not fed into the reconstruction): hashlock=${target.hashlock}, amount=${target.amount}`,
     );
