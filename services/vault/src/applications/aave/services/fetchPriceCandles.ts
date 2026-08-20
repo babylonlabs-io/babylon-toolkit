@@ -80,7 +80,9 @@ const GET_PRICE_CANDLES = gql`
  * empty `items` array is the one valid-empty case (a feed with no history yet).
  */
 function parsePrice(raw: string, scale: number, field: string): number {
-  const value = Number(raw) / scale;
+  // `Number("")` and `Number(" ")` are 0, which is finite — a blank field would
+  // otherwise plot a $0 candle instead of failing.
+  const value = raw.trim() === "" ? Number.NaN : Number(raw) / scale;
   if (!Number.isFinite(value)) {
     throw new Error(
       `Price candle has a non-finite "${field}": ${JSON.stringify(raw)}`,
@@ -96,7 +98,8 @@ function toCandle(item: CandleItem): Candle {
     );
   }
   const scale = 10 ** item.decimals;
-  const timeSeconds = Number(item.bucketStart);
+  const timeSeconds =
+    item.bucketStart.trim() === "" ? Number.NaN : Number(item.bucketStart);
   if (!Number.isFinite(timeSeconds)) {
     throw new Error(
       `Price candle has a non-finite bucketStart: ${JSON.stringify(item.bucketStart)}`,
