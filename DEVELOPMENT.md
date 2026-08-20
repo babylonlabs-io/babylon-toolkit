@@ -97,6 +97,35 @@ git tag @babylonlabs-io/my-package/1.2.3
 git push origin @babylonlabs-io/my-package/1.2.3
 ```
 
+The tag version itself is never published - nx only rolls forward from it, so the `0.0.1` above stays a version that exists in git and not on NPM. Push the tag before the package's own code lands, so the commit that adds the package is a conventional commit nx can bump from.
+
+Nothing may depend on the new package until it has published at least once. The release refuses to pin a version that is not on the registry:
+
+```
+@babylonlabs-io/my-package is pinned at 0.0.1 but has never been published.
+Publish it before publishing anything that depends on it.
+```
+
+If you hit that after the fact, land a `feat:` or `fix:` commit touching the new package so it publishes in its own right. Do not delete or move the tag.
+
+### When a release fails
+
+The release stops rather than publish a manifest a consumer cannot install. Nothing is tagged unless every package published.
+
+| Message | What happened | Fix |
+|---------|---------------|-----|
+| `is pinned at X but has never been published` | A dependency has a release tag and nothing on NPM | Publish it first - see above |
+| `is pinned by this release but does not exist on the registry` | Its tag exists without a matching publish, so an earlier release failed or was skipped | Bump it in this release, or publish that version by hand |
+| `resolved to version X, which has no release tag` | nx fell back to the version in `packages/*/package.json`, which is not a released version | Tag the version that is actually on NPM |
+| `is not part of this release run and has no stable release tag` | A dependency nx filtered out of the run has never been released - most likely on an RC dispatch, which versions one project | Release it on `main` first |
+| `whose latest release tag reads "X" - not an exact version` | Its newest tag is a range or a prerelease, which cannot be published as a pin | Tag an exact stable version |
+| `depends on the private workspace package` | A published package depends on one nx never publishes | Make it publishable, or drop the dependency |
+| `are marked "private", so nx will version and tag them` | Same, for a package in the release set itself | Make it publishable, or take it out of `release.projects` in nx.json |
+| `cannot be published: its manifest would ship dependency versions a consumer cannot resolve` | A dependency spec the driver could not rewrite | Fix the spec in that package.json - syncpack pins local packages to `workspace:*` |
+| `were versioned but did not publish` | The publish step failed part-way and no tags were created | Check which packages landed on NPM before re-running; a published version is immutable |
+| `Tagging failed AFTER a successful publish` | Everything is on NPM but the tags are not in git | Create those tags by hand. Do not re-run the release |
+
+
 ### SDK Release Workflow
 
 The `@babylonlabs-io/ts-sdk` and `@babylonlabs-io/babylon-tbv-rust-wasm` packages follow an independent release cycle, decoupled from the vault frontend.
