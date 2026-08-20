@@ -11,10 +11,10 @@
 @import "../charts/chartTokens.css";
 
 :root {
-  --liq-band-1: #bf5833;
-  --liq-band-2: #355e78;
-  --liq-band-3: #518665;
-  --liq-price-line: #f7931a;
+  --liq-band-1: #dc944d;
+  --liq-band-2: #d1792c;
+  --liq-band-3: #cc1818;
+  --liq-price-line: #387085;
   --liq-band-text: #ffffff;
   --liq-candle-up: #34d1a6;
   --liq-candle-down: #ff5c5c;

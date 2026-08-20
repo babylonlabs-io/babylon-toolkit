@@ -80,6 +80,17 @@ describe("Timeline", () => {
     expect(within(container).getByText("t1750000000000")).toBeInTheDocument();
   });
 
+  // A caller that has folded the amount into the label passes no `amountLabel`;
+  // the band must not then print an empty line in its text stack.
+  it("prints no amount line for a band that carries none", () => {
+    const { container } = renderTimeline({
+      bands: [{ ...bands[0], label: "Liq Event 1 (0.6 BTC)", amountLabel: undefined }],
+    });
+    const chart = within(container);
+    expect(chart.getByText("Liq Event 1 (0.6 BTC)")).toBeInTheDocument();
+    expect(chart.queryByText("0.6 BTC")).toBeNull();
+  });
+
   it("shows the safe-zone detail lines when they fit above the first event", () => {
     // First band triggers at 77,682 on a 90k-40k axis: roughly the top quarter
     // of the plot is safe, which comfortably fits the title plus two lines.

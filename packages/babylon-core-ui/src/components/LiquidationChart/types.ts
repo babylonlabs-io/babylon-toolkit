@@ -37,8 +37,12 @@ export interface LiquidationBand {
   label: string;
   /** Secondary label, e.g. "(contain vault 1)". Hidden in compact / tight bands. */
   sublabel?: string;
-  /** Collateral seized in this event, pre-formatted, e.g. "0.6 BTC". */
-  amountLabel: string;
+  /**
+   * Collateral seized in this event, pre-formatted, e.g. "0.6 BTC". Rendered
+   * as its own line when the band is tall enough. Omit when the caller has
+   * already folded the amount into `label`.
+   */
+  amountLabel?: string;
   /** Band vertical extent in price. `priceTop` is where the event triggers. */
   priceTop: number;
   priceBottom: number;
