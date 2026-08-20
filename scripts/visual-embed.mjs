@@ -49,9 +49,14 @@ import { escapeHtml, parseArgs, STATUS } from "./visual-diff.mjs";
  * Their product is the ceiling, not the count - a group holding one screen
  * spends one slot.
  *
- * Deliberately just these two, with no separate ceiling on the total: a
- * third cap could only bite by quietly giving the lowest-ranked groups
- * fewer pictures than the promise above.
+ * These two bound the count and only the count. What a comment can actually
+ * carry is bytes, and that ceiling is PUBLISHED_TOTAL_BYTE_BUDGET rather
+ * than a third cap here - and it bites in the right order: it spends width
+ * first, so a busy run keeps every picture these caps promised and publishes
+ * the set smaller. Only once the floor rung is still over budget does it
+ * give pictures up, and then from whichever surface holds the most rather
+ * than from the bottom of the ranking, with the count said in the comment
+ * and the screens named in the run log.
  */
 const MAX_EMBEDDED_GROUPS = 5;
 const MAX_EMBEDDED_SCREENS_PER_GROUP = 2;
@@ -136,20 +141,26 @@ const CROP_CONTEXT_ROWS = 96;
 const CROP_MAX_KEPT_FRACTION = 0.8;
 
 /**
- * Width the composite is reduced to before it is published, and with it the
- * widest panel that reaches the reviewer at life size.
+ * The top rung of PUBLISHED_WIDTH_LADDER: the width the set is published at
+ * when the byte budget allows it, and with it the widest panel that reaches
+ * the reviewer at life size.
  *
  * Sized to the desktop capture rather than to the comment column. A comment
  * body is about 800px wide and GitHub scales anything wider down to fit, so
  * a budget of 800-1000 looks like the honest one - but the scaling GitHub
  * does is undone by a click, and the reduction done here is not. A 1280px
- * desktop screen published at 856px is 856px of detail forever; published
- * whole it is a 0.6x thumbnail that opens at full size.
+ * desktop screen published at the 800 rung is 800px of detail forever;
+ * published whole it is a 0.6x thumbnail that opens at full size. That is
+ * why 960 and 800 are rungs the ladder walks down to and not the default:
+ * the only run that pays the reduction is the one that would otherwise
+ * publish nothing.
  *
- * Paid for in clone weight, because every `git clone` of this repo fetches
- * the branch these images live on. `panelLayout` is what keeps that bounded:
- * a pair too wide to sit side by side stacks instead of being reduced, so
- * the pixel count stays what it was and only the shape changes.
+ * On an ordinary run this rung costs nothing. `panelLayout` already keeps
+ * every composite inside it - a pair too wide to sit side by side stacks
+ * instead - so `reduceToWidth` hands the composite back untouched and it is
+ * published as composed. That is also what bounds the clone weight, which is
+ * real: every `git clone` of this repo fetches the branch these images live
+ * on.
  */
 const EMBED_MAX_WIDTH = 1280;
 
@@ -661,14 +672,17 @@ function blit(source, target, x, y, window) {
  *
  * Side by side stays the default: the panels are then the same distance from
  * the eye at every scroll position, and the pair is no taller than one
- * already-tall page. It holds only while the pair fits the published width,
- * because the alternative past that point is reduction, and reduction is
- * what costs the reviewer the picture. Two 1280px vault screens side by side
- * come to 2568px; the integer reduction that fits 1280 renders each screen
- * 428px wide - a third of life size, in a column that then scales it again.
+ * already-tall page. It holds only while the pair fits the top rung, because
+ * the alternative past that point is reduction, and reduction is what costs
+ * the reviewer the picture. Two 1280px vault screens side by side come to
+ * 2568px, which `reduceToWidth` fits to the 1280 rung at a factor of
+ * 2.00625 - 639px a screen, half life size, in a column that then scales it
+ * again.
  *
- * Stacked, the same two panels publish 1280px wide and life size for the
- * same pixel count: the height they cost is the width they keep.
+ * Stacked, the same two panels are 1280px wide and publish untouched at the
+ * top rung, life size for the same pixel count: the height they cost is the
+ * width they keep. A busy run walking down the ladder still reduces them -
+ * but from life size, rather than on top of a halving already taken here.
  */
 function panelLayout(panelWidth, panelCount) {
   if (panelCount < 2) return LAYOUT.SINGLE;
@@ -1020,9 +1034,14 @@ function panelOrderNote(coverage) {
 }
 
 function screenCaption(result, coverage) {
+  // Counted in capture rows, not in the published image's own: the picture
+  // below may have been reduced by the width ladder, so "trimmed to 1800px"
+  // over a 900px-tall image would read as a contradiction. What the reviewer
+  // needs is how much of the SCREEN is shown, which the reduction leaves
+  // alone.
   const clipped =
     coverage && coverage.clipped
-      ? ` (picture trimmed to ${coverage.shown}px of ${coverage.total}px)`
+      ? ` (shows ${coverage.shown}px of a ${coverage.total}px screen)`
       : "";
   if (result.status === STATUS.ADDED) {
     return `added by this PR - after only${clipped}`;

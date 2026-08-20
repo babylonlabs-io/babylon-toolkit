@@ -107,7 +107,8 @@ test("panelLayout keeps a phone pair side by side", () => {
 });
 
 // The case this layout rule exists for: side by side, two 1280px screens
-// come to 2568px and are reduced to a third of life size to fit.
+// come to 2568px, and fitting that to the 1280 rung renders each screen
+// 639px wide - half life size.
 test("panelLayout stacks a pair too wide to sit side by side", () => {
   assert.equal(panelLayout(1280, 2), "stacked");
 });
@@ -621,21 +622,26 @@ test("the workflow's publish ceiling stays above the budget this script fits to"
   // Matched as an arithmetic expression rather than as one spelling of it:
   // `512 * 1024` and `1024 * 512` are the same ceiling, and a pattern that
   // only knows the first fails the whole visual job on a harmless edit.
-  const assignment = workflow.match(/MAX_PUBLISHED_BYTES=\$\(\((.+?)\)\)/);
+  // Dropping the `$(( ))` for a plain byte count is that same harmless edit,
+  // so both spellings are read here and only the value is checked. Anchored
+  // to an assignment line, because the prose above the constant names it too
+  // and an unanchored pattern would read the sentence instead.
+  const assignment = workflow.match(
+    /^[ \t]*MAX_PUBLISHED_BYTES=(?:\$\(\((.+?)\)\)|(\d+))[ \t]*(?:#.*)?$/m,
+  );
 
   assert.ok(assignment, "MAX_PUBLISHED_BYTES not found in the workflow");
+  const expression = assignment[1] ?? assignment[2];
   assert.match(
-    assignment[1],
+    expression,
     /^[\d\s*+]+$/,
-    `MAX_PUBLISHED_BYTES is not a plain arithmetic expression: ${assignment[1]}`,
+    `MAX_PUBLISHED_BYTES is not a plain arithmetic expression: ${expression}`,
   );
-  const ceiling = Number(
-    new Function(`return (${assignment[1]});`)(),
-  );
+  const ceiling = Number(new Function(`return (${expression});`)());
 
   assert.ok(
     Number.isFinite(ceiling) && ceiling > 0,
-    `MAX_PUBLISHED_BYTES did not evaluate to a size: ${assignment[1]}`,
+    `MAX_PUBLISHED_BYTES did not evaluate to a size: ${expression}`,
   );
   // The margin, not just the order. The run this budget was measured on
   // cleared it by 2KB, so a ceiling one byte above the budget would pass a
