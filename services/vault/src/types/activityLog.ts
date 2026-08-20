@@ -97,7 +97,7 @@ export interface ActivityLog {
  *  ActivityLog but renders inside the expandable parent. */
 export interface LiquidationChildRow {
   id: string;
-  /** Display label, e.g. "Collateral Liquidated", "Loan Repaid". */
+  /** Display label, e.g. "Liquidated", "Debt repaid". */
   label: string;
   amount: ActivityAmount;
   tokenIcon: string;

@@ -766,8 +766,8 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(group.summary.debt?.value).toBe("10,000");
     expect(group.summary.debt?.symbol).toBe("USDC");
     expect(group.children).toHaveLength(2);
-    expect(group.children[0].label).toBe("Collateral Liquidated");
-    expect(group.children[1].label).toBe("Loan Repaid");
+    expect(group.children[0].label).toBe("Liquidated");
+    expect(group.children[1].label).toBe("Debt repaid");
   });
 
   it("still emits a LiquidationGroupRow when no sibling repay exists", async () => {
@@ -798,7 +798,7 @@ describe("fetchUserActivities liquidation grouping", () => {
     const group = asGroup(result[0]);
     expect(group.summary.debt).toBeNull();
     expect(group.children).toHaveLength(1);
-    expect(group.children[0].label).toBe("Collateral Liquidated");
+    expect(group.children[0].label).toBe("Liquidated");
   });
 
   it("classifies as 'Fully Liquidated' when no deposited vault remains open", async () => {

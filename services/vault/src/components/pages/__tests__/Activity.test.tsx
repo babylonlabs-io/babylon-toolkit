@@ -58,10 +58,8 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
 
 // The USD sub-line's price source imports the built wallet-connector bundle
 // (for its network enum), which vitest cannot evaluate here, and the live
-// deposit status reads vaults through react-query — neither belongs to the
-// wallet gating this suite checks. An undefined vault read is also what the
-// page sees before the query resolves, so the rows keep their type-derived
-// status.
+// vault read goes through react-query — neither belongs to the wallet gating
+// this suite checks.
 vi.mock("@/hooks/usePrices", () => ({
   usePrices: () => ({ prices: {} }),
 }));

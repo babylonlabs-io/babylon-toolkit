@@ -1,43 +1,45 @@
 /**
  * ActivityRowV3
- * The activity row body: token icon + amount, a status
- * indicator, the transaction type, the tx-hash explorer link, and a time-only
- * timestamp (the calendar day lives in the group header), with an optional
- * action slot pinned right. Renders the columns only — the caller supplies the
- * card and its padding, so the same row works standalone (one card per row) and
- * stacked inside a liquidation group's shared card. The amount cell carries the
- * Figma sub-line with the row's USD value at the CURRENT price.
+ * The activity row body: token icon + the transaction type as the primary
+ * label with the asset symbol beneath it, a labelled explorer hash link, a
+ * labelled timestamp, and the amount with its USD value right-aligned. An
+ * optional action slot is pinned right of the amount.
+ *
+ * Renders the columns only — the caller supplies the card and its padding, so
+ * the same row works standalone (one card per row) and stacked inside a
+ * liquidation group's shared card.
+ *
+ * There is no status column: a pending row spins beside its type label and a
+ * refunded deposit gets the Refund chip plus a dimmed row.
  */
 
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, Loader } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
+import { twJoin } from "tailwind-merge";
 
-import {
-  LIST_ROW_ACTION_SLOT_CLASS,
-  LIST_ROW_COLUMN_CLASS,
-} from "@/components/shared/ListRow";
+import { LIST_ROW_ACTION_SLOT_CLASS } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
-import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
-import { getExplorerTxUrl } from "@/utils/explorer";
-import { formatActivityTime, formatUsdValue } from "@/utils/formatting";
+import type { ActivityAmount, ActivityLog } from "@/types/activityLog";
+import { getExplorerName, getExplorerTxUrl } from "@/utils/explorer";
+import { formatActivityTime } from "@/utils/formatting";
 
 import { ActivityHashLink } from "./ActivityHashLink";
-import { STATUS_DOT } from "./statusDot";
+import { getUsdSubLine } from "./usdSubLine";
 
-/** Column shared by every cell, so rows line up across cards regardless of
- *  amount length. */
-const COLUMN_CLASS = `flex items-center ${LIST_ROW_COLUMN_CLASS}`;
+/** Figma body 2 — the row's primary text (type label, hash, time). */
+const PRIMARY_TEXT_CLASS = "text-sm leading-[1.43] tracking-[0.17px]";
+/** Figma caption — the sub-lines (symbol, cell labels, USD value). */
+const CAPTION_TEXT_CLASS = "text-xs leading-[1.4] tracking-[0.4px]";
+/** Figma body 1 — the right-aligned amount. */
+const AMOUNT_TEXT_CLASS = "text-base leading-[1.5] tracking-[0.15px]";
 
-/** Figma body 2 — every cell's text except the USD sub-line. */
-const CELL_TEXT_CLASS = "text-sm leading-[1.43] tracking-[0.17px]";
+/** Every left-hand cell sits on the design's 180px column and may shrink to
+ *  half of it before the row wraps. */
+const CELL_CLASS = "flex min-w-[90px] shrink grow basis-[180px] flex-col";
 
-/** Figma caption — the USD sub-line under the amount. */
-const SUB_LINE_TEXT_CLASS = "text-xs leading-[1.4] tracking-[0.4px]";
-
-export interface ActivityStatus {
-  dotClass: string;
-  label: string;
-}
+/** Matches the 16px `<Progress> | Circular` beside the type label in the
+ *  frame. */
+const SPINNER_SIZE = 16;
 
 interface ActivityRowV3Props {
   row: ActivityLog;
@@ -48,96 +50,36 @@ interface ActivityRowV3Props {
    */
   prices?: Record<string, number>;
   /**
-   * Vault ids that are ACTIVE on chain right now. `undefined` means the vault
-   * read has not resolved yet, and a deposit keeps its type-derived status
-   * rather than flashing the wrong one.
+   * Vault ids that are ACTIVE on chain right now, from the deposit-status
+   * derivation this branch is stacked on. The redesigned row has no surface
+   * for a collateral-in-use label, so nothing reads it yet; the derivation
+   * stays wired pending design's answer (see the PR body).
    */
   activeVaultIds?: ReadonlySet<string>;
   /** Rendered flush right — the expired deposit's Withdraw, when refundable. */
   action?: ReactNode;
 }
 
-/**
- * Status dot + label for a standard activity row: expired (red) and pending
- * (amber) take precedence; otherwise a settled deposit whose vault is still
- * ACTIVE is "In use" and every other settled action (a withdrawn deposit,
- * borrow / repay / withdraw / redeem) is "Done" (both green). Liquidation rows
- * render separately and never reach here.
- *
- * The deposit branch needs `activeVaultIds` to tell "In use" from "Done". While
- * it is undefined — the vault read is in flight — or the row carries no vault
- * id to correlate, the deposit keeps reading "In use" rather than flashing a
- * status the data has not confirmed.
- */
-function getActivityStatus(
-  row: ActivityLog,
-  activeVaultIds: ReadonlySet<string> | undefined,
-): ActivityStatus {
-  if (row.isExpired) {
-    return { dotClass: STATUS_DOT.expired, label: COPY.activity.statusExpired };
-  }
-  if (row.isPending) {
-    return { dotClass: STATUS_DOT.pending, label: COPY.activity.statusPending };
-  }
-  const type = row.type === PENDING_DEPOSIT_TYPE ? "Deposit" : row.type;
-  if (type === "Deposit") {
-    const collateralInUse =
-      activeVaultIds === undefined ||
-      !row.vaultId ||
-      activeVaultIds.has(row.vaultId);
-    if (collateralInUse) {
-      return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusInUse };
-    }
-  }
-  return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusDone };
-}
+export function ActivityRowV3({ row, prices, action }: ActivityRowV3Props) {
+  // A deposit that expired before activation and was reclaimed: the design
+  // marks it with the Refund chip and dims the whole row.
+  const isRefunded = row.isExpired === true;
 
-/**
- * The row's USD value at the current price, or null when it cannot be priced —
- * no numeric amount, no price for the symbol, or a non-positive product. Null
- * renders no sub-line at all, never a "$0 USD" one.
- */
-function getUsdSubLine(
-  amount: ActivityLog["amount"],
-  prices: Record<string, number> | undefined,
-): string | null {
-  const price = prices?.[amount.symbol];
-  if (amount.numeric === undefined || price === undefined) return null;
-  const usd = amount.numeric * price;
-  if (!Number.isFinite(usd) || usd <= 0) return null;
-  return formatUsdValue(usd);
-}
-
-export function ActivityRowV3({
-  row,
-  prices,
-  activeVaultIds,
-  action,
-}: ActivityRowV3Props) {
   return (
     <ActivityRowLayout
       icon={row.tokenIcon}
       iconAlt={row.amount.symbol}
-      amount={`${row.amount.value} ${row.amount.symbol}`}
-      usdValue={getUsdSubLine(row.amount, prices)}
-      status={getActivityStatus(row, activeVaultIds)}
-      // The type column label comes from the copy catalog; "Pending Deposit"
-      // (an internal type kept out of the filter menu) maps to a "Deposit".
+      // "Pending Deposit" (an internal type kept out of the filter menu) maps
+      // to a "Deposit".
       typeLabel={COPY.activity.typeLabels[row.type]}
-      hash={
-        row.transactionHash !== "" ? (
-          <ActivityHashLink
-            hash={row.transactionHash}
-            chain={row.chain}
-            explorerUrl={getExplorerTxUrl(row.chain, row.transactionHash)}
-          />
-        ) : (
-          <span className={`${CELL_TEXT_CLASS} italic text-accent-secondary`}>
-            {COPY.activity.hashPending}
-          </span>
-        )
-      }
+      amount={row.amount}
+      usdValue={getUsdSubLine(row.amount, prices)}
+      chain={row.chain}
+      transactionHash={row.transactionHash}
       time={formatActivityTime(row.date)}
+      isPending={row.isPending === true && !isRefunded}
+      chip={isRefunded ? COPY.activity.refundChip : undefined}
+      dimmed={isRefunded}
       action={action}
     />
   );
@@ -146,82 +88,129 @@ export function ActivityRowV3({
 interface ActivityRowLayoutProps {
   icon: string;
   iconAlt: string;
-  amount: string;
-  /** Sub-line under the amount, already formatted. Null renders no sub-line. */
-  usdValue?: string | null;
-  status: ActivityStatus;
   typeLabel: string;
-  hash: ReactNode;
+  amount: ActivityAmount;
+  /** Null renders no sub-line — see `getUsdSubLine`. */
+  usdValue: string | null;
+  chain: ActivityLog["chain"];
+  /** Empty string renders the pending placeholder instead of a link. */
+  transactionHash: string;
   time: string;
+  isPending?: boolean;
+  /** Status chip beside the type label (e.g. "Refund"). */
+  chip?: string;
+  /** Fades the row — the caller drops the card fill to match. */
+  dimmed?: boolean;
   action?: ReactNode;
 }
 
-/** The bare five-column row, without padding. Exported so the liquidation
- *  group can lay its child events out identically without going through
- *  ActivityLog. */
+/** The bare row, without card padding. Exported so the liquidation group can
+ *  lay its child events out identically without going through ActivityLog. */
 export function ActivityRowLayout({
   icon,
   iconAlt,
+  typeLabel,
   amount,
   usdValue,
-  status,
-  typeLabel,
-  hash,
+  chain,
+  transactionHash,
   time,
+  isPending,
+  chip,
+  dimmed,
   action,
 }: ActivityRowLayoutProps) {
   return (
-    <div className="flex w-full flex-wrap items-center gap-4">
-      <div className={`${COLUMN_CLASS} gap-2`}>
+    <div
+      className={twJoin(
+        "flex w-full flex-wrap items-center gap-x-10 gap-y-3",
+        dimmed && "opacity-60",
+      )}
+    >
+      <div className="flex min-w-[180px] shrink grow-[2] basis-[180px] items-center gap-2">
         {/* `.bbn-avatar` is inline-flex with no shrink-0 of its own, and this
-            cell can now shrink to its 120px floor — without this a long amount
+            cell can shrink below its basis — without this a long symbol
             squashes the circle into an ellipse. */}
         <Avatar url={icon} alt={iconAlt} size="medium" className="shrink-0" />
         <div className="flex min-w-0 flex-col">
-          <span className={`truncate ${CELL_TEXT_CLASS} text-accent-primary`}>
-            {amount}
-          </span>
-          {usdValue && (
+          <div className="flex items-center gap-2">
             <span
-              className={`truncate ${SUB_LINE_TEXT_CLASS} text-accent-secondary`}
+              className={`min-w-0 truncate ${PRIMARY_TEXT_CLASS} text-accent-primary`}
             >
-              {usdValue}
+              {typeLabel}
             </span>
-          )}
+            {isPending && (
+              <span
+                role="status"
+                aria-label={COPY.activity.pendingLabel}
+                className="flex shrink-0 items-center"
+              >
+                <Loader size={SPINNER_SIZE} className="text-accent-secondary" />
+              </span>
+            )}
+            {chip && (
+              <span
+                className={`shrink-0 rounded-full bg-secondary-highlight px-3 py-0.5 ${CAPTION_TEXT_CLASS} text-error-dark`}
+              >
+                {chip}
+              </span>
+            )}
+          </div>
+          <span
+            className={`truncate ${CAPTION_TEXT_CLASS} text-accent-secondary`}
+          >
+            {amount.symbol}
+          </span>
         </div>
       </div>
 
-      <div className={`${COLUMN_CLASS} gap-1`}>
-        <span className={`size-3 shrink-0 rounded-full ${status.dotClass}`} />
-        <span
-          className={`min-w-0 truncate ${CELL_TEXT_CLASS} text-accent-primary`}
-        >
-          {status.label}
+      <div className={CELL_CLASS}>
+        <span className={`${CAPTION_TEXT_CLASS} text-accent-secondary`}>
+          {COPY.activity.explorerLabel(getExplorerName(chain))}
+        </span>
+        {transactionHash !== "" ? (
+          <ActivityHashLink
+            hash={transactionHash}
+            chain={chain}
+            explorerUrl={getExplorerTxUrl(chain, transactionHash)}
+          />
+        ) : (
+          <span
+            className={`${PRIMARY_TEXT_CLASS} italic text-accent-secondary`}
+          >
+            {COPY.activity.hashPending}
+          </span>
+        )}
+      </div>
+
+      <div className={CELL_CLASS}>
+        <span className={`${CAPTION_TEXT_CLASS} text-accent-secondary`}>
+          {COPY.activity.timeLabel}
+        </span>
+        <span className={`${PRIMARY_TEXT_CLASS} text-accent-primary`}>
+          {time}
         </span>
       </div>
 
-      <span
-        className={`${COLUMN_CLASS} ${CELL_TEXT_CLASS} text-accent-primary`}
-      >
-        {typeLabel}
-      </span>
-
-      <div className={COLUMN_CLASS}>{hash}</div>
-
-      <span
-        className={`${COLUMN_CLASS} ${CELL_TEXT_CLASS} text-accent-secondary`}
-      >
-        {time}
-      </span>
-
-      {/* Reserved even when there is no action. Only refundable expired
-          deposits get a button and liquidation-group children never do, so
-          without the empty slot those rows would hand the button's width back
-          to the five cells and start their columns tens of pixels off the rows
-          around them. */}
-      <div className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center`}>
-        {action}
+      <div className="flex min-w-[120px] shrink grow basis-[160px] flex-col items-end">
+        <span className={`${AMOUNT_TEXT_CLASS} text-accent-primary`}>
+          {`${amount.value} ${amount.symbol}`}
+        </span>
+        {usdValue && (
+          <span className={`${CAPTION_TEXT_CLASS} text-accent-secondary`}>
+            {usdValue}
+          </span>
+        )}
       </div>
+
+      {/* Only a refundable expired deposit carries an action; the slot is
+          dropped otherwise so the amount stays flush with the card edge, as
+          the design draws it. */}
+      {action && (
+        <div className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center`}>
+          {action}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { ListRowCard } from "@/components/shared/ListRow";
@@ -7,12 +7,19 @@ import { COPY } from "@/copy";
 import { useMidnightTick } from "@/hooks/useMidnightTick";
 import type { ActivityRow, ActivityType } from "@/types/activityLog";
 import { formatActivityDateGroup } from "@/utils/formatting";
+import { useDebounce } from "@/utils/hooks";
 
 import { ActivityEmptyState } from "./ActivityEmptyState";
 import { ActivityRowV3 } from "./ActivityRowV3";
+import { activityRowMatchesSearch } from "./activitySearch";
+import { ActivitySearchInput } from "./ActivitySearchInput";
 import { ExpiredWithdrawButton } from "./ExpiredWithdrawButton";
 import { FilterDropdown } from "./FilterDropdown";
 import { LiquidationGroupCardV3 } from "./LiquidationGroupCardV3";
+
+/** Long enough that typing a hash doesn't refilter on every keystroke, short
+ *  enough that the list feels live. */
+const SEARCH_DEBOUNCE_MS = 200;
 
 interface ActivityDateGroup {
   label: string;
@@ -28,6 +35,7 @@ function groupByDate(
   const labels = {
     today: COPY.activity.dateToday,
     yesterday: COPY.activity.dateYesterday,
+    lastWeek: COPY.activity.dateLastWeek,
   };
   const ordered: ActivityDateGroup[] = [];
   const byLabel = new Map<string, ActivityDateGroup>();
@@ -55,10 +63,11 @@ const FILTER_OPTIONS = (
 interface ActivityListProps {
   activities: ActivityRow[];
   isConnected: boolean;
-  /** Current USD price per token symbol, for each row's USD sub-line. */
+  /** Symbol → USD price, from `usePrices` at the container. Passed down rather
+   *  than read per row so the feed instantiates the query once. */
   prices?: Record<string, number>;
-  /** Vault ids ACTIVE on chain, for a deposit row's live status. `undefined`
-   *  while the vault read is in flight. */
+  /** Vault ids ACTIVE on chain, for a deposit row's live status. Threaded to
+   *  the rows, which have no surface for it in the current design. */
   activeVaultIds?: ReadonlySet<string>;
   /** Vault ids of expired deposits whose HTLC refund is still outstanding —
    *  those rows get the Withdraw action. Matched against a row's `vaultId`,
@@ -81,21 +90,37 @@ export function ActivityList({
   // so the heading must stay to avoid a page with no title at all.
   const hideHeading = !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const applySearch = useDebounce(setSearchQuery, SEARCH_DEBOUNCE_MS);
 
   // Re-render at local midnight so the "Today" / "Yesterday" date-group
   // headers stay correct on a page left open overnight (the feed doesn't poll).
   useMidnightTick();
 
-  // The filter control is hidden when the wallet disconnects, so leaving the
-  // selection in place would trap the user on an empty-but-filtered list with
-  // no visible way to clear it. Reset on disconnect.
+  // The toolbar is hidden when the wallet disconnects, so leaving a selection
+  // in place would trap the user on an empty-but-filtered list with no visible
+  // way to clear it. Reset both controls on disconnect.
   useEffect(() => {
-    if (!isConnected) setFilter(null);
+    if (isConnected) return;
+    setFilter(null);
+    setSearchInput("");
+    setSearchQuery("");
   }, [isConnected]);
 
-  const visible = filter
-    ? activities.filter((r) => r.type === filter)
-    : activities;
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const visible = useMemo(
+    () =>
+      activities.filter(
+        (row) =>
+          (filter === null || row.type === filter) &&
+          activityRowMatchesSearch(row, normalizedQuery),
+      ),
+    [activities, filter, normalizedQuery],
+  );
+
+  const isNarrowed = filter !== null || normalizedQuery !== "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,15 +141,21 @@ export function ActivityList({
             </Heading>
           )}
           {isConnected && (
-            <div className="flex items-center gap-4">
+            // Search at the left of the toolbar, the type filter pinned right.
+            <div className="flex flex-1 items-center justify-between gap-4">
+              <ActivitySearchInput
+                value={searchInput}
+                onChange={(next) => {
+                  setSearchInput(next);
+                  applySearch(next);
+                }}
+              />
               <FilterDropdown
                 value={filter}
                 placeholder={COPY.activity.filterAll}
                 options={FILTER_OPTIONS}
                 onChange={setFilter}
-                // The trigger sits to the left of the row, so the menu opens
-                // rightward from it.
-                align="start"
+                align="end"
               />
             </div>
           )}
@@ -132,17 +163,14 @@ export function ActivityList({
       )}
 
       {visible.length === 0 ? (
-        <ActivityEmptyState
-          isConnected={isConnected}
-          isFiltered={filter !== null}
-        />
+        <ActivityEmptyState isConnected={isConnected} isFiltered={isNarrowed} />
       ) : (
         // Rows grouped under date headers. Each row is its own card, the same
         // one the Vaults tab uses — except a liquidation, whose child events
         // share one card with divider-separated rows.
         <div className="flex flex-col gap-6">
           {groupByDate(visible, new Date()).map((group) => (
-            <div key={group.label} className="flex flex-col gap-3">
+            <div key={group.label} className="flex flex-col gap-2">
               <p className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
                 {group.label}
               </p>
@@ -150,9 +178,15 @@ export function ActivityList({
                 {group.rows.map((r) => (
                   <li key={r.id}>
                     {r.kind === "liquidationGroup" ? (
-                      <LiquidationGroupCardV3 row={r} />
+                      <LiquidationGroupCardV3 row={r} prices={prices} />
                     ) : (
-                      <ListRowCard>
+                      <ListRowCard
+                        // A refunded deposit loses the card fill, as the
+                        // design draws it; the row itself fades.
+                        className={twJoin(
+                          r.isExpired && "bg-transparent dark:bg-transparent",
+                        )}
+                      >
                         <ActivityRowV3
                           row={r}
                           prices={prices}

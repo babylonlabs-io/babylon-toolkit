@@ -22,6 +22,7 @@ import type {
 
 import {
   formatAmount,
+  toNumericAmount,
   VAULT_COLLATERAL_ASSET,
   type FetchUserActivitiesDeps,
 } from "./projection";
@@ -93,6 +94,10 @@ export function buildLiquidationGroup(
   const collateralAmount: ActivityAmount = {
     value: formatAmount(liquidation.amount, VAULT_COLLATERAL_ASSET.decimals),
     symbol: VAULT_COLLATERAL_ASSET.symbol,
+    numeric: toNumericAmount(
+      liquidation.amount,
+      VAULT_COLLATERAL_ASSET.decimals,
+    ),
   };
 
   const repayReserve =
@@ -105,6 +110,11 @@ export function buildLiquidationGroup(
           ? formatAmount(repay.amount, repayReserve.decimals)
           : repay.amount,
         symbol: repayReserve?.symbol ?? "—",
+        // Without the reserve the token's decimals are unknown, so the raw
+        // amount cannot be scaled — leave it unpriced.
+        numeric: repayReserve
+          ? toNumericAmount(repay.amount, repayReserve.decimals)
+          : undefined,
       }
     : null;
   const debtIcon = repayReserve?.icon ?? "";
