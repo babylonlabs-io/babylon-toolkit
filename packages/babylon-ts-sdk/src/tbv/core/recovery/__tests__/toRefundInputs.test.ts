@@ -333,6 +333,28 @@ describe("toRefundInputs", () => {
     expect(context.timelockRefund).toBe(OFFCHAIN.timelockRefund);
   });
 
+  // The refund orchestrator accepts "32 or 33 bytes of hex" and narrows to
+  // x-only itself, so the projection must not narrow early — a wallet's
+  // compressed key has to survive the hand-off intact.
+  it("passes a wallet's compressed pubkey through unchanged", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 1_000_000n },
+    ];
+    const txHex = await buildFundedTx(siblings);
+    const compressed = `02${DEPOSITOR}`;
+
+    const { vault } = toRefundInputs(await recover(siblings, txHex), {
+      htlcVout: 0,
+      depositorBtcPubkey: compressed,
+      applicationEntryPoint: APP_ENTRY_POINT,
+      fundedPrePeginTxHex: txHex,
+      hashlocks: siblings.map((s) => s.hashlock),
+      network: NETWORK,
+    });
+
+    expect(vault.depositorBtcPubkey).toBe(compressed);
+  });
+
   it("refuses an htlcVout outside the reconstructed batch", async () => {
     const siblings: Sibling[] = [
       { hashlock: "ab".repeat(32), amount: 1_000_000n },

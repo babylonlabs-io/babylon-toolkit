@@ -37,9 +37,16 @@ export interface ToRefundInputsOptions {
    */
   htlcVout: number;
   /**
-   * Depositor x-only BTC pubkey, the same value the reconstruction was run
-   * with. Passed through rather than re-derived so the refund is built against
-   * the key that was actually verified.
+   * Depositor BTC pubkey, the same value the reconstruction was run with.
+   * Passed through rather than re-derived so the refund is built against the
+   * key that was actually verified.
+   *
+   * Deliberately NOT narrowed to x-only here. `VaultRefundData.depositorBtcPubkey`
+   * accepts "32 or 33 bytes of hex", and `buildAndBroadcastRefund` narrows it
+   * with `processPublicKeyToXOnly` before it reaches the PSBT builder — so a
+   * wallet's compressed key flows through unchanged, which is what wallets
+   * actually return. Narrowing early would discard the parity byte the
+   * orchestrator's own validation accepts.
    */
   depositorBtcPubkey: string;
   /**

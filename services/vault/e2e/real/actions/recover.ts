@@ -28,6 +28,7 @@ import {
   buildPeginParamsCandidates,
   calculateBtcTxHash,
   deriveHashlocksFromPrePegin,
+  processPublicKeyToXOnly,
   reconstructPeginParams,
   resolveCurrentParticipantKeys,
   resolveProtocolAddresses,
@@ -42,6 +43,7 @@ import { gql } from "graphql-request";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import { sepolia } from "viem/chains";
 
+import type { NetworkName } from "../config";
 import {
   createGraphQLClient,
   resolveNetworkContracts,
@@ -61,6 +63,32 @@ const WALLET_CALL_TIMEOUT_MS = 120_000;
 
 /** Fee rate for the rehearsal's refund. Never broadcast, so it only has to be plausible. */
 const REFUND_FEE_RATE_SAT_VB = 2;
+
+/**
+ * The WASM network descriptor, taken from the SDK's own signature rather than
+ * imported from the WASM package (not a direct dependency of this project).
+ */
+type BtcNetwork = Parameters<typeof reconstructPeginParams>[0]["network"];
+
+/**
+ * BTC network per harness network, typed rather than cast. The value reaches
+ * HTLC script construction, so a wrong one silently builds against the wrong
+ * script tree; `as never` would hide exactly that.
+ */
+const BTC_NETWORK: Record<NetworkName, BtcNetwork> = {
+  devnet: "signet" as BtcNetwork,
+  testnet: "signet" as BtcNetwork,
+};
+
+/**
+ * The commission ceiling the rehearsal declares. It never reaches the HTLC
+ * script or value, so for a rehearsal the widest admissible bound is right:
+ * `buildDepositTerms` requires an integer strictly below 10_000.
+ */
+const REHEARSAL_MAX_COMMISSION_BPS = 9_999;
+
+/** One unresponsive Esplora request must not hang the rehearsal indefinitely. */
+const ESPLORA_TIMEOUT_MS = 15_000;
 
 /** Public signet Esplora, used only to price the Pre-PegIn's inputs. */
 const DEFAULT_BTC_API = "https://mempool.space/signet/api";
@@ -150,10 +178,20 @@ async function callProvider(
   );
 
   let done = false;
+  // A sweep failure is why an approval never lands, so discarding it leaves the
+  // run to die at the timeout with no cause recorded. Reported once per call:
+  // the loop ticks ~2.5×/s, and a persistent fault would otherwise bury the log.
+  let sweepFailureReported = false;
   const sweeper = (async () => {
     while (!done) {
       await ctx.page.waitForTimeout(400);
-      await sweepApprovals(ctx.context, ctx.page, ctx.log).catch(() => {});
+      await sweepApprovals(ctx.context, ctx.page, ctx.log).catch((err) => {
+        if (sweepFailureReported) return;
+        sweepFailureReported = true;
+        ctx.log(
+          `  approval sweep failed during ${method} (continuing): ${String(err)}`,
+        );
+      });
     }
   })();
   const timeout = new Promise<never>((_, reject) =>
@@ -186,13 +224,22 @@ async function computePrepeginFee(
   let totalIn = 0n;
   for (const input of tx.ins) {
     const txid = Buffer.from(input.hash).reverse().toString("hex");
-    const res = await fetch(`${btcApi}/tx/${txid}`);
+    const res = await fetch(`${btcApi}/tx/${txid}`, {
+      signal: AbortSignal.timeout(ESPLORA_TIMEOUT_MS),
+    });
     if (!res.ok)
       throw new Error(
         `Esplora ${res.status} pricing input ${txid}:${input.index}`,
       );
     const prev = (await res.json()) as { vout: { value: number }[] };
-    totalIn += BigInt(prev.vout[input.index].value);
+    const prevOut = prev.vout[input.index];
+    // Without this, a short vout array yields BigInt(undefined) — a TypeError
+    // that says nothing about the transaction that actually went missing.
+    if (prevOut === undefined)
+      throw new Error(
+        `Esplora returned no vout ${input.index} for input tx ${txid}.`,
+      );
+    totalIn += BigInt(prevOut.value);
   }
   const fee = totalIn - totalOut;
   log(`  Pre-PegIn fee: Σin ${totalIn} − Σout ${totalOut} = ${fee} sat`);
@@ -217,6 +264,7 @@ export const recoverAction: Action = {
       config.network,
     );
     const btcApi = process.env.NEXT_PUBLIC_MEMPOOL_API ?? DEFAULT_BTC_API;
+    const btcNetwork = BTC_NETWORK[config.network];
 
     installPopupApprover(ctx.context, log);
 
@@ -251,7 +299,29 @@ export const recoverAction: Action = {
       const key = v.unsignedPrePeginTx as string;
       byPrePegin.set(key, [...(byPrePegin.get(key) ?? []), v]);
     }
-    const groups = [...byPrePegin.values()].sort((a, b) => {
+    // `--txid` pins the deposit, which is how a real recovery starts: from a
+    // Pre-PegIn hash the depositor supplies. Without it, pick by preference.
+    const wanted = config.recoverTxid?.trim().replace(/^0x/i, "").toLowerCase();
+    const allGroups = [...byPrePegin.values()];
+    const targeted = wanted
+      ? allGroups.filter(
+          (g) =>
+            stripHex(
+              calculateBtcTxHash(g[0].unsignedPrePeginTx as string),
+            ).toLowerCase() === wanted,
+        )
+      : allGroups;
+    if (wanted && targeted.length === 0)
+      throw new Error(
+        `recover: no deposit of ${ctx.eth.address} has Pre-PegIn txid ${wanted}. ` +
+          `Available: ${allGroups
+            .map((g) =>
+              stripHex(calculateBtcTxHash(g[0].unsignedPrePeginTx as string)),
+            )
+            .join(", ")}`,
+      );
+
+    const groups = [...targeted].sort((a, b) => {
       if (a.length !== b.length) return b.length - a.length;
       return Math.min(...a.map(statusRank)) - Math.min(...b.map(statusRank));
     });
@@ -278,9 +348,11 @@ export const recoverAction: Action = {
       await callProvider(ctx, providerPath, "getPublicKey", []),
     );
     log(`  Wallet pubkey: ${walletPubkey}`);
-    // Compare in the same form: wallets return the 33-byte compressed key,
-    // the row stores x-only. Comparing raw would flag every healthy run.
-    const walletXOnly = stripHex(walletPubkey).slice(-64).toLowerCase();
+    // Compare in the same form: wallets return the 33-byte compressed key, the
+    // row stores x-only. Comparing raw would flag every healthy run, and
+    // slicing the last 64 chars would take the Y coordinate of an uncompressed
+    // key rather than the X.
+    const walletXOnly = processPublicKeyToXOnly(walletPubkey);
     if (walletXOnly !== stripHex(target.depositorBtcPubKey).toLowerCase())
       log(
         `  NOTE: the connected wallet's key (${walletXOnly}) is not the row's ` +
@@ -420,8 +492,8 @@ export const recoverAction: Action = {
       fundedPrePeginTxHex,
       depositorBtcPubkey: walletPubkey,
       prepeginMaxFee,
-      maxAcceptableCommissionBps: 10_000 - 1,
-      network: "signet" as never,
+      maxAcceptableCommissionBps: REHEARSAL_MAX_COMMISSION_BPS,
+      network: btcNetwork,
       candidates,
       unresolvedVersions: [],
     });
@@ -447,7 +519,7 @@ export const recoverAction: Action = {
       applicationEntryPoint: target.applicationEntryPoint as Address,
       fundedPrePeginTxHex,
       hashlocks: derived.hashlocks,
-      network: "signet" as never,
+      network: btcNetwork,
     });
 
     // Run the REAL refund orchestrator, not a hand-rolled build. It signs with

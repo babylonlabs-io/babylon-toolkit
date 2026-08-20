@@ -353,6 +353,12 @@ async function resolveConfig(
       action === "resume" && typeof flags.txid === "string"
         ? flags.txid
         : undefined;
+    // `--txid` also targets a specific deposit for `recover`, which is how a real
+    // recovery starts: from a Pre-PegIn hash the depositor supplies.
+    const recoverTxid =
+      action === "recover" && typeof flags.txid === "string"
+        ? flags.txid
+        : undefined;
 
     // Pegin extras. A flag always wins; otherwise fetch the network's real values (like the balance
     // pre-flight) and offer them as defaults — amount ⇒ minimum, provider ⇒ first available. Collected
@@ -630,6 +636,7 @@ async function resolveConfig(
       repayFirst,
       withdrawAll,
       resumeTxid,
+      recoverTxid,
       interruptFresh,
       interruptOnly,
     };

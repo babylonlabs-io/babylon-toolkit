@@ -186,6 +186,12 @@ export interface RunConfig {
    */
   resumeTxid?: string;
   /**
+   * Recover only: target a specific deposit by its Pre-PegIn txid (`--txid`). When absent the
+   * rehearsal picks a batched Pre-PegIn if one exists (the sibling path is the riskier code), then
+   * the most refundable deposit in it.
+   */
+  recoverTxid?: string;
+  /**
    * Resume only: peg in a fresh deposit and interrupt it after Pre-PegIn broadcast (`--interrupt-fresh`),
    * reloading the page to a cold state, then resume it from the dashboard — a fully self-contained run.
    * When absent, resume expects an already-pending deposit to be present.
