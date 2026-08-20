@@ -1349,6 +1349,72 @@ PSBT hex ready for depositor signing
 
 ***
 
+### AssertKeyPathSchnorrSignatureParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Hex of the PSBT we built and sent (trusted prevout scripts/values). NOT the wallet's.
+
+##### signatureHex
+
+```ts
+signatureHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+64- or 65-byte signature, hex.
+
+##### inputIndex
+
+```ts
+inputIndex: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Index of the input the signature is for.
+
+***
+
+### AssertReturnedKeyPathSignaturesParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+PSBT we built locally and asked the wallet to sign.
+
+##### returnedPsbtHex
+
+```ts
+returnedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+PSBT the wallet returned after signing.
+
+***
+
 ### VerifyScriptPathSchnorrSignatureParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyScriptPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyScriptPathSchnorrSignature.ts)
@@ -2377,6 +2443,67 @@ If the HTLC output at htlcVout is not found
 #### Throws
 
 If the refund transaction does not have exactly 1 input
+
+***
+
+### assertKeyPathSchnorrSignature()
+
+```ts
+function assertKeyPathSchnorrSignature(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Assert that `signatureHex` is a valid BIP-340 Schnorr signature over the
+Taproot key-path sighash of `requestedPsbtHex` input `inputIndex`, under the
+tweaked output key taken from that input's prevout scriptPubKey.
+
+#### Parameters
+
+##### params
+
+[`AssertKeyPathSchnorrSignatureParams`](#assertkeypathschnorrsignatureparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+If the input is not a key-path P2TR spend, the requested PSBT lacks
+        the prevout data needed to recompute the sighash, or the signature
+        does not verify.
+
+***
+
+### assertReturnedKeyPathSignatures()
+
+```ts
+function assertReturnedKeyPathSignatures(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Verify every key-path-eligible input of the REQUESTED PSBT against what the
+wallet RETURNED: `tapKeySig`, or the single finalized witness item for wallets
+that auto-finalize — and when both are present they must be the same bytes.
+Script-path inputs are skipped (they have their own check).
+
+#### Parameters
+
+##### params
+
+[`AssertReturnedKeyPathSignaturesParams`](#assertreturnedkeypathsignaturesparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+If the input counts differ, an eligible input carries no signature, a
+        finalized witness disagrees with its `tapKeySig`, or any signature
+        does not verify.
 
 ***
 

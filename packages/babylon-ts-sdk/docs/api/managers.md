@@ -382,9 +382,18 @@ wallet to the connected ETH account for this chain and vault
 registry. The returned [PopSignature](#popsignature) can be reused across
 every register call in the same session.
 
+A one-item (P2TR) witness is verified against the depositor key before
+it is returned — see verifyPopWitness. Two-item (P2WPKH)
+witnesses are not yet verified host-side.
+
 ###### Returns
 
 `Promise`\<[`PopSignature`](#popsignature)\>
+
+###### Throws
+
+If the wallet returns a malformed witness or a P2TR signature
+        that does not verify.
 
 ##### getNetwork()
 

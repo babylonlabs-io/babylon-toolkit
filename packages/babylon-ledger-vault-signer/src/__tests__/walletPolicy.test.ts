@@ -60,6 +60,27 @@ describe("buildDefaultTaprootPolicy", () => {
     ).toThrow(/non-negative integers/);
   });
 
+  it("accepts the largest index a hardened path component can hold", () => {
+    const policy = buildDefaultTaprootPolicy({
+      masterFingerprintHex: FINGERPRINT,
+      coinType: 0x7fffffff,
+      accountIndex: 0x7fffffff,
+      accountXpub: TPUB,
+    });
+    expect(policy.keyInfo).toBe(`[f5acc2fd/86'/2147483647'/2147483647']${TPUB}`);
+  });
+
+  it("rejects an index that would overflow hardened derivation", () => {
+    expect(() =>
+      buildDefaultTaprootPolicy({
+        masterFingerprintHex: FINGERPRINT,
+        coinType: 1,
+        accountIndex: 0x80000000,
+        accountXpub: TPUB,
+      }),
+    ).toThrow(/coinType and accountIndex/);
+  });
+
   it("rejects an empty xpub", () => {
     expect(() =>
       buildDefaultTaprootPolicy({ masterFingerprintHex: FINGERPRINT, coinType: 1, accountIndex: 0, accountXpub: "" }),

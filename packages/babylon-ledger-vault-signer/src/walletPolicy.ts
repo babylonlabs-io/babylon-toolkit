@@ -20,6 +20,8 @@ import { DefaultWalletPolicy } from "./vendor/ledger-bitcoin/policy";
 
 export const DEFAULT_TAPROOT_DESCRIPTOR_TEMPLATE = "tr(@0/**)";
 const BIP86_PURPOSE = 86;
+// Hardened derivation adds 0x80000000, so the component itself must fit in 31 bits.
+const MAX_HARDENED_CHILD_INDEX = 0x7fffffff;
 const FINGERPRINT_HEX_RE = /^[0-9a-f]{8}$/;
 
 export interface DefaultTaprootWalletPolicy {
@@ -45,8 +47,15 @@ export function buildDefaultTaprootPolicy(params: BuildDefaultTaprootPolicyParam
   if (!FINGERPRINT_HEX_RE.test(masterFingerprintHex)) {
     throw new Error("masterFingerprintHex must be 8 lowercase hex characters");
   }
-  if (!Number.isInteger(coinType) || coinType < 0 || !Number.isInteger(accountIndex) || accountIndex < 0) {
-    throw new Error("coinType and accountIndex must be non-negative integers");
+  if (
+    !Number.isInteger(coinType) ||
+    coinType < 0 ||
+    coinType > MAX_HARDENED_CHILD_INDEX ||
+    !Number.isInteger(accountIndex) ||
+    accountIndex < 0 ||
+    accountIndex > MAX_HARDENED_CHILD_INDEX
+  ) {
+    throw new Error("coinType and accountIndex must be non-negative integers in 0..0x7fffffff");
   }
   if (accountXpub.length === 0) {
     throw new Error("accountXpub must be the device's extended key string");

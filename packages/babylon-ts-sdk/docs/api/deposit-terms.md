@@ -310,6 +310,26 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 
 `Promise`\<`void`\>
 
+##### getChangeAddress()
+
+```ts
+getChangeAddress(): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+The address Pre-PegIn change must pay to. Approval (policy) wallets sign
+key-path under a wallet policy whose change branch the device alone can
+derive and mark internal — the receive address is NOT acceptable change
+(`process_in_outs.c:114-117` @ e400d8d8).
+
+MUST be stable across a deposit flow: the app reads it to build the tx and
+`preparePegin` re-reads it to verify, so mid-flow rotation fails that gate.
+
+###### Returns
+
+`Promise`\<`string`\>
+
 ***
 
 ### BuildDepositTermsInputs
@@ -799,6 +819,8 @@ function supportsDepositApproval(wallet): wallet is BitcoinWallet & DepositTerms
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 True when the wallet implements [DepositTermsApprover.approveDepositTerms](#approvedepositterms).
+Narrows to the whole interface: a provider with one method and not the other
+is a provider bug, not a shape this seam supports.
 
 #### Parameters
 
@@ -820,7 +842,7 @@ function forwardDepositApproval(wallet): Partial<DepositTermsApprover>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Spreadable forward of `approveDepositTerms` for wallet-wrapper objects.
+Spreadable forward of the approval capability for wallet-wrapper objects.
 Object spread drops prototype methods, so every `{...wallet}` wrapper site
 must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
 
