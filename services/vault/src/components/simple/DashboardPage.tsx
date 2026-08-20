@@ -209,8 +209,9 @@ export function DashboardPage() {
       ? formatBasisPointsAsPercent(collateralFactorBps)
       : COPY.common.emptyValue;
 
-  // The cascade banner sits between the Position and Risk sections (Figma
-  // 10204-45310).
+  // The cascade banner and the max-vaults notice share the same slot between
+  // the Position and Risk sections — same "Notifications" instance in both
+  // the default and critical states (Figma 10094-26791, 10204-45310).
   const cascadeBanner = liquidationNotificationsEnabled ? (
     <PositionNotificationBanner
       connectedAddress={address}
@@ -235,18 +236,12 @@ export function DashboardPage() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
-        {/* Notifications sit above Overview per Figma (frame 6508-114810). The
-            critical top banner, the max-vaults notice, and the cascade banner
-            share this slot. */}
+        {/* Full-bleed alert bar above the header/sidebar row, not part of this
+            column — it portals into RootLayout's top-banner slot (Figma frame
+            10204-45613; see CriticalLiquidationTopBanner). */}
         {liquidationNotificationsEnabled && (
           <CriticalLiquidationTopBanner result={criticalBannerResult} />
         )}
-
-        {/* "Maximum vaults reached" is a value-protection capacity fact shown
-            ALWAYS (independent of the liquidation-notifications flag and of BTC
-            price), and decoupled from the cascade banner so a stale-price or
-            all-pending position still surfaces it. */}
-        <MaxVaultsNotification connectedAddress={address} />
 
         <OverviewSection
           totalCollateralValue={totalCollateralValue}
@@ -263,6 +258,12 @@ export function DashboardPage() {
           canBorrow={canBorrow}
           canRepay={hasLoans}
         />
+
+        {/* "Maximum vaults reached" is a value-protection capacity fact shown
+            ALWAYS (independent of the liquidation-notifications flag and of BTC
+            price), and decoupled from the cascade banner so a stale-price or
+            all-pending position still surfaces it. */}
+        <MaxVaultsNotification connectedAddress={address} />
 
         {cascadeBanner}
 
