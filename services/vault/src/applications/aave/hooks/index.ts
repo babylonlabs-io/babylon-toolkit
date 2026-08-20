@@ -40,6 +40,10 @@ export {
   type UseBorrowTransactionResult,
 } from "./useBorrowTransaction";
 export {
+  useBtcPriceCandles,
+  type UseBtcPriceCandlesResult,
+} from "./useBtcPriceCandles";
+export {
   useInterestRateModelCurve,
   type UseInterestRateModelCurveResult,
 } from "./useInterestRateModelCurve";
