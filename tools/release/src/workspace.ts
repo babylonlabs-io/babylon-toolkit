@@ -39,7 +39,7 @@ interface NxReleaseConfigFile {
   };
 }
 
-export const readJsonFile = <T>(path: string): T =>
+const readJsonFile = <T>(path: string): T =>
   JSON.parse(readFileSync(path, 'utf8')) as T;
 
 export const writeManifest = (

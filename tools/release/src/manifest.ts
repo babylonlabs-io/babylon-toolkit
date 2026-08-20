@@ -22,7 +22,7 @@ export type PublishedDependencySection =
  * Specs that only resolve against the local checkout. None of them can be
  * resolved by a consumer installing from a registry.
  */
-export const LOCAL_DEPENDENCY_PROTOCOLS = [
+const LOCAL_DEPENDENCY_PROTOCOLS = [
   'workspace:',
   'file:',
   'link:',
@@ -109,13 +109,13 @@ export interface ManifestViolation {
   readonly reason: string;
 }
 
-export const isLocalDependencySpec = (spec: string): boolean =>
+const isLocalDependencySpec = (spec: string): boolean =>
   LOCAL_DEPENDENCY_PROTOCOLS.some((protocol) => spec.startsWith(protocol));
 
 export const isExactVersion = (spec: string): boolean =>
   EXACT_VERSION_PATTERN.test(spec);
 
-export const isPlaceholderVersion = (version: string): boolean =>
+const isPlaceholderVersion = (version: string): boolean =>
   PLACEHOLDER_VERSION_PATTERN.test(version);
 
 /**

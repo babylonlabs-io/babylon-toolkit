@@ -91,6 +91,7 @@ export const materializeAndPinManifests = async ({
 
     if (publishing.has(packageName)) {
       const siblings = await resolveSiblings({
+        consumerName: packageName,
         manifest,
         releasePackages,
         resolvedVersions,
@@ -178,11 +179,13 @@ const resolveReleasedVersions = (
 };
 
 const resolveSiblings = async ({
+  consumerName,
   manifest,
   releasePackages,
   resolvedVersions,
   releaseTags,
 }: {
+  consumerName: string;
   manifest: PackageManifest;
   releasePackages: ReleasePackages;
   resolvedVersions: ResolvedVersions;
@@ -199,7 +202,7 @@ const resolveSiblings = async ({
         dependencyName,
         await resolveSibling({
           packageName: dependencyName,
-          consumerName: manifest.name ?? '(unnamed package)',
+          consumerName,
           releasePackages,
           resolvedVersions,
           releaseTags,
