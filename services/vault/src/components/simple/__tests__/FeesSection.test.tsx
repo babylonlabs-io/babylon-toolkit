@@ -5,7 +5,11 @@ import { FeesSection, type FeeRow } from "../FeesSection";
 
 const rows: FeeRow[] = [
   { label: "Min deposit", value: "0.0005 BTC" },
-  { label: "Collateral Factor", value: "72%" },
+  {
+    label: "Collateral Factor",
+    value: "72%",
+    tooltip: "Share of your collateral you can borrow against.",
+  },
 ];
 
 describe("FeesSection", () => {
@@ -45,6 +49,18 @@ describe("FeesSection", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Min deposit")).toBeVisible();
     expect(screen.getByText("Collateral Factor")).toBeVisible();
+  });
+
+  it("gives a row with a tooltip its own trigger and leaves the others bare", () => {
+    render(<FeesSection rows={rows} />);
+
+    const tooltips = Array.from(
+      document.querySelectorAll("[data-tooltip-content]"),
+    ).map((node) => node.getAttribute("data-tooltip-content"));
+
+    expect(tooltips).toEqual([
+      "Share of your collateral you can borrow against.",
+    ]);
   });
 
   it("keeps the collapsed panel out of the layout at zero height", () => {
