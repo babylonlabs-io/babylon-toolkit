@@ -67,16 +67,17 @@ export const materializeAndPinManifests = async ({
   writeManifest,
   dryRun,
 }: PinManifestsOptions): Promise<void> => {
-  const resolvedVersions = resolveReleasedVersions(
-    projectsVersionData,
-    releasePackages
-  );
-
   const publishing = new Set(
     projectsToPublish.map(
       (projectName) =>
         releasePackageForProject(releasePackages, projectName).packageName
     )
+  );
+
+  const resolvedVersions = resolveReleasedVersions(
+    projectsVersionData,
+    releasePackages,
+    publishing
   );
 
   for (const [packageName, releasePackage] of releasePackages) {
@@ -156,9 +157,18 @@ export const materializeAndPinManifests = async ({
  * released has no tag and no truthful version, but it only matters once
  * something published depends on it.
  */
+/**
+ * `publishedByThisRun` is what suppresses both registry guards for a sibling,
+ * so it has to mean "this run will actually publish it" - not "nx gave it a
+ * version". The two were the same predicate until the prerelease gate started
+ * dropping stable-numbered dependents from the publish set; a dropped project
+ * left marked published would have its version pinned into a sibling with no
+ * check at all, which is the phantom pin this whole module exists to stop.
+ */
 const resolveReleasedVersions = (
   projectsVersionData: ProjectsVersionData,
-  releasePackages: ReleasePackages
+  releasePackages: ReleasePackages,
+  publishing: ReadonlySet<string>
 ): ResolvedVersions => {
   const resolved = new Map<string, SiblingRelease>();
 
@@ -171,7 +181,7 @@ const resolveReleasedVersions = (
     resolved.set(packageName, {
       packageName,
       version: versions.newVersion ?? versions.currentVersion,
-      publishedByThisRun: versions.newVersion !== null,
+      publishedByThisRun: publishing.has(packageName),
     });
   }
 

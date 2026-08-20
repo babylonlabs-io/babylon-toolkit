@@ -185,6 +185,59 @@ describe('materializeAndPinManifests', () => {
     );
   });
 
+  it('refuses to pin a sibling that nx versioned but the prerelease gate dropped from the run', async () => {
+    // The gate drops a stable-numbered dependent nx dragged into an RC run.
+    // nx still reports a newVersion for it, so if `publishedByThisRun` were
+    // read off the version data the pin would be written unchecked - the
+    // phantom pin this module exists to stop.
+    const writeManifest = vi.fn();
+
+    await expect(
+      materializeAndPinManifests({
+        projectsToPublish: ['@babylonlabs-io/wallet-connector'],
+        projectsVersionData: {
+          '@babylonlabs-io/wallet-connector': {
+            currentVersion: '1.69.0',
+            newVersion: '1.69.1-rc.0',
+          },
+          '@babylonlabs-io/ts-sdk': {
+            currentVersion: '0.63.0',
+            newVersion: '0.63.1',
+          },
+        },
+        releasePackages: new Map([
+          releasePackage(
+            '@babylonlabs-io/wallet-connector',
+            '/packages/babylon-wallet-connector/package.json',
+            {
+              name: '@babylonlabs-io/wallet-connector',
+              version: '1.69.0',
+              dependencies: { '@babylonlabs-io/ts-sdk': 'workspace:*' },
+            }
+          ),
+          releasePackage(
+            '@babylonlabs-io/ts-sdk',
+            '/packages/babylon-ts-sdk/package.json',
+            { name: '@babylonlabs-io/ts-sdk', version: '0.63.0' }
+          ),
+        ]),
+        registry: registryWith({ '@babylonlabs-io/ts-sdk': ['0.63.0'] }),
+        releaseTags: releaseTagsFor({
+          '@babylonlabs-io/ts-sdk': ['0.63.0'],
+        }),
+        writeManifest,
+        dryRun: false,
+      })
+    ).rejects.toThrow('0.63.1');
+
+    expect(writeManifest).not.toHaveBeenCalledWith(
+      '/packages/babylon-wallet-connector/package.json',
+      expect.objectContaining({
+        dependencies: { '@babylonlabs-io/ts-sdk': '0.63.1' },
+      })
+    );
+  });
+
   it('refuses to publish a package that depends on a private workspace package', async () => {
     // nx versions and tags a private package but never publishes it, so
     // wallet-connector@1.66.1 shipped pinning a signer version that only ever
