@@ -19,6 +19,8 @@ import {
   LedgerSignPsbtProtocolError,
   LedgerUserRefusedError,
 } from "@babylonlabs-io/ledger-vault-signer";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Network } from "@/core/types";
@@ -28,6 +30,9 @@ import { ERROR_CODES, WalletError } from "@/error";
 /** BIP-86 first-address vector: x-only key and its published P2TR address. */
 const VECTOR_XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
 const VECTOR_MAINNET_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
+/** The `m/86'/1'/0'` account xpub the device reports (testnet versions). */
+const ACCOUNT_XPUB =
+  "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U";
 
 const h = vi.hoisted(() => ({
   session: { dmk: {}, sessionId: "s1", appName: "Babylon Vault", appVersion: "0.9.5" },
@@ -44,10 +49,7 @@ const dmkSessionMock = vi.hoisted(() => ({
 const derivationMock = vi.hoisted(() => ({
   getXOnlyPublicKeyHex: vi.fn(async () => VECTOR_XONLY),
   getMasterFingerprintHex: vi.fn(async () => "73c5da0a"),
-  getExtendedPublicKey: vi.fn(
-    async () =>
-      "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U",
-  ),
+  getExtendedPublicKey: vi.fn(async () => ACCOUNT_XPUB),
 }));
 
 // The SIGN_PSBT core is the signer package's own tested surface; here it is
@@ -107,17 +109,29 @@ const approveApdus = () => h.sent.filter((a) => a.ins === INS_APPROVE_VAULT_INTE
  * signer's discriminant so a rename breaks this file's compile), the request
  * identity, and the merge source the device mock echoes back.
  */
-function fakePrepared(psbtHex: string, kind: InputSigExpectation["kind"] = "tapscript", unsignedTxid?: string) {
-  const expectation =
-    kind === "tapscript"
-      ? { kind, expectedLeafHashHexes: new Set(["ef".repeat(32)]), expectedSignerXOnlyHex: "ab".repeat(32) }
-      : { kind, expectedOutputKeyHex: "cd".repeat(32) };
+function fakePrepared(psbtHex: string, unsignedTxid?: string) {
+  const expectation: InputSigExpectation = {
+    kind: "tapscript",
+    expectedLeafHashHexes: new Set(["ef".repeat(32)]),
+    expectedSignerXOnlyHex: "ab".repeat(32),
+  };
   return {
     originalPsbtHex: psbtHex,
     // Case-insensitive like the real txid (decoded bytes, not hex casing).
     unsignedTxid: unsignedTxid ?? `txid-${psbtHex.toLowerCase()}`,
     table: { byInput: new Map([[0, expectation]]), expectedYieldCount: 1 },
   };
+}
+
+/** The unmocked signer package — these tests drive its real prepare/derive paths. */
+function actualSigner() {
+  return vi.importActual<typeof import("@babylonlabs-io/ledger-vault-signer")>("@babylonlabs-io/ledger-vault-signer");
+}
+
+/** x-only key at `m/86'/1'/0'/1/0` under {@link ACCOUNT_XPUB} — the device's change key. */
+async function changeXOnlyHex(): Promise<string> {
+  const { deriveChangeXOnlyHex } = await actualSigner();
+  return deriveChangeXOnlyHex(ACCOUNT_XPUB, toNetwork(Network.SIGNET).bip32, 0);
 }
 
 beforeEach(() => {
@@ -493,16 +507,160 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
-    it("rejects a keypath table actionably — Pre-PegIn needs the wallet-policy path", async () => {
-      const provider = await approved();
-      signMock.prepareSignPsbt.mockImplementationOnce(({ psbtHex }: { psbtHex: string }) =>
-        fakePrepared(psbtHex, "taproot-keypath"),
+    /** BIP-86 P2TR script of an x-only key. */
+    function bip86Script(xOnlyHex: string): Buffer {
+      initEccLib(ecc);
+      return payments.p2tr({ internalPubkey: Buffer.from(xOnlyHex, "hex") }).output!;
+    }
+
+    /** An HTLC-shaped P2TR output: a raw witness program the wallet does not own. */
+    const HTLC_SCRIPT = Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0xbb)]);
+
+    /**
+     * A real key-path Pre-PegIn-shaped PSBT so the REAL `prepareSignPsbt` (not
+     * mocked in these tests) classifies it as taproot-keypath: every input is
+     * the depositor's BIP-86 P2TR.
+     */
+    function keyPathPsbtHex(outputScripts: Buffer[], inputCount = 1): string {
+      const depositorKey = Buffer.from(VECTOR_XONLY, "hex");
+      const psbt = new Psbt();
+      for (let i = 0; i < inputCount; i++) {
+        psbt.addInput({
+          hash: Buffer.alloc(32, i + 1),
+          index: 0,
+          witnessUtxo: { script: bip86Script(VECTOR_XONLY), value: 100_000 },
+          tapInternalKey: depositorKey,
+        });
+      }
+      for (const script of outputScripts) psbt.addOutput({ script, value: 90_000 });
+      return psbt.toHex();
+    }
+
+    it("routes an all-key-path PSBT through wallet-policy mode with derivation fields added", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-keypath", yields: [] }));
+      const p = await approved();
+      const changeXOnly = await changeXOnlyHex();
+
+      await expect(
+        p.signPsbt(keyPathPsbtHex([HTLC_SCRIPT, bip86Script(changeXOnly)]), { autoFinalized: false }),
+      ).resolves.toBe("signed-keypath");
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
+      expect(Buffer.from(augmented.data.inputs[0].tapBip32Derivation![0].masterFingerprint).toString("hex")).toBe(
+        "73c5da0a",
+      );
+      // The change output carries the branch-1 derivation the device needs to
+      // mark it internal — without it `_validate_prepegin` rejects the output.
+      expect(augmented.data.outputs[1].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/1/0");
+      expect(Buffer.from(augmented.data.outputs[1].tapInternalKey!).toString("hex")).toBe(changeXOnly);
+      // The HTLC output is not ours — marking it internal would fail on-device.
+      expect(augmented.data.outputs[0].tapBip32Derivation).toBeUndefined();
+    });
+
+    it("adds no output derivation when the PSBT pays the wallet no change", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-keypath", yields: [] }));
+      const p = await approved();
+
+      await expect(p.signPsbt(keyPathPsbtHex([bip86Script("aa".repeat(32))]), { autoFinalized: false })).resolves.toBe(
+        "signed-keypath",
       );
 
-      await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/wallet-policy path/);
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
+      expect(augmented.data.outputs.every((out) => !out.tapBip32Derivation)).toBe(true);
+    });
+
+    it("signs a change-less Max sweep — every depositor input marked, no change output", async () => {
+      // computeMaxDeposit emits no change (`peginFeeMath.ts:162-165`), and
+      // dust-revert drops it too; the firmware accepts zero change.
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-sweep", yields: [] }));
+      const p = await approved();
+
+      await expect(p.signPsbt(keyPathPsbtHex([HTLC_SCRIPT], 2), { autoFinalized: false })).resolves.toBe(
+        "signed-sweep",
+      );
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs.map((input) => input.tapBip32Derivation?.[0].path)).toEqual([
+        "m/86'/1'/0'/0/0",
+        "m/86'/1'/0'/0/0",
+      ]);
+      expect(augmented.data.outputs[0].tapBip32Derivation).toBeUndefined();
+    });
+
+    it("surfaces a disconnect during the policy read as a disconnection, not a bad PSBT", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await approved();
+      const psbtHex = keyPathPsbtHex([bip86Script(await changeXOnlyHex())]);
+      derivationMock.getExtendedPublicKey.mockImplementationOnce(async () => {
+        await p.disconnect();
+        return ACCOUNT_XPUB;
+      });
+
+      await expect(p.signPsbt(psbtHex, { autoFinalized: false })).rejects.toMatchObject({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+      });
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
-      // The rejection cost no ceremony: the intent still signs.
-      await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+
+    it("keeps tapscript PSBTs on the no-policy path (walletPolicy undefined)", async () => {
+      const p = await approved();
+
+      await p.signPsbt(PSBT_A, { autoFinalized: false });
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.walletPolicy).toBeUndefined();
+    });
+
+    it("rejects a PSBT mixing key-path and tapscript inputs before any device I/O", async () => {
+      signMock.prepareSignPsbt.mockImplementation(({ psbtHex }: { psbtHex: string }) => ({
+        ...fakePrepared(psbtHex),
+        table: {
+          byInput: new Map([
+            [0, { kind: "taproot-keypath", expectedOutputKeyHex: "00".repeat(32) }],
+            [
+              1,
+              {
+                kind: "tapscript",
+                expectedLeafHashHexes: new Set(["11".repeat(32)]),
+                expectedSignerXOnlyHex: VECTOR_XONLY,
+              },
+            ],
+          ]),
+          expectedYieldCount: 2,
+        },
+      }));
+      const p = await approved();
+
+      await expect(p.signPsbt(PSBT_A, { autoFinalized: false })).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("still requires an approved intent for key-path PSBTs", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await connected(); // no intent
+
+      await expect(
+        p.signPsbt(keyPathPsbtHex([bip86Script(await changeXOnlyHex())]), { autoFinalized: false }),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/holds no approved intent/),
+      });
     });
 
     it("a prepare-time rejection leaves the mirror and the intent untouched", async () => {
@@ -608,7 +766,7 @@ describe("LedgerVaultProvider", () => {
       await provider.signPsbt(PSBT_A);
       // Different wire bytes, same unsigned tx and expectations (an extra
       // unknown global, say) — identity keying catches what byte-hashing missed.
-      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(PSBT_B, "tapscript", `txid-${PSBT_A}`));
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(PSBT_B, `txid-${PSBT_A}`));
 
       await expect(provider.signPsbt(PSBT_B)).rejects.toThrow(/already signed/);
       expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
@@ -767,6 +925,21 @@ describe("LedgerVaultProvider", () => {
       await provider.approveDepositTerms(TERMS);
 
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+  });
+
+  describe("getChangeAddress", () => {
+    it("returns the P2TR address of m/86'/coin'/0'/1/0 derived from the device's account xpub", async () => {
+      const p = await connected();
+
+      await expect(p.getChangeAddress()).resolves.toBe(getTaprootAddress(await changeXOnlyHex(), Network.SIGNET));
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(1); // shares the PolicyContext cache
+    });
+
+    it("refuses before connecting", async () => {
+      const p = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(p.getChangeAddress()).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
     });
   });
 

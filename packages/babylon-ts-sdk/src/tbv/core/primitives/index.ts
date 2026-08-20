@@ -145,6 +145,15 @@ export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsigne
 export { assertScriptPathSchnorrSignature } from "./psbt/verifyScriptPathSchnorrSignature";
 export type { VerifyScriptPathSchnorrSignatureParams } from "./psbt/verifyScriptPathSchnorrSignature";
 
+export {
+  assertKeyPathSchnorrSignature,
+  assertReturnedKeyPathSignatures,
+} from "./psbt/verifyKeyPathSchnorrSignature";
+export type {
+  AssertKeyPathSchnorrSignatureParams,
+  AssertReturnedKeyPathSignaturesParams,
+} from "./psbt/verifyKeyPathSchnorrSignature";
+
 export { buildNoPayoutPsbt } from "./psbt/noPayout";
 export type { NoPayoutParams } from "./psbt/noPayout";
 

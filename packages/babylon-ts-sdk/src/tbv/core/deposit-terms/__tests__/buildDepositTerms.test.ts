@@ -158,6 +158,7 @@ describe("supportsDepositApproval", () => {
     const capable = {
       ...base,
       approveDepositTerms: async () => {},
+      getChangeAddress: async () => "tb1pchange",
     } as unknown as BitcoinWallet;
     expect(supportsDepositApproval(capable)).toBe(true);
   });

@@ -1325,6 +1325,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
           signPsbt: mockSignPsbt,
           deriveContextHash: vi.fn().mockResolvedValue("ab".repeat(32)),
           approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+          getChangeAddress: vi.fn().mockResolvedValue("tb1pledgerchange"),
         },
       },
     } as never);
@@ -1438,6 +1439,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
           getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
           signPsbt: mockSignPsbt,
           approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+          getChangeAddress: vi.fn().mockResolvedValue("tb1pledgerchange"),
         },
       },
     } as never);

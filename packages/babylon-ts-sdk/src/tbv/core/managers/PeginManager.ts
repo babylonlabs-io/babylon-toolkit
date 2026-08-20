@@ -62,6 +62,7 @@ import {
 } from "../deposit-terms";
 import {
   assertPsbtUnsignedTxMatches,
+  assertReturnedKeyPathSignatures,
   assertScriptPathSchnorrSignature,
   buildPeginInputPsbt,
   buildPeginTxFromFundedPrePegin,
@@ -675,9 +676,23 @@ export class PeginManager {
     // whatever output the PSBT carries; nothing downstream proves the
     // change address belongs to the signing key, so a state-race / stale
     // FE / hostile adapter that puts an attacker-controlled address here
-    // would drain the change after signing. Bind once at entry using the
-    // pubkey snapshot above (no second wallet read).
-    if (
+    // would drain the change after signing. Bind once at entry — against the
+    // wallet's own change branch when it has one, else the pubkey snapshot.
+    if (supportsDepositApproval(this.config.btcWallet)) {
+      // Approval (policy) wallets own their change branch: the device accepts a
+      // change output only on `.../1/i`, which is not derivable from the receive
+      // key. Any other change address fails mid-ceremony on the device, so this
+      // gate closes that window before the first device I/O.
+      const walletChange = (
+        await this.config.btcWallet.getChangeAddress()
+      ).trim();
+      if (params.changeAddress.trim() !== walletChange) {
+        throw new Error(
+          `Pre-PegIn changeAddress "${params.changeAddress}" is not the approval wallet's change address ` +
+            `("${walletChange}"). Refusing to build a tx the signing device would reject.`,
+        );
+      }
+    } else if (
       !isAddressFromPublicKey(
         params.changeAddress,
         depositorBtcPubkeyRaw,
@@ -1188,6 +1203,14 @@ export class PeginManager {
       await this.config.btcWallet.signPsbt(requestedPsbtHex);
 
     assertPsbtUnsignedTxMatches({
+      requestedPsbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+
+    // Far-side check of the key-path signatures (CLAUDE.md §8: never trust the
+    // wallet's success/finalization) — Pre-PegIn inputs are the depositor's
+    // BIP-86 key-path spends.
+    assertReturnedKeyPathSignatures({
       requestedPsbtHex,
       returnedPsbtHex: signedPsbtHex,
     });

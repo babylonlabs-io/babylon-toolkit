@@ -17,7 +17,10 @@ import {
   type DepositTerms,
   type PrePeginApprovalWallet,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { assertPsbtUnsignedTxMatches } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import {
+  assertPsbtUnsignedTxMatches,
+  assertReturnedKeyPathSignatures,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { getPsbtInputFields } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
@@ -258,6 +261,13 @@ async function signAndFinalizePsbt(
   const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex);
 
   assertPsbtUnsignedTxMatches({
+    requestedPsbtHex: psbtHex,
+    returnedPsbtHex: signedPsbtHex,
+  });
+
+  // Never trust the wallet's finalization: verify the returned key-path
+  // signatures against the PSBT we asked it to sign before extracting.
+  assertReturnedKeyPathSignatures({
     requestedPsbtHex: psbtHex,
     returnedPsbtHex: signedPsbtHex,
   });

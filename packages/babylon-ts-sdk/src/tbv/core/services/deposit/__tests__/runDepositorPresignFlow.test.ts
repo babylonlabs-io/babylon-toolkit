@@ -155,6 +155,7 @@ function createCapabilityWallet(
     approveDepositTerms: vi.fn(async (terms: DepositTerms) => {
       onApprove?.(terms);
     }),
+    getChangeAddress: vi.fn(async () => "tb1pchange"),
   } as unknown as BitcoinWallet & DepositTermsApprover;
 }
 

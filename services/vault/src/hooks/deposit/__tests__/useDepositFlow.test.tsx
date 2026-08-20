@@ -265,6 +265,9 @@ class PrototypeApprovalBtcWallet {
     this.#approvedWith.push(terms);
     return Promise.resolve();
   }
+  getChangeAddress(): Promise<string> {
+    return Promise.resolve("tb1pledgerchange");
+  }
 }
 
 const MOCK_ETH_WALLET = {
@@ -537,6 +540,7 @@ describe("useDepositFlow", () => {
             vaultKeeperBtcPubkeys: MOCK_PARAMS.vaultKeeperBtcPubkeys,
             universalChallengerBtcPubkeys:
               MOCK_PARAMS.universalChallengerBtcPubkeys,
+            changeAddress: "bc1qtest",
           }),
         );
       });
@@ -1682,6 +1686,13 @@ describe("useDepositFlow", () => {
         }),
       );
       await executeDepositFlow(result);
+
+      // Approval wallets dictate the Pre-PegIn change address.
+      expect(preparePeginTransaction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ changeAddress: "tb1pledgerchange" }),
+      );
 
       expect(peginWallet).toBeDefined();
       expect(supportsDepositApproval(peginWallet!)).toBe(true);

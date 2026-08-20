@@ -48,6 +48,12 @@ export {
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
+export {
+  augmentPsbtForWalletPolicy,
+  deriveChangeXOnlyHex,
+  psbtPaysChangeScript,
+  type AugmentPsbtForWalletPolicyParams,
+} from "./policyPsbt";
 export { POP_MESSAGE_PROPRIETARY_KEY, buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
 export {
   SW_BAD_STATE,
