@@ -226,27 +226,45 @@ export const recoverAction: Action = {
       vaults: { items: IndexerVault[] };
     }>(VAULT_QUERY, { depositor: ctx.eth.address.toLowerCase(), limit: 50 });
 
-    // Prefer a deposit whose HTLC is still unspent. A withdrawn or redeemed
-    // vault still exercises derivation and verification, but its refund would
-    // be spending an output that is already gone — a poor rehearsal.
+    // Two preferences, in order. A batched Pre-PegIn first, because the
+    // sibling path is the riskier code — the reconstruction has to rebuild
+    // EVERY HTLC output and the refund path's anchor check is fail-closed, so
+    // a single-vault run leaves both untested. Then a deposit whose HTLC is
+    // still unspent, which makes the refund a real one rather than a rehearsal
+    // against an output that is already gone.
     const REFUNDABLE_FIRST = ["expired", "pending", "verified", "available"];
-    const usable = vaults.items
-      .filter((v) => v.unsignedPrePeginTx)
-      .sort((a, b) => {
-        const rank = (v: IndexerVault) => {
-          const i = REFUNDABLE_FIRST.indexOf(v.status);
-          return i === -1 ? REFUNDABLE_FIRST.length : i;
-        };
-        return rank(a) - rank(b);
-      });
-    if (usable.length === 0)
+    const statusRank = (v: IndexerVault) => {
+      const i = REFUNDABLE_FIRST.indexOf(v.status);
+      return i === -1 ? REFUNDABLE_FIRST.length : i;
+    };
+
+    const withTx = vaults.items.filter((v) => v.unsignedPrePeginTx);
+    if (withTx.length === 0)
       throw new Error(
         `recover: no vault with a Pre-PegIn transaction found for ${ctx.eth.address}. ` +
           `Do a peg-in with this wallet first, or connect the wallet that made one.`,
       );
+
+    // Siblings share one Pre-PegIn transaction; each has its own vault id.
+    const byPrePegin = new Map<string, IndexerVault[]>();
+    for (const v of withTx) {
+      const key = v.unsignedPrePeginTx as string;
+      byPrePegin.set(key, [...(byPrePegin.get(key) ?? []), v]);
+    }
+    const groups = [...byPrePegin.values()].sort((a, b) => {
+      if (a.length !== b.length) return b.length - a.length;
+      return Math.min(...a.map(statusRank)) - Math.min(...b.map(statusRank));
+    });
+    const group = groups[0];
+    const usable = [...group].sort((a, b) => statusRank(a) - statusRank(b));
     const target = usable[0];
     log(
       `Rehearsing against vault ${target.id} (status=${target.status}, htlcVout=${target.htlcVout}).`,
+    );
+    log(
+      group.length > 1
+        ? `  Multi-vault Pre-PegIn: ${group.length} siblings — the sibling path is exercised.`
+        : `  Single-vault Pre-PegIn: the sibling path is NOT exercised by this run.`,
     );
     log(
       `  GROUND TRUTH (not fed into the reconstruction): hashlock=${target.hashlock}, amount=${target.amount}`,
