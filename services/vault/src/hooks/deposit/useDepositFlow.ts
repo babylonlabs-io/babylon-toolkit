@@ -16,7 +16,6 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
   forwardDepositApproval,
-  isDepositTermsRejectedError,
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   validateOnChainParticipantKeys,
@@ -833,6 +832,25 @@ export function useDepositFlow(
           expected: validatedKeys.participantKeys,
         });
 
+        // A flow abandoned during the minutes-long gate must not raise an
+        // unlock prompt or signing popup (same rule as the resume path).
+        signal.throwIfAborted();
+
+        // The wallet may have locked during the gate wait; probe before the
+        // signing popup so it fails with liveness copy, not a dead popup.
+        await verifyBtcWalletLiveness(confirmedBtcWallet, confirmedBtcAddress, {
+          probeConnection: shouldProbeWalletLiveness(
+            btcConnector?.connectedWallet?.id,
+          ),
+        });
+
+        // The inputs were validated before ETH registration; the gate
+        // stretched that window to minutes, so re-check before signing.
+        await assertUtxosAvailable(
+          batchResult.fundedPrePeginTxHex,
+          confirmedBtcAddress,
+        );
+
         // ========================================================================
         // Step 4b: Broadcast Pre-PegIn transaction to Bitcoin
         // Broadcast immediately after ETH registration so the VP can verify
@@ -845,35 +863,24 @@ export function useDepositFlow(
           vaultAmounts.map(() => DepositFlowStep.BROADCAST_PRE_PEGIN),
         );
 
-        let prePeginBroadcastTxid: string;
-        try {
-          prePeginBroadcastTxid = await broadcastPrePeginTransaction({
-            unsignedTxHex: batchResult.fundedPrePeginTxHex,
-            btcWalletProvider: {
-              signPsbt: (psbtHex: string) =>
-                confirmedBtcWallet.signPsbt(psbtHex),
-              deriveContextHash: (appName: string, context: string) =>
-                confirmedBtcWallet.deriveContextHash(appName, context),
-              // Object spread drops prototype methods — see forwardDepositApproval.
-              ...forwardDepositApproval(confirmedBtcWallet),
-            },
-            depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
-            depositTerms: batchResult.depositTerms,
-          });
-        } catch (error) {
-          // Preserve a typed intent rejection so the error mapper can show the
-          // intent-rejection copy instead of a generic broadcast failure — the
-          // broadcast service already keeps it typed at its boundary.
-          if (isDepositTermsRejectedError(error)) {
-            throw error;
-          }
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-          throw new Error(
-            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
-          );
-        }
+        // An abort landing during the probes must not raise the signing popup.
+        signal.throwIfAborted();
+
+        // No re-wrap: the service labels each stage and preserves `cause`;
+        // a wrapper here would poison the label and sever that chain.
+        const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
+          unsignedTxHex: batchResult.fundedPrePeginTxHex,
+          btcWalletProvider: {
+            signPsbt: (psbtHex: string) => confirmedBtcWallet.signPsbt(psbtHex),
+            deriveContextHash: (appName: string, context: string) =>
+              confirmedBtcWallet.deriveContextHash(appName, context),
+            // Object spread drops prototype methods — see forwardDepositApproval.
+            ...forwardDepositApproval(confirmedBtcWallet),
+          },
+          depositorBtcPubkey: batchResult.depositorBtcPubkey,
+          expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
+          depositTerms: batchResult.depositTerms,
+        });
 
         // Broadcast succeeded — update pending pegins from PENDING to CONFIRMING
         for (const peginResult of peginResults) {

@@ -53,7 +53,7 @@ describe("isUserCancellation", () => {
   });
 
   it("matches a cancellation wrapped as a cause", () => {
-    const error = new Error("Failed to broadcast batch Pre-PegIn transaction", {
+    const error = new Error("Failed to sign Pre-PegIn transaction", {
       cause: new Error("User rejected the PSBT signing request"),
     });
 

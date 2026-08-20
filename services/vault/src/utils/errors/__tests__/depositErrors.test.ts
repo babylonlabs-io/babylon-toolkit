@@ -187,33 +187,83 @@ describe("mapDepositError", () => {
   it("maps a broadcast failure to the broadcast callout", () => {
     expect(
       mapDepositError(
-        new Error("Failed to broadcast batch Pre-PegIn transaction: timeout"),
+        new Error("Failed to broadcast Pre-PegIn transaction: timeout"),
       ),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
   it("classifies a BTC broadcast wrapper over insufficient funds as broadcast, not ETH gas", () => {
-    // The flow wraps broadcast errors; the inner text can say "insufficient
-    // funds" (BTC-side) — that must not be read as an ETH gas shortfall.
+    // The broadcast stage wraps inner errors; the inner text can say
+    // "insufficient funds" (BTC-side) — that must not be read as an ETH gas
+    // shortfall.
     expect(
       mapDepositError(
         new Error(
-          "Failed to broadcast batch Pre-PegIn transaction: insufficient funds",
+          "Failed to broadcast Pre-PegIn transaction: insufficient funds",
         ),
       ),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
-  it("classifies a wallet rejection wrapped by the broadcast catch as a signing rejection", () => {
-    // The broadcast step re-wraps inner errors in a fresh Error (losing the
-    // wallet code), so a rejection there must still be matched by phrasing.
+  it("maps a prepare-stage failure to the preparation callout", () => {
+    // The common producer: prevout resolution against the mempool API on the
+    // resume path (no trusted expectedUtxos).
     expect(
       mapDepositError(
         new Error(
-          "Failed to broadcast batch Pre-PegIn transaction: User rejected the request",
+          "Failed to prepare Pre-PegIn transaction: Failed to fetch UTXO from mempool: HTTP 502",
+        ),
+      ),
+    ).toEqual(ERRORS.preparationFailed);
+  });
+
+  it("keeps a sign-stage failure out of the broadcast bucket even when its inner text says broadcast", () => {
+    // The ceremony's terms-mismatch text contains "being broadcast"; only the
+    // explicit "failed to broadcast" labels may hit the broadcast bucket.
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-PegIn transaction: Deposit terms do not match the transaction being broadcast: vault 0 amount differs",
+        ),
+      ),
+    ).toEqual(ERRORS.signingFailed);
+  });
+
+  it("classifies a wallet rejection wrapped by the sign stage as a signing rejection", () => {
+    // Wording backup path: some wallets reject with a bare string, so the
+    // rejection must be matched by phrasing even without a typed cause.
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-PegIn transaction: User rejected the request",
         ),
       ),
     ).toEqual(ERRORS.signingRejected);
+  });
+
+  it("classifies a typed rejection carried on the wrapper's cause chain as a signing rejection", () => {
+    // The stage wrapper preserves `cause`, so a typed 4001 rejection is
+    // detected even when the text matches no rejection phrasing.
+    const walletError = Object.assign(new Error("request declined"), {
+      code: 4001,
+    });
+    expect(
+      mapDepositError(
+        new Error("Failed to sign Pre-PegIn transaction: request declined", {
+          cause: walletError,
+        }),
+      ),
+    ).toEqual(ERRORS.signingRejected);
+  });
+
+  it("maps a non-rejection signing failure to the signing-failed callout", () => {
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-PegIn transaction: PSBT finalization failed and wallet did not auto-finalize",
+        ),
+      ),
+    ).toEqual(ERRORS.signingFailed);
   });
 
   it("treats a BTC funding shortfall as funds-unavailable, not an ETH gas shortfall", () => {

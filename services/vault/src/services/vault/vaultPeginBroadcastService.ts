@@ -284,12 +284,20 @@ async function signAndFinalizePsbt(
   return signedPsbt.extractTransaction().toHex();
 }
 
+// The labels route mapDepositError; `cause` keeps typed wallet rejections
+// visible to isUserCancellation's cause walk.
+function stageError(label: string, error: unknown): Error {
+  const message = error == null ? "Unknown error" : formatError(error);
+  return new Error(`${label}: ${message}`, { cause: error });
+}
+
 /**
  * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
  * @param params - Transaction and wallet parameters
  * @returns The broadcasted transaction ID
- * @throws Error if signing or broadcasting fails
+ * @throws Error labelled by failing stage (prepare / sign / broadcast), with
+ *   the original error as `cause`
  */
 export async function broadcastPrePeginTransaction(
   params: BroadcastPrePeginParams,
@@ -302,8 +310,9 @@ export async function broadcastPrePeginTransaction(
     depositTerms,
   } = params;
 
+  // Stage 1: prepare.
+  let psbt: Psbt;
   try {
-    // Parse transaction
     const cleanHex = unsignedTxHex.startsWith("0x")
       ? unsignedTxHex.slice(2)
       : unsignedTxHex;
@@ -317,12 +326,14 @@ export async function broadcastPrePeginTransaction(
     // When expectedUtxos is provided, trusted construction-time data is used
     // instead of querying the untrusted mempool API
     const publicKeyNoCoord = Buffer.from(depositorBtcPubkey, "hex");
-    const psbt = await createPsbtFromTransaction(
-      tx,
-      publicKeyNoCoord,
-      expectedUtxos,
-    );
+    psbt = await createPsbtFromTransaction(tx, publicKeyNoCoord, expectedUtxos);
+  } catch (error) {
+    throw stageError("Failed to prepare Pre-PegIn transaction", error);
+  }
 
+  // Stage 2: sign. Includes the ceremony so device failures read as signing.
+  let signedTxHex: string;
+  try {
     // Intent-wallet ceremony (derive → approve) immediately before signing.
     // No-op for wallets that do not support deposit approval.
     await ensurePrePeginTermsApproval({
@@ -332,22 +343,19 @@ export async function broadcastPrePeginTransaction(
       depositorBtcPubkey,
     });
 
-    // Sign and finalize
-    const signedTxHex = await signAndFinalizePsbt(
-      psbt.toHex(),
-      btcWalletProvider,
-    );
-
-    // Broadcast to network
-    return await pushTx(signedTxHex, getMempoolApiUrl());
+    signedTxHex = await signAndFinalizePsbt(psbt.toHex(), btcWalletProvider);
   } catch (error) {
-    // A device-envelope rejection is a distinct, user-actionable outcome — let
-    // it through unwrapped so the UI can show the intent-rejection copy instead
-    // of a generic broadcast failure.
+    // Typed rejection passes unwrapped so the UI shows intent-rejection copy.
     if (isDepositTermsRejectedError(error)) {
       throw error;
     }
-    const message = error == null ? "Unknown error" : formatError(error);
-    throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`);
+    throw stageError("Failed to sign Pre-PegIn transaction", error);
+  }
+
+  // Stage 3: broadcast. Only the network POST may carry the broadcast label.
+  try {
+    return await pushTx(signedTxHex, getMempoolApiUrl());
+  } catch (error) {
+    throw stageError("Failed to broadcast Pre-PegIn transaction", error);
   }
 }

@@ -371,6 +371,73 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
   });
 });
 
+describe("broadcastPrePeginTransaction — stage labels and cause preservation", () => {
+  const basePubkey = "a".repeat(64);
+  const baseParams = {
+    unsignedTxHex: "deadbeef",
+    btcWalletProvider: {
+      signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
+    },
+    depositorBtcPubkey: basePubkey,
+  };
+
+  it("labels a prevout-resolution failure as a prepare failure, not a broadcast one", async () => {
+    const inner = new Error("Failed to fetch UTXO from mempool: 502");
+    mockFetchUTXO.mockRejectedValueOnce(inner);
+
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(/^Failed to prepare Pre-PegIn transaction/);
+    expect(thrown?.message).not.toMatch(/^Failed to broadcast/);
+    expect(thrown?.cause).toBe(inner);
+  });
+
+  it("labels a wallet signing failure as a sign failure with the original error as cause", async () => {
+    const inner = new Error("wallet is locked");
+    vi.mocked(pushTx).mockClear();
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: {
+        signPsbt: vi.fn().mockRejectedValueOnce(inner),
+      },
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(
+      /^Failed to sign Pre-PegIn transaction: wallet is locked/,
+    );
+    expect(thrown?.cause).toBe(inner);
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("labels only a pushTx failure as a broadcast failure, keeping the node's reason and cause", async () => {
+    const inner = new Error("bad-txns-inputs-missingorspent");
+    vi.mocked(pushTx).mockRejectedValueOnce(inner);
+
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toBe(
+      "Failed to broadcast Pre-PegIn transaction: bad-txns-inputs-missingorspent",
+    );
+    expect(thrown?.cause).toBe(inner);
+  });
+});
+
 describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
   // Matches mockTx.getId() so the terms bind to the tx being broadcast.
   const CEREMONY_TXID = "cc".repeat(32);
@@ -447,5 +514,34 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
     ).rejects.toBe(rejection);
 
     expect(signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("labels a non-rejection ceremony failure as a sign failure with the device error as cause", async () => {
+    // The ceremony runs in the sign stage so a device-transport drop reads as
+    // a signing problem, not a broadcast one.
+    const inner = new Error("device disconnected");
+    const wallet = {
+      signPsbt: vi.fn(),
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {
+        throw inner;
+      }),
+    };
+
+    const thrown = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(
+      /^Failed to sign Pre-PegIn transaction: device disconnected/,
+    );
+    expect(thrown?.cause).toBe(inner);
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 });
