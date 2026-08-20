@@ -108,6 +108,17 @@ vi.mock("../CriticalLiquidationTopBanner", () => ({
 vi.mock("../DisconnectedOverview", () => ({
   DisconnectedOverview: () => null,
 }));
+// Captures the raw cascade prop so tests can assert on the *identity* of the
+// CalculatorResult that reached the section, not just values re-derived from
+// it — a regression that pairs an override's params with the live result
+// (or vice versa) would otherwise slip past scalar-only assertions.
+const receivedCascade = vi.hoisted(() => ({
+  current: null as {
+    result: CalculatorResult;
+    params: CalculatorParams;
+  } | null,
+}));
+
 vi.mock("../LiquidationAnalysisSection", () => ({
   LiquidationAnalysisSection: ({
     cascade,
@@ -116,16 +127,19 @@ vi.mock("../LiquidationAnalysisSection", () => ({
       result: CalculatorResult;
       params: CalculatorParams;
     } | null;
-  }) => (
-    <div
-      data-testid="liquidation-analysis"
-      data-cascade={cascade ? "yes" : "no"}
-      data-btc-price={cascade?.params.btcPrice ?? ""}
-      data-collateral-factor={cascade?.params.CF ?? ""}
-      data-vaults-total={cascade?.params.vaults.length ?? ""}
-      data-current-hf={cascade?.result.currentHF ?? ""}
-    />
-  ),
+  }) => {
+    receivedCascade.current = cascade ?? null;
+    return (
+      <div
+        data-testid="liquidation-analysis"
+        data-cascade={cascade ? "yes" : "no"}
+        data-btc-price={cascade?.params.btcPrice ?? ""}
+        data-collateral-factor={cascade?.params.CF ?? ""}
+        data-vaults-total={cascade?.params.vaults.length ?? ""}
+        data-current-hf={cascade?.result.currentHF ?? ""}
+      />
+    );
+  },
 }));
 vi.mock("@/components/shared", () => ({
   HeartIcon: () => null,
@@ -141,6 +155,7 @@ beforeEach(() => {
   pricesMock.prices = {};
   pricesMock.metadata = {};
   setHealthFactorOverride(null);
+  receivedCascade.current = null;
 });
 
 describe("DashboardPage composition", () => {
@@ -238,6 +253,9 @@ describe("DashboardPage embedded liquidation preview", () => {
       "data-current-hf",
       String(LIVE_RESULT.currentHF),
     );
+    // Identity, not just value — catches a regression that recomputes a
+    // result matching LIVE_RESULT's numbers from the wrong params.
+    expect(receivedCascade.current?.result).toBe(LIVE_RESULT);
   });
 
   it("prefers the god-mode cascade over the live one", () => {
@@ -261,6 +279,9 @@ describe("DashboardPage embedded liquidation preview", () => {
       "data-current-hf",
       String(OVERRIDE_RESULT.currentHF),
     );
+    // The override's params must never pair with the live result.
+    expect(receivedCascade.current?.result).toBe(OVERRIDE_RESULT);
+    expect(receivedCascade.current?.result).not.toBe(LIVE_RESULT);
   });
 
   it("falls through to the live cascade for a status-only override", () => {
@@ -282,6 +303,10 @@ describe("DashboardPage embedded liquidation preview", () => {
       "data-current-hf",
       String(LIVE_RESULT.currentHF),
     );
+    // A status-only override carries no result — the section must still get
+    // the live result, never the override's (unset) one.
+    expect(receivedCascade.current?.result).toBe(LIVE_RESULT);
+    expect(receivedCascade.current?.result).not.toBe(OVERRIDE_RESULT);
   });
 
   it("charts nothing when neither the override nor the live position has a result", () => {
