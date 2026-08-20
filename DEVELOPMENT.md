@@ -118,9 +118,9 @@ The release stops rather than publish a manifest a consumer cannot install. Noth
 | `is pinned by this release but does not exist on the registry` | Its tag exists without a matching publish, so an earlier release failed or was skipped | Bump it in this release, or publish that version by hand |
 | `resolved to version X, which has no release tag` | nx fell back to the version in `packages/*/package.json`, which is not a released version | Tag the version that is on NPM, on the commit that produced it. Tagging `HEAD` instead swallows every unreleased change before it |
 | `is not part of this release run and has no stable release tag` | A dependency nx filtered out of the run has never been released - most likely on an RC dispatch, which versions one project | Release it on `main` first |
-| `whose latest release tag reads "X" - not an exact version` | Its newest tag is a range or a prerelease, which cannot be published as a pin | Tag an exact stable version |
+| `whose latest release tag reads "X" - not an exact version` | Its newest stable tag does not parse as an exact version - a leading `v`, a partial version, or a range | Retag it with a bare `MAJOR.MINOR.PATCH` matching what is on NPM |
 | `depends on the private workspace package` | A published package depends on one nx never publishes | Make it publishable, or drop the dependency |
-| `are marked "private", so nx will version and tag them` | Same, for a package in the release set itself | Make it publishable, or take it out of `release.projects` in nx.json |
+| `are marked "private", so nx will version and tag them` | Same, for a package in the release set itself | Make it publishable, or move it out of `packages/`. Narrowing `release.projects` does not work - the driver only accepts `<directory>/*` entries |
 | `cannot be published: its manifest would ship dependency versions a consumer cannot resolve` | A dependency spec the driver could not rewrite | Fix the spec in that package.json - syncpack pins local packages to `workspace:*` |
 | `were versioned but did not publish` | The publish step failed part-way and no tags were created | Check which packages landed on NPM before re-running; a published version is immutable |
 | `Tagging failed AFTER a successful publish` | Everything is on NPM but the tags are not in git | Create those tags by hand. Do not re-run the release |
