@@ -8,6 +8,11 @@
  * deposit breakdown and the protocol-parameter panel both render through it so
  * the two lists on the deposit form stay one row system.
  *
+ * `ReviewDetailRow` is the confirm-screen line from Figma "Review Withdraw"
+ * (10088-38704): a body1 label on the left and a right-aligned value whose
+ * conversion sits on a second, secondary line rather than trailing it. The
+ * withdraw and refund review cards share it.
+ *
  * Not a core-ui component: the pairing of app copy, tooltip and conversion
  * suffix is vault-specific, and core-ui has no equivalent primitive.
  */
@@ -51,6 +56,31 @@ export function FeeDetailRow({
           <span className="text-accent-secondary"> {secondaryValue}</span>
         ) : null}
       </span>
+    </div>
+  );
+}
+
+interface ReviewDetailRowProps {
+  label: string;
+  value: ReactNode;
+  /** Sub-line under the value (e.g. the USD conversion), in secondary text. */
+  secondaryValue?: ReactNode;
+}
+
+export function ReviewDetailRow({
+  label,
+  value,
+  secondaryValue,
+}: ReviewDetailRowProps) {
+  return (
+    <div className="flex items-start justify-between gap-6 text-base leading-[1.5] tracking-[0.15px]">
+      <span className="text-accent-primary">{label}</span>
+      <div className="flex flex-col items-end text-right text-accent-primary">
+        {value}
+        {secondaryValue ? (
+          <span className="text-accent-secondary">{secondaryValue}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
