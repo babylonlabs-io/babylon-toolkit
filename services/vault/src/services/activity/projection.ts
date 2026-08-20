@@ -169,6 +169,15 @@ export function formatAmount(amount: string, decimals: number): string {
 }
 
 /**
+ * The amount as a plain number, for the row's USD sub-line only. `formatUnits`
+ * keeps full precision; the `Number` cast is display-grade and never feeds a
+ * signed value.
+ */
+export function toNumericAmount(amount: string, decimals: number): number {
+  return Number(formatUnits(BigInt(amount), decimals));
+}
+
+/**
  * Caller-injected dependencies. The hook layer reads these from the AaveConfig
  * context provider (which already loads them once at app startup), keeping
  * this service free of global registry / network dependencies for non-
@@ -214,6 +223,7 @@ export function projectRefundedDeposit(
     amount: {
       value: formatAmount(item.amount, VAULT_COLLATERAL_ASSET.decimals),
       symbol: VAULT_COLLATERAL_ASSET.symbol,
+      numeric: toNumericAmount(item.amount, VAULT_COLLATERAL_ASSET.decimals),
     },
     chain,
     transactionHash,
@@ -239,10 +249,16 @@ export function projectStandardRow(
           ? formatAmount(item.amount, reserve.decimals)
           : item.amount,
         symbol: reserve?.symbol ?? "—",
+        // Without the reserve the token's decimals are unknown, so the raw
+        // amount cannot be scaled — leave it unpriced.
+        numeric: reserve
+          ? toNumericAmount(item.amount, reserve.decimals)
+          : undefined,
       }
     : {
         value: formatAmount(item.amount, VAULT_COLLATERAL_ASSET.decimals),
         symbol: VAULT_COLLATERAL_ASSET.symbol,
+        numeric: toNumericAmount(item.amount, VAULT_COLLATERAL_ASSET.decimals),
       };
 
   const tokenIcon = isPositionScoped

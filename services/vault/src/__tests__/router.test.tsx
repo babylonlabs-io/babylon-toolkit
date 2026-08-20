@@ -187,6 +187,12 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   }),
 }));
 
+// Same reason: the Activity feed's price source imports the built
+// wallet-connector bundle for its network enum.
+vi.mock("@/hooks/usePrices", () => ({
+  usePrices: () => ({ prices: {} }),
+}));
+
 vi.mock("@/context/ProtocolParamsContext", () => ({
   ProtocolParamsProvider: ({ children }: { children: ReactNode }) => children,
 }));

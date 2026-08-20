@@ -38,6 +38,11 @@ function convertPendingPeginToActivity(
     amount: {
       value: pending.amount,
       symbol: btcConfig.coinSymbol,
+      // localStorage holds the amount as the user-facing BTC string, so it is
+      // already unscaled. A malformed entry stays unpriced.
+      numeric: Number.isFinite(Number(pending.amount))
+        ? Number(pending.amount)
+        : undefined,
     },
     chain: "BTC",
     transactionHash: pending.peginTxHash,

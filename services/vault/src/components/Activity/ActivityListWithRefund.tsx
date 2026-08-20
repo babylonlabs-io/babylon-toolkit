@@ -18,6 +18,7 @@ import { useCallback, useMemo } from "react";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import { usePrices } from "@/hooks/usePrices";
 import type { ActivityRow } from "@/types/activityLog";
 
 import { ActivityList } from "./ActivityList";
@@ -38,6 +39,10 @@ export function ActivityListWithRefund({
     refundModal,
     emergencyWithdrawModal,
   } = usePendingDeposits();
+
+  // Current prices for the rows' USD sub-lines. A row whose symbol has no price
+  // renders no sub-line.
+  const { prices } = usePrices();
 
   // Deposits that expired before activation and have not been reclaimed yet,
   // keyed by vault id. Correlate these against a row's `vaultId` and never its
@@ -68,6 +73,7 @@ export function ActivityListWithRefund({
     <ActivityList
       activities={rows}
       isConnected={isConnected}
+      prices={prices}
       refundableVaultIds={refundableVaultIds}
       onWithdraw={handleWithdraw}
     />

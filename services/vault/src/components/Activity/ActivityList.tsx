@@ -55,6 +55,8 @@ const FILTER_OPTIONS = (
 interface ActivityListProps {
   activities: ActivityRow[];
   isConnected: boolean;
+  /** Current USD price per token symbol, for each row's USD sub-line. */
+  prices?: Record<string, number>;
   /** Vault ids of expired deposits whose HTLC refund is still outstanding —
    *  those rows get the Withdraw action. Matched against a row's `vaultId`,
    *  never its `id` (see ActivityLog). */
@@ -65,6 +67,7 @@ interface ActivityListProps {
 export function ActivityList({
   activities,
   isConnected,
+  prices,
   refundableVaultIds,
   onWithdraw,
 }: ActivityListProps) {
@@ -148,6 +151,7 @@ export function ActivityList({
                       <ListRowCard>
                         <ActivityRowV3
                           row={r}
+                          prices={prices}
                           action={
                             r.vaultId &&
                             refundableVaultIds?.has(r.vaultId) &&

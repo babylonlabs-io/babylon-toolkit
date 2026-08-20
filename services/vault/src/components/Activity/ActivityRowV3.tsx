@@ -5,8 +5,8 @@
  * timestamp (the calendar day lives in the group header), with an optional
  * action slot pinned right. Renders the columns only — the caller supplies the
  * card and its padding, so the same row works standalone (one card per row) and
- * stacked inside a liquidation group's shared card. Per-row USD value from the
- * Figma frame is deferred (not backed by current activity data).
+ * stacked inside a liquidation group's shared card. The amount cell carries the
+ * Figma sub-line with the row's USD value at the CURRENT price.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
@@ -19,7 +19,7 @@ import {
 import { COPY } from "@/copy";
 import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
-import { formatActivityTime } from "@/utils/formatting";
+import { formatActivityTime, formatUsdValue } from "@/utils/formatting";
 
 import { ActivityHashLink } from "./ActivityHashLink";
 import { STATUS_DOT } from "./statusDot";
@@ -28,8 +28,11 @@ import { STATUS_DOT } from "./statusDot";
  *  amount length. */
 const COLUMN_CLASS = `flex items-center ${LIST_ROW_COLUMN_CLASS}`;
 
-/** Figma body 2 — every cell's text except the deferred USD sub-line. */
+/** Figma body 2 — every cell's text except the USD sub-line. */
 const CELL_TEXT_CLASS = "text-sm leading-[1.43] tracking-[0.17px]";
+
+/** Figma caption — the USD sub-line under the amount. */
+const SUB_LINE_TEXT_CLASS = "text-xs leading-[1.4] tracking-[0.4px]";
 
 export interface ActivityStatus {
   dotClass: string;
@@ -38,6 +41,12 @@ export interface ActivityStatus {
 
 interface ActivityRowV3Props {
   row: ActivityLog;
+  /**
+   * Current USD price per token symbol (`usePrices().prices`). A row whose
+   * symbol is absent from it — or whose amount has no numeric form — renders
+   * no USD sub-line.
+   */
+  prices?: Record<string, number>;
   /** Rendered flush right — the expired deposit's Withdraw, when refundable. */
   action?: ReactNode;
 }
@@ -64,12 +73,29 @@ function getActivityStatus(row: ActivityLog): ActivityStatus {
   return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusDone };
 }
 
-export function ActivityRowV3({ row, action }: ActivityRowV3Props) {
+/**
+ * The row's USD value at the current price, or null when it cannot be priced —
+ * no numeric amount, no price for the symbol, or a non-positive product. Null
+ * renders no sub-line at all, never a "$0 USD" one.
+ */
+function getUsdSubLine(
+  amount: ActivityLog["amount"],
+  prices: Record<string, number> | undefined,
+): string | null {
+  const price = prices?.[amount.symbol];
+  if (amount.numeric === undefined || price === undefined) return null;
+  const usd = amount.numeric * price;
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  return formatUsdValue(usd);
+}
+
+export function ActivityRowV3({ row, prices, action }: ActivityRowV3Props) {
   return (
     <ActivityRowLayout
       icon={row.tokenIcon}
       iconAlt={row.amount.symbol}
       amount={`${row.amount.value} ${row.amount.symbol}`}
+      usdValue={getUsdSubLine(row.amount, prices)}
       status={getActivityStatus(row)}
       // The type column label comes from the copy catalog; "Pending Deposit"
       // (an internal type kept out of the filter menu) maps to a "Deposit".
@@ -97,6 +123,8 @@ interface ActivityRowLayoutProps {
   icon: string;
   iconAlt: string;
   amount: string;
+  /** Sub-line under the amount, already formatted. Null renders no sub-line. */
+  usdValue?: string | null;
   status: ActivityStatus;
   typeLabel: string;
   hash: ReactNode;
@@ -111,6 +139,7 @@ export function ActivityRowLayout({
   icon,
   iconAlt,
   amount,
+  usdValue,
   status,
   typeLabel,
   hash,
@@ -124,11 +153,18 @@ export function ActivityRowLayout({
             cell can now shrink to its 120px floor — without this a long amount
             squashes the circle into an ellipse. */}
         <Avatar url={icon} alt={iconAlt} size="medium" className="shrink-0" />
-        <span
-          className={`min-w-0 truncate ${CELL_TEXT_CLASS} text-accent-primary`}
-        >
-          {amount}
-        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className={`truncate ${CELL_TEXT_CLASS} text-accent-primary`}>
+            {amount}
+          </span>
+          {usdValue && (
+            <span
+              className={`truncate ${SUB_LINE_TEXT_CLASS} text-accent-secondary`}
+            >
+              {usdValue}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className={`${COLUMN_CLASS} gap-1`}>

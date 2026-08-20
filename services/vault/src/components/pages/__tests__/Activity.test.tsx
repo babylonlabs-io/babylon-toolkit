@@ -56,6 +56,13 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   },
 }));
 
+// The USD sub-line's price source imports the built wallet-connector bundle
+// (for its network enum), which vitest cannot evaluate here, and prices are not
+// what the wallet gating in this suite checks.
+vi.mock("@/hooks/usePrices", () => ({
+  usePrices: () => ({ prices: {} }),
+}));
+
 vi.mock("@/context/ProtocolParamsContext", () => ({
   ProtocolParamsProvider: ({ children }: { children: React.ReactNode }) =>
     children,

@@ -943,7 +943,7 @@ describe("fetchUserActivities refunded deposits", () => {
     const row = asStandard(result[0]);
     expect(row.type).toBe("Deposit");
     expect(row.isExpired).toBe(true);
-    expect(row.amount).toEqual({ value: "1", symbol: "sBTC" });
+    expect(row.amount).toEqual({ value: "1", symbol: "sBTC", numeric: 1 });
     expect(row.tokenIcon).toBe("/images/btc.svg");
     // Refunded deposit links to the original BTC peg-in tx (via vault.peginTxHash)
     // for parity with normal Deposit rows.
