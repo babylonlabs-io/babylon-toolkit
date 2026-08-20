@@ -182,6 +182,12 @@ export interface TimelineProps extends LiquidationChartBase {
   visibleCandles?: number;
   /** Formats the crosshair readout price. Default: `$` + grouped integer. */
   formatPrice?: (price: number) => string;
-  /** Formats the crosshair readout timestamp. Default: locale date. */
+  /** Formats the time-axis tick labels. Default: locale date. */
   formatTime?: (timeMs: number) => string;
+  /**
+   * Formats the crosshair readout's timestamp. Defaults to `formatTime`, which
+   * a caller should override when its axis labels are abbreviated (a bare day
+   * number names no month).
+   */
+  formatReadoutTime?: (timeMs: number) => string;
 }

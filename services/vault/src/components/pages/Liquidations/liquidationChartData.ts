@@ -269,6 +269,17 @@ export function formatCandleDate(timeMs: number): string {
     : String(date.getUTCDate());
 }
 
+/** The hovered candle's own date. Spelled out, because the axis label under it
+ *  is often a bare day number that names no month. */
+export function formatCandleTimestamp(timeMs: number): string {
+  return new Date(timeMs).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /**
  * Bands with the seized amount folded into the label, e.g.
  * "Liq Event 1 (0.6 BTC)". The dashboard page names the amount inline; the

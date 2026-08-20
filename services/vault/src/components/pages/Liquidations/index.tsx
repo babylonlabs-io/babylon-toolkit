@@ -20,6 +20,7 @@ import {
   buildTimelinePriceAxis,
   buildTimelineSafeZone,
   formatCandleDate,
+  formatCandleTimestamp,
   withAmountInBandLabel,
 } from "./liquidationChartData";
 import { LiquidationEventCard } from "./LiquidationEventCard";
@@ -353,6 +354,7 @@ export default function Liquidations() {
             interactions={{ crosshair: true, pan: true }}
             formatPrice={formatPriceUsd}
             formatTime={formatCandleDate}
+            formatReadoutTime={formatCandleTimestamp}
             liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
           />
         </div>

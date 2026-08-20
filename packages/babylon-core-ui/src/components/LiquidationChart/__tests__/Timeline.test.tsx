@@ -91,6 +91,23 @@ describe("Timeline", () => {
     expect(chart.queryByText("0.6 BTC")).toBeNull();
   });
 
+  // The axis labels are often abbreviated (a bare day number), so the readout
+  // header gets its own formatter rather than reusing the tick one.
+  it("formats the crosshair readout timestamp independently of the axis", () => {
+    const { container } = renderTimeline({
+      candles: makeCandles(4),
+      interactions: { crosshair: true },
+      formatTime: (t) => `tick-${t}`,
+      formatReadoutTime: (t) => `readout-${t}`,
+    });
+
+    fireEvent.pointerMove(container.querySelector(".bbn-liq-candles__hit")!, {
+      clientX: 10,
+    });
+
+    expect(screen.getByText("readout-1750000000000")).toBeInTheDocument();
+  });
+
   it("shows the safe-zone detail lines when they fit above the first event", () => {
     // First band triggers at 77,682 on a 90k-40k axis: roughly the top quarter
     // of the plot is safe, which comfortably fits the title plus two lines.

@@ -16,6 +16,7 @@ import {
   buildTimelinePriceAxis,
   buildTimelineSafeZone,
   formatCandleDate,
+  formatCandleTimestamp,
   withAmountInBandLabel,
 } from "../liquidationChartData";
 
@@ -735,5 +736,10 @@ describe("formatCandleDate", () => {
 
   it("names the month at the start of one, so a multi-month window is placed", () => {
     expect(formatCandleDate(Date.UTC(2026, 5, 3))).toBe("Jun");
+  });
+
+  // The hover readout says which candle it describes, which a bare "19" does not.
+  it("spells the date out for the crosshair readout", () => {
+    expect(formatCandleTimestamp(Date.UTC(2026, 4, 19))).toBe("May 19, 2026");
   });
 });

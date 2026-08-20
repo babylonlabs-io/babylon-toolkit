@@ -96,6 +96,7 @@ export function Timeline({
   visibleCandles,
   formatPrice = defaultFormatPrice,
   formatTime = defaultFormatTime,
+  formatReadoutTime = formatTime,
   variant = "full",
   grid,
   hideBandLabels,
@@ -328,7 +329,7 @@ export function Timeline({
                 fontSize: layout.fontAxis,
               }}
             >
-              <span className="bbn-liq-readout__time">{formatTime(hovered.candle.time)}</span>
+              <span className="bbn-liq-readout__time">{formatReadoutTime(hovered.candle.time)}</span>
               <span className="bbn-liq-readout__row">
                 <span>O</span>
                 <span>{formatPrice(hovered.candle.open)}</span>
