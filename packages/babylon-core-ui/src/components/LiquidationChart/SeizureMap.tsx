@@ -34,7 +34,7 @@ function ShareLegend({
         const isLast = index === bands.length - 1;
         const width = Math.max(0, shareScale(band.shareEnd) - x - (isLast ? 0 : LEGEND_GAP_PX));
         const liquidated = band.state === "liquidated";
-        const text = liquidated && liquidatedLabel ? liquidatedLabel : band.amountLabel;
+        const text = (liquidated && liquidatedLabel ? liquidatedLabel : band.amountLabel) ?? "";
         const clipId = `${clipBaseId}-${index}`;
         return (
           <g key={band.key} className={twJoin("bbn-liq-legend__seg", liquidated && "bbn-liq-legend__seg--liquidated")}>
