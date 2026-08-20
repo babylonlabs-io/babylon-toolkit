@@ -58,6 +58,20 @@ const release = async () => {
   });
 
   if (projectsToPublish.length === 0) {
+    const versioned = Object.entries(projectsVersionData)
+      .filter(([, project]) => project.newVersion !== null)
+      .map(([projectName, project]) => `${projectName}@${project.newVersion}`);
+
+    // Two different outcomes, and only one of them is routine. A dispatch that
+    // versioned projects and then had every one of them gated out published
+    // nothing at all, which is not "no release needed" - it means the preid
+    // never reached the bump, and reporting success would hide that.
+    if (versioned.length > 0) {
+      throw new Error(
+        `This prerelease run versioned ${versioned.join(', ')} but none of them is a prerelease, so there is nothing to publish. nx bumps a dependent dragged in by updateDependents with a plain patch that ignores the preid; a run left with only those has nothing to release. Check that RELEASE_PREID reached the version step.`
+      );
+    }
+
     console.log('No project release needed');
     return;
   }
