@@ -21,6 +21,7 @@ import { COPY } from "@/copy";
 
 import {
   COMMISSION_UNAVAILABLE_ERROR,
+  isResumableDepositError,
   mapDepositError,
 } from "../depositErrors";
 import {
@@ -334,28 +335,84 @@ describe("mapDepositError", () => {
 
   it("maps a broadcast failure to the broadcast callout", () => {
     expect(
-      mapDepositError(new Error(ERRORS.prePeginBroadcastFailed("timeout"))),
+      mapDepositError(
+        new Error("Failed to broadcast Pre-Pegin transaction: timeout"),
+      ),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
   it("classifies a BTC broadcast wrapper over insufficient funds as broadcast, not ETH gas", () => {
-    // The flow wraps broadcast errors; the inner text can say "insufficient
-    // funds" (BTC-side) — that must not be read as an ETH gas shortfall.
+    // The broadcast stage wraps inner errors; the inner text can say
+    // "insufficient funds" (BTC-side) — that must not be read as an ETH gas
+    // shortfall.
     expect(
       mapDepositError(
-        new Error(ERRORS.prePeginBroadcastFailed("insufficient funds")),
+        new Error(
+          "Failed to broadcast Pre-Pegin transaction: insufficient funds",
+        ),
       ),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
-  it("classifies a wallet rejection wrapped by the broadcast catch as a signing rejection", () => {
-    // The broadcast step re-wraps inner errors in a fresh Error (losing the
-    // wallet code), so a rejection there must still be matched by phrasing.
+  it("maps a prepare-stage failure to the preparation callout", () => {
+    // The common producer: prevout resolution against the mempool API on the
+    // resume path (no trusted expectedUtxos).
     expect(
       mapDepositError(
-        new Error(ERRORS.prePeginBroadcastFailed("User rejected the request")),
+        new Error(
+          "Failed to prepare Pre-Pegin transaction: Failed to fetch UTXO from mempool: HTTP 502",
+        ),
+      ),
+    ).toEqual(ERRORS.preparationFailed);
+  });
+
+  it("keeps a sign-stage failure out of the broadcast bucket even when its inner text says broadcast", () => {
+    // The ceremony's terms-mismatch text contains "being broadcast"; only the
+    // explicit "failed to broadcast" labels may hit the broadcast bucket.
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-Pegin transaction: Deposit terms do not match the transaction being broadcast: vault 0 amount differs",
+        ),
+      ),
+    ).toEqual(ERRORS.signingFailed);
+  });
+
+  it("classifies a wallet rejection wrapped by the sign stage as a signing rejection", () => {
+    // Wording backup path: some wallets reject with a bare string, so the
+    // rejection must be matched by phrasing even without a typed cause.
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-Pegin transaction: User rejected the request",
+        ),
       ),
     ).toEqual(ERRORS.signingRejected);
+  });
+
+  it("classifies a typed rejection carried on the wrapper's cause chain as a signing rejection", () => {
+    // The stage wrapper preserves `cause`, so a typed 4001 rejection is
+    // detected even when the text matches no rejection phrasing.
+    const walletError = Object.assign(new Error("request declined"), {
+      code: 4001,
+    });
+    expect(
+      mapDepositError(
+        new Error("Failed to sign Pre-Pegin transaction: request declined", {
+          cause: walletError,
+        }),
+      ),
+    ).toEqual(ERRORS.signingRejected);
+  });
+
+  it("maps a non-rejection signing failure to the signing-failed callout", () => {
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-Pegin transaction: PSBT finalization failed and wallet did not auto-finalize",
+        ),
+      ),
+    ).toEqual(ERRORS.signingFailed);
   });
 
   it("treats a BTC funding shortfall as funds-unavailable, not an ETH gas shortfall", () => {
@@ -414,10 +471,10 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).not.toEqual(ERRORS.depositTermsRejected);
   });
 
-  it("maps a broadcast-stage lifecycle refusal to the broadcast callout, by type not message", () => {
-    // Same user-visible outcome as the generic-message predecessor (whose
-    // message contained "broadcast"); the message here deliberately doesn't,
-    // so only the typed branch can produce this mapping.
+  it("maps a broadcast-stage lifecycle refusal to the terminal batch callout, by type not message", () => {
+    // A sibling that left PENDING is terminal: the copy must not invite a
+    // retry. The message deliberately carries no stage label, so only the
+    // typed branch can produce this mapping.
     const err = new VaultLifecycleStateError("resume refused", {
       reason: "invalid-status",
       stage: "broadcast",
@@ -425,7 +482,8 @@ describe("mapDepositError", () => {
       status: OnChainBtcVaultStatus.EXPIRED,
       vaultId: "0xabc",
     });
-    expect(mapDepositError(err)).toEqual(ERRORS.broadcastFailed);
+    expect(mapDepositError(err)).toEqual(ERRORS.batchNoLongerPending);
+    expect(mapDepositError(err)).not.toEqual(ERRORS.broadcastFailed);
   });
 
   it("does NOT map a presign-stage lifecycle refusal to the broadcast callout", () => {
@@ -451,15 +509,15 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.walletMethodNotSupported);
   });
 
-  it("finds WALLET_METHOD_NOT_SUPPORTED through a broadcast wrapper's cause chain", () => {
-    // The broadcast catch re-wraps with { cause }; the coded inner error must
-    // beat the "broadcast" substring bucket the wrapper message would hit.
+  it("finds WALLET_METHOD_NOT_SUPPORTED through a sign-stage wrapper's cause chain", () => {
+    // The sign stage re-wraps with { cause }; the coded inner error must
+    // beat the sign-stage label bucket the wrapper message would hit.
     const inner = new FakeWalletError(
       "WALLET_METHOD_NOT_SUPPORTED",
       "SomeWallet does not support deriveContextHash",
     );
     const wrapped = new Error(
-      "Failed to broadcast Pre-PegIn transaction: unsupported",
+      "Failed to sign Pre-Pegin transaction: unsupported",
       { cause: inner },
     );
     expect(mapDepositError(wrapped)).toEqual(ERRORS.walletMethodNotSupported);
@@ -525,14 +583,14 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.walletMethodNotSupported);
   });
 
-  it("finds DEVICE_CEREMONY_INVALID through a broadcast wrapper's cause chain", () => {
-    // Without the typed bucket, the wrapper's "broadcast" wording would claim
-    // this as "Broadcast failed" — misleading for a device-state error.
+  it("finds DEVICE_CEREMONY_INVALID through a sign-stage wrapper's cause chain", () => {
+    // Without the typed bucket, the wrapper's sign-stage label would claim
+    // this as "Signing failed" — misleading for a device-state error.
     const inner = new FakeWalletError(
       "DEVICE_CEREMONY_INVALID",
       "The device no longer holds the approved intent (SW_BAD_STATE) — restart the flow from derivation.",
     );
-    const wrapped = new Error("Failed to broadcast Pre-PegIn transaction", {
+    const wrapped = new Error("Failed to sign Pre-Pegin transaction", {
       cause: inner,
     });
     expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceCeremonyInvalid);
@@ -621,16 +679,46 @@ describe("mapDepositError", () => {
   });
 
   it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {
-    // Pins the { cause } side effect at the broadcast wrap sites: a coded
+    // Pins the { cause } side effect at the sign-stage wrap: a coded
     // rejection whose message carries no cancellation wording used to flatten
-    // into the wrapper and read as a broadcast failure.
+    // into the wrapper and read as a plain signing failure.
     const rejection = new FakeWalletError("CONNECTION_REJECTED", "nope");
-    const withCause = new Error(ERRORS.prePeginBroadcastFailed("nope"), {
+    const withCause = new Error("Failed to sign Pre-Pegin transaction: nope", {
       cause: rejection,
     });
     expect(mapDepositError(withCause)).toEqual(ERRORS.signingRejected);
 
-    const withoutCause = new Error(ERRORS.prePeginBroadcastFailed("nope"));
-    expect(mapDepositError(withoutCause)).toEqual(ERRORS.broadcastFailed);
+    const withoutCause = new Error(
+      "Failed to sign Pre-Pegin transaction: nope",
+    );
+    expect(mapDepositError(withoutCause)).toEqual(ERRORS.signingFailed);
+  });
+});
+
+describe("mapDepositError — bare broadcast wording", () => {
+  it("does not read an untyped message that merely mentions broadcast as a broadcast failure", () => {
+    // verifyResumeParticipantKeys' wording: nothing was sent, and the message
+    // carries no stage label. Only the explicit label selects the callout.
+    const err = new Error(
+      "Cannot verify participant keys: the stamped value for vault keeper at index 0 is not a readable BTC public key (zz). The Pre-PegIn was not broadcast.",
+    );
+    const mapped = mapDepositError(err);
+    expect(mapped).not.toEqual(ERRORS.broadcastFailed);
+    expect(mapped.title).toBe(ERRORS.defaultTitle);
+  });
+});
+
+describe("isResumableDepositError", () => {
+  it("treats a non-rejection signing failure as resumable after registration", () => {
+    // Nothing was broadcast, so the registered vaults can still take the
+    // Pre-PegIn — the same situation as a locked device.
+    expect(isResumableDepositError(ERRORS.signingFailed)).toBe(true);
+  });
+
+  it("does not treat a preparation or broadcast failure as resumable", () => {
+    // Fresh-flow preparation failures are deterministic; a broadcast failure
+    // may already have reached the network.
+    expect(isResumableDepositError(ERRORS.preparationFailed)).toBe(false);
+    expect(isResumableDepositError(ERRORS.broadcastFailed)).toBe(false);
   });
 });

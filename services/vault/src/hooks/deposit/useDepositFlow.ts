@@ -16,7 +16,6 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
   forwardDepositApproval,
-  isDepositTermsRejectedError,
   isRegisteredVaultVersionMismatchError,
   requireChangeAddress,
   stripHexPrefix,
@@ -100,6 +99,7 @@ import {
 } from "@/storage/peginStorage";
 import {
   btcAddressToScriptPubKeyHex,
+  BtcWalletLivenessError,
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
@@ -1069,57 +1069,67 @@ export function useDepositFlow(
         // Ethereum event.
         // ========================================================================
 
+        // Advance before the probes: an unlock prompt or a probe failure
+        // belongs to this step, not to the Ethereum registration.
         advanceStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
         setPerVaultSteps(
           vaultAmounts.map(() => DepositFlowStep.BROADCAST_PRE_PEGIN),
         );
 
-        let prePeginBroadcastTxid: string;
-        try {
-          prePeginBroadcastTxid = await broadcastPrePeginTransaction({
-            unsignedTxHex: batchResult.fundedPrePeginTxHex,
-            btcWalletProvider: {
-              signPsbt: async (psbtHex: string) => {
-                const signedPsbtHex = await runCancellableSign(
-                  confirmedBtcWallet,
-                  () => confirmedBtcWallet.signPsbt(psbtHex),
+        // A flow abandoned during the minutes-long gate must not raise an
+        // unlock prompt or signing popup (same rule as the resume path).
+        signal.throwIfAborted();
+
+        // The wallet may have locked during the gate wait; probe before the
+        // signing popup so it fails with liveness copy, not a dead popup.
+        await verifyBtcWalletLiveness(confirmedBtcWallet, confirmedBtcAddress, {
+          probeConnection: shouldProbeWalletLiveness(
+            btcConnector?.connectedWallet?.id,
+          ),
+        });
+
+        // The inputs were validated before ETH registration; the gate
+        // stretched that window to minutes, so re-check before signing.
+        await assertUtxosAvailable(
+          batchResult.fundedPrePeginTxHex,
+          confirmedBtcAddress,
+        );
+
+        // An abort landing during the probes must not raise the signing popup.
+        signal.throwIfAborted();
+
+        // No re-wrap: the service labels each stage and preserves `cause`;
+        // a wrapper here would poison the label and sever that chain.
+        const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
+          unsignedTxHex: batchResult.fundedPrePeginTxHex,
+          btcWalletProvider: {
+            signPsbt: async (psbtHex: string) => {
+              const signedPsbtHex = await runCancellableSign(
+                confirmedBtcWallet,
+                () => confirmedBtcWallet.signPsbt(psbtHex),
+              );
+              // A late cancel that still signed successfully proceeds
+              // elsewhere — but here the next step is the irreversible
+              // pushTx, so honor the cancel: throw before the tx leaves,
+              // keeping the records PENDING and resumable (Broadcast CTA).
+              if (lastSignSettledWithCancelPendingRef.current) {
+                deviceCancelSettledRef.current = true;
+                throw Object.assign(
+                  new Error(COPY.deposit.errors.prePeginSigningCanceled),
+                  { code: WALLET_CONNECTION_REJECTED_CODE },
                 );
-                // A late cancel that still signed successfully proceeds
-                // elsewhere — but here the next step is the irreversible
-                // pushTx, so honor the cancel: throw before the tx leaves,
-                // keeping the records PENDING and resumable (Broadcast CTA).
-                if (lastSignSettledWithCancelPendingRef.current) {
-                  deviceCancelSettledRef.current = true;
-                  throw Object.assign(
-                    new Error(COPY.deposit.errors.prePeginSigningCanceled),
-                    { code: WALLET_CONNECTION_REJECTED_CODE },
-                  );
-                }
-                return signedPsbtHex;
-              },
-              deriveContextHash: (appName: string, context: string) =>
-                confirmedBtcWallet.deriveContextHash(appName, context),
-              // Object spread drops prototype methods — see forwardDepositApproval.
-              ...forwardDepositApproval(confirmedBtcWallet),
+              }
+              return signedPsbtHex;
             },
-            depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
-            depositTerms: batchResult.depositTerms,
-          });
-        } catch (error) {
-          // Preserve a typed intent rejection so the error mapper can show the
-          // intent-rejection copy instead of a generic broadcast failure — the
-          // broadcast service already keeps it typed at its boundary.
-          if (isDepositTermsRejectedError(error)) {
-            throw error;
-          }
-          // `cause` keeps the typed inner error visible to the cause-walking
-          // classifiers (user cancellation, method-not-supported) in the
-          // mappers.
-          throw new Error(COPY.deposit.errors.prePeginBroadcastFailed(error), {
-            cause: error,
-          });
-        }
+            deriveContextHash: (appName: string, context: string) =>
+              confirmedBtcWallet.deriveContextHash(appName, context),
+            // Object spread drops prototype methods — see forwardDepositApproval.
+            ...forwardDepositApproval(confirmedBtcWallet),
+          },
+          depositorBtcPubkey: batchResult.depositorBtcPubkey,
+          expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
+          depositTerms: batchResult.depositTerms,
+        });
 
         // Broadcast succeeded — update pending pegins from PENDING to CONFIRMING
         for (const peginResult of peginResults) {
@@ -1677,12 +1687,15 @@ export function useDepositFlow(
                   body: COPY.deposit.errors.signingCanceled.body,
                 }
             : mapDepositError(err);
-          // Post-registration the vaults are on-chain, so a self-cancel or a
-          // mapped resumable bucket (device trouble, wallet reject) offers the
+          // Post-registration the vaults are on-chain, so a self-cancel, a
+          // mapped resumable bucket (device trouble, wallet reject, sign
+          // failure) or a wallet that locked during the gate offers the
           // in-modal resume.
           if (
             registeredVaultIds !== null &&
-            (selfCanceled || isResumableDepositError(content))
+            (selfCanceled ||
+              isResumableDepositError(content) ||
+              err instanceof BtcWalletLivenessError)
           ) {
             setResumableVaultIds(registeredVaultIds);
           }

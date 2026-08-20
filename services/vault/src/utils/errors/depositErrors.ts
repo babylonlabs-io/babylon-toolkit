@@ -44,6 +44,10 @@
  *  - Wallet not connected / wallet client missing.
  *  - Wallet account changed mid-flow (the WOTS-vs-PoP key guard).
  *  - Wrong wallet connected on resume (WOTS hash mismatch).
+ *  - Preparation failure — the Pre-PegIn could not be prepared for signing
+ *    (e.g. prevout resolution against the mempool API failed).
+ *  - Signing failure — the wallet could not sign the Pre-PegIn and it was not
+ *    a rejection (locked wallet, stale extension, device transport drop).
  *  - Broadcast failure — Pre-PegIn could not be broadcast to Bitcoin.
  *  - Insufficient ETH — the Ethereum registration tx can't cover gas. Detected
  *    via the shared `classifyError` (viem typed error + node-message regex),
@@ -126,7 +130,11 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   ERRORS.deviceWrongApp,
   ERRORS.deviceCeremonyInvalid,
   ERRORS.signingRejected,
+  // Nothing was broadcast; the software-wallet twin of deviceLocked.
+  ERRORS.signingFailed,
 ]);
+
+const STAGE_FAILED = ERRORS.prePeginStageFailed;
 
 export function isResumableDepositError(content: DepositErrorContent): boolean {
   return RESUMABLE_AFTER_REGISTRATION.has(content);
@@ -302,11 +310,10 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.depositTermsRejected;
   }
 
-  // 3e. Typed lifecycle refusal from the DepositTerms rebuild. The broadcast
-  // stage keeps the copy its generic-message predecessor landed on (the old
-  // message contained "broadcast", so it hit the broadcast bucket below).
+  // 3e. Typed lifecycle refusal from the DepositTerms rebuild: a batch
+  // member left PENDING, so nothing was sent and a retry cannot succeed.
   if (isVaultLifecycleStateError(err) && err.stage === "broadcast") {
-    return ERRORS.broadcastFailed;
+    return ERRORS.batchNoLongerPending;
   }
 
   // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild or the
@@ -341,7 +348,7 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3h. Device codes nested in a cause chain — must beat the message buckets
-  // (a broadcast wrapper's wording would otherwise claim them).
+  // (a stage wrapper's wording would otherwise claim them).
   if (isDeviceCeremonyInvalidError(err)) {
     return ERRORS.deviceCeremonyInvalid;
   }
@@ -401,10 +408,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.commissionUnavailable;
   }
 
-  // 5. Wallet not connected / wallet client unavailable. Checked before the
-  // broadcast bucket: the broadcast step wraps inner errors as "Failed to
-  // broadcast ...: <inner>", and a disconnect there should still read as a
-  // wallet problem, not a generic broadcast failure.
+  // 5. Wallet not connected / client unavailable. Before the stage buckets so
+  // a disconnect inside a wrapped stage still reads as a wallet problem.
   if (
     msg.includes("wallet not connected") ||
     msg.includes("wallet is not connected") ||
@@ -424,10 +429,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 6. Wallet signing rejection. The typed path (step 2) checks only the
-  // top-level frame, so it misses rejections the broadcast step re-wrapped;
-  // this cause-walking check catches them by wording or by the coded inner
-  // frame the wrapper now preserves as `cause`. Checked before the broadcast
-  // bucket so "Failed to broadcast ...: user rejected" reads as a rejection.
+  // top-level frame; this cause-walking check catches rejections the sign
+  // stage wrapped, by wording or by the coded inner frame kept as `cause`.
+  // Before 6b on purpose: "Failed to sign ...: user rejected" is a rejection.
   //
   // Shares its vocabulary with the Sentry-side drop rather than keeping a local
   // wording list: a cancellation that telemetry correctly suppressed used to
@@ -436,12 +440,22 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.signingRejected;
   }
 
-  // 7. Pre-PegIn broadcast failure. Checked before the ETH-gas/UTXO buckets:
-  // the flow wraps broadcast errors as "Failed to broadcast batch Pre-Pegin
-  // transaction: <inner>", and that inner text can contain BTC-side
-  // "insufficient funds" — a broadcast wrapper must win over the ETH-gas
-  // classification.
-  if (msg.includes("broadcast")) {
+  // 6b. Non-rejection signing failure (locked wallet, stale extension,
+  // device transport drop). Matches the sign-stage label.
+  if (msg.includes(STAGE_FAILED.sign.toLowerCase())) {
+    return ERRORS.signingFailed;
+  }
+
+  // 6c. Preparation failure — nothing signed or sent. On resume this is
+  // usually a prevout fetch; in the fresh flow it is an internal bug.
+  if (msg.includes(STAGE_FAILED.prepare.toLowerCase())) {
+    return ERRORS.preparationFailed;
+  }
+
+  // 7. Broadcast failure — only the explicit stage label (bare "broadcast"
+  // also appears in non-broadcast messages), and before the ETH-gas bucket
+  // since the inner text can say "insufficient funds".
+  if (msg.includes(STAGE_FAILED.broadcast.toLowerCase())) {
     return ERRORS.broadcastFailed;
   }
 

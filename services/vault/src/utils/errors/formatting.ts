@@ -510,7 +510,7 @@ export function formatErrorMessage(error: unknown): string {
  *
  * Same typed-bucket ORDER as `mapDepositError`, not identical behaviour: the
  * deposit mapper additionally walks `cause` for cancellation wording (its
- * broadcast step re-wraps wallet errors); this mapper is deliberately
+ * Pre-PegIn sign stage re-wraps wallet errors); this mapper is deliberately
  * code-only for rejections (#1484) because nothing on the presign path
  * re-wraps, and a wording match would misread other wallet codes.
  */

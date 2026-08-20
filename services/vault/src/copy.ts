@@ -884,11 +884,8 @@ export const COPY = {
         `Peg-in TVL cap reached — only ${remainingBtc} BTC remains`,
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
-      // Deliberately worded without the token "broadcast". These are state
-      // preconditions, not broadcast failures, and `mapDepositError` matches
-      // "broadcast" on the message — which would replace this precise sentence
-      // with "Broadcast failed / please try again", wrong for a terminal state
-      // like EXPIRED where retrying can never succeed.
+      // Worded without "failed to broadcast": colliding with the mapper's
+      // stage label would show retryable broadcast copy for a terminal state.
       cannotBroadcastInState: (state: string) =>
         `Cannot continue: BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
@@ -976,6 +973,16 @@ export const COPY = {
         title: "Signing canceled",
         body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard — otherwise the registration will expire on its own.",
       },
+      // Also covers the integrity checks on the wallet's returned PSBT, so
+      // the lock is offered as a possibility, not stated as the cause.
+      signingFailed: {
+        title: "Signing failed",
+        body: "Your Bitcoin wallet couldn't sign the transaction. If it's locked, unlock it and try again. No Bitcoin has been broadcast.",
+      },
+      preparationFailed: {
+        title: "Preparation failed",
+        body: "We couldn't prepare your Bitcoin transaction for signing. Please try again. No Bitcoin has been broadcast.",
+      },
       walletNotConnected: {
         title: "Wallet not connected",
         body: "Please reconnect your Bitcoin and Ethereum wallets, then try again.",
@@ -995,6 +1002,12 @@ export const COPY = {
         title: "Broadcast failed",
         body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
       },
+      // Resume refused because a vault in the batch left PENDING: terminal, so
+      // no retry advice.
+      batchNoLongerPending: {
+        title: "Deposit can't be resumed",
+        body: "A vault in this deposit is no longer awaiting its Bitcoin transaction, so the batch can't be broadcast as one transaction. No Bitcoin was sent.",
+      },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
       refundHashMismatch: (computedHash: string, chainHash: string) =>
@@ -1006,9 +1019,13 @@ export const COPY = {
         "Transaction integrity check failed: the Pre-Pegin transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
       prePeginSigningCanceled:
         "Signing canceled - the signed Pre-Pegin was not broadcast",
-      // depositErrors.ts matches "broadcast" to select the failure callout.
-      prePeginBroadcastFailed: (error: unknown) =>
-        `Failed to broadcast batch Pre-Pegin transaction: ${error instanceof Error ? error.message : String(error)}`,
+      // Stage labels broadcastPrePeginTransaction wraps failures under;
+      // depositErrors.ts matches each one to pick the callout.
+      prePeginStageFailed: {
+        prepare: "Failed to prepare Pre-Pegin transaction",
+        sign: "Failed to sign Pre-Pegin transaction",
+        broadcast: "Failed to broadcast Pre-Pegin transaction",
+      },
       providerNotFound: {
         title: "Vault provider not found",
         body: "The selected vault provider could not be found. Please refresh and try again.",

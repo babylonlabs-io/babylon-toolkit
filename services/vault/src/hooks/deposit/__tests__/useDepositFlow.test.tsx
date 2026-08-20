@@ -22,6 +22,7 @@ import {
   resetOptimisticDepositState,
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
+import { BtcWalletLivenessError } from "@/utils/btc";
 
 import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
@@ -198,6 +199,7 @@ vi.mock("@/context/ProtocolParamsContext", async (importOriginal) => ({
 vi.mock("@/utils/btc", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/btc")>()),
   btcAddressToScriptPubKeyHex: vi.fn(() => "0x0014mockedscriptpubkey"),
+  verifyBtcWalletLiveness: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../useVaultProviders", () => ({
@@ -880,6 +882,70 @@ describe("useDepositFlow", () => {
       expect(
         waitForEthRegistrationDepth.mock.invocationCallOrder[0],
       ).toBeLessThan(broadcastPrePeginTransaction.mock.invocationCallOrder[0]);
+    });
+
+    it("re-checks UTXO availability after the finality wait, before broadcasting", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+      });
+      // The gate stretches the gap after input validation to minutes; the
+      // second check must run post-gate, pre-broadcast.
+      expect(assertUtxosAvailable).toHaveBeenCalledTimes(2);
+      expect(assertUtxosAvailable.mock.invocationCallOrder[1]).toBeGreaterThan(
+        waitForEthRegistrationDepth.mock.invocationCallOrder[0],
+      );
+      expect(assertUtxosAvailable.mock.invocationCallOrder[1]).toBeLessThan(
+        broadcastPrePeginTransaction.mock.invocationCallOrder[0],
+      );
+      // Same arguments as the pre-registration check.
+      expect(assertUtxosAvailable.mock.calls[1]).toEqual(
+        assertUtxosAvailable.mock.calls[0],
+      );
+    });
+
+    it("probes wallet liveness after the finality wait, before the signing popup", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+      });
+      // Probe 2 sits between gate and broadcast so a wallet that locked
+      // during the wait fails with liveness copy, not a dead signing popup.
+      expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(2);
+      expect(
+        verifyBtcWalletLiveness.mock.invocationCallOrder[1],
+      ).toBeGreaterThan(
+        waitForEthRegistrationDepth.mock.invocationCallOrder[0],
+      );
+      expect(verifyBtcWalletLiveness.mock.invocationCallOrder[1]).toBeLessThan(
+        broadcastPrePeginTransaction.mock.invocationCallOrder[0],
+      );
     });
 
     it("persists the pending records BEFORE the finality wait so a tab close stays resumable", async () => {
@@ -2817,7 +2883,7 @@ describe("useDepositFlow", () => {
       );
       // Mirrors the real service: the sign failure surfaces as the wrapper's cause.
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Failed to broadcast Pre-PegIn transaction: locked", {
+        new Error("Failed to sign Pre-Pegin transaction: locked", {
           cause: deviceLockedError(),
         }),
       );
@@ -2890,9 +2956,9 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
       // A Reject on the device (no in-app Cancel) surfaces as the wallet's
-      // CONNECTION_REJECTED under the broadcast wrapper.
+      // CONNECTION_REJECTED under the sign-stage wrapper.
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Failed to broadcast Pre-PegIn transaction: refused", {
+        new Error("Failed to sign Pre-Pegin transaction: refused", {
           cause: Object.assign(new Error("User rejected"), {
             code: "CONNECTION_REJECTED",
           }),
@@ -2930,7 +2996,9 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Bitcoin RPC unreachable"),
+        new Error(
+          "Failed to broadcast Pre-Pegin transaction: Bitcoin RPC unreachable",
+        ),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -2938,6 +3006,54 @@ describe("useDepositFlow", () => {
 
       expect(result.current.error).toEqual(DEPOSIT_ERRORS.broadcastFailed);
       expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("exposes resumableVaultIds when the wallet locks during the finality wait", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      // Pre-registration probe passes; the post-gate probe finds the wallet
+      // locked. The records are already persisted, so the modal offers Retry.
+      verifyBtcWalletLiveness
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual({
+        title: COPY.wallet.liveness.errorTitle,
+        body: COPY.wallet.liveness.unresponsive,
+      });
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("exposes resumableVaultIds when a software wallet fails to sign after registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // The service's sign-stage label: a non-rejection, untyped failure.
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Failed to sign Pre-Pegin transaction: wallet is locked"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingFailed);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
     });
 
     it("resets resumableVaultIds when a new run starts", async () => {
@@ -2948,7 +3064,7 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultTransactionService"),
       );
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Failed to broadcast Pre-PegIn transaction: locked", {
+        new Error("Failed to sign Pre-Pegin transaction: locked", {
           cause: deviceLockedError(),
         }),
       );
@@ -3411,8 +3527,12 @@ describe("useDepositFlow", () => {
         .mockImplementationOnce(() => {
           throw new Error("Unable to save the deposit record locally.");
         });
+      // The service labels its own stages; emulate its real broadcast-stage
+      // contract (the flow no longer re-wraps).
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Bitcoin RPC unreachable"),
+        new Error(
+          "Failed to broadcast Pre-Pegin transaction: Bitcoin RPC unreachable",
+        ),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));

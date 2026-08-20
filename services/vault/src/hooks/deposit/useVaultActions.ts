@@ -563,9 +563,8 @@ export function useVaultActions(): UseVaultActionsReturn {
         // useDepositFlow uses. Flattening to `err.message` first would strip
         // the prototype and name that every `instanceof` branch in the mapper
         // narrows on, silently downgrading precise errors to message matching:
-        // a finality-gate timeout would land in the "broadcast failed" bucket
-        // and tell the user their Bitcoin broadcast failed when nothing was
-        // ever sent.
+        // a finality-gate timeout would fall through to the generic callout
+        // instead of the Ethereum-confirmation one.
         setBroadcastError(mapDepositError(err));
         // Mapping replaces the raw message with friendly copy, and only the
         // fallback branch carries `diagnostics`. Log the original so a mapped
