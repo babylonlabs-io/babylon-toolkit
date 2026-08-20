@@ -17,7 +17,6 @@ import {
   NEUTRAL_ROW_BUTTON_CLASS,
   ROW_BUTTON_MIN_WIDTH_PX,
 } from "@/components/shared/buttonClasses";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { getMarketDataRoute } from "@/routes";
 import {
@@ -92,9 +91,7 @@ const MARKET_INFO_COL_STYLE = {
 /** Borrow is wider than repay to fit the Market Info column without squeezing
  *  the stat columns (Figma 6058-44070 measures it at ~700px). */
 export function getAssetPickerWidthClass(mode: LoanTab) {
-  return mode === LOAN_TAB.REPAY || !featureFlags.isMarketDetailPageEnabled
-    ? "max-w-[612px]"
-    : "max-w-[700px]";
+  return mode === LOAN_TAB.REPAY ? "max-w-[612px]" : "max-w-[700px]";
 }
 
 export function AssetSelectionPanel({
@@ -110,9 +107,7 @@ export function AssetSelectionPanel({
     allBorrowReserves,
   } = useAaveConfig();
   const isRepay = mode === LOAN_TAB.REPAY;
-  // The markets data route carries its own flag; with it off the route
-  // redirects to the dashboard, so the button would silently close the overlay.
-  const showMarketInfo = !isRepay && featureFlags.isMarketDetailPageEnabled;
+  const showMarketInfo = !isRepay;
 
   // Debt can sit in a reserve that is no longer borrowable (frozen or paused),
   // and repay must still price it — so repay prices the full reserve set.

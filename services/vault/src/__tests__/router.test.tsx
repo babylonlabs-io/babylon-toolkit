@@ -8,9 +8,9 @@
  *    whichever page under the Aave layout the depositor is already on, so no
  *    page flashes behind the dialog. The page under the overlay stays mounted.
  * 3. /vaults renders the VaultsPage and /loans the Loans page.
- * 4. /liquidations, /explore and /markets/:reserveId each carry their own
- *    feature flag, so with that flag off both the section root and a deep link
- *    under it redirect to the dashboard.
+ * 4. /liquidations and /explore each carry their own feature flag, so with
+ *    that flag off both the section root and a deep link under it redirect to
+ *    the dashboard. /markets/:reserveId is ungated and always resolves.
  *
  * These tests lock in that wiring so a future router refactor can't silently
  * regress it.
@@ -33,7 +33,6 @@ import { getReserveDetailRoute } from "../routes";
 const featureFlagsState = vi.hoisted(() => ({
   isLiquidationAnalysisChartEnabled: true,
   isExploreEnabled: true,
-  isMarketDetailPageEnabled: true,
 }));
 
 vi.mock("@/config/featureFlags", () => ({
@@ -95,6 +94,7 @@ const VAULTS_PAGE_TESTID = "vaults-page";
 const LOANS_TESTID = "loans-page";
 const LIQUIDATIONS_TESTID = "liquidations-page";
 const EXPLORE_TESTID = "explore-page";
+const MARKET_DETAIL_TESTID = "market-detail-page";
 
 vi.mock("../components/pages/VaultsPage", () => ({
   default: () => <div data-testid={VAULTS_PAGE_TESTID} />,
@@ -102,6 +102,10 @@ vi.mock("../components/pages/VaultsPage", () => ({
 
 vi.mock("../components/pages/Explore", () => ({
   default: () => <div data-testid={EXPLORE_TESTID} />,
+}));
+
+vi.mock("../components/pages/BorrowingMarketsData", () => ({
+  default: () => <div data-testid={MARKET_DETAIL_TESTID} />,
 }));
 
 vi.mock("../components/simple/DashboardPage", () => ({
@@ -218,7 +222,6 @@ afterEach(() => {
   vi.restoreAllMocks();
   featureFlagsState.isLiquidationAnalysisChartEnabled = true;
   featureFlagsState.isExploreEnabled = true;
-  featureFlagsState.isMarketDetailPageEnabled = true;
 });
 
 describe("Router — /activity regression for AaveConfigProvider wiring", () => {
@@ -303,13 +306,13 @@ describe("Router — section routes", () => {
     expect(screen.queryByTestId("not-found")).not.toBeInTheDocument();
   });
 
-  it("redirects /markets/:reserveId to / when the market detail flag is off", async () => {
-    featureFlagsState.isMarketDetailPageEnabled = false;
+  it("renders the market detail page at /markets/:reserveId", async () => {
     renderAt("/markets/1");
 
     await waitFor(() => {
-      expect(screen.getByTestId(DASHBOARD_TESTID)).toBeInTheDocument();
+      expect(screen.getByTestId(MARKET_DETAIL_TESTID)).toBeInTheDocument();
     });
+    expect(screen.queryByTestId(DASHBOARD_TESTID)).not.toBeInTheDocument();
   });
 
   it("redirects /explore to / when the explore flag is off", async () => {

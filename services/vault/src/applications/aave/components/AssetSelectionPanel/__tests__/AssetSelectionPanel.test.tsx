@@ -6,23 +6,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LOAN_TAB } from "../../../constants";
 import { AssetSelectionPanel } from "../AssetSelectionPanel";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
-}));
-
-// The markets data route carries its own flag, so Market Info only renders
-// when it is on.
-const featureFlagsState = vi.hoisted(() => ({
-  isMarketDetailPageEnabled: true,
-}));
-
-vi.mock("@/config/featureFlags", () => ({
-  default: featureFlagsState,
 }));
 
 const borrowableReserves = [
@@ -102,10 +92,6 @@ function renderPanel(ui: ReactNode) {
 }
 
 describe("AssetSelectionPanel", () => {
-  beforeEach(() => {
-    featureFlagsState.isMarketDetailPageEnabled = true;
-  });
-
   it("renders the full borrow table with live price and borrow APR per reserve", () => {
     renderPanel(
       <AssetSelectionPanel onSelectAsset={vi.fn()} mode={LOAN_TAB.BORROW} />,
@@ -165,17 +151,6 @@ describe("AssetSelectionPanel", () => {
       />,
     );
 
-    expect(screen.queryByText("Market Info")).not.toBeInTheDocument();
-  });
-
-  it("omits the Market Info button when the market detail flag is off", () => {
-    featureFlagsState.isMarketDetailPageEnabled = false;
-
-    renderPanel(
-      <AssetSelectionPanel onSelectAsset={vi.fn()} mode={LOAN_TAB.BORROW} />,
-    );
-
-    expect(screen.getByText("USD Coin")).toBeInTheDocument();
     expect(screen.queryByText("Market Info")).not.toBeInTheDocument();
   });
 
