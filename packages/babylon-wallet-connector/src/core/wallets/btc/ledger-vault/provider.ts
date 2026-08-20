@@ -468,38 +468,29 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.withDeviceOperation("approveDepositTerms", () => this.doApproveDepositTerms(terms));
 
   /**
-   * DepositTermsApprover.holdsApprovedDepositTerms: true iff this connection
-   * still holds an approval for the byte-equal intent AND nothing has been
-   * signed under it yet (held-but-consumed must read false — see the seam
-   * JSDoc). Host mirror read only — no device I/O, never throws. A stale true
-   * is caught fail-closed by the signing gate (device state error → mirror
-   * reset → retry runs the full ceremony), so a true answer can only skip a
-   * redundant ceremony, never authorize one.
+   * DepositTermsApprover.holdsApprovedDepositTerms: mirror read, no device
+   * I/O, never throws. A stale true fails closed at the signing gate.
    */
   holdsApprovedDepositTerms = async (terms: DepositTerms): Promise<boolean> => {
     const state = this.deviceState;
     if (state.phase !== "intent-loaded") return false;
-    // Anything already signed under this intent means the next Pre-PegIn
-    // signature needs a fresh ceremony (device one-shot cap; the host replay
-    // guard in stagePsbt pre-empts it without touching the mirror) — so the
-    // approval is held but not reusable, and reporting true would trap a
-    // broadcast-failure retry in the replay throw forever.
-    if (this.signedFingerprints.size > 0) return false;
     try {
+      // A signed Pre-PegIn is one-shot — its retry needs a fresh ceremony, and
+      // the replay guard never resets the mirror. Other txids (the PegIn PSBTs
+      // preparePegin signs) spend separate device counters and stay fine.
+      const prepeginTxid = terms.prepeginTxid.replace(/^0x/, "").toLowerCase();
+      for (const key of this.signedFingerprints) {
+        if (key.startsWith(`${prepeginTxid}|`)) return false;
+      }
       return state.termsKey === this.fingerprintTerms(terms);
     } catch {
-      // Unencodable terms cannot equal an approved fingerprint; the ceremony
-      // path surfaces the shaped rejection instead of this probe throwing.
+      // Never-throw seam: unencodable terms can't match an approved key; the
+      // ceremony path surfaces the real error.
       return false;
     }
   };
 
-  /**
-   * Idempotence key: the encoded intent wire bytes plus vaultCoreVersion,
-   * which the envelope gates but the TLV never carries (the wire's protocol
-   * version is a constant) — without it, terms differing only in version
-   * would compare equal.
-   */
+  /** Idempotence key: wire bytes + vaultCoreVersion (the TLV never carries it). */
   private fingerprintTerms = (terms: DepositTerms): string =>
     `${terms.vaultCoreVersion}:${fingerprintIntent(this.buildIntentFromTerms(terms))}`;
 

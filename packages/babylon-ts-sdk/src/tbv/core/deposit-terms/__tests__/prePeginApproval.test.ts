@@ -254,6 +254,55 @@ describe("ensurePrePeginTermsApproval", () => {
     expect(order).toEqual(["derive", "approve"]);
   });
 
+  it("falls back to the full ceremony when the probe throws", async () => {
+    const { hex, txid } = makeFundedTx();
+    const order: string[] = [];
+    const wallet: PrePeginApprovalWallet = {
+      deriveContextHash: vi.fn(async () => {
+        order.push("derive");
+        return "ab".repeat(32);
+      }),
+      approveDepositTerms: vi.fn(async () => {
+        order.push("approve");
+      }),
+      holdsApprovedDepositTerms: vi.fn(async () => {
+        throw new Error("seam-violating probe");
+      }),
+    };
+
+    await ensurePrePeginTermsApproval({
+      wallet,
+      depositTerms: makeTerms(txid),
+      fundedPrePeginTxHex: hex,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+    });
+
+    expect(order).toEqual(["derive", "approve"]);
+  });
+
+  it("invokes approveDepositTerms with the wallet as `this`", async () => {
+    const { hex, txid } = makeFundedTx();
+    const calls: unknown[] = [];
+    const wallet: PrePeginApprovalWallet & { calls: unknown[] } = {
+      calls,
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      // Prototype-style method: `this` must be the wallet, not undefined.
+      async approveDepositTerms(terms) {
+        this.calls.push(terms);
+      },
+    };
+    const terms = makeTerms(txid);
+
+    await ensurePrePeginTermsApproval({
+      wallet,
+      depositTerms: terms,
+      fundedPrePeginTxHex: hex,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+    });
+
+    expect(calls).toEqual([terms]);
+  });
+
   it("still rejects mismatched-txid terms even when the wallet holds an approval", async () => {
     const { hex } = makeFundedTx();
     const wallet: PrePeginApprovalWallet = {

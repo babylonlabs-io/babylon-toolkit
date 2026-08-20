@@ -319,17 +319,12 @@ optional holdsApprovedDepositTerms(terms): Promise<boolean>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-OPTIONAL fast-path probe: does the current device connection still hold
-an approval for exactly these terms that the NEXT terms-bound signature
-can proceed under without a new ceremony? "Held but consumed" (anything
-already signed under a one-shot intent) MUST report false — a true that
-cannot sign again strands the caller with no recovery path.
-Implementations MUST answer from host-side state without device I/O,
-MUST return false on any doubt (including a dropped connection or terms
-that fail to encode), and MUST never throw. The SDK uses a true answer
-only to skip an otherwise redundant re-derive + re-approve ceremony; a
-stale true fails closed at the next signature, so this probe is a UX
-optimization, never an authorization.
+OPTIONAL fast-path probe: can the Pre-PegIn signature for exactly these
+terms proceed under the connection's held approval without a new
+ceremony? MUST report false once that Pre-PegIn was signed (one-shot),
+MUST answer from host state without device I/O, MUST return false on any
+doubt, and MUST never throw. A stale true fails closed at the next
+signature — this is a UX optimization, never an authorization.
 
 ###### Parameters
 
@@ -495,7 +490,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval
 
 Minimal structural wallet for the Pre-PegIn ceremony. Mirrors
 `DeriveContextHashCapableWallet` so an app-side wrapper object qualifies
-without implementing all of `BitcoinWallet`. Both methods are optional so
+without implementing all of `BitcoinWallet`. All methods are optional so
 the capability probe below can run on any wallet.
 
 #### Methods
@@ -946,18 +941,14 @@ Run the derive → approve ceremony (or a no-op) before a Pre-PegIn signature.
 - Approval-capable wallets: require terms, assert they match this tx's txid,
   derive the vault root over the tx's funding outpoints, then approve.
 
-Skip fast-path: when the wallet reports (via `holdsApprovedDepositTerms`, a
-host-side mirror read) that these byte-equal terms are still approved on the
-live connection, the ceremony is skipped entirely — the intent approved at
-`preparePegin` survives everything the flow does in between (PoP signing is
-state-independent and no base-app APDU touches the vault context;
-app-babylon-vault `sign_psbt_validate.c` PoP dispatch comment @ 73a57c50).
-A stale "true" fails closed: the device rejects the signature with a state
-error, the provider drops its mirror, and the retry runs the full ceremony.
+Skip fast-path: when `holdsApprovedDepositTerms` reports the byte-equal
+intent still live, the ceremony is skipped — it survives everything the
+flow does in between (PoP/PegIn signing spend separate device state;
+app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
+closed at the signature; the retry then re-runs the full ceremony.
 
-Otherwise always derives first: the host cannot read device state, and the
-one-shot Pre-PegIn cap means every retry needs the full ceremony — so this
-path never approves-only.
+Otherwise always derives first — the host cannot read device state, so
+this path never approves-only.
 
 #### Parameters
 

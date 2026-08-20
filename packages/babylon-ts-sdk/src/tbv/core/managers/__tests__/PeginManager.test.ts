@@ -973,8 +973,9 @@ describe("PeginManager", () => {
 
   describe("signProofOfPossession", () => {
     // varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B pubkey — the
-    // two-item P2WPKH shape the SDK passes through without verifying.
-    const P2WPKH_POP_WITNESS_HEX = `02${"47"}${"11".repeat(71)}${"21"}${"02" + "22".repeat(32)}`;
+    // two-item P2WPKH shape. The embedded pubkey must be the depositor's
+    // (verifyPopWitness mirrors vaultd's WitnessPubkeyMismatch check).
+    const P2WPKH_POP_WITNESS_HEX = `02${"47"}${"11".repeat(71)}${"21"}${"02" + TEST_KEYS.DEPOSITOR}`;
 
     it("returns signature bound to connected ETH and BTC identities", async () => {
       const btcWallet = new MockBitcoinWallet({

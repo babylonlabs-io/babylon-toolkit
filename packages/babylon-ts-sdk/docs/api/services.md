@@ -1029,7 +1029,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 Security council member x-only public keys (hex, no prefix).
 Source: ProtocolParams contract via
 `getOffchainParamsByVersion(...).securityCouncilKeys`.
-Required for the depositor-graph NoPayout local rebuild.
+Required to rebuild every Assert:0 leaf (payout and NoPayout) locally.
 
 ##### councilQuorum
 
@@ -1042,7 +1042,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 M-of-N council quorum threshold.
 Source: ProtocolParams contract via
 `getOffchainParamsByVersion(...).councilQuorum`.
-Required for the depositor-graph NoPayout local rebuild.
+Required to rebuild every Assert:0 leaf (payout and NoPayout) locally.
 
 ##### network
 

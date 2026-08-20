@@ -20,8 +20,10 @@ import { verifyPopWitness } from "../verifyPopWitness";
 const fromHex = (h: string) => Uint8Array.from(Buffer.from(h, "hex"));
 
 /** varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B compressed pubkey. */
-const P2WPKH_WITNESS =
-  `0x02${"47"}${"11".repeat(71)}${"21"}${"02" + "22".repeat(32)}` as const;
+/** Two-item P2WPKH witness: [DER sig(71B), compressed pubkey] with the given x-only key. */
+function p2wpkhWitness(xOnlyHex: string): `0x${string}` {
+  return `0x02${"47"}${"11".repeat(71)}${"21"}${"02" + xOnlyHex}`;
+}
 
 describe("verifyPopWitness", () => {
   it("verifies a one-item P2TR witness (0x01 0x40 ‖ sig) against the BIP-322 golden vector", () => {
@@ -111,14 +113,38 @@ describe("verifyPopWitness", () => {
     ).toThrow(/bare 64-char x-only hex/);
   });
 
-  it("passes a two-item P2WPKH witness through unverified (follow-up verifier)", () => {
+  it("passes a two-item P2WPKH witness with the depositor's pubkey through unverified (sig verify: #2284)", () => {
     expect(
       verifyPopWitness(
         fromHex(GOLDEN_PAYLOAD_HEX),
         GOLDEN_SIGNING_KEY_XONLY,
-        P2WPKH_WITNESS,
+        p2wpkhWitness(GOLDEN_SIGNING_KEY_XONLY),
       ),
     ).toEqual({ kind: "p2wpkh-unverified" });
+  });
+
+  it("rejects a two-item witness whose embedded pubkey is not the depositor's", () => {
+    // Mirrors vaultd's WitnessPubkeyMismatch — the wrong-account signature
+    // must fail here, not as a permanent InvalidDepositorPop after registration.
+    expect(() =>
+      verifyPopWitness(
+        fromHex(GOLDEN_PAYLOAD_HEX),
+        GOLDEN_SIGNING_KEY_XONLY,
+        p2wpkhWitness("22".repeat(32)),
+      ),
+    ).toThrow(/does not match the depositor key/);
+  });
+
+  it("rejects a two-item witness whose item 1 is not a compressed pubkey", () => {
+    // 32-byte item (x-only, no SEC1 prefix) in the pubkey slot.
+    const badWitness: `0x${string}` = `0x02${"47"}${"11".repeat(71)}${"20"}${"22".repeat(32)}`;
+    expect(() =>
+      verifyPopWitness(
+        fromHex(GOLDEN_PAYLOAD_HEX),
+        GOLDEN_SIGNING_KEY_XONLY,
+        badWitness,
+      ),
+    ).toThrow(/not a compressed public key/);
   });
 
   it("throws on a witness with any other item count or a truncated item", () => {

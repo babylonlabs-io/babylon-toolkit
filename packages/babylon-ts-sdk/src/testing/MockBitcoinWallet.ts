@@ -1,6 +1,10 @@
 import { sha256 } from "@noble/hashes/sha2.js";
+import { Buffer } from "buffer";
 
-import { BitcoinNetworks, type BitcoinNetwork } from "../shared/wallets/interfaces";
+import {
+  BitcoinNetworks,
+  type BitcoinNetwork,
+} from "../shared/wallets/interfaces";
 import type {
   BitcoinWallet,
   SignPsbtOptions,
@@ -95,10 +99,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return this.config.address;
   }
 
-  async signPsbt(
-    psbtHex: string,
-    _options?: SignPsbtOptions,
-  ): Promise<string> {
+  async signPsbt(psbtHex: string, _options?: SignPsbtOptions): Promise<string> {
     if (this.config.shouldFailSigning) {
       throw new Error("Mock signing failed");
     }
@@ -149,6 +150,12 @@ export class MockBitcoinWallet implements BitcoinWallet {
     for (let i = 0; i < derSignature.length; i++) {
       derSignature[i] = digest[i % digest.length];
     }
+    // Witness item 1 must carry the wallet's own key — verifyPopWitness
+    // mirrors vaultd's WitnessPubkeyMismatch check. Length-aware: config may
+    // hold a compressed (66-char) or x-only (64-char) key.
+    const cleanKey = this.config.publicKeyHex.replace(/^0x/, "").toLowerCase();
+    const xOnlyHex = cleanKey.length === 66 ? cleanKey.slice(2) : cleanKey;
+    const xOnlyBytes = Uint8Array.from(Buffer.from(xOnlyHex, "hex"));
     return `0x${uint8ArrayToHex(
       Uint8Array.from([
         MOCK_WITNESS_ITEM_COUNT,
@@ -156,7 +163,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
         ...derSignature,
         MOCK_WITNESS_PUBKEY_BYTES,
         COMPRESSED_PUBKEY_EVEN_PREFIX,
-        ...digest,
+        ...xOnlyBytes,
       ]),
     )}`;
   }

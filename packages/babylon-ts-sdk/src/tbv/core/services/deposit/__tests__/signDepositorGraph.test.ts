@@ -72,6 +72,10 @@ vi.mock("bitcoinjs-lib", () => ({
 }));
 
 vi.mock("../../../primitives/utils/bitcoin", () => ({
+  processPublicKeyToXOnly: (pk: string) => {
+    const stripped = pk.startsWith("0x") ? pk.slice(2) : pk;
+    return stripped.length === 66 ? stripped.slice(2) : stripped;
+  },
   stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
   uint8ArrayToHex: (bytes: Uint8Array) => Buffer.from(bytes).toString("hex"),
   validateWalletPubkey: (walletRaw: string, expectedDepositor: string) => {
@@ -329,7 +333,8 @@ describe("signDepositorGraph", () => {
       registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
       commissionBps: 1,
       protocolFeeRate: ctx.protocolFeeRate,
-      councilSize: ctx.councilMembers.length,
+      councilMembers: ctx.councilMembers,
+      councilQuorum: ctx.councilQuorum,
     });
   });
 

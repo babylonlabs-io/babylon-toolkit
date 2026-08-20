@@ -111,17 +111,12 @@ export interface DepositTerms {
 export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;
   /**
-   * OPTIONAL fast-path probe: does the current device connection still hold
-   * an approval for exactly these terms that the NEXT terms-bound signature
-   * can proceed under without a new ceremony? "Held but consumed" (anything
-   * already signed under a one-shot intent) MUST report false — a true that
-   * cannot sign again strands the caller with no recovery path.
-   * Implementations MUST answer from host-side state without device I/O,
-   * MUST return false on any doubt (including a dropped connection or terms
-   * that fail to encode), and MUST never throw. The SDK uses a true answer
-   * only to skip an otherwise redundant re-derive + re-approve ceremony; a
-   * stale true fails closed at the next signature, so this probe is a UX
-   * optimization, never an authorization.
+   * OPTIONAL fast-path probe: can the Pre-PegIn signature for exactly these
+   * terms proceed under the connection's held approval without a new
+   * ceremony? MUST report false once that Pre-PegIn was signed (one-shot),
+   * MUST answer from host state without device I/O, MUST return false on any
+   * doubt, and MUST never throw. A stale true fails closed at the next
+   * signature — this is a UX optimization, never an authorization.
    */
   holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
   /**

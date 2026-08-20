@@ -9,6 +9,8 @@
  */
 
 import { initWasm } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { Buffer } from "buffer";
 
 /**
  * Test public key constants derived from deterministic secret keys.
@@ -87,4 +89,20 @@ export const TEST_AMOUNTS = {
  */
 export async function initializeWasmForTests(): Promise<void> {
   await initWasm();
+}
+
+/**
+ * Deterministic distinct valid x-only pubkeys (scalar * G for scalars
+ * offset..offset+count-1), sorted ascending as the protocol requires.
+ */
+export function generateXOnlyKeys(count: number, offset: number): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const scalar = Buffer.alloc(32);
+    scalar.writeUInt32BE(offset + i, 28);
+    const point = ecc.pointFromScalar(scalar, true);
+    if (!point) throw new Error(`invalid scalar ${offset + i}`);
+    keys.push(Buffer.from(point.subarray(1, 33)).toString("hex"));
+  }
+  return keys.sort();
 }

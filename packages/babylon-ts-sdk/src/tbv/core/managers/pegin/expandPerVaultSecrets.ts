@@ -13,10 +13,7 @@ import {
   uint8ArrayToHex,
 } from "../../primitives/utils/bitcoin";
 import { computeHashlock } from "../../services";
-import {
-  expandHashlockSecret,
-  expandWotsSeed,
-} from "../../vault-secrets";
+import { expandHashlockSecret, expandWotsSeed } from "../../vault-secrets";
 import {
   computeWotsBlockPublicKeysHash,
   deriveWotsBlocksFromSeed,

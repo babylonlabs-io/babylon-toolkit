@@ -683,19 +683,32 @@ Tx-graph fee rate (sat/vB) the graph was built with — the version-locked
 `offchainParams.feeRate` at the vault's stamped `offchainParamsVersion`,
 NOT a live read. Anchors both ends of the fee band.
 
-##### councilSize
+##### councilMembers
 
 ```ts
-councilSize: number;
+councilMembers: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts)
 
-Security council member count from the locked offchain params version.
-Mirrors the upstream estimator's signature; at the current model pins the
-council occupies a single taptree leaf regardless of size, so the floor
-is council-size-invariant — passed for forward compatibility with future
-pinned models.
+Security council member x-only public keys (hex) from the locked offchain
+params version — `getOffchainParamsByVersion(...).securityCouncilKeys`.
+The council occupies the last leaf of the Assert:0 taptree
+(btc-vault `crates/vault/src/connectors/assert_payout_nopayout_council.rs`),
+so the keys are needed to rebuild input 1's payout leaf, and the count
+feeds the fee-band domain.
+
+##### councilQuorum
+
+```ts
+councilQuorum: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts)
+
+M-of-N council quorum from the locked offchain params version —
+`getOffchainParamsByVersion(...).councilQuorum`. Shapes the council leaf's
+multisig script, and with it the Assert:0 taptree root.
 
 ##### vkClaimerPayoutScriptPubKeys
 
@@ -2093,6 +2106,9 @@ Payout transactions have the following structure:
 - Input 0: from PeginTx output0 (signed by depositor)
 - Input 1: from Assert output0 (NOT signed by depositor)
 
+Both inputs carry their taproot script-path leaf. Input 1's is not signed
+here — it is what a hardware signer reads to display the payout terms.
+
 #### Parameters
 
 ##### params
@@ -2135,7 +2151,7 @@ If the implicit fee (inputs − outputs) is outside the fee band —
 
 #### Throws
 
-If `protocolFeeRate`, a participant count, or `councilSize` is
+If `protocolFeeRate`, a participant count, or the council size is
   outside the accepted input domain (see assertPayoutFeeBandDomain)
 
 #### Throws
@@ -2155,6 +2171,11 @@ If payout output count, outs[0] script, outs[last] anchor value, or
 #### Throws
 
 If `commissionBps` is not a non-negative integer below 10_000
+
+#### Throws
+
+If the locally rebuilt Assert:0 payout leaf does not bind to the
+  Assert output input 1 spends
 
 ***
 

@@ -1208,8 +1208,9 @@ export class PeginManager {
     });
 
     // Far-side check of the key-path signatures (CLAUDE.md §8: never trust the
-    // wallet's success/finalization) — Pre-PegIn inputs are the depositor's
-    // BIP-86 key-path spends.
+    // wallet's success/finalization). Covers taproot-funded inputs only —
+    // P2WPKH/P2WSH funding (non-taproot software-wallet accounts) is skipped
+    // by isKeyPathEligible and stays unverified here.
     assertReturnedKeyPathSignatures({
       requestedPsbtHex,
       returnedPsbtHex: signedPsbtHex,

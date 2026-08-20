@@ -39,8 +39,8 @@
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { payments, Transaction } from "bitcoinjs-lib";
 
-import { Buffer } from "buffer";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { Buffer } from "buffer";
 
 /** BIP-322 message tag (BIP-340 tagged-hash style). */
 const BIP322_TAG = "BIP0322-signed-message";
@@ -86,9 +86,9 @@ function tweakXOnlyKey(xOnly: Uint8Array): Uint8Array | null {
  * Verify a BIP-322 "simple" P2TR key-path signature over an arbitrary
  * byte message.
  *
- * @internal Exposed only so the golden-vector test suite can pin the
- * verifier independently of `verifyServerIdentity`. Production callers
- * should use `verifyServerIdentity` from `./serverIdentity` instead.
+ * @internal Consumed by `verifyServerIdentity` (VP auth) and
+ * `verifyPopWitness` (PoP pre-registration check), and exposed so the
+ * golden-vector test suite can pin the verifier independently.
  *
  * @param messageBytes - The bytes that were signed (e.g. a CBOR-encoded
  *                       payload). Not pre-hashed; this function applies
@@ -150,8 +150,8 @@ export function verifyBip322Simple(
     ]);
     toSpend.addInput(
       Buffer.alloc(32, 0), // prev_txid = 0x0000...0000
-      0xffffffff,          // prev_vout = 0xFFFFFFFF
-      0,                   // sequence = 0
+      0xffffffff, // prev_vout = 0xFFFFFFFF
+      0, // sequence = 0
       scriptSig,
     );
     toSpend.addOutput(scriptPubKey, ZERO_SATS);

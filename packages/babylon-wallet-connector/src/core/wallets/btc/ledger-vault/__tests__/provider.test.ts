@@ -1097,15 +1097,24 @@ describe("LedgerVaultProvider", () => {
       ).resolves.toBe(false);
     });
 
-    it("is false once a PSBT was signed under the intent, so a broadcast retry re-ceremonies", async () => {
-      // The one-shot cap + stagePsbt's pre-I/O replay guard mean a held-but-
-      // consumed intent cannot sign again; a true here would trap the retry
-      // in the replay throw with the mirror never resetting.
+    it("is false once the terms' Pre-PegIn was signed, so a broadcast retry re-ceremonies", async () => {
+      // A true here would trap the retry in the replay throw forever.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      const psbt = "aa".repeat(40);
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(psbt, TERMS.prepeginTxid));
+      await provider.signPsbt(psbt);
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("stays true after signing a different tx (the PegIn PSBTs preparePegin signs)", async () => {
+      // PegIn signatures spend a separate device counter — must not kill the fast path.
       const provider = await derived();
       await provider.approveDepositTerms(TERMS);
       await provider.signPsbt("aa".repeat(40));
 
-      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
     });
 
     it("is false after a sign failure drops the mirror", async () => {
@@ -1118,11 +1127,32 @@ describe("LedgerVaultProvider", () => {
     });
 
     it("stays true across a PoP signature — the intended fast path", async () => {
-      // The deposit flow signs the PoP between approval and the Pre-PegIn
-      // broadcast; PoP is state-independent on-device and must not consume
-      // the probe either.
+      // PoP is state-independent on-device; it must not consume the probe.
       const provider = await derived();
       await provider.approveDepositTerms(TERMS);
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async () => ({
+        signedPsbtHex: "unused",
+        yields: [
+          {
+            kind: "taproot-keypath",
+            inputIndex: 0,
+            outputKeyHex: "00".repeat(32),
+            signature: Buffer.from("ab".repeat(64), "hex"),
+          },
+        ],
+      }));
+      await provider.signMessage(
+        "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
+        "bip322-simple",
+      );
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("stays true through the full fresh-flow sequence: approve, batch PegIn signs, PoP", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.signPsbts(["aa".repeat(40), "bb".repeat(40)]);
       signMock.signPreparedVaultPsbt.mockImplementationOnce(async () => ({
         signedPsbtHex: "unused",
         yields: [

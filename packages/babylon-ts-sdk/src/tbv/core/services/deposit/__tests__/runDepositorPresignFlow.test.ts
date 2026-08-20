@@ -610,7 +610,8 @@ describe("runDepositorPresignFlow", () => {
         registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
         commissionBps: context.commissionBps,
         protocolFeeRate: context.protocolFeeRate,
-        councilSize: context.councilMembers.length,
+        councilMembers: context.councilMembers,
+        councilQuorum: context.councilQuorum,
       });
     }
   });

@@ -48,9 +48,7 @@ describe("assertAuthAnchorOpReturn", () => {
       opReturnOutput(ANCHOR_HASH),
       htlcOutput(),
     ]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).not.toThrow();
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).not.toThrow();
   });
 
   it("strips a leading 0x prefix from the funded tx hex", () => {
@@ -69,9 +67,9 @@ describe("assertAuthAnchorOpReturn", () => {
 
   it("throws when the tx has no output at vout=N", () => {
     const txHex = buildTxHex([htlcOutput()]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).toThrow(/auth-anchor OP_RETURN missing/);
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).toThrow(
+      /auth-anchor OP_RETURN missing/,
+    );
   });
 
   it("throws when the script length is not 34 bytes", () => {
@@ -81,9 +79,9 @@ describe("assertAuthAnchorOpReturn", () => {
       value: 0,
     };
     const txHex = buildTxHex([htlcOutput(), tooShort]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).toThrow(/unexpected/);
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).toThrow(
+      /unexpected/,
+    );
   });
 
   it("throws when the first opcode is not OP_RETURN (0x6a)", () => {
@@ -93,9 +91,9 @@ describe("assertAuthAnchorOpReturn", () => {
       value: 0,
     };
     const txHex = buildTxHex([htlcOutput(), wrongOpcode]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).toThrow(/unexpected/);
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).toThrow(
+      /unexpected/,
+    );
   });
 
   it("throws when the push prefix is not OP_PUSH32 (0x20)", () => {
@@ -108,16 +106,16 @@ describe("assertAuthAnchorOpReturn", () => {
       value: 0,
     };
     const txHex = buildTxHex([htlcOutput(), pushdata1]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).toThrow(/unexpected/);
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).toThrow(
+      /unexpected/,
+    );
   });
 
   it("throws when the pushed payload differs from the expected hash", () => {
     const txHex = buildTxHex([htlcOutput(), opReturnOutput(OTHER_HASH)]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).toThrow(/payload mismatch/);
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).toThrow(
+      /payload mismatch/,
+    );
   });
 
   it("throws when the OP_RETURN output has non-zero value", () => {
@@ -127,9 +125,9 @@ describe("assertAuthAnchorOpReturn", () => {
       htlcOutput(),
       opReturnOutput(ANCHOR_HASH, /* value */ 546),
     ]);
-    expect(() =>
-      assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH),
-    ).toThrow(/non-zero value/);
+    expect(() => assertAuthAnchorOpReturn(txHex, 1, ANCHOR_HASH)).toThrow(
+      /non-zero value/,
+    );
   });
 });
 

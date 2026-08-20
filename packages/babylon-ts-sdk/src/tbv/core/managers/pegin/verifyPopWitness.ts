@@ -26,6 +26,8 @@ import { verifyBip322Simple } from "../../clients/vault-provider/auth/bip322Veri
 
 const P2TR_WITNESS_ITEMS = 1;
 const P2WPKH_WITNESS_ITEMS = 2;
+/** SEC1 compressed pubkey: 0x02/0x03 prefix + 32-byte x coordinate. */
+const COMPRESSED_PUBKEY_BYTES = 33;
 const SCHNORR_SIG_BYTES = 64;
 /** BIP-341 hash types: 0x00 default (64-byte sig), 0x01 ALL (65-byte sig with trailing type byte). */
 const SIGHASH_DEFAULT = 0x00;
@@ -176,6 +178,33 @@ export function verifyPopWitness(
   }
 
   if (items.length === P2WPKH_WITNESS_ITEMS) {
+    // Signature verification is deferred (#2284), but vaultd's FIRST check is
+    // a plain pubkey compare (btc-vault crates/btc-signer/src/message.rs:110-123,
+    // WitnessPubkeyMismatch): witness item 1 must be the depositor's compressed
+    // key. Mirror it here — it needs no crypto and catches a wrong-account
+    // signature before it becomes a permanent InvalidDepositorPop.
+    if (!X_ONLY_PUBKEY_HEX.test(depositorXOnlyHex)) {
+      throw new Error(
+        `depositor public key must be bare 64-char x-only hex, got "${depositorXOnlyHex}"`,
+      );
+    }
+    const pubkey = items[1];
+    if (
+      pubkey.length !== COMPRESSED_PUBKEY_BYTES ||
+      (pubkey[0] !== 0x02 && pubkey[0] !== 0x03)
+    ) {
+      throw new Error(
+        `proof of possession P2WPKH witness item 1 is not a compressed public key ` +
+          `(${pubkey.length} bytes, prefix 0x${pubkey[0]?.toString(16) ?? "none"})`,
+      );
+    }
+    const witnessXOnlyHex = Buffer.from(pubkey.subarray(1)).toString("hex");
+    if (witnessXOnlyHex !== depositorXOnlyHex.toLowerCase()) {
+      throw new Error(
+        `proof of possession witness pubkey does not match the depositor key: ` +
+          `witness carries ${witnessXOnlyHex}, expected ${depositorXOnlyHex}`,
+      );
+    }
     return { kind: "p2wpkh-unverified" };
   }
 

@@ -32,6 +32,7 @@ import type {
   PresignDataPerChallenger,
 } from "../../clients/vault-provider/types";
 import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
+import { deriveLocalChallengers } from "../../primitives/challengers";
 import {
   assertPsbtUnsignedTxMatches,
   type AssertPsbtUnsignedTxMatchesParams,
@@ -84,43 +85,6 @@ interface CollectedDepositorGraphPsbts {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-/**
- * Compute the local-challenger set for the depositor-as-claimer flow.
- *
- * Per btc-vault `crates/vault/src/tx_graph/graph.rs:144-150` (introduced in
- * PR #1092 / commit 3133b698, 2026-02-18):
- *   Depositor-as-claimer: LocalChallengers = VKs only (VP excluded)
- *
- * Note: the docstring at `crates/vault/src/lib.rs:332` still says
- * `{VaultProvider, VaultKeepers} - {Claimer}` — that wording is stale and
- * predates the depositor-as-claimer special case. This function follows the
- * actual implementation, not the stale docstring.
- *
- * The protocol guarantees the depositor is not a vault keeper
- * (`TxGraphParams::validate` enforces it), so the depositor filter here is
- * defense-in-depth; it surfaces a clear error if a misconfigured context
- * ever violates the invariant.
- */
-function deriveLocalChallengers(
-  vaultKeeperBtcPubkeys: string[],
-  depositorBtcPubkey: string,
-): string[] {
-  const depositor = stripHexPrefix(depositorBtcPubkey).toLowerCase();
-  const vks = vaultKeeperBtcPubkeys.map((k) => stripHexPrefix(k).toLowerCase());
-  const filtered = vks.filter((k) => k !== depositor);
-  if (filtered.length === 0) {
-    throw new Error(
-      "Cannot derive localChallengers: vault keeper set is empty (or contains only the depositor)",
-    );
-  }
-  if (new Set(filtered).size !== filtered.length) {
-    throw new Error(
-      "Cannot derive localChallengers: duplicate vaultKeeper key — signing context is misconfigured",
-    );
-  }
-  return filtered;
-}
 
 /**
  * Reject VP-supplied `challenger_presign_data` whose pubkey set does not
@@ -235,10 +199,12 @@ async function collectDepositorGraphPsbts(
 
   // 1. Fail-fast on a malformed VP response BEFORE doing any PSBT-build
   //    work that would be wasted if the challenger set is wrong.
-  const localChallengers = deriveLocalChallengers(
-    ctx.vaultKeeperBtcPubkeys,
-    ctx.depositorBtcPubkey,
-  );
+  const localChallengers = deriveLocalChallengers({
+    claimerBtcPubkey: ctx.depositorBtcPubkey,
+    depositorBtcPubkey: ctx.depositorBtcPubkey,
+    vaultProviderBtcPubkey: ctx.vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys: ctx.vaultKeeperBtcPubkeys,
+  });
   assertChallengerSetMatchesExpected(
     depositorGraph.challenger_presign_data,
     localChallengers,
@@ -266,7 +232,8 @@ async function collectDepositorGraphPsbts(
     registeredPayoutScriptPubKey: ctx.registeredPayoutScriptPubKey,
     commissionBps: DEPOSITOR_PATH_UNUSED_COMMISSION_BPS,
     protocolFeeRate: ctx.protocolFeeRate,
-    councilSize: ctx.councilMembers.length,
+    councilMembers: ctx.councilMembers,
+    councilQuorum: ctx.councilQuorum,
   });
   psbtHexes.push(builtPayout.psbtHex);
   signOptions.push(

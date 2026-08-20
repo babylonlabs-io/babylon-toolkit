@@ -1022,20 +1022,38 @@ Forwarded to [buildPayoutPsbt](primitives.md#buildpayoutpsbt) for the fee band.
 SignPayoutBaseParams.protocolFeeRate
 ```
 
-##### councilSize
+##### councilMembers
 
 ```ts
-councilSize: number;
+councilMembers: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts)
 
-Security council member count; forwarded to the fee floor (see PayoutParams).
+Security council member x-only pubkeys (hex); forwarded to
+[buildPayoutPsbt](primitives.md#buildpayoutpsbt) to rebuild the Assert:0 payout leaf and to size the
+fee floor (see PayoutParams).
 
 ###### Inherited from
 
 ```ts
-SignPayoutBaseParams.councilSize
+SignPayoutBaseParams.councilMembers
+```
+
+##### councilQuorum
+
+```ts
+councilQuorum: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts)
+
+M-of-N council quorum; shapes the Assert:0 council leaf (see PayoutParams).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.councilQuorum
 ```
 
 ##### vkClaimerPayoutScriptPubKeys
