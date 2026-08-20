@@ -68,20 +68,15 @@ export function DashboardPage() {
   // live position cascade. A status-only override (stale price) carries no
   // cascade, so it falls through to live. Null when neither has a result: the
   // section shows its empty states rather than charting placeholder numbers.
-  const liquidationCascade = useMemo(() => {
-    const cascade = cascadeOverride?.result
-      ? { result: cascadeOverride.result, params: cascadeOverride.params }
-      : positionNotifications && positionParams
-        ? { result: positionNotifications, params: positionParams }
-        : null;
-    if (!cascade) return null;
-    return {
-      result: cascade.result,
-      btcPrice: cascade.params.btcPrice,
-      collateralFactor: cascade.params.CF,
-      vaultsTotal: cascade.params.vaults.length,
-    };
-  }, [cascadeOverride, positionNotifications, positionParams]);
+  const liquidationCascade = useMemo(
+    () =>
+      cascadeOverride?.result
+        ? { result: cascadeOverride.result, params: cascadeOverride.params }
+        : positionNotifications && positionParams
+          ? { result: positionNotifications, params: positionParams }
+          : null,
+    [cascadeOverride, positionNotifications, positionParams],
+  );
   const {
     collateralBtc,
     collateralValueUsd,

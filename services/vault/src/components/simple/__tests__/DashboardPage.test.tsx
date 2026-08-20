@@ -113,17 +113,17 @@ vi.mock("../LiquidationAnalysisSection", () => ({
     cascade,
   }: {
     cascade?: {
-      btcPrice: number;
-      collateralFactor: number;
-      vaultsTotal: number;
+      result: CalculatorResult;
+      params: CalculatorParams;
     } | null;
   }) => (
     <div
       data-testid="liquidation-analysis"
       data-cascade={cascade ? "yes" : "no"}
-      data-btc-price={cascade?.btcPrice ?? ""}
-      data-collateral-factor={cascade?.collateralFactor ?? ""}
-      data-vaults-total={cascade?.vaultsTotal ?? ""}
+      data-btc-price={cascade?.params.btcPrice ?? ""}
+      data-collateral-factor={cascade?.params.CF ?? ""}
+      data-vaults-total={cascade?.params.vaults.length ?? ""}
+      data-current-hf={cascade?.result.currentHF ?? ""}
     />
   ),
 }));
@@ -234,6 +234,10 @@ describe("DashboardPage embedded liquidation preview", () => {
     expect(section).toHaveAttribute("data-btc-price", "61722.5");
     expect(section).toHaveAttribute("data-collateral-factor", "0.75");
     expect(section).toHaveAttribute("data-vaults-total", "2");
+    expect(section).toHaveAttribute(
+      "data-current-hf",
+      String(LIVE_RESULT.currentHF),
+    );
   });
 
   it("prefers the god-mode cascade over the live one", () => {
@@ -253,6 +257,10 @@ describe("DashboardPage embedded liquidation preview", () => {
     const section = screen.getByTestId("liquidation-analysis");
     expect(section).toHaveAttribute("data-btc-price", "88400");
     expect(section).toHaveAttribute("data-vaults-total", "1");
+    expect(section).toHaveAttribute(
+      "data-current-hf",
+      String(OVERRIDE_RESULT.currentHF),
+    );
   });
 
   it("falls through to the live cascade for a status-only override", () => {
@@ -270,6 +278,10 @@ describe("DashboardPage embedded liquidation preview", () => {
     const section = screen.getByTestId("liquidation-analysis");
     expect(section).toHaveAttribute("data-btc-price", "61722.5");
     expect(section).toHaveAttribute("data-vaults-total", "2");
+    expect(section).toHaveAttribute(
+      "data-current-hf",
+      String(LIVE_RESULT.currentHF),
+    );
   });
 
   it("charts nothing when neither the override nor the live position has a result", () => {

@@ -167,4 +167,40 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
       result.current.result?.warnings.some((w) => w.type === "urgent"),
     ).toBe(false);
   });
+
+  // Optimistic activating rows are collateral the contract has not seen yet.
+  // Counting them inflates the collateral the cascade thinks is seizable, which
+  // pushes every liquidation price DOWN — the position reads safer than it is.
+  it("excludes optimistic activating vaults from the calculator inputs", () => {
+    const activating: CollateralVaultEntry = {
+      ...makeVault(VAULT_B, 5, Number.MAX_SAFE_INTEGER),
+      isActivating: true,
+    };
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 0.5, 0), activating],
+      debtValueUsd: 30_000,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("ready");
+    expect(result.current.params?.vaults.map((v) => v.id)).toEqual([VAULT_A]);
+    // The sentinel index would otherwise surface as "Vault 9007199254740992".
+    expect(result.current.params?.vaults.map((v) => v.name)).toEqual([
+      "Vault 1",
+    ]);
+  });
+
+  it("reports no vaults when every collateral row is still activating", () => {
+    setDashboardState({
+      collateralVaults: [{ ...makeVault(VAULT_A, 0.5, 0), isActivating: true }],
+      debtValueUsd: 30_000,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("no-vaults");
+    expect(result.current.result).toBeNull();
+    expect(result.current.params).toBeNull();
+  });
 });
