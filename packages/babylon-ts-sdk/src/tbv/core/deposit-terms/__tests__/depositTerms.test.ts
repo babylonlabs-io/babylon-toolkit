@@ -25,4 +25,23 @@ describe("forwardDepositApproval", () => {
     expect(forwardDepositApproval(base)).toEqual({});
     expect(supportsDepositApproval(base)).toBe(false);
   });
+
+  it("forwards holdsApprovedDepositTerms only when the wallet implements it", async () => {
+    const withoutProbe = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+      getChangeAddress: vi.fn(async () => "tb1pchange"),
+    });
+    expect(
+      forwardDepositApproval(withoutProbe).holdsApprovedDepositTerms,
+    ).toBeUndefined();
+
+    const withProbe = Object.assign(Object.create({}), withoutProbe, {
+      holdsApprovedDepositTerms: vi.fn(async () => true),
+    });
+    const fwd = forwardDepositApproval(withProbe);
+    await expect(fwd.holdsApprovedDepositTerms!({} as never)).resolves.toBe(
+      true,
+    );
+    expect(withProbe.holdsApprovedDepositTerms).toHaveBeenCalledOnce();
+  });
 });

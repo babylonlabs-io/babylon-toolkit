@@ -208,4 +208,68 @@ describe("ensurePrePeginTermsApproval", () => {
     ).resolves.toBeUndefined();
     expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
   });
+
+  it("skips derive and approve when the wallet still holds the approved terms", async () => {
+    const { hex, txid } = makeFundedTx();
+    const wallet: PrePeginApprovalWallet = {
+      deriveContextHash: vi.fn(),
+      approveDepositTerms: vi.fn(),
+      holdsApprovedDepositTerms: vi.fn(async () => true),
+    };
+    const terms = makeTerms(txid);
+
+    await ensurePrePeginTermsApproval({
+      wallet,
+      depositTerms: terms,
+      fundedPrePeginTxHex: hex,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+    });
+
+    expect(wallet.holdsApprovedDepositTerms).toHaveBeenCalledWith(terms);
+    expect(wallet.deriveContextHash).not.toHaveBeenCalled();
+    expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+  });
+
+  it("runs the full ceremony when the wallet reports the terms not held", async () => {
+    const { hex, txid } = makeFundedTx();
+    const order: string[] = [];
+    const wallet: PrePeginApprovalWallet = {
+      deriveContextHash: vi.fn(async () => {
+        order.push("derive");
+        return "ab".repeat(32);
+      }),
+      approveDepositTerms: vi.fn(async () => {
+        order.push("approve");
+      }),
+      holdsApprovedDepositTerms: vi.fn(async () => false),
+    };
+
+    await ensurePrePeginTermsApproval({
+      wallet,
+      depositTerms: makeTerms(txid),
+      fundedPrePeginTxHex: hex,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+    });
+
+    expect(order).toEqual(["derive", "approve"]);
+  });
+
+  it("still rejects mismatched-txid terms even when the wallet holds an approval", async () => {
+    const { hex } = makeFundedTx();
+    const wallet: PrePeginApprovalWallet = {
+      deriveContextHash: vi.fn(),
+      approveDepositTerms: vi.fn(),
+      holdsApprovedDepositTerms: vi.fn(async () => true),
+    };
+
+    await expect(
+      ensurePrePeginTermsApproval({
+        wallet,
+        depositTerms: makeTerms("99".repeat(32)),
+        fundedPrePeginTxHex: hex,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      }),
+    ).rejects.toThrow(/do not match the transaction/);
+    expect(wallet.holdsApprovedDepositTerms).not.toHaveBeenCalled();
+  });
 });

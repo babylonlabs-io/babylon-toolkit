@@ -105,10 +105,25 @@ export interface DepositTerms {
  * re-approves after every derive and before the next terms-bound signature.
  * The re-approval sites are `PeginManager.preparePegin`,
  * `runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
- * which derives immediately before approving — see `ensurePrePeginTermsApproval`).
+ * which re-derives before approving unless `holdsApprovedDepositTerms`
+ * reports the byte-equal intent still live — see `ensurePrePeginTermsApproval`).
  */
 export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;
+  /**
+   * OPTIONAL fast-path probe: does the current device connection still hold
+   * an approval for exactly these terms that the NEXT terms-bound signature
+   * can proceed under without a new ceremony? "Held but consumed" (anything
+   * already signed under a one-shot intent) MUST report false — a true that
+   * cannot sign again strands the caller with no recovery path.
+   * Implementations MUST answer from host-side state without device I/O,
+   * MUST return false on any doubt (including a dropped connection or terms
+   * that fail to encode), and MUST never throw. The SDK uses a true answer
+   * only to skip an otherwise redundant re-derive + re-approve ceremony; a
+   * stale true fails closed at the next signature, so this probe is a UX
+   * optimization, never an authorization.
+   */
+  holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
   /**
    * The address Pre-PegIn change must pay to. Approval (policy) wallets sign
    * key-path under a wallet policy whose change branch the device alone can
@@ -144,12 +159,22 @@ export function supportsDepositApproval(
 export function forwardDepositApproval(
   wallet: BitcoinWallet,
 ): Partial<DepositTermsApprover> {
-  return supportsDepositApproval(wallet)
-    ? {
-        approveDepositTerms: (terms) => wallet.approveDepositTerms(terms),
-        getChangeAddress: () => wallet.getChangeAddress(),
-      }
-    : {};
+  if (!supportsDepositApproval(wallet)) {
+    return {};
+  }
+  const holdsApprovedDepositTerms = wallet.holdsApprovedDepositTerms;
+  return {
+    approveDepositTerms: (terms) => wallet.approveDepositTerms(terms),
+    getChangeAddress: () => wallet.getChangeAddress(),
+    // Optional in the seam: forward only when the provider implements it, so
+    // wrapper consumers can keep probing by typeof.
+    ...(typeof holdsApprovedDepositTerms === "function"
+      ? {
+          holdsApprovedDepositTerms: (terms: DepositTerms) =>
+            holdsApprovedDepositTerms.call(wallet, terms),
+        }
+      : {}),
+  };
 }
 
 export interface BuildDepositTermsInputs {

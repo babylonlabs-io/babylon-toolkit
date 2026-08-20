@@ -1038,6 +1038,111 @@ describe("LedgerVaultProvider", () => {
     await expect(provider.getAddress()).rejects.toThrow(/not connected/);
   });
 
+  describe("holdsApprovedDepositTerms", () => {
+    it("is false before any approval and true after approving the byte-equal terms", async () => {
+      const provider = await derived();
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+
+      await provider.approveDepositTerms(TERMS);
+      h.sent.length = 0;
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      // Mirror read only — the probe must not touch the device.
+      expect(h.sent).toHaveLength(0);
+    });
+
+    it("is false for terms that differ from the approved intent", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(
+        provider.holdsApprovedDepositTerms({
+          ...TERMS,
+          vaults: [{ ...TERMS.vaults[0], peginAmount: TERMS.vaults[0].peginAmount + 1n }],
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("is false after a later derive wipes the loaded intent", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.deriveContextHash("app", "bb".repeat(32));
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("returns false instead of throwing for unencodable terms", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(provider.holdsApprovedDepositTerms({ ...TERMS, prepeginTxid: "nothex" })).resolves.toBe(false);
+    });
+
+    it("is false after disconnect tears the mirror down", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.disconnect();
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("is false for terms differing only in vaultCoreVersion", async () => {
+      // vaultCoreVersion is envelope-gated but never reaches the intent wire
+      // bytes, so a fingerprint over the wire alone would compare equal here.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(
+        provider.holdsApprovedDepositTerms({ ...TERMS, vaultCoreVersion: TERMS.vaultCoreVersion + 1 }),
+      ).resolves.toBe(false);
+    });
+
+    it("is false once a PSBT was signed under the intent, so a broadcast retry re-ceremonies", async () => {
+      // The one-shot cap + stagePsbt's pre-I/O replay guard mean a held-but-
+      // consumed intent cannot sign again; a true here would trap the retry
+      // in the replay throw with the mirror never resetting.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.signPsbt("aa".repeat(40));
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("is false after a sign failure drops the mirror", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0xb007, "SW_BAD_STATE"));
+      await expect(provider.signPsbt("aa".repeat(40))).rejects.toThrow(/no longer holds the approved intent/);
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("stays true across a PoP signature — the intended fast path", async () => {
+      // The deposit flow signs the PoP between approval and the Pre-PegIn
+      // broadcast; PoP is state-independent on-device and must not consume
+      // the probe either.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async () => ({
+        signedPsbtHex: "unused",
+        yields: [
+          {
+            kind: "taproot-keypath",
+            inputIndex: 0,
+            outputKeyHex: "00".repeat(32),
+            signature: Buffer.from("ab".repeat(64), "hex"),
+          },
+        ],
+      }));
+      await provider.signMessage(
+        "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
+        "bip322-simple",
+      );
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+  });
+
   it("reports a dismissed device picker as a user rejection", async () => {
     // DMK errors are not Error instances — they carry _tag and originalError —
     // and cancelling the WebHID chooser resolves empty, which DMK wraps as

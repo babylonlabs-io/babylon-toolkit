@@ -31,6 +31,7 @@ import type { DepositTerms } from "./depositTerms";
 export interface PrePeginApprovalWallet {
   deriveContextHash?(appName: string, context: string): Promise<string>;
   approveDepositTerms?(terms: DepositTerms): Promise<void>;
+  holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
 }
 
 export interface EnsurePrePeginTermsApprovalParams {
@@ -50,10 +51,18 @@ export interface EnsurePrePeginTermsApprovalParams {
  * - Approval-capable wallets: require terms, assert they match this tx's txid,
  *   derive the vault root over the tx's funding outpoints, then approve.
  *
- * Always derives first: the host cannot read device state, a one-shot cap means
- * every retry needs the full ceremony, and whether interleaved signing
- * nullifies a loaded intent is unresolved — so the broadcast path never
- * approves-only.
+ * Skip fast-path: when the wallet reports (via `holdsApprovedDepositTerms`, a
+ * host-side mirror read) that these byte-equal terms are still approved on the
+ * live connection, the ceremony is skipped entirely — the intent approved at
+ * `preparePegin` survives everything the flow does in between (PoP signing is
+ * state-independent and no base-app APDU touches the vault context;
+ * app-babylon-vault `sign_psbt_validate.c` PoP dispatch comment @ 73a57c50).
+ * A stale "true" fails closed: the device rejects the signature with a state
+ * error, the provider drops its mirror, and the retry runs the full ceremony.
+ *
+ * Otherwise always derives first: the host cannot read device state, and the
+ * one-shot Pre-PegIn cap means every retry needs the full ceremony — so this
+ * path never approves-only.
  *
  * @throws If approval-capable but no terms are provided, or the provided terms
  *   are for a different transaction.
@@ -111,6 +120,17 @@ export async function ensurePrePeginTermsApproval(
     throw new Error(
       "A deposit-approval wallet must also implement deriveContextHash, but this one does not.",
     );
+  }
+
+  // Fast path: the intent approved at preparePegin is still live on this
+  // connection, so re-deriving (which would wipe it) buys nothing but a second
+  // device ceremony. A stale answer fails closed at the signature (see module
+  // doc), so a mirror read is sufficient here.
+  if (
+    typeof wallet.holdsApprovedDepositTerms === "function" &&
+    (await wallet.holdsApprovedDepositTerms(depositTerms))
+  ) {
+    return;
   }
 
   // Same funding outpoints preparePegin derived over, via the shared

@@ -467,6 +467,73 @@ export class LedgerVaultProvider implements IBTCProvider {
   approveDepositTerms = async (terms: DepositTerms): Promise<void> =>
     this.withDeviceOperation("approveDepositTerms", () => this.doApproveDepositTerms(terms));
 
+  /**
+   * DepositTermsApprover.holdsApprovedDepositTerms: true iff this connection
+   * still holds an approval for the byte-equal intent AND nothing has been
+   * signed under it yet (held-but-consumed must read false — see the seam
+   * JSDoc). Host mirror read only — no device I/O, never throws. A stale true
+   * is caught fail-closed by the signing gate (device state error → mirror
+   * reset → retry runs the full ceremony), so a true answer can only skip a
+   * redundant ceremony, never authorize one.
+   */
+  holdsApprovedDepositTerms = async (terms: DepositTerms): Promise<boolean> => {
+    const state = this.deviceState;
+    if (state.phase !== "intent-loaded") return false;
+    // Anything already signed under this intent means the next Pre-PegIn
+    // signature needs a fresh ceremony (device one-shot cap; the host replay
+    // guard in stagePsbt pre-empts it without touching the mirror) — so the
+    // approval is held but not reusable, and reporting true would trap a
+    // broadcast-failure retry in the replay throw forever.
+    if (this.signedFingerprints.size > 0) return false;
+    try {
+      return state.termsKey === this.fingerprintTerms(terms);
+    } catch {
+      // Unencodable terms cannot equal an approved fingerprint; the ceremony
+      // path surfaces the shaped rejection instead of this probe throwing.
+      return false;
+    }
+  };
+
+  /**
+   * Idempotence key: the encoded intent wire bytes plus vaultCoreVersion,
+   * which the envelope gates but the TLV never carries (the wire's protocol
+   * version is a constant) — without it, terms differing only in version
+   * would compare equal.
+   */
+  private fingerprintTerms = (terms: DepositTerms): string =>
+    `${terms.vaultCoreVersion}:${fingerprintIntent(this.buildIntentFromTerms(terms))}`;
+
+  /** Pure translation of seam terms into the device intent. No I/O, no state. */
+  private buildIntentFromTerms = (terms: DepositTerms) => {
+    const scalars: IntentScalars = {
+      coinType: COIN_TYPE_BY_NETWORK[this.network],
+      baseFeeRate: terms.protocolFeeRate,
+      peginCsvTimelock: terms.timelockPegin,
+      payoutTimelock: terms.timelockAssert,
+      prepeginTxidInternal: displayTxidToInternal(terms.prepeginTxid),
+      htlcRefundTimelock: terms.timelockRefund,
+      depositorPath: this.depositorPath,
+      keeperCount: terms.vaultKeeperBtcPubkeys.length,
+      challengerCount: terms.universalChallengerBtcPubkeys.length,
+      vaultCount: terms.vaults.length,
+      prepeginMaxFee: terms.prepeginMaxFee,
+    };
+    const groups: IntentVaultGroup[] = terms.vaults.map((vault) => ({
+      htlcVout: vault.htlcVout,
+      vaultProviderPubkey: hexToXOnly(vault.vaultProviderBtcPubkey, "vaultProviderBtcPubkey"),
+      vaultAmount: vault.peginAmount,
+      commissionFee: vault.commissionFee,
+      depositorClaimValue: vault.depositorClaimValue,
+      peginMaxFee: vault.peginMaxFee,
+    }));
+    return {
+      scalars,
+      groups,
+      keeperPubkeys: terms.vaultKeeperBtcPubkeys.map((k) => hexToXOnly(k, "vaultKeeperBtcPubkey")),
+      challengerPubkeys: terms.universalChallengerBtcPubkeys.map((k) => hexToXOnly(k, "universalChallengerBtcPubkey")),
+    };
+  };
+
   private doApproveDepositTerms = async (terms: DepositTerms): Promise<void> => {
     assertDepositTermsDeviceCompatible(terms);
 
@@ -487,19 +554,6 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
     }
     this.assertSameConnection(generation);
-    const scalars: IntentScalars = {
-      coinType: COIN_TYPE_BY_NETWORK[this.network],
-      baseFeeRate: terms.protocolFeeRate,
-      peginCsvTimelock: terms.timelockPegin,
-      payoutTimelock: terms.timelockAssert,
-      prepeginTxidInternal: displayTxidToInternal(terms.prepeginTxid),
-      htlcRefundTimelock: terms.timelockRefund,
-      depositorPath: this.depositorPath,
-      keeperCount: terms.vaultKeeperBtcPubkeys.length,
-      challengerCount: terms.universalChallengerBtcPubkeys.length,
-      vaultCount: terms.vaults.length,
-      prepeginMaxFee: terms.prepeginMaxFee,
-    };
 
     // The device rejects any roster/VP key equal to the depositor's own key,
     // but only after the whole ceremony (approve_vault_intent_core.h). Pre-empt
@@ -518,23 +572,9 @@ export class LedgerVaultProvider implements IBTCProvider {
       );
     }
 
-    const groups: IntentVaultGroup[] = terms.vaults.map((vault) => ({
-      htlcVout: vault.htlcVout,
-      vaultProviderPubkey: hexToXOnly(vault.vaultProviderBtcPubkey, "vaultProviderBtcPubkey"),
-      vaultAmount: vault.peginAmount,
-      commissionFee: vault.commissionFee,
-      depositorClaimValue: vault.depositorClaimValue,
-      peginMaxFee: vault.peginMaxFee,
-    }));
+    const intent = this.buildIntentFromTerms(terms);
 
-    const intent = {
-      scalars,
-      groups,
-      keeperPubkeys: terms.vaultKeeperBtcPubkeys.map((k) => hexToXOnly(k, "vaultKeeperBtcPubkey")),
-      challengerPubkeys: terms.universalChallengerBtcPubkeys.map((k) => hexToXOnly(k, "universalChallengerBtcPubkey")),
-    };
-
-    const key = fingerprintIntent(intent);
+    const key = this.fingerprintTerms(terms);
 
     // One ceremony per derive: a byte-equal re-approval (the SDK approves in
     // both preparePegin and runDepositorPresignFlow) must be a no-op, and

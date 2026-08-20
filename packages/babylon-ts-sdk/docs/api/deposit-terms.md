@@ -288,7 +288,8 @@ Seam invariant: any derive invalidates a prior approval, so the SDK
 re-approves after every derive and before the next terms-bound signature.
 The re-approval sites are `PeginManager.preparePegin`,
 `runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
-which derives immediately before approving — see `ensurePrePeginTermsApproval`).
+which re-derives before approving unless `holdsApprovedDepositTerms`
+reports the byte-equal intent still live — see `ensurePrePeginTermsApproval`).
 
 #### Methods
 
@@ -309,6 +310,36 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 ###### Returns
 
 `Promise`\<`void`\>
+
+##### holdsApprovedDepositTerms()?
+
+```ts
+optional holdsApprovedDepositTerms(terms): Promise<boolean>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+OPTIONAL fast-path probe: does the current device connection still hold
+an approval for exactly these terms that the NEXT terms-bound signature
+can proceed under without a new ceremony? "Held but consumed" (anything
+already signed under a one-shot intent) MUST report false — a true that
+cannot sign again strands the caller with no recovery path.
+Implementations MUST answer from host-side state without device I/O,
+MUST return false on any doubt (including a dropped connection or terms
+that fail to encode), and MUST never throw. The SDK uses a true answer
+only to skip an otherwise redundant re-derive + re-approve ceremony; a
+stale true fails closed at the next signature, so this probe is a UX
+optimization, never an authorization.
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`boolean`\>
 
 ##### getChangeAddress()
 
@@ -508,6 +539,24 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval
 ###### Returns
 
 `Promise`\<`void`\>
+
+##### holdsApprovedDepositTerms()?
+
+```ts
+optional holdsApprovedDepositTerms(terms): Promise<boolean>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`boolean`\>
 
 ***
 
@@ -897,10 +946,18 @@ Run the derive → approve ceremony (or a no-op) before a Pre-PegIn signature.
 - Approval-capable wallets: require terms, assert they match this tx's txid,
   derive the vault root over the tx's funding outpoints, then approve.
 
-Always derives first: the host cannot read device state, a one-shot cap means
-every retry needs the full ceremony, and whether interleaved signing
-nullifies a loaded intent is unresolved — so the broadcast path never
-approves-only.
+Skip fast-path: when the wallet reports (via `holdsApprovedDepositTerms`, a
+host-side mirror read) that these byte-equal terms are still approved on the
+live connection, the ceremony is skipped entirely — the intent approved at
+`preparePegin` survives everything the flow does in between (PoP signing is
+state-independent and no base-app APDU touches the vault context;
+app-babylon-vault `sign_psbt_validate.c` PoP dispatch comment @ 73a57c50).
+A stale "true" fails closed: the device rejects the signature with a state
+error, the provider drops its mirror, and the retry runs the full ceremony.
+
+Otherwise always derives first: the host cannot read device state, and the
+one-shot Pre-PegIn cap means every retry needs the full ceremony — so this
+path never approves-only.
 
 #### Parameters
 
