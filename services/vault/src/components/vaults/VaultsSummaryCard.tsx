@@ -14,7 +14,7 @@ import {
   formatHealthFactor,
   getHealthFactorColor,
 } from "@/applications/aave/utils";
-import { HeartIcon } from "@/components/shared";
+import { HeartIcon } from "@/components/shared/icons/HeartIcon";
 import {
   PositionStatCards,
   type PositionStatCard,

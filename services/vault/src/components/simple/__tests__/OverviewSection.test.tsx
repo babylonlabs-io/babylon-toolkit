@@ -26,6 +26,7 @@ function renderSection(overrides: Record<string, unknown> = {}) {
       borrowCapacityError={null}
       borrowedMeterPercent={0.25}
       onDeposit={onDeposit}
+      isDepositDisabled={false}
       onBorrow={onBorrow}
       onRepay={onRepay}
       canBorrow={true}
@@ -40,6 +41,22 @@ beforeEach(() => {
 });
 
 describe("OverviewSection", () => {
+  it("greys the Deposit action out while deposits are blocked", () => {
+    renderSection({ isDepositDisabled: true });
+
+    const deposit = screen.getByRole("button", {
+      name: COPY.overview.depositAction,
+    });
+    expect(deposit).toBeDisabled();
+    fireEvent.click(deposit);
+    expect(onDeposit).not.toHaveBeenCalled();
+
+    // The gate is deposit-scoped: borrow and repay keep their own conditions.
+    expect(
+      screen.getByRole("button", { name: COPY.overview.borrowAction }),
+    ).toBeEnabled();
+  });
+
   it("renders the three stat values and their action buttons", () => {
     renderSection();
 

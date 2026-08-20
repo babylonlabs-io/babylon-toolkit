@@ -16,6 +16,7 @@ import {
   ENTRY_CONTENT_CLASS,
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
+import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -23,6 +24,7 @@ import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
 import { usePrices } from "@/hooks/usePrices";
+import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import {
   resolveShownHealthFactor,
   useHealthFactorOverride,
@@ -52,6 +54,7 @@ export function DashboardPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
+  const gate = useProtocolGateState();
 
   // Dev-only banner override driven by the position-notifications section of
   // the god-mode panel (see @/overrides/position). Always null in production,
@@ -258,6 +261,7 @@ export function DashboardPage() {
           borrowCapacityError={borrowCapacityError}
           borrowedMeterPercent={borrowedMeterPercent}
           onDeposit={openDeposit}
+          isDepositDisabled={isDepositBlocked(gate)}
           onBorrow={openBorrowPicker}
           onRepay={openRepay}
           canBorrow={canBorrow}
