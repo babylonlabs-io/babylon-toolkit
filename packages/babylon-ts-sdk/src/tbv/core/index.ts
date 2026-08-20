@@ -11,6 +11,8 @@
  * - WOTS: Winternitz one-time signature utilities
  * - Vault Secrets: HKDF-Expand pipeline producing hashlock / auth-anchor /
  *   wots-seed from a spec-opaque 32-byte root.
+ * - Recovery: reconstruction of a Pre-PegIn whose Ethereum registration was
+ *   lost to a reorg, from the wallet and the transaction alone.
  *
  * @module tbv/core
  */
@@ -24,3 +26,4 @@ export * from "./wots";
 export * from "./services";
 export * from "./vault-secrets";
 export * from "./deposit-terms";
+export * from "./recovery";
