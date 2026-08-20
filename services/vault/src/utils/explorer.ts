@@ -91,3 +91,20 @@ export function getExplorerTxUrl(chain: ActivityChain, txHash: string): string {
     ? getBtcExplorerTxUrl(txHash)
     : getEthExplorerTxUrl(txHash);
 }
+
+/**
+ * Display name of the explorer a row's transaction hash links to, derived from
+ * the configured host rather than hardcoded: `mempool.space` reads "Mempool",
+ * `sepolia.etherscan.io` reads "Etherscan". Point either explorer at a
+ * different host and the label follows it.
+ */
+export function getExplorerName(chain: ActivityChain): string {
+  const host = new URL(
+    chain === "BTC" ? getBtcExplorerHost() : getNetworkConfigETH().explorerUrl,
+  ).hostname;
+  const labels = host.split(".");
+  // Second-to-last label is the registrable name for the hosts in use
+  // (`mempool.space`, `sepolia.etherscan.io`); a bare host falls back to itself.
+  const name = labels.length > 1 ? labels[labels.length - 2] : labels[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
