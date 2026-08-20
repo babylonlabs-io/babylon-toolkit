@@ -47,19 +47,32 @@ interface ActivityRowV3Props {
    * no USD sub-line.
    */
   prices?: Record<string, number>;
+  /**
+   * Vault ids that are ACTIVE on chain right now. `undefined` means the vault
+   * read has not resolved yet, and a deposit keeps its type-derived status
+   * rather than flashing the wrong one.
+   */
+  activeVaultIds?: ReadonlySet<string>;
   /** Rendered flush right — the expired deposit's Withdraw, when refundable. */
   action?: ReactNode;
 }
 
 /**
- * Status dot + label for a standard activity row, from current data only:
- * expired (red) and pending (amber) take precedence; otherwise a settled
- * deposit's collateral is "In use" and every other settled action (borrow /
- * repay / withdraw / redeem) is "Done" (both green). This reflects the row
- * type, not a live collateral check. Liquidation rows render separately and
- * never reach here.
+ * Status dot + label for a standard activity row: expired (red) and pending
+ * (amber) take precedence; otherwise a settled deposit whose vault is still
+ * ACTIVE is "In use" and every other settled action (a withdrawn deposit,
+ * borrow / repay / withdraw / redeem) is "Done" (both green). Liquidation rows
+ * render separately and never reach here.
+ *
+ * The deposit branch needs `activeVaultIds` to tell "In use" from "Done". While
+ * it is undefined — the vault read is in flight — or the row carries no vault
+ * id to correlate, the deposit keeps reading "In use" rather than flashing a
+ * status the data has not confirmed.
  */
-function getActivityStatus(row: ActivityLog): ActivityStatus {
+function getActivityStatus(
+  row: ActivityLog,
+  activeVaultIds: ReadonlySet<string> | undefined,
+): ActivityStatus {
   if (row.isExpired) {
     return { dotClass: STATUS_DOT.expired, label: COPY.activity.statusExpired };
   }
@@ -68,7 +81,13 @@ function getActivityStatus(row: ActivityLog): ActivityStatus {
   }
   const type = row.type === PENDING_DEPOSIT_TYPE ? "Deposit" : row.type;
   if (type === "Deposit") {
-    return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusInUse };
+    const collateralInUse =
+      activeVaultIds === undefined ||
+      !row.vaultId ||
+      activeVaultIds.has(row.vaultId);
+    if (collateralInUse) {
+      return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusInUse };
+    }
   }
   return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusDone };
 }
@@ -89,14 +108,19 @@ function getUsdSubLine(
   return formatUsdValue(usd);
 }
 
-export function ActivityRowV3({ row, prices, action }: ActivityRowV3Props) {
+export function ActivityRowV3({
+  row,
+  prices,
+  activeVaultIds,
+  action,
+}: ActivityRowV3Props) {
   return (
     <ActivityRowLayout
       icon={row.tokenIcon}
       iconAlt={row.amount.symbol}
       amount={`${row.amount.value} ${row.amount.symbol}`}
       usdValue={getUsdSubLine(row.amount, prices)}
-      status={getActivityStatus(row)}
+      status={getActivityStatus(row, activeVaultIds)}
       // The type column label comes from the copy catalog; "Pending Deposit"
       // (an internal type kept out of the filter menu) maps to a "Deposit".
       typeLabel={COPY.activity.typeLabels[row.type]}

@@ -57,6 +57,9 @@ interface ActivityListProps {
   isConnected: boolean;
   /** Current USD price per token symbol, for each row's USD sub-line. */
   prices?: Record<string, number>;
+  /** Vault ids ACTIVE on chain, for a deposit row's live status. `undefined`
+   *  while the vault read is in flight. */
+  activeVaultIds?: ReadonlySet<string>;
   /** Vault ids of expired deposits whose HTLC refund is still outstanding —
    *  those rows get the Withdraw action. Matched against a row's `vaultId`,
    *  never its `id` (see ActivityLog). */
@@ -68,6 +71,7 @@ export function ActivityList({
   activities,
   isConnected,
   prices,
+  activeVaultIds,
   refundableVaultIds,
   onWithdraw,
 }: ActivityListProps) {
@@ -152,6 +156,7 @@ export function ActivityList({
                         <ActivityRowV3
                           row={r}
                           prices={prices}
+                          activeVaultIds={activeVaultIds}
                           action={
                             r.vaultId &&
                             refundableVaultIds?.has(r.vaultId) &&

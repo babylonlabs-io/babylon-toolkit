@@ -11,6 +11,7 @@ const FULL_HASH =
 const baseRow: ActivityLog = {
   kind: "row",
   id: "tx-1",
+  vaultId: "0xvault1",
   date: new Date(2025, 8, 8, 14, 32, 7), // Sep 8, 2025 14:32:07 local
   type: "Deposit",
   amount: { value: "1.0", symbol: "BTC", numeric: 1 },
@@ -34,12 +35,55 @@ describe("ActivityRowV3", () => {
     expect(screen.queryByText(/2025-09-08/)).not.toBeInTheDocument();
   });
 
-  it("shows 'In use' for a settled deposit", () => {
+  it("shows 'In use' for a deposit whose vault is still active", () => {
+    render(
+      <ActivityRowV3
+        row={baseRow}
+        activeVaultIds={new Set(["0xvault1", "0xvault2"])}
+      />,
+    );
+
+    expect(screen.getByText("In use")).toBeInTheDocument();
+    expect(screen.queryByText("Done")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Done' for a deposit whose vault has left the active set", () => {
+    render(
+      <ActivityRowV3 row={baseRow} activeVaultIds={new Set(["0xvault2"])} />,
+    );
+
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.queryByText("In use")).not.toBeInTheDocument();
+  });
+
+  it("keeps a deposit on 'In use' while the vault read is unresolved", () => {
     render(<ActivityRowV3 row={baseRow} />);
 
     expect(screen.getByText("In use")).toBeInTheDocument();
-    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
-    expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+    expect(screen.queryByText("Done")).not.toBeInTheDocument();
+  });
+
+  it("keeps a deposit on 'In use' when the row has no vault id to correlate", () => {
+    render(
+      <ActivityRowV3
+        row={{ ...baseRow, vaultId: null }}
+        activeVaultIds={new Set<string>()}
+      />,
+    );
+
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("shows 'Done' for a Withdraw row whatever the active vault set holds", () => {
+    render(
+      <ActivityRowV3
+        row={{ ...baseRow, type: "Withdraw" }}
+        activeVaultIds={new Set(["0xvault1"])}
+      />,
+    );
+
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.queryByText("In use")).not.toBeInTheDocument();
   });
 
   it("shows 'Done' for a settled borrow / repay", () => {
