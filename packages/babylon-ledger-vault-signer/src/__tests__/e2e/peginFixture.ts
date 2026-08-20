@@ -378,7 +378,10 @@ export function buildPrePeginPsbt(hashlock: Buffer, changeXOnlyHex: string): Pre
     psbt.addInput({
       hash: Buffer.alloc(32, PREPEGIN_PREVOUT_HASH_BASE + i),
       index: i,
-      sequence: 0xfffffffd,
+      // SEQUENCE_FINAL: the fw (fix/audit-findings > e2d0c45b) requires Pre-PegIn
+      // inputs present AND final (no RBF/CSV) — and the toolkit's funding path
+      // emits bitcoinjs' default 0xffffffff (fundPeginTransaction.ts:148).
+      sequence: 0xffffffff,
       witnessUtxo: { script: depositorSpk, value: PREPEGIN_INPUT_VALUE_SATS },
       tapInternalKey: depositor,
     });

@@ -81,6 +81,17 @@ describe("buildDefaultTaprootPolicy", () => {
     ).toThrow(/coinType and accountIndex/);
   });
 
+  it("rejects a coin type that would overflow hardened derivation", () => {
+    expect(() =>
+      buildDefaultTaprootPolicy({
+        masterFingerprintHex: FINGERPRINT,
+        coinType: 0x80000000,
+        accountIndex: 0,
+        accountXpub: TPUB,
+      }),
+    ).toThrow(/coinType and accountIndex/);
+  });
+
   it("rejects an empty xpub", () => {
     expect(() =>
       buildDefaultTaprootPolicy({ masterFingerprintHex: FINGERPRINT, coinType: 1, accountIndex: 0, accountXpub: "" }),

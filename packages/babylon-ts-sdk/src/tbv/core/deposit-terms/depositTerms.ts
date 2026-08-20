@@ -122,9 +122,10 @@ export interface DepositTermsApprover {
 }
 
 /**
- * True when the wallet implements {@link DepositTermsApprover.approveDepositTerms}.
- * Narrows to the whole interface: a provider with one method and not the other
- * is a provider bug, not a shape this seam supports.
+ * Probes {@link DepositTermsApprover.approveDepositTerms} alone but narrows to
+ * the whole interface: a conforming approval wallet implements all of
+ * {@link DepositTermsApprover}, `getChangeAddress` included, so a provider with
+ * one method and not the other is a provider bug, not a shape this seam supports.
  */
 export function supportsDepositApproval(
   wallet: BitcoinWallet,

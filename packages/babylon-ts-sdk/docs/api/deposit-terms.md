@@ -818,9 +818,10 @@ function supportsDepositApproval(wallet): wallet is BitcoinWallet & DepositTerms
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-True when the wallet implements [DepositTermsApprover.approveDepositTerms](#approvedepositterms).
-Narrows to the whole interface: a provider with one method and not the other
-is a provider bug, not a shape this seam supports.
+Probes [DepositTermsApprover.approveDepositTerms](#approvedepositterms) alone but narrows to
+the whole interface: a conforming approval wallet implements all of
+[DepositTermsApprover](#deposittermsapprover), `getChangeAddress` included, so a provider with
+one method and not the other is a provider bug, not a shape this seam supports.
 
 #### Parameters
 
