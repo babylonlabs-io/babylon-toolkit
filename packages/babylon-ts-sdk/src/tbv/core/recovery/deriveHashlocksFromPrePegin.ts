@@ -21,6 +21,7 @@ import { findAuthAnchorOpReturn } from "../managers/pegin/assertAuthAnchorOpRetu
 import { expandPerVaultSecrets } from "../managers/pegin/expandPerVaultSecrets";
 import {
   hexToUint8Array,
+  processPublicKeyToXOnly,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../primitives/utils/bitcoin";
@@ -40,9 +41,14 @@ export interface DeriveHashlocksFromPrePeginInput {
   /** Any wallet implementing `deriveContextHash` — the depositor's own. */
   wallet: DeriveContextHashCapableWallet;
   /**
-   * Depositor x-only BTC public key (32-byte hex, `0x` optional), read from
-   * the CONNECTED WALLET. The reorg destroyed the row that would normally
-   * supply it, and taking it from any chain read would defeat the recovery.
+   * Depositor BTC public key, read from the CONNECTED WALLET. The reorg
+   * destroyed the row that would normally supply it, and taking it from any
+   * chain read would defeat the recovery.
+   *
+   * Accepted in whatever form the wallet hands back — x-only, 33-byte
+   * compressed or 65-byte uncompressed, `0x` optional — and narrowed to x-only
+   * here. Wallets return the compressed form from `getPublicKey`, so requiring
+   * x-only would make the common case an error.
    */
   depositorBtcPubkey: string;
   /** Funded (broadcast) Pre-PegIn transaction hex, `0x` optional. */
@@ -99,7 +105,12 @@ export async function deriveHashlocksFromPrePegin(
   const fundingOutpoints = parseFundingOutpointsFromTx(cleanTxHex);
 
   const root = await deriveVaultRoot(wallet, {
-    depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
+    // The vault context takes the 32-byte x-only key; a wallet's compressed
+    // key would otherwise fail a byte-length check deep in the encoder with
+    // nothing pointing back at the caller.
+    depositorBtcPubkey: hexToUint8Array(
+      processPublicKeyToXOnly(depositorBtcPubkey),
+    ),
     fundingOutpoints,
   });
 

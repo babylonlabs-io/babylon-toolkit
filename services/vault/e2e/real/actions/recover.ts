@@ -24,8 +24,9 @@
  * Nothing is broadcast. The refund is built and compared, never sent.
  */
 import {
+  buildAndBroadcastRefund,
   buildPeginParamsCandidates,
-  buildRefundPsbt,
+  calculateBtcTxHash,
   deriveHashlocksFromPrePegin,
   reconstructPeginParams,
   resolveCurrentParticipantKeys,
@@ -57,6 +58,9 @@ const PROVIDER_PATH: Record<string, string> = {
 
 /** A wallet approval plus HKDF is slow; well past any human-free popup click. */
 const WALLET_CALL_TIMEOUT_MS = 120_000;
+
+/** Fee rate for the rehearsal's refund. Never broadcast, so it only has to be plausible. */
+const REFUND_FEE_RATE_SAT_VB = 2;
 
 /** Public signet Esplora, used only to price the Pre-PegIn's inputs. */
 const DEFAULT_BTC_API = "https://mempool.space/signet/api";
@@ -222,7 +226,19 @@ export const recoverAction: Action = {
       vaults: { items: IndexerVault[] };
     }>(VAULT_QUERY, { depositor: ctx.eth.address.toLowerCase(), limit: 50 });
 
-    const usable = vaults.items.filter((v) => v.unsignedPrePeginTx);
+    // Prefer a deposit whose HTLC is still unspent. A withdrawn or redeemed
+    // vault still exercises derivation and verification, but its refund would
+    // be spending an output that is already gone — a poor rehearsal.
+    const REFUNDABLE_FIRST = ["expired", "pending", "verified", "available"];
+    const usable = vaults.items
+      .filter((v) => v.unsignedPrePeginTx)
+      .sort((a, b) => {
+        const rank = (v: IndexerVault) => {
+          const i = REFUNDABLE_FIRST.indexOf(v.status);
+          return i === -1 ? REFUNDABLE_FIRST.length : i;
+        };
+        return rank(a) - rank(b);
+      });
     if (usable.length === 0)
       throw new Error(
         `recover: no vault with a Pre-PegIn transaction found for ${ctx.eth.address}. ` +
@@ -244,14 +260,15 @@ export const recoverAction: Action = {
       await callProvider(ctx, providerPath, "getPublicKey", []),
     );
     log(`  Wallet pubkey: ${walletPubkey}`);
-    if (
-      stripHex(walletPubkey).toLowerCase() !==
-      stripHex(target.depositorBtcPubKey).toLowerCase()
-    )
+    // Compare in the same form: wallets return the 33-byte compressed key,
+    // the row stores x-only. Comparing raw would flag every healthy run.
+    const walletXOnly = stripHex(walletPubkey).slice(-64).toLowerCase();
+    if (walletXOnly !== stripHex(target.depositorBtcPubKey).toLowerCase())
       log(
-        `  NOTE: wallet pubkey differs from the row's depositorBtcPubKey ` +
-          `(${target.depositorBtcPubKey}). If derivation fails below, this is why — ` +
-          `the root is bound to the account and network, not just the seed.`,
+        `  NOTE: the connected wallet's key (${walletXOnly}) is not the row's ` +
+          `depositorBtcPubKey (${stripHex(target.depositorBtcPubKey)}). Derivation ` +
+          `will fail below — the root is bound to the account and network, not ` +
+          `just the seed.`,
       );
 
     const wallet = {
@@ -415,38 +432,48 @@ export const recoverAction: Action = {
       network: "signet" as never,
     });
 
-    const refund = await buildRefundPsbt({
-      prePeginParams: {
-        vaultCoreVersion: vault.vaultCoreVersion,
-        depositorPubkey: vault.depositorBtcPubkey,
-        vaultProviderPubkey: context.vaultProviderPubkey,
-        vaultKeeperPubkeys: [...context.vaultKeeperPubkeys],
-        universalChallengerPubkeys: [...context.universalChallengerPubkeys],
-        hashlocks: vault.batch.map((b) => stripHex(b.hashlock)),
-        timelockRefund: context.timelockRefund,
-        pegInAmounts: vault.batch.map((b) => b.amount),
-        feeRate: context.feeRate,
-        minPeginFeeRate: context.minPeginFeeRate,
-        numLocalChallengers: context.numLocalChallengers,
-        councilQuorum: context.councilQuorum,
-        councilSize: context.councilSize,
-        network: context.network,
-        authAnchorHash: result.authAnchorHash,
+    // Run the REAL refund orchestrator, not a hand-rolled build. It signs with
+    // the wallet under the taproot script-path options (CLAUDE.md critical
+    // path 8, where wallet support is inconsistent and failures are silent),
+    // then verifies the returned Schnorr signature against a sighash it
+    // recomputes from the PSBT it built — so a wallet that returns a
+    // plausible-but-wrong signature is caught here rather than by the network.
+    //
+    // `broadcastTx` is injected, so the whole path runs and stops at the door.
+    let signedTxHex: string | undefined;
+    const wouldBroadcast = await buildAndBroadcastRefund({
+      vaultId: target.id,
+      readVault: async () => vault,
+      readPrePeginContext: async () => context,
+      feeRate: REFUND_FEE_RATE_SAT_VB,
+      signPsbt: async (psbtHex, options) => {
+        log(
+          `  Signing the refund PSBT with ${ctx.btc.id} (approve in the wallet)…`,
+        );
+        return String(
+          await callProvider(ctx, providerPath, "signPsbt", [psbtHex, options]),
+        );
       },
-      fundedPrePeginTxHex: vault.unsignedPrePeginTxHex,
-      htlcVout: vault.htlcVout,
-      refundFee: 1000n,
-      hashlock: stripHex(vault.hashlock),
+      broadcastTx: async (txHex) => {
+        signedTxHex = txHex;
+        // The txid it WOULD have had. Computed, not invented, and never sent.
+        return { txId: stripHex(calculateBtcTxHash(txHex)) };
+      },
     });
+
+    if (!signedTxHex)
+      throw new Error("recover: the refund never reached the broadcast seam.");
     log(
-      `  ✔ refund PSBT built from recovered parameters (${refund.psbtHex.length / 2} bytes).`,
+      `  ✔ refund signed and signature verified against a recomputed sighash.`,
     );
+    log(`  ✔ would-be refund txid: ${wouldBroadcast.txId} (NOT broadcast)`);
+    log(`  signed tx: ${signedTxHex.length / 2} bytes`);
 
     log("");
     log("Rehearsal complete. Recovered blind from wallet + transaction:");
     log(`  hashlock  ${derivedHashlock}  (matches chain)`);
     log(`  amount    ${recoveredAmount}  (matches chain)`);
-    log(`  refund    built, NOT broadcast`);
+    log(`  refund    signed + signature-verified, NOT broadcast`);
     log("");
     log(
       "Not exercised here, by design: the parameter enumeration fallback (unit-tested), " +
