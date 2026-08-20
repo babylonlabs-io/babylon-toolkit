@@ -21,7 +21,8 @@ export type ActionId =
   | "borrow"
   | "repay"
   | "withdraw"
-  | "resume";
+  | "resume"
+  | "recover";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -115,6 +116,11 @@ export const ACTIONS: ActionOption[] = [
     enabled: true,
   },
   { id: "borrow", label: "Borrow", enabled: true },
+  {
+    id: "recover",
+    label: "Recover (rehearse ETH-reorg recovery against a real vault)",
+    enabled: true,
+  },
   { id: "repay", label: "Repay", enabled: true },
   { id: "withdraw", label: "Withdraw", enabled: true },
   { id: "resume", label: "Resume (an interrupted peg-in)", enabled: true },

@@ -36,7 +36,27 @@ Parameters from the recovery script are untrusted input and must never feed a si
 
 Resolve participant keys **before** this call. The arrays must be sorted RFC-006 *operation* keys at the vault's own epochs — what `resolveParticipantKeysAtEpochs` returns. Registration keys only coincide with operation keys while nobody has rotated; passing them produces a wrong script on every candidate.
 
-**3. Build and broadcast the refund** — the normal `buildRefundPsbt` / `buildAndBroadcastRefund` path, from the returned terms.
+**3. Build and broadcast the refund** — `toRefundInputs`, then the ordinary `buildAndBroadcastRefund`.
+
+`buildAndBroadcastRefund` takes its two reads as injected callbacks, so recovery supplies them from the verified reconstruction instead of from the row that no longer exists:
+
+```ts
+const { vault, context } = toRefundInputs(result, {
+  htlcVout, depositorBtcPubkey, applicationEntryPoint,
+  fundedPrePeginTxHex, hashlocks, network,
+});
+
+await buildAndBroadcastRefund({
+  vaultId,
+  readVault: async () => vault,
+  readPrePeginContext: async () => context,
+  feeRate, signPsbt, broadcastTx,
+});
+```
+
+There is deliberately no separate refund implementation for recovery: the fee cap, the abort checks, the `htlcVout` contiguity invariant and the bitcoind error classification stay in one place for both paths. `applicationEntryPoint` is the one field not carried by the reconstruction — take it from the vault-provider registry row, which is address-keyed and survives.
+
+A test asserts that a refund PSBT built from recovered parameters is **byte-identical** to one built from the parameters the deposit was actually made with. `broadcastTx` is an injected callback, so the whole path can be rehearsed with a capturing broadcaster that never touches the network.
 
 If the log is unavailable, step 2 becomes a search: enumerate the version-keyed reads that survive (`getOffchainParamsByVersion`, `getVaultKeepersByVersion`, `getUniversalChallengersByVersion`) and pass the product. Record every version you could not read in `unresolvedVersions` — see below.
 

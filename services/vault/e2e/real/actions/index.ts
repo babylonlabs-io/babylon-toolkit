@@ -8,6 +8,7 @@ import { borrowAction } from "./borrow";
 import { connectAction } from "./connect";
 import { observeAction } from "./observe";
 import { peginAction } from "./pegin";
+import { recoverAction } from "./recover";
 import { repayAction } from "./repay";
 import { resumeAction } from "./resume";
 import { signConformanceAction } from "./signConformance";
@@ -25,4 +26,5 @@ export const ACTIONS_BY_ID: Partial<Record<ActionId, Action>> = {
   repay: repayAction,
   withdraw: withdrawAction,
   resume: resumeAction,
+  recover: recoverAction,
 };
