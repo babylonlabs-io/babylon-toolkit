@@ -101,7 +101,7 @@ The tag version itself is never published - nx only rolls forward from it, so th
 
 Nothing may depend on the new package until it has published at least once. The release refuses to pin a version that is not on the registry:
 
-```
+```text
 @babylonlabs-io/my-package is pinned at 0.0.1 but has never been published.
 Publish it before publishing anything that depends on it.
 ```
@@ -116,7 +116,7 @@ The release stops rather than publish a manifest a consumer cannot install. Noth
 |---------|---------------|-----|
 | `is pinned at X but has never been published` | A dependency has a release tag and nothing on NPM | Publish it first - see above |
 | `is pinned by this release but does not exist on the registry` | Its tag exists without a matching publish, so an earlier release failed or was skipped | Bump it in this release, or publish that version by hand |
-| `resolved to version X, which has no release tag` | nx fell back to the version in `packages/*/package.json`, which is not a released version | Tag the version that is actually on NPM |
+| `resolved to version X, which has no release tag` | nx fell back to the version in `packages/*/package.json`, which is not a released version | Tag the version that is on NPM, on the commit that produced it. Tagging `HEAD` instead swallows every unreleased change before it |
 | `is not part of this release run and has no stable release tag` | A dependency nx filtered out of the run has never been released - most likely on an RC dispatch, which versions one project | Release it on `main` first |
 | `whose latest release tag reads "X" - not an exact version` | Its newest tag is a range or a prerelease, which cannot be published as a pin | Tag an exact stable version |
 | `depends on the private workspace package` | A published package depends on one nx never publishes | Make it publishable, or drop the dependency |
