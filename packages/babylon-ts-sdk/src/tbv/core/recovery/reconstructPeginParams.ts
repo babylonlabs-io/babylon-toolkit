@@ -27,7 +27,11 @@ import { Transaction } from "bitcoinjs-lib";
 import type { DepositTerms } from "../deposit-terms/depositTerms";
 import { rebuildDepositTermsCore } from "../deposit-terms/rebuildDepositTermsCore";
 import { findAuthAnchorOpReturn } from "../managers/pegin/assertAuthAnchorOpReturn";
-import { stripHexPrefix } from "../primitives/utils/bitcoin";
+import { HtlcOutputMismatchError } from "../primitives/psbt/assertWasmPeginSizing";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+} from "../primitives/utils/bitcoin";
 import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
 
 import {
@@ -108,6 +112,31 @@ export interface ReconstructPeginParamsResult {
   authAnchorHash: string;
   /** Size of the space actually trialled, for the recovery record. */
   candidatesTried: number;
+  /**
+   * Every candidate that matched and projected identical terms.
+   *
+   * More than one is normal rather than suspicious: candidates differing only
+   * in fields the transaction cannot express — version labels whose
+   * script- and value-relevant content is the same — are indistinguishable by
+   * construction and describe the same deposit. They are reported rather than
+   * refused; refusal is reserved for survivors whose terms actually differ.
+   */
+  matchedCandidates: readonly PeginParamsCandidate[];
+}
+
+/**
+ * Canonical form of a match's observable content, for equality only.
+ *
+ * Two survivors agreeing here produce the same refund and the same reported
+ * amounts, so the difference between them is a label with no consequence.
+ */
+function matchFingerprint(
+  terms: DepositTerms,
+  peginAmounts: readonly bigint[],
+): string {
+  return JSON.stringify({ terms, peginAmounts }, (_key, value) =>
+    typeof value === "bigint" ? `${value}` : value,
+  );
 }
 
 /** Amount-independent per-HTLC reserve, recomputed exactly as the verifier does. */
@@ -214,12 +243,24 @@ async function computePeginSizing(
  * the bound that stops a candidate whose reserve exceeds the funded output.
  *
  * Every candidate is trialled; the loop does not stop at the first match,
- * because detecting ambiguity is the point.
+ * because detecting ambiguity is the point. Matches are then COMPARED rather
+ * than counted — several candidates matching is the ordinary case whenever
+ * their differences cannot reach the transaction, and refusing on a count
+ * alone would reject a deposit whose refund is fully determined.
+ *
+ * A candidate is only rejected on a Gate-1 byte mismatch, which is the
+ * transaction positively disagreeing with it. Any other failure means the
+ * candidate was never really evaluated, so it is recorded as unresolved and
+ * feeds the same fail-closed path as a version that could not be read —
+ * otherwise an incidental error on the TRUE candidate would remove it silently
+ * and hand back a look-alike as a trusted unique answer.
  *
  * @throws {UnanchoredPrePeginError} If the transaction carries no single,
  *   unambiguous auth-anchor OP_RETURN.
  * @throws {PeginParamsNotFoundError} If no candidate matched.
- * @throws {PeginParamsAmbiguousError} If more than one candidate matched.
+ * @throws {PeginParamsAmbiguousError} If matches disagree on the projected terms.
+ * @throws {PeginParamsIncompleteSpaceError} If a match is found but the space
+ *   was known to be incomplete, or a candidate failed to evaluate.
  */
 export async function reconstructPeginParams(
   input: ReconstructPeginParamsInput,
@@ -243,6 +284,13 @@ export async function reconstructPeginParams(
   if (candidates.length === 0) {
     throw new Error("reconstructPeginParams: candidate space is empty");
   }
+
+  // The verifier compares this against WASM-built scripts and does not
+  // normalise, while the derivation half accepts a `0x` prefix. Passing one
+  // wallet string to both must not make step 1 pass and step 2 fail every
+  // candidate, which would present as "no parameters found".
+  const normalizedDepositorBtcPubkey =
+    processPublicKeyToXOnly(depositorBtcPubkey);
 
   const cleanTxHex = stripHexPrefix(fundedPrePeginTxHex);
   const anchor = findAuthAnchorOpReturn(cleanTxHex);
@@ -269,8 +317,14 @@ export async function reconstructPeginParams(
   ).toLowerCase();
 
   const sizingCache = new Map<string, PeginSizing>();
-  const survivors: ReconstructPeginParamsResult[] = [];
+  const survivors: {
+    candidate: PeginParamsCandidate;
+    terms: DepositTerms;
+    peginAmounts: bigint[];
+    fingerprint: string;
+  }[] = [];
   const rejections: string[] = [];
+  const unevaluated: string[] = [];
 
   for (const candidate of candidates) {
     try {
@@ -292,7 +346,7 @@ export async function reconstructPeginParams(
           amount: peginAmounts[i],
         })),
         fundedPrePeginTxHex: cleanTxHex,
-        depositorBtcPubkey,
+        depositorBtcPubkey: normalizedDepositorBtcPubkey,
         vaultProviderBtcPubkey: participants.vaultProviderBtcPubkey,
         vaultKeeperBtcPubkeys: participants.vaultKeeperBtcPubkeys,
         universalChallengerBtcPubkeys:
@@ -314,8 +368,7 @@ export async function reconstructPeginParams(
         candidate,
         terms,
         peginAmounts,
-        authAnchorHash: anchor.hash,
-        candidatesTried: candidates.length,
+        fingerprint: matchFingerprint(terms, peginAmounts),
       });
     } catch (err) {
       // A malformed WASM sizing output is not a property of the candidate, so
@@ -324,39 +377,61 @@ export async function reconstructPeginParams(
       if (err instanceof PeginSizingIntegrityError) {
         throw err;
       }
-      // A rejection is the expected outcome for all but one candidate, so it
-      // cannot propagate — but it is recorded, and a sample reaches the
-      // not-found error so a failed search stays diagnosable.
-      if (rejections.length < MAX_REPORTED_REJECTIONS) {
-        const reason = err instanceof Error ? err.message : String(err);
-        rejections.push(
-          `[${describePeginParamsCandidate(candidate)}] ${reason}`,
-        );
+      const label = describePeginParamsCandidate(candidate);
+      const reason = err instanceof Error ? err.message : String(err);
+      if (err instanceof HtlcOutputMismatchError) {
+        // The transaction positively disagrees with this candidate — the
+        // expected outcome for all but one, so it cannot propagate. Recorded,
+        // and a sample reaches the not-found error to keep it diagnosable.
+        if (rejections.length < MAX_REPORTED_REJECTIONS) {
+          rejections.push(`[${label}] ${reason}`);
+        }
+      } else {
+        // Anything else says nothing about the transaction: this candidate was
+        // never actually evaluated. Treating it as a rejection would let an
+        // incidental failure on the true candidate hand back a look-alike.
+        unevaluated.push(`${label} (${reason})`);
       }
     }
   }
 
-  const unresolvedLabels = unresolvedVersions.map(describeUnresolvedVersion);
+  // A candidate that could not be evaluated is a hole in the space in exactly
+  // the same way an unreadable version is, so the two are reported together.
+  const gaps = [
+    ...unresolvedVersions.map(describeUnresolvedVersion),
+    ...unevaluated,
+  ];
 
   if (survivors.length === 0) {
-    throw new PeginParamsNotFoundError(
-      candidates.length,
-      rejections,
-      unresolvedLabels,
-    );
+    throw new PeginParamsNotFoundError(candidates.length, rejections, gaps);
   }
-  if (survivors.length > 1) {
+
+  // Compare, do not count. Survivors all byte-matched the same funded outputs,
+  // so they already agree on every HTLC scriptPubKey and total value; if they
+  // also project identical terms there is nothing to choose between them and
+  // nothing is at stake in choosing.
+  const distinct = new Set(survivors.map((s) => s.fingerprint));
+  if (distinct.size > 1) {
     throw new PeginParamsAmbiguousError(
       survivors.map((s) => describePeginParamsCandidate(s.candidate)),
     );
   }
-  // Reported after the ambiguity check: two survivors are the more specific
-  // diagnosis, and the caller learns of the gaps from that error's labels.
-  if (unresolvedLabels.length > 0) {
+
+  // Reported after ambiguity: disagreeing survivors are the more specific
+  // diagnosis, and that error already names them.
+  if (gaps.length > 0) {
     throw new PeginParamsIncompleteSpaceError(
       describePeginParamsCandidate(survivors[0].candidate),
-      unresolvedLabels,
+      gaps,
     );
   }
-  return survivors[0];
+
+  return {
+    candidate: survivors[0].candidate,
+    terms: survivors[0].terms,
+    peginAmounts: survivors[0].peginAmounts,
+    authAnchorHash: anchor.hash,
+    candidatesTried: candidates.length,
+    matchedCandidates: survivors.map((s) => s.candidate),
+  };
 }

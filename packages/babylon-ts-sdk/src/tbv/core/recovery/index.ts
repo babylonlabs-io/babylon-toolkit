@@ -13,7 +13,6 @@
  */
 
 export * from "./deriveHashlocksFromPrePegin";
-export * from "./enumerateRosterVersions";
 export * from "./peginParamsCandidates";
 export * from "./reconstructPeginParams";
 export * from "./recoveryErrors";

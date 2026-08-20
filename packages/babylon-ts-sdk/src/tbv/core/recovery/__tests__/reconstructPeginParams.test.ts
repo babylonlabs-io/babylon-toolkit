@@ -63,7 +63,6 @@ const TRUE_OFFCHAIN: OffchainParamsCandidate = {
 };
 
 const TRUE_PARTICIPANTS: ParticipantKeySetCandidate = {
-  keyEpochPolicy: "genesis",
   vaultProvider: VAULT_PROVIDER_ADDRESS,
   vaultProviderBtcPubkey: VP,
   appVaultKeepersVersion: 2,
@@ -261,7 +260,6 @@ describe("reconstructPeginParams", () => {
           participantKeySets: [
             {
               ...TRUE_PARTICIPANTS,
-              keyEpochPolicy: "current",
               vaultProviderBtcPubkey: TEST_KEYS.UNIVERSAL_CHALLENGER_2,
             },
           ],
@@ -294,21 +292,53 @@ describe("reconstructPeginParams", () => {
     expect(notFound.sampleRejections[0]).toContain("scriptPubKey");
   });
 
-  it("fails closed when two candidates both reproduce the transaction", async () => {
+  it("returns a match when several candidates project identical terms", async () => {
     const siblings: Sibling[] = [
       { hashlock: "ab".repeat(32), amount: 1_200_000n },
     ];
     const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
 
-    // Two offchain versions with identical contents: a real possibility
-    // whenever a params bump leaves the script- and value-relevant fields
-    // alone. Both survive, so the vault's stamped version is unknowable.
-    const error = await search(
+    // Two offchain versions whose script- and value-relevant content is the
+    // same: a params bump that left these fields alone. The transaction cannot
+    // express the difference, so both match — but they describe the same
+    // deposit and the same refund, and refusing on a count alone would reject
+    // a deposit that is fully determined.
+    const result = await search(
       siblings,
       txHex,
       buildPeginParamsCandidates({
         vaultCoreVersion: TRUE_CORE_VERSION,
         offchainParams: [TRUE_OFFCHAIN, { ...TRUE_OFFCHAIN, version: 9 }],
+        participantKeySets: [TRUE_PARTICIPANTS],
+      }),
+    );
+
+    expect(result.peginAmounts).toEqual([1_200_000n]);
+    expect(result.matchedCandidates).toHaveLength(2);
+    expect(
+      result.matchedCandidates.map((c) => c.offchainParams.version).sort(),
+    ).toEqual([4, 9]);
+  });
+
+  it("fails closed when matching candidates disagree on the terms", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 1_200_000n },
+    ];
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
+
+    // Same timelockRefund, so both build the same scriptPubKey and both match;
+    // different protocolFeeRate, so they disagree on how the HTLC value splits
+    // into peginAmount and reserve. That is a real disagreement about the
+    // deposit, and it is unknowable from the transaction.
+    const error = await search(
+      siblings,
+      txHex,
+      buildPeginParamsCandidates({
+        vaultCoreVersion: TRUE_CORE_VERSION,
+        offchainParams: [
+          TRUE_OFFCHAIN,
+          { ...TRUE_OFFCHAIN, version: 9, protocolFeeRate: 11n },
+        ],
         participantKeySets: [TRUE_PARTICIPANTS],
       }),
     ).catch((err: unknown) => err);
@@ -318,6 +348,93 @@ describe("reconstructPeginParams", () => {
     expect(ambiguous.survivorLabels).toHaveLength(2);
     expect(ambiguous.message).toContain("offchain=4");
     expect(ambiguous.message).toContain("offchain=9");
+  });
+
+  // Fail-open guard: a candidate that throws for a reason other than a byte
+  // mismatch was never evaluated, and says nothing about the transaction. If
+  // that were counted as a rejection, an incidental failure on the TRUE
+  // candidate would remove it silently and a look-alike would be returned as a
+  // trusted unique answer.
+  it("treats a candidate that could not be evaluated as a gap, not a rejection", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 1_000_000n },
+    ];
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
+
+    const error = await search(
+      siblings,
+      txHex,
+      buildPeginParamsCandidates({
+        vaultCoreVersion: TRUE_CORE_VERSION,
+        offchainParams: [TRUE_OFFCHAIN],
+        participantKeySets: [
+          TRUE_PARTICIPANTS,
+          // Not a valid key: the connector throws rather than reporting a
+          // mismatch, so this candidate is never actually tried.
+          {
+            ...TRUE_PARTICIPANTS,
+            appVaultKeepersVersion: 7,
+            vaultKeeperBtcPubkeys: ["zz".repeat(32)],
+          },
+        ],
+      }),
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(PeginParamsIncompleteSpaceError);
+    expect((error as PeginParamsIncompleteSpaceError).unresolvedLabels).toEqual(
+      [expect.stringContaining("keepers=7")],
+    );
+  });
+
+  it("accepts a 0x-prefixed depositor pubkey, the form the derivation half takes", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 850_000n },
+    ];
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
+
+    const result = await reconstructPeginParams({
+      hashlocks: siblings.map((s) => s.hashlock),
+      fundedPrePeginTxHex: txHex,
+      depositorBtcPubkey: `0x${DEPOSITOR}`,
+      prepeginMaxFee: PREPEGIN_MAX_FEE,
+      maxAcceptableCommissionBps: COMMISSION_BPS,
+      network: NETWORK,
+      candidates: buildPeginParamsCandidates({
+        vaultCoreVersion: TRUE_CORE_VERSION,
+        offchainParams: [TRUE_OFFCHAIN],
+        participantKeySets: [TRUE_PARTICIPANTS],
+      }),
+      unresolvedVersions: [],
+    });
+
+    expect(result.peginAmounts).toEqual([850_000n]);
+  });
+
+  // The hazard behind taking vaultCoreVersion on trust, pinned so it cannot be
+  // mistaken for a check that exists. v1 and v2 build byte-identical connector
+  // scripts and the amount is inverted with the supplied version's reserve, so
+  // both gates pass and the wrong version is accepted in silence. Read the
+  // version from the orphaned PegInSubmitted log; do not guess it.
+  it("silently accepts a wrong supplied vaultCoreVersion, reporting a shifted split", async () => {
+    const trueAmount = 1_000_000n;
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: trueAmount },
+    ];
+    const txHex = await buildFundedTx(1, siblings);
+
+    const result = await search(
+      siblings,
+      txHex,
+      buildPeginParamsCandidates({
+        vaultCoreVersion: 2,
+        offchainParams: [TRUE_OFFCHAIN],
+        participantKeySets: [TRUE_PARTICIPANTS],
+      }),
+    );
+
+    expect(result.candidate.vaultCoreVersion).toBe(2);
+    expect(result.peginAmounts[0]).not.toBe(trueAmount);
+    expect(result.terms.vaults[0].peginAmount).toBe(result.peginAmounts[0]);
   });
 
   // Uniqueness only rules out a wrong answer when the right answer was also in
@@ -522,7 +639,7 @@ describe("buildPeginParamsCandidates", () => {
       offchainParams: [TRUE_OFFCHAIN, { ...TRUE_OFFCHAIN, version: 5 }],
       participantKeySets: [
         TRUE_PARTICIPANTS,
-        { ...TRUE_PARTICIPANTS, keyEpochPolicy: "current" },
+        { ...TRUE_PARTICIPANTS, appVaultKeepersVersion: 3 },
         { ...TRUE_PARTICIPANTS, appVaultKeepersVersion: 1 },
       ],
     });

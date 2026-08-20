@@ -56,7 +56,6 @@ const OFFCHAIN: OffchainParamsCandidate = {
 };
 
 const PARTICIPANTS: ParticipantKeySetCandidate = {
-  keyEpochPolicy: "genesis",
   vaultProvider: "0x1111111111111111111111111111111111111111",
   vaultProviderBtcPubkey: "cc".repeat(32),
   appVaultKeepersVersion: 2,

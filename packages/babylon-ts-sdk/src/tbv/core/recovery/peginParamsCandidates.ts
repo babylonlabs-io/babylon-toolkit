@@ -31,13 +31,6 @@
 
 import type { Address } from "viem";
 
-/**
- * Which reachable operation-key generation a participant key set was resolved
- * at. Applies to every participant together — mixing a genesis vault provider
- * key with current keeper keys describes no state the protocol ever held.
- */
-export type KeyEpochPolicy = "genesis" | "current";
-
 /** One versioned offchain-params snapshot, flattened to what a trial needs. */
 export interface OffchainParamsCandidate {
   /** `offchainParamsVersion` stamp this snapshot would restore. */
@@ -56,19 +49,32 @@ export interface OffchainParamsCandidate {
 }
 
 /**
- * One globally-consistent participant key set: a vault provider, a keeper
- * roster version and a universal-challenger roster version, all resolved at
- * the same {@link KeyEpochPolicy}.
+ * One participant key set: a vault provider plus the two rosters at the
+ * versions the vault was stamped with.
+ *
+ * Every key here must be an RFC-006 **operation** key resolved at that
+ * participant's own key epoch, and the two roster arrays must be sorted —
+ * exactly what `resolveParticipantKeysAtEpochs` produces as
+ * `vaultKeeperOperationKeysSorted` / `universalChallengerOperationKeysSorted`.
+ * Registration keys are NOT interchangeable: they only coincide with operation
+ * keys while nobody has rotated, so passing them yields a wrong script on every
+ * candidate and a not-found that wrongly implies the true set was tried.
+ *
+ * The three epochs are stamped independently by three registries, so a mixed
+ * state — the vault provider rotated before this deposit, a challenger after —
+ * is ordinary rather than impossible. That is why epochs are resolved per
+ * participant from the `PegInSubmitted` log rather than chosen as one
+ * all-genesis or all-current policy.
  */
 export interface ParticipantKeySetCandidate {
-  keyEpochPolicy: KeyEpochPolicy;
   vaultProvider: Address;
-  /** x-only BTC pubkey hex (no `0x`), resolved at `keyEpochPolicy`. */
+  /** x-only operation-key hex (no `0x`) at the vault's `vpKeyEpoch`. */
   vaultProviderBtcPubkey: string;
   appVaultKeepersVersion: number;
-  /** Sorted exactly as the deposit path sorts them. */
+  /** Sorted operation keys at the vault's `appKeeperKeyEpoch`. */
   vaultKeeperBtcPubkeys: readonly string[];
   universalChallengersVersion: number;
+  /** Sorted operation keys at the vault's `ucKeyEpoch`. */
   universalChallengerBtcPubkeys: readonly string[];
 }
 
@@ -87,9 +93,9 @@ export interface PeginParamsCandidate {
 export interface BuildPeginParamsCandidatesInput {
   /**
    * The tx-graph version the stranded deposit was built with. A scalar, not a
-   * list: the transaction cannot discriminate it. Recover it from the
-   * depositor's pending-request record, the vault provider's records, or
-   * `activeVaultCoreVersion()` as it stood when the deposit was made.
+   * list: the transaction cannot discriminate it, so this is taken on trust.
+   * Read it from the orphaned `PegInSubmitted` log — `activeVaultCoreVersion()`
+   * is the current version and is wrong for any deposit that predates a bump.
    */
   vaultCoreVersion: number;
   offchainParams: readonly OffchainParamsCandidate[];
@@ -100,10 +106,9 @@ export interface BuildPeginParamsCandidatesInput {
  * Expand the two searchable axes into the flat candidate list
  * `reconstructPeginParams` trials.
  *
- * The epoch constraint is enforced by construction rather than by a check:
- * epochs are not an axis here, they are already baked into each
- * {@link ParticipantKeySetCandidate}, so no cross-participant mix can be
- * produced.
+ * With the parameters read from the `PegInSubmitted` log this is called with
+ * one entry per axis and produces a single candidate to verify. The
+ * multi-element form is the fallback search.
  */
 export function buildPeginParamsCandidates(
   input: BuildPeginParamsCandidatesInput,
@@ -176,7 +181,6 @@ export function describePeginParamsCandidate(
     `offchain=${candidate.offchainParams.version} ` +
     `keepers=${participants.appVaultKeepersVersion} ` +
     `challengers=${participants.universalChallengersVersion} ` +
-    `vp=${participants.vaultProvider} ` +
-    `epoch=${participants.keyEpochPolicy}`
+    `vp=${participants.vaultProvider}`
   );
 }

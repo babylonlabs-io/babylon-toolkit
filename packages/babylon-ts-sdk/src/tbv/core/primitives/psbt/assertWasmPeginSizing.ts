@@ -209,6 +209,24 @@ export async function assertWasmPeginSizing(
 }
 
 /**
+ * A funded Pre-PegIn's HTLC outputs disagree with the expected value or
+ * scriptPubKey.
+ *
+ * Typed so a caller trialling several parameter sets can tell "the transaction
+ * definitively does not match these parameters" — a genuine, informative
+ * rejection — from "evaluating this parameter set failed", which says nothing
+ * about the transaction and must not be counted as a rejection. Without the
+ * distinction an incidental failure on the true parameter set silently removes
+ * it from consideration and a look-alike wins.
+ */
+export class HtlcOutputMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HtlcOutputMismatchError";
+  }
+}
+
+/**
  * Bind the validated metadata to the bytes that actually get funded and
  * signed.
  *
@@ -227,8 +245,8 @@ export async function assertWasmPeginSizing(
  * @param outputs - Outputs parsed from the unfunded Pre-PegIn tx hex.
  * @param htlcValues - The (already value-validated) per-HTLC values.
  * @param htlcScriptPubKeys - The per-HTLC scriptPubKeys (hex).
- * @throws If the encoded outputs are too few, or any HTLC output's value or
- *   scriptPubKey disagrees with the validated metadata.
+ * @throws {HtlcOutputMismatchError} If the encoded outputs are too few, or any
+ *   HTLC output's value or scriptPubKey disagrees with the validated metadata.
  */
 export function assertEncodedHtlcOutputsMatch(
   outputs: readonly ParsedOutput[],
@@ -236,7 +254,7 @@ export function assertEncodedHtlcOutputsMatch(
   htlcScriptPubKeys: readonly string[],
 ): void {
   if (outputs.length < htlcValues.length) {
-    throw new Error(
+    throw new HtlcOutputMismatchError(
       `Encoded Pre-PegIn tx has ${outputs.length} output(s), fewer than the ` +
         `${htlcValues.length} HTLC output(s) the cross-check validated.`,
     );
@@ -245,7 +263,7 @@ export function assertEncodedHtlcOutputsMatch(
   for (let i = 0; i < htlcValues.length; i++) {
     const encodedValue = BigInt(outputs[i].value);
     if (encodedValue !== htlcValues[i]) {
-      throw new Error(
+      throw new HtlcOutputMismatchError(
         `Encoded Pre-PegIn HTLC output[${i}] value ${encodedValue} does not ` +
           `match the cross-checked htlcValue ${htlcValues[i]}; the funded/signed ` +
           `tx would not pay the validated amount.`,
@@ -255,7 +273,7 @@ export function assertEncodedHtlcOutputsMatch(
     const encodedScript = outputs[i].script.toString("hex").toLowerCase();
     const expectedScript = htlcScriptPubKeys[i].toLowerCase();
     if (encodedScript !== expectedScript) {
-      throw new Error(
+      throw new HtlcOutputMismatchError(
         `Encoded Pre-PegIn HTLC output[${i}] scriptPubKey ${encodedScript} does ` +
           `not match the cross-checked htlcScriptPubKey ${expectedScript}.`,
       );
