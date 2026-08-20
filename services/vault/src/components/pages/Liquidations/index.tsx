@@ -1,8 +1,9 @@
-import { Container, Loader, SeizureMap } from "@babylonlabs-io/core-ui";
+import { Container, Loader, Timeline } from "@babylonlabs-io/core-ui";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { BPS_SCALE } from "@/applications/aave/constants";
+import { useBtcPriceCandles } from "@/applications/aave/hooks/useBtcPriceCandles";
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
@@ -16,6 +17,10 @@ import { formatPriceUsd } from "@/utils/formatting";
 import {
   axisFloorPrice,
   buildLiquidationChartData,
+  buildTimelinePriceAxis,
+  buildTimelineSafeZone,
+  formatCandleDate,
+  withAmountInBandLabel,
 } from "./liquidationChartData";
 import { LiquidationEventCard } from "./LiquidationEventCard";
 import { PositionOverview } from "./PositionOverview";
@@ -27,7 +32,9 @@ import { useLiquidationsPageState } from "./useLiquidationsPageState";
  *
  * Live data: the cascade comes from `usePositionNotifications()`, the same
  * calculator the position-notification banners use. The chart is core-ui's
- * visx `SeizureMap` (#2160); the simulator and event cards around it are live.
+ * visx `Timeline` — BTC/USD candles from the indexer's oracle price history
+ * behind the liquidation bands; the simulator and event cards around it are
+ * live.
  *
  * God mode (dev only): when the debug panel's manual mode has produced a
  * cascade, this page charts THAT cascade instead — and every position stat
@@ -47,6 +54,9 @@ import { useLiquidationsPageState } from "./useLiquidationsPageState";
 function clampToLive(simulated: number | null, live: number): number {
   return simulated === null ? live : Math.min(simulated, live);
 }
+
+/** Daily candles in view at rest; the rest of the series is reachable by pan. */
+const TIMELINE_VISIBLE_CANDLES = 60;
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
@@ -84,6 +94,8 @@ export default function Liquidations() {
     isGodMode,
     cascade: cascadeOverride,
   } = useLiquidationsPageState(account);
+
+  const { candles } = useBtcPriceCandles();
 
   const livePrice = params?.btcPrice ?? null;
   // `null` = "track the live price" — the slider hasn't diverged from it (or
@@ -132,16 +144,31 @@ export default function Liquidations() {
     if (collateralFactor === null || livePrice === null) return null;
     if (projectedPrice === null || !params) return null;
 
+    // Built from `projectedPrice`, the same price `cascadeResult` was
+    // calculated at, so the bands and the price line can never disagree
+    // while the deferred cascade is catching up with the thumb.
+    const data = buildLiquidationChartData(cascadeResult, {
+      btcPrice: projectedPrice,
+      collateralFactor,
+      livePrice,
+      vaultsTotal: params.vaults.length,
+    });
+
+    // The axis top has to clear the candles as well as the price rule —
+    // anything above the first tick is clipped out of the plot.
+    const topPrice = (candles ?? []).reduce(
+      (max, candle) => Math.max(max, candle.high),
+      livePrice,
+    );
+
     return {
-      // Built from `projectedPrice`, the same price `cascadeResult` was
-      // calculated at, so the bands and the price line can never disagree
-      // while the deferred cascade is catching up with the thumb.
-      ...buildLiquidationChartData(cascadeResult, {
-        btcPrice: projectedPrice,
-        collateralFactor,
-        livePrice,
-        vaultsTotal: params.vaults.length,
-      }),
+      ...data,
+      bands: withAmountInBandLabel(data.bands),
+      // Axis and safe zone read the LIVE cascade, like `floorPrice` below: the
+      // trigger prices are properties of the position, so the frame stays put
+      // while the simulator drags the rule through it.
+      timelinePriceAxis: buildTimelinePriceAxis(result, topPrice),
+      safeZone: buildTimelineSafeZone(result, projectedPrice),
       projectedPrice,
       livePrice,
       floorPrice: axisFloorPrice(result),
@@ -153,6 +180,7 @@ export default function Liquidations() {
     livePrice,
     projectedPrice,
     params,
+    candles,
   ]);
 
   if (!isGodMode && !isConnected) {
@@ -314,13 +342,17 @@ export default function Liquidations() {
             price={clampToLive(simulatedPrice, chart.livePrice)}
             onPriceChange={setSimulatedPrice}
           />
-          <SeizureMap
+          <Timeline
             bands={chart.bands}
+            candles={candles ?? []}
             currentPrice={chart.projectedPrice}
             currentPriceLabel={formatPriceUsd(chart.projectedPrice)}
-            priceLineCaption={COPY.liquidations.bitcoinPriceCaption}
-            priceAxis={chart.priceAxis}
-            shareAxisTicks={chart.shareAxisTicks}
+            priceAxis={chart.timelinePriceAxis}
+            safeZone={chart.safeZone}
+            visibleCandles={TIMELINE_VISIBLE_CANDLES}
+            interactions={{ crosshair: true, pan: true }}
+            formatPrice={formatPriceUsd}
+            formatTime={formatCandleDate}
             liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
           />
         </div>

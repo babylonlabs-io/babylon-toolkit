@@ -2,6 +2,7 @@ import type {
   LiquidationBand,
   LiquidationBandTone,
   PriceAxisTick,
+  SafeZone,
 } from "@babylonlabs-io/core-ui";
 
 import type {
@@ -164,6 +165,126 @@ export function axisFloorPrice(result: CalculatorResult): number {
   const triggers = result.groups.map((g) => g.liquidationPrice);
   if (triggers.length === 0) return 0;
   return Math.min(...triggers) * (1 - AXIS_FLOOR_MARGIN);
+}
+
+/**
+ * Round-number ticks the Timeline's price axis aims for above the first
+ * trigger. Four keeps the safe zone legible without crowding the price pills.
+ */
+const TIMELINE_AXIS_TICK_TARGET = 4;
+
+/** Guards the tick loop against a degenerate step; never reached in practice. */
+const TIMELINE_AXIS_MAX_TICKS = 24;
+
+/**
+ * A round step covering `span` in roughly `target` intervals — the 1/2/2.5/5/10
+ * ladder, so the ticks land on prices a depositor reads at a glance.
+ */
+function niceStep(span: number, target: number): number {
+  const rough = span / target;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalized = rough / magnitude;
+  const step =
+    normalized >= 5 ? 10 : normalized >= 2.5 ? 5 : normalized >= 2 ? 2.5 : 1;
+  return step * magnitude;
+}
+
+/**
+ * The Timeline's price axis: round ticks down the safe zone, then the axis
+ * floor.
+ *
+ * Deliberately different from the Seizure Map's segmented axis, which labels
+ * every trigger. On the Timeline each trigger already carries its own dashed
+ * level line and price pill, and the scale compresses the trigger-to-trigger
+ * regions — round ticks placed inside them would bunch against those pills.
+ *
+ * `topPrice` anchors the top of the domain, so it must cover both the current
+ * price and the highest candle: anything above `priceAxis[0]` is clipped.
+ */
+export function buildTimelinePriceAxis(
+  result: CalculatorResult,
+  topPrice: number,
+): PriceAxisTick[] {
+  const floorPrice = axisFloorPrice(result);
+  const firstTrigger = result.groups[0]?.liquidationPrice ?? floorPrice;
+  const toTick = (value: number): PriceAxisTick => ({
+    value,
+    label: formatPriceUsd(value),
+  });
+
+  if (!Number.isFinite(topPrice) || topPrice <= floorPrice) {
+    return [toTick(Math.max(topPrice, floorPrice)), toTick(floorPrice)];
+  }
+
+  // Below the first trigger the scale is compressed per event, so the ticks
+  // stop there and the floor label closes the axis.
+  const tickFloor = topPrice > firstTrigger ? firstTrigger : floorPrice;
+  const span = topPrice - tickFloor;
+  if (span <= 0) return [toTick(topPrice), toTick(floorPrice)];
+
+  const step = niceStep(span, TIMELINE_AXIS_TICK_TARGET);
+  const ticks: PriceAxisTick[] = [];
+  const top = Math.ceil(topPrice / step) * step;
+  for (let i = 0; i < TIMELINE_AXIS_MAX_TICKS; i++) {
+    const value = top - i * step;
+    if (value <= tickFloor) break;
+    ticks.push(toTick(value));
+  }
+  // `top` always clears `topPrice`, so the list can only be empty if the loop
+  // never ran; the floor still has to close the domain.
+  return [...ticks, toTick(floorPrice)];
+}
+
+/**
+ * The bordered callout above the first liquidation trigger: how far the price
+ * can fall before anything is seized.
+ */
+export function buildTimelineSafeZone(
+  result: CalculatorResult,
+  btcPrice: number,
+): SafeZone {
+  const firstTrigger = result.groups[0]?.liquidationPrice ?? 0;
+  const dropPct =
+    btcPrice > firstTrigger ? ((btcPrice - firstTrigger) / btcPrice) * 100 : 0;
+  return {
+    title: COPY.liquidations.safeZone.title,
+    lines: [
+      COPY.liquidations.safeZone.noEventsAbove(formatPriceUsd(firstTrigger)),
+      COPY.liquidations.safeZone.dropToFirstEvent(dropPct.toFixed(1)),
+    ],
+  };
+}
+
+/**
+ * Time-axis label for a candle: the day of the month, naming the month instead
+ * on the first days of one, so a multi-month window still says where it is.
+ * Matches the design's date axis (5 / 12 / 19 / Jun / 8).
+ */
+const MONTH_LABEL_MAX_DAY = 7;
+
+export function formatCandleDate(timeMs: number): string {
+  const date = new Date(timeMs);
+  return date.getUTCDate() <= MONTH_LABEL_MAX_DAY
+    ? date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+    : String(date.getUTCDate());
+}
+
+/**
+ * Bands with the seized amount folded into the label, e.g.
+ * "Liq Event 1 (0.6 BTC)". The dashboard page names the amount inline; the
+ * overview preview keeps the bare event title. `amountLabel` is dropped so a
+ * band tall enough for its own amount line does not print it twice.
+ */
+export function withAmountInBandLabel(
+  bands: LiquidationBand[],
+): LiquidationBand[] {
+  return bands.map((band) => ({
+    ...band,
+    label: band.amountLabel
+      ? `${band.label} (${band.amountLabel})`
+      : band.label,
+    amountLabel: undefined,
+  }));
 }
 
 /**
