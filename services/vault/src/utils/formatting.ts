@@ -303,20 +303,25 @@ export function formatActivityTime(date: Date): string {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+/** Upper bound (in whole days back) of the "Last week" date group. A row older
+ *  than this falls through to its explicit calendar date. */
+const DAYS_IN_LAST_WEEK_GROUP = 7;
+
 /**
  * Label for the v3 activity date-group header the given row belongs to:
- * "Today" / "Yesterday" for the two most recent calendar days, else the
- * explicit "YYYY-MM-DD". Pure and deterministic — the caller passes the
- * reference "now" so it stays testable without touching the real clock.
- * Grouping compares by local calendar day, not elapsed hours.
+ * "Today" / "Yesterday" for the two most recent calendar days, "Last week" for
+ * anything else within the past seven days, else the explicit "YYYY-MM-DD".
+ * Pure and deterministic — the caller passes the reference "now" so it stays
+ * testable without touching the real clock. Grouping compares by local
+ * calendar day, not elapsed hours.
  * @param date - The row's timestamp
  * @param reference - The current time to compare against
- * @param labels - Localized "Today"/"Yesterday" strings (from COPY)
+ * @param labels - Localized "Today"/"Yesterday"/"Last week" strings (from COPY)
  */
 export function formatActivityDateGroup(
   date: Date,
   reference: Date,
-  labels: { today: string; yesterday: string },
+  labels: { today: string; yesterday: string; lastWeek: string },
 ): string {
   const startOfDay = (d: Date): number =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -328,6 +333,7 @@ export function formatActivityDateGroup(
 
   if (dayDiff === 0) return labels.today;
   if (dayDiff === 1) return labels.yesterday;
+  if (dayDiff > 1 && dayDiff <= DAYS_IN_LAST_WEEK_GROUP) return labels.lastWeek;
 
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");

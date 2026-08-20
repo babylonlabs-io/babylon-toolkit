@@ -51,10 +51,10 @@ export function ActivityListWithRefund({
   // lifecycle above, so this shares that cache instead of fetching again.
   const { data: vaults } = useVaults(ethAddress as Address | undefined);
 
-  // Undefined until the vaults resolve, which is what keeps a settled deposit
-  // on its type-derived "In use" label instead of flashing "Done" (see
-  // ActivityRowV3.getActivityStatus). A vault that left ACTIVE — redeemed,
-  // withdrawn, liquidated, expired — is no longer holding collateral.
+  // Undefined until the vaults resolve. A vault that left ACTIVE — redeemed,
+  // withdrawn, liquidated, expired — is no longer holding collateral. The
+  // redesigned row has no collateral-in-use label to show for it; the
+  // derivation stays wired pending design's answer (see the PR body).
   const activeVaultIds = useMemo(
     () =>
       vaults

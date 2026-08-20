@@ -1664,7 +1664,9 @@ export const COPY = {
   },
   activity: {
     pageTitle: "Activity",
-    filterAll: "Show all",
+    filterAll: "Show All",
+    searchPlaceholder: "Search tx hash or type of transaction",
+    searchLabel: "Search activity",
     // Visible filter options in dropdown order
     // Redeem / Pending Deposit rows still render but are not filterable —
     // they don't appear here on purpose.
@@ -1676,8 +1678,9 @@ export const COPY = {
       "Partially Liquidated": "Partially Liquidated",
       "Fully Liquidated": "Fully Liquidated",
     },
-    // Row type labels (the transaction-type column). Pending Deposit reads as a
-    // normal "Deposit"; keep this exhaustive with the ActivityType union.
+    // Row type labels — the row's primary label, with the asset symbol as its
+    // sub-line. Pending Deposit reads as a normal "Deposit"; keep this
+    // exhaustive with the ActivityType union.
     typeLabels: {
       Deposit: "Deposit",
       Withdraw: "Withdraw",
@@ -1689,29 +1692,32 @@ export const COPY = {
       "Pending Deposit": "Deposit",
     } satisfies Record<ActivityType, string>,
     hashPending: "Pending…",
+    // Label above the row's hash link. The name is derived from the explorer
+    // the row actually links to (mempool for BTC, the chain explorer for ETH),
+    // never hardcoded.
+    explorerLabel: (explorerName: string) => `${explorerName} Explorer :`,
+    timeLabel: "Time:",
     // Accessible name for the v3 row's hash link, which opens the explorer.
     viewTransaction: (chain: string, hash: string) =>
       `View ${chain} transaction ${hash} in explorer`,
     // Labels for the two child rows nested inside a LiquidationGroupRow.
     liquidation: {
-      collateralLabel: "Collateral Liquidated",
-      repaidLabel: "Loan Repaid",
+      collateralLabel: "Liquidated",
+      repaidLabel: "Debt repaid",
     },
     emptyDisconnected: connectToView("activity"),
     emptyFiltered: "No activity",
-    // The empty state matches the shared EmptyState card; status labels are
-    // derived from the row type plus pending/expired (a deposit's collateral is
-    // "In use", every other settled action is "Done"); date-group headers label
-    // the rows by day.
+    // The empty state matches the shared EmptyState card. Rows carry no status
+    // column: a pending row spins beside its type label, a refunded deposit
+    // gets the Refund chip and a dimmed row.
     emptyV3Title: "No activity yet",
     emptyV3Body:
       "Your account activity will appear here once you start using Babylon",
-    statusPending: "Pending",
-    statusExpired: "Expired",
-    statusInUse: "In use",
-    statusDone: "Done",
+    pendingLabel: "Pending",
+    refundChip: "Refund",
     dateToday: "Today",
     dateYesterday: "Yesterday",
+    dateLastWeek: "Last week",
   },
   banner: {
     addCollateral: "Add Collateral",

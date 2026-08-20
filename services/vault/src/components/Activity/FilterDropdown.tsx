@@ -48,7 +48,7 @@ export function FilterDropdown<V extends string>({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-lg border border-secondary-strokeDark px-4 py-2 text-sm text-accent-primary"
+        className="flex h-9 items-center gap-2 rounded-lg bg-secondary-strokeLight py-3 pl-4 pr-3 text-sm leading-[1.43] tracking-[0.17px] text-accent-primary"
       >
         <span>{activeLabel}</span>
         <RiArrowDownSLine size={20} className="text-accent-secondary" />
