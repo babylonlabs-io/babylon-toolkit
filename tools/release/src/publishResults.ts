@@ -1,5 +1,36 @@
+import type { ProjectsVersionData } from './pinManifests.js';
+import { isPrereleaseVersion } from './releaseTags.js';
+
 /** Whatever `releasePublish` reported, narrowed to what this module needs. */
 export type PublishResults = Record<string, { code: number } | undefined>;
+
+/**
+ * Every project this run is responsible for publishing.
+ *
+ * A superset of the projects asked for: nx adds out-of-filter dependents
+ * through `updateDependents` and bumps them too. Everything downstream has to
+ * use this list, or a dependent gets published with no tag and no changelog.
+ *
+ * On a release-candidate run that superset is not safe to publish as-is. nx
+ * bumps a dragged-in dependent with a hardcoded `patch` that ignores the
+ * preid, so dispatching an RC for a package that has dependents would publish
+ * a stable-numbered dependent pinned to the prerelease, and git-tag it on the
+ * stable line - which a later stable run then resolves from and never
+ * republishes, leaving a permanent hole. Dist-tags do not constrain semver
+ * range resolution, so `next` would not keep that build away from consumers.
+ * A prerelease run publishes prereleases or nothing.
+ */
+export const selectProjectsToPublish = (
+  projectsVersionData: ProjectsVersionData,
+  { preid }: { preid: string | undefined }
+): string[] =>
+  Object.entries(projectsVersionData)
+    .filter(
+      ([, project]) =>
+        project.newVersion !== null &&
+        (preid === undefined || isPrereleaseVersion(project.newVersion))
+    )
+    .map(([projectName]) => projectName);
 
 export interface PublishableProject {
   readonly projectName: string;

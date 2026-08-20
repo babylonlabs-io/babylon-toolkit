@@ -8,6 +8,7 @@ import { materializeAndPinManifests } from './pinManifests.js';
 import {
   assertEveryProjectPublished,
   assertProjectsArePublishable,
+  selectProjectsToPublish,
 } from './publishResults.js';
 import { createRegistryClient } from './registry.js';
 import { createReleaseTagReader } from './releaseTags.js';
@@ -52,14 +53,9 @@ const release = async () => {
     dryRun: DRY_RUN,
   });
 
-  /**
-   * A superset of RELEASE_PROJECTS: nx adds out-of-filter dependents through
-   * `updateDependents` and bumps them too. Everything downstream has to use
-   * this list, or a dependent gets published with no tag and no changelog.
-   */
-  const projectsToPublish = Object.entries(projectsVersionData)
-    .filter(([, project]) => project.newVersion !== null)
-    .map(([projectName]) => projectName);
+  const projectsToPublish = selectProjectsToPublish(projectsVersionData, {
+    preid: RELEASE_PREID,
+  });
 
   if (projectsToPublish.length === 0) {
     console.log('No project release needed');
