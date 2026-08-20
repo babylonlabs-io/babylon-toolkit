@@ -155,10 +155,14 @@ const CROP_MAX_KEPT_FRACTION = 0.8;
  * the only run that pays the reduction is the one that would otherwise
  * publish nothing.
  *
- * On an ordinary run this rung costs nothing. `panelLayout` already keeps
- * every composite inside it - a pair too wide to sit side by side stacks
- * instead - so `reduceToWidth` hands the composite back untouched and it is
- * published as composed. That is also what bounds the clone weight, which is
+ * On an ordinary run this rung costs nothing, though not by one mechanism.
+ * `panelLayout` bounds the side-by-side case explicitly - a pair too wide to
+ * sit next to each other stacks instead. Stacked and single composites are
+ * only as wide as their capture, and stay inside the rung because nothing
+ * captured here is wider than it (the desktop viewport in
+ * `VISUAL_VIEWPORTS`, and `STORY_VIEWPORT` at 900). Neither is pinned to this
+ * constant, so a wider capture would start paying the reduction. Either way
+ * `reduceToWidth` hands an ordinary composite back untouched. That is also what bounds the clone weight, which is
  * real: every `git clone` of this repo fetches the branch these images live
  * on.
  */
@@ -222,7 +226,7 @@ const MAX_COMPOSITE_HEIGHT = 2400;
  * up. When it does it keeps both surfaces pictured rather than keeping the
  * count up, on the same reasoning as MIN_EMBEDDED_GROUPS_PER_SURFACE: two
  * surfaces at the floor tell a reviewer more than one surface at 800px.
- * Anything given up is named in the comment.
+ * The count is said in the comment, and the screens are named in the run log.
  */
 const PUBLISHED_TOTAL_BYTE_BUDGET = 448 * 1024;
 
@@ -676,7 +680,7 @@ function blit(source, target, x, y, window) {
  * the alternative past that point is reduction, and reduction is what costs
  * the reviewer the picture. Two 1280px vault screens side by side come to
  * 2568px, which `reduceToWidth` fits to the 1280 rung at a factor of
- * 2.00625 - 639px a screen, half life size, in a column that then scales it
+ * 2.00625 - 638px a screen, half life size, in a column that then scales it
  * again.
  *
  * Stacked, the same two panels are 1280px wide and publish untouched at the

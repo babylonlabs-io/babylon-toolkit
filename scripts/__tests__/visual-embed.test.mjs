@@ -108,7 +108,7 @@ test("panelLayout keeps a phone pair side by side", () => {
 
 // The case this layout rule exists for: side by side, two 1280px screens
 // come to 2568px, and fitting that to the 1280 rung renders each screen
-// 639px wide - half life size.
+// 638px wide - half life size.
 test("panelLayout stacks a pair too wide to sit side by side", () => {
   assert.equal(panelLayout(1280, 2), "stacked");
 });
@@ -624,8 +624,9 @@ test("the workflow's publish ceiling stays above the budget this script fits to"
   // only knows the first fails the whole visual job on a harmless edit.
   // Dropping the `$(( ))` for a plain byte count is that same harmless edit,
   // so both spellings are read here and only the value is checked. Anchored
-  // to an assignment line, because the prose above the constant names it too
-  // and an unanchored pattern would read the sentence instead.
+  // to an assignment line: with the bare-literal branch added a run of digits
+  // is enough to match, so unanchored it would read any future sentence or
+  // echo string carrying MAX_PUBLISHED_BYTES=<digits> as the ceiling.
   const assignment = workflow.match(
     /^[ \t]*MAX_PUBLISHED_BYTES=(?:\$\(\((.+?)\)\)|(\d+))[ \t]*(?:#.*)?$/m,
   );
