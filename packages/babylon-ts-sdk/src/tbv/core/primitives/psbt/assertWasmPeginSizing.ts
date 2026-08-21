@@ -6,7 +6,7 @@
  * CLAUDE.md critical path #1: the Rust/WASM layer computes
  * `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue +
  * minPeginFee` internally (the anchor term is 0 for graph versions without a
- * P2A anchor, 240 sats for v2) and JS receives the outputs with no runtime
+ * P2A anchor, 240 sats for v2/v3) and JS receives the outputs with no runtime
  * validation. A doctored or buggy binary that returns a different
  * `peginAmount`, an out-of-formula `htlcValue`, or a wrong
  * `depositorClaimValue` would otherwise be committed verbatim — taxing the

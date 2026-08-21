@@ -1,12 +1,10 @@
 // scripts/build-wasm.js
 //
 // Builds the WASM module from the vault-wasm facade repository — a single
-// binary bundling every supported btc-vault tx-graph version (v1, v2) behind
-// version-taking constructors that fail closed on unsupported versions.
+// binary bundling every supported btc-vault tx-graph version (v1, v2, v3)
+// behind version-taking constructors that fail closed on unsupported versions.
 
 import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
 import shell from 'shelljs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,8 +16,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
 const VAULT_WASM_BRANCH = 'main';
-// main incl. PR #3 (computePayoutFeeFloor export); bundles btc-vault v1 @ a0ad5503, v2 @ d7e33b26.
-const VAULT_WASM_COMMIT = 'ae00321b8710acdbb4d94900b91c3053b5e62416';
+// main incl. PR #4 (tx graph v3 / Vault Core 3); bundles btc-vault
+// v1 @ 2c1177ec (tag v0.6.1), v2 @ 27c0062b (tag v0.8.0), v3 @ e1e50f66.
+// v3 pins the release/v0.9.x head — btc-vault has not tagged v0.9.0 yet;
+// re-pin once upstream moves it to the tag rev.
+const VAULT_WASM_COMMIT = '3accd8f614bab7b8018e40013322afe02b3ac80e';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');
@@ -33,35 +34,17 @@ const buildWasm = async () => {
     const HOME = process.env.HOME;
     const RUSTUP_HOME = process.env.RUSTUP_HOME || `${HOME}/.rustup`;
 
-    // We must build through rustup's proxy shims (not a standalone cargo/rustc)
-    // so vault-wasm's rust-toolchain.toml selects the toolchain. `rustup-init`
-    // normally installs those shims into ~/.cargo/bin, but some setups don't
-    // have them there (e.g. Homebrew's `rustup` formula installs only the
-    // rustup binary, and a separate Homebrew `rust` provides a cargo/rustc that
-    // ignores rust-toolchain.toml). Locate the rustup binary and synthesize a
-    // proxy dir of symlinks to it — rustup dispatches on argv[0], so a symlink
-    // named `cargo`/`rustc` behaves as that proxy. Putting this dir first on
-    // PATH guarantees rust-toolchain.toml is honored regardless of how rust was
-    // installed.
-    const rustupBin = shell.which('rustup');
-    if (!rustupBin) {
+    // The build must run on the toolchain vault-wasm's rust-toolchain.toml
+    // names, not on whatever cargo/rustc happens to be first on PATH (a
+    // Homebrew `rust` provides both and ignores rust-toolchain.toml). rustup
+    // is the only thing that can resolve that file, so it is required here;
+    // the toolchain's own bin directory is resolved further down, after
+    // checkout, once that file exists on disk.
+    if (!shell.which('rustup')) {
       console.error(
         'Error: rustup not found on PATH. Install it from https://rustup.rs',
       );
       process.exit(1);
-    }
-    const cargoBinPath = path.join(os.tmpdir(), 'vault-wasm-rustup-proxies');
-    shell.rm('-rf', cargoBinPath);
-    shell.mkdir('-p', cargoBinPath);
-    for (const proxy of [
-      'cargo',
-      'rustc',
-      'rustup',
-      'rustdoc',
-      'cargo-clippy',
-      'clippy-driver',
-    ]) {
-      fs.symlinkSync(rustupBin.toString(), path.join(cargoBinPath, proxy));
     }
 
     // Setup LLVM for wasm32 target (required for secp256k1-sys compilation)
@@ -88,8 +71,9 @@ const buildWasm = async () => {
       }
     }
 
-    // Prepend cargo shims and LLVM to PATH so rust-toolchain.toml is respected
-    shell.env.PATH = `${cargoBinPath}:${LLVM_BIN_PATH}:${shell.env.PATH}`;
+    // Prepend LLVM so the wasm32 C toolchain resolves. The pinned Rust
+    // toolchain goes on PATH later, after its directory is resolved.
+    shell.env.PATH = `${LLVM_BIN_PATH}:${shell.env.PATH}`;
     shell.env.RUSTUP_HOME = RUSTUP_HOME;
 
     // Set target-specific compiler variables for wasm32-unknown-unknown
@@ -103,37 +87,6 @@ const buildWasm = async () => {
         'Error: wasm-pack not found. Install with: cargo install wasm-pack',
       );
       process.exit(1);
-    }
-
-    // Report the resolved rustc and its version. Use execFileSync (not
-    // shelljs `exec`): a rustup proxy re-spawns the real rustc, and shelljs's
-    // synchronous exec deadlocks on that double-spawn. This probe is purely
-    // informational — the vault-wasm rust-toolchain.toml governs the actual
-    // build — so a failure here only warns.
-    const proxyEnv = {
-      ...process.env,
-      PATH: shell.env.PATH,
-      RUSTUP_HOME: shell.env.RUSTUP_HOME,
-    };
-    console.log(`Using rustc from: ${cargoBinPath}/rustc`);
-    let rustcVersion = '';
-    try {
-      rustcVersion = execFileSync('rustc', ['--version'], { env: proxyEnv })
-        .toString()
-        .trim();
-      console.log(`Rustc version: ${rustcVersion}`);
-    } catch {
-      console.warn(
-        'Warning: could not determine the default rustc version. ' +
-          'Continuing — the vault-wasm rust-toolchain.toml selects the build toolchain.',
-      );
-    }
-
-    if (!rustcVersion.includes(REQUIRED_RUSTC_VERSION)) {
-      console.warn(
-        `\nWarning: Default rustc is ${rustcVersion}, expected ${REQUIRED_RUSTC_VERSION}.`,
-        `\nThe vault-wasm rust-toolchain.toml will override the toolchain during build.\n`,
-      );
     }
 
     // Clean up any previous temp directory
@@ -187,6 +140,70 @@ const buildWasm = async () => {
       console.error('Error: Failed to add wasm32-unknown-unknown target');
       shell.rm('-rf', REPO_DIR);
       process.exit(1);
+    }
+
+    // Put the pinned toolchain's own bin directory first on PATH. `rustup
+    // which`, run inside the checkout, resolves rust-toolchain.toml to the
+    // absolute cargo/rustc for that channel; its directory is what wasm-pack
+    // must see. Resolving the real binaries — rather than synthesizing
+    // argv[0] proxy symlinks to the rustup binary — is what makes this work
+    // on every install shape: Homebrew's rustup ships only the `rustup`
+    // binary and does no argv[0] dispatch, so such a symlink named `cargo`
+    // runs rustup's own CLI and every cargo invocation fails with an empty
+    // error message.
+    console.log('Resolving the toolchain from rust-toolchain.toml...');
+    let toolchainBinDir = '';
+    try {
+      toolchainBinDir = path.dirname(
+        execFileSync('rustup', ['which', 'cargo'], {
+          cwd: REPO_DIR,
+          env: { ...process.env, PATH: shell.env.PATH, RUSTUP_HOME },
+        })
+          .toString()
+          .trim(),
+      );
+    } catch {
+      console.error(
+        'Error: `rustup which cargo` failed inside the checkout, so the ' +
+          'toolchain named by vault-wasm rust-toolchain.toml could not be ' +
+          'resolved. Building against a different toolchain is not safe here ' +
+          '— the artifact is a frozen, on-chain-binding dependency.',
+      );
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
+    }
+    shell.env.PATH = `${toolchainBinDir}:${shell.env.PATH}`;
+
+    // Fail loudly if that cargo does not actually run. wasm-pack shells out to
+    // `cargo metadata` and reports its failure with an empty message, so an
+    // unusable cargo surfaces downstream as a blank error.
+    const toolchainEnv = {
+      ...process.env,
+      PATH: shell.env.PATH,
+      RUSTUP_HOME,
+    };
+    let rustcVersion = '';
+    try {
+      rustcVersion = execFileSync('rustc', ['--version'], { env: toolchainEnv })
+        .toString()
+        .trim();
+      execFileSync('cargo', ['--version'], { env: toolchainEnv });
+    } catch {
+      console.error(
+        `Error: the toolchain at ${toolchainBinDir} does not provide a ` +
+          'working rustc/cargo pair.',
+      );
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
+    }
+    console.log(`Using ${rustcVersion} from: ${toolchainBinDir}`);
+
+    if (!rustcVersion.includes(REQUIRED_RUSTC_VERSION)) {
+      console.warn(
+        `\nWarning: resolved rustc is ${rustcVersion}, expected ` +
+          `${REQUIRED_RUSTC_VERSION}. vault-wasm's rust-toolchain.toml is ` +
+          `authoritative — update REQUIRED_RUSTC_VERSION if it moved.\n`,
+      );
     }
 
     // Build with wasm-pack at the crate root. vault-wasm has no cargo

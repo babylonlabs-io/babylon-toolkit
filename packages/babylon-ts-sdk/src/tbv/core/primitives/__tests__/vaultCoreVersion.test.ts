@@ -16,12 +16,12 @@ import { describe, expect, it } from "vitest";
 import { assertValidVaultCoreVersion } from "../vaultCoreVersion";
 
 describe("tx graph version surface (vendored vault-wasm binary)", () => {
-  it("supports exactly graph versions 1 and 2", async () => {
-    expect(await supportedTxGraphVersions()).toEqual([1, 2]);
+  it("supports exactly graph versions 1, 2 and 3", async () => {
+    expect(await supportedTxGraphVersions()).toEqual([1, 2, 3]);
   });
 
   it("fails closed on a version the binary does not support", async () => {
-    await expect(computeMinPeginFee(3, 2, 1, 1n)).rejects.toThrow(
+    await expect(computeMinPeginFee(4, 2, 1, 1n)).rejects.toThrow(
       /unsupported tx graph version/,
     );
   });
@@ -40,8 +40,20 @@ describe("PegIn P2A anchor surface (vendored vault-wasm binary)", () => {
     });
   });
 
+  // Vault Core 3 reuses Core 2's Bitcoin shape verbatim (btc-vault #2634
+  // changes only the off-chain BaBe backend), so its anchor record is the v2
+  // one. A divergence here means the shapes have parted and the v3 parity
+  // vector in pegin.test.ts is no longer valid.
+  it("v3 anchor is identical to v2 (Core 3 reuses Core 2's shape)", async () => {
+    expect(await peginP2aAnchorOutput(3)).toEqual({
+      value: 240n,
+      vout: 2,
+      scriptPubKey: "51024e73",
+    });
+  });
+
   it("fails closed on an unsupported version instead of returning null", async () => {
-    await expect(peginP2aAnchorOutput(3)).rejects.toThrow(
+    await expect(peginP2aAnchorOutput(4)).rejects.toThrow(
       /unsupported tx graph version/,
     );
   });
@@ -68,6 +80,22 @@ describe("PegIn P2A anchor surface (vendored vault-wasm binary)", () => {
   it("rejects the v2 golden PegIn under v1 rules (anchor must be absent)", async () => {
     await expect(validatePeginP2aAnchor(1, V2_PEGIN_HEX)).rejects.toThrow(
       /carry no P2A anchor/,
+    );
+  });
+
+  // v3 shares v2's anchor rule, so the v2 golden PegIn passes under v3 and the
+  // v1 one still fails. The validator discriminates on transaction shape, so
+  // it separates v1 from {v2, v3} but cannot separate v2 from v3 — the two
+  // pinned builders emit identical bytes, so there is nothing to separate.
+  it("accepts the v2 golden PegIn under v3 rules (shared anchor rule)", async () => {
+    await expect(
+      validatePeginP2aAnchor(3, V2_PEGIN_HEX),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects the v1 golden PegIn under v3 rules (missing anchor)", async () => {
+    await expect(validatePeginP2aAnchor(3, V1_PEGIN_HEX)).rejects.toThrow(
+      /missing P2A anchor/,
     );
   });
 });

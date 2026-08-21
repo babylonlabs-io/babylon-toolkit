@@ -11,10 +11,12 @@
  * same handler must cover every wallet's control shapes:
  *   - MetaMask: real <button> matched by role name (Confirm/Approve/Next/Sign), plus stable testids
  *     on its tx-confirm + gas screens (`confirm-footer-button`, `page-container-footer-next`).
- *   - UniSat: styled <div preset="primary">, plus two peg-in-only shapes: the "use at your own risk"
+ *   - UniSat: styled <div preset="primary">, plus three peg-in-only shapes: the "use at your own risk"
  *     gate on SIGN_PEGIN_BTC (a text input that must read CONFIRM before the <div preset="danger">
- *     Confirm enables — see fillUnisatRiskGate), and the batch <div preset="primaryV2"> "Sign all N
- *     transactions at once" on the payout/graph steps.
+ *     Confirm enables — see fillUnisatRiskGate), the high-fee-rate risk modal whose consent checkbox
+ *     gates "Understand the Risks, Continue" and whose CANCEL is the primary-styled control (see
+ *     acceptUnisatRiskModal), and the batch <div preset="primaryV2"> "Sign all N transactions at
+ *     once" on the payout/graph steps.
  *   - OKX: OKD-styled <button data-testid="okd-button">.
  *   - OneKey: real <button>, gated on an insecure-origin consent checkbox (see tickConsent).
  *
@@ -57,13 +59,27 @@ const STYLED_APPROVE_SELECTORS = [
  * intermediate `"(0/5) Signed"` and batch `"Sign all N transactions at once"` controls (neither is an
  * exact approve word) — so we only refuse the obviously-destructive labels and click the rest.
  */
-const REJECT_NAME_RX = /^(cancel|reject|deny|back|close|no)$/i;
+const REJECT_NAME_RX = /^(cancel|reject|deny|back|close|no|try again later)$/i;
 
 /** UniSat's "use at your own risk" gate (SIGN_PEGIN_BTC): a danger Confirm behind a text input. */
 const UNISAT_RISK_DANGER = '[preset="danger"]';
 const UNISAT_RISK_INPUT = 'input[preset="text"]';
 /** The exact word UniSat requires typed into the risk input before its danger Confirm enables. */
 const UNISAT_RISK_CONFIRM_WORD = "CONFIRM";
+
+/**
+ * UniSat's OTHER "use at your own risk" shape — the one its fee-rate heuristic raises on the Pre-PegIn
+ * (peg-in reserves a deliberately high fee rate, so it fires on every run). A modal with a consent
+ * checkbox, a DANGER-styled "Understand the Risks, Continue" that proceeds, and a PRIMARY-styled
+ * "Try Again Later" that cancels.
+ *
+ * The cancel is the visually prominent control here, which inverts the usual styling contract: the
+ * generic `[preset="primary"]` path would click it, dismissing the prompt, and the signing request
+ * would immediately re-open — an endless Sign → cancel → Sign loop rather than a failure. So this
+ * shape is matched and driven explicitly, before any styled-control fallback runs.
+ */
+const UNISAT_RISK_ACK_RX = /understand the risks/i;
+const UNISAT_RISK_CONSENT_RX = /i understand and accept the risks/i;
 
 const readLabel = async (
   loc: ReturnType<Page["locator"]>,
@@ -85,6 +101,41 @@ async function fillUnisatRiskGate(popup: Page): Promise<void> {
   const current = (await input.inputValue().catch(() => "")) ?? "";
   if (current.trim().toUpperCase() === UNISAT_RISK_CONFIRM_WORD) return;
   await input.fill(UNISAT_RISK_CONFIRM_WORD).catch(() => {});
+}
+
+/**
+ * Drive UniSat's consent-checkbox risk modal: tick the consent, then click "Understand the Risks,
+ * Continue". Returns the clicked control's text, or null when this modal isn't on screen.
+ *
+ * Idempotent across approve rounds — the consent is only ticked when it reads as unticked, and the
+ * modal is gone once the ack lands, so a later round simply no-ops.
+ */
+async function acceptUnisatRiskModal(popup: Page): Promise<string | null> {
+  const ack = popup.getByText(UNISAT_RISK_ACK_RX).last();
+  if (!(await ack.isVisible().catch(() => false))) return null;
+
+  // The ack stays inert until the consent is ticked. Prefer a real checkbox; UniSat also renders it
+  // as a styled div in some builds, where clicking the label text toggles it.
+  const box = popup.locator('input[type="checkbox"]').first();
+  if (await box.isVisible().catch(() => false)) {
+    if (!(await box.isChecked().catch(() => false))) {
+      await box
+        .check({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
+        .catch(() => {});
+    }
+  } else {
+    await popup
+      .getByText(UNISAT_RISK_CONSENT_RX)
+      .first()
+      .click({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
+      .catch(() => {});
+  }
+
+  const name = await readLabel(ack, "(risk-ack)");
+  await ack
+    .click({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
+    .catch(() => {});
+  return name;
 }
 
 /**
@@ -136,6 +187,10 @@ export async function clickApprove(popup: Page): Promise<string | null> {
       .catch(() => {});
     return name;
   }
+  // The consent-checkbox risk modal must be handled before any styled-control fallback: its cancel is
+  // the primary-styled control, so the generic path would dismiss it and loop forever.
+  const riskAck = await acceptUnisatRiskModal(popup);
+  if (riskAck) return riskAck;
   // UniSat / OKX styled controls. Satisfy the "use at your own risk" gate first so the danger Confirm
   // it guards can be clicked in this same round (or the next, once UniSat enables it).
   await fillUnisatRiskGate(popup);

@@ -88,7 +88,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
     vaultCount + 1 + (hasAuthAnchor ? 1 : 0),
   // v1 default: no P2A anchor. Version-2 tests override.
   peginP2aAnchorOutput: vi.fn(async () => null),
-  supportedTxGraphVersions: vi.fn(async () => [1, 2]),
+  supportedTxGraphVersions: vi.fn(async () => [1, 2, 3]),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({

@@ -286,7 +286,7 @@ export async function supportedTxGraphVersions(): Promise<number[]> {
 
 /**
  * The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
- * `null` when that version's PegIn carries no anchor (v1). For v2: 240 sats
+ * `null` when that version's PegIn carries no anchor (v1). For v2/v3: 240 sats
  * at vout 2, script `51024e73`.
  */
 export async function peginP2aAnchorOutput(

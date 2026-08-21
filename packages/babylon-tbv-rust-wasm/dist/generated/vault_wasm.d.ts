@@ -124,8 +124,18 @@ export class WasmPayoutTx {
     [Symbol.dispose](): void;
     /**
      * Estimates the Payout vsize under `tx_graph_version` for fee planning.
+     *
+     * `payout_script_hex` is the union parameter for the versions whose
+     * estimator is script-aware (btc-vault #2440+, i.e. graph v2 and v3):
+     * **required** there, and **rejected** on graph v1, whose estimator
+     * predates it and always sizes output 0 as a 34-byte P2TR script. Both
+     * directions throw rather than silently ignoring the argument.
+     *
+     * The same applies to `commission_json`: graph v1 expects a `receiver`
+     * x-only pubkey, graph v2/v3 a `receiver_script` scriptPubKey hex. A
+     * mismatch is rejected by the version's own deserializer.
      */
-    static estimateVsize(tx_graph_version: number, num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number, commission_json?: string | null): bigint;
+    static estimateVsize(tx_graph_version: number, num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number, commission_json?: string | null, payout_script_hex?: string | null): bigint;
     /**
      * Creates a WasmPayoutTx from a JSON string serialized under
      * `tx_graph_version`.
@@ -553,22 +563,12 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
-    readonly supportedTxGraphVersions: () => [number, number];
-    readonly validateTxGraphParams: (a: number, b: number, c: number) => [number, number];
-    readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-    readonly verifyP2trScriptSpendSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number];
-    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
     readonly computePayoutClaimerSighash: (a: number, b: number, c: number) => [number, number, number, number];
     readonly computePayoutDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
     readonly computePayoutFeeFloor: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint) => [bigint, number, number];
     readonly verifyDepositorSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-    readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [bigint, number, number];
+    readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [bigint, number, number];
     readonly wasmpayouttx_fromJson: (a: number, b: number, c: number) => [number, number, number];
     readonly wasmpayouttx_getTxGraphVersion: (a: number) => number;
     readonly wasmpayouttx_getTxid: (a: number) => [number, number];
@@ -590,6 +590,16 @@ export interface InitOutput {
     readonly wasmprepegintx_getTxid: (a: number) => [number, number];
     readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: bigint, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number, w: number) => [number, number, number];
     readonly wasmprepegintx_toHex: (a: number) => [number, number];
+    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
+    readonly supportedTxGraphVersions: () => [number, number];
+    readonly validateTxGraphParams: (a: number, b: number, c: number) => [number, number];
+    readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+    readonly verifyP2trScriptSpendSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number];
+    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
     readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
     readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
