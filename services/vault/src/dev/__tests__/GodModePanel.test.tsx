@@ -12,6 +12,10 @@ import { COPY } from "@/copy";
 import { ContractStatus, PeginAction } from "@/models/peginStateMachine";
 
 import {
+  useDebugManualMode,
+  useDebugProtocolStatusOverride,
+} from "../debugPositionStore";
+import {
   ACTIVATED_SCENARIO_INDEX,
   ACTIVATION_CONFIRMING_SCENARIO_INDEX,
   activityScenarios,
@@ -34,11 +38,31 @@ import {
   useDemoItems,
 } from "../demoDeposit";
 import { GodModePanel } from "../GodModePanel";
+import { useLiquidationDebugState } from "../liquidationDebugStore";
+import { DEV_PANEL_TABS, type DevPanelTab } from "../registry";
 
 const mockSetTheme = vi.hoisted(() => vi.fn());
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: mockSetTheme }),
 }));
+
+// Every registered tab mounts at once while the panel is expanded (see
+// GodModePanel's header comment), so the Position/Liquidations tabs' shared
+// cascade simulator needs a wallet + live-hook stub even in tests that never
+// click into those tabs.
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => ({ address: undefined }),
+}));
+vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
+  usePositionNotifications: () => ({ result: null, status: "no-wallet" }),
+}));
+
+const featureFlagsMock = vi.hoisted(() => ({
+  isGodModePanelEnabled: true,
+  isLiquidationNotificationsEnabled: true,
+  isPositionDebugPanelEnabled: true,
+}));
+vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 /** Default borrowed-asset symbol — matches the store's default, so tests that
  *  don't exercise the selector see the same scenario shape as before. */
@@ -427,11 +451,17 @@ describe("submitDemoVaultActivation", () => {
   });
 });
 
-// The panel starts collapsed (small launcher, bottom-right); expand it to reach
-// the controls.
-function renderExpanded() {
-  render(<GodModePanel />);
+// The panel starts collapsed (small launcher, bottom-right); expand it to
+// reach the controls. Every registered tab mounts at once (hidden via the
+// `hidden` attribute) once expanded, so a test that wants a specific tab's
+// controls must click its rail button first — see `clickTab`.
+function renderExpanded(registry: DevPanelTab[] = DEV_PANEL_TABS) {
+  render(<GodModePanel registry={registry} />);
   fireEvent.click(screen.getByRole("button", { name: "God mode" }));
+}
+
+function clickTab(label: string) {
+  fireEvent.click(screen.getByRole("button", { name: label }));
 }
 
 describe("GodModePanel", () => {
@@ -440,7 +470,7 @@ describe("GodModePanel", () => {
   });
 
   it("starts collapsed and toggles open/closed", () => {
-    render(<GodModePanel />);
+    render(<GodModePanel registry={DEV_PANEL_TABS} />);
     // Collapsed by default: only the launcher shows.
     expect(
       screen.queryByRole("button", { name: "Pop out ↗" }),
@@ -457,8 +487,41 @@ describe("GodModePanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders every registered tab as a rail button", () => {
+    renderExpanded();
+    for (const tab of DEV_PANEL_TABS) {
+      expect(
+        screen.getByRole("button", { name: tab.label }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("hides a tab whose gate returns false", () => {
+    const fakeRegistry: DevPanelTab[] = [
+      {
+        id: "always",
+        label: "Always",
+        Component: () => <div>always-content</div>,
+      },
+      {
+        id: "gated",
+        label: "Gated",
+        Component: () => <div>gated-content</div>,
+        gate: () => false,
+      },
+    ];
+    renderExpanded(fakeRegistry);
+
+    expect(screen.getByRole("button", { name: "Always" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Gated" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("gated-content")).not.toBeInTheDocument();
+  });
+
   it("renders a default deposit mock", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
     const type = screen.getByRole("combobox", { name: "Mock 1 type" });
     expect(type).toHaveValue("deposit");
     expect(
@@ -470,12 +533,14 @@ describe("GodModePanel", () => {
 
   it("switches the app theme from the panel", () => {
     renderExpanded();
+    clickTab("Global");
     fireEvent.click(screen.getByRole("button", { name: "dark" }));
     expect(mockSetTheme).toHaveBeenCalledWith("dark");
   });
 
   it("adds and removes mocks", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add mock" }));
     expect(
@@ -490,6 +555,7 @@ describe("GodModePanel", () => {
 
   it("switches a mock to a loan and re-labels its amount in the borrowed asset", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
       target: { value: "loan" },
@@ -505,6 +571,7 @@ describe("GodModePanel", () => {
 
   it("switches a mock to an activity row and shows that type's states", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
       target: { value: "activity" },
@@ -519,6 +586,7 @@ describe("GodModePanel", () => {
   // actually renders — activity rows are not uniformly BTC.
   it("re-labels the amount field per activity scenario denomination", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
       target: { value: "activity" },
     });
@@ -547,6 +615,7 @@ describe("GodModePanel", () => {
 
   it("changes the borrowed asset from the Mocks section and relabels the loan amount field", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
       target: { value: "loan" },
     });
@@ -565,6 +634,7 @@ describe("GodModePanel", () => {
 
   it("relabels a debt-typed activity mock's amount field when the borrowed asset changes", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 type" }), {
       target: { value: "activity" },
     });
@@ -589,6 +659,7 @@ describe("GodModePanel", () => {
 
   it("forces and releases the Loans summary health factor and capacity state", () => {
     renderExpanded();
+    clickTab("Loans");
 
     fireEvent.click(screen.getByRole("button", { name: "Danger (0.95)" }));
     fireEvent.click(screen.getByRole("button", { name: "Error" }));
@@ -605,6 +676,7 @@ describe("GodModePanel", () => {
 
   it("exposes hide-real and a per-item amount control", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     const hideReal = screen.getByRole("checkbox", { name: "Hide real items" });
     fireEvent.click(hideReal);
@@ -619,6 +691,7 @@ describe("GodModePanel", () => {
 
   it("exposes the artifact-download mock toggle, off by default", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     const mockDownload = screen.getByRole("checkbox", {
       name: "Mock artifact download",
@@ -635,6 +708,7 @@ describe("GodModePanel", () => {
 
   it("steps a mock's state with the slider", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     const slider = screen.getByRole("slider", { name: "Mock 1 step" });
     fireEvent.change(slider, { target: { value: "1" } });
@@ -645,6 +719,7 @@ describe("GodModePanel", () => {
 
   it("scrubs the expired variants with the slider in Expired mode", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 mode" }), {
       target: { value: "expired" },
@@ -661,6 +736,7 @@ describe("GodModePanel", () => {
 
   it("disables the slider in Different wallet mode (a single state)", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Mock 1 mode" }), {
       target: { value: "different-wallet" },
@@ -671,6 +747,7 @@ describe("GodModePanel", () => {
 
   it("disables the controls when the demo toggle is off", () => {
     renderExpanded();
+    clickTab("Deposit & Vaults");
 
     const toggle = screen.getByRole("checkbox", { name: "Inject demo" });
     fireEvent.click(toggle);
@@ -680,17 +757,61 @@ describe("GodModePanel", () => {
     ).toBeDisabled();
   });
 
-  it("renders a passed-in section (e.g. the position debug panel) once expanded", () => {
-    render(
-      <GodModePanel>
-        <div>extra debug section</div>
-      </GodModePanel>,
-    );
-    // Collapsed launcher shows no children.
-    expect(screen.queryByText("extra debug section")).not.toBeInTheDocument();
+  // The Liquidations tab has exactly one "Live"/"Simulated" pair (its own
+  // Liquidation Analysis segmented control uses "Auto", not "Live"), so the
+  // cascade simulator's buttons are unambiguous there. Presets only show
+  // once "Simulated" is selected.
+  it("a preset click writes the cascade store; Live clears it", () => {
+    const manualMode = renderHook(() => useDebugManualMode());
+    renderExpanded();
+    clickTab("Liquidations");
 
-    fireEvent.click(screen.getByRole("button", { name: "God mode" }));
-    expect(screen.getByText("extra debug section")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Simulated" }));
+    fireEvent.click(screen.getByRole("button", { name: "Healthy" }));
+    expect(manualMode.result.current).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Live" }));
+    expect(manualMode.result.current).toBe(false);
+  });
+
+  it("the summary chip lists active overrides across stores and reset-all clears every one", () => {
+    const protocolStatus = renderHook(() => useDebugProtocolStatusOverride());
+    const liquidationCard = renderHook(() => useLiquidationDebugState());
+    renderExpanded();
+
+    // Activate one override on three different tabs, from three different
+    // dev stores.
+    clickTab("Deposit & Vaults");
+    const mockDownload = screen.getByRole("checkbox", {
+      name: "Mock artifact download",
+    });
+    fireEvent.click(mockDownload);
+
+    clickTab("Global");
+    fireEvent.click(screen.getByRole("button", { name: "Soft-paused" }));
+
+    clickTab("Liquidations");
+    fireEvent.click(screen.getByRole("button", { name: "No deposit" }));
+
+    expect(screen.getByText("Artifact download mock")).toBeInTheDocument();
+    expect(screen.getByText("Protocol status: frozen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Liquidation card: no-deposit"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset all to live" }));
+
+    expect(
+      screen.queryByText("Artifact download mock"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Protocol status:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Liquidation card:/)).not.toBeInTheDocument();
+
+    // The clears round-trip through the dev stores each tab reads, not just
+    // the chip's own view.
+    expect(mockDownload).not.toBeChecked();
+    expect(protocolStatus.result.current).toBeNull();
+    expect(liquidationCard.result.current).toBe("auto");
   });
 });
 
