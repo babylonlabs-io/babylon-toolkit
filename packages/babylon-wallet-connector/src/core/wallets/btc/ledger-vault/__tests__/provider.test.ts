@@ -30,6 +30,12 @@ import { ERROR_CODES, WalletError } from "@/error";
 /** BIP-86 first-address vector: x-only key and its published P2TR address. */
 const VECTOR_XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
 const VECTOR_MAINNET_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
+/**
+ * The device's depositor key — the `0/0` child of {@link ACCOUNT_XPUB}. The
+ * provider cross-checks the two reads against each other, so a key unrelated
+ * to the xpub would (correctly) be rejected as an inconsistent device.
+ */
+const DEVICE_XONLY = "dc8d2f9eff0c4f4dbde070a48e330efc908b62a766568d91e658f284b324b878";
 /** The `m/86'/1'/0'` account xpub the device reports (testnet versions). */
 const ACCOUNT_XPUB =
   "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U";
@@ -47,7 +53,7 @@ const dmkSessionMock = vi.hoisted(() => ({
 }));
 
 const derivationMock = vi.hoisted(() => ({
-  getXOnlyPublicKeyHex: vi.fn(async () => VECTOR_XONLY),
+  getXOnlyPublicKeyHex: vi.fn(async () => DEVICE_XONLY),
   getMasterFingerprintHex: vi.fn(async () => "73c5da0a"),
   getExtendedPublicKey: vi.fn(async () => ACCOUNT_XPUB),
 }));
@@ -172,14 +178,17 @@ describe("LedgerVaultProvider", () => {
 
     const [address, pubkey] = await Promise.all([provider.getAddress(), provider.getPublicKeyHex()]);
 
-    expect(pubkey).toBe(VECTOR_XONLY);
+    expect(pubkey).toBe(DEVICE_XONLY);
     // The address is never read from the device — it is derived locally from
     // the pubkey, so it must equal the util's derivation for the same network.
-    expect(address).toBe(getTaprootAddress(VECTOR_XONLY, Network.SIGNET));
+    expect(address).toBe(getTaprootAddress(DEVICE_XONLY, Network.SIGNET));
     expect(derivationMock.getXOnlyPublicKeyHex).toHaveBeenCalledTimes(1);
   });
 
   it("derives the published BIP-86 vector address on mainnet", async () => {
+    // Pins getTaprootAddress against the BIP-86 published vector, so this one
+    // reads the vector key rather than the fixture device's own.
+    derivationMock.getXOnlyPublicKeyHex.mockResolvedValueOnce(VECTOR_XONLY);
     const provider = new LedgerVaultProvider(Network.MAINNET);
     await provider.connectWallet();
 
@@ -191,7 +200,7 @@ describe("LedgerVaultProvider", () => {
     derivationMock.getXOnlyPublicKeyHex.mockRejectedValueOnce(new Error("device unplugged"));
 
     await expect(provider.getPublicKeyHex()).rejects.toThrow("device unplugged");
-    await expect(provider.getPublicKeyHex()).resolves.toBe(VECTOR_XONLY);
+    await expect(provider.getPublicKeyHex()).resolves.toBe(DEVICE_XONLY);
   });
 
   it("refuses device reads before connecting", async () => {
@@ -335,7 +344,7 @@ describe("LedgerVaultProvider", () => {
       );
       const prepareArgs = signMock.prepareSignPsbt.mock.calls[0][0];
       expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
-      expect(prepareArgs.depositorXOnlyHex).toBe(VECTOR_XONLY);
+      expect(prepareArgs.depositorXOnlyHex).toBe(DEVICE_XONLY);
       // The PSBT handed to prepare is a PoP PSBT (version 0, message in the proprietary key).
       expect(prepareArgs.psbtHex).toMatch(/^70736274ff/);
       expect(Buffer.from(prepareArgs.psbtHex, "hex").toString("latin1")).toContain(POP_MESSAGE);
@@ -522,13 +531,13 @@ describe("LedgerVaultProvider", () => {
      * the depositor's BIP-86 P2TR.
      */
     function keyPathPsbtHex(outputScripts: Buffer[], inputCount = 1): string {
-      const depositorKey = Buffer.from(VECTOR_XONLY, "hex");
+      const depositorKey = Buffer.from(DEVICE_XONLY, "hex");
       const psbt = new Psbt();
       for (let i = 0; i < inputCount; i++) {
         psbt.addInput({
           hash: Buffer.alloc(32, i + 1),
           index: 0,
-          witnessUtxo: { script: bip86Script(VECTOR_XONLY), value: 100_000 },
+          witnessUtxo: { script: bip86Script(DEVICE_XONLY), value: 100_000 },
           tapInternalKey: depositorKey,
         });
       }
@@ -636,7 +645,7 @@ describe("LedgerVaultProvider", () => {
               {
                 kind: "tapscript",
                 expectedLeafHashHexes: new Set(["11".repeat(32)]),
-                expectedSignerXOnlyHex: VECTOR_XONLY,
+                expectedSignerXOnlyHex: DEVICE_XONLY,
               },
             ],
           ]),
@@ -942,6 +951,23 @@ describe("LedgerVaultProvider", () => {
       await expect(p.getChangeAddress()).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
     });
 
+    it("refuses a device whose account xpub does not derive the depositor key", async () => {
+      // Two independent reads. If they disagree the wallet policy would bind a
+      // different key than the intent, and the device would answer an opaque
+      // 0x6A80 only after the user had approved.
+      const p = await connected();
+      // try/finally, not a trailing restore: beforeEach only mockClear()s, so a
+      // failed assertion would leak this key into every later test.
+      derivationMock.getXOnlyPublicKeyHex.mockResolvedValue(VECTOR_XONLY);
+      try {
+        await expect(p.getChangeAddress()).rejects.toMatchObject({
+          code: ERROR_CODES.CONNECTION_FAILED,
+        });
+      } finally {
+        derivationMock.getXOnlyPublicKeyHex.mockResolvedValue(DEVICE_XONLY);
+      }
+    });
+
     it("refuses an xpub read that resolved after a disconnect", async () => {
       // Returning the previous device's address would route Pre-PegIn change
       // to a key the reconnected wallet cannot spend.
@@ -1029,14 +1055,14 @@ describe("LedgerVaultProvider", () => {
   });
 
   it("rejects terms whose roster reuses the depositor's own key before the ceremony", async () => {
-    // VECTOR_XONLY is the device pubkey; the firmware rejects this only after
+    // DEVICE_XONLY is the device pubkey; the firmware rejects this only after
     // the whole ceremony, so the provider pre-empts it as a shaped error before
     // any approval APDU (approveApdus is empty).
     const provider = await derived();
     h.sent.length = 0;
 
     await expect(
-      provider.approveDepositTerms({ ...TERMS, vaultKeeperBtcPubkeys: [VECTOR_XONLY] }),
+      provider.approveDepositTerms({ ...TERMS, vaultKeeperBtcPubkeys: [DEVICE_XONLY] }),
     ).rejects.toMatchObject({ name: "DepositTermsRejectedError", reason: "device-envelope" });
     expect(approveApdus()).toHaveLength(0);
   });

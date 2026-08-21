@@ -51,6 +51,7 @@ export {
 export {
   augmentPsbtForWalletPolicy,
   deriveChangeXOnlyHex,
+  deriveReceiveXOnlyHex,
   psbtPaysChangeScript,
   type AugmentPsbtForWalletPolicyParams,
 } from "./policyPsbt";

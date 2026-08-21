@@ -52,20 +52,36 @@ function assertDepositorPathUnderPolicy(depositorPath: readonly number[], keyOri
   }
 }
 
+function deriveBranchXOnlyHex(
+  accountXpub: string,
+  bip32Versions: Bip32Versions,
+  branch: number,
+  addressIndex: number,
+): string {
+  if (!Number.isInteger(addressIndex) || addressIndex < 0 || addressIndex >= HARDENED) {
+    throw new Error("addressIndex must be a non-hardened integer in 0..2^31-1");
+  }
+  const node = HDKey.fromExtendedKey(accountXpub, bip32Versions).deriveChild(branch).deriveChild(addressIndex);
+  if (!node.publicKey) throw new Error(`account xpub derived no public key at ${branch}/${addressIndex}`);
+  return Buffer.from(node.publicKey.subarray(1)).toString("hex");
+}
+
 /** x-only key at `account/1/addressIndex` from the device's verbatim account xpub. */
 export function deriveChangeXOnlyHex(
   accountXpub: string,
   bip32Versions: Bip32Versions,
   addressIndex: number,
 ): string {
-  if (!Number.isInteger(addressIndex) || addressIndex < 0 || addressIndex >= HARDENED) {
-    throw new Error("addressIndex must be a non-hardened integer in 0..2^31-1");
-  }
-  const node = HDKey.fromExtendedKey(accountXpub, bip32Versions)
-    .deriveChild(BIP86_CHANGE_BRANCH)
-    .deriveChild(addressIndex);
-  if (!node.publicKey) throw new Error("account xpub derived no public key for the change address");
-  return Buffer.from(node.publicKey.subarray(1)).toString("hex");
+  return deriveBranchXOnlyHex(accountXpub, bip32Versions, BIP86_CHANGE_BRANCH, addressIndex);
+}
+
+/** x-only key at `account/0/addressIndex` — the depositor branch. */
+export function deriveReceiveXOnlyHex(
+  accountXpub: string,
+  bip32Versions: Bip32Versions,
+  addressIndex: number,
+): string {
+  return deriveBranchXOnlyHex(accountXpub, bip32Versions, BIP86_RECEIVE_BRANCH, addressIndex);
 }
 
 /** Output indices paying the BIP-86 P2TR of `changeXOnlyHex` — the ONE change-match site. */

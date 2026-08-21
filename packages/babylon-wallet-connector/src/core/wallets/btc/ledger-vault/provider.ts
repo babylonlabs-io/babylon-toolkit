@@ -9,6 +9,7 @@ import {
   createDmkRawApduSender,
   DepositTermsRejectedError,
   deriveChangeXOnlyHex,
+  deriveReceiveXOnlyHex,
   deriveContextHash,
   disconnectDmkSession,
   encodeIntentGroup,
@@ -366,11 +367,36 @@ export class LedgerVaultProvider implements IBTCProvider {
   private getPolicyContext(): Promise<PolicyContext> {
     if (!this.policyContextPromise) {
       const send = this.requireSender();
+      const generation = this.connectionGeneration;
       const read = (async (): Promise<PolicyContext> => {
-        const [masterFingerprintHex, accountXpub] = await Promise.all([
+        const [masterFingerprintHex, accountXpub, depositorXOnlyHex] = await Promise.all([
           getMasterFingerprintHex(send),
           getExtendedPublicKey(send, this.accountPath, toNetwork(this.network).bip32),
+          this.getDevicePubkeyHex(),
         ]);
+        // Before comparing: a teardown mid-read must report the disconnection,
+        // not a key mismatch.
+        this.assertSameConnection(generation);
+        // Our two read paths must agree on the depositor key. The device does
+        // byte-compare the policy xpub against its own derivation
+        // (`base:policy.c:1483-1495` @ e400d8d8, via `init_global_state.c:230-236`),
+        // but only at SIGN_PSBT — by then approveDepositTerms has already spent
+        // the intent ceremony. This guards a host-side desync (depositorPath vs
+        // accountPath, coin type, a refactor of either getter), not a device fault.
+        const derivedXOnlyHex = deriveReceiveXOnlyHex(
+          accountXpub,
+          toNetwork(this.network).bip32,
+          ADDRESS_INDEX,
+        );
+        if (derivedXOnlyHex !== depositorXOnlyHex) {
+          throw new WalletError({
+            code: ERROR_CODES.CONNECTION_FAILED,
+            message:
+              `${WALLET_PROVIDER_NAME} account xpub does not derive the depositor key; ` +
+              `the wallet policy would bind a different key than the intent.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
         const policy = buildDefaultTaprootPolicy({
           masterFingerprintHex,
           coinType: COIN_TYPE_BY_NETWORK[this.network],
