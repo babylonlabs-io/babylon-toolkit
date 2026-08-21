@@ -44,6 +44,13 @@ jobs:
             "packages/babylon-ledger-vault-signer/src/"
             "packages/babylon-ledger-vault-signer/scripts/"
             "packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/wasm/"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader.ts"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw-node.ts"
           )
 
           # Registered in CLAUDE.md > "CRITICAL PATHS" section 9, CODEOWNERS and
@@ -54,13 +61,6 @@ jobs:
           # them as a deleted critical file, every week, until the code lands.
           # Move an entry up into `paths` in the PR that creates the file.
           pending=(
-            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
-            "packages/babylon-ts-sdk/src/tbv/core/wasm/"
-            "packages/babylon-tbv-rust-wasm/src/wasm-loader.ts"
-            "packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts"
-            "packages/babylon-tbv-rust-wasm/src/raw.ts"
-            "packages/babylon-tbv-rust-wasm/src/raw-node.ts"
             "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
           )
 
