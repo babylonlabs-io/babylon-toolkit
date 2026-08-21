@@ -870,8 +870,12 @@ export function useDepositFlow(
           }
           const errorMsg =
             error instanceof Error ? error.message : String(error);
+          // `cause` keeps the typed inner error visible to the cause-walking
+          // classifiers (user cancellation, method-not-supported) in the
+          // mappers.
           throw new Error(
             `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
+            { cause: error },
           );
         }
 

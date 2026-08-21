@@ -511,19 +511,20 @@ jobs:
           # of this repository fetches every branch, so this tree lands in
           # each developer's checkout - against a ~31MB repo, an unbounded
           # publish would make the diff images the largest thing in it.
-          # Normal runs land far below this; tripping it means the caps in
-          # visual-embed.mjs are misconfigured, and refusing loudly beats
-          # quietly bloating everyone's clone. It bounds one PR's
-          # contribution, not the branch: what bounds the branch is the reap
-          # of closed pull requests below, so the live tree stays
-          # proportional to how many are open at once.
+          # It bounds one PR's contribution, not the branch: what bounds
+          # the branch is the reap of closed pull requests below, so the
+          # live tree stays proportional to how many are open at once.
           #
-          # Sized against what this actually produces, not against what the
-          # repo could survive: a run publishes ~10 composites, and the eight
-          # on the branch today total 77KB. A ceiling in the megabytes only
-          # trips once the branch already outweighs the repo everyone clones,
-          # which is far too late to be a runaway detector. 512KB is ~6x
-          # observed and catches a misconfigured cap on the first run.
+          # A backstop, and only that. visual-embed.mjs fits the set it
+          # composes to PUBLISHED_TOTAL_BYTE_BUDGET - below this number -
+          # by publishing the whole set at a smaller width, so nothing
+          # should ever arrive here over the ceiling. Tripping it means the
+          # two constants have drifted apart, and that is worth failing
+          # over: refusing a publish costs the comment every picture and
+          # drops it back to the list of filenames the pictures replaced.
+          # `visual-embed.test.mjs` pins the order of the pair, which is
+          # the check that was missing when five vault composites came to
+          # 678KB against this ceiling and the reviewer got no images.
           MAX_PUBLISHED_BYTES=$(( 512 * 1024 ))
           # The publish path is not serialised across pull requests -
           # `concurrency` above is keyed on github.ref, which only serialises

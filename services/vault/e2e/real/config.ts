@@ -21,7 +21,8 @@ export type ActionId =
   | "borrow"
   | "repay"
   | "withdraw"
-  | "resume";
+  | "resume"
+  | "recover";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -115,6 +116,11 @@ export const ACTIONS: ActionOption[] = [
     enabled: true,
   },
   { id: "borrow", label: "Borrow", enabled: true },
+  {
+    id: "recover",
+    label: "Recover (rehearse ETH-reorg recovery against a real vault)",
+    enabled: true,
+  },
   { id: "repay", label: "Repay", enabled: true },
   { id: "withdraw", label: "Withdraw", enabled: true },
   { id: "resume", label: "Resume (an interrupted peg-in)", enabled: true },
@@ -179,6 +185,12 @@ export interface RunConfig {
    * deposit on the dashboard is resumed.
    */
   resumeTxid?: string;
+  /**
+   * Recover only: target a specific deposit by its Pre-PegIn txid (`--txid`). When absent the
+   * rehearsal picks a batched Pre-PegIn if one exists (the sibling path is the riskier code), then
+   * the most refundable deposit in it.
+   */
+  recoverTxid?: string;
   /**
    * Resume only: peg in a fresh deposit and interrupt it after Pre-PegIn broadcast (`--interrupt-fresh`),
    * reloading the page to a cold state, then resume it from the dashboard — a fully self-contained run.
