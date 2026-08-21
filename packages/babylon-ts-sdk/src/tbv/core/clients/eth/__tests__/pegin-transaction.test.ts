@@ -12,6 +12,10 @@ const GOLDEN_PEGIN_TX_HASH: Hex = `0x${"ab".repeat(32)}`;
 const GOLDEN_DEPOSITOR: Address = "0x1234567890abcdef1234567890abcdef12345678";
 const GOLDEN_VAULT_ID: Hex =
   "0xf8d22e64c72a84a3dacdedb7d8b42e285bf06bd25850da911398c51d5a6c2dba";
+const TXID_DIFFERENTIAL_SEED = 0xa90f72ec;
+const TXID_DIFFERENTIAL_FIXTURE_COUNT = 64;
+const RANDOM_SCRIPT_LENGTHS = [0, 1, 20, 75, 252, 253, 300] as const;
+const RANDOM_WITNESS_ITEM_LENGTHS = [0, 1, 32, 64, 252, 253, 300] as const;
 
 function testTransaction(withWitness: boolean): string {
   const transaction = new Transaction();
@@ -50,6 +54,68 @@ function multiInputOutputTransaction(withWitness: boolean): string {
     ]);
   }
   return transaction.toHex();
+}
+
+function seededU32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state;
+  };
+}
+
+function seededBytes(next: () => number, length: number): Buffer {
+  return Buffer.from(
+    Uint8Array.from({ length }, () => (next() >>> 24) & 0xff),
+  );
+}
+
+function seededTransactionCorpus(): string[] {
+  const next = seededU32(TXID_DIFFERENTIAL_SEED);
+
+  return Array.from({ length: TXID_DIFFERENTIAL_FIXTURE_COUNT }, (_, fixture) => {
+    const transaction = new Transaction();
+    transaction.version = next() | 0;
+    transaction.locktime = next();
+
+    const inputCount = 1 + (next() % 5);
+    const outputCount = 1 + (next() % 5);
+    for (let input = 0; input < inputCount; input++) {
+      const scriptLength =
+        RANDOM_SCRIPT_LENGTHS[next() % RANDOM_SCRIPT_LENGTHS.length]!;
+      transaction.addInput(
+        seededBytes(next, 32),
+        next(),
+        next(),
+        seededBytes(next, scriptLength),
+      );
+    }
+    for (let output = 0; output < outputCount; output++) {
+      const scriptLength =
+        RANDOM_SCRIPT_LENGTHS[next() % RANDOM_SCRIPT_LENGTHS.length]!;
+      transaction.addOutput(seededBytes(next, scriptLength), next());
+    }
+
+    if (fixture % 2 === 1) {
+      const requiredWitnessInput = next() % inputCount;
+      for (let input = 0; input < inputCount; input++) {
+        const itemCount =
+          input === requiredWitnessInput ? 1 + (next() % 3) : next() % 3;
+        transaction.setWitness(
+          input,
+          Array.from({ length: itemCount }, () => {
+            const itemLength =
+              RANDOM_WITNESS_ITEM_LENGTHS[
+                next() % RANDOM_WITNESS_ITEM_LENGTHS.length
+              ]!;
+            return seededBytes(next, itemLength);
+          }),
+        );
+      }
+    }
+
+    return transaction.toHex();
+  });
 }
 
 // Deterministic (peginTxHash, depositor) pairs: SHA-256 of the fixture index,
@@ -106,6 +172,15 @@ describe("ETH-only pegin transaction derivation", () => {
   it("matches bitcoinjs-lib for a multi-input SegWit transaction with a partly empty witness", () => {
     const txHex = multiInputOutputTransaction(true);
     expect(calculatePeginTxHash(txHex)).toBe(calculateBtcTxHash(txHex));
+  });
+
+  it("matches bitcoinjs-lib across fixed-seed randomized transactions", () => {
+    for (const [fixture, txHex] of seededTransactionCorpus().entries()) {
+      expect(
+        calculatePeginTxHash(txHex),
+        `seed 0x${TXID_DIFFERENTIAL_SEED.toString(16)}, fixture ${fixture}`,
+      ).toBe(calculateBtcTxHash(txHex));
+    }
   });
 
   it("rejects malformed and trailing transaction bytes", () => {

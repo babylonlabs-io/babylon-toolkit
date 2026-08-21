@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { assertOnChainBtcPubkey } from "../onChainBtcPubkey";
 
+const FIELD_DIFFERENTIAL_SEED = 0xa90f72ec;
+const FIELD_DIFFERENTIAL_FIXTURE_COUNT = 256;
+
 function bytes(hex: string): Uint8Array {
   return Uint8Array.from(
     hex.match(/.{2}/g)!.map((byte) => Number.parseInt(byte, 16)),
@@ -14,6 +17,14 @@ function hex(value: Uint8Array): string {
   return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
+}
+
+function seededU32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state;
+  };
 }
 
 describe("assertOnChainBtcPubkey", () => {
@@ -42,6 +53,29 @@ describe("assertOnChainBtcPubkey", () => {
         expect(validate).toThrow(/not on the secp256k1 curve/);
       }
     }
+  });
+
+  it("matches tiny-secp256k1 across fixed-seed randomized x-coordinates", () => {
+    const next = seededU32(FIELD_DIFFERENTIAL_SEED);
+    const oracleOutcomes = new Set<boolean>();
+
+    for (let fixture = 0; fixture < FIELD_DIFFERENTIAL_FIXTURE_COUNT; fixture++) {
+      const value = hex(
+        Uint8Array.from({ length: 32 }, () => (next() >>> 24) & 0xff),
+      );
+      const expected = ecc.isXOnlyPoint(bytes(value));
+      oracleOutcomes.add(expected);
+      const validate = () =>
+        assertOnChainBtcPubkey(`0x${value}` as Hex, "test key");
+      const message = `seed 0x${FIELD_DIFFERENTIAL_SEED.toString(16)}, fixture ${fixture}`;
+      if (expected) {
+        expect(validate(), message).toBe(value);
+      } else {
+        expect(validate, message).toThrow(/not on the secp256k1 curve/);
+      }
+    }
+
+    expect(oracleOutcomes).toEqual(new Set([false, true]));
   });
 
   it("accepts every x-coordinate derived from scalars 1..256", () => {
