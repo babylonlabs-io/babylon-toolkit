@@ -55,6 +55,9 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
+// Shared by formatPayoutSignatureError's Error and non-Error fallbacks so the
+// generic payout-signing title can't drift between the two.
+const PAYOUT_SIGNING_ERROR_TITLE = "Payout signing error";
 // Action-required labels shared between the in-app badges
 // (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
 // surfaces can't drift.
@@ -748,6 +751,12 @@ export const COPY = {
       readyToActivateMessage:
         "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
       wotsMismatchError: WRONG_WALLET_BODY,
+      // Resume preflight guards (rendered via mapDepositError's pass-through,
+      // same pattern as wotsMismatchError above). walletNotConnected is shared
+      // by the WOTS and HTLC-secret-recovery submit handlers.
+      walletNotConnected: "BTC wallet is not connected",
+      secretRecoveryMissingPrePegin:
+        "Missing Pre-Pegin transaction; cannot recover HTLC secret",
       // Resume's cold path fires a wallet approval the WOTS step copy doesn't
       // mention, and some extensions queue it without surfacing a popup.
       wotsWalletApprovalHint:
@@ -886,6 +895,12 @@ export const COPY = {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
       },
+      // Typed DepositorWalletMismatchError from the terms rebuild (Ethereum
+      // account, not the BTC wallet the WOTS guard above covers).
+      wrongDepositorWallet: {
+        title: "Wrong wallet connected",
+        body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
+      },
       commissionChanged: {
         title: "Commission changed",
         body: "The vault provider raised its commission since you selected it. Please refresh to see the new commission and start the deposit again.",
@@ -893,6 +908,18 @@ export const COPY = {
       commissionUnavailable: {
         title: "Commission unavailable",
         body: "We couldn't confirm the vault provider's commission. Please refresh and try again before depositing.",
+      },
+      // Device-envelope rejection of the deposit terms. Can be terminal for
+      // this deposit (terms outside the signing device's acceptable range can
+      // never be approved), so no "try again" — support and, once BTC has
+      // moved, the refund path.
+      depositTermsRejected: {
+        title: "Deposit terms not approved",
+        body: "Your signing device cannot approve this deposit's terms, so the deposit cannot continue with the connected wallet. Please contact support. If your Bitcoin has already been sent, it stays recoverable through the refund flow once its timelock opens.",
+      },
+      walletMethodNotSupported: {
+        title: "Wallet action not supported",
+        body: "Your connected wallet can't perform an action this deposit requires. Please reconnect with a supported wallet and try again.",
       },
       // Vault-provider JSON-RPC error copy, consumed by `mapVpRpcError`
       // (utils/errors/formatting.ts). Title + message are both user-facing.
@@ -977,6 +1004,75 @@ export const COPY = {
         title: "Missing peg-in transaction",
         message:
           "Peg-in transaction hash is not available yet. Please wait for indexer sync and try again.",
+      },
+      missingPrePeginTransaction: {
+        title: "Missing Pre-Pegin transaction",
+        message:
+          "The original Pre-Pegin transaction is not available yet, and payout signing cannot start without it. Please try again later.",
+      },
+    },
+    // ----------------------------------------------------------------------
+    // Payout-signing failure copy (title + message). Consumed by
+    // `formatPayoutSignatureError` (utils/errors/formatting.ts).
+    // ----------------------------------------------------------------------
+    payoutSignatureErrors: {
+      signingRejected: {
+        title: "Signing rejected",
+        message:
+          "You rejected the signing request in your wallet. Approve the request to continue, or click Retry to try again.",
+      },
+      providerNotFound: {
+        title: "Vault provider not found",
+        message:
+          "The vault provider for this deposit could not be found. Please contact support.",
+      },
+      walletNotConnected: {
+        title: "Wallet not connected",
+        message: "Please reconnect your Bitcoin wallet to continue.",
+      },
+      contractCallFailed: {
+        title: "Contract call failed",
+        message:
+          "A contract call failed during payout signing. The on-chain BTC Vault data may be unavailable. Please try again or contact support.",
+      },
+      // Presign lifecycle refusals (typed VaultLifecycleStateError). Timing
+      // out awaiting acknowledgments is routine for a stalled deposit, so the
+      // copy leads with the refund path rather than a retry.
+      ackWindowElapsed: {
+        title: "Deposit timed out",
+        message:
+          "This deposit timed out while awaiting acknowledgments, so payout signatures are no longer needed. Your Bitcoin stays recoverable through the refund flow once its timelock opens.",
+      },
+      signaturesNoLongerNeeded: {
+        title: "No signatures needed",
+        message:
+          "This deposit has already moved past payout signing, so no further signatures are needed. Check your dashboard for its current status.",
+      },
+      // Typed DepositorWalletMismatchError from the terms rebuild: the deposit
+      // is bound to the Ethereum account that registered it.
+      wrongDepositorWallet: {
+        title: "Wrong wallet connected",
+        message:
+          "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to continue signing.",
+      },
+      // Resume-specific variant of deposit.errors.walletMethodNotSupported: an
+      // in-flight deposit is bound to the wallet that derived its secrets, so
+      // "reconnect with a supported wallet" is not a recovery path here.
+      walletMethodNotSupported: {
+        title: "Wallet action not supported",
+        message:
+          "Your connected wallet can't perform an action this deposit requires, and the deposit can only continue with the wallet that created it. Try again after updating the app or that wallet, or contact support.",
+      },
+      unexpected: {
+        title: PAYOUT_SIGNING_ERROR_TITLE,
+        message:
+          "An unexpected error occurred while signing payouts. Please try again or contact support.",
+      },
+      // Non-Error throws (strings / plain objects) surface their own extracted
+      // text; this pair is the fallback when none can be extracted.
+      fallback: {
+        title: PAYOUT_SIGNING_ERROR_TITLE,
+        message: "An unexpected error occurred while signing payouts.",
       },
     },
   },

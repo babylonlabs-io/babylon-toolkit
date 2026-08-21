@@ -48,6 +48,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   expandHashlockSecret: vi.fn(() => new Uint8Array(32)),
   expandWotsSeed: vi.fn(() => new Uint8Array(32)),
   hexToUint8Array: vi.fn(() => new Uint8Array(32)),
+  isDepositTermsRejectedError: vi.fn(() => false),
   isWotsMismatchError: vi.fn(() => false),
   isRegisteredVaultVersionMismatchError: vi.fn(() => false),
   isParticipantKeyDriftError: vi.fn(() => false),
@@ -133,6 +134,7 @@ vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
     signing: false,
     progress: { phase: "claimers", completed: 0, total: 0 },
     error: null,
+    errorTerminal: false,
     isComplete: false,
     handleSign: vi.fn(),
   })),
@@ -440,6 +442,31 @@ describe("ResumeWotsContent — submission marker", () => {
     });
   });
 
+  it("maps a coded wallet rejection to the signing-rejected callout", async () => {
+    // The error state stores the caught value un-flattened, so the wallet
+    // code (not just the message) reaches mapDepositError at the render seam.
+    mockSubmitWotsPublicKey.mockRejectedValue(
+      Object.assign(new Error("nope"), { code: "CONNECTION_REJECTED" }),
+    );
+
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.signingRejected.title,
+      );
+    });
+    expect(getByTestId("error").textContent).toBe(
+      COPY.deposit.errors.signingRejected.body,
+    );
+  });
+
   it("waits for a click instead of auto-submitting when the suppression lapsed", async () => {
     // The TTL expiring re-offers SUBMIT_WOTS_KEY, which remounts this
     // component. Auto-firing there would open a wallet prompt at a modal the
@@ -648,6 +675,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       signing: false,
       progress: { phase: "claimers", completed: 0, total: 0 },
       error: null,
+      errorTerminal: false,
       isComplete: true,
       handleSign: vi.fn(),
     });
@@ -701,6 +729,39 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     // COMPLETED — the whole flow is done, so no stale "ready to activate".
     expect(getByTestId("step").textContent).toBe("16");
     expect(getByTestId("terminal").textContent).toBe("");
+  });
+
+  it("suppresses Retry on a terminal signing refusal and keeps the hook's title/body", () => {
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: false,
+      progress: { phase: "auth", completed: 0, total: 0 },
+      error: COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
+      errorTerminal: true,
+      isComplete: false,
+      handleSign: vi.fn(),
+    });
+
+    const { getByTestId } = renderSign();
+
+    expect(getByTestId("error-title").textContent).toBe(
+      COPY.deposit.payoutSignatureErrors.ackWindowElapsed.title,
+    );
+    expect(getByTestId("has-retry").textContent).toBe("false");
+  });
+
+  it("keeps Retry for a non-terminal signing failure", () => {
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: false,
+      progress: { phase: "auth", completed: 0, total: 0 },
+      error: COPY.deposit.payoutSignatureErrors.unexpected,
+      errorTerminal: false,
+      isComplete: false,
+      handleSign: vi.fn(),
+    });
+
+    const { getByTestId } = renderSign();
+
+    expect(getByTestId("has-retry").textContent).toBe("true");
   });
 });
 
@@ -821,6 +882,25 @@ describe("ResumeActivationContent — activated success terminal", () => {
     );
     expect(getByTestId("error-title").textContent).not.toBe(
       COPY.deposit.errors.activationDeadlinePassed.title,
+    );
+  });
+
+  it("maps a coded wallet rejection during secret derivation to the signing-rejected callout", async () => {
+    // The local error state stores the caught value un-flattened, so the
+    // wallet code (not just the message) reaches mapDepositError at render.
+    mockDeriveVaultRoot.mockRejectedValue(
+      Object.assign(new Error("nope"), { code: "CONNECTION_REJECTED" }),
+    );
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() => {
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.signingRejected.title,
+      );
+    });
+    expect(getByTestId("error").textContent).toBe(
+      COPY.deposit.errors.signingRejected.body,
     );
   });
 });

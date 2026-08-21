@@ -486,6 +486,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           connectedDepositorAddress: depositorEthAddress as Hex,
           depositorBtcPubkey,
           fundedTxFee,
+          lifecycle: "broadcast",
         });
         // Last cancellation point before the wallet signs. Several network
         // round-trips (UTXO availability, version/key re-checks, and on the

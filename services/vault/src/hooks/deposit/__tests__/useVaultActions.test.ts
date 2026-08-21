@@ -1364,6 +1364,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
       connectedDepositorAddress: "0xconnected_depositor",
       depositorBtcPubkey: "depositorBtcPubkey",
       fundedTxFee: 1234n,
+      lifecycle: "broadcast",
     });
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({

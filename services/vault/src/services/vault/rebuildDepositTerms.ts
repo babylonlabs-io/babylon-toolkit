@@ -1,5 +1,5 @@
 /**
- * Rebuild a {@link DepositTerms} on the resume-broadcast path (#2220 Part 2).
+ * Rebuild a {@link DepositTerms} on the resume paths (#2220 Part 2 + #2110).
  *
  * On resume (any browser) the in-memory terms from `preparePegin` are gone, so
  * an intent (Ledger) wallet has nothing to approve. Reconstructs them from
@@ -9,6 +9,14 @@
  * the chain reads + sibling discovery (mirrors `discoverBatch` /
  * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
  * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
+ *
+ * Two lifecycle modes, differing only in the status gate:
+ * - `"broadcast"` (resume Pre-PegIn broadcast): every batch member must still
+ *   be PENDING — a non-PENDING member would be silently funded by the shared tx.
+ * - `"presign"` (resume payout presigning): only the TARGET must be PENDING;
+ *   siblings advance independently and no presigned byte depends on their
+ *   status. Additionally refuses once the target's on-chain ack window has
+ *   elapsed (see {@link assertAckWindowOpen}).
  */
 
 import {
@@ -22,6 +30,11 @@ import {
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
+import {
+  DepositorWalletMismatchError,
+  VaultLifecycleStateError,
+  type VaultLifecycleStage,
+} from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import {
@@ -29,6 +42,7 @@ import {
   getVaultKeyEpochsFromChain,
   type OnChainVaultData,
 } from "../../clients/eth-contract/btc-vault-registry/query";
+import { ethClient } from "../../clients/eth-contract/client";
 import {
   getOperationKeyReader,
   getProtocolParamsReader,
@@ -45,7 +59,7 @@ import { resolveVaultProviderBtcPubkey } from "./vaultPayoutSignatureService";
 export interface RebuildDepositTermsParams {
   /** The vault being resumed (any sibling of a batch). */
   vaultId: Hex;
-  /** Caller's getVaultFromChain(vaultId) record, already hash-verified against fundedPrePeginTxHex. */
+  /** Caller's getVaultFromChain(vaultId) record. Callers need not pre-verify it against fundedPrePeginTxHex — the core self-verifies the hash (Gate 0). */
   target: OnChainVaultData;
   /** Funded Pre-PegIn tx hex — the core re-verifies it against the on-chain hash (Gate 0). */
   fundedPrePeginTxHex: string;
@@ -58,6 +72,11 @@ export interface RebuildDepositTermsParams {
    * prevouts the broadcast signs. Becomes the device's `prepegin_max_fee` bound.
    */
   fundedTxFee: bigint;
+  /**
+   * Which resume flow is running — decides the batch status gate (see module
+   * doc). Required so a new caller states its lifecycle explicitly.
+   */
+  lifecycle: VaultLifecycleStage;
 }
 
 interface OrderedSibling extends RebuildSibling {
@@ -78,22 +97,59 @@ const SIBLING_HOMOGENEOUS_FIELDS = [
   "vaultProviderCommissionBps",
 ] as const;
 
+/** Batch member paired with its registry id so a refusal can name the vault. */
+export interface LifecycleBatchMember {
+  vaultId: Hex;
+  vault: OnChainVaultData;
+}
+
+/**
+ * Exported for tests — pure, fail-closed. Chain-read PENDING gate: broadcast
+ * needs EVERY member PENDING (an expired/liquidated sibling would otherwise be
+ * silently funded by the shared tx); presign gates only the TARGET — siblings
+ * advance independently and no presigned byte depends on their status.
+ */
+export function assertBatchLifecycleStatus(
+  lifecycle: VaultLifecycleStage,
+  target: LifecycleBatchMember,
+  siblings: readonly LifecycleBatchMember[],
+): void {
+  const gated =
+    lifecycle === "broadcast"
+      ? [
+          { member: target, role: "target" as const },
+          ...siblings.map((member) => ({ member, role: "sibling" as const })),
+        ]
+      : [{ member: target, role: "target" as const }];
+
+  for (const { member, role } of gated) {
+    if (member.vault.status === OnChainBtcVaultStatus.PENDING) continue;
+    throw new VaultLifecycleStateError(
+      // The broadcast message is load-bearing: mapDepositError buckets on the
+      // word "broadcast" — keep it byte-identical.
+      lifecycle === "broadcast"
+        ? `A vault in this Pre-PegIn batch is no longer awaiting broadcast ` +
+          `(on-chain status ${member.vault.status}); the batch cannot be broadcast ` +
+          `as one transaction. Resume refused.`
+        : `Vault ${member.vaultId} is no longer awaiting payout signatures ` +
+          `(on-chain status ${member.vault.status}); deposit terms cannot ` +
+          `be rebuilt for signing. Resume refused.`,
+      {
+        reason: "invalid-status",
+        stage: lifecycle,
+        role,
+        status: member.vault.status,
+        vaultId: member.vaultId,
+      },
+    );
+  }
+}
+
 /** Exported for tests — pure, fail-closed. */
 export function assertSiblingBatchHomogeneous(
   target: OnChainVaultData,
   siblings: readonly OnChainVaultData[],
 ): void {
-  // Chain-read PENDING gate for EVERY member — an expired/liquidated sibling
-  // would otherwise be silently funded by the shared broadcast.
-  for (const vault of [target, ...siblings]) {
-    if (vault.status !== OnChainBtcVaultStatus.PENDING) {
-      throw new Error(
-        `A vault in this Pre-PegIn batch is no longer awaiting broadcast ` +
-          `(on-chain status ${vault.status}); the batch cannot be broadcast ` +
-          `as one transaction. Resume refused.`,
-      );
-    }
-  }
   for (const sib of siblings) {
     for (const field of SIBLING_HOMOGENEOUS_FIELDS) {
       if (sib[field] !== target[field]) {
@@ -138,15 +194,17 @@ export function assertContiguousHtlcVector(
  * anchor check.
  */
 async function discoverSiblings(
+  lifecycle: VaultLifecycleStage,
   targetVaultId: Hex,
   connectedDepositor: Address,
   target: OnChainVaultData,
 ): Promise<OrderedSibling[]> {
   if (target.depositor.toLowerCase() !== connectedDepositor.toLowerCase()) {
-    throw new Error(
-      `Vault ${targetVaultId} is owned by ${target.depositor}, but the connected ` +
-        `wallet is ${connectedDepositor}. Connect with the depositor wallet to resume.`,
-    );
+    throw new DepositorWalletMismatchError({
+      vaultId: targetVaultId,
+      expectedDepositor: target.depositor,
+      connectedDepositor,
+    });
   }
 
   const txHashLower = target.prePeginTxHash.toLowerCase();
@@ -163,10 +221,21 @@ async function discoverSiblings(
   const siblingIds = candidateIds.filter(
     (_, i) => candidateInfos[i].prePeginTxHash.toLowerCase() === txHashLower,
   );
-  const siblingOnChain = (
-    await Promise.all(siblingIds.map((id) => getVaultFromChain(id)))
-  ).filter((sib) => sib.prePeginTxHash.toLowerCase() === txHashLower);
+  const siblingMembers = (
+    await Promise.all(
+      siblingIds.map(async (id) => ({
+        vaultId: id,
+        vault: await getVaultFromChain(id),
+      })),
+    )
+  ).filter(({ vault }) => vault.prePeginTxHash.toLowerCase() === txHashLower);
+  const siblingOnChain = siblingMembers.map(({ vault }) => vault);
 
+  assertBatchLifecycleStatus(
+    lifecycle,
+    { vaultId: targetVaultId, vault: target },
+    siblingMembers,
+  );
   assertSiblingBatchHomogeneous(target, siblingOnChain);
 
   const siblings: OrderedSibling[] = [target, ...siblingOnChain].map((v) => ({
@@ -178,6 +247,42 @@ async function discoverSiblings(
   assertContiguousHtlcVector(siblings);
 
   return siblings;
+}
+
+/**
+ * Presign only: refuse before the device ceremony when the target's ack window
+ * has elapsed — report-lag can leave an ack-expired deposit reading PENDING for
+ * hours, and past the window `submitACK` reverts, so signing is futile.
+ * Any read failure propagates (fail closed).
+ */
+async function assertAckWindowOpen(
+  vaultId: Hex,
+  target: OnChainVaultData,
+): Promise<void> {
+  const paramsReader = await getProtocolParamsReader();
+  const [currentBlock, tbvParams] = await Promise.all([
+    ethClient.getPublicClient().getBlockNumber(),
+    paramsReader.getTBVProtocolParams(),
+  ]);
+  const ackDeadlineBlock = target.createdAt + tbvParams.pegInAckTimeout;
+  // Exact contract mirror, all block numbers: expired iff
+  // block.number > createdAt + pegInAckTimeout (PeginLogic.submitACK, and the
+  // contrapositive in PeginLogic.reportExpired; vault-contracts-aave-v4 @ 2e87a85a).
+  if (currentBlock > ackDeadlineBlock) {
+    throw new VaultLifecycleStateError(
+      `Vault ${vaultId} passed its acknowledgment deadline at block ` +
+        `${ackDeadlineBlock} (current block ${currentBlock}); signing can no ` +
+        `longer complete this deposit. Resume refused.`,
+      {
+        reason: "ack-window-elapsed",
+        stage: "presign",
+        role: "target",
+        // The ACTUAL on-chain status (PENDING here) — never falsified to EXPIRED.
+        status: target.status,
+        vaultId,
+      },
+    );
+  }
 }
 
 /**
@@ -244,6 +349,24 @@ async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
   return { offchainParams, timelockPegin, participantKeys };
 }
 
+/**
+ * Presign preflight: the two target-only gates `submitACK` itself enforces, in
+ * the contract's order — `status == Pending`, then the ack window
+ * (PeginLogic.submitACK, vault-contracts-aave-v4 @ 2e87a85a). Cheap (one block
+ * read + one params read) and decidable from the target alone, so callers run
+ * it BEFORE the mempool/indexer/sibling reads that precede the full rebuild:
+ * for a stalled deposit the refund copy must win over a transient read error.
+ * `rebuildDepositTerms` re-runs both gates itself — this is an early exit, not
+ * a substitute.
+ */
+export async function assertPresignTargetSignable(
+  vaultId: Hex,
+  target: OnChainVaultData,
+): Promise<void> {
+  assertBatchLifecycleStatus("presign", { vaultId, vault: target }, []);
+  await assertAckWindowOpen(vaultId, target);
+}
+
 export async function rebuildDepositTerms(
   params: RebuildDepositTermsParams,
 ): Promise<DepositTerms> {
@@ -254,10 +377,16 @@ export async function rebuildDepositTerms(
   await assertVaultCoreVersionSupported(target.vaultCoreVersion);
 
   const siblings = await discoverSiblings(
+    params.lifecycle,
     params.vaultId,
     params.connectedDepositorAddress,
     target,
   );
+  // Runs after the status gate, so the refusal reports the still-PENDING
+  // status — the same order as submitACK's two preconditions.
+  if (params.lifecycle === "presign") {
+    await assertAckWindowOpen(params.vaultId, target);
+  }
   const { offchainParams, timelockPegin, participantKeys } =
     await readStampedVaultContext(params.vaultId, target);
 

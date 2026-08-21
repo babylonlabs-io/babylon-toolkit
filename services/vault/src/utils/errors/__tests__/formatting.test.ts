@@ -2,8 +2,10 @@
  * Tests for error formatting utilities
  */
 
+import { DepositTermsRejectedError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JsonRpcError,
+  OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { readFileSync } from "fs";
@@ -20,6 +22,7 @@ import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
 
+import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
 import {
   formatErrorDiagnostics,
   formatErrorMessage,
@@ -27,6 +30,7 @@ import {
   mapVpRpcError,
   sanitizeErrorMessage,
 } from "../formatting";
+import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 class FakeWalletError extends Error {
   constructor(
@@ -745,6 +749,208 @@ describe("Error Formatting", () => {
       );
       expect(formatPayoutSignatureError(rejection).title).toBe(
         "Signing rejected",
+      );
+    });
+
+    // Same drift guard for the second inlined wallet-connector code (see the
+    // CONNECTION_REJECTED note above): a rename upstream must fail here
+    // instead of silently degrading the unsupported-wallet branch.
+    it("inlined WALLET_METHOD_NOT_SUPPORTED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/WALLET_METHOD_NOT_SUPPORTED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("WALLET_METHOD_NOT_SUPPORTED");
+
+      const unsupported = new FakeWalletError(
+        match![1],
+        "SomeWallet does not support deriveContextHash",
+      );
+      expect(formatPayoutSignatureError(unsupported).title).toBe(
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.title,
+      );
+    });
+
+    it("maps a DepositTermsRejectedError instance to the terms-rejected copy", () => {
+      const result = formatPayoutSignatureError(
+        new DepositTermsRejectedError("terms outside device envelope"),
+      );
+      expect(result).toEqual({
+        title: COPY.deposit.errors.depositTermsRejected.title,
+        message: COPY.deposit.errors.depositTermsRejected.body,
+      });
+    });
+
+    it("maps the documented structural rejection shape to the terms-rejected copy", () => {
+      const result = formatPayoutSignatureError({
+        name: "DepositTermsRejectedError",
+        reason: "device-envelope",
+        message: "terms outside device envelope",
+      });
+      expect(result.title).toBe(COPY.deposit.errors.depositTermsRejected.title);
+    });
+
+    it("lets a name-only rejection shape (no reason) fall through to the fallback", () => {
+      const result = formatPayoutSignatureError({
+        name: "DepositTermsRejectedError",
+        message: "no reason field",
+      });
+      expect(result.title).not.toBe(
+        COPY.deposit.errors.depositTermsRejected.title,
+      );
+      expect(result.title).toBe(
+        COPY.deposit.payoutSignatureErrors.fallback.title,
+      );
+    });
+
+    it("maps a presign ack-window-elapsed refusal to the timed-out refund copy", () => {
+      // The service reports the ACTUAL status (still PENDING) — the reason
+      // field alone selects the timed-out copy.
+      const err = new VaultLifecycleStateError("ack window elapsed", {
+        reason: "ack-window-elapsed",
+        stage: "presign",
+        role: "target",
+        status: OnChainBtcVaultStatus.PENDING,
+        vaultId: "0xabc",
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
+      );
+    });
+
+    it("maps a presign EXPIRED-target refusal to the timed-out refund copy", () => {
+      const err = new VaultLifecycleStateError("target expired", {
+        reason: "invalid-status",
+        stage: "presign",
+        role: "target",
+        status: OnChainBtcVaultStatus.EXPIRED,
+        vaultId: "0xabc",
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
+      );
+    });
+
+    it("maps other presign invalid-status refusals to the no-signatures-needed copy", () => {
+      const err = new VaultLifecycleStateError("target verified", {
+        reason: "invalid-status",
+        stage: "presign",
+        role: "target",
+        status: OnChainBtcVaultStatus.VERIFIED,
+        vaultId: "0xabc",
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.signaturesNoLongerNeeded,
+      );
+    });
+
+    it("does not claim a broadcast-stage refusal is a presign outcome", () => {
+      // Broadcast-stage refusals belong to mapDepositError; here they take
+      // the generic payout-signing fallback instead of refund copy.
+      const err = new VaultLifecycleStateError("resume refused", {
+        reason: "invalid-status",
+        stage: "broadcast",
+        role: "sibling",
+        status: OnChainBtcVaultStatus.EXPIRED,
+        vaultId: "0xabc",
+      });
+      expect(formatPayoutSignatureError(err)).toMatchObject(
+        COPY.deposit.payoutSignatureErrors.unexpected,
+      );
+    });
+
+    it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the resume-specific unsupported-wallet copy", () => {
+      const err = new FakeWalletError(
+        "WALLET_METHOD_NOT_SUPPORTED",
+        "SomeWallet does not support deriveContextHash",
+      );
+      // Resume copy, not the fresh-deposit copy: an in-flight deposit cannot
+      // be moved to a different wallet, so it must not say "reconnect with a
+      // supported wallet".
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported,
+      );
+      expect(
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.message,
+      ).not.toContain("supported wallet");
+    });
+
+    it("finds WALLET_METHOD_NOT_SUPPORTED nested in a wrapper's cause chain", () => {
+      const inner = new FakeWalletError(
+        "WALLET_METHOD_NOT_SUPPORTED",
+        "SomeWallet does not support deriveContextHash",
+      );
+      const wrapped = new Error("payout signing failed", { cause: inner });
+      expect(formatPayoutSignatureError(wrapped).title).toBe(
+        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.title,
+      );
+    });
+
+    it("lets a typed top-frame rejection win over an inner unsupported-method cause", () => {
+      // Outer frame is EIP-1193 4001; the inner cause carries the
+      // unsupported-method code. The rejection is the accurate reading.
+      const err = Object.assign(new Error("User rejected the request."), {
+        code: 4001,
+        cause: new FakeWalletError(
+          "WALLET_METHOD_NOT_SUPPORTED",
+          "SomeWallet does not support deriveContextHash",
+        ),
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.signingRejected,
+      );
+    });
+
+    it("maps viem's UserRejectedRequestError to the rejection copy", () => {
+      const err = new UserRejectedRequestError(new Error("denied"));
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.signingRejected,
+      );
+    });
+
+    it("maps the typed depositor-wallet mismatch to its own copy", () => {
+      const err = new DepositorWalletMismatchError({
+        vaultId: "0xabc",
+        expectedDepositor: "0x1111111111111111111111111111111111111111",
+        connectedDepositor: "0x2222222222222222222222222222222222222222",
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.wrongDepositorWallet,
+      );
+    });
+
+    it("maps the app-version-unsupported throw to the app-update copy", () => {
+      const err = new Error(COPY.deposit.errors.appVersionUnsupported.body);
+      expect(formatPayoutSignatureError(err)).toEqual({
+        title: COPY.deposit.errors.appVersionUnsupported.title,
+        message: COPY.deposit.errors.appVersionUnsupported.body,
+      });
+    });
+
+    it("attaches raw diagnostics to the generic Error fallback without leaking them into the message", () => {
+      const err = new Error("sibling batch disagrees on fee rate: 3 vs 5");
+      const result = formatPayoutSignatureError(err);
+      expect(result.title).toBe(
+        COPY.deposit.payoutSignatureErrors.unexpected.title,
+      );
+      expect(result.message).toBe(
+        COPY.deposit.payoutSignatureErrors.unexpected.message,
+      );
+      expect(result.diagnostics).toContain("sibling batch disagrees");
+    });
+
+    it("keeps the VP mapping when a JsonRpcError carries an unrelated unsupported-method cause", () => {
+      // Precedence: typed classifications run before the cause walk.
+      const err = Object.assign(
+        new JsonRpcError(RpcErrorCode.PEGIN_NOT_FOUND, "PegIn not found"),
+        { cause: { code: "WALLET_METHOD_NOT_SUPPORTED" } },
+      );
+      expect(formatPayoutSignatureError(err).title).toBe(
+        "Vault provider syncing",
       );
     });
   });

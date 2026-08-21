@@ -68,23 +68,25 @@ const USER_CANCELLATION_PATTERN =
 const MAX_CAUSE_DEPTH = 10;
 
 /**
- * True when `error` carries the wallet-connector `CONNECTION_REJECTED` code.
- *
- * Lives here rather than in `formatting.ts` so the code constant and the
- * predicate that reads it stay in the same dependency-free module.
+ * True when this single error frame carries a TYPED user-rejection signal:
+ * EIP-1193 4001, viem's `UserRejectedRequestError`, or the wallet-connector
+ * `CONNECTION_REJECTED` code. No wording match and no `cause` walk, so a
+ * mapper can run it ahead of cause-walking buckets without letting an inner
+ * frame or incidental wording override a more specific outer error.
  */
-export function isWalletRejectionError(error: unknown): boolean {
+export function isTypedUserRejectionFrame(frame: unknown): boolean {
+  if (!frame || typeof frame !== "object") return false;
+  const { code, name } = frame as { code?: unknown; name?: unknown };
   return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code: unknown }).code === WALLET_CONNECTION_REJECTED_CODE
+    code === EIP1193_USER_REJECTED ||
+    code === WALLET_CONNECTION_REJECTED_CODE ||
+    name === "UserRejectedRequestError"
   );
 }
 
 /**
  * True when this single error frame is a user cancellation - typed signals
- * (EIP-1193 4001, viem's `UserRejectedRequestError`, the wallet-connector
- * `CONNECTION_REJECTED` code) first, then wording.
+ * ({@link isTypedUserRejectionFrame}) first, then wording.
  *
  * Deliberately does NOT walk `cause`. Callers that classify per frame need to
  * decide precedence across frames themselves: `classifyError` is depth-first
@@ -94,17 +96,9 @@ export function isWalletRejectionError(error: unknown): boolean {
  */
 export function isUserCancellationFrame(frame: unknown): boolean {
   if (typeof frame === "string") return USER_CANCELLATION_PATTERN.test(frame);
+  if (isTypedUserRejectionFrame(frame)) return true;
   if (!frame || typeof frame !== "object") return false;
-
-  const { code, name, message } = frame as {
-    code?: unknown;
-    name?: unknown;
-    message?: unknown;
-  };
-
-  if (code === EIP1193_USER_REJECTED) return true;
-  if (code === WALLET_CONNECTION_REJECTED_CODE) return true;
-  if (name === "UserRejectedRequestError") return true;
+  const { message } = frame as { message?: unknown };
   return typeof message === "string" && USER_CANCELLATION_PATTERN.test(message);
 }
 
