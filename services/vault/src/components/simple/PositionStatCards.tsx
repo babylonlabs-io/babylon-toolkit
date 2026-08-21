@@ -59,9 +59,9 @@ function StatMeter({
 function StatSection({ card }: { card: PositionStatCard }) {
   const hasAction = card.actionLabel != null && card.onAction != null;
   return (
-    <div className="flex flex-1 items-center justify-between gap-4">
+    <div className="flex flex-[1_0_0] items-center justify-between gap-4">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+        <div className="flex items-center gap-1 whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
           {card.tooltip ? (
             <Hint
               tooltip={card.tooltip}
@@ -74,7 +74,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
           )}
         </div>
 
-        <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
+        <span className="flex items-center gap-2 whitespace-nowrap text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
           {card.valueNode ?? card.value}
         </span>
 
@@ -85,7 +85,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
             ariaLabel={card.label}
           />
         ) : card.caption ? (
-          <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+          <span className="whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
             {card.caption}
           </span>
         ) : null}
