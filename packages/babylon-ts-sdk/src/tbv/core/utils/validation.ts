@@ -11,6 +11,12 @@ export const HEX_RE = /^[0-9a-fA-F]+$/;
 /** Bitcoin txid: exactly 64 hex characters (32 bytes). */
 export const TXID_RE = /^[0-9a-fA-F]{64}$/;
 
+/** Hex-string length of a 32-byte BIP-340 x-only public key. */
+export const X_ONLY_PUBKEY_HEX_LEN = 64;
+
+/** Hex-string length of a 33-byte SEC1-compressed secp256k1 public key. */
+export const COMPRESSED_PUBKEY_HEX_LEN = 66;
+
 /**
  * Bitcoin address format gate: 25–90 alphanumeric characters.
  * Covers legacy (P2PKH/P2SH), bech32 (P2WPKH/P2WSH), bech32m (P2TR),

@@ -13,7 +13,7 @@
 import {
   type Network,
   tapInternalPubkey,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 import { Psbt, Transaction, type TxInput, type TxOutput } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { createPayoutScript } from "../scripts/payout";

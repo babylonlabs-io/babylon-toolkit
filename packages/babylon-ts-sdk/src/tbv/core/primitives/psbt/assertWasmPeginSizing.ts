@@ -20,7 +20,7 @@ import {
   computeMinPeginFee,
   peginP2aAnchorOutput,
   type PrePeginResult,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 
 import { MAX_REASONABLE_PEGIN_VBYTES } from "../../utils/fee/constants";
 import type { ParsedOutput } from "../../utils/transaction/fundPeginTransaction";
