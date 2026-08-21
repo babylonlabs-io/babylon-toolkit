@@ -397,9 +397,6 @@ importers:
 
   packages/babylon-ts-sdk:
     dependencies:
-      '@babylonlabs-io/babylon-tbv-rust-wasm':
-        specifier: workspace:*
-        version: link:../babylon-tbv-rust-wasm
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
@@ -413,6 +410,9 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
     devDependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../babylon-tbv-rust-wasm
       '@internal/eslint-config':
         specifier: workspace:*
         version: link:../../tools/eslint-config
@@ -991,6 +991,9 @@ importers:
 
   services/vault:
     dependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../../packages/babylon-tbv-rust-wasm
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
