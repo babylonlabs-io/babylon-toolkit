@@ -16,6 +16,7 @@ import { uint8ArrayToHex } from "../../primitives/utils/bitcoin";
 import { buildVaultContext, type FundingOutpoint } from "../context";
 import {
   deriveVaultRoot,
+  forwardDeriveContextHash,
   VAULT_APP_NAME,
   type DeriveContextHashCapableWallet,
 } from "../deriveVaultRoot";
@@ -37,6 +38,29 @@ function makeMockWallet(
 ): DeriveContextHashCapableWallet {
   return { deriveContextHash: vi.fn(override) };
 }
+
+describe("forwardDeriveContextHash", () => {
+  it("preserves the wallet receiver", async () => {
+    class ReceiverAwareWallet implements DeriveContextHashCapableWallet {
+      constructor(private readonly rootHex: string) {}
+
+      async deriveContextHash(): Promise<string> {
+        return this.rootHex;
+      }
+    }
+
+    const forwarded = forwardDeriveContextHash(
+      new ReceiverAwareWallet(VALID_ROOT_HEX),
+    );
+    if (!forwarded.deriveContextHash) {
+      throw new Error("deriveContextHash was not forwarded");
+    }
+
+    await expect(forwarded.deriveContextHash("app", "context")).resolves.toBe(
+      VALID_ROOT_HEX,
+    );
+  });
+});
 
 describe("deriveVaultRoot — happy path wiring", () => {
   it("forwards the canonical appName 'babylon-btc-vault'", async () => {

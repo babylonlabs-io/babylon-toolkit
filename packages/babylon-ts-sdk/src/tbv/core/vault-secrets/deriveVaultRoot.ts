@@ -61,7 +61,7 @@ export function forwardDeriveContextHash(
   return typeof deriveContextHash === "function"
     ? {
         deriveContextHash: (appName, context) =>
-          deriveContextHash(appName, context),
+          deriveContextHash.call(wallet, appName, context),
       }
     : {};
 }
