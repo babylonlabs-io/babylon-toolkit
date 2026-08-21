@@ -57,11 +57,11 @@ if (!declarationResolutionProbe[0].endsWith("/dependency.d.ts")) {
 }
 
 function emittedClosure(entries, banned, patterns) {
-  const pending = [...entries];
+  const pending = entries.map((file) => ({ file, chain: [file] }));
   const visited = new Set();
   const violations = [];
   while (pending.length > 0) {
-    const file = pending.pop();
+    const { file, chain } = pending.pop();
     if (visited.has(file)) continue;
     if (!existsSync(file)) throw new Error(`Missing emitted entry: ${file}`);
     visited.add(file);
@@ -70,14 +70,47 @@ function emittedClosure(entries, banned, patterns) {
       for (const match of source.matchAll(pattern)) {
         const specifier = match[1];
         if (isBanned(specifier, banned)) {
-          violations.push(`${file} imports ${specifier}`);
+          violations.push([...chain, specifier].join(" -> "));
         } else if (specifier.startsWith(".")) {
-          pending.push(resolveLocal(file, specifier));
+          const dependency = resolveLocal(file, specifier);
+          pending.push({ file: dependency, chain: [...chain, dependency] });
         }
       }
     }
   }
   return { violations, visited };
+}
+
+const dependencyCleanBanned = [
+  "bitcoinjs-lib",
+  "@bitcoin-js/tiny-secp256k1-asmjs",
+  "@babylonlabs-io/babylon-tbv-rust-wasm",
+];
+const contaminatedFixtureEntry = resolve(
+  packageRoot,
+  "scripts/fixtures/eth-import-boundary/entry.js",
+);
+const contaminatedFixtureIntermediate = resolve(
+  packageRoot,
+  "scripts/fixtures/eth-import-boundary/intermediate.js",
+);
+const contaminatedFixture = emittedClosure(
+  [contaminatedFixtureEntry],
+  dependencyCleanBanned,
+  allSpecifierPatterns,
+);
+const expectedContaminatedChain = [
+  contaminatedFixtureEntry,
+  contaminatedFixtureIntermediate,
+  "bitcoinjs-lib",
+].join(" -> ");
+if (
+  contaminatedFixture.violations.length !== 1 ||
+  contaminatedFixture.violations[0] !== expectedContaminatedChain
+) {
+  throw new Error(
+    `Dependency-clean boundary fixture did not report its full import chain:\n${contaminatedFixture.violations.join("\n")}`,
+  );
 }
 
 // Pass 1: the ETH-only entry points must not reach the Bitcoin or WASM
@@ -98,11 +131,7 @@ const dependencyCleanEntries = [
 ].map((entry) => resolve(packageRoot, entry));
 const dependencyClean = emittedClosure(
   dependencyCleanEntries,
-  [
-    "bitcoinjs-lib",
-    "@bitcoin-js/tiny-secp256k1-asmjs",
-    "@babylonlabs-io/babylon-tbv-rust-wasm",
-  ],
+  dependencyCleanBanned,
   allSpecifierPatterns,
 );
 if (dependencyClean.violations.length > 0) {

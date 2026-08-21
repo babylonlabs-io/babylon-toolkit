@@ -24,7 +24,7 @@ function isBannedRuntimeImport(specifier: string): boolean {
 function resolveLocalImport(from: string, specifier: string): string | null {
   const candidate = resolve(dirname(from), specifier);
   const candidates = extname(candidate)
-    ? [candidate.replace(/\.js$/, ".ts"), `${candidate}.ts`]
+    ? [candidate.replace(/\.js$/, ".ts"), `${candidate}.ts`, candidate]
     : [`${candidate}.ts`, resolve(candidate, "index.ts")];
   for (const path of candidates) {
     try {
@@ -37,11 +37,16 @@ function resolveLocalImport(from: string, specifier: string): string | null {
   return null;
 }
 
-function runtimeClosure(entry: string): Map<string, Set<string>> {
-  const pending = [entry];
-  const visited = new Map<string, Set<string>>();
+interface RuntimeClosureEntry {
+  chain: string[];
+  specifiers: Set<string>;
+}
+
+function runtimeClosure(entry: string): Map<string, RuntimeClosureEntry> {
+  const pending = [{ file: entry, chain: [entry] }];
+  const visited = new Map<string, RuntimeClosureEntry>();
   while (pending.length > 0) {
-    const file = pending.pop()!;
+    const { file, chain } = pending.pop()!;
     if (visited.has(file)) continue;
     const source = readFileSync(file, "utf8");
     const specifiers = new Set<string>();
@@ -54,16 +59,26 @@ function runtimeClosure(entry: string): Map<string, Set<string>> {
           if (!dependency) {
             throw new Error(`Could not resolve ${specifier} from ${file}`);
           }
-          pending.push(dependency);
+          pending.push({ file: dependency, chain: [...chain, dependency] });
         }
       }
     }
     for (const match of source.matchAll(DYNAMIC_SPECIFIER)) {
       specifiers.add(match[1]);
     }
-    visited.set(file, specifiers);
+    visited.set(file, { chain, specifiers });
   }
   return visited;
+}
+
+function runtimeBoundaryViolations(entry: string): string[] {
+  return Array.from(
+    runtimeClosure(entry).values(),
+    ({ chain, specifiers }) =>
+      Array.from(specifiers)
+        .filter(isBannedRuntimeImport)
+        .map((specifier) => [...chain, specifier].join(" -> ")),
+  ).flat();
 }
 
 describe("dependency-clean package subpath boundaries", () => {
@@ -77,15 +92,22 @@ describe("dependency-clean package subpath boundaries", () => {
 
   for (const entry of entries) {
     it(`${entry.split("/").slice(-4).join("/")} has no Bitcoin or WASM runtime import`, () => {
-      const closure = runtimeClosure(entry);
-      const violations = Array.from(closure, ([file, specifiers]) =>
-        Array.from(specifiers)
-          .filter(isBannedRuntimeImport)
-          .map((specifier) => `${file} -> ${specifier}`),
-      ).flat();
-      expect(violations).toEqual([]);
+      expect(runtimeBoundaryViolations(entry)).toEqual([]);
     });
   }
+
+  it("reports the full import chain for a contaminated entry", () => {
+    const fixtureRoot = resolve(
+      currentDirectory,
+      "../../../../../../scripts/fixtures/eth-import-boundary",
+    );
+    const entry = resolve(fixtureRoot, "entry.js");
+    const intermediate = resolve(fixtureRoot, "intermediate.js");
+
+    expect(runtimeBoundaryViolations(entry)).toEqual([
+      [entry, intermediate, "bitcoinjs-lib"].join(" -> "),
+    ]);
+  });
 
   it("publishes dependency-clean subpaths with matching type/CJS/ESM entries", () => {
     const packageJson = JSON.parse(
