@@ -139,7 +139,7 @@
     "buffer": "6.0.3"
   },
   "peerDependencies": {
-    "@babylonlabs-io/babylon-tbv-rust-wasm": ">=0.16.0 <1.0.0",
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "bitcoinjs-lib": "6.1.7",
     "viem": "^2.38.2"
