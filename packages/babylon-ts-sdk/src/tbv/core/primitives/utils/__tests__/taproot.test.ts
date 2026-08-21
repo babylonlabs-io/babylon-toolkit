@@ -158,24 +158,30 @@ describe("computeTaprootScriptPubKey", () => {
     });
   }
 
-  it("agrees with bitcoinjs-lib across tree sizes and leaf positions", () => {
-    for (let leafCount = 1; leafCount <= 8; leafCount++) {
-      for (let redeemIndex = 0; redeemIndex < leafCount; redeemIndex++) {
-        const { output, script, controlBlock } = buildTaptree(
-          leafCount,
-          redeemIndex,
-          leafCount * 100 + redeemIndex + 1,
-        );
-        expect(
-          computeTaprootScriptPubKey({
-            leafVersion: TAPSCRIPT_LEAF_VERSION,
-            script,
-            controlBlock,
-          }).toString("hex"),
-        ).toBe(output.toString("hex"));
+  // 36 bitcoinjs-lib p2tr taptree builds on asm.js secp256k1: ~1.4s here,
+  // 6.6s on a 4-vCPU runner, against vitest's 5s default.
+  it(
+    "agrees with bitcoinjs-lib across tree sizes and leaf positions",
+    { timeout: 30_000 },
+    () => {
+      for (let leafCount = 1; leafCount <= 8; leafCount++) {
+        for (let redeemIndex = 0; redeemIndex < leafCount; redeemIndex++) {
+          const { output, script, controlBlock } = buildTaptree(
+            leafCount,
+            redeemIndex,
+            leafCount * 100 + redeemIndex + 1,
+          );
+          expect(
+            computeTaprootScriptPubKey({
+              leafVersion: TAPSCRIPT_LEAF_VERSION,
+              script,
+              controlBlock,
+            }).toString("hex"),
+          ).toBe(output.toString("hex"));
+        }
       }
-    }
-  });
+    },
+  );
 
   it("rejects a control block whose length is not 33 + 32*m", () => {
     const { script, controlBlock } = buildTaptree(4, 1, 42);
