@@ -40,7 +40,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 ### 1. WASM boundary (value computation)
 
 - File: `packages/babylon-tbv-rust-wasm/src/index.ts`
-- The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2). JS receives outputs with no runtime validation.
+- The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). JS receives outputs with no runtime validation.
 - **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
 
 ### 2. Fee calculation consistency

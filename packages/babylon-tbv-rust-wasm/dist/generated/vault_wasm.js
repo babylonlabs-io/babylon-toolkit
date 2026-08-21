@@ -412,18 +412,31 @@ export class WasmPayoutTx {
     }
     /**
      * Estimates the Payout vsize under `tx_graph_version` for fee planning.
+     *
+     * `payout_script_hex` is the union parameter for the versions whose
+     * estimator is script-aware (btc-vault #2440+, i.e. graph v2 and v3):
+     * **required** there, and **rejected** on graph v1, whose estimator
+     * predates it and always sizes output 0 as a 34-byte P2TR script. Both
+     * directions throw rather than silently ignoring the argument.
+     *
+     * The same applies to `commission_json`: graph v1 expects a `receiver`
+     * x-only pubkey, graph v2/v3 a `receiver_script` scriptPubKey hex. A
+     * mismatch is rejected by the version's own deserializer.
      * @param {number} tx_graph_version
      * @param {number} num_vault_keepers
      * @param {number} num_universal_challengers
      * @param {number} num_local_challengers
      * @param {number} council_size
      * @param {string | null} [commission_json]
+     * @param {string | null} [payout_script_hex]
      * @returns {bigint}
      */
-    static estimateVsize(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, commission_json) {
+    static estimateVsize(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, commission_json, payout_script_hex) {
         var ptr0 = isLikeNone(commission_json) ? 0 : passStringToWasm0(commission_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpayouttx_estimateVsize(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, ptr0, len0);
+        var ptr1 = isLikeNone(payout_script_hex) ? 0 : passStringToWasm0(payout_script_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmpayouttx_estimateVsize(tx_graph_version, num_vault_keepers, num_universal_challengers, num_local_challengers, council_size, ptr0, len0, ptr1, len1);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }

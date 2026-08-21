@@ -112,7 +112,7 @@ export interface PrePeginPsbtResult {
   /**
    * HTLC output values in satoshis, one per deposit. Each includes
    * peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee (the
-   * anchor term is 0 for graph versions without a P2A anchor, 240 for v2).
+   * anchor term is 0 for graph versions without a P2A anchor, 240 for v2/v3).
    */
   htlcValues: readonly bigint[];
   /** HTLC output scriptPubKeys (hex encoded), one per deposit */
@@ -157,7 +157,7 @@ export interface BuildPeginTxParams {
 export interface PeginTxResult {
   /**
    * PegIn transaction hex. 1 input spending the HTLC; outputs are
-   * version-shaped: v1 = vault + depositor claim, v2 = vault + depositor
+   * version-shaped: v1 = vault + depositor claim, v2/v3 = vault + depositor
    * claim + P2A anchor at vout 2 (nVersion 3 / TRUC).
    */
   txHex: string;

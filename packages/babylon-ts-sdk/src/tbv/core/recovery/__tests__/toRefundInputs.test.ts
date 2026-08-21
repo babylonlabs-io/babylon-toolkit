@@ -19,7 +19,7 @@ import {
   peginP2aAnchorOutput,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Transaction } from "bitcoinjs-lib";
+import { networks, payments, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -71,6 +71,9 @@ const PARTICIPANTS: ParticipantKeySetCandidate = {
 
 const AUTH_ANCHOR_HASH = "cd".repeat(32);
 
+/** btc-vault's `DUST_AMOUNT`, the value it gives the depositor CPFP anchor. */
+const DEPOSITOR_ANCHOR_VALUE = 546n;
+
 interface Sibling {
   hashlock: string;
   amount: bigint;
@@ -119,6 +122,19 @@ async function buildFundedTx(siblings: Sibling[]): Promise<string> {
     ]),
     0,
   );
+  // The depositor CPFP anchor the Pre-PegIn builder appends after the
+  // protocol outputs: a BIP-86 key-path P2TR to the depositor, DUST_AMOUNT
+  // sats. btc-vault re-derives it and rejects a funded Pre-PegIn that does
+  // not carry it at this index, so a fixture without it is not a Pre-PegIn
+  // the engine would ever have produced.
+  const { output: depositorAnchorScript } = payments.p2tr({
+    internalPubkey: Buffer.from(DEPOSITOR, "hex"),
+    network: networks.testnet,
+  });
+  if (!depositorAnchorScript) {
+    throw new Error("failed to derive the depositor CPFP anchor script");
+  }
+  tx.addOutput(depositorAnchorScript, Number(DEPOSITOR_ANCHOR_VALUE));
   return tx.toHex();
 }
 
