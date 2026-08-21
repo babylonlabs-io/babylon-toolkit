@@ -119,7 +119,7 @@ Error.constructor
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
 A graph version's PegIn P2A (pay-to-anchor) output description, copied out
-of the WASM object into plain JS. v2: 240 sats at vout 2, script
+of the WASM object into plain JS. v2/v3: 240 sats at vout 2, script
 `51024e73`. Versions without an anchor (v1) yield `null` from
 `peginP2aAnchorOutput`, never a zero-valued record.
 
@@ -133,7 +133,7 @@ value: bigint;
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
-Anchor output value in satoshis (240 for v2)
+Anchor output value in satoshis (240 for v2/v3)
 
 ##### vout
 
@@ -143,7 +143,7 @@ vout: number;
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
-Anchor output index in the PegIn transaction (2 for v2)
+Anchor output index in the PegIn transaction (2 for v2/v3)
 
 ##### scriptPubKey
 
@@ -153,7 +153,7 @@ scriptPubKey: string;
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
-Anchor scriptPubKey hex (`51024e73` for v2)
+Anchor scriptPubKey hex (`51024e73` for v2/v3)
 
 ***
 
@@ -965,7 +965,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](http
 
 HTLC output values in satoshis, one per deposit. Each includes
 peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee (the
-anchor term is 0 for graph versions without a P2A anchor, 240 for v2).
+anchor term is 0 for graph versions without a P2A anchor, 240 for v2/v3).
 
 ##### htlcScriptPubKeys
 
@@ -1100,7 +1100,7 @@ txHex: string;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
 PegIn transaction hex. 1 input spending the HTLC; outputs are
-version-shaped: v1 = vault + depositor claim, v2 = vault + depositor
+version-shaped: v1 = vault + depositor claim, v2/v3 = vault + depositor
 claim + P2A anchor at vout 2 (nVersion 3 / TRUC).
 
 ##### txid
@@ -1751,7 +1751,7 @@ Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
 The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
 `null` when that version's PegIn carries no anchor (v1). The facade returns
 one record per version — never a zero-valued placeholder — so an absent
-anchor can't be mistaken for a real output. For v2: 240 sats at vout 2,
+anchor can't be mistaken for a real output. For v2/v3: 240 sats at vout 2,
 script `51024e73`.
 
 #### Parameters
