@@ -20,8 +20,9 @@
  *   3. Build a "to_sign" transaction that spends to_spend[0] and has a
  *      single `OP_RETURN` output (value 0).
  *
- *   4. Compute the BIP-341 taproot sighash of to_sign input 0 with
- *      SIGHASH_DEFAULT (0x00).
+ *   4. Compute the BIP-341 taproot sighash of to_sign input 0 with the
+ *      caller's `hashType` (SIGHASH_DEFAULT 0x00 unless the witness item
+ *      carried a trailing SIGHASH_ALL 0x01 byte).
  *
  *   5. Verify the 64-byte Schnorr signature against the **tweaked**
  *      output key `Q = P + tap_tweak(P) * G`, where `tap_tweak(P) =
@@ -38,8 +39,8 @@
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { payments, Transaction } from "bitcoinjs-lib";
 
-import { Buffer } from "buffer";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { Buffer } from "buffer";
 
 /** BIP-322 message tag (BIP-340 tagged-hash style). */
 const BIP322_TAG = "BIP0322-signed-message";
@@ -85,17 +86,21 @@ function tweakXOnlyKey(xOnly: Uint8Array): Uint8Array | null {
  * Verify a BIP-322 "simple" P2TR key-path signature over an arbitrary
  * byte message.
  *
- * @internal Exposed only so the golden-vector test suite can pin the
- * verifier independently of `verifyServerIdentity`. Production callers
- * should use `verifyServerIdentity` from `./serverIdentity` instead.
+ * @internal Consumed by `verifyServerIdentity` (VP auth) and
+ * `verifyPopWitness` (PoP pre-registration check), and exposed so the
+ * golden-vector test suite can pin the verifier independently.
  *
  * @param messageBytes - The bytes that were signed (e.g. a CBOR-encoded
  *                       payload). Not pre-hashed; this function applies
  *                       the BIP-322 tagged hash internally.
  * @param xOnlyPubkey  - 32-byte x-only pubkey of the signer (pre-tweak).
  * @param signature    - 64-byte raw Schnorr signature (BIP-340), as
- *                       emitted by a key-path witness with
- *                       SIGHASH_DEFAULT.
+ *                       emitted by a key-path witness. The trailing
+ *                       sighash byte of a 65-byte witness item is not
+ *                       part of it — pass it as `hashType` instead.
+ * @param hashType     - BIP-341 sighash type the signature commits to.
+ *                       `SIGHASH_DEFAULT` (0x00) for a 64-byte witness
+ *                       item, `SIGHASH_ALL` (0x01) for a 65-byte one.
  * @returns `true` if the signature verifies against the address
  *          derived from `xOnlyPubkey`; `false` otherwise.
  */
@@ -103,9 +108,18 @@ export function verifyBip322Simple(
   messageBytes: Uint8Array,
   xOnlyPubkey: Uint8Array,
   signature: Uint8Array,
+  hashType: number = Transaction.SIGHASH_DEFAULT,
 ): boolean {
   if (xOnlyPubkey.length !== X_ONLY_PUBKEY_SIZE) return false;
   if (signature.length !== SCHNORR_SIG_SIZE) return false;
+  // Only the two types a BIP-322 witness may carry. SIGHASH_NONE/SINGLE and the
+  // ANYONECANPAY variants would verify here but are rejected downstream.
+  if (
+    hashType !== Transaction.SIGHASH_DEFAULT &&
+    hashType !== Transaction.SIGHASH_ALL
+  ) {
+    return false;
+  }
 
   // Any exception from the underlying crypto libraries (e.g. the
   // `Expected Point` error `tiny-secp256k1` throws when the supplied
@@ -144,8 +158,8 @@ export function verifyBip322Simple(
     ]);
     toSpend.addInput(
       Buffer.alloc(32, 0), // prev_txid = 0x0000...0000
-      0xffffffff,          // prev_vout = 0xFFFFFFFF
-      0,                   // sequence = 0
+      0xffffffff, // prev_vout = 0xFFFFFFFF
+      0, // sequence = 0
       scriptSig,
     );
     toSpend.addOutput(scriptPubKey, ZERO_SATS);
@@ -159,12 +173,12 @@ export function verifyBip322Simple(
     toSign.addInput(toSpendTxid, 0, 0);
     toSign.addOutput(Buffer.from([0x6a]), ZERO_SATS); // OP_RETURN
 
-    // Step 5: taproot sighash for to_sign input 0 (SIGHASH_DEFAULT).
+    // Step 5: taproot sighash for to_sign input 0.
     const sighash = toSign.hashForWitnessV1(
       0,
       [scriptPubKey],
       [ZERO_SATS],
-      Transaction.SIGHASH_DEFAULT,
+      hashType,
     );
 
     // Step 6: tweak the x-only pubkey (no merkle root) and verify Schnorr.

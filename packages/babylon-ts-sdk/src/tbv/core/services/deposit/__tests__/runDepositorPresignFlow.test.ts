@@ -155,6 +155,7 @@ function createCapabilityWallet(
     approveDepositTerms: vi.fn(async (terms: DepositTerms) => {
       onApprove?.(terms);
     }),
+    getChangeAddress: vi.fn(async () => "tb1pchange"),
   } as unknown as BitcoinWallet & DepositTermsApprover;
 }
 
@@ -609,7 +610,8 @@ describe("runDepositorPresignFlow", () => {
         registeredPayoutScriptPubKey: context.registeredPayoutScriptPubKey,
         commissionBps: context.commissionBps,
         protocolFeeRate: context.protocolFeeRate,
-        councilSize: context.councilMembers.length,
+        councilMembers: context.councilMembers,
+        councilQuorum: context.councilQuorum,
       });
     }
   });

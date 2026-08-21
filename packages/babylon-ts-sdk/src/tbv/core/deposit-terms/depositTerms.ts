@@ -105,13 +105,40 @@ export interface DepositTerms {
  * re-approves after every derive and before the next terms-bound signature.
  * The re-approval sites are `PeginManager.preparePegin`,
  * `runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
- * which derives immediately before approving — see `ensurePrePeginTermsApproval`).
+ * which re-derives before approving unless `holdsApprovedDepositTerms`
+ * reports the byte-equal intent still live — see `ensurePrePeginTermsApproval`).
  */
 export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;
+  /**
+   * OPTIONAL fast-path probe: can the Pre-PegIn signature for exactly these
+   * terms proceed under the connection's held approval without a new
+   * ceremony? MUST report false once that Pre-PegIn was signed (one-shot),
+   * MUST answer from host state without device I/O, MUST return false on any
+   * doubt, and MUST never throw. A stale true fails closed at the next
+   * signature — this is a UX optimization, never an authorization.
+   */
+  holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
 }
 
-/** True when the wallet implements {@link DepositTermsApprover.approveDepositTerms}. */
+/**
+ * Where Pre-PegIn change must pay. Approval (policy) wallets sign key-path
+ * under a wallet policy whose change branch the device alone can derive and
+ * mark internal — the receive address is NOT acceptable change
+ * (`process_in_outs.c:114-117` @ e400d8d8).
+ *
+ * Separate from {@link DepositTermsApprover} because only the Pre-PegIn build
+ * needs it: the presign/payout ceremonies approve terms without ever creating
+ * change, so they must not require a wallet to implement this.
+ *
+ * MUST be stable across a deposit flow: the app reads it to build the tx and
+ * `preparePegin` re-reads it to verify, so mid-flow rotation fails that gate.
+ */
+export interface PrePeginChangeSource {
+  getChangeAddress(): Promise<string>;
+}
+
+/** Probes {@link DepositTermsApprover.approveDepositTerms}. */
 export function supportsDepositApproval(
   wallet: BitcoinWallet,
 ): wallet is BitcoinWallet & DepositTermsApprover {
@@ -122,16 +149,56 @@ export function supportsDepositApproval(
 }
 
 /**
- * Spreadable forward of `approveDepositTerms` for wallet-wrapper objects.
+ * The wallet's change address, for the one caller that needs it.
+ *
+ * Narrowing on `approveDepositTerms` alone cannot promise this method, so
+ * calling it off the narrowed value would die on `is not a function` in the
+ * middle of `preparePegin`, after the pubkey read. Ask here instead and fail
+ * with something a provider author can act on.
+ *
+ * @throws If the wallet cannot report a change address.
+ */
+export async function requireChangeAddress(
+  wallet: BitcoinWallet,
+): Promise<string> {
+  const changeSource = wallet as Partial<PrePeginChangeSource>;
+  if (typeof changeSource.getChangeAddress !== "function") {
+    throw new Error(
+      "Approval wallet does not implement getChangeAddress; it must expose its change branch, " +
+        "because the signing device accepts Pre-PegIn change only there.",
+    );
+  }
+  return changeSource.getChangeAddress();
+}
+
+/**
+ * Spreadable forward of the approval capability for wallet-wrapper objects.
  * Object spread drops prototype methods, so every `{...wallet}` wrapper site
  * must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
  */
 export function forwardDepositApproval(
   wallet: BitcoinWallet,
-): Partial<DepositTermsApprover> {
-  return supportsDepositApproval(wallet)
-    ? { approveDepositTerms: (terms) => wallet.approveDepositTerms(terms) }
-    : {};
+): Partial<DepositTermsApprover & PrePeginChangeSource> {
+  if (!supportsDepositApproval(wallet)) {
+    return {};
+  }
+  const holdsApprovedDepositTerms = wallet.holdsApprovedDepositTerms;
+  const getChangeAddress = (wallet as Partial<PrePeginChangeSource>)
+    .getChangeAddress;
+  return {
+    approveDepositTerms: (terms) => wallet.approveDepositTerms(terms),
+    // Both optional in the seam: forward only what the provider implements, so
+    // wrapper consumers can keep probing by typeof.
+    ...(typeof getChangeAddress === "function"
+      ? { getChangeAddress: () => getChangeAddress.call(wallet) }
+      : {}),
+    ...(typeof holdsApprovedDepositTerms === "function"
+      ? {
+          holdsApprovedDepositTerms: (terms: DepositTerms) =>
+            holdsApprovedDepositTerms.call(wallet, terms),
+        }
+      : {}),
+  };
 }
 
 export interface BuildDepositTermsInputs {

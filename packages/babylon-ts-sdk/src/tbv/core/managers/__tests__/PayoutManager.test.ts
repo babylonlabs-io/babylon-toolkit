@@ -7,6 +7,7 @@
 
 import { Buffer } from "buffer";
 
+import { getAssertPayoutScriptInfo } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -17,15 +18,23 @@ import {
   NULL_TXID,
   P2WPKH_PREFIX,
   SEQUENCE_MAX,
+  TAPSCRIPT_LEAF_VERSION,
   TEST_CLAIM_VALUE,
   TEST_COMBINED_VALUE,
   TEST_PEGIN_VALUE,
   createDummyP2TR,
   createDummyP2WPKH,
 } from "../../primitives/psbt/__tests__/constants";
-import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
+import {
+  generateXOnlyKeys,
+  initializeWasmForTests,
+} from "../../primitives/psbt/__tests__/helpers";
 import { PAYOUT_ANCHOR_DUST_SATS } from "../../primitives/psbt/constants";
-import { deriveBip86ScriptPubKeyHex } from "../../primitives/utils/bitcoin";
+import {
+  deriveBip86ScriptPubKeyHex,
+  hexToUint8Array,
+} from "../../primitives/utils/bitcoin";
+import { computeTaprootScriptPubKey } from "../../primitives/utils/taproot";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // These tests inject synthetic signatures into otherwise-real payout PSBTs to
@@ -62,6 +71,41 @@ const TEST_VK_PAYOUT_SCRIPTS: Readonly<Record<string, string>> = {
     TEST_KEYS.VAULT_KEEPER_1,
   ),
 };
+
+/** Security council backing every fixture: 3 members, quorum 2. */
+const TEST_COUNCIL_MEMBERS = generateXOnlyKeys(3, 9_000);
+const TEST_COUNCIL_QUORUM = 2;
+
+/** Assert CSV timelock shared by every payout fixture below. */
+const TEST_TIMELOCK_ASSERT = 144;
+
+/**
+ * Creates the assert transaction the payout fixtures spend. Output 0 must be
+ * the real Assert:0 taproot output, or `buildPayoutPsbt` refuses to attach the
+ * payout leaf it rebuilds for input 1.
+ */
+async function createTestAssertTransaction(): Promise<string> {
+  const { payoutScript, payoutControlBlock } = await getAssertPayoutScriptInfo({
+    txGraphVersion: 1,
+    claimer: TEST_KEYS.VAULT_PROVIDER,
+    localChallengers: [TEST_KEYS.VAULT_KEEPER_1],
+    universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+    timelockAssert: TEST_TIMELOCK_ASSERT,
+    councilMembers: TEST_COUNCIL_MEMBERS,
+    councilQuorum: TEST_COUNCIL_QUORUM,
+  });
+  const tx = new Transaction();
+  tx.addInput(DUMMY_TXID_1, 0xffffffff, SEQUENCE_MAX);
+  tx.addOutput(
+    computeTaprootScriptPubKey({
+      leafVersion: TAPSCRIPT_LEAF_VERSION,
+      script: hexToUint8Array(payoutScript),
+      controlBlock: hexToUint8Array(payoutControlBlock),
+    }),
+    Number(TEST_CLAIM_VALUE),
+  );
+  return tx.toHex();
+}
 
 describe("PayoutManager", () => {
   beforeAll(async () => {
@@ -143,16 +187,6 @@ describe("PayoutManager", () => {
 
   describe("signPayoutTransactionsBatch", () => {
     /**
-     * Creates a deterministic assert transaction used for payout inputs.
-     */
-    function createTestAssertTransaction(): string {
-      const tx = new Transaction();
-      tx.addInput(DUMMY_TXID_1, 0xffffffff, SEQUENCE_MAX);
-      tx.addOutput(createDummyP2WPKH("c"), Number(TEST_CLAIM_VALUE));
-      return tx.toHex();
-    }
-
-    /**
      * Creates a deterministic Payout transaction. Output shape follows the
      * VP-claimer canonical structure enforced by `buildPayoutPsbt`'s
      * per-role check:
@@ -190,7 +224,7 @@ describe("PayoutManager", () => {
 
     it("should batch sign multiple payout transactions", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
       const payoutTxHex1 = createTestPayoutTransaction(peginTxHex, assertTxHex);
       const payoutTxHex2 = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
@@ -253,7 +287,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         },
@@ -272,7 +307,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         },
@@ -326,7 +362,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
@@ -377,7 +414,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
@@ -387,7 +425,7 @@ describe("PayoutManager", () => {
 
     it("should throw error when wallet returns fewer PSBTs than expected", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
 
       const getPublicKeyHex = vi
         .fn<() => Promise<string>>()
@@ -443,7 +481,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
@@ -462,7 +501,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
@@ -472,7 +512,7 @@ describe("PayoutManager", () => {
 
     it("should throw error when wallet returns more PSBTs than expected", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
 
       const getPublicKeyHex = vi
         .fn<() => Promise<string>>()
@@ -530,7 +570,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
@@ -549,7 +590,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },
@@ -559,16 +601,6 @@ describe("PayoutManager", () => {
   });
 
   describe("payout output address validation", () => {
-    /**
-     * Creates a deterministic assert transaction used for payout inputs.
-     */
-    function createTestAssertTransaction(): string {
-      const tx = new Transaction();
-      tx.addInput(DUMMY_TXID_1, 0xffffffff, SEQUENCE_MAX);
-      tx.addOutput(createDummyP2WPKH("c"), Number(TEST_CLAIM_VALUE));
-      return tx.toHex();
-    }
-
     /**
      * Creates a deterministic Payout transaction. Output shape follows the
      * VP-claimer canonical structure enforced by `buildPayoutPsbt`'s
@@ -607,7 +639,7 @@ describe("PayoutManager", () => {
 
     it("should throw when payout TX output 0 does not pay to registered address", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       // Use a scriptPubKey that does NOT match the payout output ("a" instead of "d")
@@ -638,7 +670,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
@@ -649,7 +682,7 @@ describe("PayoutManager", () => {
 
     it("should accept 0x-prefixed scriptPubKey", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       const btcWallet = new MockBitcoinWallet({
@@ -682,7 +715,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
@@ -693,7 +727,7 @@ describe("PayoutManager", () => {
 
     it("should throw for invalid hex in registeredPayoutScriptPubKey", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       const btcWallet = new MockBitcoinWallet({
@@ -721,7 +755,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
@@ -730,7 +765,7 @@ describe("PayoutManager", () => {
 
     it("rejects a payout where vout 0 keeps the registered script but extra attacker outputs drain value", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
 
       // Build a malicious payout TX: 4 outputs (one more than the protocol's
       // VP-claimer canonical count of 3). outs[0] keeps the registered
@@ -788,7 +823,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
@@ -797,7 +833,7 @@ describe("PayoutManager", () => {
 
     it("should reject when the wallet swaps the payout output before signing (single)", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       const tamperedOutputScript = createDummyP2WPKH("e");
@@ -852,7 +888,8 @@ describe("PayoutManager", () => {
           claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           commissionBps: 500,
           protocolFeeRate: 10n,
-          councilSize: 3,
+          councilMembers: TEST_COUNCIL_MEMBERS,
+          councilQuorum: TEST_COUNCIL_QUORUM,
           vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
           vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
         }),
@@ -861,7 +898,7 @@ describe("PayoutManager", () => {
 
     it("should reject mismatched scriptPubKey in batch signing path", async () => {
       const peginTxHex = createTestPeginTransaction();
-      const assertTxHex = createTestAssertTransaction();
+      const assertTxHex = await createTestAssertTransaction();
       const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
 
       // Use a scriptPubKey that does NOT match the payout output
@@ -893,7 +930,8 @@ describe("PayoutManager", () => {
             claimerBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             commissionBps: 500,
             protocolFeeRate: 10n,
-            councilSize: 3,
+            councilMembers: TEST_COUNCIL_MEMBERS,
+            councilQuorum: TEST_COUNCIL_QUORUM,
             vkClaimerPayoutScriptPubKeys: TEST_VK_PAYOUT_SCRIPTS,
             vpCommissionScriptPubKey: TEST_VP_COMMISSION_SCRIPT,
           },

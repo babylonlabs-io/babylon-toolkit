@@ -39,6 +39,7 @@ import {
   normalizePopSignature,
   normalizeXOnlyPubkey,
   signPsbtsWithFallback,
+  verifyPopWitness,
 } from "./pegin";
 
 import type {
@@ -56,11 +57,13 @@ import {
   COMMISSION_BPS_HEADROOM,
   ensurePrePeginTermsApproval,
   MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
+  requireChangeAddress,
   supportsDepositApproval,
   type DepositTerms,
 } from "../deposit-terms";
 import {
   assertPsbtUnsignedTxMatches,
+  assertReturnedKeyPathSignatures,
   assertScriptPathSchnorrSignature,
   buildPeginInputPsbt,
   buildPeginTxFromFundedPrePegin,
@@ -674,9 +677,24 @@ export class PeginManager {
     // whatever output the PSBT carries; nothing downstream proves the
     // change address belongs to the signing key, so a state-race / stale
     // FE / hostile adapter that puts an attacker-controlled address here
-    // would drain the change after signing. Bind once at entry using the
-    // pubkey snapshot above (no second wallet read).
-    if (
+    // would drain the change after signing. Bind once at entry — against the
+    // wallet's own change branch when it has one, else the pubkey snapshot.
+    if (supportsDepositApproval(this.config.btcWallet)) {
+      // Approval (policy) wallets own their change branch: the device accepts a
+      // change output only on `.../1/i`, which is not derivable from the receive
+      // key. Any other change address fails mid-ceremony on the device, so this
+      // gate closes that window before any approval screen (the only device
+      // traffic it costs is the silent policy-context read).
+      const walletChange = (
+        await requireChangeAddress(this.config.btcWallet)
+      ).trim();
+      if (params.changeAddress.trim() !== walletChange) {
+        throw new Error(
+          `Pre-PegIn changeAddress "${params.changeAddress}" is not the approval wallet's change address ` +
+            `("${walletChange}"). Refusing to build a tx the signing device would reject.`,
+        );
+      }
+    } else if (
       !isAddressFromPublicKey(
         params.changeAddress,
         depositorBtcPubkeyRaw,
@@ -1190,6 +1208,26 @@ export class PeginManager {
       requestedPsbtHex,
       returnedPsbtHex: signedPsbtHex,
     });
+
+    // Far-side check of the key-path signatures (CLAUDE.md §8: never trust the
+    // wallet's success/finalization). Covers taproot-funded inputs only —
+    // P2WPKH/P2WSH funding (non-taproot software-wallet accounts) is skipped
+    // by isKeyPathEligible and stays unverified here.
+    const verifiedInputs = assertReturnedKeyPathSignatures({
+      requestedPsbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+    // An approval wallet signs key-path under a wallet policy, so every input
+    // must have been verified; 0 would mean the check silently covered nothing.
+    if (
+      supportsDepositApproval(this.config.btcWallet) &&
+      verifiedInputs !== psbt.data.inputs.length
+    ) {
+      throw new Error(
+        `Key-path verification covered ${verifiedInputs} of ${psbt.data.inputs.length} Pre-PegIn ` +
+          `inputs; an approval wallet signs every input key-path, so the unverified ones must not be broadcast.`,
+      );
+    }
 
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
@@ -1747,6 +1785,13 @@ export class PeginManager {
    * wallet to the connected ETH account for this chain and vault
    * registry. The returned {@link PopSignature} can be reused across
    * every register call in the same session.
+   *
+   * A one-item (P2TR) witness is verified against the depositor key before
+   * it is returned — see {@link verifyPopWitness}. Two-item (P2WPKH)
+   * witnesses are not yet verified host-side.
+   *
+   * @throws If the wallet returns a malformed witness or a P2TR signature
+   *         that does not verify.
    */
   async signProofOfPossession(): Promise<PopSignature> {
     if (!this.config.ethWallet.account) {
@@ -1766,11 +1811,17 @@ export class PeginManager {
       "bip322-simple",
     );
 
-    return {
-      btcPopSignature: normalizePopSignature(raw),
-      depositorEthAddress,
+    const btcPopSignature = normalizePopSignature(raw);
+    // Fail before the Ethereum registration: vaultd rejects a bad PoP permanently.
+    // The verdict is informational — a P2WPKH witness can only be pubkey-checked,
+    // and both outcomes are acceptable here; anything worse already threw.
+    verifyPopWitness(
+      new TextEncoder().encode(popMessage),
       depositorBtcPubkey,
-    };
+      btcPopSignature,
+    );
+
+    return { btcPopSignature, depositorEthAddress, depositorBtcPubkey };
   }
 
   /**

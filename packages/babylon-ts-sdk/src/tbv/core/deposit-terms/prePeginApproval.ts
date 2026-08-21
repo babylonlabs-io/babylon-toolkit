@@ -25,12 +25,13 @@ import type { DepositTerms } from "./depositTerms";
 /**
  * Minimal structural wallet for the Pre-PegIn ceremony. Mirrors
  * `DeriveContextHashCapableWallet` so an app-side wrapper object qualifies
- * without implementing all of `BitcoinWallet`. Both methods are optional so
+ * without implementing all of `BitcoinWallet`. All methods are optional so
  * the capability probe below can run on any wallet.
  */
 export interface PrePeginApprovalWallet {
   deriveContextHash?(appName: string, context: string): Promise<string>;
   approveDepositTerms?(terms: DepositTerms): Promise<void>;
+  holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
 }
 
 export interface EnsurePrePeginTermsApprovalParams {
@@ -50,10 +51,14 @@ export interface EnsurePrePeginTermsApprovalParams {
  * - Approval-capable wallets: require terms, assert they match this tx's txid,
  *   derive the vault root over the tx's funding outpoints, then approve.
  *
- * Always derives first: the host cannot read device state, a one-shot cap means
- * every retry needs the full ceremony, and whether interleaved signing
- * nullifies a loaded intent is unresolved — so the broadcast path never
- * approves-only.
+ * Skip fast-path: when `holdsApprovedDepositTerms` reports the byte-equal
+ * intent still live, the ceremony is skipped — it survives everything the
+ * flow does in between (PoP/PegIn signing spend separate device state;
+ * app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
+ * closed at the signature; the retry then re-runs the full ceremony.
+ *
+ * Otherwise always derives first — the host cannot read device state, so
+ * this path never approves-only.
  *
  * @throws If approval-capable but no terms are provided, or the provided terms
  *   are for a different transaction.
@@ -113,6 +118,21 @@ export async function ensurePrePeginTermsApproval(
     );
   }
 
+  // Fast path: the preparePegin intent is still live — re-deriving would only
+  // wipe it and force a second ceremony. Stale answers fail closed at the sig.
+  if (typeof wallet.holdsApprovedDepositTerms === "function") {
+    let holdsApproval = false;
+    try {
+      holdsApproval = await wallet.holdsApprovedDepositTerms(depositTerms);
+    } catch {
+      // The seam forbids the probe to throw; a violating provider falls back
+      // to the full ceremony rather than aborting the broadcast.
+    }
+    if (holdsApproval) {
+      return;
+    }
+  }
+
   // Same funding outpoints preparePegin derived over, via the shared
   // golden-tested parser (display order; also rejects an input-less tx).
   const fundingOutpoints = parseFundingOutpointsFromTx(fundedPrePeginTxHex);
@@ -130,5 +150,7 @@ export async function ensurePrePeginTermsApproval(
   // secrets, so wipe the returned root immediately.
   root.fill(0);
 
-  await approveDepositTerms(depositTerms);
+  // .call keeps `this` for providers that implement the seam as a prototype
+  // method rather than a bound/arrow field.
+  await approveDepositTerms.call(wallet, depositTerms);
 }

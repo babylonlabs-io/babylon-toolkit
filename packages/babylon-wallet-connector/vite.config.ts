@@ -18,6 +18,13 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    commonjsOptions: {
+      // Bundled CJS (@bitcoinerlab/descriptors) does `require("bitcoinjs-lib").payments`.
+      // plugin-commonjs renders requires of externals as *default* imports unless the id
+      // is listed here, and bitcoinjs-lib is __esModule with no default export — so the
+      // default is undefined once a consumer pre-bundles us. Namespace import instead.
+      esmExternals: ["bitcoinjs-lib"],
+    },
     lib: {
       entry: {
         index: path.resolve(__dirname, "src/index.tsx"),

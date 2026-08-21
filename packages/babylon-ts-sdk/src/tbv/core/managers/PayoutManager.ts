@@ -117,8 +117,15 @@ interface SignPayoutBaseParams {
    */
   protocolFeeRate: bigint;
 
-  /** Security council member count; forwarded to the fee floor (see PayoutParams). */
-  councilSize: number;
+  /**
+   * Security council member x-only pubkeys (hex); forwarded to
+   * {@link buildPayoutPsbt} to rebuild the Assert:0 payout leaf and to size the
+   * fee floor (see PayoutParams).
+   */
+  councilMembers: string[];
+
+  /** M-of-N council quorum; shapes the Assert:0 council leaf (see PayoutParams). */
+  councilQuorum: number;
 
   /**
    * RFC-006 resolved payout destinations, keyed by lowercased x-only operation
@@ -249,7 +256,8 @@ export class PayoutManager {
       registeredPayoutScriptPubKey: params.registeredPayoutScriptPubKey,
       commissionBps: params.commissionBps,
       protocolFeeRate: params.protocolFeeRate,
-      councilSize: params.councilSize,
+      councilMembers: params.councilMembers,
+      councilQuorum: params.councilQuorum,
       vkClaimerPayoutScriptPubKeys: params.vkClaimerPayoutScriptPubKeys,
       vpCommissionScriptPubKey: params.vpCommissionScriptPubKey,
     });
@@ -355,7 +363,8 @@ export class PayoutManager {
         registeredPayoutScriptPubKey: tx.registeredPayoutScriptPubKey,
         commissionBps: tx.commissionBps,
         protocolFeeRate: tx.protocolFeeRate,
-        councilSize: tx.councilSize,
+        councilMembers: tx.councilMembers,
+        councilQuorum: tx.councilQuorum,
         vkClaimerPayoutScriptPubKeys: tx.vkClaimerPayoutScriptPubKeys,
         vpCommissionScriptPubKey: tx.vpCommissionScriptPubKey,
       });

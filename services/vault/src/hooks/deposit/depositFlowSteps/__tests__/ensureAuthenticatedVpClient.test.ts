@@ -146,6 +146,7 @@ describe("ensureAuthenticatedVpClient", () => {
     const approvalWallet = {
       deriveContextHash: vi.fn(),
       approveDepositTerms: vi.fn(),
+      getChangeAddress: vi.fn(),
     } as never;
     await ensureAuthenticatedVpClient({
       btcWallet: approvalWallet,
@@ -176,6 +177,7 @@ describe("ensureAuthenticatedVpClient", () => {
     const approvalWallet = {
       deriveContextHash: vi.fn(),
       approveDepositTerms: vi.fn(),
+      getChangeAddress: vi.fn(),
     } as never;
     await ensureAuthenticatedVpClient({
       btcWallet: approvalWallet,

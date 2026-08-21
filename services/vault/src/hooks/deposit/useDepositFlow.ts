@@ -18,7 +18,9 @@ import {
   forwardDepositApproval,
   isDepositTermsRejectedError,
   isRegisteredVaultVersionMismatchError,
+  requireChangeAddress,
   stripHexPrefix,
+  supportsDepositApproval,
   validateOnChainParticipantKeys,
   verifyRegisteredParticipantKeys,
   verifyRegisteredVaultVersions,
@@ -541,6 +543,14 @@ export function useDepositFlow(
         // commit pass drives the wallet popup(s).
         setPeginSigningProgress({ completed: 0, total: vaultAmounts.length });
 
+        // Approval (policy) wallets dictate the change address (BIP-86 change
+        // branch); software wallets keep change on the connected address.
+        const prePeginChangeAddress = supportsDepositApproval(
+          phaseTrackingBtcWallet,
+        )
+          ? await requireChangeAddress(phaseTrackingBtcWallet)
+          : confirmedBtcAddress;
+
         const batchResult = await preparePeginTransaction(
           phaseTrackingBtcWallet,
           walletClient,
@@ -555,7 +565,7 @@ export function useDepositFlow(
             protocolFeeRate: config.offchainParams.feeRate,
             minPeginFeeRate: config.offchainParams.minPeginFeeRate,
             mempoolFeeRate,
-            changeAddress: confirmedBtcAddress,
+            changeAddress: prePeginChangeAddress,
             vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
             commissionBps: quotedCommissionBps,
             vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,

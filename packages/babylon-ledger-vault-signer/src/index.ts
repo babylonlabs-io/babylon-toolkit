@@ -2,15 +2,16 @@
  * Host-side client for the Ledger Babylon Vault app: DMK session lifecycle,
  * raw APDU framing over the {@link ApduSender} seam, the silent key read,
  * the device envelope gate, the DERIVE_CONTEXT_HASH / APPROVE_VAULT_INTENT
- * ceremony, and the SIGN_PSBT interrupt/continue signing loop
- * ({@link signVaultPsbt}). Wallet-connector's LedgerVaultProvider is the
+ * ceremony, the SIGN_PSBT interrupt/continue signing loop
+ * ({@link signVaultPsbt}), and the wallet-policy plumbing and the PoP PSBT
+ * builder (#2221). Wallet-connector's LedgerVaultProvider is the
  * consuming adapter; this package holds everything device-protocol-shaped and
  * nothing wallet-taxonomy-shaped.
  *
  * @module ledger-vault-signer
  */
 
-export { getXOnlyPublicKeyHex } from "./derivation";
+export { getExtendedPublicKey, getMasterFingerprintHex, getXOnlyPublicKeyHex } from "./derivation";
 export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
 export { closeDmk, connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
 export { assertDepositTermsDeviceCompatible } from "./envelope";
@@ -48,6 +49,14 @@ export {
   type IntentVaultGroup,
 } from "./intentTlv";
 export {
+  augmentPsbtForWalletPolicy,
+  deriveChangeXOnlyHex,
+  deriveReceiveXOnlyHex,
+  psbtPaysChangeScript,
+  type AugmentPsbtForWalletPolicyParams,
+} from "./policyPsbt";
+export { buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
+export {
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
   type Apdu,
@@ -64,7 +73,7 @@ export {
   type SignVaultPsbtParams,
   type SignVaultPsbtResult,
 } from "./signPsbt";
-export { prepareSignPsbt, type PreparedSignPsbt } from "./signPsbtPrepare";
+export { prepareSignPsbt, type PrepareSignPsbtParams, type PreparedSignPsbt } from "./signPsbtPrepare";
 export {
   DEPOSIT_TERMS_REJECTED_ERROR_NAME,
   DepositTermsRejectedError,
@@ -79,3 +88,8 @@ export {
   type ApproveVaultIntentParams,
   type DeriveContextHashParams,
 } from "./vaultCommands";
+export {
+  buildDefaultTaprootPolicy,
+  type BuildDefaultTaprootPolicyParams,
+  type DefaultTaprootWalletPolicy,
+} from "./walletPolicy";

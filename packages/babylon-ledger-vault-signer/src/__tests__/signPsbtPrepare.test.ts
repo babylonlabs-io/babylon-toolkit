@@ -17,8 +17,10 @@ import { isLedgerSignPsbtProtocolError } from "../errors";
 import { buildSignPsbtApdu, getPreparedSignPsbtState, prepareSignPsbt } from "../signPsbtPrepare";
 import { MerkelizedPsbt } from "../vendor/ledger-bitcoin/merkelizedPsbt";
 import { hashLeaf, Merkle } from "../vendor/ledger-bitcoin/merkle";
+import { DefaultWalletPolicy } from "../vendor/ledger-bitcoin/policy";
 import { PsbtV2 } from "../vendor/ledger-bitcoin/psbtv2";
 import { createVarint, parseVarint, sanitizeBigintToNumber } from "../vendor/ledger-bitcoin/varint";
+import { buildDefaultTaprootPolicy } from "../walletPolicy";
 
 const VECTORS_DIR = join(__dirname, "..", "vendor", "ledger-bitcoin", "__tests__", "vectors", "signpsbt");
 
@@ -408,5 +410,80 @@ describe("already-signed inputs are rejected before any device I/O", () => {
     psbt.updateInput(0, { tapKeySig: Buffer.alloc(64, 0x22) });
 
     expectPrepareRejects(psbt.toHex(), depositorKeyFor(KEYPATH_VECTOR, vector), /input 0 already carries a tapKeySig/);
+  });
+});
+
+const KEYPATH_VECTOR_NAME = "generated__deposit-flow__pre_pegin__0";
+const KEYPATH_VECTOR = loadVector(KEYPATH_VECTOR_NAME);
+const KEYPATH_FIXTURE_HEX = KEYPATH_VECTOR.psbt_hex;
+const KEYPATH_DEPOSITOR_XONLY = depositorKeyFor(KEYPATH_VECTOR_NAME, KEYPATH_VECTOR);
+
+const POLICY = buildDefaultTaprootPolicy({
+  masterFingerprintHex: "f5acc2fd",
+  coinType: 1,
+  accountIndex: 0,
+  accountXpub:
+    "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U",
+  bip32Versions: { public: 0x043587cf, private: 0x04358394 },
+});
+
+describe("prepareSignPsbt — wallet-policy mode", () => {
+  it("puts the policy id in the wallet_id slot and keeps the hmac all-zero", () => {
+    const prepared = prepareSignPsbt({
+      psbtHex: KEYPATH_FIXTURE_HEX,
+      depositorXOnlyHex: KEYPATH_DEPOSITOR_XONLY,
+      walletPolicy: POLICY,
+    });
+    const cdata = Buffer.from(getPreparedSignPsbtState(prepared).cdata);
+    expect(cdata.subarray(cdata.length - 64, cdata.length - 32).toString("hex")).toBe(POLICY.walletIdHex);
+    expect(cdata.subarray(cdata.length - 32).toString("hex")).toBe("00".repeat(32));
+  });
+
+  it("leaves the no-policy cdata byte-identical (wallet_id and hmac both zero)", () => {
+    const prepared = prepareSignPsbt({ psbtHex: KEYPATH_FIXTURE_HEX, depositorXOnlyHex: KEYPATH_DEPOSITOR_XONLY });
+    const cdata = Buffer.from(getPreparedSignPsbtState(prepared).cdata);
+    expect(cdata.subarray(cdata.length - 64).toString("hex")).toBe("00".repeat(64));
+  });
+
+  it("answers GET_PREIMAGE for the policy serialization, its template and its key info", () => {
+    const prepared = prepareSignPsbt({
+      psbtHex: KEYPATH_FIXTURE_HEX,
+      depositorXOnlyHex: KEYPATH_DEPOSITOR_XONLY,
+      walletPolicy: POLICY,
+    });
+    const { interpreter } = getPreparedSignPsbtState(prepared);
+    const vendor = new DefaultWalletPolicy(POLICY.descriptorTemplate, POLICY.keyInfo);
+    // GET_PREIMAGE request: 0x40 ‖ 0x00 ‖ sha256(preimage) (vendored clientCommands.ts GetPreimageCommand).
+    const ask = (preimage: Buffer) =>
+      interpreter.execute(Buffer.concat([Buffer.from([0x40, 0x00]), bcrypto.sha256(preimage)]));
+    // Response: varint(len) ‖ b ‖ preimage[0:b] — for short preimages b == len, so the tail is the preimage.
+    expect(ask(vendor.serialize()).subarray(-vendor.serialize().length).equals(vendor.serialize())).toBe(true);
+    const template = Buffer.from(POLICY.descriptorTemplate);
+    expect(ask(template).subarray(-template.length).equals(template)).toBe(true);
+    // Key-info leaves are hashed as 0x00 ‖ leaf (addKnownList).
+    const keyLeaf = Buffer.concat([Buffer.from([0]), Buffer.from(POLICY.keyInfo, "ascii")]);
+    expect(ask(keyLeaf).subarray(-keyLeaf.length).equals(keyLeaf)).toBe(true);
+  });
+
+  it("rejects a policy whose wallet id is not 64 hex chars before any device I/O", () => {
+    expect(() =>
+      prepareSignPsbt({
+        psbtHex: KEYPATH_FIXTURE_HEX,
+        depositorXOnlyHex: KEYPATH_DEPOSITOR_XONLY,
+        walletPolicy: { ...POLICY, walletIdHex: "abc" },
+      }),
+    ).toThrow(/walletIdHex/);
+  });
+
+  it("rejects a well-formed wallet id that is not the hash of the policy it ships with", () => {
+    // The header carries walletIdHex while the interpreter seeds preimages keyed
+    // on template+keyInfo — a mismatch would otherwise die untyped mid-loop.
+    expect(() =>
+      prepareSignPsbt({
+        psbtHex: KEYPATH_FIXTURE_HEX,
+        depositorXOnlyHex: KEYPATH_DEPOSITOR_XONLY,
+        walletPolicy: { ...POLICY, walletIdHex: "ab".repeat(32) },
+      }),
+    ).toThrow(/walletIdHex does not match/);
   });
 });

@@ -39,7 +39,19 @@ const DEFAULT_ADDRESS = "tb1qce0n0rv27dwx37dfvhxaaly4lnwelqjuqywvka";
 const DEFAULT_NETWORK: Network = "signet" as Network;
 const DEFAULT_PROVIDER_NAME = "E2E Mock BTC";
 const DEFAULT_PROVIDER_ICON = "data:image/svg+xml;base64,PHN2Zy8+";
-const SIGNED_MESSAGE_HEX = "cd".repeat(64);
+// The SDK decodes the BIP-322 witness a wallet returns, so this has to be a
+// structurally valid two-item P2WPKH witness (the one shape it passes through
+// unverified): varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B pubkey.
+const POP_WITNESS_ITEM_COUNT = "02";
+const POP_DER_SIG_LEN = "47";
+const POP_DER_SIG = "11".repeat(71);
+const POP_PUBKEY_LEN = "21";
+
+// The pubkey item must be the key this wallet advertises: the SDK's proof-of-
+// possession gate rejects a witness whose key is not the depositor's.
+function buildSignedMessageHex(publicKeyHex: string): string {
+  return `0x${POP_WITNESS_ITEM_COUNT}${POP_DER_SIG_LEN}${POP_DER_SIG}${POP_PUBKEY_LEN}${publicKeyHex}`;
+}
 
 export interface MockBtcWalletOptions {
   publicKeyHex?: string;
@@ -173,7 +185,10 @@ export function createMockBtcWallet(
     signPsbt: (psbtHex: string) => applyScript("signPsbt", () => psbtHex),
     signPsbts: (psbtsHexes: string[]) =>
       applyScript("signPsbts", () => [...psbtsHexes]),
-    signMessage: () => applyScript("signMessage", () => SIGNED_MESSAGE_HEX),
+    signMessage: () =>
+      applyScript("signMessage", () =>
+        buildSignedMessageHex(config.publicKeyHex),
+      ),
     deriveContextHash: (appName: string, context: string) =>
       applyScript("deriveContextHash", () =>
         sha256Hex(`${appName}:${context}`),

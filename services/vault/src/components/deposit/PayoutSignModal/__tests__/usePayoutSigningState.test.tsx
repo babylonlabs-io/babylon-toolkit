@@ -727,6 +727,9 @@ describe("usePayoutSigningState", () => {
         this.#approvedWith.push(terms);
         return Promise.resolve();
       }
+      getChangeAddress(): Promise<string> {
+        return Promise.resolve("tb1pledgerchange");
+      }
     }
 
     it("forwards a prototype-method approveDepositTerms through the payout wallet wrapper", async () => {

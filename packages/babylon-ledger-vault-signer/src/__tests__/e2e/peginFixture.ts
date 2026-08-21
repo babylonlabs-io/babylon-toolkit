@@ -1,5 +1,10 @@
 /**
- * Signable PegIn fixture for the Speculos e2e suite.
+ * Signable Pre-PegIn and PegIn fixtures for the Speculos e2e suite.
+ *
+ * The Pre-PegIn is built FIRST and its txid feeds both the intent
+ * (`prepeginTxid`) and the PegIn input, because `_validate_prepegin` compares
+ * SHA256d(unsigned tx) against the intent's `prepegin_txid`
+ * (fw `sign_psbt_validate.c:529-537` @ 4decf822).
  *
  * The committed SIGN_PSBT vectors were generated from foreign seeds, so this
  * builder replicates the firmware's own signable test path byte-for-byte:
@@ -12,13 +17,16 @@
  */
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
-import { crypto as bcrypto, Psbt, Transaction } from "bitcoinjs-lib";
+import { crypto as bcrypto, initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { createHash, createHmac } from "node:crypto";
 
 import type { IntentScalars, IntentVaultGroup } from "../../intentTlv";
 import { tapLeafHash } from "../../tapLeafHash";
 import type { DepositTerms } from "../../types";
+
+// `payments.p2tr` tweaks the internal key, which needs the ecc backend.
+initEccLib(ecc);
 
 /** BIP-341 tapscript leaf version — the only one the vault graph uses. */
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
@@ -59,8 +67,14 @@ export const PREPEGIN_MAX_FEE_SATS = 500_000;
  */
 export const HTLC_VALUE_SATS = VAULT_AMOUNT_SATS + DEPOSITOR_CLAIM_VALUE_SATS + PEGIN_ANCHOR_VALUE_SATS + 234_567;
 
-/** _PREPEGIN_TXID = bytes(range(32)) (test_sign_psbt_validate.py:135), INTERNAL order. */
-export const PREPEGIN_TXID_INTERNAL = Buffer.from(Array.from({ length: 32 }, (_, i) => i));
+/** Value of each Pre-PegIn funding input — two of them cover HTLC + anchor + change + fee. */
+export const PREPEGIN_INPUT_VALUE_SATS = 20_000_000;
+/** ≤ PREPEGIN_MAX_FEE_SATS, and far above 1 sat/vB for a ~254 vB transaction. */
+const PREPEGIN_FEE_SATS = 50_000;
+/** VAULT_DUST_LIMIT — the exact CPFP anchor value the device demands (fw vault_constants.h:64). */
+const CPFP_ANCHOR_VALUE_SATS = 546;
+/** Testnet BIP-32 version bytes — the signet build answers tpub/tprv. */
+export const TESTNET_VERSIONS = { public: 0x043587cf, private: 0x04358394 };
 
 /** _DERIVE_CONTEXT = bytes(range(72)) (test_sign_psbt_validate.py:591). */
 export const DERIVE_CONTEXT = Uint8Array.from(Array.from({ length: 72 }, (_, i) => i));
@@ -109,11 +123,13 @@ function encodeScriptNum(n: number): Buffer {
   return Buffer.from([bytes.length, ...bytes]);
 }
 
-/** N-of-N multisig fragment (test_sign_psbt_validate.py:142). */
+/**
+ * N-of-N multisig fragment. No single-key special case: `encode_multisig_group`
+ * (fw `src/vault_script.c:204-231` @ e2d0c45b) emits the counted form for N>=1,
+ * so a `<key> OP_CHECKSIG` shortcut would build a leaf 4 bytes short of the one
+ * the device rebuilds and compares.
+ */
 function multisigGroup(keys: readonly Buffer[], isFinal: boolean): Buffer {
-  if (keys.length === 1) {
-    return Buffer.concat([Buffer.from([PUSH_32]), keys[0], Buffer.from([isFinal ? OP_CHECKSIG : OP_CHECKSIGVERIFY])]);
-  }
   const parts: Buffer[] = [Buffer.concat([Buffer.from([PUSH_32]), keys[0], Buffer.from([OP_CHECKSIG])])];
   for (const key of keys.slice(1)) {
     parts.push(Buffer.concat([Buffer.from([PUSH_32]), key, Buffer.from([OP_CHECKSIGADD])]));
@@ -249,21 +265,22 @@ export function vaultHashlock(root: Uint8Array, htlcVout: number): Buffer {
 // ---------------------------------------------------------------------------
 
 /**
- * The e2e deposit terms, matching the fw test intent (`_setup_s2_state` with
- * `_PREPEGIN_TXID`). `prepeginTxid` is DISPLAY order — the seam converts
- * display → internal exactly like wallet-connector's provider, and the wire
- * carries the internal-order bytes the firmware compares against the PSBT.
- * `vaultCoreVersion` is 2: the device-supported tx-graph version gate — the
- * TLV's structure/version constants (both 1) are pinned inside the encoder.
+ * The e2e deposit terms, bound to the Pre-PegIn the suite actually signs —
+ * pass {@link PrePeginPsbtFixture.txidInternal}. `prepeginTxid` is DISPLAY
+ * order: the seam converts display → internal exactly like wallet-connector's
+ * provider, and the wire carries the internal-order bytes the firmware compares
+ * against the PSBT. `vaultCoreVersion` is 2: the device-supported tx-graph
+ * version gate — the TLV's structure/version constants (both 1) are pinned
+ * inside the encoder.
  */
-export function buildDepositTerms(): DepositTerms {
+export function buildDepositTerms(prepeginTxidInternal: Buffer): DepositTerms {
   return {
     vaultCoreVersion: 2,
     protocolFeeRate: BigInt(BASE_FEE_RATE),
     timelockPegin: PEGIN_CSV_TIMELOCK,
     timelockAssert: PAYOUT_TIMELOCK,
     timelockRefund: HTLC_REFUND_TIMELOCK,
-    prepeginTxid: Buffer.from(PREPEGIN_TXID_INTERNAL).reverse().toString("hex"),
+    prepeginTxid: Buffer.from(prepeginTxidInternal).reverse().toString("hex"),
     prepeginMaxFee: BigInt(PREPEGIN_MAX_FEE_SATS),
     vaultKeeperBtcPubkeys: [KEEPER_KEY_HEX],
     universalChallengerBtcPubkeys: [CHALLENGER_KEY_HEX],
@@ -321,6 +338,68 @@ export function termsToIntent(terms: DepositTerms): IntentFixture {
 }
 
 // ---------------------------------------------------------------------------
+// Pre-PegIn PSBT — the transaction the intent binds to
+// (`_validate_prepegin`, fw sign_psbt_validate.c:334-545 @ 4decf822)
+// ---------------------------------------------------------------------------
+
+const PREPEGIN_INPUT_COUNT = 2;
+/** Distinct but otherwise arbitrary prevout hashes — the device never fetches them. */
+const PREPEGIN_PREVOUT_HASH_BASE = 0x40;
+/**
+ * `_validate_prepegin` (fw `sign_psbt_validate.c:334-545` @ e2d0c45b) does not
+ * constrain the sequence — it only hashes it into the txid it compares against
+ * the intent (`:283-292`). So this must match what the toolkit's funding path
+ * emits: bitcoinjs' DEFAULT_SEQUENCE (fundPeginTransaction.ts:148).
+ */
+const PREPEGIN_SEQUENCE_FINAL = 0xffffffff;
+
+export interface PrePeginPsbtFixture {
+  /** v0, NOT augmented — the test augments it the way the provider does. */
+  readonly psbtHex: string;
+  /** Raw SHA256d of the unsigned tx (PSBT/internal order) — the intent's prepegin_txid and the PegIn prevout. */
+  readonly txidInternal: Buffer;
+  readonly htlcScriptPubKey: Buffer;
+}
+
+/**
+ * Toolkit-shaped Pre-PegIn: two depositor key-path inputs → [HTLC, CPFP anchor
+ * 546 P2TR(depositor), change P2TR(changeKey)]. No OP_RETURN (optional on-device).
+ * Layout matches btc-vault `[HTLC×n, OP_RETURN?, anchor, change*]`.
+ */
+export function buildPrePeginPsbt(hashlock: Buffer, changeXOnlyHex: string): PrePeginPsbtFixture {
+  const depositor = hexToBuffer(DEPOSITOR_XONLY_HEX);
+  const vp = hexToBuffer(VP_KEY_HEX);
+  const keepers = [hexToBuffer(KEEPER_KEY_HEX)];
+  const challengers = [hexToBuffer(CHALLENGER_KEY_HEX)];
+  const leaf0 = htlcLeaf0(depositor, vp, keepers, challengers, hashlock);
+  const leaf1 = htlcLeaf1(depositor, HTLC_REFUND_TIMELOCK);
+  const merkleRoot = tapBranch(tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf0), tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf1));
+  const htlcScriptPubKey = Buffer.concat([Buffer.from([0x51, PUSH_32]), tweakNums(merkleRoot).xOnly]);
+  const depositorSpk = payments.p2tr({ internalPubkey: depositor }).output!;
+  const changeSpk = payments.p2tr({ internalPubkey: hexToBuffer(changeXOnlyHex) }).output!;
+  const changeValue =
+    PREPEGIN_INPUT_COUNT * PREPEGIN_INPUT_VALUE_SATS - HTLC_VALUE_SATS - CPFP_ANCHOR_VALUE_SATS - PREPEGIN_FEE_SATS;
+
+  const psbt = new Psbt();
+  psbt.setVersion(2); // fw requires tx_version >= 2
+  psbt.setLocktime(0);
+  for (let i = 0; i < PREPEGIN_INPUT_COUNT; i++) {
+    psbt.addInput({
+      hash: Buffer.alloc(32, PREPEGIN_PREVOUT_HASH_BASE + i),
+      index: i,
+      sequence: PREPEGIN_SEQUENCE_FINAL,
+      witnessUtxo: { script: depositorSpk, value: PREPEGIN_INPUT_VALUE_SATS },
+      tapInternalKey: depositor,
+    });
+  }
+  psbt.addOutput({ script: htlcScriptPubKey, value: HTLC_VALUE_SATS });
+  psbt.addOutput({ script: depositorSpk, value: CPFP_ANCHOR_VALUE_SATS });
+  psbt.addOutput({ script: changeSpk, value: changeValue });
+  const tx = Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer());
+  return { psbtHex: psbt.toHex(), txidInternal: tx.getHash(), htlcScriptPubKey };
+}
+
+// ---------------------------------------------------------------------------
 // PegIn PSBT (test_sign_psbt_validate.py:309 `_build_pegin_psbt`)
 // ---------------------------------------------------------------------------
 
@@ -332,12 +411,15 @@ export interface PeginPsbtFixture {
   readonly controlBlock: Buffer;
 }
 
+/** RBF-signalling, per the fw builder. */
+const PEGIN_SEQUENCE = 0xfffffffe;
+
 /**
  * PegIn PSBTv0: input 0 spends the HTLC at (prepegin_txid, vout 0) via
  * Leaf 0; outputs are Vault, Depositor Claim, and the P2A anchor. Tx v3
- * (TRUC), locktime 0, sequence 0xFFFFFFFE — all per the fw builder.
+ * (TRUC), locktime 0, sequence {@link PEGIN_SEQUENCE} — all per the fw builder.
  */
-export function buildPeginPsbt(hashlock: Buffer): PeginPsbtFixture {
+export function buildPeginPsbt(hashlock: Buffer, prepeginTxidInternal: Buffer): PeginPsbtFixture {
   const depositor = hexToBuffer(DEPOSITOR_XONLY_HEX);
   const vp = hexToBuffer(VP_KEY_HEX);
   const keepers = [hexToBuffer(KEEPER_KEY_HEX)];
@@ -360,9 +442,9 @@ export function buildPeginPsbt(hashlock: Buffer): PeginPsbtFixture {
   psbt.setVersion(3); // TRUC (BIP-431)
   psbt.setLocktime(0);
   psbt.addInput({
-    hash: PREPEGIN_TXID_INTERNAL, // Buffer form: used as-is (internal order)
+    hash: prepeginTxidInternal, // Buffer form: used as-is (internal order)
     index: HTLC_VOUT,
-    sequence: 0xfffffffe,
+    sequence: PEGIN_SEQUENCE,
     witnessUtxo: { script: htlcScriptPubKey, value: HTLC_VALUE_SATS },
     tapInternalKey: NUMS_XONLY,
     tapMerkleRoot: merkleRoot,

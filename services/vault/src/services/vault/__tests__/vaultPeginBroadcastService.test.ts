@@ -3,7 +3,10 @@ import {
   DepositTermsRejectedError,
   type DepositTerms,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { assertPsbtUnsignedTxMatches } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import {
+  assertPsbtUnsignedTxMatches,
+  assertReturnedKeyPathSignatures,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Use vi.hoisted so mocks can reference these before module initialization
@@ -89,6 +92,9 @@ vi.mock(
     return {
       ...actual,
       assertPsbtUnsignedTxMatches: vi.fn(),
+      // Returns how many inputs it verified; the mocked PSBT carries one, and
+      // the approval-wallet path refuses to broadcast a partial count.
+      assertReturnedKeyPathSignatures: vi.fn(() => 1),
     };
   },
 );
@@ -369,6 +375,43 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     });
   });
 
+  it("verifies the returned key-path signatures after the rebind, with the requested/returned pair", async () => {
+    vi.mocked(assertReturnedKeyPathSignatures).mockClear();
+    vi.mocked(pushTx).mockClear();
+    const customWallet = {
+      signPsbt: vi.fn().mockResolvedValue("wallet-returned-psbt-hex"),
+    };
+
+    await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: customWallet,
+      expectedUtxos: undefined,
+    });
+
+    expect(assertReturnedKeyPathSignatures).toHaveBeenCalledTimes(1);
+    expect(assertReturnedKeyPathSignatures).toHaveBeenCalledWith({
+      requestedPsbtHex: "mock-psbt-hex",
+      returnedPsbtHex: "wallet-returned-psbt-hex",
+    });
+  });
+
+  it("aborts before finalize/broadcast when a returned key-path signature does not verify", async () => {
+    vi.mocked(assertReturnedKeyPathSignatures).mockImplementationOnce(() => {
+      throw new Error("key-path signature for input 0 does not verify");
+    });
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/does not verify/);
+
+    expect(pushTx).not.toHaveBeenCalled();
+    expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
+  });
+
   it("preserves PSBT finalization errors when the wallet returns a partially signed PSBT", async () => {
     mockSignedPsbt.finalizeAllInputs.mockImplementationOnce(() => {
       throw new Error("Input #1 is not signed");
@@ -434,6 +477,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       approveDepositTerms: vi.fn(async () => {
         order.push("approve");
       }),
+      getChangeAddress: vi.fn(async () => "tb1pledgerchange"),
     };
 
     const txid = await broadcastPrePeginTransaction({
@@ -457,6 +501,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       approveDepositTerms: vi.fn(async () => {
         throw rejection;
       }),
+      getChangeAddress: vi.fn(async () => "tb1pledgerchange"),
     };
 
     await expect(

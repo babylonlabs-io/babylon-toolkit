@@ -683,19 +683,32 @@ Tx-graph fee rate (sat/vB) the graph was built with — the version-locked
 `offchainParams.feeRate` at the vault's stamped `offchainParamsVersion`,
 NOT a live read. Anchors both ends of the fee band.
 
-##### councilSize
+##### councilMembers
 
 ```ts
-councilSize: number;
+councilMembers: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts)
 
-Security council member count from the locked offchain params version.
-Mirrors the upstream estimator's signature; at the current model pins the
-council occupies a single taptree leaf regardless of size, so the floor
-is council-size-invariant — passed for forward compatibility with future
-pinned models.
+Security council member x-only public keys (hex) from the locked offchain
+params version — `getOffchainParamsByVersion(...).securityCouncilKeys`.
+The council occupies the last leaf of the Assert:0 taptree
+(btc-vault `crates/vault/src/connectors/assert_payout_nopayout_council.rs`),
+so the keys are needed to rebuild input 1's payout leaf, and the count
+feeds the fee-band domain.
+
+##### councilQuorum
+
+```ts
+councilQuorum: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts)
+
+M-of-N council quorum from the locked offchain params version —
+`getOffchainParamsByVersion(...).councilQuorum`. Shapes the council leaf's
+multisig script, and with it the Assert:0 taptree root.
 
 ##### vkClaimerPayoutScriptPubKeys
 
@@ -1346,6 +1359,72 @@ psbtHex: string;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts)
 
 PSBT hex ready for depositor signing
+
+***
+
+### AssertKeyPathSchnorrSignatureParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Hex of the PSBT we built and sent (trusted prevout scripts/values). NOT the wallet's.
+
+##### signatureHex
+
+```ts
+signatureHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+64- or 65-byte signature, hex.
+
+##### inputIndex
+
+```ts
+inputIndex: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Index of the input the signature is for.
+
+***
+
+### AssertReturnedKeyPathSignaturesParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+PSBT we built locally and asked the wallet to sign.
+
+##### returnedPsbtHex
+
+```ts
+returnedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+PSBT the wallet returned after signing.
 
 ***
 
@@ -2027,6 +2106,9 @@ Payout transactions have the following structure:
 - Input 0: from PeginTx output0 (signed by depositor)
 - Input 1: from Assert output0 (NOT signed by depositor)
 
+Both inputs carry their taproot script-path leaf. Input 1's is not signed
+here — it is what a hardware signer reads to display the payout terms.
+
 #### Parameters
 
 ##### params
@@ -2069,7 +2151,7 @@ If the implicit fee (inputs − outputs) is outside the fee band —
 
 #### Throws
 
-If `protocolFeeRate`, a participant count, or `councilSize` is
+If `protocolFeeRate`, a participant count, or the council size is
   outside the accepted input domain (see assertPayoutFeeBandDomain)
 
 #### Throws
@@ -2089,6 +2171,11 @@ If payout output count, outs[0] script, outs[last] anchor value, or
 #### Throws
 
 If `commissionBps` is not a non-negative integer below 10_000
+
+#### Throws
+
+If the locally rebuilt Assert:0 payout leaf does not bind to the
+  Assert output input 1 spends
 
 ***
 
@@ -2377,6 +2464,72 @@ If the HTLC output at htlcVout is not found
 #### Throws
 
 If the refund transaction does not have exactly 1 input
+
+***
+
+### assertKeyPathSchnorrSignature()
+
+```ts
+function assertKeyPathSchnorrSignature(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Assert that `signatureHex` is a valid BIP-340 Schnorr signature over the
+Taproot key-path sighash of `requestedPsbtHex` input `inputIndex`, under the
+tweaked output key taken from that input's prevout scriptPubKey.
+
+#### Parameters
+
+##### params
+
+[`AssertKeyPathSchnorrSignatureParams`](#assertkeypathschnorrsignatureparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+If the input is not a key-path P2TR spend, the requested PSBT lacks
+        the prevout data needed to recompute the sighash, or the signature
+        does not verify.
+
+***
+
+### assertReturnedKeyPathSignatures()
+
+```ts
+function assertReturnedKeyPathSignatures(params): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
+
+Verify every key-path-eligible input of the REQUESTED PSBT against what the
+wallet RETURNED: `tapKeySig`, or the single finalized witness item for wallets
+that auto-finalize — and when both are present they must be the same bytes.
+Script-path inputs are skipped (they have their own check).
+
+#### Parameters
+
+##### params
+
+[`AssertReturnedKeyPathSignaturesParams`](#assertreturnedkeypathsignaturesparams)
+
+#### Returns
+
+`number`
+
+How many inputs were actually verified. 0 means NO input was
+         key-path eligible — a caller that knows every input is taproot
+         key-path must assert this equals its input count, or a P2WPKH
+         depositor would read "nothing verified" as "all verified".
+
+#### Throws
+
+If the input counts differ, an eligible input carries no signature, a
+        finalized witness disagrees with its `tapKeySig`, or any signature
+        does not verify.
 
 ***
 

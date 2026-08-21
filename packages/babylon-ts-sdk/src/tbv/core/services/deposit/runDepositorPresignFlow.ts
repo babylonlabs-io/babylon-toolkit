@@ -68,14 +68,14 @@ export interface PayoutSigningContext {
    * Security council member x-only public keys (hex, no prefix).
    * Source: ProtocolParams contract via
    * `getOffchainParamsByVersion(...).securityCouncilKeys`.
-   * Required for the depositor-graph NoPayout local rebuild.
+   * Required to rebuild every Assert:0 leaf (payout and NoPayout) locally.
    */
   councilMembers: string[];
   /**
    * M-of-N council quorum threshold.
    * Source: ProtocolParams contract via
    * `getOffchainParamsByVersion(...).councilQuorum`.
-   * Required for the depositor-graph NoPayout local rebuild.
+   * Required to rebuild every Assert:0 leaf (payout and NoPayout) locally.
    */
   councilQuorum: number;
   /** BTC network (Mainnet, Testnet, etc.) */
@@ -346,7 +346,8 @@ function buildPayoutSigningInput(
     claimerBtcPubkey: tx.claimerPubkeyXOnly,
     commissionBps: context.commissionBps,
     protocolFeeRate: context.protocolFeeRate,
-    councilSize: context.councilMembers.length,
+    councilMembers: context.councilMembers,
+    councilQuorum: context.councilQuorum,
     vkClaimerPayoutScriptPubKeys: context.vkClaimerPayoutScriptPubKeys,
     vpCommissionScriptPubKey: context.vpCommissionScriptPubKey,
   };

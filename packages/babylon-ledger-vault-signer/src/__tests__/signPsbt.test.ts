@@ -255,6 +255,23 @@ describe("signVaultPsbt", () => {
     expect(sent()).toBe(0);
   });
 
+  it("rejects a key-path PSBT prepared without a walletPolicy, with zero device I/O", async () => {
+    // No policy means the base app skips sign_internal_inputs and answers
+    // SW_OK with no yield — the collector would only notice after the user
+    // has approved the ceremony on-device.
+    const prePegin = JSON.parse(
+      readFileSync(join(VECTORS_DIR, "generated__deposit-flow__pre_pegin__0.json"), "utf8"),
+    ) as { psbt_hex: string; input_maps: [string, string][][] };
+    const depositorXOnlyHex = prePegin.input_maps[0].find(([key]) => key === "17")![1];
+    const prepared = prepareSignPsbt({ psbtHex: prePegin.psbt_hex, depositorXOnlyHex });
+
+    const { send, sent } = createScriptedSender([]);
+    await expect(signPreparedVaultPsbt(send, prepared, { signal: new AbortController().signal })).rejects.toThrow(
+      /walletPolicy/,
+    );
+    expect(sent()).toBe(0);
+  });
+
   it("rejects reuse of a prepared signing state after an abort", async () => {
     const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
     const aborted = new AbortController();

@@ -288,7 +288,8 @@ Seam invariant: any derive invalidates a prior approval, so the SDK
 re-approves after every derive and before the next terms-bound signature.
 The re-approval sites are `PeginManager.preparePegin`,
 `runDepositorPresignFlow`, and `signAndBroadcast` (the Pre-PegIn broadcast,
-which derives immediately before approving — see `ensurePrePeginTermsApproval`).
+which re-derives before approving unless `holdsApprovedDepositTerms`
+reports the byte-equal intent still live — see `ensurePrePeginTermsApproval`).
 
 #### Methods
 
@@ -309,6 +310,63 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 ###### Returns
 
 `Promise`\<`void`\>
+
+##### holdsApprovedDepositTerms()?
+
+```ts
+optional holdsApprovedDepositTerms(terms): Promise<boolean>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+OPTIONAL fast-path probe: can the Pre-PegIn signature for exactly these
+terms proceed under the connection's held approval without a new
+ceremony? MUST report false once that Pre-PegIn was signed (one-shot),
+MUST answer from host state without device I/O, MUST return false on any
+doubt, and MUST never throw. A stale true fails closed at the next
+signature — this is a UX optimization, never an authorization.
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`boolean`\>
+
+***
+
+### PrePeginChangeSource
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Where Pre-PegIn change must pay. Approval (policy) wallets sign key-path
+under a wallet policy whose change branch the device alone can derive and
+mark internal — the receive address is NOT acceptable change
+(`process_in_outs.c:114-117` @ e400d8d8).
+
+Separate from [DepositTermsApprover](#deposittermsapprover) because only the Pre-PegIn build
+needs it: the presign/payout ceremonies approve terms without ever creating
+change, so they must not require a wallet to implement this.
+
+MUST be stable across a deposit flow: the app reads it to build the tx and
+`preparePegin` re-reads it to verify, so mid-flow rotation fails that gate.
+
+#### Methods
+
+##### getChangeAddress()
+
+```ts
+getChangeAddress(): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+###### Returns
+
+`Promise`\<`string`\>
 
 ***
 
@@ -444,7 +502,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval
 
 Minimal structural wallet for the Pre-PegIn ceremony. Mirrors
 `DeriveContextHashCapableWallet` so an app-side wrapper object qualifies
-without implementing all of `BitcoinWallet`. Both methods are optional so
+without implementing all of `BitcoinWallet`. All methods are optional so
 the capability probe below can run on any wallet.
 
 #### Methods
@@ -488,6 +546,24 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval
 ###### Returns
 
 `Promise`\<`void`\>
+
+##### holdsApprovedDepositTerms()?
+
+```ts
+optional holdsApprovedDepositTerms(terms): Promise<boolean>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`boolean`\>
 
 ***
 
@@ -798,7 +874,7 @@ function supportsDepositApproval(wallet): wallet is BitcoinWallet & DepositTerms
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-True when the wallet implements [DepositTermsApprover.approveDepositTerms](#approvedepositterms).
+Probes [DepositTermsApprover.approveDepositTerms](#approvedepositterms).
 
 #### Parameters
 
@@ -812,15 +888,46 @@ True when the wallet implements [DepositTermsApprover.approveDepositTerms](#appr
 
 ***
 
-### forwardDepositApproval()
+### requireChangeAddress()
 
 ```ts
-function forwardDepositApproval(wallet): Partial<DepositTermsApprover>;
+function requireChangeAddress(wallet): Promise<string>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Spreadable forward of `approveDepositTerms` for wallet-wrapper objects.
+The wallet's change address, for the one caller that needs it.
+
+Narrowing on `approveDepositTerms` alone cannot promise this method, so
+calling it off the narrowed value would die on `is not a function` in the
+middle of `preparePegin`, after the pubkey read. Ask here instead and fail
+with something a provider author can act on.
+
+#### Parameters
+
+##### wallet
+
+[`BitcoinWallet`](managers.md#bitcoinwallet)
+
+#### Returns
+
+`Promise`\<`string`\>
+
+#### Throws
+
+If the wallet cannot report a change address.
+
+***
+
+### forwardDepositApproval()
+
+```ts
+function forwardDepositApproval(wallet): Partial<DepositTermsApprover & PrePeginChangeSource>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Spreadable forward of the approval capability for wallet-wrapper objects.
 Object spread drops prototype methods, so every `{...wallet}` wrapper site
 must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
 
@@ -832,7 +939,7 @@ must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
 
 #### Returns
 
-`Partial`\<[`DepositTermsApprover`](#deposittermsapprover)\>
+`Partial`\<[`DepositTermsApprover`](#deposittermsapprover) & [`PrePeginChangeSource`](#prepeginchangesource)\>
 
 ***
 
@@ -874,10 +981,14 @@ Run the derive → approve ceremony (or a no-op) before a Pre-PegIn signature.
 - Approval-capable wallets: require terms, assert they match this tx's txid,
   derive the vault root over the tx's funding outpoints, then approve.
 
-Always derives first: the host cannot read device state, a one-shot cap means
-every retry needs the full ceremony, and whether interleaved signing
-nullifies a loaded intent is unresolved — so the broadcast path never
-approves-only.
+Skip fast-path: when `holdsApprovedDepositTerms` reports the byte-equal
+intent still live, the ceremony is skipped — it survives everything the
+flow does in between (PoP/PegIn signing spend separate device state;
+app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
+closed at the signature; the retry then re-runs the full ceremony.
+
+Otherwise always derives first — the host cannot read device state, so
+this path never approves-only.
 
 #### Parameters
 

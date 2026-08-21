@@ -114,4 +114,22 @@ describe("verifyBip322Simple — end-to-end via encodeServerIdentityPayload", ()
 
     expect(verifyBip322Simple(payload, signingKey, signature)).toBe(true);
   });
+
+  it("refuses sighash types a BIP-322 witness may not carry", () => {
+    // SIGHASH_NONE/SINGLE and the ANYONECANPAY variants are rejected
+    // downstream, so verifying them here would report a false positive.
+    const payload = encodeServerIdentityPayload(
+      new TextEncoder().encode("btc-auth.server-identity.v1"),
+      fromHex(GOLDEN_EPHEMERAL_PUBKEY_COMPRESSED),
+      GOLDEN_EXPIRES_AT,
+    );
+    const signingKey = fromHex(GOLDEN_SIGNING_KEY_XONLY);
+    const signature = fromHex(GOLDEN_SIGNATURE_HEX);
+
+    for (const hashType of [0x02, 0x03, 0x81, 0x82, 0x83]) {
+      expect(verifyBip322Simple(payload, signingKey, signature, hashType)).toBe(
+        false,
+      );
+    }
+  });
 });

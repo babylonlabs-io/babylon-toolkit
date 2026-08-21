@@ -11,11 +11,13 @@
  */
 
 import {
-  type Network,
+  getAssertPayoutScriptInfo,
   tapInternalPubkey,
+  type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction, type TxInput, type TxOutput } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+import { deriveLocalChallengers } from "../challengers";
 import { createPayoutScript } from "../scripts/payout";
 import {
   TAPSCRIPT_LEAF_VERSION,
@@ -25,6 +27,7 @@ import {
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
+import { computeTaprootScriptPubKey } from "../utils/taproot";
 import {
   assertPayoutFeeBandDomain,
   assertPayoutFeeInBand,
@@ -152,13 +155,21 @@ export interface PayoutParams {
   protocolFeeRate: bigint;
 
   /**
-   * Security council member count from the locked offchain params version.
-   * Mirrors the upstream estimator's signature; at the current model pins the
-   * council occupies a single taptree leaf regardless of size, so the floor
-   * is council-size-invariant — passed for forward compatibility with future
-   * pinned models.
+   * Security council member x-only public keys (hex) from the locked offchain
+   * params version — `getOffchainParamsByVersion(...).securityCouncilKeys`.
+   * The council occupies the last leaf of the Assert:0 taptree
+   * (btc-vault `crates/vault/src/connectors/assert_payout_nopayout_council.rs`),
+   * so the keys are needed to rebuild input 1's payout leaf, and the count
+   * feeds the fee-band domain.
    */
-  councilSize: number;
+  councilMembers: string[];
+
+  /**
+   * M-of-N council quorum from the locked offchain params version —
+   * `getOffchainParamsByVersion(...).councilQuorum`. Shapes the council leaf's
+   * multisig script, and with it the Assert:0 taptree root.
+   */
+  councilQuorum: number;
 
   /**
    * RFC-006. Expected `outs[0].script` per vault-keeper claimer, keyed by
@@ -209,6 +220,9 @@ export interface PayoutPsbtResult {
  * - Input 0: from PeginTx output0 (signed by depositor)
  * - Input 1: from Assert output0 (NOT signed by depositor)
  *
+ * Both inputs carry their taproot script-path leaf. Input 1's is not signed
+ * here — it is what a hardware signer reads to display the payout terms.
+ *
  * @param params - Payout parameters
  * @returns Unsigned PSBT ready for depositor to sign
  *
@@ -220,7 +234,7 @@ export interface PayoutPsbtResult {
  * @throws If the implicit fee (inputs − outputs) is outside the fee band —
  *   below the floor or above the fee-band ceiling (see
  *   {@link assertPayoutFeeInBand})
- * @throws If `protocolFeeRate`, a participant count, or `councilSize` is
+ * @throws If `protocolFeeRate`, a participant count, or the council size is
  *   outside the accepted input domain (see {@link assertPayoutFeeBandDomain})
  * @throws If a non-anchor scriptPubKey length is outside `[1,
  *   {@link MAX_PAYOUT_SCRIPT_LEN}]`
@@ -228,6 +242,8 @@ export interface PayoutPsbtResult {
  * @throws If payout output count, outs[0] script, outs[last] anchor value, or
  *   (VP-claimer) outs[1] commission cap do not match the protocol layout
  * @throws If `commissionBps` is not a non-negative integer below 10_000
+ * @throws If the locally rebuilt Assert:0 payout leaf does not bind to the
+ *   Assert output input 1 spends
  */
 export async function buildPayoutPsbt(
   params: PayoutParams,
@@ -236,7 +252,7 @@ export async function buildPayoutPsbt(
     vaultCoreVersion: params.vaultCoreVersion,
     numVaultKeepers: params.vaultKeeperBtcPubkeys.length,
     numUniversalChallengers: params.universalChallengerBtcPubkeys.length,
-    councilSize: params.councilSize,
+    councilSize: params.councilMembers.length,
     protocolFeeRate: params.protocolFeeRate,
   };
   assertPayoutFeeBandDomain(feeBandParams);
@@ -297,7 +313,7 @@ export async function buildPayoutPsbt(
   // Assert:0's value is deliberately NOT validated: the taproot sighash
   // commits to input 1's amount and outpoint, so a misstated value yields a
   // signature invalid against the real Assert tx — nothing to protect. (The
-  // device's ==546 pin here is the known-buggy firmware behavior, Q15.)
+  // device pins the band [546, 546 + base_fee_rate*500] here, Q15.)
 
   // Per-role output validation — blocks an extra attacker output or value
   // routed into a non-payout slot. Returns the layout-trusted script lengths
@@ -324,7 +340,7 @@ export async function buildPayoutPsbt(
     out1Len,
   });
 
-  // Only assembly needs the WASM-derived script — derive it after the
+  // Only assembly needs the WASM-derived scripts — derive them after the
   // transaction has passed every validation gate.
   const payoutConnector = await createPayoutScript({
     vaultCoreVersion: params.vaultCoreVersion,
@@ -336,14 +352,78 @@ export async function buildPayoutPsbt(
     network: params.network,
   });
 
+  const assertPayoutLeaf = await resolveAssertPayoutLeaf(params, assertPrevOut);
+
   return {
     psbtHex: assemblePayoutPsbt(
       payoutTx,
       peginPrevOut,
       assertPrevOut,
       payoutConnector,
+      assertPayoutLeaf,
     ),
   };
+}
+
+/** The Assert:0 payout tapscript leaf, as attached to payout input 1. */
+interface AssertPayoutLeaf {
+  script: Uint8Array;
+  controlBlock: Uint8Array;
+}
+
+/**
+ * Rebuild the Assert:0 payout leaf from the vault's on-chain participant set
+ * and assert it spends `assertPrevOut`.
+ *
+ * The depositor does not sign input 1, but the Ledger vault app reads this leaf
+ * off the PSBT to display the payout terms
+ * (`sign_psbt_validate.c::vault_read_payout_leaf_script`), so a leaf that
+ * belonged to a different taptree would show the depositor terms the
+ * transaction cannot actually enforce. Critical Path #3: derive, then bind to
+ * the real previous output — never forward VP-supplied bytes.
+ *
+ * @internal Helper invoked by {@link buildPayoutPsbt}.
+ */
+async function resolveAssertPayoutLeaf(
+  params: PayoutParams,
+  assertPrevOut: TxOutput,
+): Promise<AssertPayoutLeaf> {
+  const { payoutScript, payoutControlBlock } = await getAssertPayoutScriptInfo({
+    txGraphVersion: params.vaultCoreVersion,
+    claimer: stripHexPrefix(params.claimerBtcPubkey).toLowerCase(),
+    localChallengers: deriveLocalChallengers({
+      claimerBtcPubkey: params.claimerBtcPubkey,
+      depositorBtcPubkey: params.depositorBtcPubkey,
+      vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+    }),
+    universalChallengers: params.universalChallengerBtcPubkeys.map((k) =>
+      stripHexPrefix(k).toLowerCase(),
+    ),
+    timelockAssert: params.timelockAssert,
+    councilMembers: params.councilMembers.map((k) =>
+      stripHexPrefix(k).toLowerCase(),
+    ),
+    councilQuorum: params.councilQuorum,
+  });
+
+  const script = hexToUint8Array(payoutScript);
+  const controlBlock = hexToUint8Array(payoutControlBlock);
+  const boundScriptPubKey = computeTaprootScriptPubKey({
+    leafVersion: TAPSCRIPT_LEAF_VERSION,
+    script,
+    controlBlock,
+  });
+  if (!assertPrevOut.script.equals(boundScriptPubKey)) {
+    throw new Error(
+      `Rebuilt Assert:0 payout leaf does not spend the Assert output being ` +
+        `referenced: leaf binds to ${boundScriptPubKey.toString("hex")}, ` +
+        `Assert:${ASSERT_PAYOUT_OUTPUT_INDEX} pays ` +
+        `${assertPrevOut.script.toString("hex")}; refusing to sign payout.`,
+    );
+  }
+
+  return { script, controlBlock };
 }
 
 /**
@@ -395,6 +475,7 @@ function assemblePayoutPsbt(
   peginPrevOut: TxOutput,
   assertPrevOut: TxOutput,
   payoutConnector: { payoutScript: string; payoutControlBlock: string },
+  assertPayoutLeaf: AssertPayoutLeaf,
 ): string {
   const psbt = new Psbt();
   psbt.setVersion(payoutTx.version);
@@ -424,8 +505,8 @@ function assemblePayoutPsbt(
     // sighashType omitted - defaults to SIGHASH_DEFAULT (0x00) for Taproot
   });
 
-  // Input 1: from Assert — witnessUtxo only (in sighash, not signed by the
-  // depositor), so no tapLeafScript.
+  // Input 1: from Assert — not signed by the depositor, but the Ledger vault
+  // app reads the payout leaf here to display the terms, so it must be present.
   psbt.addInput({
     hash: input1.hash,
     index: input1.index,
@@ -434,6 +515,14 @@ function assemblePayoutPsbt(
       script: assertPrevOut.script,
       value: assertPrevOut.value,
     },
+    tapLeafScript: [
+      {
+        leafVersion: TAPSCRIPT_LEAF_VERSION,
+        script: Buffer.from(assertPayoutLeaf.script),
+        controlBlock: Buffer.from(assertPayoutLeaf.controlBlock),
+      },
+    ],
+    tapInternalKey: Buffer.from(tapInternalPubkey),
   });
 
   for (const output of payoutTx.outs) {

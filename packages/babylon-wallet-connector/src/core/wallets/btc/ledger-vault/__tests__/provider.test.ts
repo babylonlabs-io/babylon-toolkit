@@ -1,9 +1,9 @@
 /**
  * Provider-level tests. The DMK layers are mocked; what matters here is the
  * orchestration contract — that the envelope gate runs before any device I/O,
- * that the derive → approve state machine matches the device's, that unwired
- * methods fail with a typed capability error rather than a silent wrong
- * result, and that the intent carries the right byte order.
+ * that the derive → approve state machine matches the device's, that
+ * unsupported requests fail with a typed capability error rather than a silent
+ * wrong result, and that the intent carries the right byte order.
  */
 
 // @vitest-environment node
@@ -19,15 +19,26 @@ import {
   LedgerSignPsbtProtocolError,
   LedgerUserRefusedError,
 } from "@babylonlabs-io/ledger-vault-signer";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Network } from "@/core/types";
-import { getTaprootAddress } from "@/core/utils/wallet";
+import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
 /** BIP-86 first-address vector: x-only key and its published P2TR address. */
 const VECTOR_XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
 const VECTOR_MAINNET_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
+/**
+ * The device's depositor key — the `0/0` child of {@link ACCOUNT_XPUB}. The
+ * provider cross-checks the two reads against each other, so a key unrelated
+ * to the xpub would (correctly) be rejected as an inconsistent device.
+ */
+const DEVICE_XONLY = "dc8d2f9eff0c4f4dbde070a48e330efc908b62a766568d91e658f284b324b878";
+/** The `m/86'/1'/0'` account xpub the device reports (testnet versions). */
+const ACCOUNT_XPUB =
+  "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U";
 
 const h = vi.hoisted(() => ({
   session: { dmk: {}, sessionId: "s1", appName: "Babylon Vault", appVersion: "0.9.5" },
@@ -42,7 +53,9 @@ const dmkSessionMock = vi.hoisted(() => ({
 }));
 
 const derivationMock = vi.hoisted(() => ({
-  getXOnlyPublicKeyHex: vi.fn(async () => VECTOR_XONLY),
+  getXOnlyPublicKeyHex: vi.fn(async () => DEVICE_XONLY),
+  getMasterFingerprintHex: vi.fn(async () => "73c5da0a"),
+  getExtendedPublicKey: vi.fn(async () => ACCOUNT_XPUB),
 }));
 
 // The SIGN_PSBT core is the signer package's own tested surface; here it is
@@ -102,11 +115,12 @@ const approveApdus = () => h.sent.filter((a) => a.ins === INS_APPROVE_VAULT_INTE
  * signer's discriminant so a rename breaks this file's compile), the request
  * identity, and the merge source the device mock echoes back.
  */
-function fakePrepared(psbtHex: string, kind: InputSigExpectation["kind"] = "tapscript", unsignedTxid?: string) {
-  const expectation =
-    kind === "tapscript"
-      ? { kind, expectedLeafHashHexes: new Set(["ef".repeat(32)]), expectedSignerXOnlyHex: "ab".repeat(32) }
-      : { kind, expectedOutputKeyHex: "cd".repeat(32) };
+function fakePrepared(psbtHex: string, unsignedTxid?: string) {
+  const expectation: InputSigExpectation = {
+    kind: "tapscript",
+    expectedLeafHashHexes: new Set(["ef".repeat(32)]),
+    expectedSignerXOnlyHex: "ab".repeat(32),
+  };
   return {
     originalPsbtHex: psbtHex,
     // Case-insensitive like the real txid (decoded bytes, not hex casing).
@@ -115,10 +129,23 @@ function fakePrepared(psbtHex: string, kind: InputSigExpectation["kind"] = "taps
   };
 }
 
+/** The unmocked signer package — these tests drive its real prepare/derive paths. */
+function actualSigner() {
+  return vi.importActual<typeof import("@babylonlabs-io/ledger-vault-signer")>("@babylonlabs-io/ledger-vault-signer");
+}
+
+/** x-only key at `m/86'/1'/0'/1/0` under {@link ACCOUNT_XPUB} — the device's change key. */
+async function changeXOnlyHex(): Promise<string> {
+  const { deriveChangeXOnlyHex } = await actualSigner();
+  return deriveChangeXOnlyHex(ACCOUNT_XPUB, toNetwork(Network.SIGNET).bip32, 0);
+}
+
 beforeEach(() => {
   h.sent.length = 0;
   h.failNext = undefined;
   derivationMock.getXOnlyPublicKeyHex.mockClear();
+  derivationMock.getMasterFingerprintHex.mockClear();
+  derivationMock.getExtendedPublicKey.mockClear();
   dmkSessionMock.connectDmkSession.mockReset();
   dmkSessionMock.connectDmkSession.mockResolvedValue(h.session);
   dmkSessionMock.isSessionAlive.mockReset();
@@ -151,14 +178,17 @@ describe("LedgerVaultProvider", () => {
 
     const [address, pubkey] = await Promise.all([provider.getAddress(), provider.getPublicKeyHex()]);
 
-    expect(pubkey).toBe(VECTOR_XONLY);
+    expect(pubkey).toBe(DEVICE_XONLY);
     // The address is never read from the device — it is derived locally from
     // the pubkey, so it must equal the util's derivation for the same network.
-    expect(address).toBe(getTaprootAddress(VECTOR_XONLY, Network.SIGNET));
+    expect(address).toBe(getTaprootAddress(DEVICE_XONLY, Network.SIGNET));
     expect(derivationMock.getXOnlyPublicKeyHex).toHaveBeenCalledTimes(1);
   });
 
   it("derives the published BIP-86 vector address on mainnet", async () => {
+    // Pins getTaprootAddress against the BIP-86 published vector, so this one
+    // reads the vector key rather than the fixture device's own.
+    derivationMock.getXOnlyPublicKeyHex.mockResolvedValueOnce(VECTOR_XONLY);
     const provider = new LedgerVaultProvider(Network.MAINNET);
     await provider.connectWallet();
 
@@ -170,7 +200,7 @@ describe("LedgerVaultProvider", () => {
     derivationMock.getXOnlyPublicKeyHex.mockRejectedValueOnce(new Error("device unplugged"));
 
     await expect(provider.getPublicKeyHex()).rejects.toThrow("device unplugged");
-    await expect(provider.getPublicKeyHex()).resolves.toBe(VECTOR_XONLY);
+    await expect(provider.getPublicKeyHex()).resolves.toBe(DEVICE_XONLY);
   });
 
   it("refuses device reads before connecting", async () => {
@@ -279,11 +309,146 @@ describe("LedgerVaultProvider", () => {
     expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(2);
   });
 
-  it("fails signMessage with a capability error rather than a wrong result", async () => {
-    const provider = await connected();
+  describe("signMessage (BIP-322 PoP)", () => {
+    const POP_MESSAGE =
+      "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678";
+    const SIG = "ab".repeat(64);
 
-    await expect(provider.signMessage("m", "bip322-simple")).rejects.toMatchObject({
-      code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+    beforeEach(() => {
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({
+        signedPsbtHex: "unused",
+        yields: [
+          {
+            kind: "taproot-keypath",
+            inputIndex: 0,
+            outputKeyHex: "00".repeat(32),
+            signature: Buffer.from(SIG, "hex"),
+          },
+        ],
+      }));
+    });
+
+    it("signs a PoP under the default tr(@0/**) policy and returns the 66-byte witness as 0x-hex", async () => {
+      const p = await connected();
+
+      const out = await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      expect(out).toBe(`0x0140${SIG}`);
+      // Policy built from the device reads, with the account path (3 levels) and the testnet versions.
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(1);
+      expect(derivationMock.getExtendedPublicKey).toHaveBeenCalledTimes(1);
+      expect(derivationMock.getExtendedPublicKey).toHaveBeenCalledWith(
+        expect.anything(),
+        [86 + 0x80000000, 1 + 0x80000000, 0 + 0x80000000],
+        toNetwork(Network.SIGNET).bip32,
+      );
+      const prepareArgs = signMock.prepareSignPsbt.mock.calls[0][0];
+      expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      expect(prepareArgs.depositorXOnlyHex).toBe(DEVICE_XONLY);
+      // The PSBT handed to prepare is a PoP PSBT (version 0, message in the proprietary key).
+      expect(prepareArgs.psbtHex).toMatch(/^70736274ff/);
+      expect(Buffer.from(prepareArgs.psbtHex, "hex").toString("latin1")).toContain(POP_MESSAGE);
+    });
+
+    it("does not require an approved intent (PoP is state-independent on the device)", async () => {
+      const p = await connected(); // connected, NO deriveContextHash/approveDepositTerms
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).resolves.toMatch(/^0x0140/);
+    });
+
+    it("caches the wallet policy per connection and drops it on teardown", async () => {
+      const p = await connected();
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(1);
+
+      await p.disconnect();
+      await p.connectWallet();
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects ecdsa with WALLET_METHOD_NOT_SUPPORTED without touching the device", async () => {
+      const p = await connected();
+
+      await expect(p.signMessage(POP_MESSAGE, "ecdsa")).rejects.toMatchObject({
+        code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+      });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+    });
+
+    it("fails when the device returns no key-path yield (the no-policy silent-success shape)", async () => {
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "unused", yields: [] }));
+      const p = await connected();
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toThrow(/no key-path signature/);
+    });
+
+    it("leaves the intent mirror and signed-fingerprint set untouched", async () => {
+      const p = await connected();
+      await p.deriveContextHash("app", "aa".repeat(32));
+      await p.approveDepositTerms(TERMS);
+
+      await p.signMessage(POP_MESSAGE, "bip322-simple");
+
+      // A tapscript signPsbt after PoP must still pass the intent gate and sign.
+      // `prepareSignPsbt`/`signPreparedVaultPsbt` are mocked in this file, so restore the
+      // file's default signing stub for this call.
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+        signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+        yields: [],
+      }));
+      await expect(p.signPsbt("70736274ff00", { autoFinalized: false })).resolves.toBe("signed:70736274ff00");
+    });
+
+    it("disconnect aborts the in-flight PoP and surfaces it as a disconnection", async () => {
+      const p = await connected();
+      // Hang until teardown's abort fires, exactly like the signPsbt loop does.
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(
+        (_send, _prepared, opts: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts.signal.addEventListener("abort", () => reject(new LedgerSignPsbtAbortedError(0, true)));
+          }),
+      );
+      const inFlight = p.signMessage(POP_MESSAGE, "bip322-simple");
+      inFlight.catch(() => {});
+      await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1));
+
+      await p.disconnect();
+
+      // Not UNKNOWN_ERROR: #2110's UX routes cancellation on this code.
+      await expect(inFlight).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+
+    it("a failed PoP leaves the approved intent and the replay guard untouched", async () => {
+      const p = await connected();
+      await p.deriveContextHash("app", "aa".repeat(32));
+      await p.approveDepositTerms(TERMS);
+      await p.signPsbt("70736274ff00", { autoFinalized: false });
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(
+        new LedgerDeviceError(0x6f42, "The device rejected the request"),
+      );
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toThrow(/signMessage/);
+
+      // The device never invalidates its vault context on a PoP, so the mirror
+      // must survive — and the earlier signature must still be fingerprinted.
+      await expect(p.signPsbt("70736274ff00", { autoFinalized: false })).rejects.toThrow(/already signed/);
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+        signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+        yields: [],
+      }));
+      await expect(p.signPsbt("70736274ff11", { autoFinalized: false })).resolves.toBe("signed:70736274ff11");
+    });
+
+    it("refuses before connecting", async () => {
+      const p = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toMatchObject({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+      });
     });
   });
 
@@ -351,16 +516,160 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
-    it("rejects a keypath table actionably — Pre-PegIn/PoP need the wallet-policy path", async () => {
-      const provider = await approved();
-      signMock.prepareSignPsbt.mockImplementationOnce(({ psbtHex }: { psbtHex: string }) =>
-        fakePrepared(psbtHex, "taproot-keypath"),
+    /** BIP-86 P2TR script of an x-only key. */
+    function bip86Script(xOnlyHex: string): Buffer {
+      initEccLib(ecc);
+      return payments.p2tr({ internalPubkey: Buffer.from(xOnlyHex, "hex") }).output!;
+    }
+
+    /** An HTLC-shaped P2TR output: a raw witness program the wallet does not own. */
+    const HTLC_SCRIPT = Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0xbb)]);
+
+    /**
+     * A real key-path Pre-PegIn-shaped PSBT so the REAL `prepareSignPsbt` (not
+     * mocked in these tests) classifies it as taproot-keypath: every input is
+     * the depositor's BIP-86 P2TR.
+     */
+    function keyPathPsbtHex(outputScripts: Buffer[], inputCount = 1): string {
+      const depositorKey = Buffer.from(DEVICE_XONLY, "hex");
+      const psbt = new Psbt();
+      for (let i = 0; i < inputCount; i++) {
+        psbt.addInput({
+          hash: Buffer.alloc(32, i + 1),
+          index: 0,
+          witnessUtxo: { script: bip86Script(DEVICE_XONLY), value: 100_000 },
+          tapInternalKey: depositorKey,
+        });
+      }
+      for (const script of outputScripts) psbt.addOutput({ script, value: 90_000 });
+      return psbt.toHex();
+    }
+
+    it("routes an all-key-path PSBT through wallet-policy mode with derivation fields added", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-keypath", yields: [] }));
+      const p = await approved();
+      const changeXOnly = await changeXOnlyHex();
+
+      await expect(
+        p.signPsbt(keyPathPsbtHex([HTLC_SCRIPT, bip86Script(changeXOnly)]), { autoFinalized: false }),
+      ).resolves.toBe("signed-keypath");
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
+      expect(Buffer.from(augmented.data.inputs[0].tapBip32Derivation![0].masterFingerprint).toString("hex")).toBe(
+        "73c5da0a",
+      );
+      // The change output carries the branch-1 derivation the device needs to
+      // mark it internal — without it `_validate_prepegin` rejects the output.
+      expect(augmented.data.outputs[1].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/1/0");
+      expect(Buffer.from(augmented.data.outputs[1].tapInternalKey!).toString("hex")).toBe(changeXOnly);
+      // The HTLC output is not ours — marking it internal would fail on-device.
+      expect(augmented.data.outputs[0].tapBip32Derivation).toBeUndefined();
+    });
+
+    it("adds no output derivation when the PSBT pays the wallet no change", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-keypath", yields: [] }));
+      const p = await approved();
+
+      await expect(p.signPsbt(keyPathPsbtHex([bip86Script("aa".repeat(32))]), { autoFinalized: false })).resolves.toBe(
+        "signed-keypath",
       );
 
-      await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/wallet-policy path/);
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
+      expect(augmented.data.outputs.every((out) => !out.tapBip32Derivation)).toBe(true);
+    });
+
+    it("signs a change-less Max sweep — every depositor input marked, no change output", async () => {
+      // computeMaxDeposit emits no change (`peginFeeMath.ts:162-165`), and
+      // dust-revert drops it too; the firmware accepts zero change.
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-sweep", yields: [] }));
+      const p = await approved();
+
+      await expect(p.signPsbt(keyPathPsbtHex([HTLC_SCRIPT], 2), { autoFinalized: false })).resolves.toBe(
+        "signed-sweep",
+      );
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs.map((input) => input.tapBip32Derivation?.[0].path)).toEqual([
+        "m/86'/1'/0'/0/0",
+        "m/86'/1'/0'/0/0",
+      ]);
+      expect(augmented.data.outputs[0].tapBip32Derivation).toBeUndefined();
+    });
+
+    it("surfaces a disconnect during the policy read as a disconnection, not a bad PSBT", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await approved();
+      const psbtHex = keyPathPsbtHex([bip86Script(await changeXOnlyHex())]);
+      derivationMock.getExtendedPublicKey.mockImplementationOnce(async () => {
+        await p.disconnect();
+        return ACCOUNT_XPUB;
+      });
+
+      await expect(p.signPsbt(psbtHex, { autoFinalized: false })).rejects.toMatchObject({
+        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+      });
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
-      // The rejection cost no ceremony: the intent still signs.
-      await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+
+    it("keeps tapscript PSBTs on the no-policy path (walletPolicy undefined)", async () => {
+      const p = await approved();
+
+      await p.signPsbt(PSBT_A, { autoFinalized: false });
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.walletPolicy).toBeUndefined();
+    });
+
+    it("rejects a PSBT mixing key-path and tapscript inputs before any device I/O", async () => {
+      signMock.prepareSignPsbt.mockImplementation(({ psbtHex }: { psbtHex: string }) => ({
+        ...fakePrepared(psbtHex),
+        table: {
+          byInput: new Map([
+            [0, { kind: "taproot-keypath", expectedOutputKeyHex: "00".repeat(32) }],
+            [
+              1,
+              {
+                kind: "tapscript",
+                expectedLeafHashHexes: new Set(["11".repeat(32)]),
+                expectedSignerXOnlyHex: DEVICE_XONLY,
+              },
+            ],
+          ]),
+          expectedYieldCount: 2,
+        },
+      }));
+      const p = await approved();
+
+      await expect(p.signPsbt(PSBT_A, { autoFinalized: false })).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("still requires an approved intent for key-path PSBTs", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await connected(); // no intent
+
+      await expect(
+        p.signPsbt(keyPathPsbtHex([bip86Script(await changeXOnlyHex())]), { autoFinalized: false }),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/holds no approved intent/),
+      });
     });
 
     it("a prepare-time rejection leaves the mirror and the intent untouched", async () => {
@@ -466,7 +775,7 @@ describe("LedgerVaultProvider", () => {
       await provider.signPsbt(PSBT_A);
       // Different wire bytes, same unsigned tx and expectations (an extra
       // unknown global, say) — identity keying catches what byte-hashing missed.
-      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(PSBT_B, "tapscript", `txid-${PSBT_A}`));
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(PSBT_B, `txid-${PSBT_A}`));
 
       await expect(provider.signPsbt(PSBT_B)).rejects.toThrow(/already signed/);
       expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
@@ -628,6 +937,57 @@ describe("LedgerVaultProvider", () => {
     });
   });
 
+  describe("getChangeAddress", () => {
+    it("returns the P2TR address of m/86'/coin'/0'/1/0 derived from the device's account xpub", async () => {
+      const p = await connected();
+
+      await expect(p.getChangeAddress()).resolves.toBe(getTaprootAddress(await changeXOnlyHex(), Network.SIGNET));
+      expect(derivationMock.getMasterFingerprintHex).toHaveBeenCalledTimes(1); // shares the PolicyContext cache
+    });
+
+    it("refuses before connecting", async () => {
+      const p = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(p.getChangeAddress()).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+
+    it("refuses a device whose account xpub does not derive the depositor key", async () => {
+      // Two independent reads. If they disagree the wallet policy would bind a
+      // different key than the intent, and the device would answer an opaque
+      // 0x6A80 only after the user had approved.
+      const p = await connected();
+      // try/finally, not a trailing restore: beforeEach only mockClear()s, so a
+      // failed assertion would leak this key into every later test.
+      derivationMock.getXOnlyPublicKeyHex.mockResolvedValue(VECTOR_XONLY);
+      try {
+        await expect(p.getChangeAddress()).rejects.toMatchObject({
+          code: ERROR_CODES.CONNECTION_FAILED,
+        });
+      } finally {
+        derivationMock.getXOnlyPublicKeyHex.mockResolvedValue(DEVICE_XONLY);
+      }
+    });
+
+    it("refuses an xpub read that resolved after a disconnect", async () => {
+      // Returning the previous device's address would route Pre-PegIn change
+      // to a key the reconnected wallet cannot spend.
+      const p = await connected();
+      let releaseXpub: (xpub: string) => void = () => {};
+      derivationMock.getExtendedPublicKey.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseXpub = resolve;
+          }),
+      );
+
+      const pending = p.getChangeAddress();
+      await p.disconnect();
+      releaseXpub(ACCOUNT_XPUB);
+
+      await expect(pending).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+  });
+
   it("runs the envelope gate before any device I/O", async () => {
     // A v1 intent loads fine on-device and only fails at PSBT time — after the
     // depositor has physically approved. Nothing may reach the device.
@@ -695,14 +1055,14 @@ describe("LedgerVaultProvider", () => {
   });
 
   it("rejects terms whose roster reuses the depositor's own key before the ceremony", async () => {
-    // VECTOR_XONLY is the device pubkey; the firmware rejects this only after
+    // DEVICE_XONLY is the device pubkey; the firmware rejects this only after
     // the whole ceremony, so the provider pre-empts it as a shaped error before
     // any approval APDU (approveApdus is empty).
     const provider = await derived();
     h.sent.length = 0;
 
     await expect(
-      provider.approveDepositTerms({ ...TERMS, vaultKeeperBtcPubkeys: [VECTOR_XONLY] }),
+      provider.approveDepositTerms({ ...TERMS, vaultKeeperBtcPubkeys: [DEVICE_XONLY] }),
     ).rejects.toMatchObject({ name: "DepositTermsRejectedError", reason: "device-envelope" });
     expect(approveApdus()).toHaveLength(0);
   });
@@ -721,6 +1081,141 @@ describe("LedgerVaultProvider", () => {
     await provider.disconnect();
 
     await expect(provider.getAddress()).rejects.toThrow(/not connected/);
+  });
+
+  describe("holdsApprovedDepositTerms", () => {
+    it("is false before any approval and true after approving the byte-equal terms", async () => {
+      const provider = await derived();
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+
+      await provider.approveDepositTerms(TERMS);
+      h.sent.length = 0;
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      // Mirror read only — the probe must not touch the device.
+      expect(h.sent).toHaveLength(0);
+    });
+
+    it("is false for terms that differ from the approved intent", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(
+        provider.holdsApprovedDepositTerms({
+          ...TERMS,
+          vaults: [{ ...TERMS.vaults[0], peginAmount: TERMS.vaults[0].peginAmount + 1n }],
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("is false after a later derive wipes the loaded intent", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.deriveContextHash("app", "bb".repeat(32));
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("returns false instead of throwing for unencodable terms", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(provider.holdsApprovedDepositTerms({ ...TERMS, prepeginTxid: "nothex" })).resolves.toBe(false);
+    });
+
+    it("is false after disconnect tears the mirror down", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.disconnect();
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("is false for terms differing only in vaultCoreVersion", async () => {
+      // vaultCoreVersion is envelope-gated but never reaches the intent wire
+      // bytes, so a fingerprint over the wire alone would compare equal here.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(
+        provider.holdsApprovedDepositTerms({ ...TERMS, vaultCoreVersion: TERMS.vaultCoreVersion + 1 }),
+      ).resolves.toBe(false);
+    });
+
+    it("is false once the terms' Pre-PegIn was signed, so a broadcast retry re-ceremonies", async () => {
+      // A true here would trap the retry in the replay throw forever.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      const psbt = "aa".repeat(40);
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(psbt, TERMS.prepeginTxid));
+      await provider.signPsbt(psbt);
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("stays true after signing a different tx (the PegIn PSBTs preparePegin signs)", async () => {
+      // PegIn signatures spend a separate device counter — must not kill the fast path.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.signPsbt("aa".repeat(40));
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("is false after a sign failure drops the mirror", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0xb007, "SW_BAD_STATE"));
+      await expect(provider.signPsbt("aa".repeat(40))).rejects.toThrow(/no longer holds the approved intent/);
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("stays true across a PoP signature — the intended fast path", async () => {
+      // PoP is state-independent on-device; it must not consume the probe.
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async () => ({
+        signedPsbtHex: "unused",
+        yields: [
+          {
+            kind: "taproot-keypath",
+            inputIndex: 0,
+            outputKeyHex: "00".repeat(32),
+            signature: Buffer.from("ab".repeat(64), "hex"),
+          },
+        ],
+      }));
+      await provider.signMessage(
+        "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
+        "bip322-simple",
+      );
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("stays true through the full fresh-flow sequence: approve, batch PegIn signs, PoP", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      await provider.signPsbts(["aa".repeat(40), "bb".repeat(40)]);
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async () => ({
+        signedPsbtHex: "unused",
+        yields: [
+          {
+            kind: "taproot-keypath",
+            inputIndex: 0,
+            outputKeyHex: "00".repeat(32),
+            signature: Buffer.from("ab".repeat(64), "hex"),
+          },
+        ],
+      }));
+      await provider.signMessage(
+        "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
+        "bip322-simple",
+      );
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
   });
 
   it("reports a dismissed device picker as a user rejection", async () => {

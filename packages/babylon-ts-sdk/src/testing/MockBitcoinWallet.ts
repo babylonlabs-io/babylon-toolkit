@@ -1,7 +1,10 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { Buffer } from "buffer";
 
-import { BitcoinNetworks, type BitcoinNetwork } from "../shared/wallets/interfaces";
+import {
+  BitcoinNetworks,
+  type BitcoinNetwork,
+} from "../shared/wallets/interfaces";
 import type {
   BitcoinWallet,
   SignPsbtOptions,
@@ -50,6 +53,16 @@ const defaultDeriveContextHash = async (
   return uint8ArrayToHex(sha256(buf));
 };
 
+/**
+ * Shape of the mock BIP-322 witness: `varint(2) ‖ varint(71) ‖ DER sig ‖
+ * varint(33) ‖ compressed pubkey` — the P2WPKH form, with the DER signature
+ * at its maximum encoded length.
+ */
+const MOCK_WITNESS_ITEM_COUNT = 2;
+const MOCK_WITNESS_DER_SIG_BYTES = 71;
+const MOCK_WITNESS_PUBKEY_BYTES = 33;
+const COMPRESSED_PUBKEY_EVEN_PREFIX = 0x02;
+
 const DEFAULT_CONFIG: Required<MockBitcoinWalletConfig> = {
   publicKeyHex:
     "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
@@ -86,10 +99,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return this.config.address;
   }
 
-  async signPsbt(
-    psbtHex: string,
-    _options?: SignPsbtOptions,
-  ): Promise<string> {
+  async signPsbt(psbtHex: string, _options?: SignPsbtOptions): Promise<string> {
     if (this.config.shouldFailSigning) {
       throw new Error("Mock signing failed");
     }
@@ -127,12 +137,35 @@ export class MockBitcoinWallet implements BitcoinWallet {
       throw new Error("Invalid message: empty string");
     }
 
-    // In a real implementation, this would create a proper signature
-    // For the mock, we return a base64-like mock signature
-    const mockSignature = Buffer.from(
-      `mock-signature-${type}-${message}-${this.config.publicKeyHex}`,
-    ).toString("base64");
-    return mockSignature;
+    // The SDK decodes what a wallet returns (`verifyPopWitness`), so the mock
+    // has to emit a structurally valid two-item P2WPKH witness. The bytes are
+    // derived from the inputs so different messages still give different
+    // signatures; they are not a real signature and are never verified.
+    const digest = sha256(
+      new TextEncoder().encode(
+        `mock-signature-${type}-${message}-${this.config.publicKeyHex}`,
+      ),
+    );
+    const derSignature = new Uint8Array(MOCK_WITNESS_DER_SIG_BYTES);
+    for (let i = 0; i < derSignature.length; i++) {
+      derSignature[i] = digest[i % digest.length];
+    }
+    // Witness item 1 must carry the wallet's own key — verifyPopWitness
+    // mirrors vaultd's WitnessPubkeyMismatch check. Length-aware: config may
+    // hold a compressed (66-char) or x-only (64-char) key.
+    const cleanKey = this.config.publicKeyHex.replace(/^0x/, "").toLowerCase();
+    const xOnlyHex = cleanKey.length === 66 ? cleanKey.slice(2) : cleanKey;
+    const xOnlyBytes = Uint8Array.from(Buffer.from(xOnlyHex, "hex"));
+    return `0x${uint8ArrayToHex(
+      Uint8Array.from([
+        MOCK_WITNESS_ITEM_COUNT,
+        MOCK_WITNESS_DER_SIG_BYTES,
+        ...derSignature,
+        MOCK_WITNESS_PUBKEY_BYTES,
+        COMPRESSED_PUBKEY_EVEN_PREFIX,
+        ...xOnlyBytes,
+      ]),
+    )}`;
   }
 
   async getNetwork(): Promise<BitcoinNetwork> {

@@ -78,6 +78,12 @@ vi.mock("../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
   assertScriptPathSchnorrSignature: vi.fn(),
 }));
 
+// Key-path twin of the script-path stub above: real verification lives in
+// primitives/psbt/__tests__/verifyKeyPathSchnorrSignature.test.ts.
+vi.mock("../../primitives/psbt/verifyKeyPathSchnorrSignature", () => ({
+  assertReturnedKeyPathSignatures: vi.fn(),
+}));
+
 // Passthrough observer: records each per-vault PegIn build so the seam test can
 // assert the htlcVout bind-checks run BEFORE deposit-terms approval. The
 // prePeginTamper hook lets one test corrupt the Pre-PegIn result to prove the
@@ -728,6 +734,7 @@ describe("PeginManager", () => {
           approvedTerms = terms;
           peginBuildsAtApproval = peginBuildLog.length;
         },
+        getChangeAddress: async () => TEST_CHANGE_ADDRESS,
       });
 
       const ethWallet = new MockEthereumWallet();
@@ -965,6 +972,11 @@ describe("PeginManager", () => {
   });
 
   describe("signProofOfPossession", () => {
+    // varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B pubkey — the
+    // two-item P2WPKH shape. The embedded pubkey must be the depositor's
+    // (verifyPopWitness mirrors vaultd's WitnessPubkeyMismatch check).
+    const P2WPKH_POP_WITNESS_HEX = `02${"47"}${"11".repeat(71)}${"21"}${"02" + TEST_KEYS.DEPOSITOR}`;
+
     it("returns signature bound to connected ETH and BTC identities", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
@@ -1012,7 +1024,30 @@ describe("PeginManager", () => {
       expect(pop.depositorBtcPubkey).toBe(TEST_KEYS.DEPOSITOR);
     });
 
-    it("passes through hex wallet output unchanged (lowercase)", async () => {
+    it("lowercases 0x-prefixed hex wallet output", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        `0x${P2WPKH_POP_WITNESS_HEX.toUpperCase()}`,
+      );
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const pop = await manager.signProofOfPossession();
+      expect(pop.btcPopSignature).toBe(`0x${P2WPKH_POP_WITNESS_HEX}`);
+    });
+
+    it("rejects wallet output that is not a decodable witness", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -1029,8 +1064,57 @@ describe("PeginManager", () => {
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /proof of possession witness/,
+      );
+    });
+
+    it("throws when the wallet returns a P2TR PoP whose signature does not verify", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      // 0x01 0x40 ‖ 64 zero bytes: structurally valid, signature is not.
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        `0x0140${"00".repeat(64)}`,
+      );
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /proof of possession signature does not verify/,
+      );
+    });
+
+    it("lets a two-item (P2WPKH) PoP witness through", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        `0x${P2WPKH_POP_WITNESS_HEX}`,
+      );
+      const ethWallet = new MockEthereumWallet();
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
       const pop = await manager.signProofOfPossession();
-      expect(pop.btcPopSignature).toBe("0xdeadbeef");
+      expect(pop.btcPopSignature).toBe(`0x${P2WPKH_POP_WITNESS_HEX}`);
     });
 
     it("rejects an empty signature from the wallet", async () => {
@@ -1098,7 +1182,9 @@ describe("PeginManager", () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
-      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce("deadbeef");
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        P2WPKH_POP_WITNESS_HEX,
+      );
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
@@ -1112,7 +1198,7 @@ describe("PeginManager", () => {
       });
 
       const pop = await manager.signProofOfPossession();
-      expect(pop.btcPopSignature).toBe("0xdeadbeef");
+      expect(pop.btcPopSignature).toBe(`0x${P2WPKH_POP_WITNESS_HEX}`);
     });
 
     it("accepts a compressed sec1 pubkey and drops the prefix byte", async () => {
@@ -1229,8 +1315,9 @@ describe("PeginManager", () => {
       // The device froze the commission ceiling from the quote at approval;
       // the chain-current fallback could exceed it, so it is refused.
       const { manager, btcWallet, popSignature } = await makeManagerWithPop();
-      (btcWallet as unknown as Record<string, unknown>).approveDepositTerms =
-        async () => {};
+      const approvalCapable = btcWallet as unknown as Record<string, unknown>;
+      approvalCapable.approveDepositTerms = async () => {};
+      approvalCapable.getChangeAddress = async () => TEST_CHANGE_ADDRESS;
 
       await expect(
         manager.registerPeginOnChain({
@@ -1707,6 +1794,71 @@ describe("PeginManager", () => {
       expect(rebind).toHaveBeenCalledTimes(1);
     });
 
+    it("verifies the returned key-path signatures right after the rebind and aborts before broadcast when they fail", async () => {
+      const { assertPsbtUnsignedTxMatches } = await import(
+        "../../primitives/psbt/assertPsbtUnsignedTxMatches"
+      );
+      const { assertReturnedKeyPathSignatures } = await import(
+        "../../primitives/psbt/verifyKeyPathSchnorrSignature"
+      );
+      const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
+      const verifyKeyPath = vi.mocked(assertReturnedKeyPathSignatures);
+
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      // Return the requested PSBT unchanged so the rebind (stubbed) and the
+      // verifier (stubbed) both see a parseable pair.
+      vi.spyOn(btcWallet, "signPsbt").mockImplementation(
+        async (psbtHex: string) => psbtHex,
+      );
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const prepared = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      const localPrevouts = TEST_UTXOS.reduce<
+        Record<string, { scriptPubKey: string; value: number }>
+      >((acc, u) => {
+        acc[`${u.txid}:${u.vout}`] = {
+          scriptPubKey: u.scriptPubKey,
+          value: u.value,
+        };
+        return acc;
+      }, {});
+
+      rebind.mockClear();
+      verifyKeyPath.mockClear();
+      verifyKeyPath.mockImplementationOnce(() => {
+        throw new Error("key-path signature for input 0 does not verify");
+      });
+
+      await expect(
+        manager.signAndBroadcast({
+          fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
+          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
+          localPrevouts,
+        }),
+      ).rejects.toThrow(/does not verify/);
+
+      expect(rebind).toHaveBeenCalledTimes(1);
+      expect(verifyKeyPath).toHaveBeenCalledTimes(1);
+      const [{ requestedPsbtHex, returnedPsbtHex }] =
+        verifyKeyPath.mock.calls[0];
+      expect(returnedPsbtHex).toBe(requestedPsbtHex); // the spy echoed the request
+    });
+
     it("runs the intent ceremony (derive then approve) before signing for an approval wallet", async () => {
       const { assertPsbtUnsignedTxMatches } = await import(
         "../../primitives/psbt/assertPsbtUnsignedTxMatches"
@@ -1734,9 +1886,12 @@ describe("PeginManager", () => {
       const approveSpy = vi.fn(async () => {
         order.push("approve");
       });
-      (
-        btcWallet as unknown as { approveDepositTerms: typeof approveSpy }
-      ).approveDepositTerms = approveSpy;
+      const approvalCapable = btcWallet as unknown as {
+        approveDepositTerms: typeof approveSpy;
+        getChangeAddress: () => Promise<string>;
+      };
+      approvalCapable.approveDepositTerms = approveSpy;
+      approvalCapable.getChangeAddress = async () => TEST_CHANGE_ADDRESS;
 
       const ethWallet = new MockEthereumWallet();
       const manager = new PeginManager({
@@ -1823,9 +1978,12 @@ describe("PeginManager", () => {
       // preparePegin is itself a re-approval site, so approval must succeed
       // there; the rejection is injected only for the broadcast ceremony below.
       const approveSpy = vi.fn(async () => {});
-      (
-        btcWallet as unknown as { approveDepositTerms: typeof approveSpy }
-      ).approveDepositTerms = approveSpy;
+      const approvalCapable = btcWallet as unknown as {
+        approveDepositTerms: typeof approveSpy;
+        getChangeAddress: () => Promise<string>;
+      };
+      approvalCapable.approveDepositTerms = approveSpy;
+      approvalCapable.getChangeAddress = async () => TEST_CHANGE_ADDRESS;
 
       const ethWallet = new MockEthereumWallet();
       const manager = new PeginManager({
@@ -2307,6 +2465,40 @@ describe("PeginManager", () => {
       ).rejects.toThrow(
         /Pre-PegIn changeAddress .* is not derived from the connected wallet/i,
       );
+    });
+
+    it("preparePegin requires an approval wallet's own change address (its change branch, not the receive key)", async () => {
+      const { manager, btcWallet } = makeManager();
+      // Turn the mock into an approval wallet the same way the signAndBroadcast
+      // ceremony test does: attach the capability methods.
+      const approval = btcWallet as unknown as {
+        approveDepositTerms: (terms: unknown) => Promise<void>;
+        getChangeAddress: () => Promise<string>;
+      };
+      approval.approveDepositTerms = vi.fn(async () => {});
+      const walletChange = deriveTaprootAddress(
+        TEST_KEYS.VAULT_KEEPER_1,
+        "signet",
+      ); // any address ≠ the receive address
+      approval.getChangeAddress = vi.fn(async () => walletChange);
+
+      // The receive-key change address is now WRONG for an approval wallet.
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/is not the approval wallet's change address/);
+
+      // The wallet's own change address passes the gate (and the flow proceeds to sizing).
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+          changeAddress: walletChange,
+        }),
+      ).resolves.toBeDefined();
+      expect(approval.getChangeAddress).toHaveBeenCalled();
     });
 
     it("registerPeginOnChain rejects an explicit payout address not derived from the signing pubkey", async () => {
