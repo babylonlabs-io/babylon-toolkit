@@ -573,7 +573,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   //   - Per-vault minPeginFee (the VP's activation tx budget, reserved
   //     INSIDE each HTLC's value) — computed exactly via the WASM
   //     `computeMinPeginFee(num_vks, num_ucs, minPeginFeeRate)`
-  //   - Per-vault P2A anchor value (v2 graphs only), also reserved inside
+  //   - Per-vault P2A anchor value (v2/v3 graphs only), also reserved inside
   //     each HTLC's value
   //   - Per-batch CPFP anchor output value + safety margin
   //

@@ -80,6 +80,10 @@ const UNISAT_RISK_CONFIRM_WORD = "CONFIRM";
  */
 const UNISAT_RISK_ACK_RX = /understand the risks/i;
 const UNISAT_RISK_CONSENT_RX = /i understand and accept the risks/i;
+/** The modal's consent control when UniSat renders it as a real checkbox. */
+const UNISAT_RISK_CONSENT_CHECKBOX = 'input[type="checkbox"]';
+/** Log label when the ack control's own text can't be read. */
+const UNISAT_RISK_ACK_FALLBACK = "(risk-ack)";
 
 const readLabel = async (
   loc: ReturnType<Page["locator"]>,
@@ -116,7 +120,7 @@ async function acceptUnisatRiskModal(popup: Page): Promise<string | null> {
 
   // The ack stays inert until the consent is ticked. Prefer a real checkbox; UniSat also renders it
   // as a styled div in some builds, where clicking the label text toggles it.
-  const box = popup.locator('input[type="checkbox"]').first();
+  const box = popup.locator(UNISAT_RISK_CONSENT_CHECKBOX).first();
   if (await box.isVisible().catch(() => false)) {
     if (!(await box.isChecked().catch(() => false))) {
       await box
@@ -131,7 +135,7 @@ async function acceptUnisatRiskModal(popup: Page): Promise<string | null> {
       .catch(() => {});
   }
 
-  const name = await readLabel(ack, "(risk-ack)");
+  const name = await readLabel(ack, UNISAT_RISK_ACK_FALLBACK);
   await ack
     .click({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
     .catch(() => {});
