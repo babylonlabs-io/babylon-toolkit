@@ -121,6 +121,15 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("critical-banner")).toBeInTheDocument();
     expect(screen.getByTestId("position-banner")).toBeInTheDocument();
     expect(screen.getByText(COPY.risk.title)).toBeInTheDocument();
+
+    // Figma (10094-26791, 10204-45310): the max-vaults notice and the cascade
+    // banner share the slot below Position, not above it.
+    const overview = screen.getByTestId("overview-section");
+    const maxVaults = screen.getByTestId("max-vaults");
+    expect(
+      overview.compareDocumentPosition(maxVaults) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
 
