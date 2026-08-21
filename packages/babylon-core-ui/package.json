@@ -1,6 +1,6 @@
 {
   "name": "@babylonlabs-io/core-ui",
-  "version": "0.0.0-semantic-release",
+  "version": "1.109.0",
   "type": "module",
   "types": "dist/index.d.ts",
   "publishConfig": {

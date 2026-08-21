@@ -64,12 +64,18 @@ jobs:
       - name: Build all
         run: pnpm exec nx run-many --target=build --all
 
+      - name: Typecheck the release driver
+        run: pnpm exec nx run @internal/release:typecheck
+
       - name: Lint all
         run: pnpm exec nx run-many --target=lint --all
 
       - name: Test all
         run: pnpm exec nx run-many --target=test --all
 
+      # Must stay last for its event: the release resolves `workspace:*` deps to
+      # concrete versions on disk, which makes the specifiers recorded in
+      # pnpm-lock.yaml stale. Any `pnpm install` after this step would fail.
       - name: Release changed packages
         if: github.event_name == 'push'
         run: |
@@ -80,31 +86,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
-      - name: Bump RC version
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          PKG: ${{ inputs.package }}
-          PREID: ${{ inputs.preid }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          pnpm exec nx release version \
-            --projects="$PKG" \
-            --preid="$PREID" \
-            --specifier=prerelease \
-            --git-commit=false \
-            --git-tag=true
-
-      - name: Push RC tag
-        if: github.event_name == 'workflow_dispatch'
-        run: git push --tags
-
-      - name: Publish RC to npm
+      # Uses the same driver as the stable path so release candidates get the
+      # same dependency-pinning and pre-publish checks. The previous `npm
+      # publish` could not resolve the `workspace:` protocol at all, so every
+      # RC shipped a literal `workspace:*` to consumers.
+      - name: Release RC to npm
         if: github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+          RELEASE_PROJECTS: ${{ inputs.package }}
+          RELEASE_SPECIFIER: prerelease
+          RELEASE_PREID: ${{ inputs.preid }}
+          RELEASE_DIST_TAG: next
         run: |
-          PKG_DIR=$(pnpm exec nx show project ${{ inputs.package }} --json | jq -r '.root')
-          cd "$PKG_DIR"
-          npm publish --provenance --access public --tag next
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          pnpm run ci:release
