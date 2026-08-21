@@ -20,12 +20,14 @@
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 
 import {
-  COMPRESSED_PUBKEY_HEX_LEN,
   SCHNORR_SIG_HEX_LEN,
   stripHexPrefix,
-  X_ONLY_PUBKEY_HEX_LEN,
 } from "../../../primitives/utils/bitcoin";
-import { HEX_RE } from "../../../utils/validation";
+import {
+  COMPRESSED_PUBKEY_HEX_LEN,
+  HEX_RE,
+  X_ONLY_PUBKEY_HEX_LEN,
+} from "../../../utils/validation";
 
 import { verifyBip322Simple } from "./bip322Verify";
 import { encodeServerIdentityPayload } from "./cbor";
@@ -104,7 +106,6 @@ function hexToBytes(hex: string): Uint8Array {
   }
   return out;
 }
-
 
 /**
  * Verify a server identity proof against a pinned server pubkey.
@@ -237,7 +238,11 @@ export function verifyServerIdentity(input: VerifyServerIdentityInput): void {
     hexToBytes(eph),
     proof.expires_at,
   );
-  const verified = verifyBip322Simple(payload, hexToBytes(actual), hexToBytes(sig));
+  const verified = verifyBip322Simple(
+    payload,
+    hexToBytes(actual),
+    hexToBytes(sig),
+  );
   if (!verified) {
     throw new ServerIdentityError(
       "BIP-322 signature verification failed — ephemeral key is not attested by pinned server pubkey",

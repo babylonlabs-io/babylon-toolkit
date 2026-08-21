@@ -1644,215 +1644,6 @@ Derive with `deriveVaultId(peginTxHash, depositorAddress)`.
 
 ## Functions
 
-### computeMinClaimValue()
-
-```ts
-function computeMinClaimValue(
-   txGraphVersion, 
-   numLocalChallengers, 
-   numUniversalChallengers, 
-   councilQuorum, 
-   councilSize, 
-feeRate): Promise<bigint>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Compute the minimum depositor claim value (PegIn output 1) in satoshis.
-
-This covers the full downstream tx graph cost (Claim → Assert → Payout)
-based on the protocol parameters.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-##### numLocalChallengers
-
-`number`
-
-##### numUniversalChallengers
-
-`number`
-
-##### councilQuorum
-
-`number`
-
-##### councilSize
-
-`number`
-
-##### feeRate
-
-`bigint`
-
-#### Returns
-
-`Promise`\<`bigint`\>
-
-***
-
-### computeMinPeginFee()
-
-```ts
-function computeMinPeginFee(
-   txGraphVersion, 
-   numVks, 
-   numUcs, 
-minPeginFeeRate): Promise<bigint>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Compute the minimum PegIn (activation) transaction fee in satoshis.
-
-`minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
-the depositor funds in the Pre-PegIn tx must reserve at least this fee
-inside its value (`htlcValue = peginAmount + depositorClaimValue +
-minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
-activation. The vsize comes from a Taproot script-path-spend weight
-prediction whose witness shape depends on the VK + UC signer count.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-##### numVks
-
-`number`
-
-##### numUcs
-
-`number`
-
-##### minPeginFeeRate
-
-`bigint`
-
-#### Returns
-
-`Promise`\<`bigint`\>
-
-***
-
-### peginP2aAnchorOutput()
-
-```ts
-function peginP2aAnchorOutput(txGraphVersion): Promise<PeginP2aAnchorInfo | null>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
-`null` when that version's PegIn carries no anchor (v1). The facade returns
-one record per version — never a zero-valued placeholder — so an absent
-anchor can't be mistaken for a real output. For v2/v3: 240 sats at vout 2,
-script `51024e73`.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-#### Returns
-
-`Promise`\<[`PeginP2aAnchorInfo`](#peginp2aanchorinfo) \| `null`\>
-
-***
-
-### validatePeginP2aAnchor()
-
-```ts
-function validatePeginP2aAnchor(txGraphVersion, txHex): Promise<void>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Validate a PegIn transaction's P2A anchor against a graph version's rules:
-v2 requires the exact anchor (240 sats, vout 2, P2A script) and v1 requires
-that NO output carries the P2A script. Throws on any mismatch — a v2 PegIn
-checked as v1 fails closed, and vice versa.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-##### txHex
-
-`string`
-
-#### Returns
-
-`Promise`\<`void`\>
-
-***
-
-### supportedTxGraphVersions()
-
-```ts
-function supportedTxGraphVersions(): Promise<number[]>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Tx graph versions the shipped vault-wasm binary can build. Callers must
-preflight the required version (fresh: active; resume: stamped) against
-this list and fail closed instead of hitting per-call errors mid-flow.
-
-Note: the facade constructors themselves fail closed on unsupported
-versions, and derived objects carry the version they were built with —
-value-level cross-checks live in `assertWasmPeginSizing` and the golden
-byte-parity tests, not in a per-call version echo.
-
-#### Returns
-
-`Promise`\<`number`[]\>
-
-***
-
-### deriveVaultId()
-
-```ts
-function deriveVaultId(peginTxHash, depositor): Promise<string>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Derives the vault ID from a PegIn transaction hash and depositor ETH address.
-
-Vault ID = keccak256(abi.encode(peginTxHash, depositor))
-This matches the Solidity-side derivation in BTCVaultRegistry.
-
-#### Parameters
-
-##### peginTxHash
-
-`string`
-
-32-byte PegIn tx hash in display order (big-endian), hex encoded
-
-##### depositor
-
-`string`
-
-20-byte Ethereum address of the depositor, hex encoded
-
-#### Returns
-
-`Promise`\<`string`\>
-
-Hex-encoded vault ID (32 bytes)
-
-***
-
 ### computeNumLocalChallengers()
 
 ```ts
@@ -2987,3 +2778,167 @@ Where the value came from, for the error message
 #### Returns
 
 `void`
+
+***
+
+### computeMinClaimValue()
+
+```ts
+function computeMinClaimValue(
+   txGraphVersion, 
+   numLocalChallengers, 
+   numUniversalChallengers, 
+   councilQuorum, 
+   councilSize, 
+feeRate): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+##### numLocalChallengers
+
+`number`
+
+##### numUniversalChallengers
+
+`number`
+
+##### councilQuorum
+
+`number`
+
+##### councilSize
+
+`number`
+
+##### feeRate
+
+`bigint`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+***
+
+### computeMinPeginFee()
+
+```ts
+function computeMinPeginFee(
+   txGraphVersion, 
+   numVks, 
+   numUcs, 
+minPeginFeeRate): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+##### numVks
+
+`number`
+
+##### numUcs
+
+`number`
+
+##### minPeginFeeRate
+
+`bigint`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+***
+
+### supportedTxGraphVersions()
+
+```ts
+function supportedTxGraphVersions(): Promise<number[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+#### Returns
+
+`Promise`\<`number`[]\>
+
+***
+
+### peginP2aAnchorOutput()
+
+```ts
+function peginP2aAnchorOutput(txGraphVersion): Promise<PeginP2aAnchorInfo | null>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+#### Returns
+
+`Promise`\<[`PeginP2aAnchorInfo`](#peginp2aanchorinfo) \| `null`\>
+
+***
+
+### validatePeginP2aAnchor()
+
+```ts
+function validatePeginP2aAnchor(txGraphVersion, txHex): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+##### txHex
+
+`string`
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### deriveVaultId()
+
+```ts
+function deriveVaultId(peginTxHash, depositor): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+#### Parameters
+
+##### peginTxHash
+
+`string`
+
+##### depositor
+
+`string`
+
+#### Returns
+
+`Promise`\<`string`\>

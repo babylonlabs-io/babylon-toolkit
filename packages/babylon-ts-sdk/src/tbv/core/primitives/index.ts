@@ -87,14 +87,14 @@ export {
   peginP2aAnchorOutput,
   supportedTxGraphVersions,
   validatePeginP2aAnchor,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
   Network,
   PayoutConnectorParams,
   PeginP2aAnchorInfo,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 
 /**
  * 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).
