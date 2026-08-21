@@ -257,6 +257,7 @@ async function createPsbtFromTransaction(
 async function signAndFinalizePsbt(
   psbtHex: string,
   btcWalletProvider: { signPsbt: (psbtHex: string) => Promise<string> },
+  expectAllInputsKeyPath: boolean,
 ): Promise<string> {
   const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex);
 
@@ -267,10 +268,19 @@ async function signAndFinalizePsbt(
 
   // Never trust the wallet's finalization: verify the returned key-path
   // signatures against the PSBT we asked it to sign before extracting.
-  assertReturnedKeyPathSignatures({
+  const verifiedInputs = assertReturnedKeyPathSignatures({
     requestedPsbtHex: psbtHex,
     returnedPsbtHex: signedPsbtHex,
   });
+  // An approval wallet signs every input key-path, so a zero here would mean
+  // the check covered nothing rather than that everything was verified.
+  const inputCount = Psbt.fromHex(psbtHex).data.inputs.length;
+  if (expectAllInputsKeyPath && verifiedInputs !== inputCount) {
+    throw new Error(
+      `Key-path verification covered ${verifiedInputs} of ${inputCount} Pre-PegIn inputs; ` +
+        `refusing to broadcast partially verified signatures.`,
+    );
+  }
 
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
@@ -346,6 +356,7 @@ export async function broadcastPrePeginTransaction(
     const signedTxHex = await signAndFinalizePsbt(
       psbt.toHex(),
       btcWalletProvider,
+      typeof btcWalletProvider.approveDepositTerms === "function",
     );
 
     // Broadcast to network

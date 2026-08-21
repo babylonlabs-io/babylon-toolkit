@@ -100,13 +100,15 @@ const POP_MESSAGE =
 const ACCOUNT_PATH_LEVELS = 3;
 const POLICY_COIN_TYPE = 1;
 const POLICY_ACCOUNT_INDEX = 0;
-/** Change lives at `account/1/0` — BIP-86 change branch, first address. */
-const BIP86_CHANGE_BRANCH = 1;
+/** Change lives at `account/1/0` — the policy derives the branch, we pick the index. */
 const CHANGE_ADDRESS_INDEX = 0;
 
 /**
- * BIP-322 to_sign shape, restated rather than imported from `popPsbt.ts` so the
- * verification below is independent of the builder under test.
+ * BIP-322 to_sign framing, restated. The to_spend txid still comes from
+ * `bip322ToSpendTxid` (the builder under test), but the device is the
+ * independent oracle for it: the firmware rebuilds to_spend from the message
+ * and its own BIP-86 key and rejects a PSBT_IN_PREVIOUS_TXID mismatch before
+ * signing (`sign_psbt_validate.c:2751-2802` @ 4decf822).
  */
 const TO_SIGN_VERSION = 0;
 const TO_SIGN_LOCKTIME = 0;
@@ -178,6 +180,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         coinType: POLICY_COIN_TYPE,
         accountIndex: POLICY_ACCOUNT_INDEX,
         accountXpub,
+        bip32Versions: TESTNET_VERSIONS,
       });
       changeXOnly = deriveChangeXOnlyHex(accountXpub, TESTNET_VERSIONS, CHANGE_ADDRESS_INDEX);
       prePegin = buildPrePeginPsbt(vaultHashlock(contextRoot as Uint8Array, HTLC_VOUT), changeXOnly);
@@ -219,7 +222,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       const unmarkedChange = augmentPsbtForWalletPolicy({
         psbtHex: (prePegin as PrePeginPsbtFixture).psbtHex,
         depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
-        masterFingerprintHex: masterFingerprintHex as string,
+        walletPolicy: policy as DefaultTaprootWalletPolicy,
         depositorPath: DEPOSITOR_PATH,
         // no `change` → the change output is external on-device → `_validate_prepegin`
         // catch-all reject (`sign_psbt_validate.c:507-510`), before the txid/cap checks.
@@ -254,12 +257,9 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       const augmented = augmentPsbtForWalletPolicy({
         psbtHex: psbtFixture.psbtHex,
         depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
-        masterFingerprintHex: masterFingerprintHex as string,
+        walletPolicy: policy as DefaultTaprootWalletPolicy,
         depositorPath: DEPOSITOR_PATH,
-        change: {
-          xOnlyHex: changeXOnly as string,
-          path: [...DEPOSITOR_PATH.slice(0, ACCOUNT_PATH_LEVELS), BIP86_CHANGE_BRANCH, CHANGE_ADDRESS_INDEX],
-        },
+        change: { addressIndex: CHANGE_ADDRESS_INDEX },
       });
       const prepared = prepareSignPsbt({
         psbtHex: augmented,
@@ -398,6 +398,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
           coinType: POLICY_COIN_TYPE,
           accountIndex: POLICY_ACCOUNT_INDEX,
           accountXpub,
+          bip32Versions: TESTNET_VERSIONS,
         });
         const psbtHex = buildPopPsbtHex({
           message: POP_MESSAGE,

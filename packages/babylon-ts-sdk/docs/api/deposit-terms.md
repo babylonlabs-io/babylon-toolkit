@@ -336,6 +336,26 @@ signature — this is a UX optimization, never an authorization.
 
 `Promise`\<`boolean`\>
 
+***
+
+### PrePeginChangeSource
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Where Pre-PegIn change must pay. Approval (policy) wallets sign key-path
+under a wallet policy whose change branch the device alone can derive and
+mark internal — the receive address is NOT acceptable change
+(`process_in_outs.c:114-117` @ e400d8d8).
+
+Separate from [DepositTermsApprover](#deposittermsapprover) because only the Pre-PegIn build
+needs it: the presign/payout ceremonies approve terms without ever creating
+change, so they must not require a wallet to implement this.
+
+MUST be stable across a deposit flow: the app reads it to build the tx and
+`preparePegin` re-reads it to verify, so mid-flow rotation fails that gate.
+
+#### Methods
+
 ##### getChangeAddress()
 
 ```ts
@@ -343,14 +363,6 @@ getChangeAddress(): Promise<string>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
-
-The address Pre-PegIn change must pay to. Approval (policy) wallets sign
-key-path under a wallet policy whose change branch the device alone can
-derive and mark internal — the receive address is NOT acceptable change
-(`process_in_outs.c:114-117` @ e400d8d8).
-
-MUST be stable across a deposit flow: the app reads it to build the tx and
-`preparePegin` re-reads it to verify, so mid-flow rotation fails that gate.
 
 ###### Returns
 
@@ -862,10 +874,7 @@ function supportsDepositApproval(wallet): wallet is BitcoinWallet & DepositTerms
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Probes [DepositTermsApprover.approveDepositTerms](#approvedepositterms) alone but narrows to
-the whole interface: a conforming approval wallet implements all of
-[DepositTermsApprover](#deposittermsapprover), `getChangeAddress` included, so a provider with
-one method and not the other is a provider bug, not a shape this seam supports.
+Probes [DepositTermsApprover.approveDepositTerms](#approvedepositterms).
 
 #### Parameters
 
@@ -879,10 +888,41 @@ one method and not the other is a provider bug, not a shape this seam supports.
 
 ***
 
+### requireChangeAddress()
+
+```ts
+function requireChangeAddress(wallet): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+The wallet's change address, for the one caller that needs it.
+
+Narrowing on `approveDepositTerms` alone cannot promise this method, so
+calling it off the narrowed value would die on `is not a function` in the
+middle of `preparePegin`, after the pubkey read. Ask here instead and fail
+with something a provider author can act on.
+
+#### Parameters
+
+##### wallet
+
+[`BitcoinWallet`](managers.md#bitcoinwallet)
+
+#### Returns
+
+`Promise`\<`string`\>
+
+#### Throws
+
+If the wallet cannot report a change address.
+
+***
+
 ### forwardDepositApproval()
 
 ```ts
-function forwardDepositApproval(wallet): Partial<DepositTermsApprover>;
+function forwardDepositApproval(wallet): Partial<DepositTermsApprover & PrePeginChangeSource>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
@@ -899,7 +939,7 @@ must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
 
 #### Returns
 
-`Partial`\<[`DepositTermsApprover`](#deposittermsapprover)\>
+`Partial`\<[`DepositTermsApprover`](#deposittermsapprover) & [`PrePeginChangeSource`](#prepeginchangesource)\>
 
 ***
 

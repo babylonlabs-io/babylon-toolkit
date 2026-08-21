@@ -10,7 +10,7 @@ import { Buffer } from "buffer";
 import { describe, expect, it } from "vitest";
 
 import { bip86OutputScript } from "../expectedSignatures";
-import { bip322ToSpendTxid, buildPopPsbtHex, POP_MESSAGE_PROPRIETARY_KEY } from "../popPsbt";
+import { bip322ToSpendTxid, buildPopPsbtHex } from "../popPsbt";
 import { prepareSignPsbt } from "../signPsbtPrepare";
 import { PsbtV2 } from "../vendor/ledger-bitcoin/psbtv2";
 
@@ -81,7 +81,6 @@ describe("buildPopPsbtHex", () => {
     const unknown = psbt.data.globalMap.unknownKeyVals!;
     expect(unknown).toHaveLength(1);
     expect(Buffer.from(unknown[0].key).toString("hex")).toBe("fc06627661756c7400");
-    expect(Buffer.from(unknown[0].key).equals(Buffer.from(POP_MESSAGE_PROPRIETARY_KEY))).toBe(true);
     expect(Buffer.from(unknown[0].value).toString("ascii")).toBe(MESSAGE);
   });
 

@@ -64,7 +64,6 @@ const COIN_TYPE_BY_NETWORK: Record<Network, number> = {
 const ACCOUNT_INDEX = 0;
 const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
-const CHANGE_BRANCH = 1;
 const FIRST_CHANGE_INDEX = 0;
 const HARDENED = 0x80000000;
 
@@ -216,11 +215,6 @@ export class LedgerVaultProvider implements IBTCProvider {
   /** `m/86'/coin'/0'` — the key-info origin of the default policy (`test_screen7_pop.py:135-142`). */
   private get accountPath(): number[] {
     return [BIP86_PURPOSE + HARDENED, COIN_TYPE_BY_NETWORK[this.network] + HARDENED, ACCOUNT_INDEX + HARDENED];
-  }
-
-  /** `m/86'/coin'/0'/1/0` — the first BIP-86 change address, the only change the device marks internal. */
-  private get changePath(): number[] {
-    return [...this.accountPath, CHANGE_BRANCH, FIRST_CHANGE_INDEX];
   }
 
   private requireSession(): DmkSessionHandle {
@@ -382,6 +376,7 @@ export class LedgerVaultProvider implements IBTCProvider {
           coinType: COIN_TYPE_BY_NETWORK[this.network],
           accountIndex: ACCOUNT_INDEX,
           accountXpub,
+          bip32Versions: toNetwork(this.network).bip32,
         });
         return { policy, masterFingerprintHex, accountXpub };
       })().catch((error) => {
@@ -416,9 +411,14 @@ export class LedgerVaultProvider implements IBTCProvider {
    * byte-compares the script at signing time.
    */
   getChangeAddress = async (): Promise<string> =>
-    this.withDeviceOperation("getChangeAddress", async () =>
-      getTaprootAddress(await this.getChangeXOnlyHex(), this.network),
-    );
+    this.withDeviceOperation("getChangeAddress", async () => {
+      // A cached xpub read can outlive its connection; without this a
+      // reconnect mid-read would hand back the previous device's address.
+      const generation = this.connectionGeneration;
+      const changeXOnlyHex = await this.getChangeXOnlyHex();
+      this.assertSameConnection(generation);
+      return getTaprootAddress(changeXOnlyHex, this.network);
+    });
 
   /**
    * Derive the 32-byte context root, always with the approval screen — a
@@ -791,7 +791,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       // Key-path flows sign under the default wallet policy: derivation fields
       // make the inputs (and the change output) internal on-device, and the
       // policy id routes the base app into sign_internal_inputs (`sign_psbt.c:142-148`).
-      const { policy, masterFingerprintHex } = await this.getPolicyContext();
+      const { policy } = await this.getPolicyContext();
       // Read outside the try: a disconnect here is a connection error, and
       // re-wrapping it as INVALID_PARAMS would blame the caller's PSBT.
       const changeXOnlyHex = await this.getChangeXOnlyHex();
@@ -800,13 +800,11 @@ export class LedgerVaultProvider implements IBTCProvider {
         augmented = augmentPsbtForWalletPolicy({
           psbtHex,
           depositorXOnlyHex,
-          masterFingerprintHex,
+          walletPolicy: policy,
           depositorPath: this.depositorPath,
           // A Pre-PegIn legitimately has no change (dust-revert, and the Max
           // sweep by design) — marking it only when the PSBT actually pays it.
-          change: psbtPaysChangeScript(psbtHex, changeXOnlyHex)
-            ? { xOnlyHex: changeXOnlyHex, path: this.changePath }
-            : undefined,
+          change: psbtPaysChangeScript(psbtHex, changeXOnlyHex) ? { addressIndex: FIRST_CHANGE_INDEX } : undefined,
         });
       } catch (error) {
         throw toStagingWalletError(error, `${label} rejected before device I/O`);

@@ -18,11 +18,12 @@
 import { crypto as bcrypto, Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import { assertBip86Path, bip86PathToString } from "./bip86Path";
 import { bip86OutputScript } from "./expectedSignatures";
 
 const BIP322_TAG = "BIP0322-signed-message";
 /** `0xFC ‖ 0x06 ‖ "bvault" ‖ 0x00` — `BIP322_PSBT_PROP_POP_MSG_KEY` (`bip322.c:10-11`; doc `bip322.h:22-29,37-38`). */
-export const POP_MESSAGE_PROPRIETARY_KEY = new Uint8Array([0xfc, 0x06, 0x62, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x00]);
+const POP_MESSAGE_PROPRIETARY_KEY = new Uint8Array([0xfc, 0x06, 0x62, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x00]);
 
 const POP_TX_VERSION = 0;
 const POP_LOCKTIME = 0;
@@ -32,8 +33,6 @@ const ZERO_SATS = 0;
 const OP_RETURN_SCRIPT = Buffer.from([0x6a]);
 const X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 const FINGERPRINT_HEX_RE = /^[0-9a-f]{8}$/;
-const BIP86_PATH_LEVELS = 5;
-const HARDENED = 0x80000000;
 /** BIP-322 to_spend prevout: all-zero txid, vout 0xFFFFFFFF. */
 const TO_SPEND_PREVOUT_TXID = Buffer.alloc(32, 0);
 const TO_SPEND_PREVOUT_VOUT = 0xffffffff;
@@ -78,10 +77,6 @@ export interface BuildPopPsbtParams {
   readonly depositorPath: readonly number[];
 }
 
-function pathToString(levels: readonly number[]): string {
-  return "m/" + levels.map((l) => ((l & HARDENED) !== 0 ? `${(l & ~HARDENED) >>> 0}'` : `${l >>> 0}`)).join("/");
-}
-
 /** Build the PoP to_sign PSBT (v0 hex) for `prepareSignPsbt` in wallet-policy mode. */
 export function buildPopPsbtHex(params: BuildPopPsbtParams): string {
   const { message, depositorXOnlyHex, masterFingerprintHex, depositorPath } = params;
@@ -91,9 +86,10 @@ export function buildPopPsbtHex(params: BuildPopPsbtParams): string {
   if (!FINGERPRINT_HEX_RE.test(masterFingerprintHex)) {
     throw new Error("masterFingerprintHex must be 8 lowercase hex characters");
   }
-  if (depositorPath.length !== BIP86_PATH_LEVELS) {
-    throw new Error(`depositorPath must have exactly ${BIP86_PATH_LEVELS} levels, got ${depositorPath.length}`);
-  }
+  // Same 5-level BIP-86 shape policyPsbt enforces: an unhardened or
+  // out-of-range level renders to a DIFFERENT path than the caller asked for
+  // and only dies on-device, after the approval screen.
+  assertBip86Path("depositorPath", depositorPath);
   const messageBytes = new TextEncoder().encode(message);
   const depositorKey = Buffer.from(depositorXOnlyHex, "hex");
   const toSpendScript = bip86OutputScript(depositorXOnlyHex); // 51 20 <tweaked>
@@ -113,7 +109,7 @@ export function buildPopPsbtHex(params: BuildPopPsbtParams): string {
       {
         masterFingerprint: Buffer.from(masterFingerprintHex, "hex"),
         pubkey: depositorKey,
-        path: pathToString(depositorPath),
+        path: bip86PathToString(depositorPath),
         leafHashes: [],
       },
     ],

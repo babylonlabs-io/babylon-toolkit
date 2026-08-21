@@ -2500,7 +2500,7 @@ If the input is not a key-path P2TR spend, the requested PSBT lacks
 ### assertReturnedKeyPathSignatures()
 
 ```ts
-function assertReturnedKeyPathSignatures(params): void;
+function assertReturnedKeyPathSignatures(params): number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
@@ -2518,7 +2518,12 @@ Script-path inputs are skipped (they have their own check).
 
 #### Returns
 
-`void`
+`number`
+
+How many inputs were actually verified. 0 means NO input was
+         key-path eligible — a caller that knows every input is taproot
+         key-path must assert this equals its input count, or a P2WPKH
+         depositor would read "nothing verified" as "all verified".
 
 #### Throws
 

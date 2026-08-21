@@ -20,6 +20,7 @@
  */
 
 import { Buffer } from "buffer";
+import { decodeWitnessStack } from "../../utils/witness/witnessStack";
 import type { Hex } from "viem";
 
 import { verifyBip322Simple } from "../../clients/vault-provider/auth/bip322Verify";
@@ -33,66 +34,13 @@ const SCHNORR_SIG_BYTES = 64;
 const SIGHASH_DEFAULT = 0x00;
 const SIGHASH_ALL = 0x01;
 
-/** CompactSize discriminators; 0xff (u64) is out of range for a witness. */
-const VARINT_U16_MARKER = 0xfd;
-const VARINT_U32_MARKER = 0xfe;
-/** Smallest value each marker is allowed to carry (see NON_MINIMAL_VARINT below). */
-const VARINT_U16_MIN_VALUE = 0xfd;
-const VARINT_U32_MIN_VALUE = 0x10000;
-
 const X_ONLY_PUBKEY_HEX = /^[0-9a-f]{64}$/i;
 /** `normalizePopSignature` hands us 0x-prefixed lowercase hex; hold it to that. */
 const WITNESS_BODY_HEX = /^(?:[0-9a-f]{2})+$/;
 
-const NON_MINIMAL_VARINT =
-  "proof of possession witness has a non-minimal length encoding";
-
 export type PopWitnessVerdict =
   | { readonly kind: "p2tr-verified" }
   | { readonly kind: "p2wpkh-unverified" };
-
-/**
- * Bitcoin CompactSize: 1 byte < 0xfd; 0xfd ‖ u16LE; 0xfe ‖ u32LE.
- *
- * Over-long encodings are rejected: rust-bitcoin's `VarInt::consensus_decode`
- * (0.32.8 `consensus/encode.rs:493-522`) returns `NonMinimalVarInt` for a 0xfd
- * carrying < 0xfd and a 0xfe carrying < 0x10000, so accepting them here would
- * wave through a witness vaultd rejects permanently at ingestion.
- */
-function readVarint(
-  bytes: Uint8Array,
-  offset: number,
-): { value: number; next: number } {
-  if (offset >= bytes.length) {
-    throw new Error("proof of possession witness is truncated");
-  }
-  const first = bytes[offset];
-  if (first < VARINT_U16_MARKER) return { value: first, next: offset + 1 };
-  if (first === VARINT_U16_MARKER) {
-    if (offset + 3 > bytes.length) {
-      throw new Error("proof of possession witness is truncated");
-    }
-    const value = bytes[offset + 1] | (bytes[offset + 2] << 8);
-    if (value < VARINT_U16_MIN_VALUE) throw new Error(NON_MINIMAL_VARINT);
-    return { value, next: offset + 3 };
-  }
-  if (first === VARINT_U32_MARKER) {
-    if (offset + 5 > bytes.length) {
-      throw new Error("proof of possession witness is truncated");
-    }
-    const value =
-      (bytes[offset + 1] |
-        (bytes[offset + 2] << 8) |
-        (bytes[offset + 3] << 16) |
-        (bytes[offset + 4] << 24)) >>>
-      0;
-    if (value < VARINT_U32_MIN_VALUE) throw new Error(NON_MINIMAL_VARINT);
-    return { value, next: offset + 5 };
-  }
-  throw new Error(
-    "proof of possession witness carries an out-of-range item length",
-  );
-}
 
 function decodeWitnessItems(witnessHex: Hex): Uint8Array[] {
   const body = witnessHex.slice(2);
@@ -102,22 +50,10 @@ function decodeWitnessItems(witnessHex: Hex): Uint8Array[] {
       "proof of possession witness is not even-length lowercase hex",
     );
   }
-  const bytes = Uint8Array.from(Buffer.from(body, "hex"));
-  const { value: count, next: start } = readVarint(bytes, 0);
-  const items: Uint8Array[] = [];
-  let offset = start;
-  for (let i = 0; i < count; i++) {
-    const { value: len, next } = readVarint(bytes, offset);
-    if (next + len > bytes.length) {
-      throw new Error("proof of possession witness is truncated");
-    }
-    items.push(bytes.subarray(next, next + len));
-    offset = next + len;
-  }
-  if (offset !== bytes.length) {
-    throw new Error("proof of possession witness has trailing bytes");
-  }
-  return items;
+  return decodeWitnessStack(
+    Uint8Array.from(Buffer.from(body, "hex")),
+    "proof of possession witness",
+  );
 }
 
 /**

@@ -112,6 +112,14 @@ export function verifyBip322Simple(
 ): boolean {
   if (xOnlyPubkey.length !== X_ONLY_PUBKEY_SIZE) return false;
   if (signature.length !== SCHNORR_SIG_SIZE) return false;
+  // Only the two types a BIP-322 witness may carry. SIGHASH_NONE/SINGLE and the
+  // ANYONECANPAY variants would verify here but are rejected downstream.
+  if (
+    hashType !== Transaction.SIGHASH_DEFAULT &&
+    hashType !== Transaction.SIGHASH_ALL
+  ) {
+    return false;
+  }
 
   // Any exception from the underlying crypto libraries (e.g. the
   // `Expected Point` error `tiny-secp256k1` throws when the supplied

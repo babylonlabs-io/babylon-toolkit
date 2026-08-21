@@ -424,6 +424,7 @@ const POLICY = buildDefaultTaprootPolicy({
   accountIndex: 0,
   accountXpub:
     "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U",
+  bip32Versions: { public: 0x043587cf, private: 0x04358394 },
 });
 
 describe("prepareSignPsbt — wallet-policy mode", () => {

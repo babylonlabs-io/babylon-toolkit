@@ -941,6 +941,25 @@ describe("LedgerVaultProvider", () => {
 
       await expect(p.getChangeAddress()).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
     });
+
+    it("refuses an xpub read that resolved after a disconnect", async () => {
+      // Returning the previous device's address would route Pre-PegIn change
+      // to a key the reconnected wallet cannot spend.
+      const p = await connected();
+      let releaseXpub: (xpub: string) => void = () => {};
+      derivationMock.getExtendedPublicKey.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseXpub = resolve;
+          }),
+      );
+
+      const pending = p.getChangeAddress();
+      await p.disconnect();
+      releaseXpub(ACCOUNT_XPUB);
+
+      await expect(pending).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
   });
 
   it("runs the envelope gate before any device I/O", async () => {

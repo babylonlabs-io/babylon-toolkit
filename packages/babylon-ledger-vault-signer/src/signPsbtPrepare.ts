@@ -196,7 +196,8 @@ export interface PrepareSignPsbtParams {
    * (PoP, Pre-PegIn): without a policy the base app skips `sign_internal_inputs`
    * (`base:sign_psbt.c:142-148`) and the device answers SW_OK with no yield
    * (`app-babylon-vault/src/sign_custom_inputs.c:101-107` @ 4decf822). Omit for
-   * the no-policy tapscript flows.
+   * the no-policy tapscript flows; `signPreparedVaultPsbt` enforces the
+   * requirement before any device I/O.
    */
   readonly walletPolicy?: DefaultTaprootWalletPolicy;
 }
@@ -224,6 +225,8 @@ interface PreparedSignPsbtState {
   readonly collector: YieldCollector;
   /** Merge target — the v0 bytes, untouched. */
   readonly originalPsbtHex: string;
+  /** Whether a policy was supplied — key-path signing needs one. */
+  readonly signsUnderWalletPolicy: boolean;
 }
 
 const preparedStates = new WeakMap<PreparedSignPsbt, PreparedSignPsbtState>();
@@ -343,6 +346,12 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   // The brand is type-only; forged objects miss the WeakMap and die typed.
   return makePreparedSignPsbt(
     { table, unsignedTxid: BitcoinjsTransaction.fromBuffer(mergeTarget.data.globalMap.unsignedTx.toBuffer()).getId() },
-    { cdata: buildSignPsbtCdata(merkelized, walletId), interpreter, collector, originalPsbtHex: psbtHex },
+    {
+      cdata: buildSignPsbtCdata(merkelized, walletId),
+      interpreter,
+      collector,
+      originalPsbtHex: psbtHex,
+      signsUnderWalletPolicy: walletPolicy !== undefined,
+    },
   );
 }

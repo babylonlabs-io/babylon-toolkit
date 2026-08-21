@@ -87,10 +87,19 @@ export async function signPreparedVaultPsbt(
   // Resolve first so a forged handle dies as "unrecognised", then claim —
   // synchronously BEFORE the first await, so success, abort, and concurrent
   // reuse are all rejected with zero device I/O.
-  const { originalPsbtHex } = getPreparedSignPsbtState(prepared);
+  const { originalPsbtHex, signsUnderWalletPolicy } = getPreparedSignPsbtState(prepared);
   if (consumedPrepared.has(prepared)) {
     throw new LedgerSignPsbtProtocolError(
       "prepared signing state was already used — call prepareSignPsbt again for a retry",
+    );
+  }
+  // Without a policy the base app skips sign_internal_inputs (`base:sign_psbt.c:142-148`)
+  // and answers SW_OK with no yield — a failure the collector would only catch
+  // after the user has approved on-device. Reject here, at zero device I/O.
+  const needsWalletPolicy = [...prepared.table.byInput.values()].some((e) => e.kind === "taproot-keypath");
+  if (needsWalletPolicy && !signsUnderWalletPolicy) {
+    throw new LedgerSignPsbtProtocolError(
+      "PSBT signs a key-path input but was prepared without a walletPolicy — the device would answer SW_OK with no signature",
     );
   }
   consumedPrepared.add(prepared);

@@ -21,6 +21,29 @@ describe("createMockBtcWallet defaults", () => {
     expect(await provider.getPublicKeyHex()).toBe(pk);
   });
 
+  it("signs a P2WPKH witness carrying the public key the wallet advertises", async () => {
+    // The SDK's proof-of-possession gate compares the witness pubkey item
+    // against the depositor key, so a fixed key here would fail every flow.
+    const { provider } = createMockBtcWallet();
+    const witness = Buffer.from(
+      (await provider.signMessage("msg", "bip322-simple")).slice(2),
+      "hex",
+    );
+
+    const sigLen = witness[1];
+    const pubkey = witness.subarray(1 + 1 + sigLen + 1);
+    expect(witness[0]).toBe(2);
+    expect(pubkey.toString("hex")).toBe(await provider.getPublicKeyHex());
+  });
+
+  it("signs a witness carrying an overridden public key", async () => {
+    const publicKeyHex = `03${"cd".repeat(32)}`;
+    const { provider } = createMockBtcWallet({ publicKeyHex });
+    const witness = await provider.signMessage("msg", "bip322-simple");
+
+    expect(witness.endsWith(publicKeyHex)).toBe(true);
+  });
+
   it("returns 64-char lowercase hex from deriveContextHash", async () => {
     const { provider } = createMockBtcWallet();
     const hash = await provider.deriveContextHash("vault-app", "ab".repeat(8));

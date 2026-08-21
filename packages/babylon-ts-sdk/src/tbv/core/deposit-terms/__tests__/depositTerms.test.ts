@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { BitcoinWallet } from "../../../../shared";
 import {
   forwardDepositApproval,
+  requireChangeAddress,
   supportsDepositApproval,
 } from "../depositTerms";
 
@@ -24,6 +25,37 @@ describe("forwardDepositApproval", () => {
   it("forwards nothing for software wallets and keeps the probe on approveDepositTerms", () => {
     expect(forwardDepositApproval(base)).toEqual({});
     expect(supportsDepositApproval(base)).toBe(false);
+  });
+
+  it("still recognizes an approver that cannot report a change address", () => {
+    // The presign/payout ceremonies approve terms without ever creating
+    // change, so getChangeAddress is not part of being an approval wallet.
+    const approverOnly = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+    });
+
+    expect(supportsDepositApproval(approverOnly)).toBe(true);
+  });
+
+  it("fails with an actionable error when the Pre-PegIn build needs a change address the wallet lacks", async () => {
+    // Calling getChangeAddress off the narrowed value would instead die on
+    // `is not a function` in the middle of preparePegin.
+    const approverOnly = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+    });
+
+    await expect(requireChangeAddress(approverOnly)).rejects.toThrow(
+      /getChangeAddress/,
+    );
+  });
+
+  it("returns the wallet's change address when it has one", async () => {
+    const approver = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+      getChangeAddress: vi.fn(async () => "tb1pchange"),
+    });
+
+    await expect(requireChangeAddress(approver)).resolves.toBe("tb1pchange");
   });
 
   it("forwards holdsApprovedDepositTerms only when the wallet implements it", async () => {

@@ -54,7 +54,7 @@ export {
   psbtPaysChangeScript,
   type AugmentPsbtForWalletPolicyParams,
 } from "./policyPsbt";
-export { POP_MESSAGE_PROPRIETARY_KEY, buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
+export { buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
 export {
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,

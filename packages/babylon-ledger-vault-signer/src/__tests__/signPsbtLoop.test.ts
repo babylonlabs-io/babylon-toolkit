@@ -226,7 +226,13 @@ describe("happy-path trace replay through the loop (T1, T11, T12)", () => {
     interpreter.addKnownList(elements);
     const prepared = makePreparedSignPsbt(
       { table, unsignedTxid: "00".repeat(32) },
-      { cdata: Uint8Array.from(Buffer.alloc(4, 0x11)), interpreter, collector, originalPsbtHex: "" },
+      {
+        cdata: Uint8Array.from(Buffer.alloc(4, 0x11)),
+        interpreter,
+        collector,
+        originalPsbtHex: "",
+        signsUnderWalletPolicy: false,
+      },
     );
 
     const traces = [

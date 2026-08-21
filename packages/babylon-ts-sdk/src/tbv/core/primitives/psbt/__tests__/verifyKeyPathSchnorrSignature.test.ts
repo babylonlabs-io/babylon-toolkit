@@ -282,6 +282,29 @@ describe("assertReturnedKeyPathSignatures", () => {
     ).toThrow(/truncated/);
   });
 
+  it("rejects a non-minimal CompactSize length, as rust-bitcoin does", () => {
+    // vaultd decodes with rust-bitcoin, whose VarInt::consensus_decode returns
+    // NonMinimalVarInt for 0xfd carrying < 0xfd — accepting it here would wave
+    // through a witness the network rejects.
+    const req = requestedPsbt();
+    const nonMinimal = Psbt.fromHex(req.toHex());
+    nonMinimal.updateInput(0, {
+      // item count 1, then 0xfd-encoded length 0x0040 instead of the 1-byte 0x40.
+      finalScriptWitness: Buffer.concat([
+        Buffer.from([0x01, 0xfd, 0x40, 0x00]),
+        sign(req, 0),
+      ]),
+    });
+    nonMinimal.updateInput(1, { tapKeySig: sign(req, 1) });
+
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: nonMinimal.toHex(),
+      }),
+    ).toThrow(/non-minimal/);
+  });
+
   it("skips inputs that are not key-path eligible (script-path inputs are the script-path verifier's job)", () => {
     const req = new Psbt();
     req.addInput({

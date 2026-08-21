@@ -23,7 +23,6 @@ const CHANGE0_XONLY = "399f1b2f4393f29a18c937859c5dd8a77350103157eb880f02e8c0821
 const FINGERPRINT = "73c5da0a";
 const H = 0x80000000;
 const DEPOSITOR_PATH = [86 + H, 0 + H, 0 + H, 0, 0];
-const CHANGE_PATH = [86 + H, 0 + H, 0 + H, 1, 0];
 
 describe("deriveChangeXOnlyHex", () => {
   it("derives the BIP-86 first change key from the account xpub", () => {
@@ -57,6 +56,24 @@ function prePeginLikePsbt(): string {
   return psbt.toHex();
 }
 
+/** Same shape as {@link prePeginLikePsbt} but paying the change key at `addressIndex`. */
+function psbtPayingChangeIndex(addressIndex: number): string {
+  const psbt = new Psbt();
+  const depositorSpk = bip86OutputScript(RECEIVE0_XONLY);
+  psbt.addInput({
+    hash: Buffer.alloc(32, 1),
+    index: 0,
+    witnessUtxo: { script: depositorSpk, value: 100_000 },
+    tapInternalKey: Buffer.from(RECEIVE0_XONLY, "hex"),
+  });
+  psbt.addOutput({ script: Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0xaa)]), value: 50_000 });
+  psbt.addOutput({
+    script: bip86OutputScript(deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, addressIndex)),
+    value: 49_000,
+  });
+  return psbt.toHex();
+}
+
 describe("psbtPaysChangeScript", () => {
   it("is true when an output pays the BIP-86 P2TR of the change key", () => {
     expect(psbtPaysChangeScript(prePeginLikePsbt(), CHANGE0_XONLY)).toBe(true);
@@ -77,12 +94,22 @@ describe("psbtPaysChangeScript", () => {
 });
 
 describe("augmentPsbtForWalletPolicy", () => {
-  const out = augmentPsbtForWalletPolicy({
+  const POLICY = buildDefaultTaprootPolicy({
+    masterFingerprintHex: FINGERPRINT,
+    coinType: 0,
+    accountIndex: 0,
+    accountXpub: ACCOUNT_XPUB,
+    bip32Versions: MAINNET_VERSIONS,
+  });
+  const base = {
     psbtHex: prePeginLikePsbt(),
     depositorXOnlyHex: RECEIVE0_XONLY,
-    masterFingerprintHex: FINGERPRINT,
+    walletPolicy: POLICY,
+  };
+  const out = augmentPsbtForWalletPolicy({
+    ...base,
     depositorPath: DEPOSITOR_PATH,
-    change: { xOnlyHex: CHANGE0_XONLY, path: CHANGE_PATH },
+    change: { addressIndex: 0 },
   });
   const psbt = Psbt.fromHex(out);
 
@@ -106,12 +133,30 @@ describe("augmentPsbtForWalletPolicy", () => {
     expect(d.path).toBe("m/86'/0'/0'/1/0");
   });
 
+  it("derives the change key and its path from the same account index, so they cannot disagree", () => {
+    // The caller supplies only the index; a key/path pair that described
+    // different children used to be accepted here and die on-device.
+    const atIndex1 = Psbt.fromHex(
+      augmentPsbtForWalletPolicy({
+        ...base,
+        psbtHex: psbtPayingChangeIndex(1),
+        depositorPath: DEPOSITOR_PATH,
+        change: { addressIndex: 1 },
+      }),
+    );
+    const change = atIndex1.data.outputs[1];
+    expect(Buffer.from(change.tapInternalKey!).toString("hex")).toBe(deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, 1));
+    expect(change.tapBip32Derivation![0].path).toBe("m/86'/0'/0'/1/1");
+  });
+
   it("does not change the unsigned transaction", () => {
     const before = Psbt.fromHex(prePeginLikePsbt()).data.globalMap.unsignedTx.toBuffer();
     expect(psbt.data.globalMap.unsignedTx.toBuffer().equals(before)).toBe(true);
   });
 
-  it("leaves inputs whose internal key is not the depositor's alone", () => {
+  it("rejects a PSBT with an input the depositor key does not own", () => {
+    // _validate_prepegin needs EVERY input internal; an unmarked one reaches
+    // the device and dies mid-ceremony, after the approval screens.
     const p = new Psbt();
     p.addInput({
       hash: Buffer.alloc(32, 9),
@@ -120,96 +165,54 @@ describe("augmentPsbtForWalletPolicy", () => {
       tapInternalKey: Buffer.from(CHANGE0_XONLY, "hex"),
     });
     p.addOutput({ script: Buffer.from([0x6a]), value: 0 });
-    const res = Psbt.fromHex(
-      augmentPsbtForWalletPolicy({
-        psbtHex: p.toHex(),
-        depositorXOnlyHex: RECEIVE0_XONLY,
-        masterFingerprintHex: FINGERPRINT,
-        depositorPath: DEPOSITOR_PATH,
-      }),
-    );
-    expect(res.data.inputs[0].tapBip32Derivation).toBeUndefined();
+
+    expect(() =>
+      augmentPsbtForWalletPolicy({ ...base, psbtHex: p.toHex(), depositorPath: DEPOSITOR_PATH }),
+    ).toThrow(/1 of 1 inputs do not carry the depositor key/);
   });
 
-  it("rejects paths that are not 5 levels, carry non-u32 levels, or break the receive/change/account pairing", () => {
-    const base = {
-      psbtHex: prePeginLikePsbt(),
-      depositorXOnlyHex: RECEIVE0_XONLY,
-      masterFingerprintHex: FINGERPRINT,
-    };
+  it("rejects paths that are not 5 levels, carry non-u32 levels, or sit on the change branch", () => {
     expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0, 0] })).toThrow(/depositorPath/);
     expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0 + H, 0, 2 ** 32] })).toThrow(
       /depositorPath/,
     );
-    // depositor on the change branch
     expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0 + H, 1, 0] })).toThrow(
       /receive branch 0/,
     );
-    // change on the receive branch
-    expect(() =>
-      augmentPsbtForWalletPolicy({
-        ...base,
-        depositorPath: DEPOSITOR_PATH,
-        change: { xOnlyHex: CHANGE0_XONLY, path: [86 + H, 0 + H, 0 + H, 0, 0] },
-      }),
-    ).toThrow(/change branch 1/);
-    // change under a different account
-    expect(() =>
-      augmentPsbtForWalletPolicy({
-        ...base,
-        depositorPath: DEPOSITOR_PATH,
-        change: { xOnlyHex: CHANGE0_XONLY, path: [86 + H, 0 + H, 1 + H, 1, 0] },
-      }),
-    ).toThrow(/same purpose/);
-    expect(() =>
-      augmentPsbtForWalletPolicy({
-        ...base,
-        depositorPath: DEPOSITOR_PATH,
-        change: { xOnlyHex: CHANGE0_XONLY, path: [1, 0] },
-      }),
-    ).toThrow(/change.path/);
   });
 
-  it("rejects a change key no output pays", () => {
+  it("rejects a depositorPath that is not under the policy's key origin", () => {
+    // The policy is built over m/86'/0'/0'; a path under another purpose,
+    // coin or account can never be matched against `@0/<0;1>/*` on-device.
+    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [84 + H, 0 + H, 0 + H, 0, 0] })).toThrow(
+      /BIP-86 purpose/,
+    );
+    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 1 + H, 0 + H, 0, 0] })).toThrow(
+      /key origin/,
+    );
+    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 1 + H, 0, 0] })).toThrow(
+      /key origin/,
+    );
+  });
+
+  it("rejects a change index no output pays", () => {
     // m/86'/0'/0'/1/1 — a real point on the change branch, but not this PSBT's change output.
-    const unusedChangeKey = deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, 1);
     expect(() =>
-      augmentPsbtForWalletPolicy({
-        psbtHex: prePeginLikePsbt(),
-        depositorXOnlyHex: RECEIVE0_XONLY,
-        masterFingerprintHex: FINGERPRINT,
-        depositorPath: DEPOSITOR_PATH,
-        change: { xOnlyHex: unusedChangeKey, path: [86 + H, 0 + H, 0 + H, 1, 1] },
-      }),
+      augmentPsbtForWalletPolicy({ ...base, depositorPath: DEPOSITOR_PATH, change: { addressIndex: 1 } }),
     ).toThrow(/matches no output/);
   });
 
   it("rejects a hardened address index or an unhardened account level", () => {
-    const base = {
-      psbtHex: prePeginLikePsbt(),
-      depositorXOnlyHex: RECEIVE0_XONLY,
-      masterFingerprintHex: FINGERPRINT,
-    };
     expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0 + H, 0, 0 + H] })).toThrow(
       /depositorPath must harden/,
     );
-    expect(() =>
-      augmentPsbtForWalletPolicy({
-        ...base,
-        depositorPath: DEPOSITOR_PATH,
-        change: { xOnlyHex: CHANGE0_XONLY, path: [86 + H, 0 + H, 0, 1, 0] },
-      }),
-    ).toThrow(/change.path must harden/);
+    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0, 0, 0] })).toThrow(
+      /depositorPath must harden/,
+    );
   });
 
   it("is accepted by prepareSignPsbt in policy mode as an all-key-path table (one yield per input)", () => {
-    const policy = buildDefaultTaprootPolicy({
-      masterFingerprintHex: FINGERPRINT,
-      coinType: 0,
-      accountIndex: 0,
-      accountXpub: ACCOUNT_XPUB,
-    });
-    const prepared = prepareSignPsbt({ psbtHex: out, depositorXOnlyHex: RECEIVE0_XONLY, walletPolicy: policy });
+    const prepared = prepareSignPsbt({ psbtHex: out, depositorXOnlyHex: RECEIVE0_XONLY, walletPolicy: POLICY });
     expect(prepared.table.expectedYieldCount).toBe(2);
     for (const expectation of prepared.table.byInput.values()) {
       expect(expectation.kind).toBe("taproot-keypath");

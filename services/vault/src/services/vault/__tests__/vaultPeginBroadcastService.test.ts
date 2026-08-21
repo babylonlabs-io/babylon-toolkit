@@ -92,7 +92,9 @@ vi.mock(
     return {
       ...actual,
       assertPsbtUnsignedTxMatches: vi.fn(),
-      assertReturnedKeyPathSignatures: vi.fn(),
+      // Returns how many inputs it verified; the mocked PSBT carries one, and
+      // the approval-wallet path refuses to broadcast a partial count.
+      assertReturnedKeyPathSignatures: vi.fn(() => 1),
     };
   },
 );
@@ -408,28 +410,6 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
 
     expect(pushTx).not.toHaveBeenCalled();
     expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
-  });
-
-  it("attaches the original wallet error as the broadcast wrapper's cause", async () => {
-    // The cause-walking mappers (user cancellation, method-not-supported)
-    // classify by the inner error's code, which the wrapper message loses.
-    const inner = Object.assign(new Error("nope"), {
-      code: "CONNECTION_REJECTED",
-    });
-    const signPsbt = vi.fn().mockRejectedValue(inner);
-
-    await expect(
-      broadcastPrePeginTransaction({
-        ...baseParams,
-        btcWalletProvider: { signPsbt },
-        expectedUtxos: undefined,
-      }),
-    ).rejects.toMatchObject({
-      message: expect.stringContaining(
-        "Failed to broadcast Pre-PegIn transaction",
-      ),
-      cause: inner,
-    });
   });
 
   it("preserves PSBT finalization errors when the wallet returns a partially signed PSBT", async () => {

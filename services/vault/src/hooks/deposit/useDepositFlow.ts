@@ -18,6 +18,7 @@ import {
   forwardDepositApproval,
   isDepositTermsRejectedError,
   isRegisteredVaultVersionMismatchError,
+  requireChangeAddress,
   stripHexPrefix,
   supportsDepositApproval,
   validateOnChainParticipantKeys,
@@ -547,7 +548,7 @@ export function useDepositFlow(
         const prePeginChangeAddress = supportsDepositApproval(
           phaseTrackingBtcWallet,
         )
-          ? await phaseTrackingBtcWallet.getChangeAddress()
+          ? await requireChangeAddress(phaseTrackingBtcWallet)
           : confirmedBtcAddress;
 
         const batchResult = await preparePeginTransaction(

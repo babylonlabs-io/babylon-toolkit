@@ -16,67 +16,46 @@ import { HDKey } from "@scure/bip32";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import {
+  assertBip86Path,
+  BIP86_CHANGE_BRANCH,
+  BIP86_RECEIVE_BRANCH,
+  bip86PathToString,
+  HARDENED,
+  PATH_ACCOUNT_LEVELS,
+  PATH_BRANCH_INDEX,
+} from "./bip86Path";
 import { bip86OutputScript } from "./expectedSignatures";
+import type { Bip32Versions, DefaultTaprootWalletPolicy } from "./walletPolicy";
 
-const HARDENED = 0x80000000;
-const U32_MAX = 0xffffffff;
-const BIP86_CHANGE_BRANCH = 1;
-const BIP86_PATH_LEVELS = 5;
 const X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
-const FINGERPRINT_HEX_RE = /^[0-9a-f]{8}$/;
-
-const BIP86_RECEIVE_BRANCH = 0;
-const PATH_ACCOUNT_LEVELS = 3; // purpose'/coin'/account'
-const PATH_BRANCH_INDEX = 3;
-const PATH_ADDRESS_INDEX = 4;
-
-function assertBip86Path(name: string, levels: readonly number[]): void {
-  if (levels.length !== BIP86_PATH_LEVELS) {
-    throw new Error(`${name} must have exactly ${BIP86_PATH_LEVELS} levels, got ${levels.length}`);
-  }
-  for (const level of levels) {
-    if (!Number.isInteger(level) || level < 0 || level > U32_MAX) {
-      throw new Error(`${name} levels must be integers in 0..0xffffffff`);
-    }
-  }
-  // Any other hardening shape is unmatchable against the policy expression
-  // `@0/<0;1>/*`, so the device could never mark the input/output internal.
-  const accountHardened = levels.slice(0, PATH_ACCOUNT_LEVELS).every((level) => (level & HARDENED) !== 0);
-  if (!accountHardened || (levels[PATH_ADDRESS_INDEX] & HARDENED) !== 0) {
-    throw new Error(`${name} must harden purpose'/coin'/account' and leave the address index unhardened`);
-  }
-}
 
 /**
  * The device matches derivations against the policy key expression
  * `@0/<0;1>/*`: depositor inputs live on branch 0, change on branch 1, both
  * under the SAME account as the policy key — anything else cannot be internal.
+ * The account prefix is checked against the POLICY's own key origin, not
+ * against a second caller-supplied path.
  */
-function assertPolicyPathPair(depositorPath: readonly number[], changePath?: readonly number[]): void {
+function assertDepositorPathUnderPolicy(depositorPath: readonly number[], keyOriginPath: readonly number[]): void {
   assertBip86Path("depositorPath", depositorPath);
   if (depositorPath[PATH_BRANCH_INDEX] !== BIP86_RECEIVE_BRANCH) {
     throw new Error("depositorPath must use BIP-86 receive branch 0");
   }
-  if (!changePath) return;
-  assertBip86Path("change.path", changePath);
   for (let i = 0; i < PATH_ACCOUNT_LEVELS; i++) {
-    if (changePath[i] !== depositorPath[i]) {
-      throw new Error("change.path must use the same purpose'/coin'/account' as depositorPath");
+    if (depositorPath[i] !== keyOriginPath[i]) {
+      throw new Error(
+        `depositorPath ${bip86PathToString(depositorPath)} is not under the wallet policy's key origin ` +
+          `${bip86PathToString(keyOriginPath)} — the device could never mark the input internal`,
+      );
     }
   }
-  if (changePath[PATH_BRANCH_INDEX] !== BIP86_CHANGE_BRANCH) {
-    throw new Error("change.path must use BIP-86 change branch 1");
-  }
-}
-
-function pathToString(levels: readonly number[]): string {
-  return "m/" + levels.map((l) => ((l & HARDENED) !== 0 ? `${(l & ~HARDENED) >>> 0}'` : `${l >>> 0}`)).join("/");
 }
 
 /** x-only key at `account/1/addressIndex` from the device's verbatim account xpub. */
 export function deriveChangeXOnlyHex(
   accountXpub: string,
-  bip32Versions: { private: number; public: number },
+  bip32Versions: Bip32Versions,
   addressIndex: number,
 ): string {
   if (!Number.isInteger(addressIndex) || addressIndex < 0 || addressIndex >= HARDENED) {
@@ -109,37 +88,59 @@ export function psbtPaysChangeScript(psbtHex: string, changeXOnlyHex: string): b
 export interface AugmentPsbtForWalletPolicyParams {
   readonly psbtHex: string;
   readonly depositorXOnlyHex: string;
-  readonly masterFingerprintHex: string;
+  /** The policy the PSBT signs under — supplies the fingerprint, account origin and xpub. */
+  readonly walletPolicy: DefaultTaprootWalletPolicy;
   readonly depositorPath: readonly number[];
-  /** The change output's key and path; omit when the PSBT carries no change. */
-  readonly change?: { readonly xOnlyHex: string; readonly path: readonly number[] };
+  /**
+   * Index on the policy's change branch. The key and path are BOTH derived
+   * from it and the policy, so they cannot disagree; omit when the PSBT
+   * carries no change.
+   */
+  readonly change?: { readonly addressIndex: number };
 }
 
 export function augmentPsbtForWalletPolicy(params: AugmentPsbtForWalletPolicyParams): string {
-  const { psbtHex, depositorXOnlyHex, masterFingerprintHex, depositorPath, change } = params;
+  const { psbtHex, depositorXOnlyHex, walletPolicy, depositorPath, change } = params;
   if (!X_ONLY_HEX_RE.test(depositorXOnlyHex)) throw new Error("depositorXOnlyHex must be 64 lowercase hex characters");
-  if (!FINGERPRINT_HEX_RE.test(masterFingerprintHex)) {
-    throw new Error("masterFingerprintHex must be 8 lowercase hex characters");
-  }
-  if (change && !X_ONLY_HEX_RE.test(change.xOnlyHex)) {
-    throw new Error("change.xOnlyHex must be 64 lowercase hex characters");
-  }
-  assertPolicyPathPair(depositorPath, change?.path);
+  assertDepositorPathUnderPolicy(depositorPath, walletPolicy.keyOriginPath);
   const psbt = Psbt.fromHex(psbtHex);
-  const fingerprint = Buffer.from(masterFingerprintHex, "hex");
+  const fingerprint = Buffer.from(walletPolicy.masterFingerprintHex, "hex");
   const depositorKey = Buffer.from(depositorXOnlyHex, "hex");
+  let markedInputs = 0;
   psbt.data.inputs.forEach((input, i) => {
     if (input.tapInternalKey && Buffer.from(input.tapInternalKey).equals(depositorKey)) {
+      markedInputs++;
       psbt.updateInput(i, {
         tapBip32Derivation: [
-          { masterFingerprint: fingerprint, pubkey: depositorKey, path: pathToString(depositorPath), leafHashes: [] },
+          {
+            masterFingerprint: fingerprint,
+            pubkey: depositorKey,
+            path: bip86PathToString(depositorPath),
+            leafHashes: [],
+          },
         ],
       });
     }
   });
+  // `_validate_prepegin` requires EVERY input internal (`sign_psbt_validate.c:334-545`),
+  // and an unmarked input is also skipped by the expected-signature table — so it
+  // would reach the device and die mid-ceremony, after the approval screens.
+  // Fail here, at zero device I/O, exactly like the change branch below.
+  if (markedInputs !== psbt.data.inputs.length) {
+    throw new Error(
+      `${psbt.data.inputs.length - markedInputs} of ${psbt.data.inputs.length} inputs do not carry the ` +
+        `depositor key as TAP_INTERNAL_KEY — every Pre-PegIn input must be internal`,
+    );
+  }
   if (change) {
-    const changeKey = Buffer.from(change.xOnlyHex, "hex");
-    const matched = changeOutputIndices(psbt, change.xOnlyHex);
+    const changeXOnlyHex = deriveChangeXOnlyHex(
+      walletPolicy.accountXpub,
+      walletPolicy.bip32Versions,
+      change.addressIndex,
+    );
+    const changePath = [...depositorPath.slice(0, PATH_ACCOUNT_LEVELS), BIP86_CHANGE_BRANCH, change.addressIndex];
+    const changeKey = Buffer.from(changeXOnlyHex, "hex");
+    const matched = changeOutputIndices(psbt, changeXOnlyHex);
     // Marking nothing passes every host gate and dies mid-ceremony on-device
     // (`sign_psbt_validate.c:507-510`); omit `change` for a change-less PSBT
     // ({@link psbtPaysChangeScript} is the caller-side test).
@@ -150,7 +151,7 @@ export function augmentPsbtForWalletPolicy(params: AugmentPsbtForWalletPolicyPar
       psbt.updateOutput(index, {
         tapInternalKey: changeKey,
         tapBip32Derivation: [
-          { masterFingerprint: fingerprint, pubkey: changeKey, path: pathToString(change.path), leafHashes: [] },
+          { masterFingerprint: fingerprint, pubkey: changeKey, path: bip86PathToString(changePath), leafHashes: [] },
         ],
       });
     }

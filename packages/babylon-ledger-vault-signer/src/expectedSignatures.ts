@@ -130,7 +130,7 @@ export interface BuildExpectedSignatureTableParams {
 
 /**
  * BIP-86/BIP-341 keypath-only P2TR scriptPubKey of an x-only internal key.
- * Exported for popPsbt.ts — package-internal.
+ * Package-internal: shared by the PoP and wallet-policy builders.
  */
 export function bip86OutputScript(xOnlyKeyHex: string): Buffer {
   // Not memoized: bitcoinjs re-verifies only when handed a DIFFERENT instance

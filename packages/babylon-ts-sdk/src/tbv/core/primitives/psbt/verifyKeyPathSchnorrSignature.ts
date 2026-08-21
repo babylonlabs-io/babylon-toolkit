@@ -21,6 +21,7 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { hexToUint8Array, stripHexPrefix } from "../utils/bitcoin";
+import { decodeWitnessStack } from "../../utils/witness/witnessStack";
 
 const SCHNORR_SIG_BYTES = 64;
 const SIGHASH_DEFAULT = Transaction.SIGHASH_DEFAULT; // 0x00
@@ -31,13 +32,6 @@ const P2TR_SCRIPT_LEN = 34;
 const OP_1 = 0x51;
 const OP_PUSHBYTES_32 = 0x20;
 const P2TR_OUTPUT_KEY_OFFSET = 2;
-
-// Bitcoin CompactSize (varint) prefix markers — values fixed by the protocol.
-// https://developer.bitcoin.org/reference/transactions.html#compactsize-unsigned-integers
-const COMPACT_SIZE_UINT16_PREFIX = 0xfd; // 0xfd + uint16 LE
-const COMPACT_SIZE_UINT32_PREFIX = 0xfe; // 0xfe + uint32 LE
-const COMPACT_SIZE_UINT16_BYTES = 3; // marker + 2
-const COMPACT_SIZE_UINT32_BYTES = 5; // marker + 4
 
 function isP2trScript(script: Uint8Array | undefined): script is Uint8Array {
   return (
@@ -170,68 +164,15 @@ function isKeyPathEligible(input: {
 }
 
 /**
- * Bitcoin CompactSize decode of a witness stack: item count, then (len, bytes)*.
- * Strict: reads are bounds-checked and every byte must be accounted for.
+ * The lone stack item of a finalized key-path witness. An annex would add a
+ * second item, but Bitcoin Core rejects annexes as nonstandard
+ * (`src/policy/policy.cpp:327-329`), so such a spend could never broadcast.
  */
-function witnessItems(witness: Uint8Array): Uint8Array[] {
-  let offset = 0;
-
-  const readCompactSize = (): number => {
-    if (offset >= witness.length) {
-      throw new Error("finalScriptWitness is truncated");
-    }
-    const first = witness[offset];
-    if (first < COMPACT_SIZE_UINT16_PREFIX) {
-      offset += 1;
-      return first;
-    }
-    if (first === COMPACT_SIZE_UINT16_PREFIX) {
-      if (offset + COMPACT_SIZE_UINT16_BYTES > witness.length) {
-        throw new Error("finalScriptWitness is truncated");
-      }
-      const value = witness[offset + 1] | (witness[offset + 2] << 8);
-      offset += COMPACT_SIZE_UINT16_BYTES;
-      return value;
-    }
-    if (first === COMPACT_SIZE_UINT32_PREFIX) {
-      if (offset + COMPACT_SIZE_UINT32_BYTES > witness.length) {
-        throw new Error("finalScriptWitness is truncated");
-      }
-      const value =
-        (witness[offset + 1] |
-          (witness[offset + 2] << 8) |
-          (witness[offset + 3] << 16) |
-          (witness[offset + 4] << 24)) >>>
-        0;
-      offset += COMPACT_SIZE_UINT32_BYTES;
-      return value;
-    }
-    // 0xff (uint64) cannot address a witness this side of the block limit.
-    throw new Error("finalScriptWitness item length out of range");
-  };
-
-  const count = readCompactSize();
-  const items: Uint8Array[] = [];
-  for (let i = 0; i < count; i++) {
-    const len = readCompactSize();
-    if (offset + len > witness.length) {
-      throw new Error("finalScriptWitness is truncated");
-    }
-    items.push(witness.subarray(offset, offset + len));
-    offset += len;
-  }
-  if (offset !== witness.length) {
-    throw new Error("finalScriptWitness has trailing bytes");
-  }
-  return items;
-}
-
-/** The lone stack item of a finalized key-path witness. */
 function singleWitnessItem(
   finalScriptWitness: Uint8Array,
   inputIndex: number,
 ): Uint8Array {
-  const items = witnessItems(finalScriptWitness);
+  const items = decodeWitnessStack(finalScriptWitness, "finalScriptWitness");
   if (items.length !== 1) {
     throw new Error(
       `Returned PSBT input ${inputIndex}: a finalized key-path witness must have ` +
@@ -258,13 +199,17 @@ export interface AssertReturnedKeyPathSignaturesParams {
  * that auto-finalize — and when both are present they must be the same bytes.
  * Script-path inputs are skipped (they have their own check).
  *
+ * @returns How many inputs were actually verified. 0 means NO input was
+ *          key-path eligible — a caller that knows every input is taproot
+ *          key-path must assert this equals its input count, or a P2WPKH
+ *          depositor would read "nothing verified" as "all verified".
  * @throws If the input counts differ, an eligible input carries no signature, a
  *         finalized witness disagrees with its `tapKeySig`, or any signature
  *         does not verify.
  */
 export function assertReturnedKeyPathSignatures(
   params: AssertReturnedKeyPathSignaturesParams,
-): void {
+): number {
   const { requestedPsbtHex, returnedPsbtHex } = params;
 
   const requested = Psbt.fromHex(requestedPsbtHex);
@@ -277,8 +222,10 @@ export function assertReturnedKeyPathSignatures(
     );
   }
 
+  let verified = 0;
   requested.data.inputs.forEach((input, inputIndex) => {
     if (!isKeyPathEligible(input)) return;
+    verified++;
 
     const returnedInput = returned.data.inputs[inputIndex];
     const tapKeySig = returnedInput.tapKeySig;
@@ -310,4 +257,6 @@ export function assertReturnedKeyPathSignatures(
       inputIndex,
     });
   });
+
+  return verified;
 }
