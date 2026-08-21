@@ -1,10 +1,4 @@
-import {
-  Button,
-  Callout,
-  Heading,
-  Loader,
-  Text,
-} from "@babylonlabs-io/core-ui";
+import { Button, Callout, Heading, Loader } from "@babylonlabs-io/core-ui";
 import {
   estimateRefundFeeSats,
   REFUND_MAX_FEE_FRACTION_DENOMINATOR,
@@ -13,6 +7,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useEffect, useState } from "react";
 
+import { ReviewDetailRow } from "@/components/shared/DetailRow";
 import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -153,24 +148,24 @@ export function RefundReviewContent({
       </div>
 
       <div className="rounded-b-2xl border border-secondary-strokeLight bg-surface p-6">
-        <div className="flex flex-col gap-4">
-          <DetailRow
+        <div className="flex flex-col gap-6">
+          <ReviewDetailRow
             label={COPY.deposit.refundReview.refundAmount}
-            primary={
+            value={
               amountBtc !== null
                 ? `${formatBtcValue(amountBtc)} ${symbol}`
                 : "—"
             }
-            secondary={
+            secondaryValue={
               amountBtc !== null && btcPriceUSD > 0
                 ? `${formatUsd(amountBtc * btcPriceUSD)} USD`
                 : undefined
             }
           />
 
-          <DetailRow
+          <ReviewDetailRow
             label={COPY.deposit.refundReview.networkFeeRate}
-            primaryNode={
+            value={
               feeRate !== null ? (
                 <FeeRateField
                   value={feeRate}
@@ -183,14 +178,14 @@ export function RefundReviewContent({
             }
           />
 
-          <DetailRow
+          <ReviewDetailRow
             label={COPY.deposit.refundReview.btcNetworkFee}
-            primary={
+            value={
               networkFeeBtc !== null
                 ? `${formatBtcValue(networkFeeBtc)} ${symbol}`
                 : "—"
             }
-            secondary={
+            secondaryValue={
               networkFeeBtc !== null && btcPriceUSD > 0
                 ? `${formatUsd(networkFeeBtc * btcPriceUSD)} USD`
                 : undefined
@@ -199,19 +194,18 @@ export function RefundReviewContent({
 
           <div className="my-1 border-t border-secondary-strokeLight" />
 
-          <DetailRow
+          <ReviewDetailRow
             label={COPY.deposit.refundReview.youReceive}
-            primary={
+            value={
               youReceiveBtc !== null
                 ? `${formatBtcValue(youReceiveBtc)} ${symbol}`
                 : "—"
             }
-            secondary={
+            secondaryValue={
               youReceiveBtc !== null && btcPriceUSD > 0
                 ? `${formatUsd(youReceiveBtc * btcPriceUSD)} USD`
                 : undefined
             }
-            emphasis
           />
 
           {walletLocked && (
@@ -254,45 +248,6 @@ export function RefundReviewContent({
             )}
           </Button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-interface DetailRowProps {
-  label: string;
-  primary?: string;
-  primaryNode?: React.ReactNode;
-  secondary?: string;
-  emphasis?: boolean;
-}
-
-function DetailRow({
-  label,
-  primary,
-  primaryNode,
-  secondary,
-  emphasis = false,
-}: DetailRowProps) {
-  return (
-    <div className="flex items-start justify-between gap-6">
-      <Text
-        variant="body1"
-        className={emphasis ? "text-accent-primary" : "text-accent-secondary"}
-      >
-        {label}
-      </Text>
-      <div className="flex flex-col items-end">
-        {primaryNode ?? (
-          <Text variant="body1" className="text-right text-accent-primary">
-            {primary}
-          </Text>
-        )}
-        {secondary && (
-          <Text variant="body2" className="text-right text-accent-disabled">
-            {secondary}
-          </Text>
-        )}
       </div>
     </div>
   );

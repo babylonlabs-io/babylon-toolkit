@@ -13,6 +13,7 @@ import {
   WITHDRAW_HF_WARNING_THRESHOLD,
 } from "@/applications/aave/constants";
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
+import { ReviewDetailRow } from "@/components/shared/DetailRow";
 import { BTC_BLOCK_TIME_MINS } from "@/constants";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
@@ -26,10 +27,14 @@ import {
 import { HealthFactorDelta } from "./HealthFactorDelta";
 import { NominatedAddressValue } from "./NominatedAddressValue";
 
+const REVIEW_COPY = COPY.withdraw.review;
+
 /** A single label/value pair rendered in the review card. */
 interface DetailRow {
   label: string;
   value: ReactNode;
+  /** Conversion shown on a second, secondary line under the value. */
+  secondaryValue?: ReactNode;
 }
 
 interface WithdrawReviewContentProps {
@@ -80,7 +85,7 @@ export function WithdrawReviewContent({
       currentHealthFactor === null
         ? null
         : {
-            label: "Health factor",
+            label: REVIEW_COPY.healthFactorLabel,
             value: (
               <HealthFactorDelta
                 current={currentHealthFactor}
@@ -91,37 +96,27 @@ export function WithdrawReviewContent({
 
     const baseRows: DetailRow[] = [
       {
-        label: "Withdrawal amount",
-        value: (
-          <span>
-            {formatBtcAmount(totalAmountBtc)}{" "}
-            <span className="text-accent-secondary">
-              {formatUsdValue(totalAmountUsd)}
-            </span>
-          </span>
-        ),
+        label: REVIEW_COPY.withdrawAmountLabel,
+        value: formatBtcAmount(totalAmountBtc),
+        secondaryValue: formatUsdValue(totalAmountUsd),
       },
       {
-        label: "Network fee rate",
+        label: REVIEW_COPY.networkFeeRateLabel,
         value:
           defaultFeeRate > 0
             ? `${defaultFeeRate} sats/vB`
             : COPY.common.loading,
       },
-      {
-        label: "VP commission",
-        value:
-          minVpCommissionBps > 0 ? (
-            <span>
-              {formatBtcAmount(vpCommissionBtc)}{" "}
-              <span className="text-accent-secondary">
-                {formatUsdValue(vpCommissionUsd)}
-              </span>
-            </span>
-          ) : (
-            "None"
-          ),
-      },
+      minVpCommissionBps > 0
+        ? {
+            label: REVIEW_COPY.vpCommissionLabel,
+            value: formatBtcAmount(vpCommissionBtc),
+            secondaryValue: formatUsdValue(vpCommissionUsd),
+          }
+        : {
+            label: REVIEW_COPY.vpCommissionLabel,
+            value: REVIEW_COPY.noCommission,
+          },
     ];
 
     const withHf = hfRow
@@ -163,7 +158,7 @@ export function WithdrawReviewContent({
     <div className="w-full">
       <div className="rounded-t-2xl border border-b-0 border-secondary-strokeLight p-6">
         <Heading variant="h5" className="font-normal text-accent-primary">
-          Review withdrawal
+          {REVIEW_COPY.heading}
         </Heading>
       </div>
 
@@ -171,17 +166,12 @@ export function WithdrawReviewContent({
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-6">
             {rows.map((row) => (
-              <div
+              <ReviewDetailRow
                 key={row.label}
-                className="flex items-start justify-between gap-6"
-              >
-                <Text variant="body1" className="text-accent-primary">
-                  {row.label}
-                </Text>
-                <div className="flex flex-col items-end text-right text-base text-accent-primary">
-                  {row.value}
-                </div>
-              </div>
+                label={row.label}
+                value={row.value}
+                secondaryValue={row.secondaryValue}
+              />
             ))}
           </div>
 
@@ -191,9 +181,9 @@ export function WithdrawReviewContent({
               className="text-error-main"
               data-testid="withdraw-hf-block-warning"
             >
-              This withdrawal would drop your health factor below{" "}
-              {WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1)} and be rejected on-chain.
-              Reduce the selection or repay debt first.
+              {REVIEW_COPY.hfBlockWarning(
+                WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
+              )}
             </Text>
           )}
           {isAtRisk && (
@@ -202,9 +192,9 @@ export function WithdrawReviewContent({
               className="text-warning-main"
               data-testid="withdraw-hf-at-risk-warning"
             >
-              Your position will be at risk of liquidation after this withdrawal
-              (health factor below {WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1)}).
-              Consider withdrawing less or repaying debt.
+              {REVIEW_COPY.hfAtRiskWarning(
+                WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1),
+              )}
             </Text>
           )}
 
@@ -225,11 +215,11 @@ export function WithdrawReviewContent({
                   variant="body2"
                   className="text-accent-contrast"
                 >
-                  Processing
+                  {REVIEW_COPY.processing}
                 </Text>
               </span>
             ) : (
-              "Confirm"
+              REVIEW_COPY.confirmButton
             )}
           </Button>
 

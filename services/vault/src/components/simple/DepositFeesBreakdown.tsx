@@ -1,6 +1,6 @@
-import { Hint } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { FeeDetailRow } from "@/components/shared/DetailRow";
 import { COPY } from "@/copy";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import {
@@ -32,46 +32,6 @@ interface DepositFeesBreakdownProps {
    * `undefined` while a two-vault split's per-vault amounts are loading.
    */
   commissionBaseValues?: readonly bigint[];
-}
-
-interface FeeLineProps {
-  label: string;
-  tooltip?: string;
-  amount: string;
-  amountIsError?: boolean;
-  price: string;
-}
-
-function FeeLine({
-  label,
-  tooltip,
-  amount,
-  amountIsError,
-  price,
-}: FeeLineProps) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      {tooltip ? (
-        <Hint
-          tooltip={tooltip}
-          attachToChildren
-          className="text-accent-primary"
-        >
-          <span>{label}</span>
-        </Hint>
-      ) : (
-        <span className="text-accent-primary">{label}</span>
-      )}
-      <span>
-        <span
-          className={amountIsError ? "text-error-main" : "text-accent-primary"}
-        >
-          {amount}
-        </span>
-        {price && <span className="text-accent-secondary"> {price}</span>}
-      </span>
-    </div>
-  );
 }
 
 export function DepositFeesBreakdown({
@@ -140,30 +100,30 @@ export function DepositFeesBreakdown({
 
   return (
     <div className="flex flex-col gap-2">
-      <FeeLine
+      <FeeDetailRow
         label={FORM_COPY.transactionReserveLabel}
         tooltip={FORM_COPY.transactionReserveTooltip}
-        amount={transactionReserve.amount}
-        price={transactionReserve.price}
+        value={transactionReserve.amount}
+        secondaryValue={transactionReserve.price}
       />
-      <FeeLine
+      <FeeDetailRow
         label={FORM_COPY.depositFeeLabel}
         tooltip={FORM_COPY.depositFeeTooltip}
-        amount={protocolFeeAmount}
-        amountIsError={protocolFeeIsError}
-        price={protocolFeePrice}
+        value={protocolFeeAmount}
+        valueIsError={protocolFeeIsError}
+        secondaryValue={protocolFeePrice}
       />
-      <FeeLine
+      <FeeDetailRow
         label={commissionLabel}
         tooltip={FORM_COPY.vpCommissionTooltip}
-        amount={commission.amount}
-        price={commission.price}
+        value={commission.amount}
+        secondaryValue={commission.price}
       />
-      <FeeLine
+      <FeeDetailRow
         label={FORM_COPY.netPayoutLabel}
         tooltip={FORM_COPY.netPayoutTooltip}
-        amount={netPayout.amount}
-        price={netPayout.price}
+        value={netPayout.amount}
+        secondaryValue={netPayout.price}
       />
     </div>
   );

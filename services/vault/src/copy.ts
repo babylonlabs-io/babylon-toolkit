@@ -470,7 +470,7 @@ export const COPY = {
     refundReview: {
       heading: "Review Refund",
       refundAmount: "Refund Amount",
-      networkFeeRate: "Network fee rate",
+      networkFeeRate: "Network Fee Rate",
       btcNetworkFee: "BTC Network Fee",
       youReceive: "You'll receive",
       fallbackFeeWarning:
@@ -1181,6 +1181,24 @@ export const COPY = {
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",
+    // Review Withdraw card. Row labels are Title Case to match the sibling
+    // Review Refund card (and Figma 10088-38704); the two labels above are
+    // rows Figma does not draw, so they keep their existing wording.
+    review: {
+      heading: "Review Withdraw",
+      withdrawAmountLabel: "Withdraw Amount",
+      healthFactorLabel: "Health Factor",
+      networkFeeRateLabel: "Network Fee Rate",
+      vpCommissionLabel: "VP Commission",
+      // Shown when the vault providers charge no commission at all.
+      noCommission: "None",
+      confirmButton: "Confirm",
+      processing: "Processing",
+      hfBlockWarning: (threshold: string) =>
+        `This withdrawal would drop your health factor below ${threshold} and be rejected on-chain. Reduce the selection or repay debt first.`,
+      hfAtRiskWarning: (threshold: string) =>
+        `Your position will be at risk of liquidation after this withdrawal (health factor below ${threshold}). Consider withdrawing less or repaying debt.`,
+    },
     initiated: {
       title: "Withdrawal initiated",
       // Describes the real claim -> challenge period -> payout path.

@@ -1,7 +1,8 @@
-import { Accordion, AccordionDetails, Hint } from "@babylonlabs-io/core-ui";
+import { Accordion, AccordionDetails } from "@babylonlabs-io/core-ui";
 import { type ReactNode, useId, useState } from "react";
 import { IoAdd, IoRemove } from "react-icons/io5";
 
+import { FeeDetailRow } from "@/components/shared/DetailRow";
 import { COPY } from "@/copy";
 
 export interface FeeRow {
@@ -18,15 +19,12 @@ function FeeRows({ rows }: FeesSectionProps) {
   return (
     <>
       {rows.map((row) => (
-        <div
+        <FeeDetailRow
           key={row.label}
-          className="flex items-center justify-between text-sm"
-        >
-          <Hint tooltip={row.tooltip} className="text-accent-secondary">
-            <span>{row.label}</span>
-          </Hint>
-          <span className="text-accent-secondary">{row.value}</span>
-        </div>
+          label={row.label}
+          tooltip={row.tooltip}
+          value={row.value}
+        />
       ))}
     </>
   );

@@ -26,6 +26,8 @@ interface OverviewSectionProps {
   borrowCapacityLoading: boolean;
   borrowCapacityError: Error | null;
   onDeposit: () => void;
+  /** True while `isDepositBlocked` holds — greys the Deposit CTA (issue #2068). */
+  isDepositDisabled: boolean;
   onBorrow: () => void;
   onRepay: () => void;
   canBorrow: boolean;
@@ -42,6 +44,7 @@ export function OverviewSection({
   borrowCapacityLoading,
   borrowCapacityError,
   onDeposit,
+  isDepositDisabled,
   onBorrow,
   onRepay,
   canBorrow,
@@ -62,7 +65,7 @@ export function OverviewSection({
         caption: collateralBtc,
         actionLabel: COPY.overview.depositAction,
         onAction: onDeposit,
-        actionDisabled: false,
+        actionDisabled: isDepositDisabled,
       },
       ...buildBorrowCapacityCards({
         availableToBorrow,
@@ -81,6 +84,7 @@ export function OverviewSection({
       totalCollateralValue,
       collateralBtc,
       onDeposit,
+      isDepositDisabled,
       availableToBorrow,
       availableMeterPercent,
       borrowCapacityLoading,

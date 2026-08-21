@@ -77,6 +77,28 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("exposes every tooltip through its own row trigger", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+      />,
+    );
+
+    // The shared fee row hangs the tooltip off core-ui's info icon rather than
+    // the bare label, so each of the four lines carries its own trigger.
+    const tooltips = Array.from(
+      document.querySelectorAll("[data-tooltip-content]"),
+    ).map((node) => node.getAttribute("data-tooltip-content"));
+
+    expect(tooltips).toHaveLength(4);
+    expect(tooltips.every((content) => Boolean(content))).toBe(true);
+    expect(new Set(tooltips).size).toBe(4);
+  });
+
   it("floors commission per vault for split deposits", () => {
     render(
       <DepositFeesBreakdown
