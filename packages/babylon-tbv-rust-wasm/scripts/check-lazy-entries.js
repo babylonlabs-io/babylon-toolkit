@@ -114,23 +114,6 @@ try {
   rmSync(isolatedPackage, { recursive: true, force: true });
 }
 
-// Concurrent browser-facade calls with different parameters must each return
-// their own complete result. That is what per-call connector ownership buys:
-// neither call can free or overwrite the object the other is reading. The
-// generated module is initialized through the Node raw entry first so this
-// file://-based check does not rely on fetch(file://...).
-const rawNodeUrl = pathToFileURL(
-  resolve(packageRoot, 'dist', 'raw-node.js'),
-).href;
-const rawNode = await import(`${rawNodeUrl}?concurrent-connector-init`);
-rawNode.initWasm();
-
-const browserFacadeUrl = pathToFileURL(
-  resolve(packageRoot, 'dist', 'index.js'),
-).href;
-const browserFacade = await import(
-  `${browserFacadeUrl}?concurrent-connector-facade`
-);
 const xOnlyKeys = [
   '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
   'c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5',
@@ -148,6 +131,102 @@ const connectorParams = {
   councilMembers: xOnlyKeys.slice(3),
   councilQuorum: 2,
 };
+
+// Browser raw and facade entry points must share one in-flight initializer.
+// A second wasm-bindgen initialization replaces the module-global memory and
+// invalidates raw objects created after the first initialization completes.
+const browserRacePackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-race-'));
+const originalFetch = globalThis.fetch;
+let browserRaceConnector;
+let browserRaceCompleted = false;
+try {
+  cpSync(
+    resolve(packageRoot, 'package.json'),
+    join(browserRacePackage, 'package.json'),
+  );
+  cpSync(resolve(packageRoot, 'dist'), join(browserRacePackage, 'dist'), {
+    recursive: true,
+  });
+  const wasmBytes = readFileSync(
+    join(
+      browserRacePackage,
+      'dist',
+      'generated',
+      'vault_wasm_bg.wasm',
+    ),
+  );
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    const delayMs = fetchCalls === 1 ? 20 : 200;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+    return new Response(wasmBytes, {
+      headers: { 'Content-Type': 'application/wasm' },
+    });
+  };
+
+  const rawBrowserUrl = pathToFileURL(
+    join(browserRacePackage, 'dist', 'raw.js'),
+  ).href;
+  const facadeBrowserUrl = pathToFileURL(
+    join(browserRacePackage, 'dist', 'index.js'),
+  ).href;
+  const rawBrowser = await import(`${rawBrowserUrl}?shared-browser-init=raw`);
+  const facadeBrowser = await import(
+    `${facadeBrowserUrl}?shared-browser-init=facade`
+  );
+
+  const rawInit = rawBrowser.initWasm();
+  const facadeInit = facadeBrowser.initWasm();
+  await rawInit;
+  browserRaceConnector = new rawBrowser.WasmAssertPayoutNoPayoutConnector(
+    connectorParams.txGraphVersion,
+    connectorParams.claimer,
+    connectorParams.localChallengers,
+    connectorParams.universalChallengers,
+    connectorParams.timelockAssert,
+    connectorParams.councilMembers,
+    connectorParams.councilQuorum,
+  );
+  const payoutScriptBefore = browserRaceConnector.getPayoutScript();
+  await facadeInit;
+  const payoutScriptAfter = browserRaceConnector.getPayoutScript();
+
+  if (fetchCalls !== 1) {
+    throw new Error(
+      `Browser raw and facade entries initialized WASM ${fetchCalls} times`,
+    );
+  }
+  if (payoutScriptAfter !== payoutScriptBefore) {
+    throw new Error('Concurrent browser initialization invalidated a raw object');
+  }
+  browserRaceCompleted = true;
+} finally {
+  try {
+    if (browserRaceCompleted) browserRaceConnector?.free();
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(browserRacePackage, { recursive: true, force: true });
+  }
+}
+
+// Concurrent browser-facade calls with different parameters must each return
+// their own complete result. That is what per-call connector ownership buys:
+// neither call can free or overwrite the object the other is reading. The
+// generated module is initialized through the Node raw entry first so this
+// file://-based check does not rely on fetch(file://...).
+const rawNodeUrl = pathToFileURL(
+  resolve(packageRoot, 'dist', 'raw-node.js'),
+).href;
+const rawNode = await import(`${rawNodeUrl}?concurrent-connector-init`);
+rawNode.initWasm();
+
+const browserFacadeUrl = pathToFileURL(
+  resolve(packageRoot, 'dist', 'index.js'),
+).href;
+const browserFacade = await import(
+  `${browserFacadeUrl}?concurrent-connector-facade`
+);
 const concurrentConnectorResults = await Promise.all([
   browserFacade.getAssertPayoutScriptInfo(connectorParams),
   browserFacade.getAssertPayoutScriptInfo({
