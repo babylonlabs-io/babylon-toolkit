@@ -7,7 +7,7 @@ export interface ChartAxisTick {
 /** Background grid configuration, shared by every chart. */
 export interface ChartGridConfig {
   /** Which gridlines render. Default `"both"`. */
-  lines?: "both" | "horizontal" | "none";
+  lines?: "both" | "horizontal" | "vertical" | "none";
   /** Gridline stroke style. Default `"dashed"`. */
   style?: "dashed" | "dotted" | "solid";
 }

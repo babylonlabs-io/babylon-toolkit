@@ -200,6 +200,10 @@ function niceStep(span: number, target: number): number {
  *
  * `topPrice` anchors the top of the domain, so it must cover both the current
  * price and the highest candle: anything above `priceAxis[0]` is clipped.
+ *
+ * The floor tick carries no label: it only anchors the scale's lower domain
+ * bound, and the design shows no price at the very bottom of the axis (the
+ * lowest trigger already has its own pill).
  */
 export function buildTimelinePriceAxis(
   result: CalculatorResult,
@@ -211,16 +215,17 @@ export function buildTimelinePriceAxis(
     value,
     label: formatPriceUsd(value),
   });
+  const toFloorTick = (value: number): PriceAxisTick => ({ value, label: "" });
 
   if (!Number.isFinite(topPrice) || topPrice <= floorPrice) {
-    return [toTick(Math.max(topPrice, floorPrice)), toTick(floorPrice)];
+    return [toTick(Math.max(topPrice, floorPrice)), toFloorTick(floorPrice)];
   }
 
   // Below the first trigger the scale is compressed per event, so the ticks
-  // stop there and the floor label closes the axis.
+  // stop there and the (unlabelled) floor tick closes the axis.
   const tickFloor = topPrice > firstTrigger ? firstTrigger : floorPrice;
   const span = topPrice - tickFloor;
-  if (span <= 0) return [toTick(topPrice), toTick(floorPrice)];
+  if (span <= 0) return [toTick(topPrice), toFloorTick(floorPrice)];
 
   const step = niceStep(span, TIMELINE_AXIS_TICK_TARGET);
   const ticks: PriceAxisTick[] = [];
@@ -232,7 +237,7 @@ export function buildTimelinePriceAxis(
   }
   // `top` always clears `topPrice`, so the list can only be empty if the loop
   // never ran; the floor still has to close the domain.
-  return [...ticks, toTick(floorPrice)];
+  return [...ticks, toFloorTick(floorPrice)];
 }
 
 /**

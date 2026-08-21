@@ -3,8 +3,11 @@ import { Timeline } from "./Timeline";
 import {
   bands,
   collidingLevelBands,
+  formatCandleDate,
   formatUsd,
   makeCandles,
+  manyEventBands,
+  manyEventPriceAxis,
   safeZone,
   simulateBandStates,
   simulatedSafeZone,
@@ -45,12 +48,19 @@ const meta: Meta<typeof Timeline> = {
     currentPriceLabel: "$88,700",
     variant: "full",
     liquidatedLabel: "Liquidated",
+    formatTime: formatCandleDate,
   },
 };
 export default meta;
 
 type Story = StoryObj<typeof Timeline>;
 
+/**
+ * Pixel-accurate reproduction of the Figma frame (node 10251:35807): 60 daily
+ * candles, the three liq bands at $77,682/$40,283/$3,597, the "no events
+ * above $59,050 / 4.3% drop to Liq 1" safe zone, and the $88,700 current
+ * price — the acceptance surface for the Timeline chart.
+ */
 export const Full: Story = {};
 
 interface SimulatorArgs {
@@ -155,48 +165,20 @@ export const HiddenLabels: Story = {
 };
 
 /**
- * Five events share the gutter below the safe zone in equal blocks — every
- * event reads at the same size regardless of its price span, and the axis
- * pills keep the true trigger prices.
+ * A full 10-vault cascade — the protocol's maximum position size. Below the
+ * ~44px fixed-row floor, 10 events don't fit alongside the design's ~30%+
+ * safe-zone minimum: every row compresses evenly (never clipped, never
+ * overlapping), the safe zone holds its floor instead of getting crushed,
+ * and each row's label/sublabel/amount drops out on its own via the
+ * existing height-based text dropout as it shrinks. The axis pills on the
+ * right stay decluttered (no overlap) via the same collision pass the price
+ * axis and current-price pill already share.
  */
 export const ManyEvents: Story = {
   args: {
-    priceAxis: [
-      { value: 90000, label: "$90,000" },
-      { value: 75000, label: "$75,000" },
-      { value: 60000, label: "$60,000" },
-      { value: 45000, label: "$45,000" },
-      { value: 30000, label: "$30,000" },
-      { value: 15000, label: "$15,000" },
-      { value: 0, label: "$0" },
-    ],
-    bands: [
-      ...bands,
-      {
-        key: "4",
-        label: "Liq Event 4",
-        sublabel: "(contain vault 4)",
-        amountLabel: "0.05 BTC",
-        priceTop: 3417,
-        priceBottom: 2100,
-        shareStart: 0,
-        shareEnd: 0,
-        state: "live",
-        tone: "1",
-      },
-      {
-        key: "5",
-        label: "Liq Event 5",
-        sublabel: "(contain vault 5)",
-        amountLabel: "0.02 BTC",
-        priceTop: 2100,
-        priceBottom: 0,
-        shareStart: 0,
-        shareEnd: 0,
-        state: "live",
-        tone: "2",
-      },
-    ],
+    bands: manyEventBands,
+    priceAxis: manyEventPriceAxis,
+    safeZone: simulatedSafeZone(manyEventBands, 88700),
   },
 };
 
