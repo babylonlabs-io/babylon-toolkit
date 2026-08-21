@@ -16,3 +16,4 @@ export * from "./deriveHashlocksFromPrePegin";
 export * from "./peginParamsCandidates";
 export * from "./reconstructPeginParams";
 export * from "./recoveryErrors";
+export * from "./toRefundInputs";

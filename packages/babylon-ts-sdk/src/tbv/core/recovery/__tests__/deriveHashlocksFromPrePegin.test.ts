@@ -82,6 +82,40 @@ describe("deriveHashlocksFromPrePegin", () => {
     expect(result.hashlocks[0]).not.toBe(result.hashlocks[1]);
   });
 
+  // A live wallet's getPublicKey() returns the 33-byte COMPRESSED key, not the
+  // x-only form. Accepting only x-only made the ordinary case an error, which
+  // every test here missed by feeding it bare x-only hex. Found by running the
+  // signet rehearsal against a real UniSat wallet.
+  it("accepts the compressed pubkey a wallet actually returns", async () => {
+    const compressed = `02${DEPOSITOR_PUBKEY}`;
+    const fundedPrePeginTxHex = makeAnchoredTx(1, anchorHash);
+
+    const fromCompressed = await deriveHashlocksFromPrePegin({
+      wallet: makeWallet(ROOT_HEX),
+      depositorBtcPubkey: compressed,
+      fundedPrePeginTxHex,
+    });
+    const fromXOnly = await deriveHashlocksFromPrePegin({
+      wallet: makeWallet(ROOT_HEX),
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      fundedPrePeginTxHex,
+    });
+
+    // Both forms name the same key, so they must derive the same secrets —
+    // the x-only narrowing drops the parity byte, it does not pick a new key.
+    expect(fromCompressed.hashlocks).toEqual(fromXOnly.hashlocks);
+  });
+
+  it("accepts a 0x-prefixed compressed pubkey too", async () => {
+    const result = await deriveHashlocksFromPrePegin({
+      wallet: makeWallet(ROOT_HEX),
+      depositorBtcPubkey: `0x03${DEPOSITOR_PUBKEY}`,
+      fundedPrePeginTxHex: makeAnchoredTx(1, anchorHash),
+    });
+
+    expect(result.hashlocks).toHaveLength(1);
+  });
+
   it("takes the vault count from the anchor's vout, not from a chain read", async () => {
     const fundedPrePeginTxHex = makeAnchoredTx(3, anchorHash);
 
