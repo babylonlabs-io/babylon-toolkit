@@ -54,10 +54,14 @@ export interface DeriveContextHashCapableWallet {
 export function forwardDeriveContextHash(
   wallet: Partial<DeriveContextHashCapableWallet>,
 ): Partial<DeriveContextHashCapableWallet> {
-  return typeof wallet.deriveContextHash === "function"
+  // Captured before the closure so the narrowing survives it. The property
+  // read cannot be narrowed across a closure boundary, which is what forced
+  // the non-null assertion this replaces; forwarding is otherwise unchanged.
+  const deriveContextHash = wallet.deriveContextHash;
+  return typeof deriveContextHash === "function"
     ? {
         deriveContextHash: (appName, context) =>
-          wallet.deriveContextHash!(appName, context),
+          deriveContextHash(appName, context),
       }
     : {};
 }
