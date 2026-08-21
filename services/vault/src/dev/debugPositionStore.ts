@@ -169,6 +169,33 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       ...PRESET_RATIOS,
     },
   },
+  {
+    // ~2% above group 1's liquidation price — inside URGENT_DISTANCE_PCT (5%)
+    // but deliberately not yet past it, unlike the "Liquidatable" preset
+    // above. Pinned params (see debugPositionStore.test.ts): a price change
+    // to `calculate()` that moves this off ~2% fails there, not silently.
+    label: "Near liquidation (~2%)",
+    expectedSeverity: "red",
+    params: {
+      btcPrice: 57900,
+      totalDebtUsd: 44287.72,
+      vaults: vaults(0.65, 0.35),
+      ...PRESET_RATIOS,
+    },
+  },
+  {
+    // Single vault, deep underwater: the whole position liquidates in one
+    // event (no partial-then-full cascade), unlike the 3-vault preset above.
+    label: "Fully liquidated",
+    expectedSeverity: "red",
+    params: {
+      btcPrice: 40000,
+      totalDebtUsd: 44287.72,
+      vaults: vaults(1),
+      ...PRESET_RATIOS,
+      maxLB: CASCADE_PRESET_MAX_LB,
+    },
+  },
 ];
 
 /** Apply a preset: switches manual mode on and loads its inputs. */

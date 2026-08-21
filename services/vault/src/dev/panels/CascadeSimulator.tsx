@@ -1,3 +1,17 @@
+/**
+ * Shared liquidation-cascade simulator (dev / QA only), used by both the
+ * Position and Liquidations tabs — the two duplicated cascade UIs the old
+ * `PositionNotificationsDebugPanel` and `LiquidationAnalysisDebugPanel`
+ * hand-rolled around the same store now collapse into this one component.
+ *
+ * `CascadeSimulator` is pure UI: it reads/writes `debugPositionStore` and
+ * renders the Live/Simulated control + banner preview. It never publishes to
+ * `@/overrides/position` itself — every tab that shows it is mounted at once
+ * (see `GodModePanel`'s header comment), so two simultaneous instances would
+ * both run the publish effect and race each other's unmount-clear.
+ * `CascadeOverridePublisher` owns that effect instead, mounted exactly once
+ * by the shell, gated the same way the old standalone section was.
+ */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
@@ -18,13 +32,15 @@ import {
   type WarningType,
 } from "@/applications/aave/positionNotifications";
 import { useETHWallet } from "@/context/wallet";
+import { setPositionCascadeOverride } from "@/overrides/position";
+
 import {
-  applyDebugPreset,
   DEBUG_DEFAULT_CF,
   DEBUG_DEFAULT_EXPECTED_HF,
   DEBUG_DEFAULT_MAX_LB,
   DEBUG_DEFAULT_THF,
   DEBUG_PRESETS,
+  applyDebugPreset,
   resetDebugManualParams,
   setDebugManualMode,
   setDebugManualParams,
@@ -32,9 +48,7 @@ import {
   useDebugManualMode,
   useDebugManualParams,
   useDebugSimulateStalePrice,
-} from "@/dev/debugPositionStore";
-import { setPositionCascadeOverride } from "@/overrides/position";
-
+} from "../debugPositionStore";
 import {
   PANEL_BUTTON_CLASS,
   PANEL_HINT_CLASS,
@@ -42,7 +56,10 @@ import {
   PANEL_LABEL_CLASS,
   PANEL_SECTION_CLASS,
   PANEL_SECTION_TITLE_CLASS,
-} from "./panelChrome";
+} from "../panelChrome";
+import { positionDebugGate } from "../registry";
+
+import { SegmentButton } from "./segmentButton";
 
 // Severity tints for the banner preview. Dark-only (no light variants): the
 // god-mode box is a fixed zinc surface regardless of the app's theme.
@@ -448,14 +465,13 @@ function ManualInputPanel({
 }
 
 /**
- * Position-notifications debug controls, surfaced as a section inside the
- * god-mode panel. Reads its control state from (and publishes the derived
- * banner override to) the shared debugPositionStore so the dashboard can pick
- * it up and the state survives the god-mode panel's float ↔ pop-out remount.
+ * Publishes `debugPositionStore`'s cascade inputs to `@/overrides/position`
+ * so the real banner/chart can pick them up, and clears the override on
+ * unmount. Mounted exactly once by the shell (`GodModePanel`), gated the
+ * same double flag as the old standalone position-notifications section —
+ * `CascadeSimulator` itself never does this (see this file's header).
  */
-export function PositionNotificationsDebugPanel() {
-  const { address } = useETHWallet();
-  const { result: hookResult, status } = usePositionNotifications(address);
+function CascadeOverridePublisherEffect() {
   const manualMode = useDebugManualMode();
   const simulateStalePrice = useDebugSimulateStalePrice();
   const manualParams = useDebugManualParams();
@@ -465,11 +481,9 @@ export function PositionNotificationsDebugPanel() {
     [manualMode, manualParams],
   );
 
-  const displayResult = manualMode ? manualResult : hookResult;
-
   // Publish the derived override so the dashboard banner reflects the debug
   // state. Live mode publishes nothing (every consumer already falls back to
-  // the live calculation); manual mode publishes the simulated cascade;
+  // the live calculation); simulated mode publishes the simulated cascade;
   // stale-price publishes the status with no cascade to chart.
   useEffect(() => {
     if (simulateStalePrice) {
@@ -489,81 +503,130 @@ export function PositionNotificationsDebugPanel() {
     }
   }, [manualMode, manualResult, manualParams, simulateStalePrice]);
 
-  // Stop overriding the banner once this panel unmounts (god-mode hidden or the
-  // popped-out window closed) — otherwise the last manual / stale-price override
-  // would linger in the module store and keep driving the dashboard banner.
+  // Stop overriding the banner once this unmounts (god-mode hidden or the
+  // popped-out window closed) — otherwise the last simulated / stale-price
+  // override would linger in the module store and keep driving the
+  // dashboard banner.
   useEffect(() => () => setPositionCascadeOverride(null), []);
 
+  return null;
+}
+
+export function CascadeOverridePublisher() {
+  if (!positionDebugGate()) return null;
+  return <CascadeOverridePublisherEffect />;
+}
+
+/**
+ * Scenario-based cascade simulator: Live | Simulated, one-click named
+ * presets, a "Stale price" status action, and a Custom… escape hatch holding
+ * the freeform param editor. Selecting Live clears both the simulated params
+ * and the stale-price status; the publish side lives in
+ * `CascadeOverridePublisher`, not here (see this file's header).
+ */
+export function CascadeSimulator() {
+  const { address } = useETHWallet();
+  const { result: hookResult, status } = usePositionNotifications(address);
+  const manualMode = useDebugManualMode();
+  const simulateStalePrice = useDebugSimulateStalePrice();
+  const manualParams = useDebugManualParams();
+
+  const manualResult = useMemo(
+    () => (manualMode ? calculate(manualParams) : null),
+    [manualMode, manualParams],
+  );
+
+  const simulated = manualMode || simulateStalePrice;
+  const displayResult = simulateStalePrice
+    ? null
+    : simulated
+      ? manualResult
+      : hookResult;
+
+  if (!positionDebugGate()) {
+    return (
+      <p className={PANEL_HINT_CLASS}>
+        Cascade simulator needs ENABLE_LIQUIDATION_NOTIFICATIONS and
+        POSITION_DEBUG_PANEL both on.
+      </p>
+    );
+  }
+
+  const goLive = () => {
+    setDebugManualMode(false);
+    setDebugSimulateStalePrice(false);
+  };
+
+  const applyPreset = (preset: (typeof DEBUG_PRESETS)[number]) => {
+    setDebugSimulateStalePrice(false);
+    applyDebugPreset(preset);
+  };
+
   return (
-    <details className={PANEL_SECTION_CLASS}>
-      <summary className={PANEL_SECTION_TITLE_CLASS}>
-        Position Notifications Debug Panel
-        {!manualMode && status === "loading" && " (loading...)"}
-        {manualMode && " (manual)"}
-      </summary>
-      <div className="mt-3 space-y-3">
-        {/* One-click scenarios — each loads manual mode with inputs that land on
-            the labelled banner state (see DEBUG_PRESETS). */}
-        <div className="flex flex-wrap gap-1.5">
-          {DEBUG_PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              type="button"
-              onClick={() => applyDebugPreset(preset)}
-              className={PRESET_BUTTON_CLASS}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Mode toggle */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={manualMode}
-              onChange={(e) => setDebugManualMode(e.target.checked)}
-              className="rounded"
-            />
-            Manual Mode
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={simulateStalePrice}
-              onChange={(e) => setDebugSimulateStalePrice(e.target.checked)}
-              className="rounded"
-            />
-            Simulate stale price
-          </label>
-          {manualMode && (
-            <button
-              type="button"
-              onClick={() => resetDebugManualParams()}
-              className={PANEL_BUTTON_CLASS}
-            >
-              Reset defaults
-            </button>
-          )}
-        </div>
-
-        {/* Manual inputs */}
-        {manualMode && (
-          <ManualInputPanel
-            params={manualParams}
-            onParamsChange={setDebugManualParams}
-          />
-        )}
-
-        {/* Status message (live mode only) */}
-        {!manualMode && status !== "ready" && (
-          <p className={PANEL_HINT_CLASS}>{STATUS_MESSAGES[status]}</p>
-        )}
-
-        {/* Results */}
-        {displayResult && <ResultPanel result={displayResult} />}
+    <div className="space-y-3">
+      <div className={PANEL_SECTION_TITLE_CLASS}>
+        Cascade simulator
+        {simulateStalePrice && " (stale price)"}
+        {!simulateStalePrice && manualMode && " (simulated)"}
       </div>
-    </details>
+
+      <div className="flex gap-2">
+        <SegmentButton label="Live" active={!simulated} onClick={goLive} />
+        <SegmentButton
+          label="Simulated"
+          active={simulated}
+          onClick={() => setDebugManualMode(true)}
+        />
+      </div>
+
+      {simulated && (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {DEBUG_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className={PRESET_BUTTON_CLASS}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <SegmentButton
+              label="Stale price"
+              active={simulateStalePrice}
+              onClick={() => setDebugSimulateStalePrice(!simulateStalePrice)}
+            />
+          </div>
+
+          <details className={PANEL_SECTION_CLASS}>
+            <summary className={PANEL_SECTION_TITLE_CLASS}>Custom…</summary>
+            <div className="mt-3 space-y-3">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => resetDebugManualParams()}
+                  className={PANEL_BUTTON_CLASS}
+                >
+                  Reset defaults
+                </button>
+              </div>
+              <ManualInputPanel
+                params={manualParams}
+                onParamsChange={setDebugManualParams}
+              />
+            </div>
+          </details>
+        </>
+      )}
+
+      {/* Status message (live mode only) */}
+      {!simulated && status !== "ready" && (
+        <p className={PANEL_HINT_CLASS}>{STATUS_MESSAGES[status]}</p>
+      )}
+
+      {/* Results */}
+      {displayResult && <ResultPanel result={displayResult} />}
+    </div>
   );
 }
