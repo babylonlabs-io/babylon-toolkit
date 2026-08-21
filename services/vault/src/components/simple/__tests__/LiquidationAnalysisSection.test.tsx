@@ -1,14 +1,34 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CalculatorResult } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
+import { ROUTES } from "@/routes";
 
 import {
   LiquidationAnalysisSection,
   type LiquidationCascade,
 } from "../LiquidationAnalysisSection";
+
+/**
+ * The candle series is the one Aave-scoped data hook this section owns, so it
+ * is mocked at the module boundary; the chart projection and core-ui's
+ * `Timeline` run for real.
+ */
+const useBtcPriceCandlesMock = vi.fn();
+
+vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
+  useBtcPriceCandles: () => useBtcPriceCandlesMock(),
+}));
+
+const CANDLES = Array.from({ length: 30 }, (_, i) => ({
+  time: Date.UTC(2026, 4, 5) + i * 86_400_000,
+  open: 86_000,
+  high: 92_000,
+  low: 84_000,
+  close: 88_000,
+}));
 
 const CASCADE: LiquidationCascade = {
   btcPrice: 88_400,
@@ -44,6 +64,8 @@ const CASCADE: LiquidationCascade = {
   } satisfies CalculatorResult,
 };
 
+const LIQUIDATIONS_PAGE_MARKER = "liquidations page";
+
 function renderSection(props: {
   hasCollateral: boolean;
   hasLoans: boolean;
@@ -53,16 +75,35 @@ function renderSection(props: {
 }) {
   return render(
     <MemoryRouter>
-      <LiquidationAnalysisSection
-        onDeposit={vi.fn()}
-        onBorrow={vi.fn()}
-        {...props}
-      />
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <LiquidationAnalysisSection
+              onDeposit={vi.fn()}
+              onBorrow={vi.fn()}
+              {...props}
+            />
+          }
+        />
+        <Route
+          path={ROUTES.LIQUIDATIONS}
+          element={<div>{LIQUIDATIONS_PAGE_MARKER}</div>}
+        />
+      </Routes>
     </MemoryRouter>,
   );
 }
 
 describe("LiquidationAnalysisSection", () => {
+  beforeEach(() => {
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+  });
+
   it("prompts for a deposit before any collateral exists", () => {
     renderSection({ hasCollateral: false, hasLoans: false });
 
@@ -81,103 +122,68 @@ describe("LiquidationAnalysisSection", () => {
     expect(screen.queryByText(COPY.liquidations.simulateLabel)).toBeNull();
   });
 
-  it("shows the chart once there is debt and a cascade to chart it from", () => {
+  it("charts the price timeline once there is debt and a cascade", () => {
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
     expect(
       screen.getByText(COPY.liquidations.simulateLabel),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.liquidations.simulateDescription),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(CANDLES.length);
   });
 
-  it("opens at the live price with nothing seized and no simulation chip", () => {
+  it("labels the safe zone from the first trigger and the live price", () => {
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
     expect(
-      screen.getByText(COPY.liquidations.vaultsLiquidated(0, 1)),
+      screen.getByText(COPY.liquidations.safeZone.title),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("liq-seized-pct")).toHaveTextContent("0%");
-    expect(screen.queryByText(COPY.liquidations.simulationChip)).toBeNull();
     expect(
-      screen.getByRole("button", { name: COPY.liquidations.reset }),
-    ).toBeDisabled();
-    const slider = screen.getByRole("slider", {
-      name: COPY.liquidations.simulateLabel,
-    });
-    expect(slider).toHaveValue(String(CASCADE.btcPrice));
-    expect(slider).toHaveAttribute("max", String(CASCADE.btcPrice));
-    expect(slider).toHaveAttribute("min", "0");
-    // Step 1: a coarser grid cannot land back on the float live price, which
-    // would leave the simulator stuck in "simulating" after a full drag right.
-    expect(slider).toHaveAttribute("step", "1");
+      screen.getByText(COPY.liquidations.safeZone.noEventsAbove("$77,682")),
+    ).toBeInTheDocument();
+    // (88,400 - 77,682) / 88,400 = 12.1%
+    expect(
+      screen.getByText(COPY.liquidations.safeZone.dropToFirstEvent("12.1")),
+    ).toBeInTheDocument();
   });
 
-  it("liquidates the event live as the price is dragged through its trigger", () => {
+  // The preview is read-only: simulating a price is what Explore is for.
+  it("shows no simulator controls", () => {
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
-    fireEvent.change(
-      screen.getByRole("slider", { name: COPY.liquidations.simulateLabel }),
-      { target: { value: "60000" } },
-    );
-
-    // Header figures follow the simulation.
+    expect(screen.queryByRole("slider")).toBeNull();
     expect(
-      screen.getByText(COPY.liquidations.vaultsLiquidated(1, 1)),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("liq-seized-pct")).toHaveTextContent("100%");
-    expect(
-      screen.getByText(COPY.liquidations.simulationChip),
-    ).toBeInTheDocument();
-    // The event card flips to its simulated-liquidation state.
-    expect(
-      screen.getByText(COPY.liquidations.events.liquidatedInSimulation),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(COPY.liquidations.events.badgeSacrificial),
+      screen.queryByRole("button", { name: COPY.liquidations.reset }),
     ).toBeNull();
   });
 
-  it("returns to the live view on reset", () => {
+  it("opens the liquidations page from Explore", () => {
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
-    const slider = screen.getByRole("slider", {
-      name: COPY.liquidations.simulateLabel,
-    });
-    fireEvent.change(slider, { target: { value: "60000" } });
     fireEvent.click(
-      screen.getByRole("button", { name: COPY.liquidations.reset }),
+      screen.getByRole("button", { name: COPY.liquidations.exploreAction }),
     );
 
-    expect(slider).toHaveValue(String(CASCADE.btcPrice));
-    expect(screen.queryByText(COPY.liquidations.simulationChip)).toBeNull();
-    expect(
-      screen.queryByText(COPY.liquidations.events.liquidatedInSimulation),
-    ).toBeNull();
-    expect(
-      screen.getByText(COPY.liquidations.events.badgeSacrificial),
-    ).toBeInTheDocument();
+    expect(screen.getByText(LIQUIDATIONS_PAGE_MARKER)).toBeInTheDocument();
   });
 
-  it("renders the event card sections from the cascade", () => {
+  // The series is a separate request from the cascade, so the frame has to
+  // stand on its own while it is missing.
+  it("still renders the chart frame with no candle series", () => {
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: false,
+      error: new Error("indexer down"),
+    });
+
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
-    expect(
-      screen.getByText(COPY.liquidations.events.heading),
-    ).toBeInTheDocument();
-    const cards = within(screen.getByTestId("liq-event-cards"));
-    expect(
-      cards.getByText(COPY.liquidations.eventTitle(1)),
-    ).toBeInTheDocument();
-    expect(
-      cards.getByText(COPY.liquidations.events.badgeSacrificial),
-    ).toBeInTheDocument();
-    expect(
-      cards.getByText(COPY.liquidations.events.positionAfterSection),
-    ).toBeInTheDocument();
-    // Full-liquidation groups show the wBTC fairness payment row.
-    expect(
-      screen.getByText(COPY.liquidations.events.fairnessPaymentWbtc),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
+    expect(screen.getByTestId("liq-band-0")).toBeInTheDocument();
+    expect(screen.queryAllByTestId("liq-candle")).toHaveLength(0);
   });
 
   it("opens the event tooltip on band hover", () => {

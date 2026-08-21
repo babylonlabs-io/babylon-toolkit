@@ -7,7 +7,7 @@ import type { CalculatorParams } from "@/applications/aave/positionNotifications
 import { formatHealthFactor } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 import type { LiquidationPositionOverride } from "@/overrides/liquidations";
-import { formatBtcAmount, formatUsd } from "@/utils/formatting";
+import { formatBtcAmount, formatPriceUsd, formatUsd } from "@/utils/formatting";
 
 /**
  * `usePositionNotifications` and `useDashboardState` are the Aave-scoped data
@@ -44,6 +44,16 @@ vi.mock("@/overrides/position", () => ({
 
 vi.mock("@/overrides/liquidations", () => ({
   useLiquidationPositionOverride: () => useLiquidationPositionOverrideMock(),
+}));
+
+/**
+ * The candle series is a separate indexer read from the cascade, mocked at the
+ * same module boundary as the other Aave-scoped data hooks.
+ */
+const useBtcPriceCandlesMock = vi.fn();
+
+vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
+  useBtcPriceCandles: () => useBtcPriceCandlesMock(),
 }));
 
 vi.mock("@/hooks/useLoanActions", () => ({
@@ -83,6 +93,14 @@ vi.mock("@/components/shared", () => ({
 
 import Liquidations from "../index";
 import { axisFloorPrice } from "../liquidationChartData";
+
+const CANDLES = Array.from({ length: 30 }, (_, i) => ({
+  time: Date.UTC(2026, 4, 5) + i * 86_400_000,
+  open: 60_000,
+  high: 66_000,
+  low: 58_000,
+  close: 62_000,
+}));
 
 // A real 2-vault, non-cliff, non-dust position (B1 in calculate.test.ts:
 // [0.65, 0.35] at the default params produces exactly 2 groups, the second a
@@ -208,6 +226,11 @@ function enablePositionOverride() {
 describe("Liquidation Dashboard — connection and position gates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
     disableGodMode();
     disablePositionOverride();
   });
@@ -279,6 +302,51 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("draws the candle series and the safe zone above the first trigger", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(CANDLES.length);
+    expect(
+      screen.getByText(COPY.liquidations.safeZone.title),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        COPY.liquidations.safeZone.noEventsAbove(
+          formatPriceUsd(firstGroup.liquidationPrice),
+        ),
+      ),
+    ).toBeInTheDocument();
+    // The dashboard names the seized amount inline in the band label.
+    expect(
+      screen.getByText(
+        `${COPY.liquidations.eventTitle(1)} (${formatBtcAmount(firstGroup.combinedBtc)})`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // The series is a separate request from the cascade, so the frame has to
+  // stand on its own while it is missing.
+  it("still renders the chart frame with no candle series", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: false,
+      error: new Error("indexer down"),
+    });
+
+    render(<Liquidations />);
+
+    expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
+    expect(screen.getByTestId("liq-band-0")).toBeInTheDocument();
+    expect(screen.queryAllByTestId("liq-candle")).toHaveLength(0);
+  });
+
   it("renders the live position figures and the chart once a cascade exists", () => {
     connectWallet();
     useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
@@ -308,6 +376,11 @@ describe("Liquidation Dashboard — connection and position gates", () => {
 describe("Liquidation Dashboard simulator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
     disableGodMode();
     disablePositionOverride();
     connectWallet();
@@ -482,6 +555,11 @@ describe("Liquidation Dashboard simulator", () => {
 describe("Liquidation Dashboard simulator — nothing left to simulate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
     disableGodMode();
     disablePositionOverride();
     connectWallet();
@@ -521,6 +599,11 @@ describe("Liquidation Dashboard simulator — nothing left to simulate", () => {
 describe("Liquidation Dashboard — no cascade to chart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
     disableGodMode();
     disablePositionOverride();
     connectWallet();
@@ -552,6 +635,11 @@ describe("Liquidation Dashboard — no cascade to chart", () => {
 describe("Liquidation Dashboard god mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
     enableGodMode();
     disablePositionOverride();
   });
@@ -622,6 +710,11 @@ describe("Liquidation Dashboard god mode", () => {
 describe("Liquidation Dashboard position override", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
     disableGodMode();
     connectWallet();
     useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);

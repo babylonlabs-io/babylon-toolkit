@@ -37,7 +37,7 @@ export interface SeizureGutterProps {
  * The pluggable seizure-map column inside the Timeline: safe zone on top,
  * then the liquidation bands. Blocks tile from each trigger down to the next
  * (the last one bottoms out at the plot floor), so with the Timeline's
- * span-weighted scale every block edge carries its trigger's level line. An
+ * fixed-row scale every block edge carries its trigger's level line. An
  * event triggering below the axis floor collapses out of frame — extend the
  * axis to reveal it.
  */
