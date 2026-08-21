@@ -169,7 +169,7 @@ export interface UseDepositPageFormResult {
   minPeginFeeError: Error | null;
   /**
    * Per-vault P2A anchor value (sats) the HTLC additionally reserves — 0n
-   * for graph versions without an anchor (v1), 240n for v2. Null while the
+   * for graph versions without an anchor (v1), 240n for v2/v3. Null while the
    * WASM query loads.
    */
   p2aAnchorValueSats: bigint | null;
@@ -552,7 +552,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   });
 
   // Per-vault P2A anchor value each HTLC must additionally reserve for graph
-  // versions whose PegIn carries a pay-to-anchor output (v2: 240 sats; v1
+  // versions whose PegIn carries a pay-to-anchor output (v2/v3: 240 sats; v1
   // has none → 0n). Version-static, so cache for the session.
   const { data: p2aAnchorValueSats, error: p2aAnchorError } = useQuery({
     queryKey: ["peginP2aAnchorValue", config.activeVaultCoreVersion],
@@ -573,7 +573,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   //   - Per-vault minPeginFee (the VP's activation tx budget, reserved
   //     INSIDE each HTLC's value) — computed exactly via the WASM
   //     `computeMinPeginFee(num_vks, num_ucs, minPeginFeeRate)`
-  //   - Per-vault P2A anchor value (v2 graphs only), also reserved inside
+  //   - Per-vault P2A anchor value (v2/v3 graphs only), also reserved inside
   //     each HTLC's value
   //   - Per-batch CPFP anchor output value + safety margin
   //

@@ -118,7 +118,9 @@ describe("mapDepositError", () => {
   });
 
   it("maps the facade's unsupported-version prefix to the app-update callout", () => {
-    const err = new Error("unsupported tx graph version: 3 (supported: 1, 2)");
+    const err = new Error(
+      "unsupported tx graph version: 4 (supported: 1, 2, 3)",
+    );
     expect(mapDepositError(err)).toEqual(ERRORS.appVersionUnsupported);
   });
 

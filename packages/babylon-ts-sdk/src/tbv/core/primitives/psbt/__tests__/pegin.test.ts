@@ -269,6 +269,51 @@ describe("buildPrePeginPsbt", () => {
       );
     });
 
+    // v3 parity gate: Vault Core 3 reuses Core 2's Bitcoin transaction shape
+    // verbatim — btc-vault #2634 changes only the off-chain BaBe backend
+    // (v0.23 -> v1) — so the two pinned builders must emit identical bytes for
+    // identical inputs. Same fixture as the v2 gate, same expectations. If
+    // this ever diverges from the v2 vector above, the shapes have parted:
+    // stop and re-verify against btc-vault before shipping, because every
+    // caller treats the anchor/output layout as shared between the two.
+    it("builds the v3 Pre-PegIn byte-identical to the v2 vector", async () => {
+      const result = await buildPrePeginPsbt(
+        makePrePeginParams({
+          vaultCoreVersion: 3,
+          depositorPubkey:
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+          vaultProviderPubkey:
+            "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+          vaultKeeperPubkeys: [
+            "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+            "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
+          ],
+          universalChallengerPubkeys: [
+            "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
+          ],
+          hashlocks: ["12".repeat(32)],
+          timelockRefund: 144,
+          pegInAmounts: [100_000n],
+          feeRate: 2n,
+          minPeginFeeRate: 1n,
+          numLocalChallengers: 3,
+          councilQuorum: 1,
+          councilSize: 2,
+          network: "signet" as Network,
+          authAnchorHash: "34".repeat(32),
+        }),
+      );
+
+      expect(result.psbtHex).toBe(
+        "020000000001000335da010000000000225120b4ddfd220597dc619a1a1e5daa8d2fefa5cb6d3745b334b485e690c7b562ccd90000000000000000226a2034343434343434343434343434343434343434343434343434343434343434342202000000000000225120da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d2100000000",
+      );
+      expect(result.htlcValues.map(String)).toEqual(["121397"]);
+      expect(String(result.depositorClaimValue)).toBe("20846");
+      expect(result.htlcValues[0]).toBe(
+        100_000n + result.depositorClaimValue + 240n + 311n,
+      );
+    });
+
     it("should produce the same result for the same inputs", async () => {
       const params = makePrePeginParams();
 
