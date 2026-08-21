@@ -192,13 +192,9 @@ export const Router = () => {
           <Route
             path={`${ROUTES.MARKETS}/:${MARKET_PARAM}`}
             element={
-              featureFlags.isMarketDetailPageEnabled ? (
-                <Suspense fallback={<RouteFallback />}>
-                  <BorrowingMarketsDataPage />
-                </Suspense>
-              ) : (
-                <Navigate to={ROUTES.OVERVIEW} replace />
-              )
+              <Suspense fallback={<RouteFallback />}>
+                <BorrowingMarketsDataPage />
+              </Suspense>
             }
           />
           {/* Under AaveOverlayLayout (like /loans): the page reads
