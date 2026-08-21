@@ -23,7 +23,6 @@
 
 export { PeginManager, estimateSubmitPeginRequestBatchGas } from "./PeginManager";
 export type {
-  PopSignature,
   PreparePeginResult,
   PreparePeginTransaction,
   PreparePeginDerivedSecrets,
@@ -39,6 +38,7 @@ export type {
   RegisterPeginBatchResult,
   EstimateSubmitPeginRequestBatchGasParams,
 } from "./PeginManager";
+export type { PopSignature } from "../clients/eth";
 
 export { PayoutManager } from "./PayoutManager";
 export type {

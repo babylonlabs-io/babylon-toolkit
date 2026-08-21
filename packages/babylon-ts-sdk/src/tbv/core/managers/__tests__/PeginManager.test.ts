@@ -167,8 +167,19 @@ const MOCK_WOTS_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 // Mock hashlock for HTLC (bytes32)
 const MOCK_HASHLOCK = `0x${"cd".repeat(32)}` as `0x${string}`;
 
-// Mock depositor-signed pegin tx hex
-const MOCK_DEPOSITOR_SIGNED_PEGIN_TX = "0200000000010000000000";
+function mockDepositorSignedPeginTx(prevoutByte: number): string {
+  const transaction = new bitcoin.Transaction();
+  transaction.version = 2;
+  transaction.addInput(Buffer.alloc(32, prevoutByte), 0);
+  transaction.addOutput(Buffer.alloc(34, 0xcd), 50_000);
+  transaction.setWitness(0, [Buffer.alloc(64, 0x11)]);
+  return transaction.toHex();
+}
+
+// Distinct, well-formed SegWit transactions: the ETH-only txid parser rejects
+// malformed placeholders rather than hashing arbitrary bytes.
+const MOCK_DEPOSITOR_SIGNED_PEGIN_TX = mockDepositorSignedPeginTx(0xab);
+const MOCK_DEPOSITOR_SIGNED_PEGIN_TX_ALT = mockDepositorSignedPeginTx(0xac);
 
 const TEST_AMOUNTS = {
   PEGIN: 90_000n,
@@ -1352,6 +1363,19 @@ describe("PeginManager", () => {
         popSignature,
       });
       expect(sendTxSpy).toHaveBeenCalled();
+
+      sendTxSpy.mockClear();
+      await manager.registerPeginOnChain({
+        unsignedPrePeginTx: "0X0100000000010000000000",
+        depositorSignedPeginTx: `0X${MOCK_DEPOSITOR_SIGNED_PEGIN_TX}`,
+        vaultProvider: TEST_CONTRACT_ADDRESS,
+        hashlock: MOCK_HASHLOCK,
+        htlcVout: 0,
+        depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
+        depositorWotsPkHash: MOCK_WOTS_PK_HASH,
+        popSignature,
+      });
+      expect(sendTxSpy).toHaveBeenCalled();
     });
 
     it("should throw when transaction receipt status is reverted", async () => {
@@ -1531,11 +1555,15 @@ describe("PeginManager", () => {
           unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
           popSignature,
           requests: [
-            { ...baseRequest, htlcVout: 0, depositorSignedPeginTx: "aa" },
+            {
+              ...baseRequest,
+              htlcVout: 0,
+              depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+            },
             {
               ...baseRequest,
               htlcVout: 1,
-              depositorSignedPeginTx: "bb",
+              depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX_ALT,
               hashlock: MOCK_HASHLOCK_ALT,
             },
           ],
@@ -1569,11 +1597,15 @@ describe("PeginManager", () => {
           unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
           popSignature,
           requests: [
-            { ...baseRequest, htlcVout: 0, depositorSignedPeginTx: "aa" },
+            {
+              ...baseRequest,
+              htlcVout: 0,
+              depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+            },
             {
               ...baseRequest,
               htlcVout: 1,
-              depositorSignedPeginTx: "bb",
+              depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX_ALT,
               hashlock: MOCK_HASHLOCK_ALT,
             },
           ],
@@ -1605,11 +1637,15 @@ describe("PeginManager", () => {
         unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
         popSignature,
         requests: [
-          { ...baseRequest, htlcVout: 0, depositorSignedPeginTx: "aa" },
+          {
+            ...baseRequest,
+            htlcVout: 0,
+            depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
+          },
           {
             ...baseRequest,
             htlcVout: 1,
-            depositorSignedPeginTx: "bb",
+            depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX_ALT,
             hashlock: MOCK_HASHLOCK_ALT,
           },
         ],
@@ -2464,14 +2500,14 @@ describe("PeginManager", () => {
           popSignature,
           requests: [
             {
-              depositorSignedPeginTx: "aa",
+              depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,
               hashlock: MOCK_HASHLOCK,
               htlcVout: 0,
               depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
               depositorWotsPkHash: MOCK_WOTS_PK_HASH,
             },
             {
-              depositorSignedPeginTx: "bb",
+              depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX_ALT,
               hashlock: `0x${"ef".repeat(32)}` as `0x${string}`,
               htlcVout: 1,
               depositorPayoutBtcAddress: FOREIGN_BTC_ADDRESS,
