@@ -48,79 +48,47 @@ export interface PriceAnchor {
 }
 
 /**
- * Exponent applied to a price span before it becomes a vertical fraction.
- * 1 is true proportions (a $180 event next to a $37k one is an unreadable
- * sliver); 0 is all regions equal. The square root keeps the ordering and a
- * visible size difference — the vertical twin of the share-width compression.
+ * The safe zone (and its candles) never drops below this share of the plot,
+ * however many events are cascading. The Figma frame only shows 3 events at
+ * a fixed ~44px row each (~60% left for the safe zone); it's silent on what
+ * happens with a full 10-vault cascade, so this is a judgment call, not a
+ * spec value — flag with design if it needs to move.
  */
-const SPAN_WEIGHT_EXPONENT = 0.5;
-/**
- * Vertical fractions for consecutive price spans, compressed by
- * {@link SPAN_WEIGHT_EXPONENT} and floored at `minFraction` (renormalising
- * the rest), so the split tracks the real values without starving small
- * regions. The caller derives `minFraction` from a pixel minimum so floored
- * regions keep their text at any chart width. Returns one fraction per span,
- * summing to 1.
- */
-export function compressedSpanFractions(spans: number[], minFraction: number): number[] {
-  if (spans.length === 0) return [];
-  const minFrac = Math.min(minFraction, 1 / spans.length);
-  const weights = spans.map((span) => Math.pow(Math.max(0, span), SPAN_WEIGHT_EXPONENT));
-  const total = weights.reduce((sum, w) => sum + w, 0);
-  const raw = weights.map((w) => (total > 0 ? w / total : 1 / spans.length));
-  const floored = raw.map((f) => f < minFrac);
-  const flooredBudget = floored.filter(Boolean).length * minFrac;
-  const restRaw = raw.reduce((sum, f, i) => sum + (floored[i] ? 0 : f), 0);
-  const restScale = restRaw > 0 ? (1 - flooredBudget) / restRaw : 0;
-  return raw.map((f, i) => (floored[i] ? minFrac : f * restScale));
-}
-
-/** Tolerance for fraction comparisons (floors, fixed-point equalisation). */
-const FRACTION_EPSILON = 1e-9;
+const MIN_SAFE_ZONE_FRACTION = 0.3;
 
 /**
  * Timeline region fractions: the first span is the safe zone (where the
- * candles live), the rest are liquidation events. On top of the compressed
- * weighting, the safe zone is guaranteed at least the size of the LARGEST
- * event — otherwise the candle chart squeezes unreadably — by scaling the
- * non-floored events down while floored ones keep their minimum.
+ * candles live), the rest are liquidation events. The design gives every
+ * event a fixed, compact row — never scaled by its real price span, which
+ * would make a $180 event an unreadable sliver next to a $37k one — pinned
+ * at `minFraction`. The safe zone gets whatever height remains, down to
+ * {@link MIN_SAFE_ZONE_FRACTION}: past that (a long cascade — the protocol
+ * allows up to 10 vaults), every event's row compresses evenly below the
+ * floor instead of being clipped individually or crushing the safe zone to
+ * nothing. A compressed row's in-band text degrades on its own via
+ * BandLayer's existing height-based dropout. Returns one fraction per span,
+ * summing to 1.
  */
 export function timelineRegionFractions(spans: number[], minFraction: number): number[] {
-  const fractions = compressedSpanFractions(spans, minFraction);
-  if (fractions.length <= 1) return fractions;
-  const minFrac = Math.min(minFraction, 1 / spans.length);
-
-  // Fixed-point: each pass either satisfies the guarantee or floors another
-  // event, so it terminates within one pass per event.
-  for (let guard = 0; guard < spans.length; guard++) {
-    const events = fractions.slice(1);
-    if (fractions[0] >= Math.max(...events) - FRACTION_EPSILON) break;
-    const fixedSum = events.reduce((sum, f) => sum + (f <= minFrac + FRACTION_EPSILON ? f : 0), 0);
-    const scalable = events.filter((f) => f > minFrac + FRACTION_EPSILON);
-    if (!scalable.length) {
-      fractions[0] = 1 - fixedSum;
-      break;
-    }
-    const scalableSum = scalable.reduce((sum, f) => sum + f, 0);
-    const maxScalable = Math.max(...scalable);
-    const scale = (1 - fixedSum) / (maxScalable + scalableSum);
-    fractions[0] = maxScalable * scale;
-    for (let i = 1; i < fractions.length; i++) {
-      if (fractions[i] > minFrac + FRACTION_EPSILON) {
-        fractions[i] = Math.max(fractions[i] * scale, minFrac);
-      }
-    }
+  if (spans.length === 0) return [];
+  if (spans.length === 1) return [1];
+  const eventCount = spans.length - 1;
+  const eventsBudget = eventCount * minFraction;
+  const maxEventsBudget = 1 - MIN_SAFE_ZONE_FRACTION;
+  if (eventsBudget <= maxEventsBudget) {
+    return [1 - eventsBudget, ...new Array(eventCount).fill(minFraction)];
   }
-  return fractions;
+  const compressedFrac = maxEventsBudget / eventCount;
+  return [1 - maxEventsBudget, ...new Array(eventCount).fill(compressedFrac)];
 }
 
 /**
  * Anchored price → pixel offset from the plot top (Timeline).
  *
  * A polylinear scale through explicit (price, fraction) stops — the Timeline
- * derives them from span-weighted regions, so the Y scale is deliberately
- * non-uniform. Prices interpolate linearly between anchors and clamp outside
- * them.
+ * derives them from {@link timelineRegionFractions}'s fixed-row regions, so
+ * the Y scale is deliberately non-uniform. Prices interpolate linearly
+ * between anchors and clamp outside them.
  */
 export function createAnchoredPriceScale(anchors: PriceAnchor[], plotHeight: number): PriceScale {
   if (anchors.length < 2) {

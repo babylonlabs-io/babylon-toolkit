@@ -109,10 +109,10 @@ describe("Timeline", () => {
   });
 
   it("shows the safe-zone detail lines when they fit above the first event", () => {
-    // First band triggers at 77,682 on a 90k-40k axis: roughly the top quarter
-    // of the plot is safe, which comfortably fits the title plus two lines.
-    // Queries scoped to the chart: @visx/text keeps a hidden measurement node
-    // on document.body that would otherwise double-match.
+    // The two fixed-height event rows below leave most of the plot to the
+    // safe zone, which comfortably fits the title plus two lines. Queries
+    // scoped to the chart: @visx/text keeps a hidden measurement node on
+    // document.body that would otherwise double-match.
     const { container } = renderTimeline();
     const chart = within(container);
     expect(chart.getByText("Safe zone")).toBeInTheDocument();
@@ -120,15 +120,18 @@ describe("Timeline", () => {
     expect(chart.getByText("13.3% drop to Liq 1")).toBeInTheDocument();
   });
 
-  it("sheds the safe-zone detail lines when they cannot fit the fixed-third box", () => {
+  it("sheds the safe-zone detail lines when they cannot fit the box", () => {
+    // The safe zone now gets most of the plot (events are fixed-height rows),
+    // so overflowing it takes a genuinely long stack, not just a handful of
+    // lines.
     const tallStack = {
       title: "Safe zone",
-      lines: ["one", "two", "three", "four", "five", "six", "seven"],
+      lines: Array.from({ length: 30 }, (_, i) => `line ${i + 1}`),
     };
     const { container } = renderTimeline({ safeZone: tallStack });
     const chart = within(container);
     expect(chart.getByText("Safe zone")).toBeInTheDocument();
-    expect(chart.queryByText("one")).not.toBeInTheDocument();
+    expect(chart.queryByText("line 1")).not.toBeInTheDocument();
   });
 
   it("marks liquidation levels inside the price domain with an axis pill", () => {
@@ -163,15 +166,15 @@ describe("Timeline", () => {
     expect(screen.getByTestId("liq-band-1")).toBeInTheDocument();
   });
 
-  it("sizes the gutter blocks by compressed price span with a readable floor", () => {
-    // Event 1 spans $37k of price, event 2 only $283: the split follows the
-    // square-rooted spans, but event 2 never shrinks below the 44px floor —
-    // tall enough that its label still renders.
+  it("gives every event a fixed 44px row regardless of price span", () => {
+    // Event 1 spans $37k of price, event 2 only $283: the design draws every
+    // "Liq Event N" band as the same compact row, so neither span should
+    // move its height off the 44px floor.
     const { container } = renderTimeline();
     const h1 = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("height") ?? "0");
     const h2 = Number.parseFloat(screen.getByTestId("liq-band-2").getAttribute("height") ?? "0");
-    expect(h1).toBeGreaterThan(h2);
-    expect(h2).toBeCloseTo(44, 3);
+    expect(h1).toBeCloseTo(44, 2);
+    expect(h2).toBeCloseTo(44, 2);
     expect(within(container).getByText("Liq Event 2")).toBeInTheDocument();
   });
 
@@ -185,15 +188,17 @@ describe("Timeline", () => {
     expect(container.querySelectorAll(".bbn-liq-band--liquidated")).toHaveLength(1);
   });
 
-  it("gives the safe zone at least as much room as the largest event", () => {
-    // Safe span $12,318 weighs less than event 1's $37,399, so the guarantee
-    // kicks in: the safe zone is raised to match event 1 exactly.
+  it("gives the safe zone whatever room the fixed-height events leave behind", () => {
+    // Two events pinned at the 44px floor leave the rest of the plot to the
+    // safe zone (and its candles) — the design's ~60%+ split, not a share
+    // weighted by price span.
     renderTimeline();
     const plotHeight = (948 * 350) / 1016;
     const safeHeight = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("y") ?? "0");
     const h1 = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("height") ?? "0");
-    expect(safeHeight).toBeCloseTo(h1, 2);
-    expect(safeHeight / plotHeight).toBeGreaterThan(0.4);
+    expect(h1).toBeCloseTo(44, 2);
+    expect(safeHeight).toBeCloseTo(plotHeight - 2 * 44, 1);
+    expect(safeHeight / plotHeight).toBeGreaterThan(0.5);
   });
 
   it("dims no gutter block while the price line sits above the safe zone floor", () => {
@@ -218,6 +223,20 @@ describe("Timeline", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     fireEvent.click(screen.getByRole("button", { name: "Reset view" }));
     expect(screen.getAllByTestId("liq-candle")).toHaveLength(44);
+  });
+
+  it("renders vertical-only gridlines with no grid prop (deliberate default flip)", () => {
+    // Timeline's anchored Y scale makes horizontal gridlines misleading, so
+    // (unlike ChartFrame's generic "both" default) it defaults to
+    // vertical-only. Locking this in: the Figma frame draws no horizontal
+    // rows.
+    const { container } = renderTimeline({ candles: makeCandles(12) });
+    const lines = container.querySelectorAll(".bbn-liq-grid line");
+    expect(lines.length).toBeGreaterThan(0);
+    lines.forEach((line) => {
+      expect(line.getAttribute("x1")).toBe(line.getAttribute("x2"));
+      expect(line.getAttribute("y1")).not.toBe(line.getAttribute("y2"));
+    });
   });
 
   it("names the chart for assistive tech", () => {

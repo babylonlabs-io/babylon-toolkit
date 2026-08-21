@@ -239,7 +239,7 @@ export function ChartFrame({
           {topLegend ? <Group left={layout.plotLeft}>{topLegend}</Group> : null}
 
           <Group top={layout.plotTop} left={layout.plotLeft}>
-            {gridLines !== "none" ? (
+            {gridLines === "both" || gridLines === "horizontal" ? (
               <GridRows
                 className="bbn-liq-grid"
                 scale={priceScale}

@@ -137,7 +137,7 @@ export function SeizureMap({
         ) : undefined
       }
     >
-      {(grid?.lines ?? "both") === "both" ? (
+      {(grid?.lines ?? "both") === "both" || grid?.lines === "vertical" ? (
         <GridColumns
           className="bbn-liq-grid"
           scale={shareScale}

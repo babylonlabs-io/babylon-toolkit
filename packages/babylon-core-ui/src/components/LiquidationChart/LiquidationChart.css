@@ -16,8 +16,8 @@
   --liq-band-3: #cc1818;
   --liq-price-line: #387085;
   --liq-band-text: #ffffff;
-  --liq-candle-up: #34d1a6;
-  --liq-candle-down: #ff5c5c;
+  --liq-candle-up: #00bc64;
+  --liq-candle-down: #ff0020;
   --liq-gridline: var(--bbn-chart-gridline);
   --liq-axis-text: var(--bbn-chart-axis-text);
   --liq-surface: var(--bbn-chart-surface);
