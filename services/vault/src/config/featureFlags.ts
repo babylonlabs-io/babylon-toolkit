@@ -158,7 +158,6 @@ export default {
     return process.env.NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS === "true";
   },
 
-
   /**
    * ENABLE_EXPLORE feature flag
    *
