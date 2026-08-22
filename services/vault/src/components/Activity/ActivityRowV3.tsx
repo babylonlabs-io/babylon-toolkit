@@ -5,8 +5,8 @@
  * timestamp (the calendar day lives in the group header), with an optional
  * action slot pinned right. Renders the columns only — the caller supplies the
  * card and its padding, so the same row works standalone (one card per row) and
- * stacked inside a liquidation group's shared card. Per-row USD value from the
- * Figma frame is deferred (not backed by current activity data).
+ * stacked inside a liquidation group's shared card. The amount cell carries the
+ * Figma sub-line with the row's USD value at the CURRENT price.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
@@ -19,7 +19,7 @@ import {
 import { COPY } from "@/copy";
 import { type ActivityLog, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
 import { getExplorerTxUrl } from "@/utils/explorer";
-import { formatActivityTime } from "@/utils/formatting";
+import { formatActivityTime, formatUsdValue } from "@/utils/formatting";
 
 import { ActivityHashLink } from "./ActivityHashLink";
 import { STATUS_DOT } from "./statusDot";
@@ -28,8 +28,11 @@ import { STATUS_DOT } from "./statusDot";
  *  amount length. */
 const COLUMN_CLASS = `flex items-center ${LIST_ROW_COLUMN_CLASS}`;
 
-/** Figma body 2 — every cell's text except the deferred USD sub-line. */
+/** Figma body 2 — every cell's text except the USD sub-line. */
 const CELL_TEXT_CLASS = "text-sm leading-[1.43] tracking-[0.17px]";
+
+/** Figma caption — the USD sub-line under the amount. */
+const SUB_LINE_TEXT_CLASS = "text-xs leading-[1.4] tracking-[0.4px]";
 
 export interface ActivityStatus {
   dotClass: string;
@@ -38,19 +41,38 @@ export interface ActivityStatus {
 
 interface ActivityRowV3Props {
   row: ActivityLog;
+  /**
+   * Current USD price per token symbol (`usePrices().prices`). A row whose
+   * symbol is absent from it — or whose amount has no numeric form — renders
+   * no USD sub-line.
+   */
+  prices?: Record<string, number>;
+  /**
+   * Vault ids that are ACTIVE on chain right now. `undefined` means the vault
+   * read has not resolved yet, and a deposit keeps its type-derived status
+   * rather than flashing the wrong one.
+   */
+  activeVaultIds?: ReadonlySet<string>;
   /** Rendered flush right — the expired deposit's Withdraw, when refundable. */
   action?: ReactNode;
 }
 
 /**
- * Status dot + label for a standard activity row, from current data only:
- * expired (red) and pending (amber) take precedence; otherwise a settled
- * deposit's collateral is "In use" and every other settled action (borrow /
- * repay / withdraw / redeem) is "Done" (both green). This reflects the row
- * type, not a live collateral check. Liquidation rows render separately and
- * never reach here.
+ * Status dot + label for a standard activity row: expired (red) and pending
+ * (amber) take precedence; otherwise a settled deposit whose vault is still
+ * ACTIVE is "In use" and every other settled action (a withdrawn deposit,
+ * borrow / repay / withdraw / redeem) is "Done" (both green). Liquidation rows
+ * render separately and never reach here.
+ *
+ * The deposit branch needs `activeVaultIds` to tell "In use" from "Done". While
+ * it is undefined — the vault read is in flight — or the row carries no vault
+ * id to correlate, the deposit keeps reading "In use" rather than flashing a
+ * status the data has not confirmed.
  */
-function getActivityStatus(row: ActivityLog): ActivityStatus {
+function getActivityStatus(
+  row: ActivityLog,
+  activeVaultIds: ReadonlySet<string> | undefined,
+): ActivityStatus {
   if (row.isExpired) {
     return { dotClass: STATUS_DOT.expired, label: COPY.activity.statusExpired };
   }
@@ -59,18 +81,46 @@ function getActivityStatus(row: ActivityLog): ActivityStatus {
   }
   const type = row.type === PENDING_DEPOSIT_TYPE ? "Deposit" : row.type;
   if (type === "Deposit") {
-    return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusInUse };
+    const collateralInUse =
+      activeVaultIds === undefined ||
+      !row.vaultId ||
+      activeVaultIds.has(row.vaultId);
+    if (collateralInUse) {
+      return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusInUse };
+    }
   }
   return { dotClass: STATUS_DOT.settled, label: COPY.activity.statusDone };
 }
 
-export function ActivityRowV3({ row, action }: ActivityRowV3Props) {
+/**
+ * The row's USD value at the current price, or null when it cannot be priced —
+ * no numeric amount, no price for the symbol, or a non-positive product. Null
+ * renders no sub-line at all, never a "$0 USD" one.
+ */
+function getUsdSubLine(
+  amount: ActivityLog["amount"],
+  prices: Record<string, number> | undefined,
+): string | null {
+  const price = prices?.[amount.symbol];
+  if (amount.numeric === undefined || price === undefined) return null;
+  const usd = amount.numeric * price;
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  return formatUsdValue(usd);
+}
+
+export function ActivityRowV3({
+  row,
+  prices,
+  activeVaultIds,
+  action,
+}: ActivityRowV3Props) {
   return (
     <ActivityRowLayout
       icon={row.tokenIcon}
       iconAlt={row.amount.symbol}
       amount={`${row.amount.value} ${row.amount.symbol}`}
-      status={getActivityStatus(row)}
+      usdValue={getUsdSubLine(row.amount, prices)}
+      status={getActivityStatus(row, activeVaultIds)}
       // The type column label comes from the copy catalog; "Pending Deposit"
       // (an internal type kept out of the filter menu) maps to a "Deposit".
       typeLabel={COPY.activity.typeLabels[row.type]}
@@ -97,6 +147,8 @@ interface ActivityRowLayoutProps {
   icon: string;
   iconAlt: string;
   amount: string;
+  /** Sub-line under the amount, already formatted. Null renders no sub-line. */
+  usdValue?: string | null;
   status: ActivityStatus;
   typeLabel: string;
   hash: ReactNode;
@@ -111,6 +163,7 @@ export function ActivityRowLayout({
   icon,
   iconAlt,
   amount,
+  usdValue,
   status,
   typeLabel,
   hash,
@@ -124,11 +177,18 @@ export function ActivityRowLayout({
             cell can now shrink to its 120px floor — without this a long amount
             squashes the circle into an ellipse. */}
         <Avatar url={icon} alt={iconAlt} size="medium" className="shrink-0" />
-        <span
-          className={`min-w-0 truncate ${CELL_TEXT_CLASS} text-accent-primary`}
-        >
-          {amount}
-        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className={`truncate ${CELL_TEXT_CLASS} text-accent-primary`}>
+            {amount}
+          </span>
+          {usdValue && (
+            <span
+              className={`truncate ${SUB_LINE_TEXT_CLASS} text-accent-secondary`}
+            >
+              {usdValue}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className={`${COLUMN_CLASS} gap-1`}>

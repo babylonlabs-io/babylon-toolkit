@@ -39,6 +39,14 @@ export interface ActivityAmount {
   value: string;
   /** Token symbol (e.g., "USDC", "BTC") */
   symbol: string;
+  /**
+   * The same amount as a plain number, used only to derive the row's USD
+   * sub-line (amount × current price). Absent where the source has no
+   * unambiguous numeric amount — those rows render no sub-line rather than a
+   * `$0` / `NaN` one. Never use it for a signed value: `value` is what the
+   * user sees and the projection formats it independently.
+   */
+  numeric?: number;
 }
 
 /**
