@@ -42,7 +42,7 @@ function StatMeter({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(clamped * 100)}
-        className="h-1 w-[68px] overflow-hidden rounded-full bg-secondary-strokeLight"
+        className="h-1 w-[68px] overflow-hidden rounded-full bg-secondary-strokeLight xl:max-[1439px]:w-[48px]"
       >
         <div
           className="h-full rounded-full bg-secondary-main"
@@ -59,9 +59,9 @@ function StatMeter({
 function StatSection({ card }: { card: PositionStatCard }) {
   const hasAction = card.actionLabel != null && card.onAction != null;
   return (
-    <div className="flex flex-[1_0_0] items-center justify-between gap-4">
+    <div className="flex flex-[1_0_0] items-center justify-between gap-4 xl:max-[1439px]:gap-2">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-1 whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+        <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
           {card.tooltip ? (
             <Hint
               tooltip={card.tooltip}
@@ -74,7 +74,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
           )}
         </div>
 
-        <span className="flex items-center gap-2 whitespace-nowrap text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
+        <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap">
           {card.valueNode ?? card.value}
         </span>
 
@@ -85,7 +85,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
             ariaLabel={card.label}
           />
         ) : card.caption ? (
-          <span className="whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+          <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
             {card.caption}
           </span>
         ) : null}
@@ -97,7 +97,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
           onClick={() => card.onAction?.()}
           disabled={card.actionDisabled}
           data-testid={card.actionTestId}
-          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled"
+          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled xl:max-[1439px]:w-[100px]"
         >
           {card.actionLabel}
         </button>
@@ -109,7 +109,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
 export function PositionStatCards({ cards }: { cards: PositionStatCard[] }) {
   return (
     <div className="rounded-lg bg-secondary-highlight p-6">
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:max-[1439px]:gap-4">
         {cards.map((card, index) => (
           <Fragment key={card.label}>
             {index > 0 && (
