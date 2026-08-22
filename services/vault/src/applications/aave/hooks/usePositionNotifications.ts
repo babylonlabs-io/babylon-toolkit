@@ -116,7 +116,15 @@ export function usePositionNotifications(
         reorderVerificationContext: null,
         params: null,
       };
-    if (collateralVaults.length === 0)
+    // Optimistic activating rows carry collateral the contract has not seen
+    // yet, and a sentinel `liquidationIndex`. Including them would inflate
+    // `totalBtc`, pushing every liquidation price DOWN — understating the
+    // risk — and label a band "Vault 9007199254740992". The cascade models
+    // what the protocol would seize, so it sees indexed vaults only.
+    const indexedVaults = collateralVaults.filter(
+      (entry) => !entry.isActivating,
+    );
+    if (indexedVaults.length === 0)
       return {
         result: null,
         status: "no-vaults",
@@ -124,7 +132,7 @@ export function usePositionNotifications(
         params: null,
       };
 
-    const vaults: Vault[] = collateralVaults.map((entry) => ({
+    const vaults: Vault[] = indexedVaults.map((entry) => ({
       id: entry.vaultId,
       btc: entry.amountBtc,
       name: `Vault ${entry.liquidationIndex + 1}`,

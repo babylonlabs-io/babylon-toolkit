@@ -14,24 +14,22 @@ import {
 } from "../v3Navigation";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isLiquidationAnalysisChartEnabled: true,
   isExploreEnabled: true,
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 beforeEach(() => {
-  featureFlagsMock.isLiquidationAnalysisChartEnabled = true;
   featureFlagsMock.isExploreEnabled = true;
 });
 
 describe("isV3SectionEnabled", () => {
   it("returns true for a section with no flag of its own", () => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
     featureFlagsMock.isExploreEnabled = false;
 
     expect(isV3SectionEnabled("vaults")).toBe(true);
     expect(isV3SectionEnabled("overview")).toBe(true);
+    expect(isV3SectionEnabled("liquidations")).toBe(true);
   });
 
   it("follows the explore flag for the explore section", () => {
@@ -40,14 +38,6 @@ describe("isV3SectionEnabled", () => {
     featureFlagsMock.isExploreEnabled = false;
 
     expect(isV3SectionEnabled("explore")).toBe(false);
-  });
-
-  it("follows the liquidation-analysis flag for the liquidations section", () => {
-    expect(isV3SectionEnabled("liquidations")).toBe(true);
-
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
-
-    expect(isV3SectionEnabled("liquidations")).toBe(false);
   });
 });
 
@@ -71,21 +61,6 @@ describe("getVisibleV3NavGroups", () => {
       ["liquidations"],
     ]);
   });
-
-  it("drops a group its flags emptied instead of leaving an empty one", () => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
-    featureFlagsMock.isExploreEnabled = false;
-
-    const groups = getVisibleV3NavGroups();
-
-    expect(groups).toHaveLength(1);
-    expect(groups[0].map((item) => item.id)).toEqual([
-      "overview",
-      "vaults",
-      "loans",
-      "activity",
-    ]);
-  });
 });
 
 describe("getFlagDisabledV3SectionPaths", () => {
@@ -97,15 +72,5 @@ describe("getFlagDisabledV3SectionPaths", () => {
     featureFlagsMock.isExploreEnabled = false;
 
     expect(getFlagDisabledV3SectionPaths()).toEqual(["explore"]);
-  });
-
-  it("returns every flag-disabled section", () => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
-    featureFlagsMock.isExploreEnabled = false;
-
-    expect(getFlagDisabledV3SectionPaths()).toEqual([
-      "liquidations",
-      "explore",
-    ]);
   });
 });

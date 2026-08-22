@@ -1,9 +1,13 @@
 import { Heading, SeizureMap, Slider } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
-import type { CalculatorResult } from "@/applications/aave/positionNotifications/types";
+import { calculate } from "@/applications/aave/positionNotifications";
+import type {
+  CalculatorParams,
+  CalculatorResult,
+} from "@/applications/aave/positionNotifications/types";
 import { LiquidationEventCards } from "@/components/pages/Liquidations/LiquidationEventCards";
 import {
   buildLiquidationChartData,
@@ -17,17 +21,16 @@ import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 import { formatPriceUsd } from "@/utils/formatting";
 
-/** The cascade the chart renders. Absent = nothing to chart yet. */
+/** The cascade the chart renders. Absent = nothing to chart yet.
+ *
+ *  Carries the params `result` was computed from, not values derived from
+ *  them: the price simulator has to re-run `calculate()` at the simulated
+ *  price, and `params.vaults` is the only source for the "x/y vaults" count
+ *  (`calculate()` stops emitting groups once the debt clears, so a vault it
+ *  never consumed has no group). */
 export interface LiquidationCascade {
   result: CalculatorResult;
-  btcPrice: number;
-  collateralFactor: number;
-  /**
-   * Vaults in the position. Not derivable from `result`: `calculate()` stops
-   * emitting groups once the debt clears, so a vault it never consumed has no
-   * group and would otherwise vanish from the "x/y vaults" count.
-   */
-  vaultsTotal: number;
+  params: CalculatorParams;
 }
 
 interface LiquidationAnalysisSectionProps {
@@ -88,29 +91,36 @@ function EmptyState({
 }
 
 function LiquidationChartPanel({
-  cascade,
-  effectivePrice,
+  params,
+  projectedResult,
+  projectedPrice,
+  sliderPrice,
   simulating,
   onSimulate,
   onReset,
   onExplore,
 }: {
-  cascade: LiquidationCascade;
-  effectivePrice: number;
+  params: CalculatorParams;
+  projectedResult: CalculatorResult;
+  projectedPrice: number;
+  sliderPrice: number;
   simulating: boolean;
   onSimulate: (price: number) => void;
   onReset: () => void;
   onExplore: () => void;
 }) {
+  // Built from `projectedPrice`, the price `projectedResult` was calculated
+  // at, so the bands and the price line can never disagree while the deferred
+  // cascade is catching up with the thumb.
   const { bands, priceAxis, shareAxisTicks, cards } = useMemo(
     () =>
-      buildLiquidationChartData(cascade.result, {
-        btcPrice: effectivePrice,
-        collateralFactor: cascade.collateralFactor,
-        livePrice: cascade.btcPrice,
-        vaultsTotal: cascade.vaultsTotal,
+      buildLiquidationChartData(projectedResult, {
+        btcPrice: projectedPrice,
+        collateralFactor: params.CF,
+        livePrice: params.btcPrice,
+        vaultsTotal: params.vaults.length,
       }),
-    [cascade, effectivePrice],
+    [projectedResult, projectedPrice, params],
   );
 
   // Cards and bands share keys, so the chart's liquidated state is the
@@ -146,9 +156,9 @@ function LiquidationChartPanel({
       <div className="flex items-center gap-4">
         <div className="flex-1">
           <Slider
-            value={effectivePrice}
+            value={sliderPrice}
             min={0}
-            max={cascade.btcPrice}
+            max={params.btcPrice}
             step={SIM_PRICE_STEP_USD}
             steps={[]}
             onChange={onSimulate}
@@ -157,7 +167,7 @@ function LiquidationChartPanel({
           />
         </div>
         <span className="min-w-[92px] rounded-md border border-secondary-strokeLight px-3 py-1.5 text-center text-sm font-medium tabular-nums text-accent-primary">
-          {formatPriceUsd(effectivePrice)}
+          {formatPriceUsd(sliderPrice)}
         </span>
         <button
           type="button"
@@ -173,8 +183,8 @@ function LiquidationChartPanel({
 
       <SeizureMap
         bands={bands}
-        currentPrice={effectivePrice}
-        currentPriceLabel={formatPriceUsd(effectivePrice)}
+        currentPrice={projectedPrice}
+        currentPriceLabel={formatPriceUsd(projectedPrice)}
         priceLineCaption={COPY.liquidations.bitcoinPriceCaption}
         priceAxis={priceAxis}
         shareAxisTicks={shareAxisTicks}
@@ -212,23 +222,45 @@ export function LiquidationAnalysisSection({
   const navigate = useNavigate();
   const [simulatedPrice, setSimulatedPrice] = useState<number | null>(null);
 
-  const showChart = hasCollateral && hasLoans && Boolean(cascade);
-  const livePrice = cascade?.btcPrice ?? 0;
+  const livePrice = cascade?.params.btcPrice ?? 0;
   // Downward-only: a live-price move below a stale simulated value re-clamps.
-  const effectivePrice =
+  const sliderPrice =
     simulatedPrice === null ? livePrice : Math.min(simulatedPrice, livePrice);
-  const simulating = showChart && effectivePrice < livePrice;
+  // `calculate()` runs an O(3^n) bitmask DP over the vault set, so dragging
+  // the slider would otherwise fire it once per step synchronously. Deferring
+  // only the price the CASCADE reads keeps the drag responsive: the slider and
+  // its readout still track `sliderPrice` directly, so the thumb never lags.
+  const projectedPrice = useDeferredValue(sliderPrice);
+
+  // The what-if path: re-run the pure calculator at the simulated price rather
+  // than re-projecting the live-price result, so the preview and /liquidations
+  // answer the same question with the same numbers.
+  const projectedResult = useMemo(() => {
+    if (!cascade) return null;
+    if (projectedPrice === cascade.params.btcPrice) return cascade.result;
+    return calculate({ ...cascade.params, btcPrice: projectedPrice });
+  }, [cascade, projectedPrice]);
+
+  // Invalid governance params leave `groups` empty with debt still present
+  // (calculate.ts skips the prefix walk when `seizedFraction` clamps). Charting
+  // that renders zero bands and a "Seized 0% / 0.00000000 BTC remaining"
+  // summary beside a real position, so treat it as nothing to chart — the same
+  // guard the /liquidations page applies.
+  const chartable =
+    projectedResult !== null && projectedResult.groups.length > 0;
+  const showChart = hasCollateral && hasLoans && chartable;
+  const simulating = showChart && projectedPrice < livePrice;
 
   const summary = useMemo(
     () =>
-      showChart && cascade
+      showChart && cascade && projectedResult
         ? buildSimulationSummary(
-            cascade.result,
-            effectivePrice,
-            cascade.vaultsTotal,
+            projectedResult,
+            projectedPrice,
+            cascade.params.vaults.length,
           )
         : null,
-    [showChart, cascade, effectivePrice],
+    [showChart, cascade, projectedResult, projectedPrice],
   );
 
   let body;
@@ -251,11 +283,13 @@ export function LiquidationAnalysisSection({
         onAction={onBorrow}
       />
     );
-  } else if (cascade) {
+  } else if (cascade && projectedResult && chartable) {
     body = (
       <LiquidationChartPanel
-        cascade={cascade}
-        effectivePrice={effectivePrice}
+        params={cascade.params}
+        projectedResult={projectedResult}
+        projectedPrice={projectedPrice}
+        sliderPrice={sliderPrice}
         simulating={simulating}
         onSimulate={setSimulatedPrice}
         onReset={() => setSimulatedPrice(null)}

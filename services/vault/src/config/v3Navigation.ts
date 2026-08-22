@@ -62,7 +62,6 @@ export const V3_NAV_ITEMS: readonly V3NavItem[] = V3_NAV_GROUPS.flat();
  * takes effect. Inlining them as values would freeze every flag at import.
  */
 const V3_SECTION_FLAG_GATES: Partial<Record<V3NavItemId, () => boolean>> = {
-  liquidations: () => featureFlags.isLiquidationAnalysisChartEnabled,
   explore: () => featureFlags.isExploreEnabled,
 };
 

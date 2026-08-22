@@ -2,7 +2,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CalculatorResult } from "@/applications/aave/positionNotifications/types";
+import { calculate } from "@/applications/aave/positionNotifications";
+import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
 
 import {
@@ -10,38 +11,32 @@ import {
   type LiquidationCascade,
 } from "../LiquidationAnalysisSection";
 
-const CASCADE: LiquidationCascade = {
+/**
+ * A real single-vault position: 0.6 BTC at $88,400 against $22,000 of debt,
+ * CF 0.5. `calculate()` puts its one liquidation trigger at $73,333, so the
+ * position opens healthy and a drag below that trigger liquidates it. The
+ * result is real calculator output, never hand-built, so the fixture cannot
+ * drift from the maths the component re-runs.
+ */
+const PARAMS: CalculatorParams = {
   btcPrice: 88_400,
-  collateralFactor: 0.5,
-  vaultsTotal: 1,
-  result: {
-    groups: [
-      {
-        // calculate() emits 1-based indices; the projection must not key off it.
-        index: 1,
-        vaults: [{ id: "v-1", name: "Vault 1", btc: 0.6 }],
-        combinedBtc: 0.6,
-        liquidationPrice: 77_682,
-        distancePct: -12.1,
-        targetSeizureBtc: 0.58,
-        overSeizureBtc: 0.02,
-        isFullLiquidation: true,
-        debtToRepay: 28_383,
-        liquidatorProfitUsd: 1_419,
-        debtRepaid: 28_383,
-        fairnessDebtRepay: 0,
-        fairnessPaymentUsd: 798,
-        debtRemainingAfter: 0,
-        btcRemainingAfter: 0,
-      },
-    ],
-    currentHF: 1.1,
-    collateralValue: 53_040,
-    targetSeizureBtc: 0.58,
-    warnings: [],
-    optimalVaultOrder: null,
-    suggestedNewVaultBtc: null,
-  } satisfies CalculatorResult,
+  totalDebtUsd: 22_000,
+  vaults: [{ id: "v-1", name: "Vault 1", btc: 0.6 }],
+  CF: 0.5,
+  THF: 1.1,
+  maxLB: 1.05,
+};
+const CASCADE: LiquidationCascade = {
+  result: calculate(PARAMS),
+  params: PARAMS,
+};
+
+/** Governance params whose seizure fraction clamps out of range: `calculate()`
+ *  returns no groups while the debt is still there. */
+const INVALID_PARAMS: CalculatorParams = { ...PARAMS, CF: 0.92 };
+const INVALID_CASCADE: LiquidationCascade = {
+  result: calculate(INVALID_PARAMS),
+  params: INVALID_PARAMS,
 };
 
 function renderSection(props: {
@@ -104,8 +99,8 @@ describe("LiquidationAnalysisSection", () => {
     const slider = screen.getByRole("slider", {
       name: COPY.liquidations.simulateLabel,
     });
-    expect(slider).toHaveValue(String(CASCADE.btcPrice));
-    expect(slider).toHaveAttribute("max", String(CASCADE.btcPrice));
+    expect(slider).toHaveValue(String(PARAMS.btcPrice));
+    expect(slider).toHaveAttribute("max", String(PARAMS.btcPrice));
     expect(slider).toHaveAttribute("min", "0");
     // Step 1: a coarser grid cannot land back on the float live price, which
     // would leave the simulator stuck in "simulating" after a full drag right.
@@ -148,7 +143,7 @@ describe("LiquidationAnalysisSection", () => {
       screen.getByRole("button", { name: COPY.liquidations.reset }),
     );
 
-    expect(slider).toHaveValue(String(CASCADE.btcPrice));
+    expect(slider).toHaveValue(String(PARAMS.btcPrice));
     expect(screen.queryByText(COPY.liquidations.simulationChip)).toBeNull();
     expect(
       screen.queryByText(COPY.liquidations.events.liquidatedInSimulation),
@@ -224,5 +219,37 @@ describe("LiquidationAnalysisSection", () => {
     );
 
     expect(onBorrow).toHaveBeenCalledWith();
+  });
+
+  // The distance a liquidation event reports is measured from the price the
+  // cascade was calculated at. Re-projecting the live-price cascade onto a
+  // dragged price keeps the live distance (-17.0% here) while the band already
+  // reads as liquidated; re-running `calculate()` at the dragged price reports
+  // the price as 22.2% PAST the trigger. Only the recomputed figure is
+  // consistent with the band beside it.
+  it("recalculates the cascade at the simulated price rather than reprojecting the live one", () => {
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    fireEvent.change(
+      screen.getByRole("slider", { name: COPY.liquidations.simulateLabel }),
+      { target: { value: "60000" } },
+    );
+
+    const cards = within(screen.getByTestId("liq-event-cards"));
+    expect(cards.getByText("+22.2%")).toBeInTheDocument();
+    expect(cards.queryByText("-17.0%")).toBeNull();
+  });
+
+  it("charts nothing when the cascade has no groups to seize", () => {
+    renderSection({
+      hasCollateral: true,
+      hasLoans: true,
+      cascade: INVALID_CASCADE,
+    });
+
+    expect(INVALID_CASCADE.result.groups).toHaveLength(0);
+    expect(screen.queryByText(COPY.liquidations.simulateLabel)).toBeNull();
+    expect(screen.queryByTestId("liq-event-cards")).toBeNull();
+    expect(screen.queryByTestId("liq-seized-pct")).toBeNull();
   });
 });
