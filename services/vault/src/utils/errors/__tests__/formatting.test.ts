@@ -890,9 +890,7 @@ describe("Error Formatting", () => {
       );
     });
 
-    it("maps each typed device-state code to its dedicated payout copy", () => {
-      // Today these fall to PSE.unexpected with the real message dropped to
-      // diagnostics — the typed buckets must claim them first.
+    it("maps DEVICE_CEREMONY_INVALID to its dedicated payout copy", () => {
       expect(
         formatPayoutSignatureError(
           new FakeWalletError(
@@ -901,11 +899,17 @@ describe("Error Formatting", () => {
           ),
         ),
       ).toEqual(COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid);
+    });
+
+    it("maps DEVICE_LOCKED to its dedicated payout copy", () => {
       expect(
         formatPayoutSignatureError(
           new FakeWalletError("DEVICE_LOCKED", "Device is locked (0x5515)"),
         ),
       ).toEqual(COPY.deposit.payoutSignatureErrors.deviceLocked);
+    });
+
+    it("maps DEVICE_WRONG_APP to its dedicated payout copy", () => {
       expect(
         formatPayoutSignatureError(
           new FakeWalletError(
@@ -936,29 +940,58 @@ describe("Error Formatting", () => {
 
     // Same convention as the guards above: a connector-side rename must fail
     // here, not silently disable the mapping.
-    it("inlined DEVICE_* codes match wallet-connector source", () => {
+    it("inlined DEVICE_CEREMONY_INVALID code matches wallet-connector source", () => {
       const codesPath = resolve(
         __dirname,
         "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
       );
       const source = readFileSync(codesPath, "utf8");
-      for (const [code, copy] of [
-        [
-          "DEVICE_CEREMONY_INVALID",
-          COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid,
-        ],
-        ["DEVICE_LOCKED", COPY.deposit.payoutSignatureErrors.deviceLocked],
-        ["DEVICE_WRONG_APP", COPY.deposit.payoutSignatureErrors.deviceWrongApp],
-      ] as const) {
-        const match = source.match(new RegExp(`${code}:\\s*"([^"]+)"`));
-        expect(match).not.toBeNull();
-        expect(match?.[1]).toBe(code);
-        expect(
-          formatPayoutSignatureError(
-            new FakeWalletError(match![1], "device error"),
-          ),
-        ).toEqual(copy);
-      }
+      const match = source.match(/DEVICE_CEREMONY_INVALID:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_CEREMONY_INVALID");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid);
+    });
+
+    it("inlined DEVICE_LOCKED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_LOCKED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_LOCKED");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceLocked);
+    });
+
+    it("inlined DEVICE_WRONG_APP code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_WRONG_APP:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_WRONG_APP");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceWrongApp);
     });
 
     it("finds DEVICE_CEREMONY_INVALID nested in a wrapper's cause chain", () => {

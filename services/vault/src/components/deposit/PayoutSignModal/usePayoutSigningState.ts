@@ -81,8 +81,8 @@ export interface UsePayoutSigningStateResult {
   handleSign: () => Promise<void>;
   /**
    * True while the in-flight sign can be cancelled: signing is active AND the
-   * connected BTC provider exposes `cancelSigning` (only the Ledger provider
-   * does — always capability-probed, never assumed).
+   * provider that started the sign exposes `cancelSigning` (only the Ledger
+   * provider does — always capability-probed, never assumed).
    */
   canCancel: boolean;
   /** True from {@link handleCancel} until the in-flight sign settles. */
@@ -152,6 +152,10 @@ export function usePayoutSigningState({
   // `signing === false`. Flip the ref before the first await, clear it in
   // `finally`, and always check this before the state.
   const inFlightRef = useRef(false);
+
+  // Provider that STARTED the in-flight sign. Cancellation binds to it so a
+  // wallet swapped in mid-prompt cannot orphan the original ceremony.
+  const signingProviderRef = useRef<unknown>(null);
 
   const claimersDoneRef = useRef(false);
 
@@ -272,6 +276,7 @@ export function usePayoutSigningState({
         return;
       }
 
+      signingProviderRef.current = btcWalletProvider;
       setSigning(true);
       setError(null);
       // Start on the auth-anchor step — the first thing the flow does is
@@ -433,6 +438,7 @@ export function usePayoutSigningState({
       }
     } finally {
       inFlightRef.current = false;
+      signingProviderRef.current = null;
       // Every settle path (success, any error, guard return) consumes a
       // pending cancel request so the modal can't wedge on a disabled button.
       cancelRequestedRef.current = false;
@@ -455,18 +461,23 @@ export function usePayoutSigningState({
     onSuccess,
   ]);
 
-  // Capability probe on every render: only the Ledger vault provider exposes
-  // cancelSigning, and the affordance is only honest while a sign is running.
-  const connectedProvider = btcConnector?.connectedWallet?.provider as
-    | { cancelSigning?: unknown }
-    | undefined;
+  // Capability probe: only the Ledger vault provider exposes cancelSigning.
+  // Reads the provider that started the sign, not the live connector — a
+  // wallet swapped in mid-prompt must not retarget the affordance. The ref is
+  // only ever set/cleared together with the `signing` state, so this render
+  // read stays in sync.
+  const signingProvider = signingProviderRef.current as {
+    cancelSigning?: unknown;
+  } | null;
   const canCancel =
-    signing && typeof connectedProvider?.cancelSigning === "function";
+    signing && typeof signingProvider?.cancelSigning === "function";
 
   const handleCancel = useCallback(() => {
-    const provider = btcConnector?.connectedWallet?.provider as
-      | { cancelSigning?: () => void }
-      | undefined;
+    // Cancel the ceremony on the provider that started it — never the
+    // connector's current provider.
+    const provider = signingProviderRef.current as {
+      cancelSigning?: () => void;
+    } | null;
     if (!inFlightRef.current || cancelRequestedRef.current) return;
     if (typeof provider?.cancelSigning !== "function") return;
     cancelRequestedRef.current = true;
@@ -476,7 +487,7 @@ export function usePayoutSigningState({
     // acts on the device. Abort our own signal too so VP polling stops now.
     provider.cancelSigning();
     abortRef.current?.abort();
-  }, [btcConnector?.connectedWallet?.provider]);
+  }, []);
 
   return {
     signing,

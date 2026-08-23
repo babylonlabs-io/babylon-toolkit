@@ -15,6 +15,9 @@ import { COPY } from "@/copy";
 
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
+  DEVICE_CEREMONY_INVALID_CODE,
+  DEVICE_LOCKED_CODE,
+  DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
   isDeviceCeremonyInvalidError,
   isDeviceLockedError,
@@ -542,11 +545,11 @@ export function formatPayoutSignatureError(error: unknown): {
   // Top-frame device code — before both cause walks, so an outer device error
   // is never shadowed by an inner cause (same contract as the rejection bucket).
   switch (deviceErrorCodeOfFrame(error)) {
-    case "DEVICE_CEREMONY_INVALID":
+    case DEVICE_CEREMONY_INVALID_CODE:
       return PSE.deviceCeremonyInvalid;
-    case "DEVICE_LOCKED":
+    case DEVICE_LOCKED_CODE:
       return PSE.deviceLocked;
-    case "DEVICE_WRONG_APP":
+    case DEVICE_WRONG_APP_CODE:
       return PSE.deviceWrongApp;
   }
 

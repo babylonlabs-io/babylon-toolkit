@@ -193,8 +193,8 @@ export interface UseDepositFlowReturn {
   ethConfirmationDetail: RegistrationDepthProgress | null;
   /**
    * True while a cancellable device signature (signPsbt/signPsbts/signMessage)
-   * is in flight AND the connected provider exposes `cancelSigning` (only the
-   * Ledger provider does — always capability-probed).
+   * is in flight AND the provider that started it exposes `cancelSigning`
+   * (only the Ledger provider does — always capability-probed).
    */
   canCancelDeviceSign: boolean;
   /** True from {@link cancelDeviceSign} until the in-flight signature settles. */
@@ -309,14 +309,19 @@ export function useDepositFlow(
   const [deviceCancelRequested, setDeviceCancelRequested] = useState(false);
   // Ref mirror so cancelDeviceSign reads the live value synchronously.
   const deviceSignActiveRef = useRef(false);
+  // Provider that STARTED the in-flight sign. Cancellation binds to it so a
+  // wallet swapped in mid-prompt cannot orphan the original ceremony.
+  const deviceSignProviderRef = useRef<unknown>(null);
 
   const runCancellableSign = useCallback(
-    async <T>(sign: () => Promise<T>): Promise<T> => {
+    async <T>(signingProvider: unknown, sign: () => Promise<T>): Promise<T> => {
+      deviceSignProviderRef.current = signingProvider;
       deviceSignActiveRef.current = true;
       setDeviceSignActive(true);
       try {
         return await sign();
       } finally {
+        deviceSignProviderRef.current = null;
         deviceSignActiveRef.current = false;
         setDeviceSignActive(false);
         // Either outcome consumes a pending cancel request — the UI must
@@ -504,7 +509,7 @@ export function useDepositFlow(
           opts,
         ) => {
           advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
-          const signed = await runCancellableSign(() =>
+          const signed = await runCancellableSign(confirmedBtcWallet, () =>
             confirmedBtcWallet.signPsbt(psbtHex, opts),
           );
           setPeginSigningProgress((prev) =>
@@ -521,7 +526,7 @@ export function useDepositFlow(
         ) => {
           advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
           setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
-          const signed = await runCancellableSign(() =>
+          const signed = await runCancellableSign(confirmedBtcWallet, () =>
             confirmedBtcWallet.signPsbts!(psbtHexes, opts),
           );
           setPeginSigningProgress({
@@ -638,7 +643,7 @@ export function useDepositFlow(
         advanceStep(DepositFlowStep.SIGN_POP);
         // Wrapped as a whole: the BIP-322 signMessage inside is the
         // cancellable device call, and its prep reads are cached/fast.
-        const popSignature = await runCancellableSign(() =>
+        const popSignature = await runCancellableSign(confirmedBtcWallet, () =>
           signProofOfPossession(confirmedBtcWallet, walletClient),
         );
 
@@ -905,7 +910,9 @@ export function useDepositFlow(
             unsignedTxHex: batchResult.fundedPrePeginTxHex,
             btcWalletProvider: {
               signPsbt: (psbtHex: string) =>
-                runCancellableSign(() => confirmedBtcWallet.signPsbt(psbtHex)),
+                runCancellableSign(confirmedBtcWallet, () =>
+                  confirmedBtcWallet.signPsbt(psbtHex),
+                ),
               deriveContextHash: (appName: string, context: string) =>
                 confirmedBtcWallet.deriveContextHash(appName, context),
               // Object spread drops prototype methods — see forwardDepositApproval.
@@ -1061,7 +1068,7 @@ export function useDepositFlow(
             }
             setIsWaiting(false);
             try {
-              return await runCancellableSign(() =>
+              return await runCancellableSign(confirmedBtcWallet, () =>
                 confirmedBtcWallet.signPsbt(psbtHex, opts),
               );
             } finally {
@@ -1088,7 +1095,7 @@ export function useDepositFlow(
                   }
                   setIsWaiting(false);
                   try {
-                    return await runCancellableSign(() =>
+                    return await runCancellableSign(confirmedBtcWallet, () =>
                       confirmedBtcWallet.signPsbts!(psbtHexes, opts),
                     );
                   } finally {
@@ -1469,9 +1476,11 @@ export function useDepositFlow(
     ]);
 
   const cancelDeviceSign = useCallback(() => {
-    const provider = btcWalletProvider as
-      | (BitcoinWallet & { cancelSigning?: () => void })
-      | null;
+    // Cancel the ceremony on the provider that started it — never the live
+    // prop, which a mid-prompt wallet swap can replace.
+    const provider = deviceSignProviderRef.current as {
+      cancelSigning?: () => void;
+    } | null;
     if (!deviceSignActiveRef.current) return;
     if (typeof provider?.cancelSigning !== "function") return;
     setDeviceCancelRequested(true);
@@ -1479,11 +1488,13 @@ export function useDepositFlow(
     // Settles like an on-device reject: pre-broadcast = "Signing rejected"
     // callout; post-broadcast payout stage = per-vault warning, loop continues.
     provider.cancelSigning();
-  }, [btcWalletProvider]);
+  }, []);
 
+  // The ref is only ever set/cleared together with the `deviceSignActive`
+  // state, so this render read stays in sync.
   const canCancelDeviceSign =
     deviceSignActive &&
-    typeof (btcWalletProvider as { cancelSigning?: unknown } | null)
+    typeof (deviceSignProviderRef.current as { cancelSigning?: unknown } | null)
       ?.cancelSigning === "function";
 
   return {

@@ -54,6 +54,9 @@ import { COPY } from "@/copy";
 
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
+  DEVICE_CEREMONY_INVALID_CODE,
+  DEVICE_LOCKED_CODE,
+  DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
   isDeviceCeremonyInvalidError,
   isDeviceLockedError,
@@ -189,11 +192,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // 3g'. Top-frame device code — before both cause walks, so an outer device
   // error is never shadowed by an inner cause (same contract as step 2).
   switch (deviceErrorCodeOfFrame(err)) {
-    case "DEVICE_CEREMONY_INVALID":
+    case DEVICE_CEREMONY_INVALID_CODE:
       return ERRORS.deviceCeremonyInvalid;
-    case "DEVICE_LOCKED":
+    case DEVICE_LOCKED_CODE:
       return ERRORS.deviceLocked;
-    case "DEVICE_WRONG_APP":
+    case DEVICE_WRONG_APP_CODE:
       return ERRORS.deviceWrongApp;
   }
 

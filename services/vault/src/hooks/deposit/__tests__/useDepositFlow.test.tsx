@@ -1606,7 +1606,60 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("cancelDeviceSign forwards to the provider and the settled rejection surfaces as the signing-rejected copy", async () => {
+    it("cancels the provider that started the sign, not a wallet swapped in mid-prompt", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle, cancelSigning } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result, rerender } = renderHook(
+        (props: { btcWalletProvider: unknown }) =>
+          useDepositFlow({
+            ...MOCK_PARAMS,
+            btcWalletProvider: props.btcWalletProvider as any,
+          }),
+        { initialProps: { btcWalletProvider: wallet as unknown } },
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      // Swap the connected wallet while the device prompt is still open.
+      const replacementCancelSigning = vi.fn();
+      rerender({
+        btcWalletProvider: {
+          ...MOCK_BTC_WALLET,
+          cancelSigning: replacementCancelSigning,
+        },
+      });
+
+      // The affordance tracks the running ceremony, not the live prop.
+      expect(result.current.canCancelDeviceSign).toBe(true);
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+      expect(cancelSigning).toHaveBeenCalledTimes(1);
+      expect(replacementCancelSigning).not.toHaveBeenCalled();
+
+      await act(async () => {
+        settle.reject(signingCancelledError());
+        await flowPromise;
+      });
+    });
+
+    // Shared setup for the cancel-request tests below: start a flow with a
+    // held-open signPsbt, request the device cancel, hand back a settle helper.
+    async function startSignAndRequestCancel() {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
       );
@@ -1631,19 +1684,45 @@ describe("useDepositFlow", () => {
       act(() => {
         result.current.cancelDeviceSign();
       });
-      expect(cancelSigning).toHaveBeenCalledTimes(1);
-      expect(result.current.deviceCancelRequested).toBe(true);
 
-      let resolved: unknown;
-      await act(async () => {
-        settle.reject(signingCancelledError());
-        resolved = await flowPromise;
-      });
+      const settleAsCancelRejection = async () => {
+        let resolved: unknown;
+        await act(async () => {
+          settle.reject(signingCancelledError());
+          resolved = await flowPromise;
+        });
+        return resolved;
+      };
+      return { result, cancelSigning, settleAsCancelRejection };
+    }
+
+    it("cancelDeviceSign forwards to the provider's cancelSigning once", async () => {
+      const { cancelSigning, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
+      expect(cancelSigning).toHaveBeenCalledTimes(1);
+
+      await settleAsCancelRejection();
+    });
+
+    it("surfaces the cancel-settled rejection as the signing-rejected copy", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
 
       // The flow controller was NOT aborted: the rejection reaches the normal
       // error path (an aborted flow would have swallowed it silently).
+      const resolved = await settleAsCancelRejection();
       expect(resolved).toBeNull();
       expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingRejected);
+    });
+
+    it("sets deviceCancelRequested on request and clears it when the cancelled sign settles", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
+      expect(result.current.deviceCancelRequested).toBe(true);
+
+      await settleAsCancelRejection();
       expect(result.current.deviceCancelRequested).toBe(false);
     });
 

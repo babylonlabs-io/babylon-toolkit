@@ -789,7 +789,44 @@ describe("usePayoutSigningState", () => {
       expect(result.current.canCancel).toBe(false);
     });
 
-    it("handleCancel calls the provider's cancelSigning, aborts the in-flight signal, and sets cancelRequested", async () => {
+    it("cancels the provider that started the sign, not a wallet swapped in mid-prompt", async () => {
+      const { cancelSigning } = connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result, rerender } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+
+      // Swap the connected wallet while the device prompt is still open.
+      const replacementCancelSigning = vi.fn();
+      mockBtcConnector!.connectedWallet!.provider = {
+        signPsbt: vi.fn(),
+        cancelSigning: replacementCancelSigning,
+      };
+      rerender();
+
+      // The affordance tracks the running ceremony, not the live connector.
+      expect(result.current.canCancel).toBe(true);
+
+      act(() => {
+        result.current.handleCancel();
+      });
+
+      expect(cancelSigning).toHaveBeenCalledTimes(1);
+      expect(replacementCancelSigning).not.toHaveBeenCalled();
+
+      await act(async () => {
+        pending.reject(signingCancelledError());
+        await signPromise;
+      });
+    });
+
+    // Shared setup for the cancel-request tests below: start a sign on a
+    // cancellable wallet, request the cancel, hand back a settle helper.
+    async function startSignAndRequestCancel() {
       const { cancelSigning } = connectCancellableWallet();
       const pending = armPendingSdkCall();
       const { result } = renderHookWithProps();
@@ -804,16 +841,49 @@ describe("usePayoutSigningState", () => {
         result.current.handleCancel();
       });
 
+      const settleAsCancelRejection = async () => {
+        await act(async () => {
+          pending.reject(signingCancelledError());
+          await signPromise;
+        });
+      };
+      return { result, cancelSigning, pending, settleAsCancelRejection };
+    }
+
+    it("handleCancel invokes the provider's cancelSigning once", async () => {
+      const { cancelSigning, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
       expect(cancelSigning).toHaveBeenCalledTimes(1);
+
+      await settleAsCancelRejection();
+    });
+
+    it("handleCancel aborts the in-flight signal so VP polling stops now", async () => {
+      const { pending, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
       expect(pending.signal?.aborted).toBe(true);
+
+      await settleAsCancelRejection();
+    });
+
+    it("handleCancel sets cancelRequested", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
       expect(result.current.cancelRequested).toBe(true);
-      // The cancel is a request: the sign has not settled yet.
+
+      await settleAsCancelRejection();
+    });
+
+    it("keeps the sign pending after handleCancel — a cancel is a request, not a settle", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
       expect(result.current.signing).toBe(true);
 
-      await act(async () => {
-        pending.reject(signingCancelledError());
-        await signPromise;
-      });
+      await settleAsCancelRejection();
     });
 
     it("resets to idle with no error when a requested cancel settles as the provider's signing-cancelled rejection", async () => {

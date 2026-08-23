@@ -329,7 +329,7 @@ describe("mapDepositError", () => {
     expect(mapDepositError(wrapped)).toEqual(ERRORS.walletMethodNotSupported);
   });
 
-  it("maps each typed device-state code to its dedicated copy", () => {
+  it("maps DEVICE_CEREMONY_INVALID to its dedicated copy", () => {
     expect(
       mapDepositError(
         new FakeWalletError(
@@ -338,11 +338,17 @@ describe("mapDepositError", () => {
         ),
       ),
     ).toEqual(ERRORS.deviceCeremonyInvalid);
+  });
+
+  it("maps DEVICE_LOCKED to its dedicated copy", () => {
     expect(
       mapDepositError(
         new FakeWalletError("DEVICE_LOCKED", "Device is locked (0x5515)"),
       ),
     ).toEqual(ERRORS.deviceLocked);
+  });
+
+  it("maps DEVICE_WRONG_APP to its dedicated copy", () => {
     expect(
       mapDepositError(
         new FakeWalletError(
