@@ -56,7 +56,7 @@ const SW_USER_REFUSED = new Set([0x5501, 0x6985]);
 const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
 
 /** CLA not supported — what the dashboard or a wrong app returns. */
-const SW_CLA_NOT_SUPPORTED = 0x6e00;
+export const SW_CLA_NOT_SUPPORTED = 0x6e00;
 
 /** SW_BAD_STATE — the loaded intent/root is gone (`fw:sw.h` via `base:src/boilerplate/sw.h:80` @ e400d8d8). */
 export const SW_BAD_STATE = 0xb007;

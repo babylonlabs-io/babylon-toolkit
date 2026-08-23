@@ -9,6 +9,12 @@ import type { DepositProgressViewProps } from "../DepositProgressView";
 import { DepositSignContent } from "../DepositSignContent";
 
 const mockExecuteDeposit = vi.hoisted(() => vi.fn());
+const mockCancelDeviceSign = vi.hoisted(() => vi.fn());
+// Mutable so tests can drive the flow's cancel seam through the static mock.
+const deviceCancelState = vi.hoisted(() => ({
+  canCancel: false,
+  requested: false,
+}));
 // Captures the latest `onSign` handed to DepositProgressView so a test can
 // invoke it twice synchronously — the real double-click race that happens
 // before the `started` re-render flips the button out of the pre-sign state.
@@ -29,6 +35,9 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     payoutSigningProgress: null,
     peginSigningProgress: null,
     btcConfirmationDetail: null,
+    canCancelDeviceSign: deviceCancelState.canCancel,
+    deviceCancelRequested: deviceCancelState.requested,
+    cancelDeviceSign: mockCancelDeviceSign,
   }),
 }));
 
@@ -92,6 +101,22 @@ describe("DepositSignContent", () => {
     vi.clearAllMocks();
     signHolder.onSign = null;
     lastProgressProps.current = {};
+    deviceCancelState.canCancel = false;
+    deviceCancelState.requested = false;
+  });
+
+  it("plumbs the flow's device-cancel seam into DepositProgressView", () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    deviceCancelState.canCancel = true;
+    deviceCancelState.requested = true;
+
+    renderContent();
+
+    expect(lastProgressProps.current.canCancelSigning).toBe(true);
+    expect(lastProgressProps.current.cancelSigningRequested).toBe(true);
+    expect(lastProgressProps.current.onCancelSigning).toBe(
+      mockCancelDeviceSign,
+    );
   });
 
   it("renders DepositProgressView in the pre-sign state and only starts the flow on Sign Transaction", () => {

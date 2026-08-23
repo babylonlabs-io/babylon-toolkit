@@ -329,6 +329,79 @@ describe("mapDepositError", () => {
     expect(mapDepositError(wrapped)).toEqual(ERRORS.walletMethodNotSupported);
   });
 
+  it("maps DEVICE_CEREMONY_INVALID to its dedicated copy", () => {
+    expect(
+      mapDepositError(
+        new FakeWalletError(
+          "DEVICE_CEREMONY_INVALID",
+          "Ledger Vault holds no approved intent on this connection — restart the flow from derivation.",
+        ),
+      ),
+    ).toEqual(ERRORS.deviceCeremonyInvalid);
+  });
+
+  it("maps DEVICE_LOCKED to its dedicated copy", () => {
+    expect(
+      mapDepositError(
+        new FakeWalletError("DEVICE_LOCKED", "Device is locked (0x5515)"),
+      ),
+    ).toEqual(ERRORS.deviceLocked);
+  });
+
+  it("maps DEVICE_WRONG_APP to its dedicated copy", () => {
+    expect(
+      mapDepositError(
+        new FakeWalletError(
+          "DEVICE_WRONG_APP",
+          "The running app does not handle vault instructions — open the Babylon Vault app",
+        ),
+      ),
+    ).toEqual(ERRORS.deviceWrongApp);
+  });
+
+  it("lets a top-frame device code win over an inner unsupported-method cause", () => {
+    // The provider's typed device error can wrap lower-level causes; the
+    // outer, more specific frame must not be shadowed by the walking
+    // unsupported-method bucket.
+    const err = Object.assign(
+      new FakeWalletError(
+        "DEVICE_CEREMONY_INVALID",
+        "restart the flow from derivation.",
+      ),
+      {
+        cause: new FakeWalletError(
+          "WALLET_METHOD_NOT_SUPPORTED",
+          "no deriveContextHash",
+        ),
+      },
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.deviceCeremonyInvalid);
+  });
+
+  it("lets a top-frame unsupported-method code win over an inner device cause", () => {
+    const err = Object.assign(
+      new FakeWalletError(
+        "WALLET_METHOD_NOT_SUPPORTED",
+        "no deriveContextHash",
+      ),
+      { cause: new FakeWalletError("DEVICE_LOCKED", "Device is locked") },
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.walletMethodNotSupported);
+  });
+
+  it("finds DEVICE_CEREMONY_INVALID through a broadcast wrapper's cause chain", () => {
+    // Without the typed bucket, the wrapper's "broadcast" wording would claim
+    // this as "Broadcast failed" — misleading for a device-state error.
+    const inner = new FakeWalletError(
+      "DEVICE_CEREMONY_INVALID",
+      "The device no longer holds the approved intent (SW_BAD_STATE) — restart the flow from derivation.",
+    );
+    const wrapped = new Error("Failed to broadcast Pre-PegIn transaction", {
+      cause: inner,
+    });
+    expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceCeremonyInvalid);
+  });
+
   it("keeps the VP mapping when a JsonRpcError carries an unrelated unsupported-method cause", () => {
     // Precedence: typed classifications run before the cause walk, so the
     // meaningful outer VP error must win over the nested code.

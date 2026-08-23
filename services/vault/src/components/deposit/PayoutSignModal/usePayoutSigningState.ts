@@ -46,6 +46,7 @@ import {
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
+import { isUserCancellation } from "../../../utils/errors/userCancellation";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
 
 export interface SigningError {
@@ -78,6 +79,20 @@ export interface UsePayoutSigningStateResult {
   isComplete: boolean;
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
+  /**
+   * True while the in-flight sign can be cancelled: signing is active AND the
+   * provider that started the sign exposes `cancelSigning` (only the Ledger
+   * provider does — always capability-probed, never assumed).
+   */
+  canCancel: boolean;
+  /** True from {@link handleCancel} until the in-flight sign settles. */
+  cancelRequested: boolean;
+  /**
+   * Requests cancellation of the in-flight sign. This does NOT settle it:
+   * the provider aborts at its next device exchange boundary, which may be
+   * only after the user finishes or rejects on the physical device.
+   */
+  handleCancel: () => void;
 }
 
 function normalizeScriptPubKeyHex(scriptPubKey: string): string {
@@ -99,6 +114,10 @@ export function usePayoutSigningState({
   });
   const [error, setError] = useState<SigningError | null>(null);
   const [errorTerminal, setErrorTerminal] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
+  // Ref mirror so the settle paths inside handleSign read the live value —
+  // the state itself is stale inside the long-lived async closure.
+  const cancelRequestedRef = useRef(false);
 
   const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
   const btcConnector = useChainConnector("BTC");
@@ -133,6 +152,10 @@ export function usePayoutSigningState({
   // `signing === false`. Flip the ref before the first await, clear it in
   // `finally`, and always check this before the state.
   const inFlightRef = useRef(false);
+
+  // Provider that STARTED the in-flight sign. Cancellation binds to it so a
+  // wallet swapped in mid-prompt cannot orphan the original ceremony.
+  const signingProviderRef = useRef<unknown>(null);
 
   const claimersDoneRef = useRef(false);
 
@@ -253,6 +276,7 @@ export function usePayoutSigningState({
         return;
       }
 
+      signingProviderRef.current = btcWalletProvider;
       setSigning(true);
       setError(null);
       // Start on the auth-anchor step — the first thing the flow does is
@@ -374,7 +398,16 @@ export function usePayoutSigningState({
         setIsComplete(true);
         onSuccess();
       } catch (err) {
+        // Read before the finally consumes it: was this settle preceded by
+        // the user's own cancel request?
+        const selfCancelRequested = cancelRequestedRef.current;
         if (err instanceof Error && err.name === "AbortError") {
+          setSigning(false);
+          return;
+        }
+        // A self-requested cancel settling as the wallet's user-cancel
+        // rejection is not an error — return to the pre-sign idle state.
+        if (selfCancelRequested && isUserCancellation(err)) {
           setSigning(false);
           return;
         }
@@ -405,6 +438,11 @@ export function usePayoutSigningState({
       }
     } finally {
       inFlightRef.current = false;
+      signingProviderRef.current = null;
+      // Every settle path (success, any error, guard return) consumes a
+      // pending cancel request so the modal can't wedge on a disabled button.
+      cancelRequestedRef.current = false;
+      setCancelRequested(false);
     }
   }, [
     signing,
@@ -423,5 +461,43 @@ export function usePayoutSigningState({
     onSuccess,
   ]);
 
-  return { signing, progress, error, errorTerminal, isComplete, handleSign };
+  // Capability probe: only the Ledger vault provider exposes cancelSigning.
+  // Reads the provider that started the sign, not the live connector — a
+  // wallet swapped in mid-prompt must not retarget the affordance. The ref is
+  // only ever set/cleared together with the `signing` state, so this render
+  // read stays in sync.
+  const signingProvider = signingProviderRef.current as {
+    cancelSigning?: unknown;
+  } | null;
+  const canCancel =
+    signing && typeof signingProvider?.cancelSigning === "function";
+
+  const handleCancel = useCallback(() => {
+    // Cancel the ceremony on the provider that started it — never the
+    // connector's current provider.
+    const provider = signingProviderRef.current as {
+      cancelSigning?: () => void;
+    } | null;
+    if (!inFlightRef.current || cancelRequestedRef.current) return;
+    if (typeof provider?.cancelSigning !== "function") return;
+    cancelRequestedRef.current = true;
+    setCancelRequested(true);
+    // A REQUEST, not a settle: the provider aborts at its next device
+    // exchange boundary, so the sign promise stays pending until the user
+    // acts on the device. Abort our own signal too so VP polling stops now.
+    provider.cancelSigning();
+    abortRef.current?.abort();
+  }, []);
+
+  return {
+    signing,
+    progress,
+    error,
+    errorTerminal,
+    isComplete,
+    handleSign,
+    canCancel,
+    cancelRequested,
+    handleCancel,
+  };
 }

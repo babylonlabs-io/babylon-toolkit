@@ -39,6 +39,9 @@ export const ERROR_CODES = {
   // ===== QR/Hardware Wallet =====
   QR_READ_ERROR: "QR_READ_ERROR", // QR read failed
   QR_SCAN_ERROR: "QR_SCAN_ERROR", // QR scan failed
+  DEVICE_CEREMONY_INVALID: "DEVICE_CEREMONY_INVALID", // Device ceremony state unusable — restart from derivation
+  DEVICE_LOCKED: "DEVICE_LOCKED", // Hardware device is PIN-locked
+  DEVICE_WRONG_APP: "DEVICE_WRONG_APP", // Wrong app open on the hardware device
 
   // ===== Inscriptions/Network =====
   INSCRIPTIONS_UNSUPPORTED_NETWORK: "INSCRIPTIONS_UNSUPPORTED_NETWORK", // Inscriptions unsupported

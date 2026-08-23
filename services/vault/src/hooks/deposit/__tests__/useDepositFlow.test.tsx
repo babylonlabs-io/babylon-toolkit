@@ -1511,6 +1511,408 @@ describe("useDepositFlow", () => {
     });
   });
 
+  describe("Device-sign cancellation", () => {
+    // Only signPsbt/signPsbts/signMessage go through the Ledger provider's
+    // abortable loop, so the cancel affordance must track exactly those
+    // windows — never derive/approve ceremonies or non-wallet waits.
+
+    /** Wallet whose signPsbt stays pending until the test settles it. */
+    function pendingSignWallet(withCancel: boolean) {
+      const settle: {
+        resolve: (v: string) => void;
+        reject: (e: unknown) => void;
+      } = { resolve: () => {}, reject: () => {} };
+      const signPsbt = vi.fn(
+        () =>
+          new Promise<string>((resolve, reject) => {
+            settle.resolve = resolve;
+            settle.reject = reject;
+          }),
+      );
+      const cancelSigning = vi.fn();
+      const wallet = {
+        ...MOCK_BTC_WALLET,
+        signPsbt,
+        ...(withCancel ? { cancelSigning } : {}),
+      };
+      return { wallet, settle, cancelSigning };
+    }
+
+    /** What the Ledger provider rejects with when a requested cancel settles. */
+    function signingCancelledError() {
+      return Object.assign(
+        new Error(
+          "Signing cancelled after 0 of 1 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
+        ),
+        { code: "CONNECTION_REJECTED" },
+      );
+    }
+
+    it("exposes canCancelDeviceSign only while a pre-pegin signPsbt is in flight on a provider with cancelSigning", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      expect(result.current.canCancelDeviceSign).toBe(false);
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      await act(async () => {
+        settle.resolve("mockSignedPsbtHex");
+        await flowPromise;
+      });
+      expect(result.current.canCancelDeviceSign).toBe(false);
+    });
+
+    it("keeps canCancelDeviceSign false for providers without cancelSigning", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle } = pendingSignWallet(false);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(wallet.signPsbt).toHaveBeenCalled());
+
+      expect(result.current.canCancelDeviceSign).toBe(false);
+
+      await act(async () => {
+        settle.resolve("mockSignedPsbtHex");
+        await flowPromise;
+      });
+    });
+
+    it("cancels the provider that started the sign, not a wallet swapped in mid-prompt", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle, cancelSigning } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result, rerender } = renderHook(
+        (props: { btcWalletProvider: unknown }) =>
+          useDepositFlow({
+            ...MOCK_PARAMS,
+            btcWalletProvider: props.btcWalletProvider as any,
+          }),
+        { initialProps: { btcWalletProvider: wallet as unknown } },
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      // Swap the connected wallet while the device prompt is still open.
+      const replacementCancelSigning = vi.fn();
+      rerender({
+        btcWalletProvider: {
+          ...MOCK_BTC_WALLET,
+          cancelSigning: replacementCancelSigning,
+        },
+      });
+
+      // The affordance tracks the running ceremony, not the live prop.
+      expect(result.current.canCancelDeviceSign).toBe(true);
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+      expect(cancelSigning).toHaveBeenCalledTimes(1);
+      expect(replacementCancelSigning).not.toHaveBeenCalled();
+
+      await act(async () => {
+        settle.reject(signingCancelledError());
+        await flowPromise;
+      });
+    });
+
+    // Shared setup for the cancel-request tests below: start a flow with a
+    // held-open signPsbt, request the device cancel, hand back a settle helper.
+    async function startSignAndRequestCancel() {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle, cancelSigning } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      const settleAsCancelRejection = async () => {
+        let resolved: unknown;
+        await act(async () => {
+          settle.reject(signingCancelledError());
+          resolved = await flowPromise;
+        });
+        return resolved;
+      };
+      return { result, cancelSigning, settleAsCancelRejection };
+    }
+
+    it("cancelDeviceSign forwards to the provider's cancelSigning once", async () => {
+      const { cancelSigning, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
+      expect(cancelSigning).toHaveBeenCalledTimes(1);
+
+      await settleAsCancelRejection();
+    });
+
+    it("surfaces the cancel-settled rejection as the signing-rejected copy", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
+      // The flow controller was NOT aborted: the rejection reaches the normal
+      // error path (an aborted flow would have swallowed it silently).
+      const resolved = await settleAsCancelRejection();
+      expect(resolved).toBeNull();
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingRejected);
+    });
+
+    it("sets deviceCancelRequested on request and clears it when the cancelled sign settles", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+
+      expect(result.current.deviceCancelRequested).toBe(true);
+
+      await settleAsCancelRejection();
+      expect(result.current.deviceCancelRequested).toBe(false);
+    });
+
+    it("clears deviceCancelRequested when the sign settles successfully after a late cancel", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      let resolved: unknown;
+      await act(async () => {
+        settle.resolve("mockSignedPsbtHex");
+        resolved = await flowPromise;
+      });
+
+      expect(resolved).not.toBeNull();
+      expect(result.current.error).toBeNull();
+      expect(result.current.deviceCancelRequested).toBe(false);
+    });
+
+    it("covers the batch signPsbts window", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const settle: { resolve: (v: string[]) => void } = { resolve: () => {} };
+      const signPsbts = vi.fn(
+        () =>
+          new Promise<string[]>((resolve) => {
+            settle.resolve = resolve;
+          }),
+      );
+      const wallet = {
+        ...MOCK_BTC_WALLET,
+        signPsbts,
+        cancelSigning: vi.fn(),
+      };
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbts!(["psbt0", "psbt1"], [{}, {}]);
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      await act(async () => {
+        settle.resolve(["signed0", "signed1"]);
+        await flowPromise;
+      });
+      expect(result.current.canCancelDeviceSign).toBe(false);
+    });
+
+    it("covers the proof-of-possession window", async () => {
+      const { signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const settle: { resolve: (v: unknown) => void } = { resolve: () => {} };
+      vi.mocked(signProofOfPossession).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            settle.resolve = resolve as (v: unknown) => void;
+          }) as any,
+      );
+      const wallet = { ...MOCK_BTC_WALLET, cancelSigning: vi.fn() };
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      await act(async () => {
+        settle.resolve({
+          btcPopSignature: "0xMockPopSignature",
+          depositorEthAddress: "0xEthAddress123",
+          depositorBtcPubkey: MOCK_DEPOSITOR_PUBKEY,
+        });
+        await flowPromise;
+      });
+      expect(result.current.canCancelDeviceSign).toBe(false);
+    });
+
+    it("covers the Pre-PegIn broadcast signature window", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(broadcastPrePeginTransaction).mockImplementation(
+        async ({ btcWalletProvider }) => {
+          await btcWalletProvider.signPsbt("fundedPrePegin");
+          return "mockBroadcastTxId";
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      await act(async () => {
+        settle.resolve("signedFundedPrePegin");
+        await flowPromise;
+      });
+      expect(result.current.canCancelDeviceSign).toBe(false);
+    });
+
+    it("covers the post-broadcast depositor-graph window", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      // Only the FIRST graph sign is held open — the flow runs one payout
+      // round per vault, and a still-pending second round would hang the test.
+      const settle: { resolve: (v: string) => void } = { resolve: () => {} };
+      const signPsbt = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<string>((resolve) => {
+              settle.resolve = resolve;
+            }),
+        )
+        .mockResolvedValue("mockSignedPsbtHex");
+      const wallet = { ...MOCK_BTC_WALLET, signPsbt, cancelSigning: vi.fn() };
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ btcWallet }) => {
+          await btcWallet.signPsbt("graphPsbt");
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      await act(async () => {
+        settle.resolve("signedGraphPsbt");
+        await flowPromise;
+      });
+      expect(result.current.canCancelDeviceSign).toBe(false);
+    });
+  });
+
   describe("Soft warnings", () => {
     it("populates lastWarnings when addPendingPegin throws on persist failure", async () => {
       const { addPendingPegin } = vi.mocked(

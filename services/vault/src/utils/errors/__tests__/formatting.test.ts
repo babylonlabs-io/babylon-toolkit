@@ -890,6 +890,121 @@ describe("Error Formatting", () => {
       );
     });
 
+    it("maps DEVICE_CEREMONY_INVALID to its dedicated payout copy", () => {
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(
+            "DEVICE_CEREMONY_INVALID",
+            "The device no longer holds the approved intent (SW_BAD_STATE) — restart the flow from derivation.",
+          ),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid);
+    });
+
+    it("maps DEVICE_LOCKED to its dedicated payout copy", () => {
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError("DEVICE_LOCKED", "Device is locked (0x5515)"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceLocked);
+    });
+
+    it("maps DEVICE_WRONG_APP to its dedicated payout copy", () => {
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(
+            "DEVICE_WRONG_APP",
+            "The running app does not handle vault instructions — open the Babylon Vault app",
+          ),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceWrongApp);
+    });
+
+    it("lets a top-frame device code win over an inner unsupported-method cause", () => {
+      const err = Object.assign(
+        new FakeWalletError(
+          "DEVICE_CEREMONY_INVALID",
+          "restart the flow from derivation.",
+        ),
+        {
+          cause: new FakeWalletError(
+            "WALLET_METHOD_NOT_SUPPORTED",
+            "no deriveContextHash",
+          ),
+        },
+      );
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid,
+      );
+    });
+
+    // Same convention as the guards above: a connector-side rename must fail
+    // here, not silently disable the mapping.
+    it("inlined DEVICE_CEREMONY_INVALID code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_CEREMONY_INVALID:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_CEREMONY_INVALID");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid);
+    });
+
+    it("inlined DEVICE_LOCKED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_LOCKED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_LOCKED");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceLocked);
+    });
+
+    it("inlined DEVICE_WRONG_APP code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_WRONG_APP:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_WRONG_APP");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceWrongApp);
+    });
+
+    it("finds DEVICE_CEREMONY_INVALID nested in a wrapper's cause chain", () => {
+      const inner = new FakeWalletError(
+        "DEVICE_CEREMONY_INVALID",
+        "signPsbts[1]: The device no longer holds the approved intent — restart the flow from derivation.",
+      );
+      const wrapped = new Error("payout signing failed", { cause: inner });
+      expect(formatPayoutSignatureError(wrapped)).toEqual(
+        COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid,
+      );
+    });
+
     it("lets a typed top-frame rejection win over an inner unsupported-method cause", () => {
       // Outer frame is EIP-1193 4001; the inner cause carries the
       // unsupported-method code. The rejection is the accurate reading.

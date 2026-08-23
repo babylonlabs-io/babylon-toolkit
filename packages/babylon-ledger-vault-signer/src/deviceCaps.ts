@@ -68,12 +68,3 @@ export const DEVICE_MIN_DEPOSITOR_CLAIM_VALUE_SATS = DEVICE_VAULT_DUST_LIMIT_SAT
  * into the protocol.
  */
 export const DEVICE_PEGIN_AMOUNT_DUST_MULTIPLE = 2n;
-
-/**
- * The ONLY tx-graph version this firmware can complete. The intent TLV
- * carries no core-version field, so the device cannot reject a mismatched
- * graph at load — the intent approves on-screen and signing fails at PSBT
- * time. Any other version (v1 or a future v3) must be refused before device
- * I/O, hence an exact match, not a floor.
- */
-export const DEVICE_SUPPORTED_VAULT_CORE_VERSION = 2;

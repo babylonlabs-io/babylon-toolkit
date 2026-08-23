@@ -15,6 +15,15 @@ import { COPY } from "@/copy";
 
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
+  DEVICE_CEREMONY_INVALID_CODE,
+  DEVICE_LOCKED_CODE,
+  DEVICE_WRONG_APP_CODE,
+  deviceErrorCodeOfFrame,
+  isDeviceCeremonyInvalidError,
+  isDeviceLockedError,
+  isDeviceWrongAppError,
+} from "./deviceErrors";
+import {
   isTypedUserRejectionFrame,
   isUserCancellationFrame,
 } from "./userCancellation";
@@ -533,11 +542,34 @@ export function formatPayoutSignatureError(error: unknown): {
     return PSE.wrongDepositorWallet;
   }
 
+  // Top-frame device code — before both cause walks, so an outer device error
+  // is never shadowed by an inner cause (same contract as the rejection bucket).
+  switch (deviceErrorCodeOfFrame(error)) {
+    case DEVICE_CEREMONY_INVALID_CODE:
+      return PSE.deviceCeremonyInvalid;
+    case DEVICE_LOCKED_CODE:
+      return PSE.deviceLocked;
+    case DEVICE_WRONG_APP_CODE:
+      return PSE.deviceWrongApp;
+  }
+
   // Cause-walking, so it must run AFTER every typed bucket above — an inner
   // unsupported-method code must never override a meaningful outer error.
   // Resume-specific copy: an in-flight deposit cannot switch wallets.
   if (isWalletMethodNotSupported(error)) {
     return PSE.walletMethodNotSupported;
+  }
+
+  // Device codes nested in a cause chain — without these they fall to
+  // PSE.unexpected with the real message dropped to diagnostics.
+  if (isDeviceCeremonyInvalidError(error)) {
+    return PSE.deviceCeremonyInvalid;
+  }
+  if (isDeviceLockedError(error)) {
+    return PSE.deviceLocked;
+  }
+  if (isDeviceWrongAppError(error)) {
+    return PSE.deviceWrongApp;
   }
 
   if (error instanceof Error) {
