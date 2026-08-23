@@ -78,7 +78,6 @@ const VISUAL_ENV_VARS = {
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_TUNNEL_URL: "",
   NEXT_PUBLIC_FF_ENABLE_EXPLORE: "true",
-  NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART: "true",
   // Dev-only panel; would overlay every screen it mounts on.
   NEXT_PUBLIC_FF_GOD_MODE_PANEL: "false",
 };

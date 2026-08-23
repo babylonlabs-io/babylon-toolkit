@@ -159,24 +159,6 @@ export default {
   },
 
   /**
-   * LIQUIDATION_ANALYSIS_CHART feature flag
-   *
-   * Purpose: Gates the liquidation-analysis feature — the seizure-map chart
-   * inside the overview's Liquidation Analysis card, plus the sidebar's
-   * Liquidations section and the /liquidations Liquidation Dashboard. The
-   * overview card's empty states read the live position and are not gated by
-   * this.
-   * Why needed: the /liquidations page charts the live
-   * `usePositionNotifications` cascade, but the overview card's cascade is
-   * still god-mode-only, and rendering that beside a real position would
-   * present fabricated liquidation prices as the user's own.
-   * Default: false (no chart unless explicitly set to "true")
-   */
-  get isLiquidationAnalysisChartEnabled() {
-    return process.env.NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART === "true";
-  },
-
-  /**
    * ENABLE_EXPLORE feature flag
    *
    * Purpose: Gates the Explore section — the /explore route and its sidebar

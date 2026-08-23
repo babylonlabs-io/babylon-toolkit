@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "../AppSidebar";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isLiquidationAnalysisChartEnabled: true,
   isExploreEnabled: true,
 }));
 
@@ -13,7 +12,6 @@ vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 describe("AppSidebar", () => {
   beforeEach(() => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = true;
     featureFlagsMock.isExploreEnabled = true;
   });
 
@@ -30,27 +28,6 @@ describe("AppSidebar", () => {
       "Loans",
       "Activity",
       "Liquidations",
-      "Explore",
-    ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
-  });
-
-  it("hides only Liquidations when the liquidation-analysis flag is off, keeping Explore", () => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
-
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <AppSidebar />
-      </MemoryRouter>,
-    );
-
-    expect(screen.queryByText("Liquidations")).not.toBeInTheDocument();
-    for (const label of [
-      "Overview",
-      "Vaults",
-      "Loans",
-      "Activity",
       "Explore",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -74,23 +51,6 @@ describe("AppSidebar", () => {
       "Activity",
       "Liquidations",
     ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
-  });
-
-  it("renders only the first nav group when both section flags are off", () => {
-    featureFlagsMock.isLiquidationAnalysisChartEnabled = false;
-    featureFlagsMock.isExploreEnabled = false;
-
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <AppSidebar />
-      </MemoryRouter>,
-    );
-
-    expect(screen.queryByText("Liquidations")).not.toBeInTheDocument();
-    expect(screen.queryByText("Explore")).not.toBeInTheDocument();
-    for (const label of ["Overview", "Vaults", "Loans", "Activity"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
