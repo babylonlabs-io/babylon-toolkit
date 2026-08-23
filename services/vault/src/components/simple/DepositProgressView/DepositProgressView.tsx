@@ -147,6 +147,20 @@ export interface DepositProgressViewProps {
    * gates on. Omit pre-sign (no registered version yet) → latest params.
    */
   offchainParamsVersion?: number;
+  /**
+   * True while an in-flight device signing ceremony can be cancelled
+   * (capability-probed by the caller; only the Ledger provider supports it).
+   * Defaults false so every other flow renders exactly as before.
+   */
+  canCancelSigning?: boolean;
+  /**
+   * True after the user requested a cancel and the sign has not settled yet —
+   * the device settles the in-flight signature only once the user acts on it,
+   * so the UI parks on a disabled button plus a finish-on-device notice.
+   */
+  cancelSigningRequested?: boolean;
+  /** Requests cancellation of the in-flight device signing ceremony. */
+  onCancelSigning?: () => void;
 }
 
 /**
@@ -248,6 +262,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     offchainParamsVersion,
     started = true,
     onSign,
+    canCancelSigning = false,
+    cancelSigningRequested = false,
+    onCancelSigning,
   } = props;
 
   // Every flow that renders this view requires the BTC wallet, so surface a
@@ -305,6 +322,18 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // the primary CTA becomes an unlock action (matching the navbar and deposit
   // form) instead of starting a flow that would only stall at the signing call.
   const showUnlockCta = !started && walletLocked;
+
+  // Cancel affordance only while a device sign is actually in flight; when
+  // false (every non-Ledger flow) the button behaves exactly as before.
+  const showCancelSigning =
+    started &&
+    !showUnlockCta &&
+    isProcessing &&
+    canCancelSigning &&
+    !error &&
+    !isComplete &&
+    !isTerminalSuccess &&
+    onCancelSigning !== undefined;
 
   // On completion, advance past the last row so every circle renders as ✓.
   // The pre-entry state (`!started`) keeps the REAL step: work already done
@@ -438,13 +467,21 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             <Callout variant="success">{terminalMessage}</Callout>
           )}
 
+          {showCancelSigning && cancelSigningRequested && (
+            <Callout variant="info">
+              {COPY.deposit.progress.cancelRequestedNotice}
+            </Callout>
+          )}
+
           <Button
             disabled={
               showUnlockCta
                 ? isUnlocking
-                : started
-                  ? !canClose && !isTerminalSuccess
-                  : false
+                : showCancelSigning
+                  ? cancelSigningRequested
+                  : started
+                    ? !canClose && !isTerminalSuccess
+                    : false
             }
             variant="contained"
             color="secondary"
@@ -452,11 +489,13 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             onClick={
               showUnlockCta
                 ? unlock
-                : !started
-                  ? onSign
-                  : error && onRetry
-                    ? onRetry
-                    : onClose
+                : showCancelSigning
+                  ? onCancelSigning
+                  : !started
+                    ? onSign
+                    : error && onRetry
+                      ? onRetry
+                      : onClose
             }
           >
             {showUnlockCta ? (
@@ -467,6 +506,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
               )
             ) : !started ? (
               COPY.deposit.progress.buttons.signTransaction
+            ) : showCancelSigning ? (
+              COPY.deposit.progress.buttons.cancelSigning
             ) : canContinueInBackground ? (
               COPY.deposit.progress.buttons.closeContinueLater
             ) : error ? (

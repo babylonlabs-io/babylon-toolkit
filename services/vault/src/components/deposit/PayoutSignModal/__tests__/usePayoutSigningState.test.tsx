@@ -705,6 +705,220 @@ describe("usePayoutSigningState", () => {
     });
   });
 
+  describe("device-sign cancellation", () => {
+    // Ledger-shaped provider: the only BTC provider exposing cancelSigning.
+    // No approveDepositTerms on purpose — the cancel seam is orthogonal to
+    // the approval rebuild, so these tests stay on the software-wallet path.
+    function connectCancellableWallet() {
+      const cancelSigning = vi.fn();
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: { signPsbt: vi.fn(), cancelSigning },
+        },
+      };
+      return { cancelSigning };
+    }
+
+    // Holds the SDK call open so cancel/settle ordering is test-controlled.
+    function armPendingSdkCall() {
+      const pending: {
+        resolve: () => void;
+        reject: (err: unknown) => void;
+        signal: AbortSignal | undefined;
+      } = { resolve: () => {}, reject: () => {}, signal: undefined };
+      mockSignAndSubmitPayouts.mockImplementation(
+        ({ signal }: { signal: AbortSignal }) => {
+          pending.signal = signal;
+          return new Promise<void>((resolve, reject) => {
+            pending.resolve = resolve;
+            pending.reject = reject;
+          });
+        },
+      );
+      return pending;
+    }
+
+    // What the Ledger provider rejects with when a requested cancel settles
+    // at the next device exchange boundary (WalletError, typed code).
+    function signingCancelledError() {
+      return Object.assign(
+        new Error(
+          "Signing cancelled after 0 of 3 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
+        ),
+        { code: "CONNECTION_REJECTED" },
+      );
+    }
+
+    it("reports canCancel false while signing when the provider lacks cancelSigning", async () => {
+      // setupHappyPath connects the plain signPsbt-only software wallet.
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.signing).toBe(true));
+
+      expect(result.current.canCancel).toBe(false);
+
+      await act(async () => {
+        pending.resolve();
+        await signPromise;
+      });
+    });
+
+    it("reports canCancel true only while a sign is in flight on a provider with cancelSigning", async () => {
+      connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      expect(result.current.canCancel).toBe(false);
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+
+      await act(async () => {
+        pending.resolve();
+        await signPromise;
+      });
+      expect(result.current.canCancel).toBe(false);
+    });
+
+    it("handleCancel calls the provider's cancelSigning, aborts the in-flight signal, and sets cancelRequested", async () => {
+      const { cancelSigning } = connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+
+      act(() => {
+        result.current.handleCancel();
+      });
+
+      expect(cancelSigning).toHaveBeenCalledTimes(1);
+      expect(pending.signal?.aborted).toBe(true);
+      expect(result.current.cancelRequested).toBe(true);
+      // The cancel is a request: the sign has not settled yet.
+      expect(result.current.signing).toBe(true);
+
+      await act(async () => {
+        pending.reject(signingCancelledError());
+        await signPromise;
+      });
+    });
+
+    it("resets to idle with no error when a requested cancel settles as the provider's signing-cancelled rejection", async () => {
+      connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+
+      act(() => {
+        result.current.handleCancel();
+      });
+      await act(async () => {
+        pending.reject(signingCancelledError());
+        await signPromise;
+      });
+
+      // A self-requested cancel is not an error — back to the pre-sign state.
+      expect(result.current.error).toBeNull();
+      expect(result.current.signing).toBe(false);
+      expect(result.current.cancelRequested).toBe(false);
+      expect(result.current.isComplete).toBe(false);
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+
+    it("still surfaces a device rejection as an error when no cancel was requested", async () => {
+      connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.signing).toBe(true));
+
+      await act(async () => {
+        pending.reject(signingCancelledError());
+        await signPromise;
+      });
+
+      // The user rejected on the device without asking us to cancel — they
+      // are still here, so show them why nothing was signed.
+      expect(result.current.error?.title).toBe("Sign Error");
+      expect(result.current.signing).toBe(false);
+    });
+
+    it("surfaces an unrelated failure after a requested cancel and clears cancelRequested", async () => {
+      connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+
+      act(() => {
+        result.current.handleCancel();
+      });
+      await act(async () => {
+        pending.reject(new Error("VP unreachable"));
+        await signPromise;
+      });
+
+      expect(result.current.error).toEqual({
+        title: "Sign Error",
+        message: "VP unreachable",
+      });
+      expect(result.current.cancelRequested).toBe(false);
+      expect(result.current.signing).toBe(false);
+    });
+
+    it("clears cancelRequested when the sign settles successfully after a late cancel", async () => {
+      connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+
+      act(() => {
+        result.current.handleCancel();
+      });
+      await act(async () => {
+        pending.resolve();
+        await signPromise;
+      });
+
+      // The cancel came too late — the sign completed. The request must be
+      // consumed so the modal cannot wedge on the disabled cancel button.
+      expect(result.current.cancelRequested).toBe(false);
+      expect(result.current.isComplete).toBe(true);
+    });
+  });
+
   describe("deposit-terms approval capability forwarding through wallet wrappers", () => {
     // A real depositor-approval wallet (e.g. Ledger) implements
     // approveDepositTerms as a class-prototype method, not an own/instance

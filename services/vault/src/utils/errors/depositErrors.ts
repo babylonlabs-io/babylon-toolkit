@@ -54,6 +54,12 @@ import { COPY } from "@/copy";
 
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
+  deviceErrorCodeOfFrame,
+  isDeviceCeremonyInvalidError,
+  isDeviceLockedError,
+  isDeviceWrongAppError,
+} from "./deviceErrors";
+import {
   classifyError,
   formatErrorDiagnostics,
   mapVpRpcError,
@@ -180,12 +186,35 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.wrongDepositorWallet;
   }
 
+  // 3g'. Top-frame device code — before both cause walks, so an outer device
+  // error is never shadowed by an inner cause (same contract as step 2).
+  switch (deviceErrorCodeOfFrame(err)) {
+    case "DEVICE_CEREMONY_INVALID":
+      return ERRORS.deviceCeremonyInvalid;
+    case "DEVICE_LOCKED":
+      return ERRORS.deviceLocked;
+    case "DEVICE_WRONG_APP":
+      return ERRORS.deviceWrongApp;
+  }
+
   // 3g. Wallet lacks a required method. Cause-walking, so it must run AFTER
   // every typed bucket above — an inner unsupported-method code must never
   // override a meaningful outer wallet/VP/contract error (step 2 already
   // claimed any typed top-frame rejection).
   if (isWalletMethodNotSupported(err)) {
     return ERRORS.walletMethodNotSupported;
+  }
+
+  // 3h. Device codes nested in a cause chain — must beat the message buckets
+  // (a broadcast wrapper's wording would otherwise claim them).
+  if (isDeviceCeremonyInvalidError(err)) {
+    return ERRORS.deviceCeremonyInvalid;
+  }
+  if (isDeviceLockedError(err)) {
+    return ERRORS.deviceLocked;
+  }
+  if (isDeviceWrongAppError(err)) {
+    return ERRORS.deviceWrongApp;
   }
 
   const msg = lowerMessage(err);

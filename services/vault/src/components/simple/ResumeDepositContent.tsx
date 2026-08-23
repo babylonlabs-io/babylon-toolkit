@@ -105,15 +105,47 @@ export function ResumeSignContent({
   onClose,
   onSuccess,
 }: ResumeSignContentProps) {
-  const { signing, progress, error, errorTerminal, isComplete, handleSign } =
-    usePayoutSigningState({
-      activity,
-      btcPublicKey,
-      depositorEthAddress,
-      onSuccess,
-    });
+  const {
+    signing,
+    progress,
+    error,
+    errorTerminal,
+    isComplete,
+    handleSign,
+    canCancel,
+    cancelRequested,
+    handleCancel,
+  } = usePayoutSigningState({
+    activity,
+    btcPublicKey,
+    depositorEthAddress,
+    onSuccess,
+  });
 
   useRunOnce(handleSign);
+
+  // A self-requested cancel settles QUIETLY in the hook (idle, no error, not
+  // complete). Left alone, that state renders a disabled Sign button with no
+  // retry seam, so route it into the view's pre-sign entry state instead —
+  // its CTA re-runs the full ceremony, matching the WOTS re-offer pattern.
+  const [reofferAfterCancel, setReofferAfterCancel] = useState(false);
+  const sawCancelRequestRef = useRef(false);
+  useEffect(() => {
+    if (cancelRequested) {
+      sawCancelRequestRef.current = true;
+      return;
+    }
+    if (!sawCancelRequestRef.current || signing) return;
+    // The requested cancel has settled (the hook consumes the request on
+    // every settle path); only the quiet outcome becomes a re-offer.
+    sawCancelRequestRef.current = false;
+    if (!error && !isComplete) setReofferAfterCancel(true);
+  }, [cancelRequested, signing, error, isComplete]);
+
+  const handleResign = useCallback(() => {
+    setReofferAfterCancel(false);
+    void handleSign();
+  }, [handleSign]);
 
   // Once signing is done the deposit waits on the vault provider. Track the
   // live contract status so the "Awaiting vault provider verification" wait has
@@ -187,6 +219,11 @@ export function ResumeSignContent({
       // rejected the terms) re-runs the whole chain-read chain and fails
       // identically — no Retry CTA, same seam as the activation branch.
       onRetry={error && !errorTerminal ? handleSign : undefined}
+      started={!reofferAfterCancel}
+      onSign={handleResign}
+      canCancelSigning={canCancel}
+      cancelSigningRequested={cancelRequested}
+      onCancelSigning={handleCancel}
     />
   );
 }

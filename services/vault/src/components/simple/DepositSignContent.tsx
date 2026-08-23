@@ -60,6 +60,9 @@ export function DepositSignContent({
     perVaultSteps,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    canCancelDeviceSign,
+    deviceCancelRequested,
+    cancelDeviceSign,
   } = useDepositFlow({
     vaultAmounts,
     ...flowParams,
@@ -210,6 +213,9 @@ export function DepositSignContent({
         onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}
         ethConfirmationDetail={ethConfirmationDetail}
+        canCancelSigning={canCancelDeviceSign}
+        cancelSigningRequested={deviceCancelRequested}
+        onCancelSigning={cancelDeviceSign}
       />
     </>
   );

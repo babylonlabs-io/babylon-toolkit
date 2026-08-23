@@ -59,6 +59,7 @@ export { buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
 export {
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
+  SW_CLA_NOT_SUPPORTED,
   type Apdu,
   type AppIdentity,
   type RawApduResponse,

@@ -464,11 +464,6 @@ describe("LedgerVaultProvider", () => {
       return provider;
     }
 
-    /** The resendOnceOnIncorrectData the Nth device call received. */
-    function resendFlagOfCall(index: number): boolean | undefined {
-      return signMock.signPreparedVaultPsbt.mock.calls[index]?.[2]?.resendOnceOnIncorrectData;
-    }
-
     it("signs under the loaded intent and keeps it loaded for further PSBTs", async () => {
       const provider = await approved();
 
@@ -668,6 +663,7 @@ describe("LedgerVaultProvider", () => {
       await expect(
         p.signPsbt(keyPathPsbtHex([bip86Script(await changeXOnlyHex())]), { autoFinalized: false }),
       ).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
         message: expect.stringMatching(/holds no approved intent/),
       });
     });
@@ -686,35 +682,58 @@ describe("LedgerVaultProvider", () => {
       const provider = await approved();
       signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0xb007, "SW_BAD_STATE"));
 
-      await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/no longer holds the approved intent/);
-      await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/no approved intent/);
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no longer holds the approved intent/),
+      });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no approved intent/),
+      });
 
       await provider.deriveContextHash("app", "aa".repeat(32));
       await provider.approveDepositTerms(TERMS);
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
     });
 
-    it("an abandonment keeps the intent and arms the one-shot 0x6A80 recovery", async () => {
+    it("an aborted sign classifies as the user's cancel and forces the full re-ceremony", async () => {
+      // Keep-intent retries risk SW_CAP_EXCEEDED (caps commit pre-yield):
+      // the mirror drops and only a re-ceremony recovers.
       const provider = await approved();
       signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0, true));
 
-      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
-      // No re-ceremony needed; the retry passes the recovery flag, and a
-      // successful sign disarms it for the call after.
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
+
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
-      await provider.signPsbt(PSBT_B);
-      expect(resendFlagOfCall(0)).toBe(false);
-      expect(resendFlagOfCall(1)).toBe(true);
-      expect(resendFlagOfCall(2)).toBe(false);
     });
 
-    it("a pre-send abort does not arm the recovery — no dispatcher was interrupted", async () => {
+    it("cancelSigning between batch elements stops the batch as a cancellation", async () => {
+      // The between-elements window has its own abort check; a same-generation
+      // abort there must classify as the user's cancel, mirror idle.
+      const provider = await approved();
+      signMock.signPreparedVaultPsbt.mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => {
+        provider.cancelSigning();
+        return { signedPsbtHex: `signed:${prepared.originalPsbtHex}`, yields: [] };
+      });
+
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+        message: expect.stringMatching(/after 1 of 2/),
+      });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      });
+    });
+
+    it("a pre-send abort takes the same cancel classification and reset", async () => {
       const provider = await approved();
       signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0, false));
 
-      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
-      await provider.signPsbt(PSBT_A);
-      expect(resendFlagOfCall(1)).toBe(false);
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
     });
 
     it("signPsbts signs a whole batch in order under one intent", async () => {
@@ -810,6 +829,55 @@ describe("LedgerVaultProvider", () => {
           }),
       );
     }
+
+    it("cancelSigning settles the in-flight ceremony as a user cancellation and drops the mirror", async () => {
+      // No teardown → classifies as the user's act, not a disconnect; caps may
+      // be consumed pre-yield, so retry must re-run the full ceremony.
+      const provider = await approved();
+      hangUntilAborted();
+      const inFlight = provider.signPsbt(PSBT_A);
+      inFlight.catch(() => {});
+      await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1));
+
+      provider.cancelSigning();
+
+      await expect(inFlight).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+        message: expect.stringMatching(/cancelled/i),
+      });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no approved intent/),
+      });
+    });
+
+    it("cancelSigning with nothing in flight is a no-op and keeps the loaded intent", async () => {
+      const provider = await approved();
+
+      expect(() => provider.cancelSigning()).not.toThrow();
+
+      await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+
+    it("cancelSigning during the PoP also drops the mirror — uniform conservative policy", async () => {
+      // An interrupted dispatcher is tx-type-agnostic; PoP takes the same reset.
+      const provider = await approved();
+      hangUntilAborted();
+      const pop = provider.signMessage("hello", "bip322-simple");
+      pop.catch(() => {});
+      await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1));
+
+      provider.cancelSigning();
+
+      await expect(pop).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+        message: expect.stringMatching(/cancelled/i),
+      });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no approved intent/),
+      });
+    });
 
     it("admits one device ceremony at a time", async () => {
       const provider = await approved();
@@ -913,19 +981,6 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.signPsbt(PSBT_B)).rejects.toThrow(/already signed/);
     });
 
-    it("a fresh derive disarms the resend-once recovery", async () => {
-      const provider = await approved();
-      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0, true));
-      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
-
-      await provider.deriveContextHash("app", "aa".repeat(32));
-      await provider.approveDepositTerms(TERMS);
-      await provider.signPsbt(PSBT_A);
-
-      // The armed flag died with the old intent — the fresh sign must not resend.
-      expect(resendFlagOfCall(1)).toBe(false);
-    });
-
     it("a fresh approval resets the replay guard — the device counters were reset too", async () => {
       const provider = await approved();
       await provider.signPsbt(PSBT_A);
@@ -989,15 +1044,29 @@ describe("LedgerVaultProvider", () => {
   });
 
   it("runs the envelope gate before any device I/O", async () => {
-    // A v1 intent loads fine on-device and only fails at PSBT time — after the
-    // depositor has physically approved. Nothing may reach the device.
+    // An out-of-envelope intent dies on-device with an opaque status word
+    // and a nullified session. Nothing may reach the device.
     const provider = await derived();
     h.sent.length = 0;
 
-    await expect(provider.approveDepositTerms({ ...TERMS, vaultCoreVersion: 1 })).rejects.toThrow(
-      /vaultCoreVersion 1 is not 2/,
-    );
+    await expect(provider.approveDepositTerms({ ...TERMS, protocolFeeRate: 0n })).rejects.toThrow(/protocolFeeRate/);
     expect(h.sent).toHaveLength(0);
+  });
+
+  it("classifies both approve-time state conflicts as DEVICE_CEREMONY_INVALID", async () => {
+    // The UX routes restart-from-derivation on this code, not on message text.
+    const loaded = await derived();
+    await loaded.approveDepositTerms(TERMS);
+    await expect(loaded.approveDepositTerms({ ...TERMS, prepeginTxid: "2".repeat(64) })).rejects.toMatchObject({
+      code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      message: expect.stringMatching(/different approved intent/),
+    });
+
+    const idle = await connected(); // connected, never derived
+    await expect(idle.approveDepositTerms(TERMS)).rejects.toMatchObject({
+      code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      message: expect.stringMatching(/no freshly derived context root/),
+    });
   });
 
   it("refuses to approve before a context root is derived on this connection", async () => {
@@ -1426,7 +1495,12 @@ describe("LedgerVaultProvider", () => {
 
   it.each([
     ["a device decline", new LedgerUserRefusedError(0x6985), ERROR_CODES.CONNECTION_REJECTED],
-    ["a locked device", new LedgerDeviceLockedError(0x5515), ERROR_CODES.CONNECTION_FAILED],
+    ["a locked device", new LedgerDeviceLockedError(0x5515), ERROR_CODES.DEVICE_LOCKED],
+    [
+      "the wrong running app",
+      new LedgerDeviceError(0x6e00, "The running app does not handle vault instructions — open the Babylon Vault app"),
+      ERROR_CODES.DEVICE_WRONG_APP,
+    ],
     [
       "a generic device rejection",
       new LedgerDeviceError(0x6f42, "The device rejected the request"),

@@ -9,8 +9,8 @@ import {
   createDmkRawApduSender,
   DepositTermsRejectedError,
   deriveChangeXOnlyHex,
-  deriveReceiveXOnlyHex,
   deriveContextHash,
+  deriveReceiveXOnlyHex,
   disconnectDmkSession,
   encodeIntentGroup,
   encodeIntentScalars,
@@ -31,6 +31,7 @@ import {
   signPreparedVaultPsbt,
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
+  SW_CLA_NOT_SUPPORTED,
   type ApduSender,
   type DefaultTaprootWalletPolicy,
   type DepositTerms,
@@ -167,8 +168,6 @@ export class LedgerVaultProvider implements IBTCProvider {
   private rawSend: RawApduSender | undefined;
   /** Request-identity keys ({@link signingRequestKey}) signed under the CURRENT loaded intent. */
   private signedFingerprints = new Set<string>();
-  /** A host abandonment interrupted the dispatcher — the next sign resends once on 0x6A80. */
-  private loopAbandoned = false;
   /**
    * ONE in-flight device ceremony (derive/approve/sign) at a time — a
    * concurrent APDU would be eaten with 0x6A80 and desync the interrupt loop.
@@ -332,7 +331,6 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.pubkeyHexPromise = undefined;
     this.policyContextPromise = undefined;
     this.signedFingerprints = new Set();
-    this.loopAbandoned = false;
     // Release the ceremony lock and stop an in-flight signing loop NOW — the
     // stale call's finally only releases its own token, and its rejection
     // commits nothing (the generation just changed).
@@ -383,11 +381,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         // but only at SIGN_PSBT — by then approveDepositTerms has already spent
         // the intent ceremony. This guards a host-side desync (depositorPath vs
         // accountPath, coin type, a refactor of either getter), not a device fault.
-        const derivedXOnlyHex = deriveReceiveXOnlyHex(
-          accountXpub,
-          toNetwork(this.network).bip32,
-          ADDRESS_INDEX,
-        );
+        const derivedXOnlyHex = deriveReceiveXOnlyHex(accountXpub, toNetwork(this.network).bip32, ADDRESS_INDEX);
         if (derivedXOnlyHex !== depositorXOnlyHex) {
           throw new WalletError({
             code: ERROR_CODES.CONNECTION_FAILED,
@@ -472,7 +466,6 @@ export class LedgerVaultProvider implements IBTCProvider {
     // old intent's dedup state dies with it — clear the sign bookkeeping too.
     this.deviceState = { phase: "idle" };
     this.signedFingerprints = new Set();
-    this.loopAbandoned = false;
 
     const generation = this.connectionGeneration;
     const root = await deriveContextHash(this.requireSender(), {
@@ -599,7 +592,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     if (this.deviceState.phase === "intent-loaded") {
       if (this.deviceState.termsKey === key) return;
       throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
         message:
           `${WALLET_PROVIDER_NAME} already holds a different approved intent ` +
           `on this connection — the device admits one ceremony per ` +
@@ -611,7 +604,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     // the device) would die at the first APDU with SW_BAD_STATE.
     if (this.deviceState.phase === "idle") {
       throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
         message:
           `${WALLET_PROVIDER_NAME} has no freshly derived context root on ` +
           `this connection — the device requires DERIVE_CONTEXT_HASH before ` +
@@ -630,7 +623,6 @@ export class LedgerVaultProvider implements IBTCProvider {
     // fresh, so the same PSBT bytes are legitimately signable again. (The
     // byte-equal re-approval no-op above returns earlier and keeps both.)
     this.signedFingerprints = new Set();
-    this.loopAbandoned = false;
   };
 
   /**
@@ -701,12 +693,19 @@ export class LedgerVaultProvider implements IBTCProvider {
         }
         const signed: string[] = [];
         for (const one of staged) {
-          // A cancel landing BETWEEN elements must stop the batch — inside an
-          // element the loop's own signal checks cover it.
+          // Abort between elements: same generation = user's cancelSigning,
+          // changed = teardown/disconnect. In-element aborts settle in the loop.
           if (controller.signal.aborted) {
+            const cancelled = ctx.generation === this.connectionGeneration;
+            if (cancelled) {
+              this.deviceState = { phase: "idle" };
+              this.signedFingerprints = new Set();
+            }
             throw new WalletError({
-              code: ERROR_CODES.WALLET_NOT_CONNECTED,
-              message: `${WALLET_PROVIDER_NAME} stopped signing (disconnected) after ${signed.length} of ${psbtsHexes.length} PSBT(s).`,
+              code: cancelled ? ERROR_CODES.CONNECTION_REJECTED : ERROR_CODES.WALLET_NOT_CONNECTED,
+              message: cancelled
+                ? `Signing cancelled after ${signed.length} of ${psbtsHexes.length} PSBT(s) — the ceremony restarts from the device approval screens on retry.`
+                : `${WALLET_PROVIDER_NAME} stopped signing (disconnected) after ${signed.length} of ${psbtsHexes.length} PSBT(s).`,
               wallet: WALLET_PROVIDER_NAME,
             });
           }
@@ -716,6 +715,16 @@ export class LedgerVaultProvider implements IBTCProvider {
         return signed;
       }),
     );
+
+  /**
+   * User cancel of the in-flight ceremony: aborts WITHOUT teardown, settling
+   * as CONNECTION_REJECTED at the next exchange boundary — possibly only after
+   * the user acts on the device, so callers hold a "cancel requested" state
+   * until the sign promise settles. No-op when idle.
+   */
+  cancelSigning = (): void => {
+    this.signAbortController?.abort();
+  };
 
   /**
    * ONE AbortController per public sign call (plan D1) — it spans a whole
@@ -754,7 +763,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.assertSameConnection(generation);
     if (requireIntent && this.deviceState.phase !== "intent-loaded") {
       throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
         message:
           `${WALLET_PROVIDER_NAME} holds no approved intent on this ` +
           `connection — signing requires DERIVE_CONTEXT_HASH and an approved ` +
@@ -877,25 +886,21 @@ export class LedgerVaultProvider implements IBTCProvider {
         signal: controller.signal,
         appIdentity:
           session.appName !== undefined ? { appName: session.appName, appVersion: session.appVersion } : undefined,
-        resendOnceOnIncorrectData: this.loopAbandoned,
       });
       this.assertSameConnection(generation);
       // Success never consumes the intent: further (different) PSBTs sign
       // under the same approval; this one never again.
       this.signedFingerprints.add(fingerprintKey);
-      this.loopAbandoned = false;
       return result.signedPsbtHex;
     } catch (error) {
       const walletError = this.classifySignFailure(error, generation, label);
-      // Mirror reset is signPsbt-only (a PoP failure never invalidates the
-      // device's vault context). Skip it for the two classifications that
-      // commit nothing: a stale rejection and an abandonment.
+      // Mirror reset is signPsbt-only (PoP failures don't invalidate the vault
+      // context); stale rejections and cancels were already handled in classify.
       if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error)) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).
         this.deviceState = { phase: "idle" };
         this.signedFingerprints = new Set();
-        this.loopAbandoned = false;
       }
       throw walletError;
     }
@@ -904,8 +909,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   /**
    * Classify one device-ceremony failure, for every SIGN_PSBT caller: a
    * disconnect must surface as WALLET_NOT_CONNECTED, never as a generic
-   * UNKNOWN_ERROR. Touches only {@link loopAbandoned} — the intent mirror is
-   * the caller's to reset, since PoP must never touch it.
+   * UNKNOWN_ERROR. Mirror resets are the caller's, except the user-cancel
+   * branch, which resets here so PoP cancels take the same re-ceremony path.
    */
   private classifySignFailure(error: unknown, generation: number, label: string): WalletError {
     // A stale rejection must not touch the new connection's state.
@@ -920,15 +925,14 @@ export class LedgerVaultProvider implements IBTCProvider {
       );
     }
     if (isLedgerSignPsbtAbortedError(error)) {
-      // The intent MAY survive an abandonment (hint only) — keep the mirror.
-      // Arm the one-shot 0x6A80 recovery only if a dispatcher is actually
-      // mid-interruption. NB: unreachable while teardown (the only abort
-      // source) bumps the generation first; goes live with #2110's cancel.
-      if (error.dispatcherInterrupted) this.loopAbandoned = true;
+      // Same-generation abort = user's cancelSigning; caps commit pre-yield, so
+      // idle + full re-ceremony (device aftermath: LedgerSignPsbtAbortedError doc).
+      this.deviceState = { phase: "idle" };
+      this.signedFingerprints = new Set();
       return new WalletError(
         {
-          code: ERROR_CODES.WALLET_NOT_CONNECTED,
-          message: `${label === "signPsbt" ? "" : `${label}: `}${WALLET_PROVIDER_NAME} stopped signing (disconnected); reconnect and retry.`,
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: `${label === "signPsbt" ? "" : `${label}: `}Signing cancelled — the ceremony restarts from the device approval screens on retry.`,
           wallet: WALLET_PROVIDER_NAME,
         },
         { cause: error },
@@ -1003,7 +1007,6 @@ export class LedgerVaultProvider implements IBTCProvider {
               ctx.session.appName !== undefined
                 ? { appName: ctx.session.appName, appVersion: ctx.session.appVersion }
                 : undefined,
-            resendOnceOnIncorrectData: this.loopAbandoned,
           });
         } catch (error) {
           throw this.classifySignFailure(error, ctx.generation, "signMessage");
@@ -1024,8 +1027,6 @@ export class LedgerVaultProvider implements IBTCProvider {
             wallet: WALLET_PROVIDER_NAME,
           });
         }
-        // The loop ran to completion, so no dispatcher is mid-interruption.
-        this.loopAbandoned = false;
         return `0x${BIP322_P2TR_WITNESS_PREFIX_HEX}${Buffer.from(yielded.signature).toString("hex")}`;
       }),
     );
@@ -1065,17 +1066,18 @@ function toStagingWalletError(error: unknown, context: string): WalletError {
  */
 /**
  * Sign-seam failure mapping: the two "intent gone" status words and the
- * signer's own typed sign errors get the stable restart-from-derivation
- * suffix #2110's UX routes on; everything else reuses the shared mapper.
- * The ceremony sender keeps verbatim messages — derive/approve failures are
- * not phase-wise "restart from derivation" beyond what their own copy says.
+ * signer's own typed sign errors carry DEVICE_CEREMONY_INVALID — the typed
+ * signal #2110's UX routes restart-from-derivation on (the message suffix
+ * stays for humans, never for routing). Everything else reuses the shared
+ * mapper. The ceremony sender keeps verbatim messages — derive/approve
+ * failures are not phase-wise "restart from derivation" beyond their copy.
  */
 function toSignFailureWalletError(error: unknown, label: string): WalletError {
   const prefix = label === "signPsbt" ? "" : `${label}: `;
   if (isLedgerDeviceError(error) && (error.statusWord === SW_BAD_STATE || error.statusWord === SW_CAP_EXCEEDED)) {
     return new WalletError(
       {
-        code: ERROR_CODES.UNKNOWN_ERROR,
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
         message: `${prefix}The device no longer holds the approved intent (${error.message}) — restart the flow from derivation.`,
         wallet: WALLET_PROVIDER_NAME,
       },
@@ -1089,7 +1091,7 @@ function toSignFailureWalletError(error: unknown, label: string): WalletError {
   ) {
     return new WalletError(
       {
-        code: ERROR_CODES.UNKNOWN_ERROR,
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
         message: `${prefix}${error.message} — restart the flow from derivation.`,
         wallet: WALLET_PROVIDER_NAME,
       },
@@ -1124,7 +1126,13 @@ function toSignerWalletError(error: unknown): WalletError | undefined {
   }
   if (isLedgerDeviceLockedError(error)) {
     return new WalletError(
-      { code: ERROR_CODES.CONNECTION_FAILED, message: error.message, wallet: WALLET_PROVIDER_NAME },
+      { code: ERROR_CODES.DEVICE_LOCKED, message: error.message, wallet: WALLET_PROVIDER_NAME },
+      { cause: error },
+    );
+  }
+  if (isLedgerDeviceError(error) && error.statusWord === SW_CLA_NOT_SUPPORTED) {
+    return new WalletError(
+      { code: ERROR_CODES.DEVICE_WRONG_APP, message: error.message, wallet: WALLET_PROVIDER_NAME },
       { cause: error },
     );
   }

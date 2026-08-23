@@ -57,7 +57,7 @@ describe("assertDepositTermsDeviceCompatible", () => {
 
   it("throws the shape the SDK matches on — name AND reason", () => {
     try {
-      assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion: 1 }));
+      assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 0n }));
       expect.unreachable("should have thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(DepositTermsRejectedError);
@@ -66,16 +66,12 @@ describe("assertDepositTermsDeviceCompatible", () => {
     }
   });
 
-  it("refuses any tx-graph version but v2 before any device I/O", () => {
-    // The intent TLV carries no version field, so a mismatched graph (v1 or a
-    // future v3) LOADS on-device and only fails at PSBT time, i.e. after the
-    // depositor has physically approved. Exact match, not a floor.
-    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion: 1 }))).toThrow(
-      /vaultCoreVersion 1 is not 2/,
-    );
-    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion: 3 }))).toThrow(
-      /vaultCoreVersion 3 is not 2/,
-    );
+  it("does not gate on the tx-graph version — that axis belongs to the WASM capability gate", () => {
+    // 2026-08-23 decision: unconstructable versions never get here, and a
+    // device-incompatible shape fails closed on-device.
+    for (const vaultCoreVersion of [1, 2, 3, 4]) {
+      expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).not.toThrow();
+    }
   });
 
   it("accepts multiple vault groups — v0.9.3 auto-detects the group by htlc_vout", () => {

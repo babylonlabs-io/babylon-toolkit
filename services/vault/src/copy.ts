@@ -58,6 +58,17 @@ const WRONG_WALLET_BODY =
 // Shared by formatPayoutSignatureError's Error and non-Error fallbacks so the
 // generic payout-signing title can't drift between the two.
 const PAYOUT_SIGNING_ERROR_TITLE = "Payout signing error";
+// Device-state copy shared by deposit.errors and payoutSignatureErrors so the
+// two can't drift; wording warns that retry re-runs the device approval screens.
+const DEVICE_CEREMONY_INVALID_TITLE = "Device approval needed again";
+const DEVICE_CEREMONY_INVALID_BODY =
+  "Your signing device no longer holds this deposit's approval. Try again to restart from the device approval screens.";
+const DEVICE_LOCKED_TITLE = "Signing device locked";
+const DEVICE_LOCKED_BODY =
+  "Your signing device is locked. Unlock it with your PIN and try again.";
+const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
+const DEVICE_WRONG_APP_BODY =
+  "A different app is open on your signing device. Open the Babylon Vault app on the device and try again.";
 // Action-required labels shared between the in-app badges
 // (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
 // surfaces can't drift.
@@ -402,7 +413,14 @@ export const COPY = {
         done: "Done",
         sign: "Sign",
         signTransaction: SIGN_TRANSACTION_LABEL,
+        // Hardware-wallet flows only: shown while an in-flight device signing
+        // ceremony can be cancelled.
+        cancelSigning: "Cancel signing",
       },
+      // Cancelling is a request, not an immediate stop: the device settles the
+      // in-flight signature only once the user acts on it.
+      cancelRequestedNotice:
+        "Cancellation requested — finish or reject the request on your signing device to continue.",
     },
     btcConfirmation: {
       estRemaining: "Est. remaining",
@@ -921,6 +939,20 @@ export const COPY = {
         title: "Wallet action not supported",
         body: "Your connected wallet can't perform an action this deposit requires. Please reconnect with a supported wallet and try again.",
       },
+      // Typed device-state codes from the hardware-wallet provider; wording
+      // shared with payoutSignatureErrors via the DEVICE_* constants above.
+      deviceCeremonyInvalid: {
+        title: DEVICE_CEREMONY_INVALID_TITLE,
+        body: DEVICE_CEREMONY_INVALID_BODY,
+      },
+      deviceLocked: {
+        title: DEVICE_LOCKED_TITLE,
+        body: DEVICE_LOCKED_BODY,
+      },
+      deviceWrongApp: {
+        title: DEVICE_WRONG_APP_TITLE,
+        body: DEVICE_WRONG_APP_BODY,
+      },
       // Vault-provider JSON-RPC error copy, consumed by `mapVpRpcError`
       // (utils/errors/formatting.ts). Title + message are both user-facing.
       vp: {
@@ -1062,6 +1094,20 @@ export const COPY = {
         title: "Wallet action not supported",
         message:
           "Your connected wallet can't perform an action this deposit requires, and the deposit can only continue with the wallet that created it. Try again after updating the app or that wallet, or contact support.",
+      },
+      // Typed device-state codes from the hardware-wallet provider; wording
+      // shared with deposit.errors via the DEVICE_* constants above.
+      deviceCeremonyInvalid: {
+        title: DEVICE_CEREMONY_INVALID_TITLE,
+        message: DEVICE_CEREMONY_INVALID_BODY,
+      },
+      deviceLocked: {
+        title: DEVICE_LOCKED_TITLE,
+        message: DEVICE_LOCKED_BODY,
+      },
+      deviceWrongApp: {
+        title: DEVICE_WRONG_APP_TITLE,
+        message: DEVICE_WRONG_APP_BODY,
       },
       unexpected: {
         title: PAYOUT_SIGNING_ERROR_TITLE,

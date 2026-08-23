@@ -17,7 +17,6 @@ import {
   DEVICE_PEGIN_AMOUNT_DUST_MULTIPLE,
   DEVICE_PEGIN_CSV_TIMELOCK_MAX_BLOCKS,
   DEVICE_REFUND_TIMELOCK_MAX_BLOCKS,
-  DEVICE_SUPPORTED_VAULT_CORE_VERSION,
   DEVICE_TIMELOCK_MIN_BLOCKS,
   DEVICE_VAULT_DUST_LIMIT_SATS,
 } from "./deviceCaps";
@@ -37,16 +36,8 @@ function requireIntInRange(field: string, value: number, lo: number, hi: number)
  * @throws {DepositTermsRejectedError} on the first violation
  */
 export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
-  // The firmware hardcodes one PSBT shape and the intent TLV carries no
-  // version field, so ANY mismatched graph (v1 or a future v3) loads fine and
-  // only fails at PSBT time — after the user has physically approved.
-  if (terms.vaultCoreVersion !== DEVICE_SUPPORTED_VAULT_CORE_VERSION) {
-    throw new DepositTermsRejectedError(
-      `${RANGE_MSG}: vaultCoreVersion ${terms.vaultCoreVersion} is not ` +
-        `${DEVICE_SUPPORTED_VAULT_CORE_VERSION}; this device only supports ` +
-        `tx-graph v${DEVICE_SUPPORTED_VAULT_CORE_VERSION} deposits.`,
-    );
-  }
+  // No tx-graph version check (2026-08-23 decision): the WASM capability gate
+  // stops unconstructable versions upstream; bad shapes fail closed on-device.
 
   // The >= 1 floor is enforced by both the contract and the device
   // (vault_tlv.c:73 rejects rate == 0).

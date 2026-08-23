@@ -137,6 +137,9 @@ vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
     errorTerminal: false,
     isComplete: false,
     handleSign: vi.fn(),
+    canCancel: false,
+    cancelRequested: false,
+    handleCancel: vi.fn(),
   })),
 }));
 
@@ -216,6 +219,9 @@ vi.mock("../DepositProgressView", () => ({
     wotsApprovalHint,
     started,
     onSign,
+    canCancelSigning,
+    cancelSigningRequested,
+    onCancelSigning,
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
@@ -227,6 +233,9 @@ vi.mock("../DepositProgressView", () => ({
     wotsApprovalHint?: string | null;
     started?: boolean;
     onSign?: () => void;
+    canCancelSigning?: boolean;
+    cancelSigningRequested?: boolean;
+    onCancelSigning?: () => void;
   }) => (
     <div data-testid="progress-view">
       {/* Mirrors the real prop default so views that never pass it read as
@@ -244,6 +253,17 @@ vi.mock("../DepositProgressView", () => ({
       <span data-testid="processing">{String(!!isProcessing)}</span>
       <span data-testid="terminal">{terminalMessage ?? ""}</span>
       <span data-testid="background">{String(!!canContinueInBackground)}</span>
+      <span data-testid="can-cancel">{String(!!canCancelSigning)}</span>
+      <span data-testid="cancel-requested">
+        {String(!!cancelSigningRequested)}
+      </span>
+      <button
+        type="button"
+        data-testid="cancel-signing"
+        onClick={onCancelSigning}
+      >
+        cancel
+      </button>
     </div>
   ),
 }));
@@ -678,6 +698,9 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       errorTerminal: false,
       isComplete: true,
       handleSign: vi.fn(),
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
     });
   });
 
@@ -739,6 +762,9 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       errorTerminal: true,
       isComplete: false,
       handleSign: vi.fn(),
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
     });
 
     const { getByTestId } = renderSign();
@@ -757,11 +783,81 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       errorTerminal: false,
       isComplete: false,
       handleSign: vi.fn(),
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
     });
 
     const { getByTestId } = renderSign();
 
     expect(getByTestId("has-retry").textContent).toBe("true");
+  });
+
+  it("plumbs the hook's device-cancel seam into DepositProgressView", () => {
+    const handleCancel = vi.fn();
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: true,
+      progress: { phase: "claimers", completed: 0, total: 3 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      handleSign: vi.fn(),
+      canCancel: true,
+      cancelRequested: true,
+      handleCancel,
+    });
+
+    const { getByTestId } = renderSign();
+
+    expect(getByTestId("can-cancel").textContent).toBe("true");
+    expect(getByTestId("cancel-requested").textContent).toBe("true");
+    fireEvent.click(getByTestId("cancel-signing"));
+    expect(handleCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-enters the pre-sign entry state after a self-requested cancel settles quietly", () => {
+    // The hook's quiet reset (signing false, NO error) must not strand the
+    // modal on a disabled Sign button: the view's pre-sign entry state is the
+    // re-offer seam, and its CTA re-runs the full ceremony via handleSign.
+    const handleSign = vi.fn();
+    const midCancel = {
+      signing: true,
+      progress: { phase: "graph", completed: 0, total: 1 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      handleSign,
+      canCancel: true,
+      cancelRequested: true,
+      handleCancel: vi.fn(),
+    } as const;
+    vi.mocked(usePayoutSigningState).mockReturnValue({ ...midCancel });
+
+    const { getByTestId, rerender } = renderSign();
+    expect(getByTestId("started").textContent).toBe("true");
+
+    // The cancel settles quietly: idle, no error, not complete.
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...midCancel,
+      signing: false,
+      canCancel: false,
+      cancelRequested: false,
+    });
+    rerender(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(getByTestId("started").textContent).toBe("false");
+    // useRunOnce auto-fires handleSign at mount; the CTA must add a fresh run.
+    const callsBeforeClick = handleSign.mock.calls.length;
+    fireEvent.click(getByTestId("sign"));
+    expect(handleSign.mock.calls.length).toBe(callsBeforeClick + 1);
   });
 });
 

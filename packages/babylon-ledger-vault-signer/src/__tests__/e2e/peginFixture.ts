@@ -269,9 +269,9 @@ export function vaultHashlock(root: Uint8Array, htlcVout: number): Buffer {
  * pass {@link PrePeginPsbtFixture.txidInternal}. `prepeginTxid` is DISPLAY
  * order: the seam converts display → internal exactly like wallet-connector's
  * provider, and the wire carries the internal-order bytes the firmware compares
- * against the PSBT. `vaultCoreVersion` is 2: the device-supported tx-graph
- * version gate — the TLV's structure/version constants (both 1) are pinned
- * inside the encoder.
+ * against the PSBT. `vaultCoreVersion` is 2 — the graph version the fixture
+ * PSBTs were built under; the TLV's structure/version constants (both 1) are
+ * pinned inside the encoder.
  */
 export function buildDepositTerms(prepeginTxidInternal: Buffer): DepositTerms {
   return {

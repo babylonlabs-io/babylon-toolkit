@@ -46,6 +46,7 @@ import {
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
+import { isUserCancellation } from "../../../utils/errors/userCancellation";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
 
 export interface SigningError {
@@ -78,6 +79,20 @@ export interface UsePayoutSigningStateResult {
   isComplete: boolean;
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
+  /**
+   * True while the in-flight sign can be cancelled: signing is active AND the
+   * connected BTC provider exposes `cancelSigning` (only the Ledger provider
+   * does — always capability-probed, never assumed).
+   */
+  canCancel: boolean;
+  /** True from {@link handleCancel} until the in-flight sign settles. */
+  cancelRequested: boolean;
+  /**
+   * Requests cancellation of the in-flight sign. This does NOT settle it:
+   * the provider aborts at its next device exchange boundary, which may be
+   * only after the user finishes or rejects on the physical device.
+   */
+  handleCancel: () => void;
 }
 
 function normalizeScriptPubKeyHex(scriptPubKey: string): string {
@@ -99,6 +114,10 @@ export function usePayoutSigningState({
   });
   const [error, setError] = useState<SigningError | null>(null);
   const [errorTerminal, setErrorTerminal] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
+  // Ref mirror so the settle paths inside handleSign read the live value —
+  // the state itself is stale inside the long-lived async closure.
+  const cancelRequestedRef = useRef(false);
 
   const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
   const btcConnector = useChainConnector("BTC");
@@ -374,7 +393,16 @@ export function usePayoutSigningState({
         setIsComplete(true);
         onSuccess();
       } catch (err) {
+        // Read before the finally consumes it: was this settle preceded by
+        // the user's own cancel request?
+        const selfCancelRequested = cancelRequestedRef.current;
         if (err instanceof Error && err.name === "AbortError") {
+          setSigning(false);
+          return;
+        }
+        // A self-requested cancel settling as the wallet's user-cancel
+        // rejection is not an error — return to the pre-sign idle state.
+        if (selfCancelRequested && isUserCancellation(err)) {
           setSigning(false);
           return;
         }
@@ -405,6 +433,10 @@ export function usePayoutSigningState({
       }
     } finally {
       inFlightRef.current = false;
+      // Every settle path (success, any error, guard return) consumes a
+      // pending cancel request so the modal can't wedge on a disabled button.
+      cancelRequestedRef.current = false;
+      setCancelRequested(false);
     }
   }, [
     signing,
@@ -423,5 +455,38 @@ export function usePayoutSigningState({
     onSuccess,
   ]);
 
-  return { signing, progress, error, errorTerminal, isComplete, handleSign };
+  // Capability probe on every render: only the Ledger vault provider exposes
+  // cancelSigning, and the affordance is only honest while a sign is running.
+  const connectedProvider = btcConnector?.connectedWallet?.provider as
+    | { cancelSigning?: unknown }
+    | undefined;
+  const canCancel =
+    signing && typeof connectedProvider?.cancelSigning === "function";
+
+  const handleCancel = useCallback(() => {
+    const provider = btcConnector?.connectedWallet?.provider as
+      | { cancelSigning?: () => void }
+      | undefined;
+    if (!inFlightRef.current || cancelRequestedRef.current) return;
+    if (typeof provider?.cancelSigning !== "function") return;
+    cancelRequestedRef.current = true;
+    setCancelRequested(true);
+    // A REQUEST, not a settle: the provider aborts at its next device
+    // exchange boundary, so the sign promise stays pending until the user
+    // acts on the device. Abort our own signal too so VP polling stops now.
+    provider.cancelSigning();
+    abortRef.current?.abort();
+  }, [btcConnector?.connectedWallet?.provider]);
+
+  return {
+    signing,
+    progress,
+    error,
+    errorTerminal,
+    isComplete,
+    handleSign,
+    canCancel,
+    cancelRequested,
+    handleCancel,
+  };
 }

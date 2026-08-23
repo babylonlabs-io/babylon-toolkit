@@ -1028,6 +1028,99 @@ describe("DepositProgressView", () => {
       ).not.toBeInTheDocument();
     });
   });
+  describe("device signing cancellation", () => {
+    it("keeps the processing button disabled with the signing label when cancellation is unavailable", () => {
+      // Pin: without canCancelSigning the processing state renders exactly as
+      // it always has — no cancel affordance, button disabled.
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_DEPOSITOR_GRAPH}
+          isProcessing
+          canClose={false}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", {
+          name: COPY.deposit.progress.buttons.sign,
+        }),
+      ).toBeDisabled();
+      expect(
+        screen.queryByText(COPY.deposit.progress.buttons.cancelSigning),
+      ).not.toBeInTheDocument();
+    });
+
+    it("enables a Cancel signing button while processing when cancellation is available", () => {
+      const onCancelSigning = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_DEPOSITOR_GRAPH}
+          isProcessing
+          canClose={false}
+          canCancelSigning
+          onCancelSigning={onCancelSigning}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: COPY.deposit.progress.buttons.cancelSigning,
+      });
+      expect(button).toBeEnabled();
+      // No notice until the user actually requests the cancel.
+      expect(
+        screen.queryByText(COPY.deposit.progress.cancelRequestedNotice),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(button);
+      expect(onCancelSigning).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables the button and shows the finish-on-device notice once cancellation is requested", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_DEPOSITOR_GRAPH}
+          isProcessing
+          canClose={false}
+          canCancelSigning
+          cancelSigningRequested
+          onCancelSigning={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", {
+          name: COPY.deposit.progress.buttons.cancelSigning,
+        }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(COPY.deposit.progress.cancelRequestedNotice),
+      ).toBeInTheDocument();
+    });
+
+    it("offers no cancel affordance outside the processing state", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_DEPOSITOR_GRAPH}
+          canCancelSigning
+          onCancelSigning={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", {
+          name: COPY.deposit.progress.buttons.sign,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.progress.buttons.cancelSigning),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("Ethereum confirmation panel", () => {
     it("renders the live counter under the ETH registration step while the gate holds", () => {
       render(
