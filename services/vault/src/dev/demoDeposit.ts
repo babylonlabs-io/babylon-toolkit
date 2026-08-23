@@ -567,7 +567,11 @@ function demoActivityLog(
 }
 
 function demoBtcAmount(amount: string) {
-  return { value: amount, symbol: VAULT_COLLATERAL_ASSET.symbol };
+  return {
+    value: amount,
+    symbol: VAULT_COLLATERAL_ASSET.symbol,
+    numeric: Number(amount),
+  };
 }
 
 /** Borrow / repay / liquidation rows are denominated in the panel's selected
@@ -579,10 +583,15 @@ export function activityScenarios(
   const debtIcon = getCurrencyIconWithFallback(undefined, symbol);
   /** Borrow / repay rows are denominated in the debt asset, so the panel's
    *  amount drives them directly. */
-  const demoDebtAmount = (amount: string) => ({ value: amount, symbol });
+  const demoDebtAmount = (amount: string) => ({
+    value: amount,
+    symbol,
+    numeric: Number(amount),
+  });
   const demoLiquidationDebtAmount = () => ({
     value: DEMO_LIQUIDATION_DEBT_AMOUNT,
     symbol,
+    numeric: Number(DEMO_LIQUIDATION_DEBT_AMOUNT),
   });
 
   return [

@@ -190,6 +190,17 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   }),
 }));
 
+// Same reason: the Activity feed's price source imports the built
+// wallet-connector bundle for its network enum, and its vault read wants a
+// depositor address this suite never connects.
+vi.mock("@/hooks/usePrices", () => ({
+  usePrices: () => ({ prices: {} }),
+}));
+
+vi.mock("@/hooks/useVaults", () => ({
+  useVaults: () => ({ data: undefined }),
+}));
+
 vi.mock("@/context/ProtocolParamsContext", () => ({
   ProtocolParamsProvider: ({ children }: { children: ReactNode }) => children,
 }));
