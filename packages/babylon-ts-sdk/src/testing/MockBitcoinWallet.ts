@@ -10,6 +10,7 @@ import type {
   SignPsbtOptions,
 } from "../shared/wallets/interfaces/BitcoinWallet";
 import { uint8ArrayToHex } from "../tbv/core/primitives/utils/bitcoin";
+import { signBip322P2wpkhWitness } from "./signBip322P2wpkhWitness";
 
 /**
  * Configuration for MockBitcoinWallet.
@@ -19,6 +20,14 @@ export interface MockBitcoinWalletConfig {
   address?: string;
   network?: BitcoinNetwork;
   shouldFailSigning?: boolean;
+  /**
+   * 32-byte hex key `signMessage` signs BIP-322 proofs with. Defaults to
+   * the privkey-1 test key, whose x-only pubkey is the default
+   * `publicKeyHex` (the secp256k1 generator's x coordinate). PoP flows
+   * verify the witness against `publicKeyHex`, so keep the two consistent
+   * when overriding either. Test material only — never a real key.
+   */
+  privateKeyHex?: string;
   /**
    * Optional override for `deriveContextHash`. When omitted the mock
    * returns a deterministic 64-char lowercase hex string derived from
@@ -53,22 +62,18 @@ const defaultDeriveContextHash = async (
   return uint8ArrayToHex(sha256(buf));
 };
 
-/**
- * Shape of the mock BIP-322 witness: `varint(2) ‖ varint(71) ‖ DER sig ‖
- * varint(33) ‖ compressed pubkey` — the P2WPKH form, with the DER signature
- * at its maximum encoded length.
- */
-const MOCK_WITNESS_ITEM_COUNT = 2;
-const MOCK_WITNESS_DER_SIG_BYTES = 71;
-const MOCK_WITNESS_PUBKEY_BYTES = 33;
-const COMPRESSED_PUBKEY_EVEN_PREFIX = 0x02;
+/** Privkey 1 — the test key `signMessage` signs with by default. */
+const DEFAULT_PRIVATE_KEY_HEX = `${"00".repeat(31)}01`;
 
 const DEFAULT_CONFIG: Required<MockBitcoinWalletConfig> = {
+  // x-only pubkey of DEFAULT_PRIVATE_KEY_HEX (the secp256k1 generator's x
+  // coordinate), so the default wallet's PoP witnesses verify against it.
   publicKeyHex:
-    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   address: "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
   network: BitcoinNetworks.SIGNET,
   shouldFailSigning: false,
+  privateKeyHex: DEFAULT_PRIVATE_KEY_HEX,
   deriveContextHash: defaultDeriveContextHash,
 };
 
@@ -85,6 +90,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
       ...(config.shouldFailSigning !== undefined
         ? { shouldFailSigning: config.shouldFailSigning }
         : {}),
+      ...(config.privateKeyHex ? { privateKeyHex: config.privateKeyHex } : {}),
       ...(config.deriveContextHash
         ? { deriveContextHash: config.deriveContextHash }
         : {}),
@@ -127,7 +133,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
 
   async signMessage(
     message: string,
-    type: "bip322-simple" | "ecdsa",
+    _type: "bip322-simple" | "ecdsa",
   ): Promise<string> {
     if (this.config.shouldFailSigning) {
       throw new Error("Mock signing failed");
@@ -137,35 +143,15 @@ export class MockBitcoinWallet implements BitcoinWallet {
       throw new Error("Invalid message: empty string");
     }
 
-    // The SDK decodes what a wallet returns (`verifyPopWitness`), so the mock
-    // has to emit a structurally valid two-item P2WPKH witness. The bytes are
-    // derived from the inputs so different messages still give different
-    // signatures; they are not a real signature and are never verified.
-    const digest = sha256(
-      new TextEncoder().encode(
-        `mock-signature-${type}-${message}-${this.config.publicKeyHex}`,
-      ),
+    // The SDK cryptographically verifies what a wallet returns
+    // (`verifyPopWitness`), so the mock signs a REAL BIP-322 P2WPKH witness
+    // with its private key. The type is not consulted: PoP flows only ever
+    // request "bip322-simple", and the interface tests assert shape only.
+    const witness = signBip322P2wpkhWitness(
+      new TextEncoder().encode(message),
+      Uint8Array.from(Buffer.from(this.config.privateKeyHex, "hex")),
     );
-    const derSignature = new Uint8Array(MOCK_WITNESS_DER_SIG_BYTES);
-    for (let i = 0; i < derSignature.length; i++) {
-      derSignature[i] = digest[i % digest.length];
-    }
-    // Witness item 1 must carry the wallet's own key — verifyPopWitness
-    // mirrors vaultd's WitnessPubkeyMismatch check. Length-aware: config may
-    // hold a compressed (66-char) or x-only (64-char) key.
-    const cleanKey = this.config.publicKeyHex.replace(/^0x/, "").toLowerCase();
-    const xOnlyHex = cleanKey.length === 66 ? cleanKey.slice(2) : cleanKey;
-    const xOnlyBytes = Uint8Array.from(Buffer.from(xOnlyHex, "hex"));
-    return `0x${uint8ArrayToHex(
-      Uint8Array.from([
-        MOCK_WITNESS_ITEM_COUNT,
-        MOCK_WITNESS_DER_SIG_BYTES,
-        ...derSignature,
-        MOCK_WITNESS_PUBKEY_BYTES,
-        COMPRESSED_PUBKEY_EVEN_PREFIX,
-        ...xOnlyBytes,
-      ]),
-    )}`;
+    return `0x${uint8ArrayToHex(witness)}`;
   }
 
   async getNetwork(): Promise<BitcoinNetwork> {

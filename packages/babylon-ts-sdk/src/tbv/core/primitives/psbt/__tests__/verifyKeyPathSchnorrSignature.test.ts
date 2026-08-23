@@ -12,8 +12,10 @@
 import { Buffer } from "buffer";
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { sha256 } from "@noble/hashes/sha2.js";
 import {
   crypto as bcrypto,
+  script as bscript,
   initEccLib,
   payments,
   Psbt,
@@ -327,5 +329,377 @@ describe("assertReturnedKeyPathSignatures", () => {
         returnedPsbtHex: req.toHex(),
       }),
     ).not.toThrow();
+  });
+});
+
+// ── P2WPKH (Native SegWit funding) helpers ──
+// Signed in-test with the same key material; the verifier under test mirrors
+// btc-vault `crates/btc-wallet-remote/src/client.rs verify_finalized_p2wpkh_spend`.
+const P2WPKH_PAYMENT = payments.p2wpkh({ pubkey: PUB });
+const P2WPKH_SCRIPT = P2WPKH_PAYMENT.output!;
+
+function p2wpkhScriptCode(pubkey: Buffer): Buffer {
+  return payments.p2pkh({ hash: bcrypto.hash160(pubkey) }).output!;
+}
+
+function p2wpkhRequestedPsbt(values: number[] = [100_000, 50_000]): Psbt {
+  const psbt = new Psbt();
+  values.forEach((value, i) => {
+    psbt.addInput({
+      hash: Buffer.alloc(32, i + 1),
+      index: i,
+      witnessUtxo: { script: P2WPKH_SCRIPT, value },
+    });
+  });
+  psbt.addOutput({
+    script: Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0xaa)]),
+    value: 140_000,
+  });
+  return psbt;
+}
+
+/** DER ‖ sighash-byte signature over the BIP-143 sighash of one input. */
+function signP2wpkh(
+  psbt: Psbt,
+  inputIndex: number,
+  overrides: { value?: number; hashType?: number; priv?: Buffer } = {},
+): Buffer {
+  const value =
+    overrides.value ?? psbt.data.inputs[inputIndex].witnessUtxo!.value;
+  const hashType = overrides.hashType ?? Transaction.SIGHASH_ALL;
+  const priv = overrides.priv ?? PRIV;
+  const tx = Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer());
+  const pub = Buffer.from(ecc.pointFromScalar(priv, true)!);
+  const sighash = tx.hashForWitnessV0(
+    inputIndex,
+    p2wpkhScriptCode(pub),
+    value,
+    hashType,
+  );
+  return Buffer.from(
+    bscript.signature.encode(Buffer.from(ecc.sign(sighash, priv)), hashType),
+  );
+}
+
+/** Consensus 2-item witness `[sig, pubkey]` (or another item list for tampering). */
+function p2wpkhWitness(items: Buffer[]): Buffer {
+  return Buffer.concat([
+    Buffer.from([items.length]),
+    ...items.map((item) => Buffer.concat([Buffer.from([item.length]), item])),
+  ]);
+}
+
+describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
+  it("verifies partialSig on every P2WPKH input (unfinalized return)", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 0) }],
+    });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toBe(0); // count stays key-path-only; P2WPKH failures throw instead
+  });
+
+  it("verifies the finalized 2-item witness when the wallet auto-finalized", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, {
+      finalScriptWitness: p2wpkhWitness([signP2wpkh(req, 0), PUB]),
+    });
+    ret.updateInput(1, {
+      finalScriptWitness: p2wpkhWitness([signP2wpkh(req, 1), PUB]),
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).not.toThrow();
+  });
+
+  it("throws when a P2WPKH input carries no signature", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 0) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 1 carries no P2WPKH signature/);
+  });
+
+  it("throws when the signature is tampered, naming the input", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    const sig = signP2wpkh(req, 0);
+    sig[10] ^= 0x01; // inside the DER r value
+    ret.updateInput(0, { partialSig: [{ pubkey: PUB, signature: sig }] });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0 does not verify/);
+  });
+
+  it("throws on a wrong prevout value (sighash mismatch)", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, {
+      partialSig: [
+        { pubkey: PUB, signature: signP2wpkh(req, 0, { value: 100_001 }) },
+      ],
+    });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0 does not verify/);
+  });
+
+  it("rejects a cryptographically valid SIGHASH_NONE signature, naming the input", () => {
+    // Without the SIGHASH_ALL-only gate (client.rs:981-987) this would verify.
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, {
+      partialSig: [
+        {
+          pubkey: PUB,
+          signature: signP2wpkh(req, 0, { hashType: Transaction.SIGHASH_NONE }),
+        },
+      ],
+    });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0.*SIGHASH_ALL/);
+  });
+
+  it("rejects corrupted DER and an undefined hashtype byte, naming the input", () => {
+    const req = p2wpkhRequestedPsbt();
+    const badDer = Psbt.fromHex(req.toHex());
+    const mangled = signP2wpkh(req, 0);
+    mangled[0] = 0x31; // DER sequence tag must be 0x30
+    // Direct assignment: bip174 refuses mangled DER via updateInput, but its
+    // PARSER doesn't validate signature bytes — a wallet can return this.
+    badDer.data.inputs[0].partialSig = [{ pubkey: PUB, signature: mangled }];
+    badDer.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: badDer.toHex(),
+      }),
+    ).toThrow(/input 0/);
+
+    const badType = Psbt.fromHex(req.toHex());
+    const zeroType = signP2wpkh(req, 0);
+    zeroType[zeroType.length - 1] = 0x00; // not a defined sighash type
+    badType.data.inputs[0].partialSig = [{ pubkey: PUB, signature: zeroType }];
+    badType.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: badType.toHex(),
+      }),
+    ).toThrow(/input 0/);
+  });
+
+  it("rejects a pubkey that does not hash to the prevout's witness program", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    const otherPriv = Buffer.alloc(32, 9);
+    const otherPub = Buffer.from(ecc.pointFromScalar(otherPriv, true)!);
+    ret.updateInput(0, {
+      finalScriptWitness: p2wpkhWitness([
+        signP2wpkh(req, 0, { priv: otherPriv }),
+        otherPub,
+      ]),
+    });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/witness program/);
+  });
+
+  it("rejects a finalized witness with the wrong item count or a non-33-byte pubkey", () => {
+    const req = p2wpkhRequestedPsbt();
+    const sig = signP2wpkh(req, 0);
+    const threeItems = Psbt.fromHex(req.toHex());
+    threeItems.updateInput(0, {
+      finalScriptWitness: p2wpkhWitness([sig, PUB, Buffer.from([0x01])]),
+    });
+    threeItems.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: threeItems.toHex(),
+      }),
+    ).toThrow(/exactly 2 items/);
+
+    const xOnlyPub = Psbt.fromHex(req.toHex());
+    xOnlyPub.updateInput(0, {
+      finalScriptWitness: p2wpkhWitness([sig, PUB.subarray(1)]),
+    });
+    xOnlyPub.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: xOnlyPub.toHex(),
+      }),
+    ).toThrow(/33 bytes/);
+  });
+
+  it("throws when a finalized witness disagrees with the partialSig on the same input", () => {
+    // The consumers broadcast the witness bytes, so a valid partialSig must
+    // not launder a different witness signature past the check.
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 0) }],
+      finalScriptWitness: p2wpkhWitness([signP2wpkh(req, 1), PUB]),
+    });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0.*does not match its partialSig/);
+  });
+
+  it("verifies a mixed PSBT and still counts only key-path inputs", () => {
+    const req = new Psbt();
+    req.addInput({
+      hash: Buffer.alloc(32, 1),
+      index: 0,
+      witnessUtxo: { script: P2TR, value: 100_000 },
+      tapInternalKey: X_ONLY,
+    });
+    req.addInput({
+      hash: Buffer.alloc(32, 2),
+      index: 1,
+      witnessUtxo: { script: P2WPKH_SCRIPT, value: 50_000 },
+    });
+    req.addOutput({
+      script: Buffer.concat([
+        Buffer.from([0x51, 0x20]),
+        Buffer.alloc(32, 0xaa),
+      ]),
+      value: 140_000,
+    });
+    const ret = Psbt.fromHex(req.toHex());
+    ret.updateInput(0, { tapKeySig: sign(req, 0) });
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toBe(1);
+  });
+
+  it("still skips genuinely unknown script types (P2WSH)", () => {
+    const req = new Psbt();
+    req.addInput({
+      hash: Buffer.alloc(32, 1),
+      index: 0,
+      witnessUtxo: {
+        script: Buffer.concat([
+          Buffer.from([0x00, 0x20]),
+          Buffer.alloc(32, 0x33),
+        ]),
+        value: 1_000,
+      },
+    });
+    req.addOutput({ script: Buffer.from([0x6a]), value: 0 });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: req.toHex(),
+      }),
+    ).not.toThrow();
+  });
+
+  it("differential over varied keys and values: accepts honest signatures, rejects one-byte tampering", () => {
+    // CLAUDE.md §9: golden vectors plus varied inputs, not one pinned vector.
+    // Keys/values derive from a hash counter so failures are reproducible.
+    const utf8 = (s: string) => new TextEncoder().encode(s);
+    for (let i = 0; i < 6; i++) {
+      const priv = Buffer.from(sha256(utf8(`p2wpkh-differential-${i}`)));
+      const pub = Buffer.from(ecc.pointFromScalar(priv, true)!);
+      const value = 1_000 + (priv.readUInt32BE(0) % 5_000_000);
+      const script = payments.p2wpkh({ pubkey: pub }).output!;
+      const req = new Psbt();
+      req.addInput({
+        hash: Buffer.from(sha256(utf8(`prevout-${i}`))),
+        index: 0,
+        witnessUtxo: { script, value },
+      });
+      req.addOutput({ script: Buffer.from([0x6a]), value: 0 });
+      const sig = signP2wpkh(req, 0, { priv });
+
+      const honest = Psbt.fromHex(req.toHex());
+      honest.updateInput(0, {
+        finalScriptWitness: p2wpkhWitness([sig, pub]),
+      });
+      expect(() =>
+        assertReturnedKeyPathSignatures({
+          requestedPsbtHex: req.toHex(),
+          returnedPsbtHex: honest.toHex(),
+        }),
+      ).not.toThrow();
+
+      const tampered = Psbt.fromHex(req.toHex());
+      const badSig = Buffer.from(sig);
+      badSig[12 + (i % 8)] ^= 0x01;
+      tampered.updateInput(0, {
+        finalScriptWitness: p2wpkhWitness([badSig, pub]),
+      });
+      expect(() =>
+        assertReturnedKeyPathSignatures({
+          requestedPsbtHex: req.toHex(),
+          returnedPsbtHex: tampered.toHex(),
+        }),
+      ).toThrow(/input 0/);
+    }
   });
 });

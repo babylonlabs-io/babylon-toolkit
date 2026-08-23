@@ -266,8 +266,9 @@ async function signAndFinalizePsbt(
     returnedPsbtHex: signedPsbtHex,
   });
 
-  // Never trust the wallet's finalization: verify the returned key-path
-  // signatures against the PSBT we asked it to sign before extracting.
+  // Never trust the wallet's finalization: verify the returned signatures
+  // against the PSBT we asked it to sign before extracting (key-path
+  // Schnorr counted; P2WPKH ECDSA verified-or-throw, not counted).
   const verifiedInputs = assertReturnedKeyPathSignatures({
     requestedPsbtHex: psbtHex,
     returnedPsbtHex: signedPsbtHex,

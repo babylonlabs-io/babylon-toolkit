@@ -1209,10 +1209,10 @@ export class PeginManager {
       returnedPsbtHex: signedPsbtHex,
     });
 
-    // Far-side check of the key-path signatures (CLAUDE.md §8: never trust the
-    // wallet's success/finalization). Covers taproot-funded inputs only —
-    // P2WPKH/P2WSH funding (non-taproot software-wallet accounts) is skipped
-    // by isKeyPathEligible and stays unverified here.
+    // Far-side check of the returned signatures (CLAUDE.md §8: never trust
+    // the wallet's success/finalization). Taproot key-path inputs are
+    // Schnorr-verified and counted; P2WPKH funding is ECDSA-verified
+    // (throwing on failure) without counting; P2WSH stays skipped.
     const verifiedInputs = assertReturnedKeyPathSignatures({
       requestedPsbtHex,
       returnedPsbtHex: signedPsbtHex,
@@ -1786,12 +1786,12 @@ export class PeginManager {
    * registry. The returned {@link PopSignature} can be reused across
    * every register call in the same session.
    *
-   * A one-item (P2TR) witness is verified against the depositor key before
-   * it is returned — see {@link verifyPopWitness}. Two-item (P2WPKH)
-   * witnesses are not yet verified host-side.
+   * The witness is verified against the depositor key before it is
+   * returned — Schnorr for one-item (P2TR), ECDSA over the BIP-322
+   * P2WPKH virtual transaction for two-item — see {@link verifyPopWitness}.
    *
-   * @throws If the wallet returns a malformed witness or a P2TR signature
-   *         that does not verify.
+   * @throws If the wallet returns a malformed witness or a signature that
+   *         does not verify.
    */
   async signProofOfPossession(): Promise<PopSignature> {
     if (!this.config.ethWallet.account) {
@@ -1813,8 +1813,8 @@ export class PeginManager {
 
     const btcPopSignature = normalizePopSignature(raw);
     // Fail before the Ethereum registration: vaultd rejects a bad PoP permanently.
-    // The verdict is informational — a P2WPKH witness can only be pubkey-checked,
-    // and both outcomes are acceptable here; anything worse already threw.
+    // The verdict is informational — both shapes are fully verified, and
+    // anything invalid already threw.
     verifyPopWitness(
       new TextEncoder().encode(popMessage),
       depositorBtcPubkey,
