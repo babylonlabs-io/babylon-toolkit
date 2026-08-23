@@ -1,3 +1,4 @@
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { Buffer } from "buffer";
 
@@ -9,7 +10,10 @@ import type {
   BitcoinWallet,
   SignPsbtOptions,
 } from "../shared/wallets/interfaces/BitcoinWallet";
-import { uint8ArrayToHex } from "../tbv/core/primitives/utils/bitcoin";
+import {
+  canonicalizeBtcPubkey,
+  uint8ArrayToHex,
+} from "../tbv/core/primitives/utils/bitcoin";
 import { signBip322P2wpkhWitness } from "./signBip322P2wpkhWitness";
 
 /**
@@ -24,8 +28,9 @@ export interface MockBitcoinWalletConfig {
    * 32-byte hex key `signMessage` signs BIP-322 proofs with. Defaults to
    * the privkey-1 test key, whose x-only pubkey is the default
    * `publicKeyHex` (the secp256k1 generator's x coordinate). PoP flows
-   * verify the witness against `publicKeyHex`, so keep the two consistent
-   * when overriding either. Test material only — never a real key.
+   * verify the witness against `publicKeyHex`: overriding only this key
+   * derives the matching `publicKeyHex`, and a divergent pair throws at
+   * sign time. Test material only — never a real key.
    */
   privateKeyHex?: string;
   /**
@@ -65,6 +70,15 @@ const defaultDeriveContextHash = async (
 /** Privkey 1 — the test key `signMessage` signs with by default. */
 const DEFAULT_PRIVATE_KEY_HEX = `${"00".repeat(31)}01`;
 
+/** Lowercase x-only pubkey of a 32-byte private key. */
+function xOnlyPubkeyHexOf(privateKeyHex: string): string {
+  return uint8ArrayToHex(
+    ecc.xOnlyPointFromScalar(
+      Uint8Array.from(Buffer.from(privateKeyHex, "hex")),
+    ),
+  );
+}
+
 const DEFAULT_CONFIG: Required<MockBitcoinWalletConfig> = {
   // x-only pubkey of DEFAULT_PRIVATE_KEY_HEX (the secp256k1 generator's x
   // coordinate), so the default wallet's PoP witnesses verify against it.
@@ -95,6 +109,11 @@ export class MockBitcoinWallet implements BitcoinWallet {
         ? { deriveContextHash: config.deriveContextHash }
         : {}),
     };
+    // A private-key override without a public key would otherwise sign
+    // against the DEFAULT pubkey — derive the matching one instead.
+    if (config.privateKeyHex && !config.publicKeyHex) {
+      this.config.publicKeyHex = xOnlyPubkeyHexOf(config.privateKeyHex);
+    }
   }
 
   async getPublicKeyHex(): Promise<string> {
@@ -141,6 +160,23 @@ export class MockBitcoinWallet implements BitcoinWallet {
 
     if (!message || message.length === 0) {
       throw new Error("Invalid message: empty string");
+    }
+
+    // PoP flows verify the witness against `publicKeyHex`, so a divergent
+    // key pair must fail loudly here, not as a confusing verify mismatch.
+    const signingXOnlyHex = xOnlyPubkeyHexOf(this.config.privateKeyHex);
+    let configuredXOnlyHex: string | undefined;
+    try {
+      configuredXOnlyHex = canonicalizeBtcPubkey(this.config.publicKeyHex);
+    } catch {
+      configuredXOnlyHex = undefined; // an unparseable key cannot match
+    }
+    if (configuredXOnlyHex !== signingXOnlyHex) {
+      throw new Error(
+        `MockBitcoinWallet.signMessage: privateKeyHex signs as x-only pubkey ` +
+          `${signingXOnlyHex}, but publicKeyHex is ${this.config.publicKeyHex}. ` +
+          `Pass a matching publicKeyHex/privateKeyHex pair.`,
+      );
     }
 
     // The SDK cryptographically verifies what a wallet returns

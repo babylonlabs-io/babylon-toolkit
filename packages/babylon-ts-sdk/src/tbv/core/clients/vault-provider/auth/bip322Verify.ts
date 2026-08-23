@@ -69,6 +69,21 @@ const P2WPKH_ENCODED_SIG_MAX = 72;
 // plain `0` everywhere.
 const ZERO_SATS = 0;
 
+// Wire fields of the virtual to_spend/to_sign transactions (`bip322`
+// crate 0.0.10 `util.rs:18-85`).
+const BIP322_TX_VERSION = 0;
+const BIP322_TX_LOCKTIME = 0;
+const BIP322_INPUT_SEQUENCE = 0;
+/** to_spend prevout: all-zero 32-byte txid at index 0xFFFFFFFF (`util.rs:18-85`). */
+const TO_SPEND_PREVOUT_TXID_BYTES = 32;
+const TO_SPEND_PREVOUT_INDEX = 0xffffffff;
+/** to_sign spends to_spend's only output (`util.rs:18-85`). */
+const TO_SPEND_OUTPUT_INDEX = 0;
+const OP_0 = 0x00;
+/** Direct push of the 32-byte tagged message hash. */
+const OP_PUSHBYTES_32 = 0x20;
+const OP_RETURN = 0x6a;
+
 /**
  * BIP-340 tagged hash: `SHA256( SHA256(tag) || SHA256(tag) || data )`.
  * Used for both BIP-322 message hashing and BIP-341 tap-tweak.
@@ -112,27 +127,30 @@ function buildToSignTransaction(
   const messageHash = taggedHash(BIP322_TAG, messageBytes);
 
   const toSpend = new Transaction();
-  toSpend.version = 0;
-  toSpend.locktime = 0;
-  // scriptSig: OP_0 (0x00) + OP_PUSHBYTES_32 (0x20) + message_hash (32B)
+  toSpend.version = BIP322_TX_VERSION;
+  toSpend.locktime = BIP322_TX_LOCKTIME;
   const scriptSig = Buffer.concat([
-    Buffer.from([0x00, 0x20]),
+    Buffer.from([OP_0, OP_PUSHBYTES_32]),
     Buffer.from(messageHash),
   ]);
   toSpend.addInput(
-    Buffer.alloc(32, 0), // prev_txid = 0x0000...0000
-    0xffffffff, // prev_vout = 0xFFFFFFFF
-    0, // sequence = 0
+    Buffer.alloc(TO_SPEND_PREVOUT_TXID_BYTES, 0),
+    TO_SPEND_PREVOUT_INDEX,
+    BIP322_INPUT_SEQUENCE,
     scriptSig,
   );
   toSpend.addOutput(scriptPubKey, ZERO_SATS);
 
   const toSign = new Transaction();
-  toSign.version = 0;
-  toSign.locktime = 0;
+  toSign.version = BIP322_TX_VERSION;
+  toSign.locktime = BIP322_TX_LOCKTIME;
   // Bitcoin txid in natural-byte (little-endian) form.
-  toSign.addInput(toSpend.getHash(), 0, 0);
-  toSign.addOutput(Buffer.from([0x6a]), ZERO_SATS); // OP_RETURN
+  toSign.addInput(
+    toSpend.getHash(),
+    TO_SPEND_OUTPUT_INDEX,
+    BIP322_INPUT_SEQUENCE,
+  );
+  toSign.addOutput(Buffer.from([OP_RETURN]), ZERO_SATS);
 
   return toSign;
 }

@@ -497,7 +497,7 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
     ).toThrow(/input 0.*SIGHASH_ALL/);
   });
 
-  it("rejects corrupted DER and an undefined hashtype byte, naming the input", () => {
+  it("rejects corrupted DER, naming the input", () => {
     const req = p2wpkhRequestedPsbt();
     const badDer = Psbt.fromHex(req.toHex());
     const mangled = signP2wpkh(req, 0);
@@ -514,10 +514,15 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
         returnedPsbtHex: badDer.toHex(),
       }),
     ).toThrow(/input 0/);
+  });
 
+  it("rejects an undefined sighash-type byte, naming the input", () => {
+    const req = p2wpkhRequestedPsbt();
     const badType = Psbt.fromHex(req.toHex());
     const zeroType = signP2wpkh(req, 0);
     zeroType[zeroType.length - 1] = 0x00; // not a defined sighash type
+    // Direct assignment: bip174 refuses mangled DER via updateInput, but its
+    // PARSER doesn't validate signature bytes — a wallet can return this.
     badType.data.inputs[0].partialSig = [{ pubkey: PUB, signature: zeroType }];
     badType.updateInput(1, {
       partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
@@ -552,12 +557,15 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
     ).toThrow(/witness program/);
   });
 
-  it("rejects a finalized witness with the wrong item count or a non-33-byte pubkey", () => {
+  it("rejects a finalized witness with the wrong item count", () => {
     const req = p2wpkhRequestedPsbt();
-    const sig = signP2wpkh(req, 0);
     const threeItems = Psbt.fromHex(req.toHex());
     threeItems.updateInput(0, {
-      finalScriptWitness: p2wpkhWitness([sig, PUB, Buffer.from([0x01])]),
+      finalScriptWitness: p2wpkhWitness([
+        signP2wpkh(req, 0),
+        PUB,
+        Buffer.from([0x01]),
+      ]),
     });
     threeItems.updateInput(1, {
       partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
@@ -568,10 +576,13 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
         returnedPsbtHex: threeItems.toHex(),
       }),
     ).toThrow(/exactly 2 items/);
+  });
 
+  it("rejects a finalized witness with a non-33-byte pubkey", () => {
+    const req = p2wpkhRequestedPsbt();
     const xOnlyPub = Psbt.fromHex(req.toHex());
     xOnlyPub.updateInput(0, {
-      finalScriptWitness: p2wpkhWitness([sig, PUB.subarray(1)]),
+      finalScriptWitness: p2wpkhWitness([signP2wpkh(req, 0), PUB.subarray(1)]),
     });
     xOnlyPub.updateInput(1, {
       partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],

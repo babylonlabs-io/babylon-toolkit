@@ -30,6 +30,26 @@ const ZERO_SATS = 0;
 const MIN_ENCODED_SIG_BYTES = 71;
 const MAX_SIGN_GRIND_ATTEMPTS = 100;
 
+// Wire fields of the virtual to_spend/to_sign transactions (`bip322`
+// crate 0.0.10 `util.rs:18-85`).
+const BIP322_TX_VERSION = 0;
+const BIP322_TX_LOCKTIME = 0;
+const BIP322_INPUT_SEQUENCE = 0;
+/** to_spend prevout: all-zero 32-byte txid at index 0xFFFFFFFF (`util.rs:18-85`). */
+const TO_SPEND_PREVOUT_TXID_BYTES = 32;
+const TO_SPEND_PREVOUT_INDEX = 0xffffffff;
+/** to_sign spends to_spend's only output (`util.rs:18-85`). */
+const TO_SPEND_OUTPUT_INDEX = 0;
+const OP_0 = 0x00;
+/** Direct push of the 32-byte tagged message hash. */
+const OP_PUSHBYTES_32 = 0x20;
+const OP_RETURN = 0x6a;
+/** Consensus P2WPKH witness: exactly [signature, pubkey]. */
+const P2WPKH_WITNESS_ITEMS = 2;
+/** Grinding: 32-byte extra-entropy buffer, attempt counter at offset 0. */
+const GRIND_ENTROPY_BYTES = 32;
+const GRIND_COUNTER_OFFSET = 0;
+
 /**
  * Sign `messageBytes` as a BIP-322 "simple" P2WPKH proof with `privateKey`
  * and return the consensus-encoded two-item witness
@@ -55,23 +75,29 @@ export function signBip322P2wpkhWitness(
     throw new Error("signBip322P2wpkhWitness: could not derive P2WPKH script");
   }
 
-  // to_spend / to_sign per bip322 crate util.rs:18-85 (version 0,
-  // locktime 0, sequence 0, all values 0, OP_RETURN spend output).
+  // to_spend / to_sign per bip322 crate util.rs:18-85.
   const toSpend = new Transaction();
-  toSpend.version = 0;
-  toSpend.locktime = 0;
+  toSpend.version = BIP322_TX_VERSION;
+  toSpend.locktime = BIP322_TX_LOCKTIME;
   toSpend.addInput(
-    Buffer.alloc(32, 0),
-    0xffffffff,
-    0,
-    Buffer.concat([Buffer.from([0x00, 0x20]), Buffer.from(messageHash)]),
+    Buffer.alloc(TO_SPEND_PREVOUT_TXID_BYTES, 0),
+    TO_SPEND_PREVOUT_INDEX,
+    BIP322_INPUT_SEQUENCE,
+    Buffer.concat([
+      Buffer.from([OP_0, OP_PUSHBYTES_32]),
+      Buffer.from(messageHash),
+    ]),
   );
   toSpend.addOutput(p2wpkh.output, ZERO_SATS);
   const toSign = new Transaction();
-  toSign.version = 0;
-  toSign.locktime = 0;
-  toSign.addInput(toSpend.getHash(), 0, 0);
-  toSign.addOutput(Buffer.from([0x6a]), ZERO_SATS); // OP_RETURN
+  toSign.version = BIP322_TX_VERSION;
+  toSign.locktime = BIP322_TX_LOCKTIME;
+  toSign.addInput(
+    toSpend.getHash(),
+    TO_SPEND_OUTPUT_INDEX,
+    BIP322_INPUT_SEQUENCE,
+  );
+  toSign.addOutput(Buffer.from([OP_RETURN]), ZERO_SATS);
 
   // BIP-143 sighash with the standard P2WPKH scriptCode, value 0
   // (bip322 crate verify.rs:163-173).
@@ -88,8 +114,8 @@ export function signBip322P2wpkhWitness(
 
   let encodedSignature: Buffer | undefined;
   for (let attempt = 0; attempt < MAX_SIGN_GRIND_ATTEMPTS; attempt++) {
-    const entropy = Buffer.alloc(32, 0);
-    entropy.writeUInt32LE(attempt, 0);
+    const entropy = Buffer.alloc(GRIND_ENTROPY_BYTES, 0);
+    entropy.writeUInt32LE(attempt, GRIND_COUNTER_OFFSET);
     // ecc.sign emits low-S (libsecp256k1), so 73-byte encodings can't occur.
     const candidate = bscript.signature.encode(
       Buffer.from(ecc.sign(sighash, privateKey, entropy)),
@@ -107,7 +133,7 @@ export function signBip322P2wpkhWitness(
   }
 
   return Uint8Array.from([
-    2, // witness item count
+    P2WPKH_WITNESS_ITEMS,
     encodedSignature.length,
     ...encodedSignature,
     pubkey.length,
