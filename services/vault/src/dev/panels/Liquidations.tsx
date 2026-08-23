@@ -1,19 +1,20 @@
 /**
- * God-mode section for the Overview page's Liquidation Analysis card, and for
- * the `/liquidations` page's Position Overview (dev / QA only).
+ * "Liquidations" god-mode tab (dev / QA only): forces the Overview page's
+ * Liquidation Analysis card state, sets the /liquidations page's own
+ * stat-card figures directly, and hosts the same shared cascade simulator
+ * used on the Position tab.
  *
  * The Overview card's three states each need a different real position to
  * reach, which makes them tedious to review; the buttons below force them
- * directly (its chart comes from the live cascade — turn on Manual Mode in
- * Position Notifications below to drive it with your own price and vaults).
+ * directly (its chart comes from the live cascade — use the simulator below
+ * to drive it with your own price and vaults).
  *
  * The position override sets `/liquidations`' own stat-card figures directly
  * (collateral BTC, debt, health factor), without needing a real position or a
- * Manual Mode cascade. It wins over both the live position and a Manual Mode
+ * simulated cascade. It wins over both the live position and a simulated
  * cascade for those stat cards; the cascade still drives that page's chart
  * independently, so both can be on at once.
  */
-
 import { useEffect } from "react";
 
 import {
@@ -30,15 +31,16 @@ import {
   useLiquidationPositionOverrideEnabled,
   useLiquidationPositionOverrideValues,
   type LiquidationPositionOverride,
-} from "./liquidationDebugStore";
+} from "../liquidationDebugStore";
 import {
   PANEL_HINT_CLASS,
   PANEL_INPUT_CLASS,
   PANEL_LABEL_CLASS,
-  PANEL_SECTION_CLASS,
   PANEL_SECTION_TITLE_CLASS,
-  panelSegmentClass,
-} from "./panelChrome";
+} from "../panelChrome";
+
+import { CascadeSimulator } from "./CascadeSimulator";
+import { SegmentButton } from "./segmentButton";
 
 const POSITION_FIELD_GRID_CLASS = "grid grid-cols-3 gap-x-3 gap-y-2";
 
@@ -109,15 +111,15 @@ function PositionOverrideControls() {
         </div>
       </div>
       <p className={PANEL_HINT_CLASS}>
-        Wins over the live position for the /liquidations stat cards above;
-        Manual Mode&apos;s cascade (Position Notifications, below) still drives
-        that page&apos;s chart independently — both can be on at once.
+        Wins over the live position for the /liquidations stat cards above; the
+        cascade simulator below still drives that page&apos;s chart
+        independently — both can be on at once.
       </p>
     </div>
   );
 }
 
-export function LiquidationAnalysisDebugPanel() {
+function LiquidationCardOverrideControls() {
   const state = useLiquidationDebugState();
 
   useEffect(() => {
@@ -125,29 +127,34 @@ export function LiquidationAnalysisDebugPanel() {
   }, [state]);
 
   return (
-    <details className={PANEL_SECTION_CLASS}>
-      <summary className={PANEL_SECTION_TITLE_CLASS}>
+    <div className="space-y-2">
+      <div className={PANEL_SECTION_TITLE_CLASS}>
         Liquidation Analysis
         {state !== "auto" && ` (${state})`}
-      </summary>
-      <div className="mt-3 space-y-3">
-        <div className="flex gap-2">
-          {LIQUIDATION_DEBUG_STATES.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setLiquidationDebugState(value)}
-              className={panelSegmentClass(state === value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className={PANEL_HINT_CLASS}>
-          Forces the Overview card&apos;s state; Auto follows the live position.
-        </p>
-        <PositionOverrideControls />
       </div>
-    </details>
+      <div className="flex gap-2">
+        {LIQUIDATION_DEBUG_STATES.map(({ value, label }) => (
+          <SegmentButton
+            key={value}
+            label={label}
+            active={state === value}
+            onClick={() => setLiquidationDebugState(value)}
+          />
+        ))}
+      </div>
+      <p className={PANEL_HINT_CLASS}>
+        Forces the Overview card&apos;s state; Auto follows the live position.
+      </p>
+      <PositionOverrideControls />
+    </div>
+  );
+}
+
+export function LiquidationsPanel() {
+  return (
+    <div className="space-y-4">
+      <LiquidationCardOverrideControls />
+      <CascadeSimulator />
+    </div>
   );
 }
