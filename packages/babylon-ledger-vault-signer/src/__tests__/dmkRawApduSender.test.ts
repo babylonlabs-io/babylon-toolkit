@@ -1,9 +1,8 @@
 /**
  * Tests for the non-throwing DMK binding. The SIGN_PSBT loop reads 0xE000
- * (client command follows) as data, and 0x6A80 as data too so the loop's
- * single gated post-abandonment resend can see it (otherwise terminal) — a
- * sender that throws on either would kill the interrupt/continue protocol,
- * so pass-through on every status word is pinned here.
+ * (client command follows) as data and classifies terminal words itself — a
+ * sender that throws on any status word would kill the interrupt/continue
+ * protocol, so pass-through on every status word is pinned here.
  */
 
 import { describe, expect, it, vi } from "vitest";

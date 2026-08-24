@@ -169,36 +169,26 @@ export class LedgerSignPsbtProtocolError extends Error {
 
 /**
  * The host abandoned the SIGN_PSBT loop (abort signal) — the loop stops
- * sending, nothing else. What the device does next (verified at base app rev
- * `e400d8d8` + fw `90cf41f`; the `6fcad4fd`→`90cf41f` delta is payout-validation
- * only and touches neither path below):
+ * sending, nothing else. Retry after this is always a FULL re-ceremony (the
+ * provider resets its mirror to idle). Device aftermath (verified at base app
+ * rev `e400d8d8` + fw `90cf41f`):
  *
  * - Within ~5 s (50 ticks, `base:io_ext.h:28`) the device sits blocked
- *   awaiting CONTINUE; the next non-CONTINUE APDU is eaten with 0x6A80 and the
- *   interrupted handler unwinds (`base:dispatcher.c:107-111`) — a direct retry
- *   uses `resendOnceOnIncorrectData`.
- * - A validation-phase abandonment leaves the intent intact; a Payout/NoPayout
- *   SIGNING-phase abandonment invalidates it (`fw:sign_custom_inputs.c:207-344`)
- *   — post-abort "intent-loaded" is a HINT only, and the retry path must also
- *   absorb 0xB007.
+ *   awaiting CONTINUE and eats the next non-CONTINUE APDU with 0x6A80
+ *   (`base:dispatcher.c:107-111`) — a fast retry's first DERIVE APDU surfaces
+ *   as the generic invalid-data error; the second attempt is clean.
  * - After >5 s of host silence the app exits to the dashboard
- *   (`base:io_ext.c:103-111` → SDK `app_exit()`); the host then sees 0x6E00 or
- *   a transport failure — full re-ceremony required.
+ *   (`base:io_ext.c:103-111` → SDK `app_exit()`); the host then sees 0x6E00,
+ *   whose wrong-app copy guides reopening the app.
  */
 export class LedgerSignPsbtAbortedError extends Error {
   /** Yields the device had already delivered when the host stopped sending. */
   readonly yieldedCount: number;
-  /**
-   * True only when the abort left a dispatcher mid-interruption (device
-   * awaiting CONTINUE) — the one state the resend-once recovery exists for.
-   */
-  readonly dispatcherInterrupted: boolean;
 
-  constructor(yieldedCount: number, dispatcherInterrupted: boolean) {
+  constructor(yieldedCount: number) {
     super("SIGN_PSBT was abandoned host-side before completion");
     this.name = LEDGER_SIGN_PSBT_ABORTED_ERROR_NAME;
     this.yieldedCount = yieldedCount;
-    this.dispatcherInterrupted = dispatcherInterrupted;
   }
 }
 

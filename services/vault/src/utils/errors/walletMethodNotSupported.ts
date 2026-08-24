@@ -9,6 +9,8 @@
  * module (and its test transform).
  */
 
+import { chainCarriesCode } from "./causeChain";
+
 /**
  * Wallet-connector error code thrown when a wallet does not implement a
  * required method (e.g. `deriveContextHash`). Mirrors
@@ -18,9 +20,6 @@
  */
 const WALLET_METHOD_NOT_SUPPORTED_CODE = "WALLET_METHOD_NOT_SUPPORTED";
 
-/** How far to walk a `cause` chain before giving up (mirrors isUserCancellation). */
-const MAX_CAUSE_DEPTH = 10;
-
 /**
  * True when the error — or anything in its `cause` chain — carries the
  * wallet-connector WALLET_METHOD_NOT_SUPPORTED code. Walks `cause` because
@@ -28,17 +27,5 @@ const MAX_CAUSE_DEPTH = 10;
  * original as `cause`) before the mappers see them.
  */
 export function isWalletMethodNotSupported(error: unknown): boolean {
-  let cur: unknown = error;
-
-  for (let depth = 0; depth <= MAX_CAUSE_DEPTH && cur != null; depth++) {
-    if (typeof cur !== "object") return false;
-
-    if ((cur as { code?: unknown }).code === WALLET_METHOD_NOT_SUPPORTED_CODE) {
-      return true;
-    }
-
-    cur = (cur as { cause?: unknown }).cause;
-  }
-
-  return false;
+  return chainCarriesCode(error, WALLET_METHOD_NOT_SUPPORTED_CODE);
 }

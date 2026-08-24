@@ -409,7 +409,7 @@ describe("LedgerVaultProvider", () => {
       signMock.signPreparedVaultPsbt.mockImplementationOnce(
         (_send, _prepared, opts: { signal: AbortSignal }) =>
           new Promise((_resolve, reject) => {
-            opts.signal.addEventListener("abort", () => reject(new LedgerSignPsbtAbortedError(0, true)));
+            opts.signal.addEventListener("abort", () => reject(new LedgerSignPsbtAbortedError(0)));
           }),
       );
       const inFlight = p.signMessage(POP_MESSAGE, "bip322-simple");
@@ -700,7 +700,7 @@ describe("LedgerVaultProvider", () => {
       // Keep-intent retries risk SW_CAP_EXCEEDED (caps commit pre-yield):
       // the mirror drops and only a re-ceremony recovers.
       const provider = await approved();
-      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0, true));
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0));
 
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
@@ -730,7 +730,7 @@ describe("LedgerVaultProvider", () => {
 
     it("a pre-send abort takes the same cancel classification and reset", async () => {
       const provider = await approved();
-      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0, false));
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtAbortedError(0));
 
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
@@ -825,7 +825,7 @@ describe("LedgerVaultProvider", () => {
       signMock.signPreparedVaultPsbt.mockImplementationOnce(
         (_send, _prepared, opts: { signal: AbortSignal }) =>
           new Promise((_resolve, reject) => {
-            opts.signal.addEventListener("abort", () => reject(new LedgerSignPsbtAbortedError(0, true)));
+            opts.signal.addEventListener("abort", () => reject(new LedgerSignPsbtAbortedError(0)));
           }),
       );
     }
@@ -843,7 +843,7 @@ describe("LedgerVaultProvider", () => {
 
       await expect(inFlight).rejects.toMatchObject({
         code: ERROR_CODES.CONNECTION_REJECTED,
-        message: expect.stringMatching(/cancelled/i),
+        message: expect.stringMatching(/canceled/i),
       });
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
         code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
@@ -871,7 +871,7 @@ describe("LedgerVaultProvider", () => {
 
       await expect(pop).rejects.toMatchObject({
         code: ERROR_CODES.CONNECTION_REJECTED,
-        message: expect.stringMatching(/cancelled/i),
+        message: expect.stringMatching(/canceled/i),
       });
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({
         code: ERROR_CODES.DEVICE_CEREMONY_INVALID,

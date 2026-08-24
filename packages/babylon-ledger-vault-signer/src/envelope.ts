@@ -36,8 +36,10 @@ function requireIntInRange(field: string, value: number, lo: number, hi: number)
  * @throws {DepositTermsRejectedError} on the first violation
  */
 export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
-  // No tx-graph version check (2026-08-23 decision): the WASM capability gate
-  // stops unconstructable versions upstream; bad shapes fail closed on-device.
+  // No tx-graph version gate: v3 is Core 2's Bitcoin tx shape byte-for-byte (btc-vault
+  // e1e50f66; SDK parity vector pegin.test.ts "builds the v3 Pre-PegIn byte-identical to
+  // the v2 vector"); v1 is unreachable fresh (ProtocolParams setter rejects
+  // `newVersion <= prev`, and no Ledger v1 vault exists); v4+ needs a new WASM release.
 
   // The >= 1 floor is enforced by both the contract and the device
   // (vault_tlv.c:73 rejects rate == 0).

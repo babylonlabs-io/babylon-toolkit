@@ -67,8 +67,10 @@ const DEVICE_LOCKED_TITLE = "Signing device locked";
 const DEVICE_LOCKED_BODY =
   "Your signing device is locked. Unlock it with your PIN and try again.";
 const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
+// Network-agnostic on purpose: the app is named "Babylon Vault" on mainnet
+// and "Babylon Vault Testnet" on test networks.
 const DEVICE_WRONG_APP_BODY =
-  "A different app is open on your signing device. Open the Babylon Vault app on the device and try again.";
+  "A different app is open on your signing device. Open the Babylon Vault app for this network and try again.";
 // Action-required labels shared between the in-app badges
 // (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
 // surfaces can't drift.
@@ -797,6 +799,10 @@ export const COPY = {
         `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
       payoutSigningFailed: (vaultNumber: number, error: string) =>
         `Vault ${vaultNumber}: Payout signing failed - ${error}`,
+      // Self-requested device cancel: the loop stops here, so later vaults
+      // are left unattempted (no warning) rather than marked failed.
+      payoutSigningCancelled: (vaultNumber: number) =>
+        `Vault ${vaultNumber}: Payout signing canceled - you can finish signing when you're ready`,
       dismissReusesReservedUtxos: "Dismiss",
     },
     errors: {
@@ -880,6 +886,14 @@ export const COPY = {
       signingRejected: {
         title: "Signing rejected",
         body: "You rejected the request in your wallet. Click Retry to approve it and continue.",
+      },
+      // Self-requested cancel (the in-app "Cancel signing" affordance), as
+      // opposed to a rejection on the wallet/device itself. Names no button:
+      // this surface renders only Close. True on every cancellable window —
+      // the Pre-PegIn broadcast happens only after its signature completes.
+      signingCancelled: {
+        title: "Signing canceled",
+        body: "You canceled the signature request, so the deposit did not continue. No Bitcoin was spent.",
       },
       walletNotConnected: {
         title: "Wallet not connected",

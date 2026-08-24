@@ -45,12 +45,6 @@ export interface SignVaultPsbtParams {
    * diagnostics. Never gates control flow.
    */
   readonly appIdentity?: AppIdentity;
-  /**
-   * Provider's `loopAbandoned` flag: resend the initial SIGN_PSBT APDU once
-   * if it answers 0x6A80 (the dispatcher eats exactly one non-CONTINUE APDU
-   * after a host-abandoned interruption). Never set on a first attempt.
-   */
-  readonly resendOnceOnIncorrectData?: boolean;
 }
 
 export interface SignVaultPsbtResult {

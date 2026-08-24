@@ -1705,15 +1705,18 @@ describe("useDepositFlow", () => {
       await settleAsCancelRejection();
     });
 
-    it("surfaces the cancel-settled rejection as the signing-rejected copy", async () => {
+    it("surfaces a settled self-cancel as the signing-cancelled copy, not the wallet-rejection copy", async () => {
       const { result, settleAsCancelRejection } =
         await startSignAndRequestCancel();
 
       // The flow controller was NOT aborted: the rejection reaches the normal
-      // error path (an aborted flow would have swallowed it silently).
+      // error path (an aborted flow would have swallowed it silently). The
+      // user clicked OUR cancel, so the "You rejected the request in your
+      // wallet. Click Retry" copy would misattribute it — and this surface
+      // renders no Retry button at all.
       const resolved = await settleAsCancelRejection();
       expect(resolved).toBeNull();
-      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingRejected);
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCancelled);
     });
 
     it("sets deviceCancelRequested on request and clears it when the cancelled sign settles", async () => {
@@ -1910,6 +1913,154 @@ describe("useDepositFlow", () => {
         await flowPromise;
       });
       expect(result.current.canCancelDeviceSign).toBe(false);
+    });
+
+    it("stops the payout loop when a requested cancel settles — the next vault gets no ceremony", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const settle: { reject: (e: unknown) => void } = { reject: () => {} };
+      const signPsbt = vi
+        .fn()
+        // Vault 0's graph sign is held open for the cancel; a (buggy) second
+        // vault ceremony would resolve immediately and expose itself below.
+        .mockImplementationOnce(
+          () =>
+            new Promise<string>((_resolve, reject) => {
+              settle.reject = reject;
+            }),
+        )
+        .mockResolvedValue("mockSignedPsbtHex");
+      const wallet = { ...MOCK_BTC_WALLET, signPsbt, cancelSigning: vi.fn() };
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ btcWallet }) => {
+          await btcWallet.signPsbt("graphPsbt");
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      let resolved: unknown;
+      await act(async () => {
+        settle.reject(signingCancelledError());
+        resolved = await flowPromise;
+      });
+
+      // The cancel stops the loop: vault 1's ceremony must never start —
+      // before the fix it re-ran the full device ceremony seconds after
+      // the user asked to stop.
+      expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+      expect(resolved).not.toBeNull();
+      expect(result.current.error).toBeNull();
+      // Cancelled outcome, not a plain success: vault 0 carries the
+      // cancelled warning; vault 1 is unattempted, not failed (no warning).
+      expect(result.current.lastWarnings).toEqual([
+        {
+          vaultId: "0xVault0Id",
+          stage: "payout",
+          terminal: false,
+          message: COPY.deposit.warnings.payoutSigningCancelled(1),
+        },
+      ]);
+    });
+
+    it("surfaces a single-vault payout cancel as cancelled, not as a signing failure", async () => {
+      const {
+        signAndSubmitPayouts,
+        registerPeginBatchAndWait,
+        waitForWotsReadiness,
+        waitForPayoutReadiness,
+      } = vi.mocked(await import("../depositFlowSteps"));
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      vi.mocked(preparePeginTransaction).mockResolvedValueOnce({
+        ...MOCK_BATCH_RESULT,
+        perVault: [MOCK_BATCH_RESULT.perVault[0]],
+      } as any);
+      vi.mocked(registerPeginBatchAndWait).mockResolvedValueOnce({
+        ethTxHash: "0xSingleBatchEthTx" as Hex,
+        vaults: [
+          {
+            vaultId: "0xSingleVaultId" as Hex,
+            peginTxHash: "0xVault0BtcTxHash" as Hex,
+          },
+        ],
+      });
+      vi.mocked(waitForWotsReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xSingleVaultId"] as Hex[]),
+        terminalVaultIds: new Set<Hex>(),
+      });
+      vi.mocked(waitForPayoutReadiness).mockResolvedValueOnce({
+        readyVaultIds: new Set(["0xSingleVaultId"] as Hex[]),
+        terminalVaultIds: new Set<Hex>(),
+      });
+
+      const settle: { reject: (e: unknown) => void } = { reject: () => {} };
+      const signPsbt = vi.fn(
+        () =>
+          new Promise<string>((_resolve, reject) => {
+            settle.reject = reject;
+          }),
+      );
+      const wallet = { ...MOCK_BTC_WALLET, signPsbt, cancelSigning: vi.fn() };
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ btcWallet }) => {
+          await btcWallet.signPsbt("graphPsbt");
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [100000n],
+          btcWalletProvider: wallet as any,
+        }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      let resolved: unknown;
+      await act(async () => {
+        settle.reject(signingCancelledError());
+        resolved = await flowPromise;
+      });
+
+      expect(resolved).not.toBeNull();
+      expect(result.current.error).toBeNull();
+      // Cancelled, not "Payout signing failed - <wallet error>".
+      expect(result.current.lastWarnings).toEqual([
+        {
+          vaultId: "0xSingleVaultId",
+          stage: "payout",
+          terminal: false,
+          message: COPY.deposit.warnings.payoutSigningCancelled(1),
+        },
+      ]);
     });
   });
 

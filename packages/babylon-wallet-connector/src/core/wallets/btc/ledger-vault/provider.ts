@@ -704,7 +704,7 @@ export class LedgerVaultProvider implements IBTCProvider {
             throw new WalletError({
               code: cancelled ? ERROR_CODES.CONNECTION_REJECTED : ERROR_CODES.WALLET_NOT_CONNECTED,
               message: cancelled
-                ? `Signing cancelled after ${signed.length} of ${psbtsHexes.length} PSBT(s) — the ceremony restarts from the device approval screens on retry.`
+                ? `Signing canceled after ${signed.length} of ${psbtsHexes.length} PSBT(s) — the ceremony restarts from the device approval screens on retry.`
                 : `${WALLET_PROVIDER_NAME} stopped signing (disconnected) after ${signed.length} of ${psbtsHexes.length} PSBT(s).`,
               wallet: WALLET_PROVIDER_NAME,
             });
@@ -932,7 +932,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       return new WalletError(
         {
           code: ERROR_CODES.CONNECTION_REJECTED,
-          message: `${label === "signPsbt" ? "" : `${label}: `}Signing cancelled — the ceremony restarts from the device approval screens on retry.`,
+          message: `${label === "signPsbt" ? "" : `${label}: `}Signing canceled — the ceremony restarts from the device approval screens on retry.`,
           wallet: WALLET_PROVIDER_NAME,
         },
         { cause: error },
@@ -970,9 +970,12 @@ export class LedgerVaultProvider implements IBTCProvider {
    * BIP-322 simple proof of possession via SIGN_PSBT tx_version 0 (#2221).
    * State-independent on the device (`sign_psbt_validate.c:3205-3213`): no
    * approved intent is required, and signing it never touches the intent
-   * mirror or the signed-fingerprint set. When an intent IS loaded the device
-   * requires the PoP key to equal the intent's depositor key (`:2764-2769`) —
-   * both derive from `depositorPath`, so that holds by construction.
+   * mirror or the signed-fingerprint set — with ONE exception: a user cancel
+   * resets both via {@link classifySignFailure}'s uniform post-cancel policy,
+   * so a cancelled PoP costs a full derive + re-approve like any other cancel.
+   * When an intent IS loaded the device requires the PoP key to equal the
+   * intent's depositor key (`:2764-2769`) — both derive from `depositorPath`,
+   * so that holds by construction.
    */
   signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> =>
     this.withDeviceOperation("signMessage", () =>
