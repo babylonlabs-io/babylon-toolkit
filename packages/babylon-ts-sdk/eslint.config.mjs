@@ -23,6 +23,8 @@ export default defineConfig([
     files: [
       "src/tbv/core/utils/utxo/selectUtxos.ts",
       "src/tbv/core/primitives/psbt/payout.ts",
+      "src/tbv/core/vault-secrets/**/*.ts",
+      "src/tbv/core/wasm/**/*.ts",
       "src/tbv/integrations/aave/utils/vaultSplit.ts",
       "src/tbv/core/utils/signing.ts",
     ],

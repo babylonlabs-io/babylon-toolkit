@@ -30,6 +30,10 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/clients/index.ts",
         ),
+        "tbv/core/wasm/index": path.resolve(
+          __dirname,
+          "src/tbv/core/wasm/index.ts",
+        ),
         "tbv/core/services/index": path.resolve(
           __dirname,
           "src/tbv/core/services/index.ts",
@@ -60,6 +64,7 @@ export default defineConfig({
         "bitcoinjs-lib",
         "@bitcoin-js/tiny-secp256k1-asmjs",
         "@babylonlabs-io/babylon-tbv-rust-wasm",
+        "@babylonlabs-io/babylon-tbv-rust-wasm/raw",
         "viem",
         "buffer",
       ],

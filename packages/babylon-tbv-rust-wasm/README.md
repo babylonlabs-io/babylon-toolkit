@@ -2,6 +2,17 @@
 
 WASM bindings for Babylon Trustless Bitcoin Vaults (TBV), providing TypeScript/JavaScript interfaces for creating Bitcoin peg-in transactions.
 
+The normal package entry is a lazy facade: importing it does not load the
+wasm-bindgen glue or instantiate/download the `.wasm` binary. The generated
+module is fetched on the first facade call that needs it. Type-only consumers
+can use `@babylonlabs-io/babylon-tbv-rust-wasm/types` without touching the
+runtime at all.
+
+Low-level consumers that construct wasm-bindgen classes directly must opt in
+to the eager `@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath and call its
+`initWasm` export before constructing a class. Raw classes are intentionally
+not exported from the lazy root entry.
+
 ## Overview
 
 This package provides WebAssembly bindings built from the [vault-wasm](https://github.com/babylonlabs-io/vault-wasm) facade — a single binary bundling every supported [btc-vault](https://github.com/babylonlabs-io/btc-vault) tx-graph version behind version-taking constructors, enabling browser and Node.js applications to construct Bitcoin transactions for TBV.
@@ -460,9 +471,26 @@ The same as `TAP_INTERNAL_KEY` but as a Buffer for convenience.
 
 ### Raw WASM Types
 
-The package also exports raw WASM classes for advanced usage:
+Raw WASM classes moved from the package root to the explicit eager subpath.
+This is the one intentional breaking API change required to keep a normal
+facade import lazy:
 
+```ts
+import {
+  initWasm,
+  WasmPrePeginTx,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm/raw";
+
+await initWasm();
+const transaction = new WasmPrePeginTx(/* ... */);
+```
+
+The raw entry exports:
+
+- `initWasm` - Loads and initializes the binary; shares one initializer with the facade
 - `WasmPeginTx` - Low-level peg-in transaction class
+- `WasmPrePeginTx` - Low-level Pre-PegIn transaction class
 - `WasmPeginPayoutConnector` - Low-level payout connector class
+- `WasmPrePeginHtlcConnector` - Low-level Pre-PegIn HTLC connector class
 - `WasmAssertPayoutNoPayoutConnector` - Low-level Assert Payout/NoPayout connector class
 - `WasmAssertChallengeAssertConnector` - Low-level ChallengeAssert connector class
