@@ -53,7 +53,7 @@ const GET_PRICE_FEED_SOURCE = gql`
 const GET_PRICE_CANDLES = gql`
   query GetAavePriceCandles(
     $feed: String!
-    $interval: aave_price_interval!
+    $interval: aavePriceInterval!
     $limit: Int!
   ) {
     aavePriceCandles(
