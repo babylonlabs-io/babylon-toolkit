@@ -208,16 +208,17 @@ export interface AssertReturnedKeyPathSignaturesParams {
  * present they must be the same bytes. P2WPKH: `partialSig`, or the finalized
  * 2-item witness, verified as ECDSA over the BIP-143 sighash
  * ({@link assertReturnedP2wpkhSignature}); a failure throws but the input is
- * NOT counted. Script-path and unknown script types are skipped (they have
- * their own checks).
+ * NOT counted. Any other input type (script-path, P2WSH, ...) throws — no
+ * verifier here covers it, so it cannot be treated as verified.
  *
  * @returns How many inputs were verified KEY-PATH. A caller that knows every
  *          input is taproot key-path (e.g. an approval wallet) must assert
  *          this equals its input count — P2WPKH inputs never count toward it,
  *          so that gate stays exact.
- * @throws If the input counts differ, an eligible input carries no signature, a
- *         finalized witness disagrees with its `tapKeySig`/`partialSig`, or any
- *         signature does not verify.
+ * @throws If the input counts differ, an input is neither key-path P2TR nor
+ *         P2WPKH, an eligible input carries no signature, a finalized witness
+ *         disagrees with its `tapKeySig`/`partialSig`, or any signature does
+ *         not verify.
  */
 export function assertReturnedKeyPathSignatures(
   params: AssertReturnedKeyPathSignaturesParams,
@@ -239,16 +240,21 @@ export function assertReturnedKeyPathSignatures(
     const returnedInput = returned.data.inputs[inputIndex];
 
     if (!isKeyPathEligible(input)) {
-      // Native SegWit funding inputs get the ECDSA check; anything else
-      // (script-path, P2WSH, ...) is another verifier's job.
+      // Native SegWit funding inputs get the ECDSA check.
       if (isP2wpkhScript(input.witnessUtxo?.script)) {
         assertReturnedP2wpkhSignature({
           requestedPsbtHex,
           returnedInput,
           inputIndex,
         });
+        return;
       }
-      return;
+      // No verifier exists for any other type — fail closed like btc-vault's
+      // check_signatures_valid rather than silently reporting it checked.
+      throw new Error(
+        `Input ${inputIndex} of the requested PSBT is neither key-path P2TR ` +
+          `nor P2WPKH; refusing to treat it as verified.`,
+      );
     }
     verified++;
 

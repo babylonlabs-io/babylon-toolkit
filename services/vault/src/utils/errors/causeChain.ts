@@ -9,7 +9,7 @@
  */
 
 /** How far to walk a `cause` chain before giving up. */
-export const MAX_CAUSE_DEPTH = 10;
+const MAX_CAUSE_DEPTH = 10;
 
 /**
  * True when the error — or anything in its `cause` chain — matches the frame

@@ -82,8 +82,8 @@ export interface UsePayoutSigningStateResult {
   handleSign: () => Promise<void>;
   /**
    * True while the in-flight sign sits in a cancellable device window
-   * (signPsbt/signPsbts/signMessage — the only calls `cancelSigning` can
-   * abort) AND the provider that started the sign exposes `cancelSigning`
+   * (signPsbt/signPsbts — the only wallet calls this flow makes that
+   * `cancelSigning` can abort) AND the provider that started the sign exposes `cancelSigning`
    * (only the Ledger provider does — always capability-probed, never
    * assumed). False during the terms rebuild, VP auth, and submission, where
    * no cancellable device prompt exists.
@@ -119,9 +119,9 @@ export function usePayoutSigningState({
   const [error, setError] = useState<SigningError | null>(null);
   const [errorTerminal, setErrorTerminal] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
-  // True only while a cancellable device call (signPsbt/signPsbts/
-  // signMessage) is in flight — `cancelSigning` is a no-op everywhere else,
-  // including the deriveContextHash/approveDepositTerms device screens.
+  // True only while a cancellable device call (signPsbt/signPsbts — the only
+  // such calls this flow makes) is in flight — `cancelSigning` cannot abort
+  // the deriveContextHash/approveDepositTerms device screens.
   const [deviceWindowActive, setDeviceWindowActive] = useState(false);
   // Ref mirror so the settle paths inside handleSign read the live value —
   // the state itself is stale inside the long-lived async closure.
@@ -356,8 +356,6 @@ export function usePayoutSigningState({
                 },
               }
             : {}),
-          signMessage: (message, type) =>
-            withDeviceWindow(() => wallet.signMessage(message, type)),
           // Object spread drops prototype methods — see forwardDepositApproval.
           ...forwardDepositApproval(wallet),
         };

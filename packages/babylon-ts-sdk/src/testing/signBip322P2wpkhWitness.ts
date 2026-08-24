@@ -9,6 +9,11 @@
  * (`tbv/core/clients/vault-provider/auth/bip322Verify.ts`) mirrors, and
  * the BIP-322 official vectors pin.
  *
+ * Conscious call: `./testing` deliberately depends on the Bitcoin stack
+ * (bitcoinjs-lib was already in this entry's graph via MockBitcoinWallet;
+ * tiny-secp256k1-asmjs is new here) — out of scope for the CLAUDE.md §9
+ * optional-BTC split.
+ *
  * Test-only: never feed real key material to this module.
  */
 
@@ -23,9 +28,9 @@ const SIGHASH_ALL = 0x01;
 const ZERO_SATS = 0;
 /**
  * vaultd accepts only 71/72-byte encoded signatures (`bip322` crate 0.0.10
- * `verify.rs:141-153`); a short-DER signature (~0.8% of draws) is ground
+ * `verify.rs:141-153`); a short-DER signature (~0.4% of draws) is ground
  * away by re-signing with fresh entropy. 100 attempts bounds the failure
- * probability around 0.008^100.
+ * probability around 0.004^100.
  */
 const MIN_ENCODED_SIG_BYTES = 71;
 const MAX_SIGN_GRIND_ATTEMPTS = 100;

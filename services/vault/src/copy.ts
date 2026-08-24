@@ -801,7 +801,7 @@ export const COPY = {
         `Vault ${vaultNumber}: Payout signing failed - ${error}`,
       // Self-requested device cancel: the loop stops here, so later vaults
       // are left unattempted (no warning) rather than marked failed.
-      payoutSigningCancelled: (vaultNumber: number) =>
+      payoutSigningCanceled: (vaultNumber: number) =>
         `Vault ${vaultNumber}: Payout signing canceled - you can finish signing when you're ready`,
       dismissReusesReservedUtxos: "Dismiss",
     },
@@ -889,11 +889,18 @@ export const COPY = {
       },
       // Self-requested cancel (the in-app "Cancel signing" affordance), as
       // opposed to a rejection on the wallet/device itself. Names no button:
-      // this surface renders only Close. True on every cancellable window —
-      // the Pre-PegIn broadcast happens only after its signature completes.
-      signingCancelled: {
+      // this surface renders only Close. Pre-registration windows only —
+      // "did not continue" is true there because nothing is on-chain yet.
+      signingCanceled: {
         title: "Signing canceled",
         body: "You canceled the signature request, so the deposit did not continue. No Bitcoin was spent.",
+      },
+      // A cancel settling after the Ethereum registration is mined: gas is
+      // spent and the vaults await the Pre-PegIn, so point at the resume path
+      // instead of implying nothing happened. No Bitcoin has moved.
+      signingCanceledAfterRegistration: {
+        title: "Signing canceled",
+        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Resume it from your dashboard to broadcast, or the registration will expire on its own.",
       },
       walletNotConnected: {
         title: "Wallet not connected",

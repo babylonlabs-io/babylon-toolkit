@@ -31,6 +31,14 @@ export interface OptimisticDepositState {
    * recorded separately rather than by widening the status enum.
    */
   wotsSubmittedAt: ReadonlyMap<string, number>;
+  /**
+   * Deposits whose payout-signing ceremony the user cancelled this session
+   * (settled device cancel in the deposit flow). `ResumeSignContent` reads it
+   * to withhold its mount auto-run — re-signing then needs an explicit click.
+   * No TTL: unlike the WOTS marker it never suppresses an action, it only
+   * converts an auto-run into a re-offer, so staying set is harmless.
+   */
+  payoutSignCanceledIds: ReadonlySet<string>;
 }
 
 /**
@@ -69,6 +77,7 @@ const EMPTY_STATE: OptimisticDepositState = {
   statuses: new Map(),
   refundBroadcastAt: new Map(),
   wotsSubmittedAt: new Map(),
+  payoutSignCanceledIds: new Set(),
 };
 
 let currentState: OptimisticDepositState = EMPTY_STATE;
@@ -127,6 +136,7 @@ export function setOptimisticDepositStatus(
             refundBroadcastAt,
           ),
     wotsSubmittedAt: currentState.wotsSubmittedAt,
+    payoutSignCanceledIds: currentState.payoutSignCanceledIds,
   });
 }
 
@@ -149,7 +159,38 @@ export function markWotsSubmitted(depositId: string): void {
       depositId,
       Date.now(),
     ),
+    payoutSignCanceledIds: currentState.payoutSignCanceledIds,
   });
+}
+
+/**
+ * Record that the user's own cancel settled during this deposit's payout
+ * signing. Written by `useDepositFlow` when the settled cancel breaks its
+ * payout loop; read once at mount by `ResumeSignContent` so the continuation
+ * handoff re-offers signing behind a click instead of re-prompting the device.
+ */
+export function markPayoutSignCanceled(depositId: string): void {
+  // Repeat writes must not publish — same discipline as the setters above.
+  if (currentState.payoutSignCanceledIds.has(depositId)) {
+    return;
+  }
+  publish({
+    statuses: currentState.statuses,
+    refundBroadcastAt: currentState.refundBroadcastAt,
+    wotsSubmittedAt: currentState.wotsSubmittedAt,
+    payoutSignCanceledIds: new Set(currentState.payoutSignCanceledIds).add(
+      depositId,
+    ),
+  });
+}
+
+/**
+ * Whether this deposit's payout signing was cancelled by the user this
+ * session. Tells a post-cancel re-offer apart from a first visit — the signal
+ * `ResumeSignContent` needs to decide whether it may auto-sign on mount.
+ */
+export function hasPayoutSignCancelRecord(depositId: string): boolean {
+  return currentState.payoutSignCanceledIds.has(depositId);
 }
 
 /**

@@ -1212,7 +1212,7 @@ export class PeginManager {
     // Far-side check of the returned signatures (CLAUDE.md §8: never trust
     // the wallet's success/finalization). Taproot key-path inputs are
     // Schnorr-verified and counted; P2WPKH funding is ECDSA-verified
-    // (throwing on failure) without counting; P2WSH stays skipped.
+    // (throwing on failure) without counting; any other input type throws.
     const verifiedInputs = assertReturnedKeyPathSignatures({
       requestedPsbtHex,
       returnedPsbtHex: signedPsbtHex,

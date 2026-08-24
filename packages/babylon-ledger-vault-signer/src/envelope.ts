@@ -10,8 +10,10 @@
 import {
   DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB,
   DEVICE_MAX_PARTICIPANTS_PER_ROLE,
+  DEVICE_MAX_VAULT_CORE_VERSION,
   DEVICE_MAX_VAULTS_PER_INTENT,
   DEVICE_MIN_DEPOSITOR_CLAIM_VALUE_SATS,
+  DEVICE_MIN_VAULT_CORE_VERSION,
   DEVICE_PAYOUT_TIMELOCK_MAX_BLOCKS,
   DEVICE_PAYOUT_TIMELOCK_MIN_BLOCKS,
   DEVICE_PEGIN_AMOUNT_DUST_MULTIPLE,
@@ -36,10 +38,12 @@ function requireIntInRange(field: string, value: number, lo: number, hi: number)
  * @throws {DepositTermsRejectedError} on the first violation
  */
 export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
-  // No tx-graph version gate: v3 is Core 2's Bitcoin tx shape byte-for-byte (btc-vault
-  // e1e50f66; SDK parity vector pegin.test.ts "builds the v3 Pre-PegIn byte-identical to
-  // the v2 vector"); v1 is unreachable fresh (ProtocolParams setter rejects
-  // `newVersion <= prev`, and no Ledger v1 vault exists); v4+ needs a new WASM release.
+  requireIntInRange(
+    "vaultCoreVersion",
+    terms.vaultCoreVersion,
+    DEVICE_MIN_VAULT_CORE_VERSION,
+    DEVICE_MAX_VAULT_CORE_VERSION,
+  );
 
   // The >= 1 floor is enforced by both the contract and the device
   // (vault_tlv.c:73 rejects rate == 0).

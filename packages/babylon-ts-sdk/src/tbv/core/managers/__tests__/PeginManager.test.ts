@@ -156,6 +156,8 @@ const TEST_PUBLIC_CLIENT = {
 
 // Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
+  // Must stay = MockBitcoinWallet's default privkey-1 pubkey (G.x): the PoP
+  // tests sign with the mock's default key.
   DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   VAULT_PROVIDER:
     "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",

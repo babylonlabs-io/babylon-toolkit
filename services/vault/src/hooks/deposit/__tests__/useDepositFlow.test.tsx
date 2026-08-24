@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getOptimisticDepositState,
+  hasPayoutSignCancelRecord,
   resetOptimisticDepositState,
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
@@ -1312,6 +1313,31 @@ describe("useDepositFlow", () => {
       expect(depositResult?.warnings).toHaveLength(2);
     });
 
+    it("resets a failed vault's per-vault step to the payout wait before continuing", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      // Vault 0 fails mid-graph-signing; vault 1 succeeds.
+      vi.mocked(signAndSubmitPayouts)
+        .mockImplementationOnce(async ({ onProgress }) => {
+          onProgress?.({ phase: "graph", completed: 0, total: 1 });
+          throw new Error("VP timeout");
+        })
+        .mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+
+      // The failed vault must not be left rendering a mid-signing step next
+      // to its failure warning (post-loop invariant: unsigned vaults rest at
+      // AWAIT_PAYOUT_TRANSACTIONS).
+      expect(depositResult).not.toBeNull();
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      ]);
+    });
+
     it("should not show error when flow is aborted", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
@@ -1539,10 +1565,10 @@ describe("useDepositFlow", () => {
     }
 
     /** What the Ledger provider rejects with when a requested cancel settles. */
-    function signingCancelledError() {
+    function signingCanceledError() {
       return Object.assign(
         new Error(
-          "Signing cancelled after 0 of 1 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
+          "Signing canceled after 0 of 1 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
         ),
         { code: "CONNECTION_REJECTED" },
       );
@@ -1652,7 +1678,7 @@ describe("useDepositFlow", () => {
       expect(replacementCancelSigning).not.toHaveBeenCalled();
 
       await act(async () => {
-        settle.reject(signingCancelledError());
+        settle.reject(signingCanceledError());
         await flowPromise;
       });
     });
@@ -1688,7 +1714,7 @@ describe("useDepositFlow", () => {
       const settleAsCancelRejection = async () => {
         let resolved: unknown;
         await act(async () => {
-          settle.reject(signingCancelledError());
+          settle.reject(signingCanceledError());
           resolved = await flowPromise;
         });
         return resolved;
@@ -1716,7 +1742,7 @@ describe("useDepositFlow", () => {
       // renders no Retry button at all.
       const resolved = await settleAsCancelRejection();
       expect(resolved).toBeNull();
-      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCancelled);
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCanceled);
     });
 
     it("sets deviceCancelRequested on request and clears it when the cancelled sign settles", async () => {
@@ -1873,6 +1899,94 @@ describe("useDepositFlow", () => {
       expect(result.current.canCancelDeviceSign).toBe(false);
     });
 
+    it("withholds the Pre-PegIn broadcast when a late cancel settles after its signature completes", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { updatePendingPeginStatus } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(broadcastPrePeginTransaction).mockImplementation(
+        async ({ btcWalletProvider }) => {
+          // Mirrors the real service: the sign must succeed before pushTx.
+          await btcWalletProvider.signPsbt("fundedPrePegin");
+          return "mockBroadcastTxId";
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      let resolved: unknown;
+      await act(async () => {
+        settle.resolve("signedFundedPrePegin"); // sign completes AFTER the cancel
+        resolved = await flowPromise;
+      });
+
+      // Elsewhere a late cancel + successful sign deliberately proceeds; at
+      // the broadcast site the next step is the irreversible pushTx, so the
+      // signed tx is withheld: cancelled copy, records stay PENDING so the
+      // resume flow's Broadcast button recovers the deposit.
+      expect(resolved).toBeNull();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.signingCanceledAfterRegistration,
+      );
+      expect(updatePendingPeginStatus).not.toHaveBeenCalled();
+    });
+
+    it("shows the after-registration cancel copy when a broadcast-window cancel settles", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(broadcastPrePeginTransaction).mockImplementation(
+        async ({ btcWalletProvider }) => {
+          await btcWalletProvider.signPsbt("fundedPrePegin");
+          return "mockBroadcastTxId";
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      await act(async () => {
+        settle.reject(signingCanceledError());
+        await flowPromise;
+      });
+
+      // The vaults are already registered on Ethereum with PENDING resume
+      // rows — "the deposit did not continue" would hide the resume path.
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.signingCanceledAfterRegistration,
+      );
+    });
+
     it("covers the post-broadcast depositor-graph window", async () => {
       const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
@@ -1960,7 +2074,7 @@ describe("useDepositFlow", () => {
       const settleAsCancelRejection = async () => {
         let resolved: unknown;
         await act(async () => {
-          settle.reject(signingCancelledError());
+          settle.reject(signingCanceledError());
           resolved = await flowPromise;
         });
         return resolved;
@@ -1996,6 +2110,71 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toBeNull();
     });
 
+    it("records the payout-sign cancel marker for the cancelled vault only", async () => {
+      const { settleAsCancelRejection } =
+        await startPayoutSignAndRequestCancel();
+
+      await settleAsCancelRejection();
+
+      // ResumeSignContent reads this to withhold its auto-run — without it
+      // the continuation view re-prompts the device moments after the cancel.
+      expect(hasPayoutSignCancelRecord("0xVault0Id")).toBe(true);
+      // Vault 1 was left unattempted, not cancelled.
+      expect(hasPayoutSignCancelRecord("0xVault1Id")).toBe(false);
+    });
+
+    it("resets the cancelled vault's per-vault step to the payout wait when the cancel settles", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const settle: { reject: (e: unknown) => void } = { reject: () => {} };
+      const signPsbt = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<string>((_resolve, reject) => {
+              settle.reject = reject;
+            }),
+        )
+        .mockResolvedValue("mockSignedPsbtHex");
+      const wallet = { ...MOCK_BTC_WALLET, signPsbt, cancelSigning: vi.fn() };
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ btcWallet, onProgress }) => {
+          // Advance the vault's step off the wait, as the real flow does
+          // once graph signing starts.
+          onProgress?.({ phase: "graph", completed: 0, total: 1 });
+          await btcWallet.signPsbt("graphPsbt");
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      await act(async () => {
+        settle.reject(signingCanceledError());
+        await flowPromise;
+      });
+
+      // The cancelled vault must not be left rendering a mid-signing step
+      // next to the cancelled warning (post-loop invariant: unsigned vaults
+      // rest at AWAIT_PAYOUT_TRANSACTIONS).
+      expect(result.current.perVaultSteps).toEqual([
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+        DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      ]);
+    });
+
     it("warns only for the cancelled vault — the unattempted vault gets no warning", async () => {
       const { result, settleAsCancelRejection } =
         await startPayoutSignAndRequestCancel();
@@ -2009,7 +2188,7 @@ describe("useDepositFlow", () => {
           vaultId: "0xVault0Id",
           stage: "payout",
           terminal: false,
-          message: COPY.deposit.warnings.payoutSigningCancelled(1),
+          message: COPY.deposit.warnings.payoutSigningCanceled(1),
         },
       ]);
     });
@@ -2085,7 +2264,7 @@ describe("useDepositFlow", () => {
       const settleAsCancelRejection = async () => {
         let resolved: unknown;
         await act(async () => {
-          settle.reject(signingCancelledError());
+          settle.reject(signingCanceledError());
           resolved = await flowPromise;
         });
         return resolved;
@@ -2121,7 +2300,7 @@ describe("useDepositFlow", () => {
           vaultId: "0xSingleVaultId",
           stage: "payout",
           terminal: false,
-          message: COPY.deposit.warnings.payoutSigningCancelled(1),
+          message: COPY.deposit.warnings.payoutSigningCanceled(1),
         },
       ]);
     });

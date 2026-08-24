@@ -757,10 +757,10 @@ describe("usePayoutSigningState", () => {
 
     // What the Ledger provider rejects with when a requested cancel settles
     // at the next device exchange boundary (WalletError, typed code).
-    function signingCancelledError() {
+    function signingCanceledError() {
       return Object.assign(
         new Error(
-          "Signing cancelled after 0 of 3 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
+          "Signing canceled after 0 of 3 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
         ),
         { code: "CONNECTION_REJECTED" },
       );
@@ -835,7 +835,7 @@ describe("usePayoutSigningState", () => {
       expect(replacementCancelSigning).not.toHaveBeenCalled();
 
       await act(async () => {
-        pending.reject(signingCancelledError());
+        pending.reject(signingCanceledError());
         await signPromise;
       });
     });
@@ -859,7 +859,7 @@ describe("usePayoutSigningState", () => {
 
       const settleAsCancelRejection = async () => {
         await act(async () => {
-          pending.reject(signingCancelledError());
+          pending.reject(signingCanceledError());
           await signPromise;
         });
       };
@@ -917,7 +917,7 @@ describe("usePayoutSigningState", () => {
         result.current.handleCancel();
       });
       await act(async () => {
-        pending.reject(signingCancelledError());
+        pending.reject(signingCanceledError());
         await signPromise;
       });
 
@@ -942,7 +942,7 @@ describe("usePayoutSigningState", () => {
       await waitFor(() => expect(result.current.signing).toBe(true));
 
       await act(async () => {
-        pending.reject(signingCancelledError());
+        pending.reject(signingCanceledError());
         await signPromise;
       });
 
@@ -1006,8 +1006,8 @@ describe("usePayoutSigningState", () => {
 
     it("keeps canCancel false during a hung VP-auth (deriveContextHash) phase", async () => {
       // deriveContextHash is a real device screen, but the provider's
-      // cancelSigning is a no-op outside signPsbt/signPsbts/signMessage —
-      // showing the affordance there would be a dead button.
+      // cancelSigning cannot abort it — showing the affordance there
+      // would be a dead button.
       const cancelSigning = vi.fn();
       let settleAuth: (root: string) => void = () => {};
       mockBtcConnector = {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { MockBitcoinWallet } from "../../../testing/MockBitcoinWallet";
 import { BitcoinNetworks } from "../interfaces";
 import type { BitcoinWallet } from "../interfaces/BitcoinWallet";
-import { MockBitcoinWallet } from "../../../testing/MockBitcoinWallet";
 
 describe("BitcoinWallet Interface", () => {
   let wallet: BitcoinWallet;
@@ -80,7 +80,7 @@ describe("BitcoinWallet Interface", () => {
   describe("signMessage", () => {
     it("should sign a message and return signature", async () => {
       const message = "Hello, Bitcoin!";
-      const signature = await wallet.signMessage(message, "ecdsa");
+      const signature = await wallet.signMessage(message, "bip322-simple");
 
       expect(signature).toBeDefined();
       expect(typeof signature).toBe("string");
@@ -88,14 +88,14 @@ describe("BitcoinWallet Interface", () => {
     });
 
     it("should produce different signatures for different messages", async () => {
-      const sig1 = await wallet.signMessage("Message 1", "ecdsa");
-      const sig2 = await wallet.signMessage("Message 2", "ecdsa");
+      const sig1 = await wallet.signMessage("Message 1", "bip322-simple");
+      const sig2 = await wallet.signMessage("Message 2", "bip322-simple");
 
       expect(sig1).not.toBe(sig2);
     });
 
     it("should throw error for empty message", async () => {
-      await expect(wallet.signMessage("", "ecdsa")).rejects.toThrow();
+      await expect(wallet.signMessage("", "bip322-simple")).rejects.toThrow();
     });
 
     it("should handle signing failures", async () => {
@@ -103,15 +103,18 @@ describe("BitcoinWallet Interface", () => {
         shouldFailSigning: true,
       });
 
-      await expect(failingWallet.signMessage("test", "ecdsa")).rejects.toThrow(
-        "Mock signing failed",
-      );
+      await expect(
+        failingWallet.signMessage("test", "bip322-simple"),
+      ).rejects.toThrow("Mock signing failed");
     });
   });
 
   describe("deriveContextHash", () => {
     it("should return a 64-char lowercase hex string", async () => {
-      const out = await wallet.deriveContextHash("babylon-btc-vault", "deadbeef");
+      const out = await wallet.deriveContextHash(
+        "babylon-btc-vault",
+        "deadbeef",
+      );
       expect(typeof out).toBe("string");
       expect(out).toHaveLength(64);
       expect(out).toMatch(/^[0-9a-f]+$/);
@@ -124,8 +127,14 @@ describe("BitcoinWallet Interface", () => {
     });
 
     it("returns different values when context changes", async () => {
-      const a = await wallet.deriveContextHash("babylon-btc-vault", "aa".repeat(36));
-      const b = await wallet.deriveContextHash("babylon-btc-vault", "bb".repeat(36));
+      const a = await wallet.deriveContextHash(
+        "babylon-btc-vault",
+        "aa".repeat(36),
+      );
+      const b = await wallet.deriveContextHash(
+        "babylon-btc-vault",
+        "bb".repeat(36),
+      );
       expect(a).not.toBe(b);
     });
 
@@ -160,7 +169,11 @@ describe("BitcoinWallet Interface", () => {
       const network = await wallet.getNetwork();
 
       expect(network).toBeDefined();
-      expect([BitcoinNetworks.MAINNET, BitcoinNetworks.TESTNET, BitcoinNetworks.SIGNET]).toContain(network);
+      expect([
+        BitcoinNetworks.MAINNET,
+        BitcoinNetworks.TESTNET,
+        BitcoinNetworks.SIGNET,
+      ]).toContain(network);
     });
 
     it("should return signet by default", async () => {
@@ -170,7 +183,9 @@ describe("BitcoinWallet Interface", () => {
     });
 
     it("should return configured network", async () => {
-      const mainnetWallet = new MockBitcoinWallet({ network: BitcoinNetworks.MAINNET });
+      const mainnetWallet = new MockBitcoinWallet({
+        network: BitcoinNetworks.MAINNET,
+      });
       const network = await mainnetWallet.getNetwork();
 
       expect(network).toBe(BitcoinNetworks.MAINNET);

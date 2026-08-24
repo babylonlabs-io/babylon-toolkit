@@ -157,6 +157,11 @@ const TEST_PRIV = Buffer.alloc(32, 0);
 TEST_PRIV[31] = 1; // privkey 1 → pubkey G; public test material.
 const TEST_PUB = Buffer.from(ecc.pointFromScalar(TEST_PRIV, true)!);
 
+/** secp256k1 group order n — (r, s) and (r, n−s) verify the same message. */
+const SECP256K1_ORDER = BigInt(
+  "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+);
+
 function bip322P2wpkhSighash(
   messageBytes: Uint8Array,
   pubkey: Buffer,
@@ -239,6 +244,26 @@ describe("verifyBip322P2wpkhSimple — BIP-322 official P2WPKH vectors", () => {
     }
   });
 
+  it("accepts an in-test signature over bip322P2wpkhSighash (pins the helper against production)", () => {
+    // Positive anchor for the helper: if its sighash drifted from the
+    // production construction, the gate tests below would only ever assert
+    // "invalid signature" and pass vacuously.
+    const message = utf8("helper round-trip");
+    const sighash = bip322P2wpkhSighash(message, TEST_PUB, 0x01);
+    let encoded: Buffer | undefined;
+    for (let i = 0; i < 100 && !encoded; i++) {
+      const entropy = Buffer.alloc(32, 0);
+      entropy.writeUInt32LE(i, 0);
+      const candidate = bscript.signature.encode(
+        Buffer.from(ecc.sign(sighash, TEST_PRIV, entropy)),
+        0x01,
+      );
+      if (candidate.length >= 71) encoded = candidate;
+    }
+    expect(encoded).toBeDefined();
+    expect(verifyBip322P2wpkhSimple(message, TEST_PUB, encoded!)).toBe(true);
+  });
+
   it("rejects a cryptographically valid SIGHASH_NONE signature (gate, not sig failure)", () => {
     // Signed over the real NONE sighash: without the explicit SIGHASH_ALL
     // gate (bip322 crate 0.0.10 verify.rs:156-161) this would verify.
@@ -281,6 +306,76 @@ describe("verifyBip322P2wpkhSimple — BIP-322 official P2WPKH vectors", () => {
     expect(verifyBip322P2wpkhSimple(message, TEST_PUB, shortEncoded!)).toBe(
       false,
     );
+  });
+
+  it("rejects a canonical high-S signature (only the strict verify flag catches it)", () => {
+    // libsecp's verify rejects high-S (bip322 crate verify.rs:180-182); on the
+    // host only ecc.verify's strict flag does — DER shape and the canonicality
+    // round-trip both accept (r, n−s), so this pins the flag itself.
+    const { message, encodedSignatureHexes } = BIP322_P2WPKH_SIGNATURES[1];
+    const sig71 = fromHex(encodedSignatureHexes[0]); // 71 bytes: 32-byte R and S
+    expect(sig71.length).toBe(71);
+    const { signature } = bscript.signature.decode(Buffer.from(sig71));
+    const s = BigInt(`0x${signature.subarray(32).toString("hex")}`);
+    const highSCompact = Buffer.concat([
+      signature.subarray(0, 32),
+      Buffer.from((SECP256K1_ORDER - s).toString(16).padStart(64, "0"), "hex"),
+    ]);
+    const encoded = bscript.signature.encode(highSCompact, 0x01);
+    // n−s carries the sign-pad: 72 bytes, still inside the 71/72 gate.
+    expect(encoded.length).toBe(72);
+    const sighash = bip322P2wpkhSighash(
+      utf8(message),
+      Buffer.from(VECTOR_PUBKEY),
+      0x01,
+    );
+    // Sanity: (r, n−s) verifies with strictness off — only strict rejects.
+    expect(ecc.verify(sighash, VECTOR_PUBKEY, highSCompact, false)).toBe(true);
+    expect(ecc.verify(sighash, VECTOR_PUBKEY, highSCompact, true)).toBe(false);
+
+    expect(
+      verifyBip322P2wpkhSimple(utf8(message), VECTOR_PUBKEY, encoded),
+    ).toBe(false);
+  });
+
+  it("rejects a 72-byte non-canonical encoding (oversized padded R) that decodes to a valid signature", () => {
+    // bip66.decode never bounds lenR at 33 and bitcoinjs fromDER truncates an
+    // oversized integer back to the true value (bitcoinjs-lib 6.1.7
+    // bip66.js:36-38, script_signature.js:29-35), so without a canonicality
+    // gate these bytes reach ecc.verify and pass — while vaultd's strict
+    // libsecp parse rejects them (secp256k1-sys ecdsa_impl.h:127-136).
+    const message = utf8("wide r");
+    const sighash = bip322P2wpkhSighash(message, TEST_PUB, 0x01);
+    // Grind for r with its high bit set (so the 0x00 pad survives bip66's
+    // excessively-padded check) and a 31-byte canonical S (total lands on 72).
+    let compact: Buffer | undefined;
+    let canonical: Buffer | undefined;
+    for (let i = 0; i < 20000 && !compact; i++) {
+      const entropy = Buffer.alloc(32, 0);
+      entropy.writeUInt32LE(i, 0);
+      const candidate = Buffer.from(ecc.sign(sighash, TEST_PRIV, entropy));
+      const encoded = bscript.signature.encode(candidate, 0x01);
+      const lenS = encoded[5 + encoded[3]];
+      if (candidate[0] & 0x80 && lenS === 31) {
+        compact = candidate;
+        canonical = encoded;
+      }
+    }
+    expect(compact).toBeDefined();
+    const lenR = canonical![3]; // 33: 0x00 pad ‖ r (high bit set)
+    const crafted = Buffer.concat([
+      Buffer.from([0x30, canonical![1] + 1, 0x02, lenR + 1]),
+      canonical!.subarray(4, 4 + lenR), // 0x00 ‖ true r
+      Buffer.from([0xab]), // junk byte fromDER's truncation drops
+      canonical!.subarray(4 + lenR), // 0x02 ‖ lenS ‖ S ‖ 0x01
+    ]);
+    expect(crafted.length).toBe(72);
+    // Sanity: today's decode path accepts it and recovers the true (r, s).
+    const decoded = bscript.signature.decode(crafted);
+    expect(Buffer.from(decoded.signature).equals(compact!)).toBe(true);
+    expect(ecc.verify(sighash, TEST_PUB, decoded.signature, true)).toBe(true);
+
+    expect(verifyBip322P2wpkhSimple(message, TEST_PUB, crafted)).toBe(false);
   });
 
   it("rejects a pubkey that is not on the curve or not 33 bytes", () => {
