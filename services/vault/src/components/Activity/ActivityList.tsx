@@ -66,9 +66,6 @@ interface ActivityListProps {
   /** Symbol → USD price, from `usePrices` at the container. Passed down rather
    *  than read per row so the feed instantiates the query once. */
   prices?: Record<string, number>;
-  /** Vault ids ACTIVE on chain, for a deposit row's live status. Threaded to
-   *  the rows, which have no surface for it in the current design. */
-  activeVaultIds?: ReadonlySet<string>;
   /** Vault ids of expired deposits whose HTLC refund is still outstanding —
    *  those rows get the Withdraw action. Matched against a row's `vaultId`,
    *  never its `id` (see ActivityLog). */
@@ -80,7 +77,6 @@ export function ActivityList({
   activities,
   isConnected,
   prices,
-  activeVaultIds,
   refundableVaultIds,
   onWithdraw,
 }: ActivityListProps) {
@@ -105,8 +101,8 @@ export function ActivityList({
     if (isConnected) return;
     setFilter(null);
     setSearchInput("");
-    setSearchQuery("");
-  }, [isConnected]);
+    applySearch("");
+  }, [applySearch, isConnected]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -184,13 +180,12 @@ export function ActivityList({
                         // A refunded deposit loses the card fill, as the
                         // design draws it; the row itself fades.
                         className={twJoin(
-                          r.isExpired && "bg-transparent dark:bg-transparent",
+                          r.isRefunded && "bg-transparent dark:bg-transparent",
                         )}
                       >
                         <ActivityRowV3
                           row={r}
                           prices={prices}
-                          activeVaultIds={activeVaultIds}
                           action={
                             r.vaultId &&
                             refundableVaultIds?.has(r.vaultId) &&

@@ -57,7 +57,7 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   tokenIcon: overrides.tokenIcon ?? "test://btc.svg",
   vaultId: overrides.vaultId,
   isPending: overrides.isPending,
-  isExpired: overrides.isExpired,
+  isRefunded: overrides.isRefunded,
 });
 
 function renderList(props: {
@@ -67,15 +67,20 @@ function renderList(props: {
   refundableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
 }) {
-  return render(
+  const element = (next: typeof props) => (
     <MemoryRouter initialEntries={["/activity"]}>
       <Routes>
         <Route element={<Outlet context={{ openDeposit: () => {} }} />}>
-          <Route path="/activity" element={<ActivityList {...props} />} />
+          <Route path="/activity" element={<ActivityList {...next} />} />
         </Route>
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+  const view = render(element(props));
+  return {
+    ...view,
+    rerenderList: (next: typeof props) => view.rerender(element(next)),
+  };
 }
 
 describe("ActivityList", () => {
@@ -164,7 +169,7 @@ describe("ActivityList", () => {
         amount: { value: "100", symbol: "USDC" },
       }),
     ];
-    const { rerender } = renderList({
+    const { rerenderList } = renderList({
       activities: rows,
       isConnected: true,
     });
@@ -175,22 +180,42 @@ describe("ActivityList", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
 
     // Wallet disconnects. Filter must be cleared, not preserved.
-    rerender(
-      <MemoryRouter initialEntries={["/activity"]}>
-        <Routes>
-          <Route element={<Outlet context={{ openDeposit: () => {} }} />}>
-            <Route
-              path="/activity"
-              element={<ActivityList activities={[]} isConnected={false} />}
-            />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+    rerenderList({ activities: [], isConnected: false });
 
     expect(
       screen.getByText(/connect your wallet to view your activity/i),
     ).toBeInTheDocument();
+  });
+
+  it("cancels a pending search when the wallet disconnects", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const rows = [
+      makeRow({ id: "a", type: "Deposit", transactionHash: "0xdeadbeef" }),
+      makeRow({
+        id: "b",
+        type: "Borrow",
+        transactionHash: "0xfeedface",
+        amount: { value: "100", symbol: "USDC" },
+      }),
+    ];
+    const { rerenderList } = renderList({
+      activities: rows,
+      isConnected: true,
+    });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: COPY.activity.searchLabel }),
+      { target: { value: "feedface" } },
+    );
+    rerenderList({ activities: [], isConnected: false });
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_WAIT_MS);
+    });
+    rerenderList({ activities: rows, isConnected: true });
+
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    vi.useRealTimers();
   });
 
   it("v3 UI + disconnected: renders no in-page heading and no filter row", () => {
@@ -375,7 +400,7 @@ describe("ActivityList", () => {
   it("v3 UI: drops the card fill on a refunded deposit and keeps it on the others", () => {
     const { container } = renderList({
       activities: [
-        makeRow({ id: "refunded", isExpired: true }),
+        makeRow({ id: "refunded", isRefunded: true }),
         makeRow({ id: "settled" }),
       ],
       isConnected: true,

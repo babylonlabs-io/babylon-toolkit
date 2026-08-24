@@ -44,28 +44,13 @@ vi.mock("@/components/Wallet", () => ({
 const usePendingDepositsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/usePendingDeposits", () => ({
-  usePendingDeposits: () => {
-    usePendingDepositsMock();
-    return {
-      expiredActivities: [],
-      allActivities: [],
-      ethAddress: undefined,
-      broadcastModal: {},
-      refundModal: { handleRefundClick: vi.fn() },
-    };
-  },
+  usePendingDeposits: () => usePendingDepositsMock(),
 }));
 
 // The USD sub-line's price source imports the built wallet-connector bundle
-// (for its network enum), which vitest cannot evaluate here, and the live
-// vault read goes through react-query — neither belongs to the wallet gating
-// this suite checks.
+// (for its network enum), which vitest cannot evaluate here.
 vi.mock("@/hooks/usePrices", () => ({
   usePrices: () => ({ prices: {} }),
-}));
-
-vi.mock("@/hooks/useVaults", () => ({
-  useVaults: () => ({ data: undefined }),
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -77,6 +62,10 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   PeginPollingProvider: ({ children }: { children: React.ReactNode }) =>
     children,
   useDepositPollingResult: () => undefined,
+}));
+
+vi.mock("@/hooks/deposit/useRefundRowAction", () => ({
+  useRefundRowAction: () => ({ available: true, blockedTooltip: null }),
 }));
 
 vi.mock("@/components/simple/PendingDepositModals", () => ({
@@ -100,6 +89,14 @@ function renderActivity() {
 describe("Activity page — wallet gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    usePendingDepositsMock.mockReturnValue({
+      expiredActivities: [],
+      allActivities: [],
+      ethAddress: undefined,
+      broadcastModal: {},
+      refundModal: { handleRefundClick: vi.fn() },
+      emergencyWithdrawModal: {},
+    });
     useActivitiesWithPendingMock.mockReturnValue({
       data: [],
       isLoading: false,
@@ -257,5 +254,51 @@ describe("Activity page — wallet gating", () => {
     renderActivity();
 
     expect(usePendingDepositsMock).toHaveBeenCalled();
+  });
+
+  it("keeps a refundable expired deposit distinct from a completed refund", () => {
+    useConnectionMock.mockReturnValue({
+      isConnected: true,
+      btcConnected: true,
+      ethConnected: true,
+    });
+    useETHWalletMock.mockReturnValue({
+      address: "0xabc0000000000000000000000000000000000001",
+      connected: true,
+    });
+    usePendingDepositsMock.mockReturnValue({
+      expiredActivities: [{ id: "vault-1" }],
+      allActivities: [],
+      ethAddress: "0xabc0000000000000000000000000000000000001",
+      broadcastModal: {},
+      refundModal: { handleRefundClick: vi.fn() },
+      emergencyWithdrawModal: {},
+    });
+    useActivitiesWithPendingMock.mockReturnValue({
+      data: [
+        {
+          kind: "row",
+          id: "pending-deposit",
+          vaultId: "vault-1",
+          date: new Date("2026-01-01T00:00:00Z"),
+          tokenIcon: "https://example.com/btc.svg",
+          type: "Pending Deposit",
+          amount: { value: "1.00", symbol: "BTC" },
+          chain: "BTC",
+          transactionHash: "abcd1234",
+          isPending: true,
+        } satisfies ActivityLog,
+      ],
+      isLoading: false,
+    });
+
+    const { container } = renderActivity();
+
+    expect(screen.getByRole("button", { name: "Withdraw" })).toBeEnabled();
+    expect(screen.queryByText("Refund")).not.toBeInTheDocument();
+    expect(container.querySelector(".opacity-60")).not.toBeInTheDocument();
+    expect(container.querySelector("li > div")).not.toHaveClass(
+      "bg-transparent",
+    );
   });
 });

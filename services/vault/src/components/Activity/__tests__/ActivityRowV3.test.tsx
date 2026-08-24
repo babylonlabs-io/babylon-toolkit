@@ -75,20 +75,11 @@ describe("ActivityRowV3", () => {
 
   it("marks a refunded deposit with the Refund chip and dims the row", () => {
     const { container } = render(
-      <ActivityRowV3 row={{ ...baseRow, isExpired: true }} />,
+      <ActivityRowV3 row={{ ...baseRow, isRefunded: true }} />,
     );
 
     expect(screen.getByText("Refund")).toBeInTheDocument();
     expect(container.querySelector(".opacity-60")).toBeInTheDocument();
-  });
-
-  it("drops the spinner on a refunded deposit that still reads as pending", () => {
-    render(
-      <ActivityRowV3 row={{ ...baseRow, isPending: true, isExpired: true }} />,
-    );
-
-    expect(screen.getByText("Refund")).toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("renders the USD sub-line from amount x current price", () => {

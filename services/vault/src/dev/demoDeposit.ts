@@ -548,7 +548,7 @@ function demoActivityLog(
   id: string,
   date: Date,
   fields: Pick<ActivityRow & { kind: "row" }, "type" | "amount" | "chain"> &
-    Partial<Pick<ActivityRow & { kind: "row" }, "isPending" | "isExpired">> & {
+    Partial<Pick<ActivityRow & { kind: "row" }, "isPending" | "isRefunded">> & {
       tokenIcon?: string;
       transactionHash?: string;
     },
@@ -634,7 +634,7 @@ export function activityScenarios(
           type: "Deposit",
           amount: demoBtcAmount(amount),
           chain: "BTC",
-          isExpired: true,
+          isRefunded: true,
         }),
     },
     {

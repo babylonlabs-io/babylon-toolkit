@@ -49,13 +49,6 @@ interface ActivityRowV3Props {
    * no USD sub-line.
    */
   prices?: Record<string, number>;
-  /**
-   * Vault ids that are ACTIVE on chain right now, from the deposit-status
-   * derivation this branch is stacked on. The redesigned row has no surface
-   * for a collateral-in-use label, so nothing reads it yet; the derivation
-   * stays wired pending design's answer (see the PR body).
-   */
-  activeVaultIds?: ReadonlySet<string>;
   /** Rendered flush right — the expired deposit's Withdraw, when refundable. */
   action?: ReactNode;
 }
@@ -63,7 +56,7 @@ interface ActivityRowV3Props {
 export function ActivityRowV3({ row, prices, action }: ActivityRowV3Props) {
   // A deposit that expired before activation and was reclaimed: the design
   // marks it with the Refund chip and dims the whole row.
-  const isRefunded = row.isExpired === true;
+  const isRefunded = row.isRefunded === true;
 
   return (
     <ActivityRowLayout
