@@ -56,6 +56,10 @@ targets — see the [Troubleshooting Guide](./docs/get-started/troubleshooting.m
 
 ### Install
 
+The root barrels statically import `bitcoinjs-lib` and
+`@bitcoin-js/tiny-secp256k1-asmjs`, so both stay required peers alongside
+`viem`:
+
 ```bash
 # npm
 npm install @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
@@ -67,11 +71,21 @@ yarn add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-as
 pnpm add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
 ```
 
-### ECC Library Initialization (required, once at startup)
+The WASM engine is the one optional peer, because it is loaded lazily. Add it
+only when your application builds or signs Bitcoin transactions:
 
-The SDK uses `bitcoinjs-lib` for Taproot operations. Call `initEccLib()` once
-at application startup **before any SDK call that builds a PSBT or derives a
-Bitcoin address**:
+```bash
+pnpm add @babylonlabs-io/babylon-tbv-rust-wasm
+```
+
+The Ethereum-only entry points listed below resolve to viem alone. They stay
+importable without the Bitcoin peers installed.
+
+### ECC Library Initialization (Bitcoin flows only)
+
+ETH-only consumers do not need an ECC library. If your application uses the
+SDK's Bitcoin/Taproot operations, call `initEccLib()` once **before any SDK call
+that builds a PSBT or derives a Bitcoin address**:
 
 ```typescript
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
@@ -103,11 +117,34 @@ Run with: `npx tsx verify-install.ts`
 
 ## Package Structure
 
-The SDK uses subpath exports for tree-shaking:
+The SDK uses subpath exports for hard dependency boundaries as well as
+tree-shaking. ETH-only code should import the dedicated `/eth` entries rather
+than a broad compatibility barrel:
 
 ```typescript
 // High-level managers (recommended for most users)
 import { PeginManager, PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
+
+// Ethereum-only readers and prepared peg-in registration (no BTC wallet,
+// bitcoinjs-lib, tiny-secp256k1, or WASM required)
+import {
+  ViemProtocolParamsReader,
+  ViemVaultRegistryReader,
+  ViemPeginRegistrationClient,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/eth";
+
+// Ethereum-only transaction receipt helper
+import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils/eth";
+
+// Unauthenticated VP polling without the Bitcoin-auth implementation
+import {
+  VaultProviderRpcClient,
+  batchPollByProvider,
+  DaemonStatus,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/vault-provider/status";
+
+// Mempool reads without bitcoinjs-lib, tiny-secp256k1, or WASM
+import { getTxInfo } from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
 
 // Low-level primitives (advanced use cases)
 import {
@@ -140,8 +177,8 @@ import { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 // UTXO type lives in the core utils module
 import { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 
-// Contract ABIs
-import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+// Contract ABIs (also dependency-clean for ETH consumers)
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core/contracts";
 
 // Protocol integrations (Aave)
 import {
@@ -151,6 +188,14 @@ import {
   calculateHealthFactor,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 ```
+
+`ViemPeginRegistrationClient` owns only the Ethereum submission half of a
+peg-in. It accepts a signed PegIn transaction, PoP, and
+`depositorPayoutScriptPubKey` prepared earlier, and never asks for a BTC
+wallet. The preparation boundary must validate that payout script against the
+PoP key before passing it to this low-level client. `PeginManager` remains the
+backward-compatible high-level API and performs that wallet/address binding
+before delegating to the ETH client.
 
 ## Where to start
 

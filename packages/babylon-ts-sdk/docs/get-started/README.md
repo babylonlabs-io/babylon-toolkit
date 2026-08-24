@@ -147,13 +147,28 @@ Each maps to a public subpath like `@babylonlabs-io/ts-sdk/tbv/core/<name>` (see
 
 ### Packages
 
+The root barrels statically import `bitcoinjs-lib` and
+`@bitcoin-js/tiny-secp256k1-asmjs`, so both stay required peers alongside
+`viem`:
+
 ```bash
 npm install @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
 ```
 
-These are peer dependencies. `bitcoinjs-lib` and `@bitcoin-js/tiny-secp256k1-asmjs` are pinned to exact versions; `viem` is range-pinned (`^2.x`). The SDK re-exports types from `viem` and relies on `bitcoinjs-lib` for Taproot operations.
+The WASM engine is the one optional peer, because it is loaded lazily. Add it
+only when your application builds or signs Bitcoin transactions:
 
-### One-time setup at application startup
+```bash
+npm install @babylonlabs-io/babylon-tbv-rust-wasm
+```
+
+The Ethereum-only entry points resolve to viem alone. They stay importable
+without the Bitcoin peers installed.
+
+`bitcoinjs-lib` and `@bitcoin-js/tiny-secp256k1-asmjs` are pinned to exact
+versions; `viem` is range-pinned (`^2.x`).
+
+### Bitcoin-only setup at application startup
 
 ```typescript
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
@@ -167,7 +182,8 @@ initEccLib(ecc);
 
 Skipping this produces `"No ECC Library provided"` at the first PSBT call.
 
-The WASM package (`@babylonlabs-io/babylon-tbv-rust-wasm`) ships inside the SDK and initialises itself lazily — don't install it directly.
+The optional WASM peer initialises itself lazily, so no explicit WASM setup is
+required.
 
 ### Subpath exports
 

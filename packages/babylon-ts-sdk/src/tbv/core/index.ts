@@ -27,3 +27,4 @@ export * from "./services";
 export * from "./vault-secrets";
 export * from "./deposit-terms";
 export * from "./recovery";
+export { calculateBtcTxHash } from "./clients/eth";

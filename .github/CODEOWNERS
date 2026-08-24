@@ -47,8 +47,8 @@
 /packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 9. Dependency-free reimplementations of Bitcoin primitives
-# All are in the tree except pegin-registration-client.ts and
-# scriptPubKeyAddress.ts, which are registered ahead of #2228.
+# All are in the tree except scriptPubKeyAddress.ts, which is registered ahead
+# of the remaining optional-BTC work (#2228).
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

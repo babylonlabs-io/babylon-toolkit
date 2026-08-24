@@ -106,7 +106,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 Separating the Ethereum-only paths from the Bitcoin stack reimplements some primitives without `bitcoinjs-lib`, `tiny-secp256k1` or the WASM engine (see #2228 / #2229). Each one is small, and each one fails silently: the code compiles, the tests pass, and a wrong address or a wrong on-chain identifier ships.
 
-- Files (all are in the tree except `pegin-registration-client.ts` and `scriptPubKeyAddress.ts`, which are registered ahead of the remaining optional-BTC work):
+- Files (all are in the tree except `scriptPubKeyAddress.ts`, which is registered ahead of the remaining optional-BTC work):
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — transaction-id parsing and vault-id derivation, replacing the bitcoinjs and WASM implementations
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — Ethereum-side registration extracted from `PeginManager`
   - `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now crosses

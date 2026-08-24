@@ -26,9 +26,21 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/utils/index.ts",
         ),
+        "tbv/core/utils/eth/index": path.resolve(
+          __dirname,
+          "src/tbv/core/utils/eth/index.ts",
+        ),
         "tbv/core/clients/index": path.resolve(
           __dirname,
           "src/tbv/core/clients/index.ts",
+        ),
+        "tbv/core/clients/eth/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/eth/index.ts",
+        ),
+        "tbv/core/clients/mempool/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/mempool/index.ts",
         ),
         "tbv/core/clients/vault-provider/status/index": path.resolve(
           __dirname,
