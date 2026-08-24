@@ -66,9 +66,11 @@ describe("assertDepositTermsDeviceCompatible", () => {
     }
   });
 
-  it("does not gate on the tx-graph version — that axis belongs to the WASM capability gate", () => {
-    // 2026-08-23 decision: unconstructable versions never get here, and a
-    // device-incompatible shape fails closed on-device.
+  it("does not gate on the tx-graph version — every reachable version is device-signable", () => {
+    // v3 is Core 2's Bitcoin tx shape byte-for-byte (btc-vault e1e50f66; SDK parity
+    // vector pegin.test.ts "builds the v3 Pre-PegIn byte-identical to the v2 vector");
+    // v1 is unreachable fresh (ProtocolParams setter rejects `newVersion <= prev`,
+    // no Ledger v1 vault exists); v4+ needs a new WASM release.
     for (const vaultCoreVersion of [1, 2, 3, 4]) {
       expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).not.toThrow();
     }

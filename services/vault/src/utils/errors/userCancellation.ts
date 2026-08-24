@@ -15,6 +15,8 @@
  * the dependency runs the other way.
  */
 
+import { chainMatchesFrame } from "./causeChain";
+
 /** EIP-1193 `userRejectedRequest`. */
 export const EIP1193_USER_REJECTED = 4001;
 
@@ -64,9 +66,6 @@ export const WALLET_CONNECTION_REJECTED_CODE = "CONNECTION_REJECTED";
 const USER_CANCELLATION_PATTERN =
   /(?:user|you) (?:rejected|denied|cancell?ed)|(?:rejected|denied|cancell?ed) by (?:the )?user|rejected by the wallet|(?:wallet|user|you) rejected the \w+ (?:approval|request)|user closed (?:the )?modal|connection (?:cancell?ed|rejected)|connection to \w+(?: \w+){0,2} was (?:cancell?ed|rejected)|denied request signature|proposal expired/i;
 
-/** How far to walk a `cause` chain before giving up. */
-const MAX_CAUSE_DEPTH = 10;
-
 /**
  * True when this single error frame carries a TYPED user-rejection signal:
  * EIP-1193 4001, viem's `UserRejectedRequestError`, or the wallet-connector
@@ -104,22 +103,9 @@ export function isUserCancellationFrame(frame: unknown): boolean {
 
 /**
  * True when the error - or anything in its `cause` chain - is the user
- * declining or dismissing a wallet prompt.
+ * declining or dismissing a wallet prompt. The shared walk tests every frame
+ * (bare-string causes from some wallet adapters included) before descending.
  */
 export function isUserCancellation(error: unknown): boolean {
-  let cur: unknown = error;
-
-  for (let depth = 0; depth <= MAX_CAUSE_DEPTH && cur != null; depth++) {
-    if (isUserCancellationFrame(cur)) return true;
-
-    // The string check is inside the loop, not only ahead of it: some wallet
-    // adapters reject with a bare string, and that string can be the `cause`
-    // of a wrapper Error rather than the top-level throw. A `typeof === object`
-    // loop guard stopped the walk at the first string cause and missed those.
-    if (typeof cur !== "object") return false;
-
-    cur = (cur as { cause?: unknown }).cause;
-  }
-
-  return false;
+  return chainMatchesFrame(error, isUserCancellationFrame);
 }

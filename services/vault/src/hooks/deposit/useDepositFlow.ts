@@ -84,11 +84,13 @@ import {
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { supportsCancelSigning } from "@/utils/cancelSigning";
 import {
   COMMISSION_UNAVAILABLE_ERROR,
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
+import { isUserCancellation } from "@/utils/errors/userCancellation";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
 
@@ -307,8 +309,16 @@ export function useDepositFlow(
   // tracks exactly those calls — never derive/approve ceremonies or waits.
   const [deviceSignActive, setDeviceSignActive] = useState(false);
   const [deviceCancelRequested, setDeviceCancelRequested] = useState(false);
-  // Ref mirror so cancelDeviceSign reads the live value synchronously.
+  // Ref mirrors so cancelDeviceSign and the settle path read live values
+  // synchronously inside the long-lived async closures.
   const deviceSignActiveRef = useRef(false);
+  const deviceCancelRequestedRef = useRef(false);
+  // Sticky per-run signal: a requested cancel SETTLED as the wallet's
+  // user-cancel rejection. The multi-vault payout loop reads it to stop
+  // instead of re-running the next vault's device ceremony, and the outer
+  // catch reads it to surface cancelled (not rejected) copy. Reset only at
+  // the start of the next executeDeposit run.
+  const deviceCancelSettledRef = useRef(false);
   // Provider that STARTED the in-flight sign. Cancellation binds to it so a
   // wallet swapped in mid-prompt cannot orphan the original ceremony.
   const deviceSignProviderRef = useRef<unknown>(null);
@@ -320,12 +330,20 @@ export function useDepositFlow(
       setDeviceSignActive(true);
       try {
         return await sign();
+      } catch (error) {
+        // The requested cancel took effect (a late cancel that still signed
+        // successfully deliberately does NOT stick — the flow proceeds).
+        if (deviceCancelRequestedRef.current && isUserCancellation(error)) {
+          deviceCancelSettledRef.current = true;
+        }
+        throw error;
       } finally {
         deviceSignProviderRef.current = null;
         deviceSignActiveRef.current = false;
         setDeviceSignActive(false);
         // Either outcome consumes a pending cancel request — the UI must
         // never wedge on the disabled cancel button after a settle.
+        deviceCancelRequestedRef.current = false;
         setDeviceCancelRequested(false);
       }
     },
@@ -379,6 +397,7 @@ export function useDepositFlow(
       setError(null);
       setLastWarnings([]);
       setPeginSigningProgress(null);
+      deviceCancelSettledRef.current = false;
       advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
       setPerVaultSteps(
         vaultAmounts.map(() => DepositFlowStep.DERIVE_VAULT_SECRET),
@@ -1276,6 +1295,12 @@ export function useDepositFlow(
 
           signal.throwIfAborted();
 
+          // A settled user cancel stops the loop: the next iteration would
+          // re-run the full device ceremony (requireFreshDeviceCeremony)
+          // seconds after the user asked to stop. Remaining vaults are left
+          // unattempted (no warning), not failed.
+          if (deviceCancelSettledRef.current) break;
+
           // Skip vaults whose WOTS key submission failed — the VP won't have
           // the keys needed, so payout signing would timeout.
           if (wotsFailedVaultIds.has(result.vaultId)) continue;
@@ -1344,6 +1369,21 @@ export function useDepositFlow(
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
             if (signal.aborted) throw error;
+
+            // A settled self-cancel is a stop, not a per-vault failure: mark
+            // THIS vault cancelled and end the loop. Routine drop-off — no
+            // partial-failure telemetry.
+            if (deviceCancelSettledRef.current) {
+              recordWarning({
+                vaultId: result.vaultId,
+                stage: "payout",
+                terminal: false,
+                message: COPY.deposit.warnings.payoutSigningCancelled(
+                  result.vaultIndex + 1,
+                ),
+              });
+              break;
+            }
 
             if (isPayoutReadinessTimeout(error)) {
               setPerVaultSteps((prev) =>
@@ -1422,7 +1462,18 @@ export function useDepositFlow(
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          setError(mapDepositError(err));
+          // A settled self-cancel gets its own copy: the generic mapper reads
+          // the wallet's CONNECTION_REJECTED as "You rejected the request in
+          // your wallet. Click Retry" — misattributed, and naming a button
+          // this surface doesn't render.
+          setError(
+            deviceCancelSettledRef.current && isUserCancellation(err)
+              ? {
+                  title: COPY.deposit.errors.signingCancelled.title,
+                  body: COPY.deposit.errors.signingCancelled.body,
+                }
+              : mapDepositError(err),
+          );
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {
@@ -1478,24 +1529,22 @@ export function useDepositFlow(
   const cancelDeviceSign = useCallback(() => {
     // Cancel the ceremony on the provider that started it — never the live
     // prop, which a mid-prompt wallet swap can replace.
-    const provider = deviceSignProviderRef.current as {
-      cancelSigning?: () => void;
-    } | null;
+    const provider = deviceSignProviderRef.current;
     if (!deviceSignActiveRef.current) return;
-    if (typeof provider?.cancelSigning !== "function") return;
+    if (!supportsCancelSigning(provider)) return;
+    deviceCancelRequestedRef.current = true;
     setDeviceCancelRequested(true);
-    // Device-only cancel (aborting the flow controller reads as a closed modal).
-    // Settles like an on-device reject: pre-broadcast = "Signing rejected"
-    // callout; post-broadcast payout stage = per-vault warning, loop continues.
+    // Device-only cancel (aborting the flow controller reads as a closed
+    // modal). Settles at the next device exchange boundary: pre-broadcast =
+    // "Signing cancelled" callout; post-broadcast payout stage = cancelled
+    // warning and the loop stops.
     provider.cancelSigning();
   }, []);
 
   // The ref is only ever set/cleared together with the `deviceSignActive`
   // state, so this render read stays in sync.
   const canCancelDeviceSign =
-    deviceSignActive &&
-    typeof (deviceSignProviderRef.current as { cancelSigning?: unknown } | null)
-      ?.cancelSigning === "function";
+    deviceSignActive && supportsCancelSigning(deviceSignProviderRef.current);
 
   return {
     executeDeposit,

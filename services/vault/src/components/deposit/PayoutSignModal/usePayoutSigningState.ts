@@ -45,6 +45,7 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
+import { supportsCancelSigning } from "../../../utils/cancelSigning";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 import { isUserCancellation } from "../../../utils/errors/userCancellation";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
@@ -80,9 +81,12 @@ export interface UsePayoutSigningStateResult {
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
   /**
-   * True while the in-flight sign can be cancelled: signing is active AND the
-   * provider that started the sign exposes `cancelSigning` (only the Ledger
-   * provider does — always capability-probed, never assumed).
+   * True while the in-flight sign sits in a cancellable device window
+   * (signPsbt/signPsbts/signMessage — the only calls `cancelSigning` can
+   * abort) AND the provider that started the sign exposes `cancelSigning`
+   * (only the Ledger provider does — always capability-probed, never
+   * assumed). False during the terms rebuild, VP auth, and submission, where
+   * no cancellable device prompt exists.
    */
   canCancel: boolean;
   /** True from {@link handleCancel} until the in-flight sign settles. */
@@ -115,6 +119,10 @@ export function usePayoutSigningState({
   const [error, setError] = useState<SigningError | null>(null);
   const [errorTerminal, setErrorTerminal] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
+  // True only while a cancellable device call (signPsbt/signPsbts/
+  // signMessage) is in flight — `cancelSigning` is a no-op everywhere else,
+  // including the deriveContextHash/approveDepositTerms device screens.
+  const [deviceWindowActive, setDeviceWindowActive] = useState(false);
   // Ref mirror so the settle paths inside handleSign read the live value —
   // the state itself is stale inside the long-lived async closure.
   const cancelRequestedRef = useRef(false);
@@ -288,6 +296,17 @@ export function usePayoutSigningState({
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
+      // Flags the cancellable device window around exactly the calls the
+      // provider's cancelSigning can abort — canCancel gates on it.
+      const withDeviceWindow = async <T>(run: () => Promise<T>): Promise<T> => {
+        setDeviceWindowActive(true);
+        try {
+          return await run();
+        } finally {
+          setDeviceWindowActive(false);
+        }
+      };
+
       const graphProgressWallet: BitcoinWallet & Partial<DepositTermsApprover> =
         {
           ...wallet,
@@ -304,7 +323,7 @@ export function usePayoutSigningState({
               setProgress({ phase: "graph", completed: 0, total: 1 });
             }
             try {
-              return await wallet.signPsbt(hex, opts);
+              return await withDeviceWindow(() => wallet.signPsbt(hex, opts));
             } finally {
               if (claimersDoneRef.current) {
                 setProgress({ phase: "graph", completed: 1, total: 1 });
@@ -322,7 +341,9 @@ export function usePayoutSigningState({
                     });
                   }
                   try {
-                    return await wallet.signPsbts!(hexes, opts);
+                    return await withDeviceWindow(() =>
+                      wallet.signPsbts!(hexes, opts),
+                    );
                   } finally {
                     if (claimersDoneRef.current) {
                       setProgress({
@@ -335,6 +356,8 @@ export function usePayoutSigningState({
                 },
               }
             : {}),
+          signMessage: (message, type) =>
+            withDeviceWindow(() => wallet.signMessage(message, type)),
           // Object spread drops prototype methods — see forwardDepositApproval.
           ...forwardDepositApproval(wallet),
         };
@@ -465,21 +488,20 @@ export function usePayoutSigningState({
   // Reads the provider that started the sign, not the live connector — a
   // wallet swapped in mid-prompt must not retarget the affordance. The ref is
   // only ever set/cleared together with the `signing` state, so this render
-  // read stays in sync.
-  const signingProvider = signingProviderRef.current as {
-    cancelSigning?: unknown;
-  } | null;
+  // read stays in sync. Gated on the device window: `signing` alone spans
+  // the terms rebuild, VP auth, and submission, where cancelSigning is a
+  // no-op and no device prompt exists.
   const canCancel =
-    signing && typeof signingProvider?.cancelSigning === "function";
+    signing &&
+    deviceWindowActive &&
+    supportsCancelSigning(signingProviderRef.current);
 
   const handleCancel = useCallback(() => {
     // Cancel the ceremony on the provider that started it — never the
     // connector's current provider.
-    const provider = signingProviderRef.current as {
-      cancelSigning?: () => void;
-    } | null;
+    const provider = signingProviderRef.current;
     if (!inFlightRef.current || cancelRequestedRef.current) return;
-    if (typeof provider?.cancelSigning !== "function") return;
+    if (!supportsCancelSigning(provider)) return;
     cancelRequestedRef.current = true;
     setCancelRequested(true);
     // A REQUEST, not a settle: the provider aborts at its next device

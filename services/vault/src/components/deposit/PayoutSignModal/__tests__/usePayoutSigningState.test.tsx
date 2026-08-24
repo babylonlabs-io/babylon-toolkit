@@ -709,18 +709,26 @@ describe("usePayoutSigningState", () => {
     // Ledger-shaped provider: the only BTC provider exposing cancelSigning.
     // No approveDepositTerms on purpose — the cancel seam is orthogonal to
     // the approval rebuild, so these tests stay on the software-wallet path.
+    // Its signPsbt never settles on its own: armPendingSdkCall's `pending`
+    // settles the SDK call while that device window is still held open.
     function connectCancellableWallet() {
       const cancelSigning = vi.fn();
       mockBtcConnector = {
         connectedWallet: {
           account: { address: "tb1test" },
-          provider: { signPsbt: vi.fn(), cancelSigning },
+          provider: {
+            signPsbt: vi.fn(() => new Promise<string>(() => {})),
+            cancelSigning,
+          },
         },
       };
       return { cancelSigning };
     }
 
-    // Holds the SDK call open so cancel/settle ordering is test-controlled.
+    // Holds the SDK call open so cancel/settle ordering is test-controlled,
+    // driving one wrapped signPsbt so the cancellable device window the
+    // affordance tracks is active while the call is held (an instant no-op
+    // window for the plain software wallet).
     function armPendingSdkCall() {
       const pending: {
         resolve: () => void;
@@ -728,11 +736,19 @@ describe("usePayoutSigningState", () => {
         signal: AbortSignal | undefined;
       } = { resolve: () => {}, reject: () => {}, signal: undefined };
       mockSignAndSubmitPayouts.mockImplementation(
-        ({ signal }: { signal: AbortSignal }) => {
+        ({
+          btcWallet,
+          signal,
+        }: {
+          btcWallet: { signPsbt: (hex: string) => Promise<string> };
+          signal: AbortSignal;
+        }) => {
           pending.signal = signal;
           return new Promise<void>((resolve, reject) => {
             pending.resolve = resolve;
             pending.reject = reject;
+            // Settled only via `pending` — swallow the held-open device sign.
+            void btcWallet.signPsbt("payout-psbt").catch(() => {});
           });
         },
       );
@@ -986,6 +1002,84 @@ describe("usePayoutSigningState", () => {
       // consumed so the modal cannot wedge on the disabled cancel button.
       expect(result.current.cancelRequested).toBe(false);
       expect(result.current.isComplete).toBe(true);
+    });
+
+    it("keeps canCancel false during a hung VP-auth (deriveContextHash) phase", async () => {
+      // deriveContextHash is a real device screen, but the provider's
+      // cancelSigning is a no-op outside signPsbt/signPsbts/signMessage —
+      // showing the affordance there would be a dead button.
+      const cancelSigning = vi.fn();
+      let settleAuth: (root: string) => void = () => {};
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: {
+            signPsbt: vi.fn(),
+            deriveContextHash: vi.fn(
+              () =>
+                new Promise<string>((resolve) => {
+                  settleAuth = resolve;
+                }),
+            ),
+            cancelSigning,
+          },
+        },
+      };
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+        }: {
+          btcWallet: {
+            deriveContextHash: (app: string, ctx: string) => Promise<string>;
+          };
+        }) => {
+          await btcWallet.deriveContextHash("app", "aa");
+        },
+      );
+      const { result } = renderHookWithProps();
+
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.signing).toBe(true));
+
+      expect(result.current.canCancel).toBe(false);
+
+      await act(async () => {
+        settleAuth("cc".repeat(32));
+        await signPromise;
+      });
+    });
+
+    it("reports canCancel true during a hung signPsbts device window", async () => {
+      const cancelSigning = vi.fn();
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: {
+            signPsbt: vi.fn(),
+            signPsbts: vi.fn(() => new Promise<string[]>(() => {})),
+            cancelSigning,
+          },
+        },
+      };
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+        }: {
+          btcWallet: { signPsbts: (hexes: string[]) => Promise<string[]> };
+        }) => {
+          await btcWallet.signPsbts(["p0", "p1"]);
+        },
+      );
+      const { result } = renderHookWithProps();
+
+      act(() => {
+        void result.current.handleSign();
+      });
+
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
     });
   });
 

@@ -13,6 +13,7 @@ import {
 
 import { COPY } from "@/copy";
 
+import { MAX_CAUSE_DEPTH } from "./causeChain";
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
@@ -138,7 +139,11 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
  */
 export function classifyError(err: unknown): ErrorKind | null {
   let cur: unknown = err;
-  for (let depth = 0; depth <= 10 && cur && typeof cur === "object"; depth++) {
+  for (
+    let depth = 0;
+    depth <= MAX_CAUSE_DEPTH && cur && typeof cur === "object";
+    depth++
+  ) {
     const obj = cur as {
       code?: unknown;
       name?: unknown;

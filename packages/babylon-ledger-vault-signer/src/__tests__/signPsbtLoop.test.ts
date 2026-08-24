@@ -253,54 +253,10 @@ describe("happy-path trace replay through the loop (T1, T11, T12)", () => {
   });
 });
 
-describe("resend-once on 0x6A80 (T2-T5)", () => {
-  function peginSetup() {
+describe("0x6A80 on the initial APDU (T3)", () => {
+  it("is terminal after exactly one send — the loop never resends", async () => {
     const traceFile = loadJson<TraceFile>(join(TRACES_DIR, "generated__deposit-flow__pegin__0.json"));
     const prepared = prepareFromVector(traceFile.vector_id);
-    return { prepared, traces: tracesWithValidYields(prepared, traceFile.traces) };
-  }
-
-  it("T2: flag on — the initial APDU is resent byte-identical once, then the loop completes", async () => {
-    const { prepared, traces } = peginSetup();
-    const initial = initialApduHexOf(prepared);
-    const script: ScriptedExchange[] = [
-      { expectApduHex: initial, respondSw: 0x6a80, respondDataHex: "" },
-      ...scriptFromTraces(initial, traces),
-    ];
-    const { send, sent } = createScriptedSender(script);
-
-    const yields = await runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true, signal: NEVER_ABORTED });
-
-    expect(yields.length).toBe(1);
-    expect(sent()).toBe(script.length);
-  });
-
-  it("T3b: abort racing the first exchange suppresses the recovery resend", async () => {
-    const { prepared } = peginSetup();
-    const controller = new AbortController();
-    // The sender aborts DURING the first exchange; the 0x6A80 recovery branch
-    // must observe it and never issue the second APDU.
-    const script: ScriptedExchange[] = [
-      { expectApduHex: initialApduHexOf(prepared), respondSw: 0x6a80, respondDataHex: "" },
-    ];
-    const { send: rawSend, sent } = createScriptedSender(script);
-    const send: typeof rawSend = async (apdu) => {
-      const response = await rawSend(apdu);
-      controller.abort();
-      return response;
-    };
-
-    await expect(
-      runSignPsbtLoop(send, prepared, {
-        resendOnceOnIncorrectData: true,
-        signal: controller.signal,
-      }),
-    ).rejects.toMatchObject({ name: LedgerSignPsbtAbortedError.name, dispatcherInterrupted: false });
-    expect(sent()).toBe(1);
-  });
-
-  it("T3: flag off — 0x6A80 on the initial APDU is terminal after exactly one send", async () => {
-    const { prepared } = peginSetup();
     const script: ScriptedExchange[] = [
       { expectApduHex: initialApduHexOf(prepared), respondSw: 0x6a80, respondDataHex: "" },
     ];
@@ -311,40 +267,6 @@ describe("resend-once on 0x6A80 (T2-T5)", () => {
       statusWord: 0x6a80,
     });
     expect(sent()).toBe(1);
-  });
-
-  it("T4: a second 0x6A80 after the resend is terminal — never a second resend", async () => {
-    const { prepared } = peginSetup();
-    const initial = initialApduHexOf(prepared);
-    const script: ScriptedExchange[] = [
-      { expectApduHex: initial, respondSw: 0x6a80, respondDataHex: "" },
-      { expectApduHex: initial, respondSw: 0x6a80, respondDataHex: "" },
-    ];
-    const { send, sent } = createScriptedSender(script);
-
-    await expect(
-      runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true, signal: NEVER_ABORTED }),
-    ).rejects.toMatchObject({
-      statusWord: 0x6a80,
-    });
-    expect(sent()).toBe(2);
-  });
-
-  it("T5: 0xB007 on the resent APDU is terminal (signing-phase abandonment invalidated the intent)", async () => {
-    const { prepared } = peginSetup();
-    const initial = initialApduHexOf(prepared);
-    const script: ScriptedExchange[] = [
-      { expectApduHex: initial, respondSw: 0x6a80, respondDataHex: "" },
-      { expectApduHex: initial, respondSw: 0xb007, respondDataHex: "" },
-    ];
-    const { send, sent } = createScriptedSender(script);
-
-    await expect(
-      runSignPsbtLoop(send, prepared, { resendOnceOnIncorrectData: true, signal: NEVER_ABORTED }),
-    ).rejects.toMatchObject({
-      statusWord: 0xb007,
-    });
-    expect(sent()).toBe(2);
   });
 });
 
@@ -478,9 +400,9 @@ describe("abort signal (T7 + entry check)", () => {
 
   it("requires a signal in the options bag — omitting it must not typecheck", () => {
     // @ts-expect-error `signal` is required; if this ever compiles, the loop is unbounded again.
-    const withoutSignal: RunSignPsbtLoopOptions = { resendOnceOnIncorrectData: true };
+    const withoutSignal: RunSignPsbtLoopOptions = { appIdentity: { appName: "Babylon Vault" } };
 
-    expect(withoutSignal.resendOnceOnIncorrectData).toBe(true);
+    expect(withoutSignal.appIdentity?.appName).toBe("Babylon Vault");
   });
 
   it("reports how many yields had already arrived when the host aborted", async () => {

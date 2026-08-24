@@ -3,17 +3,13 @@
  *
  * The ceremony's `ApduSender` throws on every status word except 0x9000;
  * SIGN_PSBT cannot ride it: `0xE000` (SW_INTERRUPTED_EXECUTION — a
- * client-command request follows in the response data) is loop input, and the
- * loop's one gated resend must see the first `0x6A80` after a host-abandoned
- * interruption as data too — the dispatcher answers any non-CONTINUE APDU
- * with 0x6A80 and drops the interrupted command (`base:dispatcher.c:107-111`
- * `process_interruption`); every other `0x6A80` is a terminal validation
- * failure. A {@link RawApduSender} therefore never throws on ANY status word;
+ * client-command request follows in the response data) is loop input, not an
+ * error. A {@link RawApduSender} therefore never throws on ANY status word;
  * terminal words are classified by the caller via {@link classifyStatusWord},
  * so raw-seam consumers and the throwing sender raise identical typed errors.
  *
  * `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`
- * (`src/boilerplate/dispatcher.c`); the same path on `develop` differs.
+ * (`src/boilerplate/sw.h`); the same path on `develop` differs.
  *
  * @module ledger-vault-signer/rawApdu
  */
@@ -76,7 +72,10 @@ const STATUS_WORDS: Record<number, string> = {
   0x6a86: "The device rejected the instruction parameters",
   0x6a87: "The device rejected the payload length",
   0x6d00: "The running app does not support this instruction",
-  [SW_CLA_NOT_SUPPORTED]: "The running app does not handle vault instructions — open the Babylon Vault app",
+  // Network-agnostic on purpose: the app is "Babylon Vault" on mainnet and
+  // "Babylon Vault Testnet" on test networks (dmkSession.readAppAndVersion).
+  [SW_CLA_NOT_SUPPORTED]:
+    "The running app does not handle vault instructions — open the Babylon Vault app for this network",
   0xb000: "The device reported a wrong response length",
   [SW_BAD_STATE]: "The device is not in the expected state for this step",
   0xb008: "The device rejected a signature or HMAC as invalid",

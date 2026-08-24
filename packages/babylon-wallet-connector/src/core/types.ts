@@ -402,6 +402,19 @@ export interface IBTCProvider extends IProvider {
   getAccounts?(): Promise<string[]>;
 
   /**
+   * Requests cancellation of the in-flight signing ceremony
+   * (signPsbt/signPsbts/signMessage). A REQUEST, not a settle: the provider
+   * aborts at its next device exchange boundary, and the sign promise rejects
+   * with `CONNECTION_REJECTED` only then. No-op when nothing is in flight.
+   *
+   * Implemented only by hardware providers whose ceremonies block on a
+   * physical device (currently the Ledger vault provider). Optional — callers
+   * MUST feature-detect (`typeof provider.cancelSigning === "function"`) and
+   * hide the cancel affordance when the method is missing.
+   */
+  cancelSigning?(): void;
+
+  /**
    * Signs a message using either BIP322-Simple or ECDSA signing method.
    * @param message - The message to sign.
    * @param type - The signing method to use.

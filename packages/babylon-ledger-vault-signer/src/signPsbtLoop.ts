@@ -39,7 +39,6 @@ const P2_CONTINUE = 0x00;
 const SW_OK = 0x9000;
 /** A client-command request follows in the response data (`base:sw.h:90`). */
 const SW_INTERRUPTED_EXECUTION = 0xe000;
-const SW_INCORRECT_DATA = 0x6a80;
 
 export interface SignPsbtProgress {
   readonly inputIndex: number;
@@ -68,14 +67,6 @@ export interface RunSignPsbtLoopOptions {
    * diagnostics. Never gates control flow.
    */
   readonly appIdentity?: AppIdentity;
-  /**
-   * Provider's `loopAbandoned` flag: resend the initial SIGN_PSBT APDU once if
-   * it answers 0x6A80 — the dispatcher eats exactly one non-CONTINUE APDU
-   * after a host-abandoned interruption (`base:dispatcher.c:107-111`). A
-   * genuine validation 0x6A80 is indistinguishable on the wire, hence the
-   * explicit gate. Never applies to CONTINUEs; never more than one resend.
-   */
-  readonly resendOnceOnIncorrectData?: boolean;
 }
 
 /**
@@ -92,23 +83,13 @@ export async function runSignPsbtLoop(
   const { collector, interpreter, cdata } = getPreparedSignPsbtState(prepared);
   const { table } = prepared;
   if (opts.signal.aborted) {
-    // Abandoned before any I/O — no dispatcher interrupted.
-    throw new LedgerSignPsbtAbortedError(collector.yields.length, false);
+    // Abandoned before any I/O.
+    throw new LedgerSignPsbtAbortedError(collector.yields.length);
   }
 
   const signPsbtApdu = buildSignPsbtApdu(cdata);
   let lastSentApdu: Apdu = signPsbtApdu;
   let response = await send(signPsbtApdu);
-  if (response.sw === SW_INCORRECT_DATA && opts.resendOnceOnIncorrectData === true) {
-    if (opts.signal.aborted) {
-      // Abort raced the first exchange. The 0x6A80 either consumed the eaten
-      // slot or was a genuine rejection — either way the dispatcher is clean.
-      throw new LedgerSignPsbtAbortedError(collector.yields.length, false);
-    }
-    // Resend the SAME APDU once; this branch is structurally unreachable a
-    // second time — any later 0x6A80 (including on the resend) is terminal.
-    response = await send(signPsbtApdu);
-  }
 
   let reportedYields = 0;
   while (response.sw === SW_INTERRUPTED_EXECUTION) {
@@ -148,9 +129,9 @@ export async function runSignPsbtLoop(
       }
     }
     if (opts.signal.aborted) {
-      // Stop sending — the CONTINUE for this round is never sent, so the
-      // interrupted dispatcher will eat exactly one later non-CONTINUE APDU.
-      throw new LedgerSignPsbtAbortedError(collector.yields.length, true);
+      // Stop sending — the CONTINUE for this round is never sent. Recovery is
+      // a full re-ceremony (LedgerSignPsbtAbortedError's doc has the aftermath).
+      throw new LedgerSignPsbtAbortedError(collector.yields.length);
     }
     lastSentApdu = { cla: CLA_FRAMEWORK, ins: INS_CONTINUE, p1: P1_CONTINUE, p2: P2_CONTINUE, data: continueData };
     response = await send(lastSentApdu);
