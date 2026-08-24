@@ -7,10 +7,17 @@ import type {
   Vault,
 } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
+import { formatBtcAmount } from "@/utils/formatting";
 
 import {
+  axisFloorPrice,
   buildLiquidationChartData,
   buildSimulationSummary,
+  buildTimelinePriceAxis,
+  buildTimelineSafeZone,
+  formatCandleDate,
+  formatCandleTimestamp,
+  withAmountInBandLabel,
 } from "../liquidationChartData";
 
 // `calculate()` emits 1-based `index` fields (`groupIndex` starts at 1 in
@@ -621,5 +628,118 @@ describe("buildSimulationSummary", () => {
     expect(summary.vaultsLiquidated).toBe(0);
     expect(summary.vaultsTotal).toBe(0);
     expect(summary.seizedPct).toBe(0);
+  });
+});
+
+describe("buildTimelinePriceAxis", () => {
+  const result = makeResult([
+    makeGroup(1, { liquidationPrice: 67_682 }),
+    makeGroup(2, { liquidationPrice: 40_283 }),
+    makeGroup(3, { liquidationPrice: 3_597 }),
+  ]);
+
+  it("labels round prices down the safe zone and closes on the axis floor", () => {
+    const axis = buildTimelinePriceAxis(result, 92_000);
+
+    expect(axis.map((tick) => tick.value)).toEqual([
+      100_000,
+      90_000,
+      80_000,
+      70_000,
+      axisFloorPrice(result),
+    ]);
+    expect(axis[0].label).toBe("$100,000");
+  });
+
+  it("keeps the top tick clear of the highest candle so nothing is clipped", () => {
+    const topPrice = 118_400;
+
+    const axis = buildTimelinePriceAxis(result, topPrice);
+
+    expect(axis[0].value).toBeGreaterThanOrEqual(topPrice);
+  });
+
+  // Trigger prices are drawn as their own level lines and pills; a round tick
+  // inside a compressed event region would collide with them.
+  it("places no tick between the first trigger and the floor", () => {
+    const axis = buildTimelinePriceAxis(result, 92_000);
+    const firstTrigger = result.groups[0].liquidationPrice;
+
+    const between = axis.filter(
+      (tick) =>
+        tick.value < firstTrigger && tick.value > axisFloorPrice(result),
+    );
+    expect(between).toEqual([]);
+  });
+
+  it("stays strictly descending for an already-liquidatable position", () => {
+    const axis = buildTimelinePriceAxis(result, 30_000);
+
+    const values = axis.map((tick) => tick.value);
+    expect(values).toEqual([...values].sort((a, b) => b - a));
+    expect(new Set(values).size).toBe(values.length);
+    expect(values[values.length - 1]).toBe(axisFloorPrice(result));
+  });
+
+  it("still spans the frame with no events at all", () => {
+    const axis = buildTimelinePriceAxis(makeResult([]), 90_000);
+
+    expect(axis.length).toBeGreaterThanOrEqual(2);
+    expect(axis[0].value).toBeGreaterThanOrEqual(90_000);
+    expect(axis[axis.length - 1].value).toBe(0);
+  });
+});
+
+describe("buildTimelineSafeZone", () => {
+  const result = makeResult([makeGroup(1, { liquidationPrice: 77_682 })]);
+
+  it("names the first trigger and the drop needed to reach it", () => {
+    const safeZone = buildTimelineSafeZone(result, 88_400);
+
+    expect(safeZone.title).toBe(COPY.liquidations.safeZone.title);
+    expect(safeZone.lines).toEqual([
+      COPY.liquidations.safeZone.noEventsAbove("$77,682"),
+      // (88,400 - 77,682) / 88,400 = 12.1%
+      COPY.liquidations.safeZone.dropToFirstEvent("12.1"),
+    ]);
+  });
+
+  it("reports no remaining drop once the price is through the trigger", () => {
+    const safeZone = buildTimelineSafeZone(result, 70_000);
+
+    expect(safeZone.lines[1]).toBe(
+      COPY.liquidations.safeZone.dropToFirstEvent("0.0"),
+    );
+  });
+});
+
+describe("withAmountInBandLabel", () => {
+  it("folds the amount into the label and drops the separate amount line", () => {
+    const { bands } = buildLiquidationChartData(
+      makeResult([makeGroup(1, { combinedBtc: 0.6 })]),
+      { btcPrice: 90_000, collateralFactor: CF, vaultsTotal: 1 },
+    );
+
+    const [band] = withAmountInBandLabel(bands);
+
+    expect(band.label).toBe(
+      `${COPY.liquidations.eventTitle(1)} (${formatBtcAmount(0.6)})`,
+    );
+    expect(band.amountLabel).toBeUndefined();
+  });
+});
+
+describe("formatCandleDate", () => {
+  it("prints the day of the month", () => {
+    expect(formatCandleDate(Date.UTC(2026, 4, 19))).toBe("19");
+  });
+
+  it("names the month at the start of one, so a multi-month window is placed", () => {
+    expect(formatCandleDate(Date.UTC(2026, 5, 3))).toBe("Jun");
+  });
+
+  // The hover readout says which candle it describes, which a bare "19" does not.
+  it("spells the date out for the crosshair readout", () => {
+    expect(formatCandleTimestamp(Date.UTC(2026, 4, 19))).toBe("May 19, 2026");
   });
 });

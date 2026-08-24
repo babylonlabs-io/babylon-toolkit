@@ -16,6 +16,7 @@ import {
   type PriceAnchor,
 } from "./priceScale";
 import type { Candle, TimelineProps } from "./types";
+import type { ChartGridConfig } from "../charts/types";
 
 /** Fraction of plot width reserved on the left for the liquidation bands. */
 const BAND_GUTTER_FRAC = 0.22;
@@ -31,9 +32,12 @@ const CANDLE_BODY_MIN_HEIGHT = 0.004;
 const CANDLE_BODY_MIN_HEIGHT_PX = 1;
 /** Past this fraction of the candle region, the readout flips to the left. */
 const READOUT_FLIP_FRAC = 0.6;
-/** Floor for a weighted region, px: keeps the event label above its dropout
- * threshold (26px content + padding) at any chart width. */
+/** Fixed height for every liquidation-event region, px: keeps the event
+ * label above its dropout threshold (26px content + padding) at any chart
+ * width, matching the design's compact, equal-height event rows. */
 const MIN_REGION_PX = 44;
+/** Candle body corner radius, px. */
+const CANDLE_BODY_RADIUS_PX = 2;
 
 const defaultFormatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const defaultFormatTime = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -96,6 +100,7 @@ export function Timeline({
   visibleCandles,
   formatPrice = defaultFormatPrice,
   formatTime = defaultFormatTime,
+  formatReadoutTime = formatTime,
   variant = "full",
   grid,
   hideBandLabels,
@@ -114,10 +119,10 @@ export function Timeline({
   const priceMin = priceAxis[priceAxis.length - 1]?.value ?? 0;
 
   // Deliberately non-uniform Y scale: every trigger is an anchor, and each
-  // region (safe zone, then trigger-to-trigger, then last trigger-to-floor)
-  // takes a vertical share weighted by its compressed price span — the split
-  // tracks the real values while small events stay readable, and the safe
-  // zone never drops below the largest event so the candles keep room.
+  // event region (trigger-to-trigger, then last trigger-to-floor) gets a
+  // fixed, compact row (MIN_REGION_PX) regardless of its real price span —
+  // matching the design, which draws every "Liq Event N" band the same
+  // size — so the safe zone (and its candles) keeps whatever height remains.
   // Without events (or with every trigger off-domain) it falls back to
   // linear.
   const priceScale = useMemo(() => {
@@ -244,6 +249,14 @@ export function Timeline({
   }, [compact, windowed, formatTime]);
   const xAxisLabels = compact || windowed.length ? undefined : timeAxisLabels;
 
+  // The anchored/weighted Y scale makes horizontal gridlines misleading (a
+  // tick's pixel gap no longer reflects an even price step), so Timeline
+  // defaults to vertical-only unless the caller opts into something else —
+  // unlike ChartFrame's generic "both" default, which still suits the
+  // Seizure Map's evenly-segmented axis.
+  const gridLines = grid?.lines ?? "vertical";
+  const resolvedGrid: ChartGridConfig = { ...grid, lines: gridLines };
+
   // Vertical gridlines share the tick fractions exactly; the static-label
   // fallback spreads evenly (skipping the left edge, which the gutter owns).
   const gridFractions = xAxisTicks
@@ -311,7 +324,7 @@ export function Timeline({
       plotInsetLeft={gutterWidth}
       xAxisLabels={xAxisLabels}
       xAxisTicks={xAxisTicks}
-      grid={grid}
+      grid={resolvedGrid}
       className={className}
       overlay={
         <>
@@ -328,7 +341,7 @@ export function Timeline({
                 fontSize: layout.fontAxis,
               }}
             >
-              <span className="bbn-liq-readout__time">{formatTime(hovered.candle.time)}</span>
+              <span className="bbn-liq-readout__time">{formatReadoutTime(hovered.candle.time)}</span>
               <span className="bbn-liq-readout__row">
                 <span>O</span>
                 <span>{formatPrice(hovered.candle.open)}</span>
@@ -370,7 +383,7 @@ export function Timeline({
         </>
       }
     >
-      {(grid?.lines ?? "both") === "both" && gridFractions?.length ? (
+      {(gridLines === "both" || gridLines === "vertical") && gridFractions?.length ? (
         <GridColumns
           className="bbn-liq-grid"
           scale={timeScale}
@@ -426,7 +439,7 @@ export function Timeline({
                 y={g.bodyTop}
                 width={g.bodyWidth}
                 height={g.bodyHeight}
-                rx={1}
+                rx={CANDLE_BODY_RADIUS_PX}
               />
             </Group>
           ))

@@ -72,22 +72,39 @@ export const priceAxis: PriceAxisTick[] = [
 
 export const shareAxisLabels = ["0%", "55%", "91%", "100%"];
 
-/** Timeline price axis. The floor sits below the last trigger (mirroring the
- * vault's floor = min trigger x 0.95) so every event stays on the frame. */
+/** Timeline price axis: round ticks above the first trigger, then the axis
+ * floor (mirrors the vault's `buildTimelinePriceAxis`, which only spaces
+ * ticks down to the first trigger — everything below it already carries its
+ * own dashed level line + price pill). The floor tick still anchors the
+ * scale's domain but carries no label of its own, matching the design's two
+ * visible axis labels. */
 export const timelinePriceAxis: PriceAxisTick[] = [
-  { value: 90000, label: "$90,000" },
+  { value: 100000, label: "$100,000" },
   { value: 80000, label: "$80,000" },
-  { value: 70000, label: "$70,000" },
-  { value: 60000, label: "$60,000" },
-  { value: 50000, label: "$50,000" },
-  { value: 40000, label: "$40,000" },
-  { value: 3417, label: "$3,417" },
+  { value: 3417, label: "" },
 ];
 
 export const timeAxisLabels = ["May 5", "12", "19", "Jun", "8", "15", "22"];
 
+/**
+ * Time-axis label for a candle: the day of the month, naming the month
+ * instead on the first days of one, so a multi-month window still says where
+ * it is. Mirrors the vault's `formatCandleDate` (the source of truth for this
+ * formatting — core-ui never formats dates itself), currently at
+ * `services/vault/src/components/pages/Liquidations/liquidationChartData.ts` —
+ * keep the two in sync.
+ */
+const MONTH_LABEL_MAX_DAY = 7;
+
+export function formatCandleDate(timeMs: number): string {
+  const date = new Date(timeMs);
+  return date.getUTCDate() <= MONTH_LABEL_MAX_DAY
+    ? date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+    : String(date.getUTCDate());
+}
+
 /** Deterministic random walk so the story is stable across reloads. */
-export function makeCandles(count = 44): Candle[] {
+export function makeCandles(count = 60): Candle[] {
   let seed = 1337;
   const rand = () => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -189,6 +206,39 @@ export const collidingLevelBands: LiquidationBand[] = [
   { ...bands[0], key: "c1", priceTop: 62000, priceBottom: 55000 },
   { ...bands[1], key: "c2", priceTop: 61400, priceBottom: 48000 },
   { ...bands[2], key: "c3", priceTop: 60900, priceBottom: 42000 },
+];
+
+/**
+ * A full 10-vault cascade — the protocol's maximum position size (up to 10
+ * vaults per position). Exercises the gutter's degrade-past-floor path: 10
+ * fixed-height event rows would blow past the plot on their own, so
+ * `timelineRegionFractions` compresses every row evenly once they do, instead
+ * of clipping rows or crushing the safe zone. See the `ManyEvents` story.
+ */
+export const manyEventBands: LiquidationBand[] = (() => {
+  const triggers = [82000, 75000, 68000, 61000, 54000, 47000, 40000, 33000, 26000, 19000];
+  const amounts = [0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05];
+  const floor = 15000;
+  return triggers.map((priceTop, i) => ({
+    key: `many-${i + 1}`,
+    label: `Liq Event ${i + 1}`,
+    sublabel: `(contain vault ${i + 1})`,
+    amountLabel: `${amounts[i]} BTC`,
+    priceTop,
+    priceBottom: triggers[i + 1] ?? floor,
+    shareStart: i / triggers.length,
+    shareEnd: (i + 1) / triggers.length,
+    state: "live",
+    tone: `${(i % 3) + 1}` as LiquidationBand["tone"],
+  }));
+})();
+
+/** Sparse, like `timelinePriceAxis`: two visible labels, an unlabelled floor
+ * anchoring the domain below the lowest trigger (19,000). */
+export const manyEventPriceAxis: PriceAxisTick[] = [
+  { value: 100000, label: "$100,000" },
+  { value: 90000, label: "$90,000" },
+  { value: 15000, label: "" },
 ];
 
 /* ---- Simulator-story derivations (mirror the vault's projection) ----- */

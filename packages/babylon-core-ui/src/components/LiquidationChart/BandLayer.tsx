@@ -77,7 +77,9 @@ function visibleBandLines(
   if (!compact && band.sublabel && contentHeight > DROP_SUBLABEL_MAX_PX) {
     lines.push({ kind: "sublabel", text: band.sublabel, fontSize: fontLabel });
   }
-  if (contentHeight > DROP_AMOUNT_MAX_PX) lines.push({ kind: "amount", text: band.amountLabel, fontSize: fontAmount });
+  if (band.amountLabel && contentHeight > DROP_AMOUNT_MAX_PX) {
+    lines.push({ kind: "amount", text: band.amountLabel, fontSize: fontAmount });
+  }
   return lines;
 }
 

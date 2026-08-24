@@ -1622,9 +1622,14 @@ export const COPY = {
     simulateLabel: "Simulate BTC price",
     simulatePriceEntryLabel: "Enter BTC price",
     simulateDescription:
-      "Simulate BTC price movements and see how your vault responds to liquidation risk.",
+      "Simulate BTC price movement and see how your position responds to liquidation risk.",
     exploreAction: "Explore",
-    bitcoinPriceCaption: "Bitcoin Price",
+    // The callout filling the price band above the first liquidation trigger.
+    safeZone: {
+      title: "Safe zone",
+      noEventsAbove: (price: string) => `no events above ${price}`,
+      dropToFirstEvent: (percent: string) => `${percent}% drop to Liq 1`,
+    },
     empty: {
       noDepositTitle: "No deposit yet",
       noDepositDescription:
@@ -1655,7 +1660,6 @@ export const COPY = {
         "Vaults are seized in order — each vault group is one liquidation event.",
       badgeSacrificial: "Sacrificial",
       badgeProtected: "Protected",
-      liquidatedInSimulation: "Liquidated in Simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: "Distance",
