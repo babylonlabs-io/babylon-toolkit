@@ -972,10 +972,18 @@ describe("PeginManager", () => {
   });
 
   describe("signProofOfPossession", () => {
-    // varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B pubkey — the
-    // two-item P2WPKH shape. The embedded pubkey must be the depositor's
-    // (verifyPopWitness mirrors vaultd's WitnessPubkeyMismatch check).
-    const P2WPKH_POP_WITNESS_HEX = `02${"47"}${"11".repeat(71)}${"21"}${"02" + TEST_KEYS.DEPOSITOR}`;
+    // A REAL two-item P2WPKH witness for the PoP message the manager under
+    // test builds — `verifyPopWitness` now cryptographically verifies it
+    // (vaultd's message.rs:107-133), so injected fixtures must be valid.
+    async function realPopWitnessHex(
+      ethWallet: MockEthereumWallet,
+    ): Promise<string> {
+      const popMessage = `${ethWallet.account!.address.toLowerCase()}:${TEST_CHAIN.id}:pegin:${TEST_CONTRACT_ADDRESS.toLowerCase()}`;
+      const signed = await new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      }).signMessage(popMessage, "bip322-simple");
+      return signed.slice(2);
+    }
 
     it("returns signature bound to connected ETH and BTC identities", async () => {
       const btcWallet = new MockBitcoinWallet({
@@ -1028,10 +1036,11 @@ describe("PeginManager", () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
-      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
-        `0x${P2WPKH_POP_WITNESS_HEX.toUpperCase()}`,
-      );
       const ethWallet = new MockEthereumWallet();
+      const witnessHex = await realPopWitnessHex(ethWallet);
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        `0x${witnessHex.toUpperCase()}`,
+      );
 
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -1044,7 +1053,7 @@ describe("PeginManager", () => {
       });
 
       const pop = await manager.signProofOfPossession();
-      expect(pop.btcPopSignature).toBe(`0x${P2WPKH_POP_WITNESS_HEX}`);
+      expect(pop.btcPopSignature).toBe(`0x${witnessHex}`);
     });
 
     it("rejects wallet output that is not a decodable witness", async () => {
@@ -1094,14 +1103,15 @@ describe("PeginManager", () => {
       );
     });
 
-    it("lets a two-item (P2WPKH) PoP witness through", async () => {
+    it("verifies a two-item (P2WPKH) PoP witness and lets it through", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
-      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
-        `0x${P2WPKH_POP_WITNESS_HEX}`,
-      );
       const ethWallet = new MockEthereumWallet();
+      const witnessHex = await realPopWitnessHex(ethWallet);
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
+        `0x${witnessHex}`,
+      );
 
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -1114,7 +1124,35 @@ describe("PeginManager", () => {
       });
 
       const pop = await manager.signProofOfPossession();
-      expect(pop.btcPopSignature).toBe(`0x${P2WPKH_POP_WITNESS_HEX}`);
+      expect(pop.btcPopSignature).toBe(`0x${witnessHex}`);
+    });
+
+    it("throws when the wallet returns a P2WPKH PoP whose signature does not verify", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      // Flip a hex digit inside the DER r value (offset 20 of the witness).
+      const witnessHex = await realPopWitnessHex(ethWallet);
+      const tampered =
+        witnessHex.slice(0, 20) +
+        (witnessHex[20] === "0" ? "1" : "0") +
+        witnessHex.slice(21);
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(`0x${tampered}`);
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(manager.signProofOfPossession()).rejects.toThrow(
+        /proof of possession signature does not verify/,
+      );
     });
 
     it("rejects an empty signature from the wallet", async () => {
@@ -1182,10 +1220,9 @@ describe("PeginManager", () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
-      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(
-        P2WPKH_POP_WITNESS_HEX,
-      );
       const ethWallet = new MockEthereumWallet();
+      const witnessHex = await realPopWitnessHex(ethWallet);
+      vi.spyOn(btcWallet, "signMessage").mockResolvedValueOnce(witnessHex);
 
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -1198,7 +1235,7 @@ describe("PeginManager", () => {
       });
 
       const pop = await manager.signProofOfPossession();
-      expect(pop.btcPopSignature).toBe(`0x${P2WPKH_POP_WITNESS_HEX}`);
+      expect(pop.btcPopSignature).toBe(`0x${witnessHex}`);
     });
 
     it("accepts a compressed sec1 pubkey and drops the prefix byte", async () => {

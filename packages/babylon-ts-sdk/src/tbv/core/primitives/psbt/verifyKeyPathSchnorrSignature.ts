@@ -5,6 +5,10 @@
  * `crates/btc-wallet-remote/src/client.rs check_signatures_valid` (output key taken
  * from the prevout scriptPubKey, all prevouts committed). The wallet's
  * success/finalization is never trusted on its own (CLAUDE.md §8).
+ * `assertReturnedKeyPathSignatures` additionally dispatches P2WPKH-funded
+ * inputs to `verifyP2wpkhEcdsaSignature` (client.rs's
+ * `verify_finalized_p2wpkh_spend` sibling), so a Native SegWit software
+ * wallet's signatures no longer pass through unchecked.
  *
  * Why verify against the *requested* PSBT: `assertPsbtUnsignedTxMatches` pins
  * the unsigned transaction but deliberately skips per-input metadata, so a
@@ -20,8 +24,12 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 
 import { Buffer } from "buffer";
 
-import { hexToUint8Array, stripHexPrefix } from "../utils/bitcoin";
 import { decodeWitnessStack } from "../../utils/witness/witnessStack";
+import { hexToUint8Array, stripHexPrefix } from "../utils/bitcoin";
+import {
+  assertReturnedP2wpkhSignature,
+  isP2wpkhScript,
+} from "./verifyP2wpkhEcdsaSignature";
 
 const SCHNORR_SIG_BYTES = 64;
 const SIGHASH_DEFAULT = Transaction.SIGHASH_DEFAULT; // 0x00
@@ -194,18 +202,22 @@ export interface AssertReturnedKeyPathSignaturesParams {
 }
 
 /**
- * Verify every key-path-eligible input of the REQUESTED PSBT against what the
- * wallet RETURNED: `tapKeySig`, or the single finalized witness item for wallets
- * that auto-finalize — and when both are present they must be the same bytes.
- * Script-path inputs are skipped (they have their own check).
+ * Verify every key-path-eligible and P2WPKH input of the REQUESTED PSBT
+ * against what the wallet RETURNED. Key-path: `tapKeySig`, or the single
+ * finalized witness item for wallets that auto-finalize — and when both are
+ * present they must be the same bytes. P2WPKH: `partialSig`, or the finalized
+ * 2-item witness, verified as ECDSA over the BIP-143 sighash
+ * ({@link assertReturnedP2wpkhSignature}); a failure throws but the input is
+ * NOT counted. Script-path and unknown script types are skipped (they have
+ * their own checks).
  *
- * @returns How many inputs were actually verified. 0 means NO input was
- *          key-path eligible — a caller that knows every input is taproot
- *          key-path must assert this equals its input count, or a P2WPKH
- *          depositor would read "nothing verified" as "all verified".
+ * @returns How many inputs were verified KEY-PATH. A caller that knows every
+ *          input is taproot key-path (e.g. an approval wallet) must assert
+ *          this equals its input count — P2WPKH inputs never count toward it,
+ *          so that gate stays exact.
  * @throws If the input counts differ, an eligible input carries no signature, a
- *         finalized witness disagrees with its `tapKeySig`, or any signature
- *         does not verify.
+ *         finalized witness disagrees with its `tapKeySig`/`partialSig`, or any
+ *         signature does not verify.
  */
 export function assertReturnedKeyPathSignatures(
   params: AssertReturnedKeyPathSignaturesParams,
@@ -224,10 +236,22 @@ export function assertReturnedKeyPathSignatures(
 
   let verified = 0;
   requested.data.inputs.forEach((input, inputIndex) => {
-    if (!isKeyPathEligible(input)) return;
+    const returnedInput = returned.data.inputs[inputIndex];
+
+    if (!isKeyPathEligible(input)) {
+      // Native SegWit funding inputs get the ECDSA check; anything else
+      // (script-path, P2WSH, ...) is another verifier's job.
+      if (isP2wpkhScript(input.witnessUtxo?.script)) {
+        assertReturnedP2wpkhSignature({
+          requestedPsbtHex,
+          returnedInput,
+          inputIndex,
+        });
+      }
+      return;
+    }
     verified++;
 
-    const returnedInput = returned.data.inputs[inputIndex];
     const tapKeySig = returnedInput.tapKeySig;
     const witnessSig = returnedInput.finalScriptWitness
       ? singleWitnessItem(returnedInput.finalScriptWitness, inputIndex)

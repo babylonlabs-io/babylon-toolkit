@@ -3,13 +3,18 @@
  *
  * The P2TR cases reuse the BIP-322 golden vector emitted by the Rust
  * reference (`btc-vault/crates/btc-auth/src/server_identity.rs`, signer
- * seed 7) so a passing test proves the witness path feeds the verifier
- * exactly what a real signer produced.
+ * seed 7); the P2WPKH cases use BIP-322's official test vectors — so a
+ * passing test proves the witness path feeds the verifiers exactly what
+ * a real signer produced.
  */
 
 import { Buffer } from "buffer";
 import { describe, expect, it } from "vitest";
 
+import {
+  BIP322_P2WPKH_HELLO_WORLD_WITNESS_HEX,
+  BIP322_P2WPKH_PUBKEY_XONLY_HEX,
+} from "../../../clients/vault-provider/auth/__tests__/bip322P2wpkhVectors";
 import {
   GOLDEN_PAYLOAD_HEX,
   GOLDEN_SIGNATURE_HEX,
@@ -19,11 +24,9 @@ import { verifyPopWitness } from "../verifyPopWitness";
 
 const fromHex = (h: string) => Uint8Array.from(Buffer.from(h, "hex"));
 
-/** varint(2) ‖ varint(71) ‖ 71B DER sig ‖ varint(33) ‖ 33B compressed pubkey. */
-/** Two-item P2WPKH witness: [DER sig(71B), compressed pubkey] with the given x-only key. */
-function p2wpkhWitness(xOnlyHex: string): `0x${string}` {
-  return `0x02${"47"}${"11".repeat(71)}${"21"}${"02" + xOnlyHex}`;
-}
+const HELLO_WORLD = new TextEncoder().encode("Hello World");
+const HELLO_WORLD_WITNESS =
+  `0x${BIP322_P2WPKH_HELLO_WORLD_WITNESS_HEX}` as const;
 
 describe("verifyPopWitness", () => {
   it("verifies a one-item P2TR witness (0x01 0x40 ‖ sig) against the BIP-322 golden vector", () => {
@@ -113,25 +116,48 @@ describe("verifyPopWitness", () => {
     ).toThrow(/bare 64-char x-only hex/);
   });
 
-  it("passes a two-item P2WPKH witness with the depositor's pubkey through unverified (sig verify: #2284)", () => {
+  it("verifies a two-item P2WPKH witness against the BIP-322 official vector", () => {
     expect(
       verifyPopWitness(
-        fromHex(GOLDEN_PAYLOAD_HEX),
-        GOLDEN_SIGNING_KEY_XONLY,
-        p2wpkhWitness(GOLDEN_SIGNING_KEY_XONLY),
+        HELLO_WORLD,
+        BIP322_P2WPKH_PUBKEY_XONLY_HEX,
+        HELLO_WORLD_WITNESS,
       ),
-    ).toEqual({ kind: "p2wpkh-unverified" });
+    ).toEqual({ kind: "p2wpkh-verified" });
   });
 
-  it("rejects a two-item witness whose embedded pubkey is not the depositor's", () => {
-    // Mirrors vaultd's WitnessPubkeyMismatch — the wrong-account signature
-    // must fail here, not as a permanent InvalidDepositorPop after registration.
+  it("throws when the P2WPKH signature does not verify", () => {
+    // Flip one byte inside the DER r value (witness hex offset: 2-item
+    // marker + length byte + DER header land the r bytes well past index 8).
+    const tampered =
+      HELLO_WORLD_WITNESS.slice(0, 20) +
+      (HELLO_WORLD_WITNESS[20] === "0" ? "1" : "0") +
+      HELLO_WORLD_WITNESS.slice(21);
     expect(() =>
       verifyPopWitness(
-        fromHex(GOLDEN_PAYLOAD_HEX),
-        GOLDEN_SIGNING_KEY_XONLY,
-        p2wpkhWitness("22".repeat(32)),
+        HELLO_WORLD,
+        BIP322_P2WPKH_PUBKEY_XONLY_HEX,
+        tampered as `0x${string}`,
       ),
+    ).toThrow(/proof of possession signature does not verify/);
+  });
+
+  it("throws when the message differs from the one signed", () => {
+    expect(() =>
+      verifyPopWitness(
+        new TextEncoder().encode("Hello World!"),
+        BIP322_P2WPKH_PUBKEY_XONLY_HEX,
+        HELLO_WORLD_WITNESS,
+      ),
+    ).toThrow(/proof of possession signature does not verify/);
+  });
+
+  it("rejects a valid witness whose embedded pubkey is not the depositor's", () => {
+    // Mirrors vaultd's WitnessPubkeyMismatch (message.rs:117-123): a VALID
+    // signature from the wrong account must surface as the pubkey-mismatch
+    // failure, not as an invalid signature.
+    expect(() =>
+      verifyPopWitness(HELLO_WORLD, "22".repeat(32), HELLO_WORLD_WITNESS),
     ).toThrow(/does not match the depositor key/);
   });
 
@@ -145,6 +171,15 @@ describe("verifyPopWitness", () => {
         badWitness,
       ),
     ).toThrow(/not a compressed public key/);
+  });
+
+  it("rejects a two-item witness whose pubkey is not a point on secp256k1", () => {
+    // Correct shape (33 bytes, 0x02 prefix) but x ≥ the field prime —
+    // vaultd rejects it at CompressedPublicKey::from_slice (message.rs:111-116).
+    const notAPoint: `0x${string}` = `0x02${"47"}${"11".repeat(71)}${"21"}${"02" + "ff".repeat(32)}`;
+    expect(() =>
+      verifyPopWitness(fromHex(GOLDEN_PAYLOAD_HEX), "ff".repeat(32), notAPoint),
+    ).toThrow(/not a valid secp256k1 point/);
   });
 
   it("throws on a witness with any other item count or a truncated item", () => {
