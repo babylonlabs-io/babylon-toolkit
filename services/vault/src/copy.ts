@@ -1624,7 +1624,6 @@ export const COPY = {
     simulateDescription:
       "Simulate BTC price movement and see how your position responds to liquidation risk.",
     exploreAction: "Explore",
-    bitcoinPriceCaption: "Bitcoin Price",
     // The callout filling the price band above the first liquidation trigger.
     safeZone: {
       title: "Safe zone",
