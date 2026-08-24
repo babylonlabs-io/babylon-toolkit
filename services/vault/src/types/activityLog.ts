@@ -77,7 +77,7 @@ export interface ActivityLog {
    * Whether the deposit expired before activation and was reclaimed via the
    * peg-in refund path. Shown as a red dot with the "Deposit expired" tooltip.
    */
-  isExpired?: boolean;
+  isRefunded?: boolean;
   /** Type of activity */
   type: ActivityType;
   /** Amount involved in the activity */
@@ -97,7 +97,7 @@ export interface ActivityLog {
  *  ActivityLog but renders inside the expandable parent. */
 export interface LiquidationChildRow {
   id: string;
-  /** Display label, e.g. "Collateral Liquidated", "Loan Repaid". */
+  /** Display label, e.g. "Liquidated", "Debt repaid". */
   label: string;
   amount: ActivityAmount;
   tokenIcon: string;

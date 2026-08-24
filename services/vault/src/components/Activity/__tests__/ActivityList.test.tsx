@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +6,8 @@ import { COPY } from "@/copy";
 import type { ActivityLog } from "@/types/activityLog";
 
 const DESKTOP_WIDTH = 1024;
+/** Comfortably past the list's 200ms search debounce. */
+const SEARCH_DEBOUNCE_WAIT_MS = 300;
 
 vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
@@ -55,24 +57,30 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   tokenIcon: overrides.tokenIcon ?? "test://btc.svg",
   vaultId: overrides.vaultId,
   isPending: overrides.isPending,
-  isExpired: overrides.isExpired,
+  isRefunded: overrides.isRefunded,
 });
 
 function renderList(props: {
   activities: ActivityLog[];
   isConnected: boolean;
+  prices?: Record<string, number>;
   refundableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
 }) {
-  return render(
+  const element = (next: typeof props) => (
     <MemoryRouter initialEntries={["/activity"]}>
       <Routes>
         <Route element={<Outlet context={{ openDeposit: () => {} }} />}>
-          <Route path="/activity" element={<ActivityList {...props} />} />
+          <Route path="/activity" element={<ActivityList {...next} />} />
         </Route>
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+  const view = render(element(props));
+  return {
+    ...view,
+    rerenderList: (next: typeof props) => view.rerender(element(next)),
+  };
 }
 
 describe("ActivityList", () => {
@@ -161,7 +169,7 @@ describe("ActivityList", () => {
         amount: { value: "100", symbol: "USDC" },
       }),
     ];
-    const { rerender } = renderList({
+    const { rerenderList } = renderList({
       activities: rows,
       isConnected: true,
     });
@@ -172,22 +180,42 @@ describe("ActivityList", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
 
     // Wallet disconnects. Filter must be cleared, not preserved.
-    rerender(
-      <MemoryRouter initialEntries={["/activity"]}>
-        <Routes>
-          <Route element={<Outlet context={{ openDeposit: () => {} }} />}>
-            <Route
-              path="/activity"
-              element={<ActivityList activities={[]} isConnected={false} />}
-            />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+    rerenderList({ activities: [], isConnected: false });
 
     expect(
       screen.getByText(/connect your wallet to view your activity/i),
     ).toBeInTheDocument();
+  });
+
+  it("cancels a pending search when the wallet disconnects", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const rows = [
+      makeRow({ id: "a", type: "Deposit", transactionHash: "0xdeadbeef" }),
+      makeRow({
+        id: "b",
+        type: "Borrow",
+        transactionHash: "0xfeedface",
+        amount: { value: "100", symbol: "USDC" },
+      }),
+    ];
+    const { rerenderList } = renderList({
+      activities: rows,
+      isConnected: true,
+    });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: COPY.activity.searchLabel }),
+      { target: { value: "feedface" } },
+    );
+    rerenderList({ activities: [], isConnected: false });
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_WAIT_MS);
+    });
+    rerenderList({ activities: rows, isConnected: true });
+
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    vi.useRealTimers();
   });
 
   it("v3 UI + disconnected: renders no in-page heading and no filter row", () => {
@@ -248,6 +276,145 @@ describe("ActivityList", () => {
     expect(screen.getByText(COPY.activity.dateToday)).toBeInTheDocument();
     expect(screen.getByText("2025-01-02")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("v3 UI: files a row from the past week under 'Last week'", () => {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    renderList({
+      activities: [makeRow({ id: "recent", date: threeDaysAgo })],
+      isConnected: true,
+    });
+
+    expect(screen.getByText(COPY.activity.dateLastWeek)).toBeInTheDocument();
+  });
+
+  it("v3 UI: renders the USD value of each row from the supplied prices", () => {
+    renderList({
+      activities: [
+        makeRow({
+          id: "a",
+          amount: { value: "1.5", symbol: "BTC", numeric: 1.5 },
+        }),
+      ],
+      isConnected: true,
+      prices: { BTC: 100_000 },
+    });
+
+    expect(screen.getByText("$150,000.00 USD")).toBeInTheDocument();
+  });
+
+  it("v3 UI: renders no USD line for a token with no price", () => {
+    renderList({
+      activities: [
+        makeRow({
+          id: "a",
+          amount: { value: "1.5", symbol: "BTC", numeric: 1.5 },
+        }),
+      ],
+      isConnected: true,
+      prices: { USDC: 1 },
+    });
+
+    expect(screen.queryByText(/USD$/)).not.toBeInTheDocument();
+  });
+
+  it("v3 UI: filters rows by a searched transaction hash, debounced", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const rows = [
+      makeRow({ id: "a", type: "Deposit", transactionHash: "0xdeadbeef" }),
+      makeRow({
+        id: "b",
+        type: "Borrow",
+        transactionHash: "0xfeedface",
+        amount: { value: "100", symbol: "USDC" },
+      }),
+    ];
+    renderList({ activities: rows, isConnected: true });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: COPY.activity.searchLabel }),
+      { target: { value: "feedface" } },
+    );
+
+    // Still both rows until the debounce elapses.
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_WAIT_MS);
+    });
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(1);
+    expect(within(items[0]).getByText("Borrow")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("v3 UI: searches the transaction type text as well as the hash", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const rows = [
+      makeRow({ id: "a", type: "Deposit", transactionHash: "0xdeadbeef" }),
+      makeRow({
+        id: "b",
+        type: "Borrow",
+        transactionHash: "0xfeedface",
+        amount: { value: "100", symbol: "USDC" },
+      }),
+    ];
+    renderList({ activities: rows, isConnected: true });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: COPY.activity.searchLabel }),
+      { target: { value: "depo" } },
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_WAIT_MS);
+    });
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(1);
+    expect(within(items[0]).getByText("Deposit")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("v3 UI: a search that matches nothing shows the filtered-empty state", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderList({
+      activities: [makeRow({ id: "a", type: "Deposit" })],
+      isConnected: true,
+    });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: COPY.activity.searchLabel }),
+      { target: { value: "nothing-matches-this" } },
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_WAIT_MS);
+    });
+
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.getByText(COPY.activity.emptyFiltered)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("v3 UI: drops the card fill on a refunded deposit and keeps it on the others", () => {
+    const { container } = renderList({
+      activities: [
+        makeRow({ id: "refunded", isRefunded: true }),
+        makeRow({ id: "settled" }),
+      ],
+      isConnected: true,
+    });
+
+    const cards = container.querySelectorAll("li > div");
+    expect(cards[0].className).toContain("bg-transparent");
+    expect(cards[1].className).not.toContain("bg-transparent");
+  });
+
+  it("v3 UI: hides the search box when disconnected", () => {
+    renderList({ activities: [], isConnected: false });
+
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   });
 
   it("v3 UI + connected + no activity: shows the shared empty state with a Deposit CTA", () => {

@@ -14,14 +14,11 @@
  */
 
 import { useCallback, useMemo } from "react";
-import type { Address } from "viem";
 
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { usePrices } from "@/hooks/usePrices";
-import { useVaults } from "@/hooks/useVaults";
-import { ContractStatus } from "@/models/peginStateMachine";
 import type { ActivityRow } from "@/types/activityLog";
 
 import { ActivityList } from "./ActivityList";
@@ -47,26 +44,6 @@ export function ActivityListWithRefund({
   // renders no sub-line.
   const { prices } = usePrices();
 
-  // Live vault state for a deposit row's status. Same query key as the deposit
-  // lifecycle above, so this shares that cache instead of fetching again.
-  const { data: vaults } = useVaults(ethAddress as Address | undefined);
-
-  // Undefined until the vaults resolve, which is what keeps a settled deposit
-  // on its type-derived "In use" label instead of flashing "Done" (see
-  // ActivityRowV3.getActivityStatus). A vault that left ACTIVE — redeemed,
-  // withdrawn, liquidated, expired — is no longer holding collateral.
-  const activeVaultIds = useMemo(
-    () =>
-      vaults
-        ? new Set(
-            vaults
-              .filter((vault) => vault.status === ContractStatus.ACTIVE)
-              .map((vault) => vault.id),
-          )
-        : undefined,
-    [vaults],
-  );
-
   // Deposits that expired before activation and have not been reclaimed yet,
   // keyed by vault id. Correlate these against a row's `vaultId` and never its
   // `id`: an indexed row's id is its event, not its vault (see ActivityLog).
@@ -75,13 +52,11 @@ export function ActivityListWithRefund({
     [expiredActivities],
   );
 
-  // Such a row arrives from localStorage still marked pending; the contract
-  // status says otherwise, so correct it before it reaches the status column.
   const rows = useMemo<ActivityRow[]>(
     () =>
       activities.map((row) =>
         row.kind === "row" && row.vaultId && refundableVaultIds.has(row.vaultId)
-          ? { ...row, isPending: false, isExpired: true }
+          ? { ...row, isPending: false }
           : row,
       ),
     [activities, refundableVaultIds],
@@ -97,7 +72,6 @@ export function ActivityListWithRefund({
       activities={rows}
       isConnected={isConnected}
       prices={prices}
-      activeVaultIds={activeVaultIds}
       refundableVaultIds={refundableVaultIds}
       onWithdraw={handleWithdraw}
     />

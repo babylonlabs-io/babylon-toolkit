@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ActivityLog } from "@/types/activityLog";
+
+vi.mock("@/config", () => ({
+  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getBTCNetwork: () => "signet",
+}));
 
 import { ActivityRowV3 } from "../ActivityRowV3";
 
@@ -21,11 +26,25 @@ const baseRow: ActivityLog = {
 };
 
 describe("ActivityRowV3", () => {
-  it("renders amount, type, tx-hash link, and a time-only timestamp", () => {
+  it("leads with the transaction type and puts the asset symbol beneath it", () => {
+    render(<ActivityRowV3 row={{ ...baseRow, type: "Repay" }} />);
+
+    expect(screen.getByText("Repay")).toBeInTheDocument();
+    expect(screen.getByText("BTC")).toBeInTheDocument();
+  });
+
+  it("right-aligns the amount", () => {
     render(<ActivityRowV3 row={baseRow} />);
 
     expect(screen.getByText("1.0 BTC")).toBeInTheDocument();
-    expect(screen.getByText("Deposit")).toBeInTheDocument();
+  });
+
+  it("labels the hash link with the explorer it opens, and the time with 'Time:'", () => {
+    render(<ActivityRowV3 row={baseRow} />);
+
+    // BTC rows link to mempool.space, so the label is derived as "Mempool".
+    expect(screen.getByText("Mempool Explorer :")).toBeInTheDocument();
+    expect(screen.getByText("Time:")).toBeInTheDocument();
 
     const anchor = screen.getByRole("link");
     expect(anchor).toHaveAttribute("href", expect.stringContaining(FULL_HASH));
@@ -35,85 +54,32 @@ describe("ActivityRowV3", () => {
     expect(screen.queryByText(/2025-09-08/)).not.toBeInTheDocument();
   });
 
-  it("shows 'In use' for a deposit whose vault is still active", () => {
-    render(
-      <ActivityRowV3
-        row={baseRow}
-        activeVaultIds={new Set(["0xvault1", "0xvault2"])}
-      />,
-    );
-
-    expect(screen.getByText("In use")).toBeInTheDocument();
-    expect(screen.queryByText("Done")).not.toBeInTheDocument();
-  });
-
-  it("shows 'Done' for a deposit whose vault has left the active set", () => {
-    render(
-      <ActivityRowV3 row={baseRow} activeVaultIds={new Set(["0xvault2"])} />,
-    );
-
-    expect(screen.getByText("Done")).toBeInTheDocument();
-    expect(screen.queryByText("In use")).not.toBeInTheDocument();
-  });
-
-  it("keeps a deposit on 'In use' while the vault read is unresolved", () => {
+  it("renders no status column", () => {
     render(<ActivityRowV3 row={baseRow} />);
 
-    expect(screen.getByText("In use")).toBeInTheDocument();
+    expect(screen.queryByText("In use")).not.toBeInTheDocument();
     expect(screen.queryByText("Done")).not.toBeInTheDocument();
   });
 
-  it("keeps a deposit on 'In use' when the row has no vault id to correlate", () => {
-    render(
-      <ActivityRowV3
-        row={{ ...baseRow, vaultId: null }}
-        activeVaultIds={new Set<string>()}
-      />,
-    );
-
-    expect(screen.getByText("In use")).toBeInTheDocument();
-  });
-
-  it("shows 'Done' for a Withdraw row whatever the active vault set holds", () => {
-    render(
-      <ActivityRowV3
-        row={{ ...baseRow, type: "Withdraw" }}
-        activeVaultIds={new Set(["0xvault1"])}
-      />,
-    );
-
-    expect(screen.getByText("Done")).toBeInTheDocument();
-    expect(screen.queryByText("In use")).not.toBeInTheDocument();
-  });
-
-  it("shows 'Done' for a settled borrow / repay", () => {
-    render(<ActivityRowV3 row={{ ...baseRow, type: "Borrow" }} />);
-    expect(screen.getByText("Done")).toBeInTheDocument();
-
-    render(<ActivityRowV3 row={{ ...baseRow, id: "r2", type: "Repay" }} />);
-    expect(screen.getAllByText("Done").length).toBeGreaterThan(0);
-  });
-
-  it("shows a Pending status for a pending row", () => {
+  it("spins beside the type label while a row is pending", () => {
     render(<ActivityRowV3 row={{ ...baseRow, isPending: true }} />);
 
-    expect(screen.getByText("Pending")).toBeInTheDocument();
-    expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Pending" })).toBeInTheDocument();
   });
 
-  it("shows an Expired status for an expired row", () => {
-    render(<ActivityRowV3 row={{ ...baseRow, isExpired: true }} />);
+  it("shows no spinner on a settled row", () => {
+    render(<ActivityRowV3 row={baseRow} />);
 
-    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("shows Expired (not Pending) when a row is both pending and expired", () => {
-    render(
-      <ActivityRowV3 row={{ ...baseRow, isPending: true, isExpired: true }} />,
+  it("marks a refunded deposit with the Refund chip and dims the row", () => {
+    const { container } = render(
+      <ActivityRowV3 row={{ ...baseRow, isRefunded: true }} />,
     );
 
-    expect(screen.getByText("Expired")).toBeInTheDocument();
-    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+    expect(screen.getByText("Refund")).toBeInTheDocument();
+    expect(container.querySelector(".opacity-60")).toBeInTheDocument();
   });
 
   it("renders the USD sub-line from amount x current price", () => {

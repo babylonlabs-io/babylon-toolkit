@@ -766,8 +766,8 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(group.summary.debt?.value).toBe("10,000");
     expect(group.summary.debt?.symbol).toBe("USDC");
     expect(group.children).toHaveLength(2);
-    expect(group.children[0].label).toBe("Collateral Liquidated");
-    expect(group.children[1].label).toBe("Loan Repaid");
+    expect(group.children[0].label).toBe("Liquidated");
+    expect(group.children[1].label).toBe("Debt repaid");
   });
 
   it("still emits a LiquidationGroupRow when no sibling repay exists", async () => {
@@ -798,7 +798,7 @@ describe("fetchUserActivities liquidation grouping", () => {
     const group = asGroup(result[0]);
     expect(group.summary.debt).toBeNull();
     expect(group.children).toHaveLength(1);
-    expect(group.children[0].label).toBe("Collateral Liquidated");
+    expect(group.children[0].label).toBe("Liquidated");
   });
 
   it("classifies as 'Fully Liquidated' when no deposited vault remains open", async () => {
@@ -942,7 +942,7 @@ describe("fetchUserActivities refunded deposits", () => {
     expect(result).toHaveLength(1);
     const row = asStandard(result[0]);
     expect(row.type).toBe("Deposit");
-    expect(row.isExpired).toBe(true);
+    expect(row.isRefunded).toBe(true);
     expect(row.amount).toEqual({ value: "1", symbol: "sBTC", numeric: 1 });
     expect(row.tokenIcon).toBe("/images/btc.svg");
     // Refunded deposit links to the original BTC peg-in tx (via vault.peginTxHash)
@@ -979,7 +979,7 @@ describe("fetchUserActivities refunded deposits", () => {
     // Both rows present — Deposit and the refunded Deposit. They have distinct ids.
     expect(result).toHaveLength(2);
     const expired = result.find(
-      (r) => r.kind === "row" && r.isExpired === true,
+      (r) => r.kind === "row" && r.isRefunded === true,
     );
     expect(expired).toBeDefined();
   });
