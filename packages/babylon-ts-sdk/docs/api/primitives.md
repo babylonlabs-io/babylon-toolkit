@@ -2505,10 +2505,14 @@ function assertReturnedKeyPathSignatures(params): number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyKeyPathSchnorrSignature.ts)
 
-Verify every key-path-eligible input of the REQUESTED PSBT against what the
-wallet RETURNED: `tapKeySig`, or the single finalized witness item for wallets
-that auto-finalize — and when both are present they must be the same bytes.
-Script-path inputs are skipped (they have their own check).
+Verify every key-path-eligible and P2WPKH input of the REQUESTED PSBT
+against what the wallet RETURNED. Key-path: `tapKeySig`, or the single
+finalized witness item for wallets that auto-finalize — and when both are
+present they must be the same bytes. P2WPKH: `partialSig`, or the finalized
+2-item witness, verified as ECDSA over the BIP-143 sighash
+(assertReturnedP2wpkhSignature); a failure throws but the input is
+NOT counted. Script-path and unknown script types are skipped (they have
+their own checks).
 
 #### Parameters
 
@@ -2520,16 +2524,16 @@ Script-path inputs are skipped (they have their own check).
 
 `number`
 
-How many inputs were actually verified. 0 means NO input was
-         key-path eligible — a caller that knows every input is taproot
-         key-path must assert this equals its input count, or a P2WPKH
-         depositor would read "nothing verified" as "all verified".
+How many inputs were verified KEY-PATH. A caller that knows every
+         input is taproot key-path (e.g. an approval wallet) must assert
+         this equals its input count — P2WPKH inputs never count toward it,
+         so that gate stays exact.
 
 #### Throws
 
 If the input counts differ, an eligible input carries no signature, a
-        finalized witness disagrees with its `tapKeySig`, or any signature
-        does not verify.
+        finalized witness disagrees with its `tapKeySig`/`partialSig`, or any
+        signature does not verify.
 
 ***
 
