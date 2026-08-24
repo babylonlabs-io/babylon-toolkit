@@ -41,6 +41,27 @@ import {
 const MIN_CAPTURE_BYTES = 1000;
 
 /**
+ * The width at or above which the app must render its desktop tree.
+ *
+ * The default breakpoint of core-ui's `useIsMobile`
+ * (packages/babylon-core-ui/src/hooks/useIsMobile.ts), which is what every
+ * responsive branch in the vault shell reads.
+ */
+const DESKTOP_LAYOUT_MIN_WIDTH_PX = 768;
+
+/**
+ * The hamburger button core-ui's Header renders on its mobile branch, and
+ * only there.
+ *
+ * Read rather than added: this is the accessible name core-ui already ships,
+ * and the `nav-*` testids next to it are real-wallet E2E hooks this harness
+ * must not disturb. It is also the one marker that works on every screen -
+ * the sidebar cannot be used, because the disconnected `/` route is the entry
+ * layout and legitimately has no sidebar at any width.
+ */
+const MOBILE_MENU_BUTTON = 'button[aria-label="Open menu"]';
+
+/**
  * Name of the manifest each capture writes beside its PNGs, listing the
  * screens that side INTENDED to produce. Read by `scripts/visual-diff.mjs`
  * (`--expected-baseline` / `--expected-candidate`) and referenced by name in
@@ -121,6 +142,52 @@ export async function assertNoErrorSurface(
       `booted and then failed - usually a read the recorded backend cannot ` +
       `answer. Photographing it would bake "Something went wrong" in as the ` +
       `expected look, and it diffs clean against itself forever.`,
+  ).toHaveCount(0);
+}
+
+/**
+ * Refuse to photograph the mobile layout at a desktop width.
+ *
+ * A category gate, not a fix for one bug. `installVisualDeterminism` freezes
+ * `Date.now()` for the life of the page, and that is load-bearing for
+ * clock-derived copy - `stabilize.ts` explains why `clock.install()` is not an
+ * option instead. The cost is that any throttled or debounced listener in app
+ * code is reduced to a single leading-edge call for the whole capture run: it
+ * takes whatever the first event carried and never revises it. A resize
+ * listener that reads one spurious width therefore keeps it forever.
+ *
+ * That is exactly what happened. A full-page screenshot of a page taller than
+ * the viewport briefly emulates a 1x1 viewport, core-ui's `useIsMobile` took
+ * the 1x1 resize on its leading edge, and five 1280px-wide screens were
+ * photographed as the mobile tree. `stabilize.ts` no longer fires that event,
+ * which closes the instance; this closes the category, because the next
+ * listener to arrive will not have that history to warn it.
+ *
+ * Checked here rather than by the poll for the same reason as
+ * {@link assertNoErrorSurface}: the wrong layout is stable, so no amount of
+ * waiting can see it. Only a claim about what the frame must CONTAIN can.
+ *
+ * Below {@link DESKTOP_LAYOUT_MIN_WIDTH_PX} the gate does nothing - the mobile
+ * layout is the correct answer there, and the spurious width 1 lands on the
+ * same side of the breakpoint as the real one.
+ */
+async function assertLayoutMatchesViewport(
+  page: Page,
+  label: string,
+): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width < DESKTOP_LAYOUT_MIN_WIDTH_PX) return;
+
+  await expect(
+    page.locator(MOBILE_MENU_BUTTON),
+    `${label} captured the mobile layout at a ${viewport.width}px viewport. ` +
+      `The app decided it is mobile and never revised that decision, which is ` +
+      `what a resize listener does when it takes a spurious width on its ` +
+      `leading edge and the frozen capture clock stops its trailing edge from ` +
+      `ever firing. The result is a desktop-width photograph of the mobile ` +
+      `tree, and it is perfectly static, so it diffs clean against itself ` +
+      `forever. Find what resized the page during the capture rather than ` +
+      `accepting this as a baseline.`,
   ).toHaveCount(0);
 }
 
@@ -209,6 +276,8 @@ export async function capture(
   // Per photograph, not per walk - see {@link assertNoErrorSurface}. Settled
   // is not the same as rendered: an error fallback is perfectly stable.
   await assertNoErrorSurface(page, fileName);
+  // Nor is settled the same as correct: a latched mobile layout is stable too.
+  await assertLayoutMatchesViewport(page, fileName);
   const buffer = await page.screenshot({ fullPage: true });
   expect(
     buffer.byteLength,
