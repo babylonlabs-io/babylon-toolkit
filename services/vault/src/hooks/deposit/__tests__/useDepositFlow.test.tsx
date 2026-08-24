@@ -1915,7 +1915,9 @@ describe("useDepositFlow", () => {
       expect(result.current.canCancelDeviceSign).toBe(false);
     });
 
-    it("stops the payout loop when a requested cancel settles — the next vault gets no ceremony", async () => {
+    // Shared setup for the multi-vault payout-cancel tests below: hold vault
+    // 0's graph sign open, request the device cancel, hand back a settle helper.
+    async function startPayoutSignAndRequestCancel() {
       const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
       );
@@ -1923,7 +1925,8 @@ describe("useDepositFlow", () => {
       const signPsbt = vi
         .fn()
         // Vault 0's graph sign is held open for the cancel; a (buggy) second
-        // vault ceremony would resolve immediately and expose itself below.
+        // vault ceremony would resolve immediately and expose itself in the
+        // loop-stop test.
         .mockImplementationOnce(
           () =>
             new Promise<string>((_resolve, reject) => {
@@ -1954,18 +1957,51 @@ describe("useDepositFlow", () => {
         result.current.cancelDeviceSign();
       });
 
-      let resolved: unknown;
-      await act(async () => {
-        settle.reject(signingCancelledError());
-        resolved = await flowPromise;
-      });
+      const settleAsCancelRejection = async () => {
+        let resolved: unknown;
+        await act(async () => {
+          settle.reject(signingCancelledError());
+          resolved = await flowPromise;
+        });
+        return resolved;
+      };
+      return { result, signAndSubmitPayouts, settleAsCancelRejection };
+    }
+
+    it("stops the payout loop when a requested cancel settles — the next vault gets no ceremony", async () => {
+      const { signAndSubmitPayouts, settleAsCancelRejection } =
+        await startPayoutSignAndRequestCancel();
+
+      await settleAsCancelRejection();
 
       // The cancel stops the loop: vault 1's ceremony must never start —
       // before the fix it re-ran the full device ceremony seconds after
       // the user asked to stop.
       expect(signAndSubmitPayouts).toHaveBeenCalledTimes(1);
+    });
+
+    it("resolves the flow with a deposit result when a mid-loop payout cancel settles", async () => {
+      const { settleAsCancelRejection } =
+        await startPayoutSignAndRequestCancel();
+
+      const resolved = await settleAsCancelRejection();
       expect(resolved).not.toBeNull();
+    });
+
+    it("sets no flow error when a mid-loop payout cancel settles", async () => {
+      const { result, settleAsCancelRejection } =
+        await startPayoutSignAndRequestCancel();
+
+      await settleAsCancelRejection();
       expect(result.current.error).toBeNull();
+    });
+
+    it("warns only for the cancelled vault — the unattempted vault gets no warning", async () => {
+      const { result, settleAsCancelRejection } =
+        await startPayoutSignAndRequestCancel();
+
+      await settleAsCancelRejection();
+
       // Cancelled outcome, not a plain success: vault 0 carries the
       // cancelled warning; vault 1 is unattempted, not failed (no warning).
       expect(result.current.lastWarnings).toEqual([
@@ -1978,7 +2014,9 @@ describe("useDepositFlow", () => {
       ]);
     });
 
-    it("surfaces a single-vault payout cancel as cancelled, not as a signing failure", async () => {
+    // Same shape for a single-vault deposit: the whole batch is trimmed to
+    // one vault, its graph sign held open, and the device cancel requested.
+    async function startSingleVaultPayoutSignAndRequestCancel() {
       const {
         signAndSubmitPayouts,
         registerPeginBatchAndWait,
@@ -2044,14 +2082,39 @@ describe("useDepositFlow", () => {
         result.current.cancelDeviceSign();
       });
 
-      let resolved: unknown;
-      await act(async () => {
-        settle.reject(signingCancelledError());
-        resolved = await flowPromise;
-      });
+      const settleAsCancelRejection = async () => {
+        let resolved: unknown;
+        await act(async () => {
+          settle.reject(signingCancelledError());
+          resolved = await flowPromise;
+        });
+        return resolved;
+      };
+      return { result, settleAsCancelRejection };
+    }
 
+    it("resolves the flow with a deposit result when a single-vault payout cancel settles", async () => {
+      const { settleAsCancelRejection } =
+        await startSingleVaultPayoutSignAndRequestCancel();
+
+      const resolved = await settleAsCancelRejection();
       expect(resolved).not.toBeNull();
+    });
+
+    it("sets no flow error when a single-vault payout cancel settles", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSingleVaultPayoutSignAndRequestCancel();
+
+      await settleAsCancelRejection();
       expect(result.current.error).toBeNull();
+    });
+
+    it("surfaces a single-vault payout cancel as the cancelled warning, not a signing failure", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSingleVaultPayoutSignAndRequestCancel();
+
+      await settleAsCancelRejection();
+
       // Cancelled, not "Payout signing failed - <wallet error>".
       expect(result.current.lastWarnings).toEqual([
         {
