@@ -177,6 +177,83 @@ Error.constructor
 
 ***
 
+### ReclaimUneconomicalError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts)
+
+Thrown when the fee would consume too much of the swept reserve — either the
+per-vbyte rate exceeds the safety ceiling, or the absolute fee exceeds the
+fraction cap.
+
+Distinct from a generic error because the caller's response differs: nothing
+is at risk and nothing expires. The reserve simply stays where it is until
+fee rates fall, and the UI should say so rather than presenting a failure.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new ReclaimUneconomicalError(
+   message, 
+   feeSats, 
+   sweptTotalSats): ReclaimUneconomicalError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### feeSats
+
+`bigint`
+
+###### sweptTotalSats
+
+`bigint`
+
+###### Returns
+
+[`ReclaimUneconomicalError`](#reclaimuneconomicalerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### feeSats
+
+```ts
+readonly feeSats: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts)
+
+Fee the reclaim would have paid, in satoshis.
+
+##### sweptTotalSats
+
+```ts
+readonly sweptTotalSats: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/errors.ts)
+
+Sum of the reserves the reclaim would have swept, in satoshis.
+
+***
+
 ### BIP68NotMatureError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
@@ -2367,6 +2444,150 @@ drift.
 
 ***
 
+### ReclaimVaultData
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+One reserve to sweep, as the caller resolves it.
+
+#### Properties
+
+##### depositorSignedPeginTxHex
+
+```ts
+depositorSignedPeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+The contract's own copy of the depositor-signed PegIn transaction
+(`VaultProtocolInfo.depositorSignedPeginTx`). Must come from the chain —
+never the indexer. Its `outs[1]` is one leg of the three-way bind.
+
+##### observed
+
+```ts
+observed: object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Independent chain observation of `peginTxid:1`.
+
+###### scriptPubKey
+
+```ts
+scriptPubKey: string;
+```
+
+###### value
+
+```ts
+value: bigint;
+```
+
+##### expectedClaimValue
+
+```ts
+expectedClaimValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+This vault's reserve value, recomputed via `computeMinClaimValue`.
+
+***
+
+### ReclaimInput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`BtcBroadcastResult`](#btcbroadcastresult) = [`BtcBroadcastResult`](#btcbroadcastresult)
+
+#### Properties
+
+##### vaultIds
+
+```ts
+vaultIds: `0x${string}`[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+##### depositorBtcPubkey
+
+```ts
+depositorBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+The **connected wallet's live** BTC pubkey — compressed sec1 or x-only.
+Never the indexer's `depositorBtcPubkey`: re-deriving the claim script
+from the live key is what proves the wallet about to sign is the wallet
+that can spend.
+
+##### readVaults()
+
+```ts
+readVaults: () => Promise<ReclaimVaultData[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Resolve the reserves to sweep, in the same order as `vaultIds`. The SDK
+passes no arguments — the caller closes over whatever context it needs.
+
+###### Returns
+
+`Promise`\<[`ReclaimVaultData`](#reclaimvaultdata)[]\>
+
+##### feeRate
+
+```ts
+feeRate: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Mempool-derived sat/vB fee rate. Caller fetches it before invoking.
+
+##### signPsbt
+
+```ts
+signPsbt: ReclaimPsbtSigner;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+BTC wallet signer; receives a PSBT hex + taproot script-path options.
+
+##### broadcastTx
+
+```ts
+broadcastTx: BtcBroadcaster<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Broadcast callback — returns whatever shape the caller needs.
+
+##### signal?
+
+```ts
+optional signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Checked at every async boundary.
+
+***
+
 ### VaultBatchEntry
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
@@ -2823,6 +3044,30 @@ type KeyResolutionMode =
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/types.ts)
 
 How a [ParticipantKeySet](#participantkeyset) was resolved. Carried for diagnostics.
+
+***
+
+### ReclaimPsbtSigner()
+
+```ts
+type ReclaimPsbtSigner = (psbtHex, opts) => Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+#### Parameters
+
+##### psbtHex
+
+`string`
+
+##### opts
+
+[`SignPsbtOptions`](managers.md#signpsbtoptions)
+
+#### Returns
+
+`Promise`\<`string`\>
 
 ***
 
@@ -3886,6 +4131,49 @@ thresholds) are a consumer-side concern.
 
 ***
 
+### buildAndBroadcastReclaim()
+
+```ts
+function buildAndBroadcastReclaim<R>(input): Promise<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Build, sign, and broadcast a reclaim transaction sweeping one or more
+depositor-claim reserves back to the depositor's BIP-86 address.
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`BtcBroadcastResult`](#btcbroadcastresult) = [`BtcBroadcastResult`](#btcbroadcastresult)
+
+#### Parameters
+
+##### input
+
+[`ReclaimInput`](#reclaiminput)\<`R`\>
+
+#### Returns
+
+`Promise`\<`R`\>
+
+whatever the injected `broadcastTx` returns (generic pass-through)
+
+#### Throws
+
+[ReclaimUneconomicalError](#reclaimuneconomicalerror) if the fee breaches either cap
+
+#### Throws
+
+`Error` if any validation or script/value bind fails
+
+#### Throws
+
+anything `readVaults`, `signPsbt`, or `broadcastTx` throws
+
+***
+
 ### estimateRefundFeeSats()
 
 ```ts
@@ -4203,6 +4491,64 @@ by a client bug), and costs ~1.6 min at 12s slots. Deliberately not the
 benefit. This is a liveness guard against an orphaned registration, not a
 theft mitigation — every Pre-PegIn HTLC spend path requires the depositor's
 own BTC key regardless.
+
+***
+
+### RECLAIM\_MAX\_FEE\_RATE\_SATS\_VB
+
+```ts
+const RECLAIM_MAX_FEE_RATE_SATS_VB: 2000 = 2000;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Hard upper bound on the per-vbyte fee rate the SDK will sign a reclaim at.
+Same reasoning and value as the refund's cap: a compromised mempool endpoint
+can legally return up to 10,000 sat/vB, and 2000 leaves margin over the
+worst historical `halfHourFee` while still blocking that by 5×.
+
+***
+
+### RECLAIM\_MAX\_FEE\_FRACTION\_NUMERATOR
+
+```ts
+const RECLAIM_MAX_FEE_FRACTION_NUMERATOR: 25n = 25n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Hard upper bound on the absolute fee as a fraction of the **swept total**.
+
+> ⚠️ The basis here is deliberately different from the refund's. There the
+> basis is `vault.amount` and the swept amount is far larger, so a 10% cap is
+> generous. Here the basis *is* the swept amount — roughly 33k sats — and a
+> 10% cap would block every reclaim above about 25 sat/vB. Do not "fix" this
+> into symmetry with `REFUND_MAX_FEE_FRACTION_*`; it would silently change
+> behaviour. The matching comment lives at the UI cap site.
+
+***
+
+### RECLAIM\_MAX\_FEE\_FRACTION\_DENOMINATOR
+
+```ts
+const RECLAIM_MAX_FEE_FRACTION_DENOMINATOR: 100n = 100n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+***
+
+### RECLAIM\_WARN\_FEE\_FRACTION\_NUMERATOR
+
+```ts
+const RECLAIM_WARN_FEE_FRACTION_NUMERATOR: 10n = 10n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+Fraction of the swept total above which the UI warns but still allows the
+reclaim. Exported so the review screen derives its threshold from the same
+constant the SDK enforces against, rather than restating it.
 
 ***
 

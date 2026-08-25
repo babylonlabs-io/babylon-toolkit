@@ -446,6 +446,60 @@ Per-input connector params (one per input/segment, determines the taproot script
 
 ***
 
+### DepositorClaimDescriptor
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The single-leaf taptree's spend material for one depositor key.
+
+#### Properties
+
+##### scriptPubKey
+
+```ts
+scriptPubKey: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+P2TR scriptPubKey the PegIn pays at [PEGIN\_DEPOSITOR\_CLAIM\_VOUT](#pegin_depositor_claim_vout).
+
+##### leafScript
+
+```ts
+leafScript: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The one tapleaf: `<depositor> OP_CHECKSIG`, 34 bytes.
+
+##### controlBlock
+
+```ts
+controlBlock: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+Control block for that leaf: `[leafVersion | outputKeyParity] || NUMS`,
+33 bytes. The tree has a single leaf at depth 0, so it carries no sibling
+hashes.
+
+##### internalKey
+
+```ts
+internalKey: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The NUMS internal key the taptree commits to — the PSBT's `tapInternalKey`.
+Carried here so an input's internal key and control block provably come
+from the same derivation.
+
+***
+
 ### NoPayoutParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts)
@@ -1282,6 +1336,148 @@ PSBT hex for the depositor to sign
 
 ***
 
+### ReclaimReserve
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+One depositor-claim reserve to sweep, with the material to bind it.
+
+#### Properties
+
+##### depositorSignedPeginTxHex
+
+```ts
+depositorSignedPeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+The contract's own copy of the depositor-signed PegIn transaction
+(`VaultProtocolInfo.depositorSignedPeginTx`). Authoritative: its SegWit
+txid equals the broadcast PegIn's, and its `outs[1]` carries the reserve's
+script and value at no extra RPC cost.
+
+##### observed
+
+```ts
+observed: object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Independent chain observation of `peginTxid:1` (esplora UTXO lookup).
+
+###### scriptPubKey
+
+```ts
+scriptPubKey: string;
+```
+
+scriptPubKey hex, with or without `0x` prefix.
+
+###### value
+
+```ts
+value: bigint;
+```
+
+Output value in satoshis.
+
+##### expectedValue
+
+```ts
+expectedValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+The reserve value recomputed from this vault's protocol parameters via
+`computeMinClaimValue`. Bound so a doctored PegIn that agrees with itself
+and with a compromised indexer still fails.
+
+***
+
+### BuildReclaimPsbtParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+#### Properties
+
+##### depositorPubkey
+
+```ts
+depositorPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+The **connected wallet's live** x-only pubkey, 64-char hex. Never the
+indexer's `depositorBtcPubkey`: re-deriving from the live key is what
+proves the wallet about to sign is the wallet that can spend, and rejects
+the wrong-wallet case with an error instead of an unspendable broadcast.
+
+##### inputs
+
+```ts
+inputs: ReclaimReserve[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Reserves to sweep. An array so batching several vaults into one
+transaction is a later change rather than a rewrite; today the app passes
+exactly one.
+
+##### feeSats
+
+```ts
+feeSats: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Absolute fee in satoshis. The caller sizes it; see `reclaimVsize`.
+
+***
+
+### BuildReclaimPsbtResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+#### Properties
+
+##### psbtHex
+
+```ts
+psbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+PSBT hex ready for depositor signing.
+
+##### outputValue
+
+```ts
+outputValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Value of the single output — what the depositor actually receives.
+
+##### totalInputValue
+
+```ts
+totalInputValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Sum of the swept reserves, before fee.
+
+***
+
 ### BuildRefundPsbtParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts)
@@ -2057,6 +2253,63 @@ If two inputs reference the same Assert output index
 
 ***
 
+### deriveDepositorClaimDescriptor()
+
+```ts
+function deriveDepositorClaimDescriptor(depositorPubkey): DepositorClaimDescriptor;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+Derive the depositor-claim output's spend material in JS, independently of
+WASM — the Rust `SingleKeyConnector` has no WASM wrapper, so this is the
+only derivation available on the JS side.
+
+Takes no graph version: the connector is identical across v1/v2/v3. A future
+`VAULT_WASM_COMMIT` bump that changed it would break `assertPeginTxShape` at
+peg-in build time, which is where that regression should surface.
+
+#### Parameters
+
+##### depositorPubkey
+
+`string`
+
+x-only depositor pubkey, 64-char hex (no 0x prefix)
+
+#### Returns
+
+[`DepositorClaimDescriptor`](#depositorclaimdescriptor)
+
+#### Throws
+
+If bitcoinjs cannot derive the P2TR output or its control block
+
+***
+
+### deriveDepositorClaimScriptPubKey()
+
+```ts
+function deriveDepositorClaimScriptPubKey(depositorPubkey): Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The depositor-claim output's scriptPubKey alone — the peg-in validation path,
+which has no need of the spend material.
+
+#### Parameters
+
+##### depositorPubkey
+
+`string`
+
+#### Returns
+
+`Buffer`
+
+***
+
 ### buildNoPayoutPsbt()
 
 ```ts
@@ -2421,6 +2674,92 @@ Non-finalized signed PSBT hex (returned by wallet with autoFinalized: false)
 `string`
 
 Depositor-signed PegIn transaction hex with full taproot witness stack
+
+***
+
+### reclaimVsize()
+
+```ts
+function reclaimVsize(numInputs): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Virtual size of an N-in/1-out reclaim transaction.
+
+`REFUND_VSIZE = 160` does not generalise to N inputs, and
+`computePeginBaseFeeSats` is wrong for this shape entirely — its
+`P2TR_INPUT_SIZE = 58` is a *key-path* input and under-fees a script-path
+spend by roughly a quarter.
+
+N=1 → 129 vB; each additional input adds 75 vB.
+
+#### Parameters
+
+##### numInputs
+
+`number`
+
+#### Returns
+
+`number`
+
+***
+
+### estimateReclaimFeeSats()
+
+```ts
+function estimateReclaimFeeSats(feeRateSatsVb, numInputs): bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Absolute fee in satoshis for an N-in/1-out reclaim at a given rate.
+
+#### Parameters
+
+##### feeRateSatsVb
+
+`number`
+
+##### numInputs
+
+`number`
+
+#### Returns
+
+`bigint`
+
+***
+
+### buildReclaimPsbt()
+
+```ts
+function buildReclaimPsbt(params): BuildReclaimPsbtResult;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Build the N-in/1-out reclaim PSBT.
+
+Every input is bound three ways before it reaches the PSBT: the contract's
+PegIn bytes, the chain observation, and a JS re-derivation from the live
+wallet key must agree on both script and value. Any disagreement throws.
+
+#### Parameters
+
+##### params
+
+[`BuildReclaimPsbtParams`](#buildreclaimpsbtparams)
+
+#### Returns
+
+[`BuildReclaimPsbtResult`](#buildreclaimpsbtresult)
+
+#### Throws
+
+If `inputs` is empty, the fee is non-positive, any input fails its
+  script or value bind, or the resulting output would be at or below dust.
 
 ***
 
@@ -3144,3 +3483,19 @@ Where the value came from, for the error message
 #### Returns
 
 `void`
+
+## Variables
+
+### PEGIN\_DEPOSITOR\_CLAIM\_VOUT
+
+```ts
+const PEGIN_DEPOSITOR_CLAIM_VOUT: 1 = 1;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+Vout of the depositor-claim output in every PegIn version (btc-vault: vault
+at 0, depositor claim at 1, optional P2A anchor appended after).
+
+Version-invariant: the graph version dispatches only the trailing P2A anchor
+(absent in v1, 240 sats at vout 2 in v2/v3). Nothing touches vout 1.
