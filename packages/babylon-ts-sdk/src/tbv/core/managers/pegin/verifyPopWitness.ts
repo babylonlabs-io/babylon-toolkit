@@ -26,6 +26,8 @@ import type { Hex } from "viem";
 import { decodeWitnessStack } from "../../utils/witness/witnessStack";
 
 import {
+  P2WPKH_ENCODED_SIG_MAX,
+  P2WPKH_ENCODED_SIG_MIN,
   verifyBip322P2wpkhSimple,
   verifyBip322Simple,
 } from "../../clients/vault-provider/auth/bip322Verify";
@@ -156,6 +158,29 @@ export function verifyPopWitness(
       throw new Error(
         `proof of possession witness pubkey does not match the depositor key: ` +
           `witness carries ${witnessXOnlyHex}, expected ${depositorXOnlyHex}`,
+      );
+    }
+    // vaultd only ingests 71/72-byte DER+sighash signatures (bip322 crate
+    // 0.0.10 verify.rs:140-154); RFC-6979 wallets re-sign identically on
+    // retry, so name the real cause instead of a wrong-key diagnosis.
+    if (
+      encodedSignature.length < P2WPKH_ENCODED_SIG_MIN ||
+      encodedSignature.length > P2WPKH_ENCODED_SIG_MAX
+    ) {
+      throw new Error(
+        `proof of possession signature is ${encodedSignature.length} bytes; ` +
+          `vault ingestion accepts only 71/72-byte DER signatures with a ` +
+          `sighash byte — try a different account or a Taproot address`,
+      );
+    }
+    // The trailing byte is the sighash type (bitcoinjs script_signature.js
+    // decode reads it) and the verifier accepts SIGHASH_ALL only — surface it.
+    if (encodedSignature[encodedSignature.length - 1] !== SIGHASH_ALL) {
+      throw new Error(
+        `proof of possession P2WPKH signature must end in a SIGHASH_ALL ` +
+          `(0x01) byte, got 0x${encodedSignature[
+            encodedSignature.length - 1
+          ].toString(16)}`,
       );
     }
     // BIP-322 simple verification against the P2WPKH address of the witness

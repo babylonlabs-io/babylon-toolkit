@@ -11,6 +11,14 @@
  */
 
 /**
+ * Vault-core (tx-graph) versions the device can sign: v2 is the firmware's
+ * Core-2 tx shape; v3 is byte-identical (btc-vault e1e50f66; SDK parity vector
+ * pegin.test.ts). Widen only on evidence a future version is device-compatible.
+ */
+export const DEVICE_MIN_VAULT_CORE_VERSION = 2;
+export const DEVICE_MAX_VAULT_CORE_VERSION = 3;
+
+/**
  * Keeper and universal-challenger counts, each `[1, 32]` (`vault_intent.h:8-9`,
  * checked `vault_tlv.c:130,137`). Far below the protocol: the contract allows
  * 1500 universal challengers and sets no keeper cap at all.

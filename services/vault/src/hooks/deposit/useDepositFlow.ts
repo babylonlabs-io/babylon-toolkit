@@ -46,7 +46,10 @@ import {
 } from "@/clients/eth-contract/sdk-readers";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { markWotsSubmitted } from "@/context/deposit/optimisticDepositState";
+import {
+  markPayoutSignCanceled,
+  markWotsSubmitted,
+} from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
@@ -90,7 +93,10 @@ import {
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
-import { isUserCancellation } from "@/utils/errors/userCancellation";
+import {
+  isUserCancellation,
+  WALLET_CONNECTION_REJECTED_CODE,
+} from "@/utils/errors/userCancellation";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
 
@@ -319,6 +325,10 @@ export function useDepositFlow(
   // catch reads it to surface cancelled (not rejected) copy. Reset only at
   // the start of the next executeDeposit run.
   const deviceCancelSettledRef = useRef(false);
+  // Set when the LAST runCancellableSign settled successfully with a cancel
+  // request still pending (the late-cancel race). Only the broadcast wrapper
+  // consults it — everywhere else the successful sign deliberately proceeds.
+  const lastSignSettledWithCancelPendingRef = useRef(false);
   // Provider that STARTED the in-flight sign. Cancellation binds to it so a
   // wallet swapped in mid-prompt cannot orphan the original ceremony.
   const deviceSignProviderRef = useRef<unknown>(null);
@@ -328,8 +338,14 @@ export function useDepositFlow(
       deviceSignProviderRef.current = signingProvider;
       deviceSignActiveRef.current = true;
       setDeviceSignActive(true);
+      lastSignSettledWithCancelPendingRef.current = false;
       try {
-        return await sign();
+        const signed = await sign();
+        // Captured before the finally consumes the request — the broadcast
+        // wrapper reads it to withhold pushTx on a late cancel.
+        lastSignSettledWithCancelPendingRef.current =
+          deviceCancelRequestedRef.current;
+        return signed;
       } catch (error) {
         // The requested cancel took effect (a late cancel that still signed
         // successfully deliberately does NOT stick — the flow proceeds).
@@ -413,6 +429,10 @@ export function useDepositFlow(
       // Track registry entries we primed so we can release them on
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
       const primedRegistryTxids: string[] = [];
+
+      // Flips once the ETH batch registration is mined: a cancel after that
+      // point gets the after-registration copy pointing at the resume path.
+      let registeredOnEth = false;
 
       try {
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
@@ -711,6 +731,7 @@ export function useDepositFlow(
           popSignature,
           quotedCommissionBps,
         });
+        registeredOnEth = true;
 
         // 3f. Build pegin results from batch response
         const peginResults: PeginCreationResult[] =
@@ -928,10 +949,26 @@ export function useDepositFlow(
           prePeginBroadcastTxid = await broadcastPrePeginTransaction({
             unsignedTxHex: batchResult.fundedPrePeginTxHex,
             btcWalletProvider: {
-              signPsbt: (psbtHex: string) =>
-                runCancellableSign(confirmedBtcWallet, () =>
-                  confirmedBtcWallet.signPsbt(psbtHex),
-                ),
+              signPsbt: async (psbtHex: string) => {
+                const signedPsbtHex = await runCancellableSign(
+                  confirmedBtcWallet,
+                  () => confirmedBtcWallet.signPsbt(psbtHex),
+                );
+                // A late cancel that still signed successfully proceeds
+                // elsewhere — but here the next step is the irreversible
+                // pushTx, so honor the cancel: throw before the tx leaves,
+                // keeping the records PENDING and resumable (Broadcast CTA).
+                if (lastSignSettledWithCancelPendingRef.current) {
+                  deviceCancelSettledRef.current = true;
+                  throw Object.assign(
+                    new Error(
+                      "Signing canceled — the signed Pre-PegIn was not broadcast",
+                    ),
+                    { code: WALLET_CONNECTION_REJECTED_CODE },
+                  );
+                }
+                return signedPsbtHex;
+              },
               deriveContextHash: (appName: string, context: string) =>
                 confirmedBtcWallet.deriveContextHash(appName, context),
               // Object spread drops prototype methods — see forwardDepositApproval.
@@ -1298,7 +1335,8 @@ export function useDepositFlow(
           // A settled user cancel stops the loop: the next iteration would
           // re-run the full device ceremony (requireFreshDeviceCeremony)
           // seconds after the user asked to stop. Remaining vaults are left
-          // unattempted (no warning), not failed.
+          // unattempted (no warning), not failed. Backstop only: the settle
+          // rejects into the catch below, whose break is the operative stop.
           if (deviceCancelSettledRef.current) break;
 
           // Skip vaults whose WOTS key submission failed — the VP won't have
@@ -1374,14 +1412,26 @@ export function useDepositFlow(
             // THIS vault cancelled and end the loop. Routine drop-off — no
             // partial-failure telemetry.
             if (deviceCancelSettledRef.current) {
+              // ResumeSignContent reads this to withhold its mount auto-run —
+              // the handoff must not re-prompt the device after the cancel.
+              markPayoutSignCanceled(result.vaultId);
               recordWarning({
                 vaultId: result.vaultId,
                 stage: "payout",
                 terminal: false,
-                message: COPY.deposit.warnings.payoutSigningCancelled(
+                message: COPY.deposit.warnings.payoutSigningCanceled(
                   result.vaultIndex + 1,
                 ),
               });
+              // Post-loop invariant: unsigned vaults rest at the payout wait,
+              // not the mid-signing step onProgress last set.
+              setPerVaultSteps((prev) =>
+                prev.map((step, index) =>
+                  index === vi
+                    ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS
+                    : step,
+                ),
+              );
               break;
             }
 
@@ -1421,6 +1471,13 @@ export function useDepositFlow(
                   providerAddress: provider.id,
                 },
               },
+            );
+            // Post-loop invariant: unsigned vaults rest at the payout wait,
+            // not the mid-signing step onProgress last set.
+            setPerVaultSteps((prev) =>
+              prev.map((step, index) =>
+                index === vi ? DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS : step,
+              ),
             );
             // Continue with other vaults
           }
@@ -1465,13 +1522,22 @@ export function useDepositFlow(
           // A settled self-cancel gets its own copy: the generic mapper reads
           // the wallet's CONNECTION_REJECTED as "You rejected the request in
           // your wallet. Click Retry" — misattributed, and naming a button
-          // this surface doesn't render.
+          // this surface doesn't render. Post-registration cancels get the
+          // variant pointing at the resume path — vaults are already on-chain.
           setError(
             deviceCancelSettledRef.current && isUserCancellation(err)
-              ? {
-                  title: COPY.deposit.errors.signingCancelled.title,
-                  body: COPY.deposit.errors.signingCancelled.body,
-                }
+              ? registeredOnEth
+                ? {
+                    title:
+                      COPY.deposit.errors.signingCanceledAfterRegistration
+                        .title,
+                    body: COPY.deposit.errors.signingCanceledAfterRegistration
+                      .body,
+                  }
+                : {
+                    title: COPY.deposit.errors.signingCanceled.title,
+                    body: COPY.deposit.errors.signingCanceled.body,
+                  }
               : mapDepositError(err),
           );
           logger.error(err instanceof Error ? err : new Error(String(err)), {
@@ -1536,7 +1602,7 @@ export function useDepositFlow(
     setDeviceCancelRequested(true);
     // Device-only cancel (aborting the flow controller reads as a closed
     // modal). Settles at the next device exchange boundary: pre-broadcast =
-    // "Signing cancelled" callout; post-broadcast payout stage = cancelled
+    // "Signing canceled" callout; post-broadcast payout stage = cancelled
     // warning and the loop stops.
     provider.cancelSigning();
   }, []);

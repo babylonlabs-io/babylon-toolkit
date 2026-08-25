@@ -307,7 +307,9 @@ describe("assertReturnedKeyPathSignatures", () => {
     ).toThrow(/non-minimal/);
   });
 
-  it("skips inputs that are not key-path eligible (script-path inputs are the script-path verifier's job)", () => {
+  it("throws on a script-path input instead of treating it as verified", () => {
+    // No verifier here covers script-path spends: silently skipping would
+    // report the PSBT as checked with an input nothing looked at.
     const req = new Psbt();
     req.addInput({
       hash: Buffer.alloc(32, 1),
@@ -328,7 +330,7 @@ describe("assertReturnedKeyPathSignatures", () => {
         requestedPsbtHex: req.toHex(),
         returnedPsbtHex: req.toHex(),
       }),
-    ).not.toThrow();
+    ).toThrow(/input 0.*neither key-path P2TR nor P2WPKH/i);
   });
 });
 
@@ -535,6 +537,125 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
     ).toThrow(/input 0/);
   });
 
+  it("rejects a canonical high-S signature (only the strict verify flag catches it), naming the input", () => {
+    // libsecp's verify_ecdsa rejects high-S (client.rs:992-999); on the host
+    // only ecc.verify's strict flag does — DER shape and the canonicality
+    // round-trip both accept (r, n−s), so this pins the flag itself.
+    const SECP256K1_ORDER = BigInt(
+      "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+    );
+    const req = p2wpkhRequestedPsbt();
+    const { signature } = bscript.signature.decode(signP2wpkh(req, 0));
+    const s = BigInt(`0x${signature.subarray(32).toString("hex")}`);
+    const highSCompact = Buffer.concat([
+      signature.subarray(0, 32),
+      Buffer.from((SECP256K1_ORDER - s).toString(16).padStart(64, "0"), "hex"),
+    ]);
+    const encoded = Buffer.from(
+      bscript.signature.encode(highSCompact, Transaction.SIGHASH_ALL),
+    );
+    // Sanity: (r, n−s) verifies with strictness off — only strict rejects.
+    const tx = Transaction.fromBuffer(req.data.globalMap.unsignedTx.toBuffer());
+    const sighash = tx.hashForWitnessV0(
+      0,
+      p2wpkhScriptCode(PUB),
+      req.data.inputs[0].witnessUtxo!.value,
+      Transaction.SIGHASH_ALL,
+    );
+    expect(ecc.verify(sighash, PUB, highSCompact, false)).toBe(true);
+    expect(ecc.verify(sighash, PUB, highSCompact, true)).toBe(false);
+
+    const ret = Psbt.fromHex(req.toHex());
+    ret.data.inputs[0].partialSig = [{ pubkey: PUB, signature: encoded }];
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0 does not verify/);
+  });
+
+  it("rejects an input carrying two partialSig entries, naming the input", () => {
+    const req = p2wpkhRequestedPsbt();
+    const ret = Psbt.fromHex(req.toHex());
+    const otherPub = Buffer.from(
+      ecc.pointFromScalar(Buffer.alloc(32, 9), true)!,
+    );
+    // Direct assignment (same bypass as the corrupted-DER test): the bip174
+    // parser doesn't validate, so a wallet can return two entries.
+    ret.data.inputs[0].partialSig = [
+      { pubkey: PUB, signature: signP2wpkh(req, 0) },
+      { pubkey: otherPub, signature: signP2wpkh(req, 0) },
+    ];
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0.*at most one partial signature/);
+  });
+
+  it("rejects a non-canonical DER encoding (oversized R with a junk tail) that decodes to a valid signature", () => {
+    // bip66.decode never bounds lenR at 33 and bitcoinjs fromDER truncates an
+    // oversized integer back to the true value (bitcoinjs-lib 6.1.7
+    // bip66.js:36-38, script_signature.js:29-35) — but libsecp's strict
+    // consensus parse rejects these bytes (secp256k1-sys ecdsa_impl.h:127-136),
+    // so blessing them would broadcast a consensus-invalid witness.
+    const req = p2wpkhRequestedPsbt();
+    const tx = Transaction.fromBuffer(req.data.globalMap.unsignedTx.toBuffer());
+    const sighash = tx.hashForWitnessV0(
+      0,
+      p2wpkhScriptCode(PUB),
+      req.data.inputs[0].witnessUtxo!.value,
+      Transaction.SIGHASH_ALL,
+    );
+    // Grind for r[0] in (0, 0x80): the widened R stays a positive,
+    // non-padded DER integer, so only the junk tail is non-canonical.
+    let compact: Buffer | undefined;
+    for (let i = 0; i < 1000 && !compact; i++) {
+      const entropy = Buffer.alloc(32, 0);
+      entropy.writeUInt32LE(i, 0);
+      const candidate = Buffer.from(ecc.sign(sighash, PRIV, entropy));
+      if (candidate[0] !== 0 && !(candidate[0] & 0x80)) compact = candidate;
+    }
+    expect(compact).toBeDefined();
+    const canonical = bscript.signature.encode(
+      compact!,
+      Transaction.SIGHASH_ALL,
+    );
+    const lenR = canonical[3]; // 32: r[0] < 0x80 needs no pad
+    const mutated = Buffer.concat([
+      Buffer.from([0x30, canonical[1] + 1, 0x02, lenR + 1]),
+      canonical.subarray(4, 4 + lenR), // true r
+      Buffer.from([0xab]), // junk byte fromDER's truncation drops
+      canonical.subarray(4 + lenR), // 0x02 ‖ lenS ‖ S ‖ 0x01
+    ]);
+    // Sanity: today's decode path accepts the mutation and recovers the true sig.
+    const decoded = bscript.signature.decode(mutated);
+    expect(Buffer.from(decoded.signature).equals(compact!)).toBe(true);
+    expect(ecc.verify(sighash, PUB, decoded.signature, true)).toBe(true);
+
+    const ret = Psbt.fromHex(req.toHex());
+    // Direct assignment: bip174 refuses mangled DER via updateInput, but its
+    // PARSER doesn't validate signature bytes — a wallet can return this.
+    ret.data.inputs[0].partialSig = [{ pubkey: PUB, signature: mutated }];
+    ret.updateInput(1, {
+      partialSig: [{ pubkey: PUB, signature: signP2wpkh(req, 1) }],
+    });
+    expect(() =>
+      assertReturnedKeyPathSignatures({
+        requestedPsbtHex: req.toHex(),
+        returnedPsbtHex: ret.toHex(),
+      }),
+    ).toThrow(/input 0.*not canonical DER/);
+  });
+
   it("rejects a pubkey that does not hash to the prevout's witness program", () => {
     const req = p2wpkhRequestedPsbt();
     const ret = Psbt.fromHex(req.toHex());
@@ -648,7 +769,9 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
     ).toBe(1);
   });
 
-  it("still skips genuinely unknown script types (P2WSH)", () => {
+  it("throws on a P2WSH input instead of treating it as verified", () => {
+    // No P2WSH verifier exists anywhere in the SDK — fail closed like
+    // btc-vault's check_signatures_valid rather than skipping silently.
     const req = new Psbt();
     req.addInput({
       hash: Buffer.alloc(32, 1),
@@ -667,7 +790,7 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
         requestedPsbtHex: req.toHex(),
         returnedPsbtHex: req.toHex(),
       }),
-    ).not.toThrow();
+    ).toThrow(/input 0.*neither key-path P2TR nor P2WPKH/i);
   });
 
   it("differential over varied keys and values: accepts honest signatures, rejects one-byte tampering", () => {

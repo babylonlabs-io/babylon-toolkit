@@ -70,6 +70,27 @@ describe("MockBitcoinWallet key consistency", () => {
     ).resolves.toMatch(/^0x[0-9a-f]+$/);
   });
 
+  it("throws for the ecdsa message type — only bip322-simple is implemented", async () => {
+    // The mock only produces BIP-322 P2WPKH witnesses; silently returning one
+    // for "ecdsa" would hand a future ECDSA-flow test the wrong artifact.
+    const wallet = new MockBitcoinWallet();
+
+    await expect(wallet.signMessage("pop message", "ecdsa")).rejects.toThrow(
+      /only bip322-simple/,
+    );
+  });
+
+  it("re-derives publicKeyHex when updateConfig sets only privateKeyHex", async () => {
+    const wallet = new MockBitcoinWallet();
+
+    wallet.updateConfig({ privateKeyHex: PRIVKEY_TWO_HEX });
+
+    expect(await wallet.getPublicKeyHex()).toBe(PUBKEY_TWO_XONLY_HEX);
+    await expect(
+      wallet.signMessage("pop message", "bip322-simple"),
+    ).resolves.toMatch(/^0x[0-9a-f]+$/);
+  });
+
   it("keeps the default pair working unchanged", async () => {
     const wallet = new MockBitcoinWallet();
 

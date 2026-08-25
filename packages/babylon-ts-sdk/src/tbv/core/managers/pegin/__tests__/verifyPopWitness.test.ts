@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BIP322_P2WPKH_HELLO_WORLD_WITNESS_HEX,
+  BIP322_P2WPKH_PUBKEY_HEX,
   BIP322_P2WPKH_PUBKEY_XONLY_HEX,
 } from "../../../clients/vault-provider/auth/__tests__/bip322P2wpkhVectors";
 import {
@@ -159,6 +160,29 @@ describe("verifyPopWitness", () => {
     expect(() =>
       verifyPopWitness(HELLO_WORLD, "22".repeat(32), HELLO_WORLD_WITNESS),
     ).toThrow(/does not match the depositor key/);
+  });
+
+  it("names the 71/72-byte requirement for a short P2WPKH signature instead of blaming the key", () => {
+    // vaultd only ingests 71/72-byte encoded signatures, and an RFC-6979
+    // wallet re-produces the same short signature on every retry — the error
+    // must name the real cause, not report a key mismatch.
+    const shortSig = "11".repeat(70);
+    const witness =
+      `0x0246${shortSig}21${BIP322_P2WPKH_PUBKEY_HEX}` as `0x${string}`;
+    expect(() =>
+      verifyPopWitness(HELLO_WORLD, BIP322_P2WPKH_PUBKEY_XONLY_HEX, witness),
+    ).toThrow(/71\/72-byte/);
+  });
+
+  it("names the SIGHASH_ALL requirement when the trailing sighash byte is not 0x01", () => {
+    // 71-byte item ending 0x83: passes the length gate, so the distinct
+    // sighash-type error is the one that must surface.
+    const sig = `${"22".repeat(70)}83`;
+    const witness =
+      `0x0247${sig}21${BIP322_P2WPKH_PUBKEY_HEX}` as `0x${string}`;
+    expect(() =>
+      verifyPopWitness(HELLO_WORLD, BIP322_P2WPKH_PUBKEY_XONLY_HEX, witness),
+    ).toThrow(/SIGHASH_ALL/);
   });
 
   it("rejects a two-item witness whose item 1 is not a compressed pubkey", () => {

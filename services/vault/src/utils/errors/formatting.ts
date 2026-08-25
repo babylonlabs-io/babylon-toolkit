@@ -13,7 +13,7 @@ import {
 
 import { COPY } from "@/copy";
 
-import { MAX_CAUSE_DEPTH } from "./causeChain";
+import { chainMatchesFrame } from "./causeChain";
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
@@ -138,152 +138,159 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
  *      classifies.
  */
 export function classifyError(err: unknown): ErrorKind | null {
-  let cur: unknown = err;
-  for (
-    let depth = 0;
-    depth <= MAX_CAUSE_DEPTH && cur && typeof cur === "object";
-    depth++
+  let kind: ErrorKind | null = null;
+  chainMatchesFrame(err, (frame) => {
+    kind = classifyFrame(frame);
+    return kind !== null;
+  });
+  return kind;
+}
+
+/**
+ * Classify one frame in isolation — no `cause` walk (classifyError's shared
+ * walk enforces precedence (b)). `null` means "descend to the next frame".
+ */
+function classifyFrame(frame: unknown): ErrorKind | null {
+  // User rejection — MUST stay first within the frame; see precedence (a).
+  // Shared with the telemetry-side drop so the two cannot drift: a wording
+  // this recognises but the classifier did not used to (e.g. "Connection to
+  // Keystone was canceled") was dropped from Sentry while still rendering
+  // generic error copy. Runs before the object gate below because it also
+  // handles bare-string frames (some wallet adapters reject with a string
+  // as a wrapper's `cause`).
+  if (isUserCancellationFrame(frame)) return "user-rejection";
+
+  if (frame === null || typeof frame !== "object") return null;
+
+  const obj = frame as {
+    code?: unknown;
+    name?: unknown;
+    message?: unknown;
+    walk?: unknown;
+  };
+
+  // Insufficient ETH for gas + value
+  if (obj.name === "InsufficientFundsError") return "insufficient-funds";
+  if (
+    typeof obj.message === "string" &&
+    matchesInsufficientGasFundsMessage(obj.message)
   ) {
-    const obj = cur as {
-      code?: unknown;
-      name?: unknown;
-      message?: unknown;
-      cause?: unknown;
-      walk?: unknown;
-    };
-
-    // User rejection — MUST stay first within the frame; see precedence (a).
-    // Shared with the telemetry-side drop so the two cannot drift: a wording
-    // this recognises but the classifier did not used to (e.g. "Connection to
-    // Keystone was canceled") was dropped from Sentry while still rendering
-    // generic error copy. `isUserCancellationFrame` deliberately does not walk
-    // `cause` — the walk here is what enforces precedence (b).
-    if (isUserCancellationFrame(cur)) return "user-rejection";
-
-    // Insufficient ETH for gas + value
-    if (obj.name === "InsufficientFundsError") return "insufficient-funds";
-    if (
-      typeof obj.message === "string" &&
-      matchesInsufficientGasFundsMessage(obj.message)
-    ) {
-      return "insufficient-funds";
-    }
-    if (
-      typeof obj.message === "string" &&
-      EVM_OUT_OF_FUNDS_PATTERN.test(obj.message)
-    ) {
-      return "insufficient-funds";
-    }
-
-    // Wallet disconnected from chain / all chains
-    if (
-      obj.code === EIP1193.PROVIDER_DISCONNECTED ||
-      obj.code === EIP1193.CHAIN_DISCONNECTED ||
-      obj.name === "ProviderDisconnectedError" ||
-      obj.name === "ChainDisconnectedError"
-    ) {
-      return "wallet-disconnected";
-    }
-
-    // Site not authorized in wallet
-    if (
-      obj.code === EIP1193.UNAUTHORIZED ||
-      obj.name === "UnauthorizedProviderError"
-    ) {
-      return "unauthorized";
-    }
-
-    // Wallet refused / failed to switch chain. The deposit flow's wagmi
-    // helper catches this locally (ethereumSubmit.ts), but cover the
-    // escape path in case it surfaces from elsewhere.
-    if (
-      obj.code === EIP1193.CHAIN_SWITCH_FAILED ||
-      obj.name === "SwitchChainError"
-    ) {
-      return "chain-switch-failed";
-    }
-
-    // Tx accepted but receipt didn't arrive in time
-    if (obj.name === "WaitForTransactionReceiptTimeoutError") {
-      return "receipt-timeout";
-    }
-
-    // Nonce-too-low / "already known" — the tx is already in the mempool (or
-    // mined). "Retry" would re-send and reproduce it, so point the user at
-    // their wallet / an explorer. viem folds these into NonceTooLowError; raw
-    // providers surface the message unwrapped. (NonceTooHigh is a gap, not a
-    // duplicate, so it stays in the generic rpc-error retry bucket.)
-    if (
-      obj.name === "NonceTooLowError" ||
-      (typeof obj.message === "string" &&
-        ALREADY_SUBMITTED_PATTERN.test(obj.message))
-    ) {
-      return "already-submitted";
-    }
-
-    // Transport failures — "check your connection" is only honest here.
-    //
-    // `HttpRequestError` covers TWO cases (viem `utils/rpc/http`): with a
-    // numeric `status` the server DID answer (429 rate limit, 5xx outage) —
-    // a provider problem, not the user's connection — so route those to
-    // `rpc-error`. A status-less HttpRequestError (fetch threw) is a real
-    // transport failure. Since the app wires `http()` exclusively, a
-    // provider 429/503 is the most likely RPC failure a depositor hits.
-    if (obj.name === "HttpRequestError") {
-      return typeof (obj as { status?: unknown }).status === "number"
-        ? "rpc-error"
-        : "network";
-    }
-    // `WebSocketRequestError` / `SocketClosedError` are genuine transport
-    // failures; the names are viem-specific enough not to collide.
-    // `SocketClosedError` is forward-looking — the app wires `http()` today,
-    // so it only becomes reachable if a WS transport lands later.
-    if (
-      obj.name === "WebSocketRequestError" ||
-      obj.name === "SocketClosedError"
-    ) {
-      return "network";
-    }
-    // `TimeoutError` is generic (AbortSignal.timeout, `ky`, DOM APIs) — gate
-    // on viem shape.
-    if (obj.name === "TimeoutError" && isViemShape(obj)) {
-      return "network";
-    }
-
-    // `RpcRequestError` wraps a JSON-RPC error the node/provider returned:
-    // rate limit (-32005), resource unavailable (-32002), tx rejected
-    // (-32003), internal (-32603), and node-execution errors (nonce /
-    // "already known") whose inner frame is an RpcRequestError. None of
-    // these are the user's connection, so they get their own copy — never
-    // "check your connection".
-    //
-    // Exception: viem also reuses `RpcRequestError` to carry contract reverts.
-    // A `0x` payload is a revert; so is `code === 3` even when the provider
-    // returns no revert data (some don't). Either is a real revert, not an
-    // RPC failure — fall through so the underlying reason bubbles up.
-    if (obj.name === "RpcRequestError" && isViemShape(obj)) {
-      const data = (obj as { data?: unknown }).data;
-      if (
-        (typeof data === "string" && data.startsWith("0x")) ||
-        obj.code === EXECUTION_REVERTED_RPC_CODE
-      ) {
-        cur = obj.cause;
-        continue;
-      }
-      return "rpc-error";
-    }
-
-    // Vite chunk 404 after a redeploy — the underlying error is a browser
-    // TypeError, so match on the message rather than a class name.
-    if (
-      typeof obj.message === "string" &&
-      STALE_DEPLOY_PATTERN.test(obj.message)
-    ) {
-      return "stale-deploy";
-    }
-
-    cur = obj.cause;
+    return "insufficient-funds";
   }
+  if (
+    typeof obj.message === "string" &&
+    EVM_OUT_OF_FUNDS_PATTERN.test(obj.message)
+  ) {
+    return "insufficient-funds";
+  }
+
+  // Wallet disconnected from chain / all chains
+  if (
+    obj.code === EIP1193.PROVIDER_DISCONNECTED ||
+    obj.code === EIP1193.CHAIN_DISCONNECTED ||
+    obj.name === "ProviderDisconnectedError" ||
+    obj.name === "ChainDisconnectedError"
+  ) {
+    return "wallet-disconnected";
+  }
+
+  // Site not authorized in wallet
+  if (
+    obj.code === EIP1193.UNAUTHORIZED ||
+    obj.name === "UnauthorizedProviderError"
+  ) {
+    return "unauthorized";
+  }
+
+  // Wallet refused / failed to switch chain. The deposit flow's wagmi
+  // helper catches this locally (ethereumSubmit.ts), but cover the
+  // escape path in case it surfaces from elsewhere.
+  if (
+    obj.code === EIP1193.CHAIN_SWITCH_FAILED ||
+    obj.name === "SwitchChainError"
+  ) {
+    return "chain-switch-failed";
+  }
+
+  // Tx accepted but receipt didn't arrive in time
+  if (obj.name === "WaitForTransactionReceiptTimeoutError") {
+    return "receipt-timeout";
+  }
+
+  // Nonce-too-low / "already known" — the tx is already in the mempool (or
+  // mined). "Retry" would re-send and reproduce it, so point the user at
+  // their wallet / an explorer. viem folds these into NonceTooLowError; raw
+  // providers surface the message unwrapped. (NonceTooHigh is a gap, not a
+  // duplicate, so it stays in the generic rpc-error retry bucket.)
+  if (
+    obj.name === "NonceTooLowError" ||
+    (typeof obj.message === "string" &&
+      ALREADY_SUBMITTED_PATTERN.test(obj.message))
+  ) {
+    return "already-submitted";
+  }
+
+  // Transport failures — "check your connection" is only honest here.
+  //
+  // `HttpRequestError` covers TWO cases (viem `utils/rpc/http`): with a
+  // numeric `status` the server DID answer (429 rate limit, 5xx outage) —
+  // a provider problem, not the user's connection — so route those to
+  // `rpc-error`. A status-less HttpRequestError (fetch threw) is a real
+  // transport failure. Since the app wires `http()` exclusively, a
+  // provider 429/503 is the most likely RPC failure a depositor hits.
+  if (obj.name === "HttpRequestError") {
+    return typeof (obj as { status?: unknown }).status === "number"
+      ? "rpc-error"
+      : "network";
+  }
+  // `WebSocketRequestError` / `SocketClosedError` are genuine transport
+  // failures; the names are viem-specific enough not to collide.
+  // `SocketClosedError` is forward-looking — the app wires `http()` today,
+  // so it only becomes reachable if a WS transport lands later.
+  if (
+    obj.name === "WebSocketRequestError" ||
+    obj.name === "SocketClosedError"
+  ) {
+    return "network";
+  }
+  // `TimeoutError` is generic (AbortSignal.timeout, `ky`, DOM APIs) — gate
+  // on viem shape.
+  if (obj.name === "TimeoutError" && isViemShape(obj)) {
+    return "network";
+  }
+
+  // `RpcRequestError` wraps a JSON-RPC error the node/provider returned:
+  // rate limit (-32005), resource unavailable (-32002), tx rejected
+  // (-32003), internal (-32603), and node-execution errors (nonce /
+  // "already known") whose inner frame is an RpcRequestError. None of
+  // these are the user's connection, so they get their own copy — never
+  // "check your connection".
+  //
+  // Exception: viem also reuses `RpcRequestError` to carry contract reverts.
+  // A `0x` payload is a revert; so is `code === 3` even when the provider
+  // returns no revert data (some don't). Either is a real revert, not an
+  // RPC failure — leave this frame unclassified so the walk descends and
+  // the underlying reason bubbles up.
+  if (obj.name === "RpcRequestError" && isViemShape(obj)) {
+    const data = (obj as { data?: unknown }).data;
+    if (
+      (typeof data === "string" && data.startsWith("0x")) ||
+      obj.code === EXECUTION_REVERTED_RPC_CODE
+    ) {
+      return null;
+    }
+    return "rpc-error";
+  }
+
+  // Vite chunk 404 after a redeploy — the underlying error is a browser
+  // TypeError, so match on the message rather than a class name.
+  if (
+    typeof obj.message === "string" &&
+    STALE_DEPLOY_PATTERN.test(obj.message)
+  ) {
+    return "stale-deploy";
+  }
+
   return null;
 }
 

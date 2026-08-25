@@ -32,6 +32,7 @@ import { computeDepositDerivedState } from "@/components/deposit/DepositSignModa
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import {
+  hasPayoutSignCancelRecord,
   hasWotsSubmissionRecord,
   markWotsSubmitted,
 } from "@/context/deposit/optimisticDepositState";
@@ -122,13 +123,20 @@ export function ResumeSignContent({
     onSuccess,
   });
 
-  useRunOnce(handleSign);
+  // A cancel recorded by the deposit flow means this mount is the post-cancel
+  // continuation handoff, not a first visit: auto-running would re-prompt the
+  // device moments after the user asked to stop. Read once at mount, like
+  // ResumeWotsContent's isReoffer — re-reading would swap modes mid-flight.
+  const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
+
+  useRunOnce(handleSign, !wasCanceled);
 
   // A self-requested cancel settles QUIETLY in the hook (idle, no error, not
   // complete). Left alone, that state renders a disabled Sign button with no
   // retry seam, so route it into the view's pre-sign entry state instead —
   // its CTA re-runs the full ceremony, matching the WOTS re-offer pattern.
-  const [reofferAfterCancel, setReofferAfterCancel] = useState(false);
+  // Starts true for a recorded cancel so the handoff parks there directly.
+  const [reofferAfterCancel, setReofferAfterCancel] = useState(wasCanceled);
   const sawCancelRequestRef = useRef(false);
   useEffect(() => {
     if (cancelRequested) {

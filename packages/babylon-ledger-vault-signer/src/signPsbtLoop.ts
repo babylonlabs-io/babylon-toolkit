@@ -10,7 +10,7 @@
  * ≈ 5 s device deadline, `base:io_ext.h:28`).
  *
  * `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`:
- * `io_ext.h`, `sw.h` and `dispatcher.c` live under `src/boilerplate/`,
+ * `io_ext.h` and `sw.h` live under `src/boilerplate/`,
  * `constants.h` under `src/`. The pin is load-bearing — the same paths on
  * `develop` describe different behaviour.
  *

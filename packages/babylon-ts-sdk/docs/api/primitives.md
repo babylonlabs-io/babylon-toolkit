@@ -2511,8 +2511,8 @@ finalized witness item for wallets that auto-finalize — and when both are
 present they must be the same bytes. P2WPKH: `partialSig`, or the finalized
 2-item witness, verified as ECDSA over the BIP-143 sighash
 (assertReturnedP2wpkhSignature); a failure throws but the input is
-NOT counted. Script-path and unknown script types are skipped (they have
-their own checks).
+NOT counted. Any other input type (script-path, P2WSH, ...) throws — no
+verifier here covers it, so it cannot be treated as verified.
 
 #### Parameters
 
@@ -2531,9 +2531,10 @@ How many inputs were verified KEY-PATH. A caller that knows every
 
 #### Throws
 
-If the input counts differ, an eligible input carries no signature, a
-        finalized witness disagrees with its `tapKeySig`/`partialSig`, or any
-        signature does not verify.
+If the input counts differ, an input is neither key-path P2TR nor
+        P2WPKH, an eligible input carries no signature, a finalized witness
+        disagrees with its `tapKeySig`/`partialSig`, or any signature does
+        not verify.
 
 ***
 

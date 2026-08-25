@@ -152,8 +152,15 @@ export class MockBitcoinWallet implements BitcoinWallet {
 
   async signMessage(
     message: string,
-    _type: "bip322-simple" | "ecdsa",
+    type: "bip322-simple" | "ecdsa",
   ): Promise<string> {
+    // Only BIP-322 witnesses are implemented; returning one for "ecdsa"
+    // would hand a future ECDSA-flow test the wrong artifact silently.
+    if (type !== "bip322-simple") {
+      throw new Error(
+        "MockBitcoinWallet.signMessage: only bip322-simple is implemented",
+      );
+    }
     if (this.config.shouldFailSigning) {
       throw new Error("Mock signing failed");
     }
@@ -181,8 +188,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
 
     // The SDK cryptographically verifies what a wallet returns
     // (`verifyPopWitness`), so the mock signs a REAL BIP-322 P2WPKH witness
-    // with its private key. The type is not consulted: PoP flows only ever
-    // request "bip322-simple", and the interface tests assert shape only.
+    // with its private key.
     const witness = signBip322P2wpkhWitness(
       new TextEncoder().encode(message),
       Uint8Array.from(Buffer.from(this.config.privateKeyHex, "hex")),
@@ -204,6 +210,11 @@ export class MockBitcoinWallet implements BitcoinWallet {
       ...this.config,
       ...updates,
     };
+    // Mirror the constructor: a private-key-only update re-derives the
+    // matching pubkey; an explicit publicKeyHex still wins.
+    if (updates.privateKeyHex && !updates.publicKeyHex) {
+      this.config.publicKeyHex = xOnlyPubkeyHexOf(updates.privateKeyHex);
+    }
   }
 
   /** Resets to default configuration. */

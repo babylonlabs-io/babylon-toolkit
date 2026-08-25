@@ -13,6 +13,7 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import {
   getOptimisticDepositState,
+  markPayoutSignCanceled,
   markWotsSubmitted,
   resetOptimisticDepositState,
 } from "@/context/deposit/optimisticDepositState";
@@ -858,6 +859,67 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     const callsBeforeClick = handleSign.mock.calls.length;
     fireEvent.click(getByTestId("sign"));
     expect(handleSign.mock.calls.length).toBe(callsBeforeClick + 1);
+  });
+});
+
+describe("ResumeSignContent — post-cancel re-offer", () => {
+  const handleSign = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseDepositPollingResult.mockReturnValue(undefined);
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      signing: false,
+      progress: { phase: "auth", completed: 0, total: 0 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      handleSign,
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
+    });
+  });
+
+  function renderSign() {
+    return render(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+  }
+
+  it("auto-runs the signing ceremony at mount when no cancel is recorded", async () => {
+    renderSign();
+
+    await waitFor(() => expect(handleSign).toHaveBeenCalledTimes(1));
+  });
+
+  it("withholds the auto-run and parks on the pre-sign entry state after a recorded cancel", () => {
+    // The deposit flow records the marker when a settled device cancel breaks
+    // its payout loop; the continuation handoff mounts this component for the
+    // same still-actionable vault. Auto-running here would re-prompt the
+    // device moments after the user asked to stop.
+    markPayoutSignCanceled(baseActivity.id);
+
+    const { getByTestId } = renderSign();
+
+    expect(handleSign).not.toHaveBeenCalled();
+    expect(getByTestId("started").textContent).toBe("false");
+  });
+
+  it("re-runs the ceremony only on the explicit CTA click after a recorded cancel", () => {
+    markPayoutSignCanceled(baseActivity.id);
+
+    const { getByTestId } = renderSign();
+    fireEvent.click(getByTestId("sign"));
+
+    expect(handleSign).toHaveBeenCalledTimes(1);
+    expect(getByTestId("started").textContent).toBe("true");
   });
 });
 

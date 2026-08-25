@@ -203,6 +203,19 @@ function assertP2wpkhEcdsaSignature(
         `defined sighash byte: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+  // decode tolerates non-minimal integers (bip66.js never bounds lenR/lenS at 33;
+  // fromDER truncates, script_signature.js:29-35) that libsecp's strict consensus
+  // parse rejects (secp256k1-sys ecdsa_impl.h:127-136) — require the unique
+  // minimal encoding by re-encoding and byte-comparing.
+  if (
+    !bscript.signature
+      .encode(decoded.signature, decoded.hashType)
+      .equals(Buffer.from(encodedSignature))
+  ) {
+    throw new Error(
+      `Returned PSBT input ${inputIndex}: P2WPKH signature is not canonical DER.`,
+    );
+  }
   if (decoded.hashType !== Transaction.SIGHASH_ALL) {
     throw new Error(
       `Returned PSBT input ${inputIndex}: P2WPKH signature has sighash type ` +

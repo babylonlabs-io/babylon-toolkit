@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEVICE_MAX_PARTICIPANTS_PER_ROLE,
+  DEVICE_MAX_VAULT_CORE_VERSION,
+  DEVICE_MIN_VAULT_CORE_VERSION,
   DEVICE_PAYOUT_TIMELOCK_MAX_BLOCKS,
   DEVICE_PAYOUT_TIMELOCK_MIN_BLOCKS,
   DEVICE_PEGIN_CSV_TIMELOCK_MAX_BLOCKS,
@@ -66,13 +68,23 @@ describe("assertDepositTermsDeviceCompatible", () => {
     }
   });
 
-  it("does not gate on the tx-graph version — every reachable version is device-signable", () => {
-    // v3 is Core 2's Bitcoin tx shape byte-for-byte (btc-vault e1e50f66; SDK parity
-    // vector pegin.test.ts "builds the v3 Pre-PegIn byte-identical to the v2 vector");
-    // v1 is unreachable fresh (ProtocolParams setter rejects `newVersion <= prev`,
-    // no Ledger v1 vault exists); v4+ needs a new WASM release.
-    for (const vaultCoreVersion of [1, 2, 3, 4]) {
+  it("accepts the device-signable tx-graph versions 2 and 3", () => {
+    // v2 is the firmware's Core-2 tx shape; v3 is byte-identical (btc-vault
+    // e1e50f66; SDK parity vector pegin.test.ts "builds the v3 Pre-PegIn
+    // byte-identical to the v2 vector").
+    for (const vaultCoreVersion of [DEVICE_MIN_VAULT_CORE_VERSION, DEVICE_MAX_VAULT_CORE_VERSION]) {
       expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).not.toThrow();
+    }
+  });
+
+  it("rejects tx-graph versions outside the device band with the seam's typed error", () => {
+    // v1's tx shape differs (no P2A anchor) and v4+ has no device-compat
+    // evidence — either must fail BEFORE any device I/O, not mid-ceremony.
+    for (const vaultCoreVersion of [DEVICE_MIN_VAULT_CORE_VERSION - 1, DEVICE_MAX_VAULT_CORE_VERSION + 1]) {
+      expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).toThrow(
+        DepositTermsRejectedError,
+      );
+      expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).toThrow(/vaultCoreVersion/);
     }
   });
 

@@ -56,10 +56,11 @@ const COMPRESSED_PUBKEY_SIZE = 33;
  * vaultd's P2WPKH BIP-322 verifier accepts ONLY 71/72-byte encoded
  * signatures — DER (70/71B) + sighash byte (`bip322` crate 0.0.10
  * `verify.rs:141-153`). A shorter (short-DER) signature fails ingestion
- * permanently, so this gate must be exactly as strict.
+ * permanently, so this gate must be exactly as strict. Exported so
+ * `verifyPopWitness` can pre-screen with a cause-naming error.
  */
-const P2WPKH_ENCODED_SIG_MIN = 71;
-const P2WPKH_ENCODED_SIG_MAX = 72;
+export const P2WPKH_ENCODED_SIG_MIN = 71;
+export const P2WPKH_ENCODED_SIG_MAX = 72;
 
 // NOTE: bitcoinjs-lib v6.x's `Transaction.addOutput` and its sighash
 // methods are typed for `Satoshi` (a UInt53 number), not `bigint`.
@@ -271,6 +272,17 @@ export function verifyBip322P2wpkhSimple(
     const { signature, hashType } = bscript.signature.decode(
       Buffer.from(encodedSignature),
     );
+    // decode tolerates non-minimal integers (bip66.js never bounds lenR/lenS at 33;
+    // fromDER truncates, script_signature.js:29-35) that vaultd's strict libsecp
+    // parse rejects (secp256k1-sys ecdsa_impl.h:127-136) — require the unique
+    // minimal encoding by re-encoding and byte-comparing.
+    if (
+      !bscript.signature
+        .encode(signature, hashType)
+        .equals(Buffer.from(encodedSignature))
+    ) {
+      return false;
+    }
     if (hashType !== Transaction.SIGHASH_ALL) return false;
 
     // scriptPubKey = OP_0 PUSH20 hash160(pubkey) (`message.rs:127 Address::p2wpkh`).

@@ -24,6 +24,7 @@ import { COPY } from "@/copy";
 
 import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
 import {
+  classifyError,
   formatErrorDiagnostics,
   formatErrorMessage,
   formatPayoutSignatureError,
@@ -252,6 +253,16 @@ describe("Error Formatting", () => {
       });
 
       expect(sanitizeErrorMessage(err)).not.toMatch(/Transaction rejected/);
+    });
+
+    it("classifies a wrapper Error with a bare-string cancellation cause as user-rejection", () => {
+      // Mirrors userCancellation.test.ts: isUserCancellation matches this
+      // shape (some wallet adapters reject with a bare string as `cause`),
+      // so classifyError must too — both walks share chainMatchesFrame.
+      const err = new Error("Failed to broadcast batch Pre-PegIn transaction", {
+        cause: "User rejected the request",
+      });
+      expect(classifyError(err)).toBe("user-rejection");
     });
 
     it("does not collapse non-rejection errors", () => {
