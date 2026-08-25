@@ -376,6 +376,7 @@ function toCard(
     : {
         label: COPY.liquidations.events.fairnessDebtRepaid,
         value: formatUsd(group.fairnessDebtRepay),
+        tooltip: COPY.liquidations.events.fairnessDebtRepaidTooltip,
       };
 
   return {
@@ -438,9 +439,6 @@ export function buildLiquidationChartData(
     return {
       key: String(i),
       label: COPY.liquidations.eventTitle(i + 1),
-      sublabel: COPY.liquidations.containVaults(
-        group.vaults.map((v) => v.name.toLowerCase()).join(", "),
-      ),
       amountLabel: formatBtcAmount(group.combinedBtc),
       priceTop: group.liquidationPrice,
       priceBottom,

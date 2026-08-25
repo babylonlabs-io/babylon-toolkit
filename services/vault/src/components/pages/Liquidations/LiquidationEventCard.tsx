@@ -10,8 +10,8 @@ import type { LiquidationEventCard as EventCardData } from "./liquidationChartDa
  * Per-event breakdown card (Figma node 10251:64809). Purely presentational —
  * every value arrives pre-formatted from `buildLiquidationChartData`.
  *
- * The top rule and the badge both carry the event's identity: the rule matches
- * the band's colour lane in the chart, the badge its role in the cascade.
+ * The top rule carries the event's identity, matching the band's colour lane
+ * in the chart.
  */
 
 const TONE_BORDER: Record<EventCardData["tone"], string> = {
@@ -117,12 +117,6 @@ function SeizureRow({
 }
 
 export function LiquidationEventCard({ card }: { card: EventCardData }) {
-  const sacrificial = card.badge === "sacrificial";
-  // Colour tracks whether the event has FIRED, not its position in the
-  // cascade. Keying off `sacrificial` left every protected event green even
-  // once the price had fallen through its trigger — with `formatSignedPct`
-  // unsigned at the time, the minus sign was the only cue left that anything
-  // had happened.
   const { triggered } = card;
 
   return (
@@ -136,16 +130,6 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         <h3 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
           {card.title}
         </h3>
-        <span
-          className={twJoin(
-            "rounded-full px-2.5 py-1 text-xs leading-[1.4] tracking-[0.4px] text-primary-main",
-            sacrificial ? "bg-risk-amber" : "bg-risk-green",
-          )}
-        >
-          {sacrificial
-            ? COPY.liquidations.events.badgeSacrificial
-            : COPY.liquidations.events.badgeProtected}
-        </span>
       </div>
 
       <div className="flex gap-16">

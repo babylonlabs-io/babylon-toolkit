@@ -1,3 +1,5 @@
+import { Hint } from "@babylonlabs-io/core-ui";
+
 import { COPY } from "@/copy";
 import { computeMaxBorrowUsd } from "@/utils/collateral";
 import { formatCompactUsd } from "@/utils/formatting";
@@ -40,6 +42,7 @@ export function CollateralFactorRow({
           {" "}
           {FORM_COPY.cfParenthetical(percent)}
         </span>
+        <Hint tooltip={COPY.tooltips.collateralFactor} />
       </span>
     </div>
   );

@@ -1,5 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Component tests mock core-ui (its dist isn't built in the test run).
+vi.mock("@babylonlabs-io/core-ui", () => ({
+  Hint: () => null,
+}));
 
 import { CollateralFactorRow } from "../CollateralFactorRow";
 

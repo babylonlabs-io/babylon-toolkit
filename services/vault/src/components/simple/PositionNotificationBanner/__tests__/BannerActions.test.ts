@@ -139,7 +139,7 @@ describe("buildBannerActions — urgent CTA gating", () => {
     ).toBe(false);
   });
 
-  it("disables the cliff Add-sacrificial-vault CTA when deposits are blocked", () => {
+  it("disables the cliff Add Collateral CTA when deposits are blocked", () => {
     const cliffState: BannerState = {
       severity: "yellow",
       primaryWarning: {
@@ -163,13 +163,13 @@ describe("buildBannerActions — urgent CTA gating", () => {
 
     expect(
       build(cliffState, cliffResult).find(
-        (a) => a.label === COPY.banner.addSacrificialVault,
+        (a) => a.label === COPY.banner.addCollateral,
       )?.disabled,
     ).toBe(false);
 
     expect(
       build(cliffState, cliffResult, { depositBlocked: true }).find(
-        (a) => a.label === COPY.banner.addSacrificialVault,
+        (a) => a.label === COPY.banner.addCollateral,
       )?.disabled,
     ).toBe(true);
   });

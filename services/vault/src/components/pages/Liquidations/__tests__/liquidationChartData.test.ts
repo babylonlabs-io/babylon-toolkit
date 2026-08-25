@@ -476,9 +476,10 @@ describe("buildLiquidationChartData", () => {
     expect(cards[0].fairness.value).toContain("0.002");
   });
 
-  // The tooltip describes a payment to the user's wallet, which only the
-  // full-liquidation variant makes — the debt-repaid row must not claim it.
-  it("carries the fairness tooltip on the payment variant only", () => {
+  // Each fairness variant carries its own tooltip: the payment variant
+  // describes a payment to the user's wallet, the debt-repaid variant
+  // describes the liquidator's additional debt repayment.
+  it("carries the matching fairness tooltip per variant", () => {
     const paymentResult = makeResult([
       makeGroup(1, { isFullLiquidation: true, fairnessPaymentUsd: 81 }),
     ]);
@@ -498,7 +499,7 @@ describe("buildLiquidationChartData", () => {
     expect(
       buildLiquidationChartData(debtRepaidResult, options).cards[0].fairness
         .tooltip,
-    ).toBeUndefined();
+    ).toBe(COPY.liquidations.events.fairnessDebtRepaidTooltip);
   });
 
   // The card colour used to key off `badge` (array position), so a protected

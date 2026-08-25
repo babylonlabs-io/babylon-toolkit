@@ -60,7 +60,6 @@ export function OverviewSection({
     () => [
       {
         label: COPY.overview.totalCollateralValueLabel,
-        tooltip: COPY.overview.totalCollateralValueTooltip,
         value: totalCollateralValue,
         caption: collateralBtc,
         actionLabel: COPY.overview.depositAction,
