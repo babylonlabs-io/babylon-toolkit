@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicClient } from "viem";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { waitForTransactionReceiptSmartAware } from "../waitForTransactionReceiptSmartAware";
 
@@ -11,11 +11,18 @@ const REAL_TX_HASH =
   "0x2e7459a34ffc919d657626068ab3efe53159e62fa702decb4099131a86f923b7" as const;
 const SEPOLIA_CHAIN_ID = 11155111;
 const UNSUPPORTED_CHAIN_ID = 137;
+/** `eth_getCode` for an EOA that MetaMask upgraded to a smart account: the
+ *  EIP-7702 designator `0xef0100` followed by the delegate address. */
+const DELEGATED_EOA_CODE =
+  "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b" as const;
 
 function makePublicClient(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     getCode: vi.fn(),
     getChainId: vi.fn().mockResolvedValue(SEPOLIA_CHAIN_ID),
+    getTransaction: vi
+      .fn()
+      .mockRejectedValue(new Error("Transaction not found")),
     waitForTransactionReceipt: vi.fn(),
     ...overrides,
   } as unknown as PublicClient;
@@ -254,5 +261,217 @@ describe("waitForTransactionReceiptSmartAware", () => {
     });
 
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("delegates to viem's waitForTransactionReceipt when the wallet is an EIP-7702 delegated EOA", async () => {
+    const expectedReceipt = {
+      status: "success" as const,
+      transactionHash: REAL_TX_HASH,
+    };
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue(DELEGATED_EOA_CODE),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue(expectedReceipt),
+    });
+
+    const receipt = await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: EOA_ADDRESS,
+      hash: REAL_TX_HASH,
+      timeout: 10_000,
+    });
+
+    expect(receipt).toBe(expectedReceipt);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+      timeout: 10_000,
+    });
+    expect(publicClient.getChainId).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("treats bytecode that merely starts with the delegation prefix as a smart account", async () => {
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue(`${DELEGATED_EOA_CODE}60806040`),
+      getChainId: vi.fn().mockResolvedValue(UNSUPPORTED_CHAIN_ID),
+    });
+
+    await expect(
+      waitForTransactionReceiptSmartAware({
+        publicClient,
+        walletAddress: SAFE_ADDRESS,
+        hash: SAFE_TX_HASH,
+      }),
+    ).rejects.toThrow(
+      `Safe Transaction Service not configured for chainId ${UNSUPPORTED_CHAIN_ID}`,
+    );
+  });
+
+  it("waits on the transaction directly when a 404 turns out to be a real tx hash", async () => {
+    const expectedReceipt = {
+      status: "success" as const,
+      transactionHash: REAL_TX_HASH,
+    };
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      // The node knows the hash, so it was never a Safe proposal.
+      getTransaction: vi.fn().mockResolvedValue({ hash: REAL_TX_HASH }),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue(expectedReceipt),
+    });
+
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+    });
+
+    const receipt = await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: REAL_TX_HASH,
+      safePollIntervalMs: 1,
+      safePollTimeoutMs: 60_000,
+    });
+
+    expect(receipt).toBe(expectedReceipt);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+      timeout: undefined,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards the caller's timeout on the not-a-proposal fallback", async () => {
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      getTransaction: vi.fn().mockResolvedValue({ hash: REAL_TX_HASH }),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success" as const,
+        transactionHash: REAL_TX_HASH,
+      }),
+    });
+
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+    });
+
+    await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: REAL_TX_HASH,
+      timeout: 10_000,
+      safePollIntervalMs: 1,
+    });
+
+    // This is the EOA case reached the long way round, so the caller's bound
+    // applies rather than viem's 180s default.
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+      timeout: 10_000,
+    });
+  });
+
+  it("leaves an executed Safe proposal's receipt wait on viem's default timeout", async () => {
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success" as const,
+        transactionHash: REAL_TX_HASH,
+      }),
+    });
+
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        isExecuted: true,
+        isSuccessful: true,
+        transactionHash: REAL_TX_HASH,
+      }),
+    });
+
+    await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: SAFE_TX_HASH,
+      timeout: 10_000,
+      safePollIntervalMs: 1,
+    });
+
+    // A genuine Safe tx is already mined by the time we get here; applying the
+    // caller's shorter bound could fail it on a slow node, so it stays unset
+    // and viem's own default bounds this wait instead.
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+    });
+  });
+
+  it("keeps polling a 404 while the node has never seen the hash", async () => {
+    const expectedReceipt = {
+      status: "success" as const,
+      transactionHash: REAL_TX_HASH,
+    };
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      // A genuine Safe proposal is not a transaction, so the node never has it.
+      getTransaction: vi
+        .fn()
+        .mockRejectedValue(new Error("Transaction not found")),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue(expectedReceipt),
+    });
+
+    (fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          isExecuted: true,
+          isSuccessful: true,
+          transactionHash: REAL_TX_HASH,
+        }),
+      });
+
+    const receipt = await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: SAFE_TX_HASH,
+      safePollIntervalMs: 1,
+    });
+
+    expect(receipt).toBe(expectedReceipt);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+    });
+  });
+
+  it("keeps polling an unindexed Safe rather than rejecting it", async () => {
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      getTransaction: vi
+        .fn()
+        .mockRejectedValue(new Error("Transaction not found")),
+    });
+
+    // A brand-new Safe is absent from the service for a while: every poll 404s.
+    // That must exhaust the budget, not produce a confident "not a Safe" error.
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+
+    await expect(
+      waitForTransactionReceiptSmartAware({
+        publicClient,
+        walletAddress: SAFE_ADDRESS,
+        hash: SAFE_TX_HASH,
+        safePollIntervalMs: 1,
+        safePollTimeoutMs: 5,
+      }),
+    ).rejects.toThrow(/Timed out.*waiting for Safe transaction/);
   });
 });

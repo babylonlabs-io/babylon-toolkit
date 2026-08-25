@@ -248,8 +248,16 @@ optional timeout: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/eth/waitForTransactionReceiptSmartAware.ts)
 
-Forwarded to viem on the EOA (externally owned account) path.
-Ignored on the smart-account path — see safePollTimeoutMs.
+Forwarded to viem on the EOA (externally owned account) path, and on the
+fallback where a supposed smart account turns out to submit its own
+transactions — that is the EOA case too, however we arrived at it.
+
+Ignored only while waiting on a genuine Safe proposal, whose budget is
+safePollTimeoutMs. It is not forwarded to the receipt wait that follows a
+proposal's execution either: viem's own default applies there (180s as of
+viem 2.38.2), so that wait is bounded too — a sufficiently slow node still
+raises WaitForTransactionReceiptTimeoutError, just on viem's uniform bound
+rather than on a caller's shorter one.
 
 ##### safePollTimeoutMs?
 
