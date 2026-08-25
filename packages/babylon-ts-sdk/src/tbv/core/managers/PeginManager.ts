@@ -120,6 +120,27 @@ const NO_REFERRAL_CODE = 0;
 const SIZING_PASS_PLACEHOLDER_BYTES32_HEX = "00".repeat(32);
 
 /**
+ * Placeholder `prepeginTxid` for the provisional deposit terms validated
+ * before the derive (#2110 T4) — the real txid exists only post-derive, and
+ * the terms carrying this value are validate-only: they never reach a device
+ * (the envelope gate reads no txid; see ledger-vault-signer `envelope.ts`).
+ */
+const PROVISIONAL_TERMS_PLACEHOLDER_TXID_HEX = "00".repeat(32);
+
+/**
+ * Sizing-pass output. The WASM-computed `depositorClaimValue` / `minPeginFee`
+ * feed the provisional (validate-only) deposit terms; the commit pass asserts
+ * it reproduces them before building the terms the wallet approves.
+ */
+interface PeginSizing {
+  selectedUTXOs: UTXO[];
+  fee: bigint;
+  changeAmount: bigint;
+  depositorClaimValue: bigint;
+  minPeginFee: bigint;
+}
+
+/**
  * Configuration for the PeginManager.
  */
 export interface PeginManagerConfig {
@@ -714,6 +735,24 @@ export class PeginManager {
     // UTXO selection and fees match the commit pass.
     const sizing = await this.prepareSizing(depositorBtcPubkey, params);
 
+    // #2110 T4: an envelope violation must fail HERE, before the derive costs
+    // a physical device approval. Validate-only by contract — no device I/O.
+    if (supportsDepositApproval(this.config.btcWallet)) {
+      const { validateDepositTerms } = this.config.btcWallet;
+      if (typeof validateDepositTerms === "function") {
+        await validateDepositTerms.call(
+          this.config.btcWallet,
+          this.buildPeginDepositTerms({
+            params,
+            prepeginTxid: PROVISIONAL_TERMS_PLACEHOLDER_TXID_HEX,
+            prepeginMaxFee: sizing.fee,
+            depositorClaimValue: sizing.depositorClaimValue,
+            peginMaxFee: sizing.minPeginFee,
+          }),
+        );
+      }
+    }
+
     const fundingOutpoints: FundingOutpoint[] = sizing.selectedUTXOs.map(
       (u) => ({
         txid: hexToUint8Array(u.txid),
@@ -821,7 +860,7 @@ export class PeginManager {
   private async prepareSizing(
     depositorBtcPubkey: string,
     params: PreparePeginParams,
-  ): Promise<{ selectedUTXOs: UTXO[]; fee: bigint; changeAmount: bigint }> {
+  ): Promise<PeginSizing> {
     const placeholderHashlocks = params.amounts.map(
       () => SIZING_PASS_PLACEHOLDER_BYTES32_HEX,
     );
@@ -857,7 +896,43 @@ export class PeginManager {
       selectedUTXOs: selection.selectedUTXOs,
       fee: selection.fee,
       changeAmount: selection.changeAmount,
+      depositorClaimValue: prePegin.depositorClaimValue,
+      minPeginFee: prePegin.minPeginFee,
     };
+  }
+
+  /**
+   * One projection for both the provisional (pre-derive, placeholder-txid)
+   * terms and the final approved terms, so the fields the pre-check validated
+   * cannot drift from the fields the device later displays (#2110 T4).
+   */
+  private buildPeginDepositTerms(args: {
+    params: PreparePeginParams;
+    prepeginTxid: string;
+    prepeginMaxFee: bigint;
+    depositorClaimValue: bigint;
+    peginMaxFee: bigint;
+  }): DepositTerms {
+    const { params } = args;
+    return buildDepositTerms({
+      vaultCoreVersion: params.vaultCoreVersion,
+      protocolFeeRate: params.protocolFeeRate,
+      timelockPegin: params.timelockPegin,
+      timelockAssert: params.timelockAssert,
+      timelockRefund: params.timelockRefund,
+      prepeginTxid: args.prepeginTxid,
+      prepeginMaxFee: args.prepeginMaxFee,
+      vaultProviderBtcPubkey: stripHexPrefix(params.vaultProviderBtcPubkey),
+      vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys.map(stripHexPrefix),
+      universalChallengerBtcPubkeys:
+        params.universalChallengerBtcPubkeys.map(stripHexPrefix),
+      maxAcceptableCommissionBps: capMaxAcceptableCommissionBps(
+        params.commissionBps,
+      ),
+      peginAmounts: params.amounts,
+      depositorClaimValue: args.depositorClaimValue,
+      peginMaxFee: args.peginMaxFee,
+    });
   }
 
   /** Build PegIn txs and batch-sign their inputs with real hashlocks. */
@@ -866,7 +941,7 @@ export class PeginManager {
     depositorBtcPubkey: string;
     hashlocks: readonly string[];
     authAnchorHash: string;
-    sizing: { selectedUTXOs: UTXO[]; fee: bigint; changeAmount: bigint };
+    sizing: PeginSizing;
     params: PreparePeginParams;
   }): Promise<{
     fundedPrePeginTxHex: string;
@@ -933,6 +1008,21 @@ export class PeginManager {
     };
 
     const prePeginResult = await buildPrePeginPsbt(prePeginParams);
+
+    // The pre-derive check (#2110 T4) validated the sizing-build values; the
+    // wallet approves these commit-build ones — assert agreement, not assume.
+    if (
+      prePeginResult.depositorClaimValue !== sizing.depositorClaimValue ||
+      prePeginResult.minPeginFee !== sizing.minPeginFee
+    ) {
+      throw new Error(
+        `Pre-PegIn sizing/commit divergence: depositorClaimValue ` +
+          `${sizing.depositorClaimValue} -> ${prePeginResult.depositorClaimValue}, ` +
+          `minPeginFee ${sizing.minPeginFee} -> ${prePeginResult.minPeginFee}. ` +
+          `The provisional deposit terms validated before derivation would not ` +
+          `match the terms sent for approval; refusing to continue.`,
+      );
+    }
 
     const network = getNetwork(this.config.btcNetwork);
     const fundedPrePeginTxHex = fundPeginTransaction({
@@ -1005,21 +1095,10 @@ export class PeginManager {
     // wallet capability; only approval-capable wallets need the call below.
     // peginMaxFee reuses assertWasmPeginSizing's already-asserted minPeginFee
     // (via prePeginResult) instead of recomputing it.
-    const depositTerms = buildDepositTerms({
-      vaultCoreVersion: params.vaultCoreVersion,
-      protocolFeeRate: params.protocolFeeRate,
-      timelockPegin: params.timelockPegin,
-      timelockAssert: params.timelockAssert,
-      timelockRefund: params.timelockRefund,
+    const depositTerms = this.buildPeginDepositTerms({
+      params,
       prepeginTxid: prePeginTxid,
       prepeginMaxFee: sizing.fee,
-      vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys,
-      maxAcceptableCommissionBps: capMaxAcceptableCommissionBps(
-        params.commissionBps,
-      ),
-      peginAmounts: params.amounts,
       depositorClaimValue: prePeginResult.depositorClaimValue,
       peginMaxFee: prePeginResult.minPeginFee,
     });

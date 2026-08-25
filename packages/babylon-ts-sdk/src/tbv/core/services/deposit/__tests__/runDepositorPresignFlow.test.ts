@@ -650,6 +650,63 @@ describe("runDepositorPresignFlow", () => {
       expect(wallet.approveDepositTerms).toHaveBeenCalledWith(DEPOSIT_TERMS);
     });
 
+    it("validates then approves, in that order, when the wallet exposes validateDepositTerms", async () => {
+      const callLog: string[] = [];
+      const wallet = Object.assign(
+        createCapabilityWallet(() => callLog.push("approve")),
+        {
+          validateDepositTerms: vi.fn(async () => {
+            callLog.push("validate");
+          }),
+        },
+      );
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+
+      await runDepositorPresignFlow({
+        statusReader: reader,
+        presignClient: createMockPresignClient(),
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signingContext: createSigningContext(),
+        depositTerms: DEPOSIT_TERMS,
+      });
+
+      expect(callLog).toEqual(["validate", "approve"]);
+      expect(wallet.validateDepositTerms).toHaveBeenCalledWith(DEPOSIT_TERMS);
+    });
+
+    it("stops before the approval ceremony when validateDepositTerms rejects", async () => {
+      const wallet = Object.assign(createCapabilityWallet(), {
+        validateDepositTerms: vi.fn(async () => {
+          throw new Error("Deposit terms outside the device-supported range");
+        }),
+      });
+      const reader = createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]);
+      const presignClient = createMockPresignClient();
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: reader,
+          presignClient,
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          signingContext: createSigningContext(),
+          depositTerms: DEPOSIT_TERMS,
+        }),
+      ).rejects.toThrow(/device-supported range/);
+
+      expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+      expect(
+        presignClient.requestDepositorPresignTransactions,
+      ).not.toHaveBeenCalled();
+    });
+
     it("throws for capability wallets when no depositTerms is provided", async () => {
       const wallet = createCapabilityWallet();
       const reader = createMockStatusReader([

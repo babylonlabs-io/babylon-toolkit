@@ -76,4 +76,20 @@ describe("forwardDepositApproval", () => {
     );
     expect(withProbe.holdsApprovedDepositTerms).toHaveBeenCalledOnce();
   });
+
+  it("forwards validateDepositTerms only when the wallet implements it", async () => {
+    const withoutValidate = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+    });
+    expect(
+      forwardDepositApproval(withoutValidate).validateDepositTerms,
+    ).toBeUndefined();
+
+    const withValidate = Object.assign(Object.create({}), withoutValidate, {
+      validateDepositTerms: vi.fn(async () => {}),
+    });
+    const fwd = forwardDepositApproval(withValidate);
+    await fwd.validateDepositTerms!({} as never);
+    expect(withValidate.validateDepositTerms).toHaveBeenCalledOnce();
+  });
 });

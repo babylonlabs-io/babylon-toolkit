@@ -479,6 +479,16 @@ export class LedgerVaultProvider implements IBTCProvider {
   };
 
   /**
+   * DepositTermsApprover.validateDepositTerms (#2110 T4): the envelope gate
+   * alone — no device I/O, no state, callable before the first approval
+   * screen. The envelope never reads `prepeginTxid`, so provisional terms
+   * with a placeholder txid validate correctly.
+   */
+  validateDepositTerms = async (terms: DepositTerms): Promise<void> => {
+    assertDepositTermsDeviceCompatible(terms);
+  };
+
+  /**
    * Validate the terms against the device envelope, then run the ceremony.
    * The envelope gate runs BEFORE any device I/O — the firmware answers an
    * out-of-range intent with an opaque status word and a dead session.

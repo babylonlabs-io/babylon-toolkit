@@ -32,6 +32,7 @@ export interface PrePeginApprovalWallet {
   deriveContextHash?(appName: string, context: string): Promise<string>;
   approveDepositTerms?(terms: DepositTerms): Promise<void>;
   holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
+  validateDepositTerms?(terms: DepositTerms): Promise<void>;
 }
 
 export interface EnsurePrePeginTermsApprovalParams {
@@ -131,6 +132,12 @@ export async function ensurePrePeginTermsApproval(
     if (holdsApproval) {
       return;
     }
+  }
+
+  // #2110 T4: envelope violations fail here, before the derive costs a
+  // physical approval. Validate-only per DepositTermsApprover — no device I/O.
+  if (typeof wallet.validateDepositTerms === "function") {
+    await wallet.validateDepositTerms(depositTerms);
   }
 
   // Same funding outpoints preparePegin derived over, via the shared
