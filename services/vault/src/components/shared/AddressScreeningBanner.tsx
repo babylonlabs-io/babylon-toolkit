@@ -19,7 +19,7 @@ export function AddressScreeningBanner({
         <Text variant="body1">
           <strong>Wallet not eligible</strong>
           <br />
-          This wallet is not eligible to use the BTC Vault. Please review the
+          This wallet is not eligible to use the BTCVault. Please review the
           Terms of Use or contact support if you believe this is an error.
         </Text>
       </div>

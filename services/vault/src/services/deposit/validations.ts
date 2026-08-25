@@ -371,7 +371,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   ) {
     return {
       disabled: true,
-      label: `BTC Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
+      label: `BTCVault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
     };
   }
 
@@ -439,7 +439,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // is known — checked after the amount guidance so "Enter an amount" /
   // "Minimum" isn't preempted by a transient commission load.
   if (params.commissionUnavailable) {
-    return { disabled: true, label: "Loading commission..." };
+    return { disabled: true, label: "Loading Vault Provider commission..." };
   }
 
   if (params.ordinalsCheckPending) {
