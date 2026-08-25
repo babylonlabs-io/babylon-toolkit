@@ -97,8 +97,13 @@ export interface WaitForTransactionReceiptSmartAwareParams {
    */
   confirmations?: number;
   /**
-   * Forwarded to viem on the EOA (externally owned account) path.
-   * Ignored on the smart-account path — see safePollTimeoutMs.
+   * Forwarded to viem on the EOA (externally owned account) path, and on the
+   * fallback where a supposed smart account turns out to submit its own
+   * transactions — that is the EOA case too, however we arrived at it.
+   *
+   * Ignored only while waiting on a genuine Safe proposal, whose budget is
+   * safePollTimeoutMs; the receipt wait after a proposal executes is left to
+   * viem's own default so a slow node cannot fail an already-executed Safe tx.
    */
   timeout?: number;
   /** Total budget for waiting on Safe quorum + execution. Default 4h. */
@@ -135,7 +140,7 @@ export async function waitForTransactionReceiptSmartAware(
   }
 
   const chainId = await publicClient.getChainId();
-  const realTxHash = await pollSafeTransactionServiceUntilExecuted({
+  const outcome = await pollSafeTransactionServiceUntilExecuted({
     chainId,
     publicClient,
     safeTxHash: hash,
@@ -143,11 +148,33 @@ export async function waitForTransactionReceiptSmartAware(
     timeoutMs: safePollTimeoutMs,
   });
 
+  // The wallet turned out to submit its own transactions, so this is the EOA
+  // case after all — including the caller's `timeout`, which only ever meant to
+  // be ignored while waiting on a genuine Safe proposal.
+  if (outcome.kind === "not-a-proposal") {
+    return publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations,
+      timeout,
+    });
+  }
+
   return publicClient.waitForTransactionReceipt({
-    hash: realTxHash,
+    hash: outcome.transactionHash,
     confirmations,
   });
 }
+
+/**
+ * How the Safe path ended. The two outcomes are not interchangeable, so they are
+ * distinguished rather than both collapsing to a bare hash: `executed` is a real
+ * Safe proposal that reached quorum, while `not-a-proposal` means the wallet was
+ * never a Safe and we are really on the EOA path — which decides whether the
+ * caller's `timeout` applies to the receipt wait that follows.
+ */
+type SafePollOutcome =
+  | { kind: "executed"; transactionHash: Hash }
+  | { kind: "not-a-proposal" };
 
 interface SafeMultisigTransaction {
   isExecuted: boolean;
@@ -192,7 +219,7 @@ async function pollSafeTransactionServiceUntilExecuted({
   safeTxHash: Hash;
   pollIntervalMs: number;
   timeoutMs: number;
-}): Promise<Hash> {
+}): Promise<SafePollOutcome> {
   const baseUrl = SAFE_TX_SERVICE_BASE_URLS[chainId];
   if (!baseUrl) {
     throw new Error(
@@ -242,7 +269,7 @@ async function pollSafeTransactionServiceUntilExecuted({
           );
         }
         if (data.transactionHash) {
-          return data.transactionHash;
+          return { kind: "executed", transactionHash: data.transactionHash };
         }
       }
     } else if (response.status === SAFE_TX_SERVICE_NOT_FOUND) {
@@ -257,7 +284,7 @@ async function pollSafeTransactionServiceUntilExecuted({
             `connected wallet submits its own transactions despite reporting ` +
             `contract bytecode. Waiting for its receipt directly.`,
         );
-        return safeTxHash;
+        return { kind: "not-a-proposal" };
       }
     } else if (response.status >= SAFE_TX_SERVICE_SERVER_ERROR) {
       // Transient server error — same treatment as a hung connection: log and retry.

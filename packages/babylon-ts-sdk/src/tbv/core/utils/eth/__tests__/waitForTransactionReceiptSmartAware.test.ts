@@ -336,8 +336,76 @@ describe("waitForTransactionReceiptSmartAware", () => {
     expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
       hash: REAL_TX_HASH,
       confirmations: undefined,
+      timeout: undefined,
     });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards the caller's timeout on the not-a-proposal fallback", async () => {
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      getTransaction: vi.fn().mockResolvedValue({ hash: REAL_TX_HASH }),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success" as const,
+        transactionHash: REAL_TX_HASH,
+      }),
+    });
+
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+    });
+
+    await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: REAL_TX_HASH,
+      timeout: 10_000,
+      safePollIntervalMs: 1,
+    });
+
+    // This is the EOA case reached the long way round, so the caller's bound
+    // applies rather than viem's 180s default.
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+      timeout: 10_000,
+    });
+  });
+
+  it("leaves an executed Safe proposal's receipt wait on viem's default timeout", async () => {
+    const publicClient = makePublicClient({
+      getCode: vi.fn().mockResolvedValue("0x60806040"),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success" as const,
+        transactionHash: REAL_TX_HASH,
+      }),
+    });
+
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        isExecuted: true,
+        isSuccessful: true,
+        transactionHash: REAL_TX_HASH,
+      }),
+    });
+
+    await waitForTransactionReceiptSmartAware({
+      publicClient,
+      walletAddress: SAFE_ADDRESS,
+      hash: SAFE_TX_HASH,
+      timeout: 10_000,
+      safePollIntervalMs: 1,
+    });
+
+    // A genuine Safe tx is already mined by the time we get here; applying the
+    // caller's bound could fail it on a slow node, so it stays unset.
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: REAL_TX_HASH,
+      confirmations: undefined,
+    });
   });
 
   it("keeps polling a 404 while the node has never seen the hash", async () => {
