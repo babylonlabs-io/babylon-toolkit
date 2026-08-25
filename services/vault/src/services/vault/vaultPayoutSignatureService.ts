@@ -80,7 +80,7 @@ export function assertVpCommissionInProtocolRange(
     bps >= VP_COMMISSION_BPS_EXCLUSIVE_MAX
   ) {
     throw new Error(
-      `VP commission ${bps} bps out of protocol range ` +
+      `Vault Provider commission ${bps} bps out of protocol range ` +
         `[${minCommissionBps}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX})`,
     );
   }

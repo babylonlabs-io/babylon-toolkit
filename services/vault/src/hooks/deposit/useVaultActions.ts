@@ -243,7 +243,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       const vault = await fetchVaultById(vaultId);
 
       if (!vault) {
-        throw new Error("BTC Vault not found. Please try again.");
+        throw new Error("BTCVault not found. Please try again.");
       }
 
       if (vault.status !== ContractStatus.PENDING) {
@@ -716,7 +716,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
         throw new Error(
-          "BTC Vault hashlock not found. The BTC Vault may not support activation.",
+          "BTCVault hashlock not found. The BTCVault may not support activation.",
         );
       }
 
