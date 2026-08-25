@@ -592,7 +592,7 @@ describe("PositionNotificationBanner", () => {
     // Safety actions still lead, and the pre-filled cliff CTA is still offered.
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    fireEvent.click(screen.getByText("Add sacrificial BTC Vault"));
+    fireEvent.click(screen.getByText("Add sacrificial BTCVault"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 });
@@ -650,7 +650,7 @@ describe("PositionNotificationBanner v3", () => {
     expect(
       screen.getByText(/Adding a 0.14 BTC sacrificial vault/),
     ).toBeTruthy();
-    expect(screen.getByText("Add sacrificial BTC Vault")).toBeTruthy();
+    expect(screen.getByText("Add sacrificial BTCVault")).toBeTruthy();
     expect(screen.queryByText("Suggestion")).toBeNull();
   });
 
@@ -673,7 +673,7 @@ describe("PositionNotificationBanner v3", () => {
     expect(banner.dataset.tone).toBe("cliff");
     expect(screen.getByText("Suggestion")).toBeTruthy();
     expect(screen.getByText(/withdraw your 1 BTC/)).toBeTruthy();
-    expect(screen.queryByText("Add sacrificial BTC Vault")).toBeNull();
+    expect(screen.queryByText("Add sacrificial BTCVault")).toBeNull();
   });
 
   it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {

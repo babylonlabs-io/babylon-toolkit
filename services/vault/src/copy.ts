@@ -174,7 +174,7 @@ export const COPY = {
       activationSubmitted:
         "BTC Vault activation submitted. Waiting for on-chain confirmation...",
       readyToActivate:
-        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTC Vault.",
+        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTCVault.",
       // Deliberately reassuring: this state looks alarming but the BTC is
       // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
@@ -469,8 +469,8 @@ export const COPY = {
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Expired BTC Vault withdrawal broadcast",
-      body: "Your expired BTC Vault withdrawal transaction has been broadcast successfully.",
+      heading: "Expired BTCVault withdrawal broadcast",
+      body: "Your expired BTCVault withdrawal transaction has been broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
@@ -509,7 +509,7 @@ export const COPY = {
       confirmButton: "Confirm",
     },
     activateConfirmation: {
-      title: "Activate your BTC Vault",
+      title: "Activate your BTCVault",
       // The download instruction is emphasized (primary text color) per the
       // design; the surrounding prose stays secondary.
       body: [
@@ -563,7 +563,7 @@ export const COPY = {
       // is withheld rather than failing after the user commits to revealing
       // the secret.
       applicationInactive:
-        "This BTC Vault's application is not currently active on the vault registry, so withdrawing would be rejected. Your secret has not been revealed. Please try again later or contact support.",
+        "This BTCVault's application is not currently active on the vault registry, so withdrawing would be rejected. Your secret has not been revealed. Please try again later or contact support.",
       confirmButton: "Withdraw without activating",
       retryButton: "Retry",
       cancelButton: "Cancel",
@@ -807,7 +807,7 @@ export const COPY = {
     },
     errors: {
       invalidSecret:
-        "Invalid secret: SHA256(secret) does not match the BTC Vault's hashlock. Please check your secret and try again.",
+        "Invalid secret: SHA256(secret) does not match the BTCVault's hashlock. Please check your secret and try again.",
       // Surfaced if deposit execution is reached while the protocol is frozen or
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
@@ -1901,7 +1901,7 @@ export const COPY = {
     addCollateral: "Add Collateral",
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
-    addSacrificialVault: "Add sacrificial BTC Vault",
+    addSacrificialVault: "Add sacrificial BTCVault",
   },
   geoBlock: {
     title: "Service unavailable in your region",
