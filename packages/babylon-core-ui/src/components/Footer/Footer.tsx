@@ -1,5 +1,5 @@
 import { Text } from "../Text";
-import { BsDiscord, BsGithub, BsLinkedin } from "react-icons/bs";
+import { BsDiscord, BsGithub, BsLinkedin, BsTelegram } from "react-icons/bs";
 import { FaXTwitter } from "react-icons/fa6";
 import { GoHome } from "react-icons/go";
 import { IoMdBook } from "react-icons/io";
@@ -47,6 +47,11 @@ export const DEFAULT_SOCIAL_LINKS: SocialLink[] = [
     name: "GitHub",
     url: "https://github.com/babylonlabs-io",
     Icon: BsGithub,
+  },
+  {
+    name: "Telegram",
+    url: "https://t.me/babylonofficialcommunity",
+    Icon: BsTelegram,
   },
   {
     name: "LinkedIn",
@@ -132,5 +137,4 @@ export const Footer = ({
     </footer>
   );
 };
-
 
