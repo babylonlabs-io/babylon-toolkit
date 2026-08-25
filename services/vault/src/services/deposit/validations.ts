@@ -371,7 +371,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   ) {
     return {
       disabled: true,
-      label: `BTC Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
+      label: `BTCVault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
     };
   }
 
