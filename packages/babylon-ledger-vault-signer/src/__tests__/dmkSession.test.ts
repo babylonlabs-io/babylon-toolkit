@@ -4,6 +4,7 @@
  * lifecycle policy, not Ledger's transport.
  */
 
+import type { TransportFactory } from "@ledgerhq/device-management-kit";
 import { of } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,9 +12,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // these mocks via CONCURRENT dynamic imports, and the registry's interception
 // races when the first resolution happens in parallel.
 import "@ledgerhq/device-management-kit";
-import "@ledgerhq/device-transport-kit-web-hid";
+import { webHidTransportFactory } from "@ledgerhq/device-transport-kit-web-hid";
 
-const built = vi.hoisted(() => ({ count: 0 }));
+const built = vi.hoisted(() => ({
+  count: 0,
+  transports: [] as unknown[],
+  instances: [] as object[],
+  closed: [] as object[],
+  /** Fires inside a build, after its dynamic imports and before `build()`. */
+  onBuilding: undefined as (() => void) | undefined,
+}));
 const dmkStub = vi.hoisted(() => ({
   startDiscovering: vi.fn(),
   connect: vi.fn(),
@@ -25,12 +33,18 @@ const dmkStub = vi.hoisted(() => ({
 
 vi.mock("@ledgerhq/device-management-kit", () => ({
   DeviceManagementKitBuilder: class {
-    addTransport() {
+    addTransport(factory: unknown) {
+      built.transports.push(factory);
+      built.onBuilding?.();
       return this;
     }
     build() {
       built.count += 1;
-      return dmkStub;
+      // Per-build identity, methods falling through to dmkStub's fns — the
+      // race tests must tell the orphaned instance from the survivor.
+      const instance: object = Object.create(dmkStub);
+      built.instances.push(instance);
+      return instance;
     }
   },
   GetAppAndVersionCommand: class {},
@@ -48,15 +62,39 @@ vi.mock("@ledgerhq/device-transport-kit-web-hid", () => ({
   webHidIdentifier: "WEB-HID",
 }));
 
-import { closeDmk, connectDmkSession, disconnectDmkSession, isSessionAlive } from "../dmkSession";
+import {
+  closeDmk,
+  connectDmkSession,
+  disconnectDmkSession,
+  isSessionAlive,
+  setDmkTransportOverride,
+} from "../dmkSession";
 
 const DEVICE = { id: "device-1" };
 
+/** A closed DMK is disposed; using one is a bug a no-op `close()` would hide. */
+function assertNotDisposed(instance: object, call: string): void {
+  if (built.closed.includes(instance)) throw new Error(`DMK.${call} called after close()`);
+}
+
 beforeEach(() => {
   built.count = 0;
+  built.transports.length = 0;
+  built.instances.length = 0;
+  built.closed.length = 0;
+  built.onBuilding = undefined;
   vi.clearAllMocks();
-  dmkStub.startDiscovering.mockReturnValue(of(DEVICE));
-  dmkStub.connect.mockResolvedValue("session-1");
+  dmkStub.close.mockImplementation(function (this: object) {
+    built.closed.push(this);
+  });
+  dmkStub.startDiscovering.mockImplementation(function (this: object) {
+    assertNotDisposed(this, "startDiscovering");
+    return of(DEVICE);
+  });
+  dmkStub.connect.mockImplementation(async function (this: object) {
+    assertNotDisposed(this, "connect");
+    return "session-1";
+  });
   dmkStub.sendCommand.mockResolvedValue({
     status: "SUCCESS",
     data: { name: "Babylon Vault Testnet", version: "0.9.4" },
@@ -64,7 +102,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // closeDmk first: the setter refuses to touch a live singleton.
   closeDmk();
+  setDmkTransportOverride(undefined);
 });
 
 describe("connectDmkSession", () => {
@@ -195,5 +235,133 @@ describe("disconnectDmkSession", () => {
 
     expect(dmkStub.close).not.toHaveBeenCalled();
     expect(built.count).toBe(1);
+  });
+});
+
+describe("setDmkTransportOverride", () => {
+  // The mock DMK never invokes the factory; identity is all these tests need.
+  const fakeTransportFactory: TransportFactory = () => {
+    throw new Error("unit tests never invoke the transport factory");
+  };
+  const FAKE_IDENTIFIER = "FAKE-SPECULOS";
+
+  it("builds the DMK over the injected factory and discovers on its identifier", async () => {
+    setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER });
+
+    await connectDmkSession();
+
+    expect(built.transports).toEqual([fakeTransportFactory]);
+    expect(dmkStub.startDiscovering).toHaveBeenCalledWith({ transport: FAKE_IDENTIFIER });
+  });
+
+  it("keeps the web-hid factory and identifier when nothing is injected", async () => {
+    // Pins the default path: the seam must not perturb production behavior.
+    await connectDmkSession();
+
+    expect(built.transports).toEqual([webHidTransportFactory]);
+    expect(dmkStub.startDiscovering).toHaveBeenCalledWith({ transport: "WEB-HID" });
+  });
+
+  it("throws once the DMK singleton exists — transports register at build time", async () => {
+    await connectDmkSession();
+
+    expect(() =>
+      setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER }),
+    ).toThrow(/closeDmk/);
+  });
+
+  it("throws while a build is still in flight — the promise memo is claimed synchronously", async () => {
+    const pending = connectDmkSession();
+
+    expect(() =>
+      setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER }),
+    ).toThrow(/closeDmk/);
+
+    await pending;
+  });
+
+  it("clearing the override after closeDmk restores the web-hid default", async () => {
+    setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER });
+    await connectDmkSession();
+    closeDmk();
+    built.transports.length = 0;
+
+    setDmkTransportOverride(undefined);
+    await connectDmkSession();
+
+    expect(built.transports).toEqual([webHidTransportFactory]);
+    expect(dmkStub.startDiscovering).toHaveBeenLastCalledWith({ transport: "WEB-HID" });
+  });
+});
+
+describe("closeDmk landing inside a build's await window", () => {
+  // closeDmk() clears the promise memo, which lifts the setter's guard — so a
+  // transport swap can land while a build is still suspended on its imports.
+  const lateTransportFactory: TransportFactory = () => {
+    throw new Error("unit tests never invoke the transport factory");
+  };
+  const LATE_IDENTIFIER = "LATE-SPECULOS";
+
+  it("fails the abandoned connect, and the next one builds and discovers over the late-injected transport", async () => {
+    const abandoned = connectDmkSession();
+
+    closeDmk();
+    setDmkTransportOverride({ transportFactory: lateTransportFactory, transportIdentifier: LATE_IDENTIFIER });
+    // A torn-down DMK cannot serve this caller — handing it back would run
+    // discovery on a disposed instance.
+    await expect(abandoned).rejects.toThrow(/closeDmk/);
+
+    const handle = await connectDmkSession();
+
+    // Per-build snapshot, stated positively: the late override is the NEXT
+    // build's transport, and that build discovers on its own identifier.
+    expect(built.transports).toEqual([webHidTransportFactory, lateTransportFactory]);
+    expect(dmkStub.startDiscovering).toHaveBeenCalledWith({ transport: LATE_IDENTIFIER });
+    expect(handle.sessionId).toBe("session-1");
+  });
+
+  it("never closes the abandoned build's DMK — it holds no transport, and close() would construct one", async () => {
+    const abandoned = connectDmkSession();
+
+    closeDmk();
+    setDmkTransportOverride({ transportFactory: lateTransportFactory, transportIdentifier: LATE_IDENTIFIER });
+    await expect(abandoned).rejects.toThrow(/closeDmk/);
+
+    // `build()` only stores the factory, and the orphan never reached a use
+    // case — so it has nothing to release and close() would only add listeners.
+    expect(built.closed).toHaveLength(0);
+
+    const liveHandle = await connectDmkSession();
+    expect(built.count).toBe(2);
+    expect(liveHandle.dmk).not.toBe(built.instances[0]);
+
+    closeDmk();
+
+    // …and closeDmk() still reaches the LIVE instance, which does hold one.
+    expect(built.closed).toHaveLength(1);
+    expect(built.closed[0]).toBe(liveHandle.dmk);
+  });
+
+  it("an abandoned build's failure leaves the memo of the build that replaced it intact", async () => {
+    // Replace the memo from INSIDE the first build, once it is past its
+    // dynamic imports: two builds importing concurrently trips vitest's own
+    // mock registry, and that race is not the behavior under test.
+    let live: ReturnType<typeof connectDmkSession> | undefined;
+    built.onBuilding = () => {
+      built.onBuilding = undefined;
+      closeDmk();
+      live = connectDmkSession();
+    };
+
+    const abandoned = connectDmkSession();
+
+    await expect(abandoned).rejects.toThrow(/closeDmk/);
+    const liveHandle = await live;
+
+    // The build's catch clears the memo only while it still owns it, so the
+    // abandoned one must not wipe its successor's: a third connect reuses it.
+    const reused = await connectDmkSession();
+    expect(built.count).toBe(2);
+    expect(reused.dmk).toBe(liveHandle?.dmk);
   });
 });

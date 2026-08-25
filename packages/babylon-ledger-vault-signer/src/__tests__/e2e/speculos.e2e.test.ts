@@ -11,16 +11,22 @@
  *   5. Pre-PegIn with an UNMARKED change output → device rejection, intent intact
  *   6. Pre-PegIn under the default wallet policy → one key-path yield per input
  *   7-9. PegIn (spends the real Pre-PegIn txid), sighash check, finalize
- *   10. BIP-322 PoP, last, so it signs while the intent is still loaded — the
- *       path that exercises the firmware's intent-key check
- *       (`sign_psbt_validate.c:2764-2769`).
+ *   10. BIP-322 PoP, last among the intent stages, so it signs while the
+ *       intent is still loaded — the path that exercises the firmware's
+ *       intent-key check (`sign_psbt_validate.c:2764-2769`).
+ *   11. depositor-graph presign (T7 stage a): Payout + NoPayout against a
+ *       production-SDK-built graph fixture, still under the stage-4 intent.
+ *   12. abort/dispatcher recovery (T7 stage b): interrupt SIGN_PSBT mid-loop,
+ *       pin the eaten-APDU behavior and the full re-ceremony recovery. Runs
+ *       LAST — it re-derives, which resets the vault session.
  *
  * Stage 5 MUST precede stage 6: a successful Pre-PegIn sign arms the one-shot
  * cap and the next one answers SW_CAP_EXCEEDED (`sign_psbt_validate.c:539-543`).
  *
  * Requires a running container with the vault app (nanosp, testnet build,
- * firmware-test mnemonic) built from ELF commit `e2d0c45b`. Skipped unless
- * SPECULOS_URL is set:
+ * firmware-test mnemonic) built from ELF commit `29beb88d5` (stages 1-10 also
+ * pass at `e2d0c45b`; stages 11-12 cite `29beb88d5` line numbers). Skipped
+ * unless SPECULOS_URL is set:
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
@@ -28,20 +34,29 @@
  * between runs.
  */
 
+import { assertScriptPathSchnorrSignature } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { describe, expect, it } from "vitest";
 
 import { getExtendedPublicKey, getMasterFingerprintHex } from "../../derivation";
 import { assertDepositTermsDeviceCompatible } from "../../envelope";
-import { isLedgerDeviceError } from "../../errors";
+import {
+  isLedgerDeviceError,
+  isLedgerSignPsbtAbortedError,
+  isLedgerSignPsbtIncompleteError,
+  type LedgerSignPsbtAbortedError,
+  type LedgerSignPsbtIncompleteError,
+} from "../../errors";
 import { bip86OutputScript } from "../../expectedSignatures";
 import { augmentPsbtForWalletPolicy, deriveChangeXOnlyHex } from "../../policyPsbt";
 import { bip322ToSpendTxid, buildPopPsbtHex } from "../../popPsbt";
+import { SW_CAP_EXCEEDED } from "../../rawApdu";
 import { signPreparedVaultPsbt, signVaultPsbt, type SignVaultPsbtResult } from "../../signPsbt";
-import { prepareSignPsbt } from "../../signPsbtPrepare";
+import { getPreparedSignPsbtState, prepareSignPsbt, type PreparedSignPsbt } from "../../signPsbtPrepare";
 import { approveVaultIntent, deriveContextHash } from "../../vaultCommands";
 import { buildDefaultTaprootPolicy, type DefaultTaprootWalletPolicy } from "../../walletPolicy";
+import { buildDepositorGraphFixture, type DepositorGraphFixture } from "./depositorGraphFixture";
 import {
   buildDepositTerms,
   buildPeginPsbt,
@@ -90,7 +105,16 @@ const SIGNING_ABORT_MS = SIGNING_TIMEOUT_MS - 10_000;
 
 const SCHNORR_SIG_BYTES = 64;
 
-/** SW_INCORRECT_DATA — `_validate_prepegin`'s catch-all output reject (`sign_psbt_validate.c:507-510`). */
+/** Depositor-graph challengers = VKs + UCs (VP excluded): 1 keeper + 1 universal in the fixture roster. */
+const DEPOSITOR_GRAPH_CHALLENGER_COUNT = 2;
+/** Stage 12 aborts after the FIRST yield — validation (and the Pre-PegIn cap bump) is over, signing is not. */
+const ABORT_AFTER_YIELD_COUNT = 1;
+
+/**
+ * SW_INCORRECT_DATA — `_validate_prepegin`'s catch-all output reject
+ * (`sign_psbt_validate.c:507-510`); also what the dispatcher answers for the
+ * one eaten APDU after an abandoned CONTINUE loop (`base:dispatcher.c:107-111`).
+ */
 const SW_INCORRECT_DATA = 0x6a80;
 
 /** `<eth>:<chainId>:pegin:<registry>` — grammar is the device's boundary, not ours. */
@@ -440,6 +464,279 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       SIGNING_TIMEOUT_MS,
     );
   });
+
+  describe("(11) depositor-graph presign (Payout + NoPayout) under the loaded intent", () => {
+    let graph: DepositorGraphFixture | undefined;
+
+    it(
+      "builds the graph fixture with the production SDK builders, bound to the signed PegIn",
+      async () => {
+        expect(fixture, "PegIn stage must have built its fixture").toBeDefined();
+        const peginTxHex = Transaction.fromBuffer(
+          Psbt.fromHex((fixture as PeginPsbtFixture).psbtHex).data.globalMap.unsignedTx.toBuffer(),
+        ).toHex();
+        graph = await buildDepositorGraphFixture(peginTxHex);
+        expect(graph.perChallenger).toHaveLength(DEPOSITOR_GRAPH_CHALLENGER_COUNT);
+      },
+      SANITY_TIMEOUT_MS,
+    );
+
+    it(
+      "Payout: the device yields ONE signature (input 0, Vault-UTXO leaf) — the host table also expects input 1, pinning the completion gap",
+      async () => {
+        expect(graph, "fixture stage must have built the graph").toBeDefined();
+        const g = graph as DepositorGraphFixture;
+        const prepared = prepareSignPsbt({ psbtHex: g.payoutPsbtHex, depositorXOnlyHex: DEPOSITOR_XONLY_HEX });
+        // The host table counts every leaf-carrying input (expectedSignatures.ts
+        // buildExpectedSignatureTable) — inputs 0 AND 1 here…
+        expect(prepared.table.expectedYieldCount).toBe(2);
+        const { collector } = getPreparedSignPsbtState(prepared);
+        const failure = await signPreparedVaultPsbt(sendRaw, prepared, {
+          signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        // …but the firmware signs Payout input 0 ONLY and answers SW_OK
+        // (`sign_custom_inputs.c:345-424`; fw test_sign_psbt_payout_vk asserts a
+        // single sig for the depositor claimer). Input 1 belongs to the separate
+        // PayoutFinalize flow. The host's set-equal completion therefore fails
+        // AFTER the device signed — package gap to fix before the payout stage
+        // ships; this stage pins both sides.
+        expect(isLedgerSignPsbtIncompleteError(failure)).toBe(true);
+        expect((failure as LedgerSignPsbtIncompleteError).missing).toEqual([`1:${g.payoutInput1LeafHashHex}`]);
+
+        expect(collector.yields).toHaveLength(1);
+        const yielded = collector.yields[0];
+        expect(yielded.kind).toBe("tapscript");
+        if (yielded.kind !== "tapscript") throw new Error("unreachable");
+        expect(yielded.inputIndex).toBe(0);
+        expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
+        expect(yielded.leafHashHex).toBe(g.payoutInput0LeafHashHex);
+        expect(yielded.signature).toHaveLength(SCHNORR_SIG_BYTES);
+        // Far side, via the SDK's own verifier: recompute the BIP-341
+        // script-path sighash from the PSBT WE built and check the Schnorr.
+        assertScriptPathSchnorrSignature({
+          requestedPsbtHex: g.payoutPsbtHex,
+          signatureHex: Buffer.from(yielded.signature).toString("hex"),
+          signerXOnlyPubkeyHex: DEPOSITOR_XONLY_HEX,
+          inputIndex: 0,
+        });
+      },
+      SIGNING_TIMEOUT_MS,
+    );
+
+    it(
+      "NoPayout, production shape (input 0 spends Assert:0 per btc-vault/HLD): rejected per challenger, intent survives — challenger 0's firmware-shaped sign succeeds with no re-ceremony (FIRMWARE DIVERGENCE PIN)",
+      async () => {
+        expect(graph, "fixture stage must have built the graph").toBeDefined();
+        for (const challenger of (graph as DepositorGraphFixture).perChallenger) {
+          const failure = await signVaultPsbt(sendRaw, {
+            psbtHex: challenger.productionPsbtHex,
+            depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+            signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+          }).then(
+            () => null,
+            (error: unknown) => error,
+          );
+          // DIVERGENCE PINNED (raise with Ledger): `_validate_nopayout` resolves
+          // the vault group by matching input 0's PREVIOUS_TXID against
+          // vault_compute_pegin_txid (`sign_psbt_validate.c:2196-2219`), but the
+          // protocol's NoPayout spends Assert:0 (btc-vault nopayout.rs:146-155;
+          // HLD v22 §4.9.8 "Prevout Assert:0"), whose txid the device cannot
+          // compute — so every honest NoPayout dies here at this tip.
+          expect(isLedgerDeviceError(failure)).toBe(true);
+          expect((failure as { statusWord: number }).statusWord).toBe(SW_INCORRECT_DATA);
+        }
+        // Intent-survival proof, not a liveness probe: `_validate_nopayout` runs
+        // only in VAULT_STATE_INTENT_LOADED (`sign_psbt_validate.c:2000-2003`),
+        // so a completed sign under the SAME intent — no derive/intent re-run —
+        // proves the rejects above left the session loaded (their SEND_SW path
+        // carries no vault_context_invalidate).
+        await signAndVerifyFirmwareShapedNoPayout((graph as DepositorGraphFixture).perChallenger[0]);
+      },
+      SIGNING_TIMEOUT_MS,
+    );
+
+    it(
+      "NoPayout, firmware shape for challenger 1 (FIRMWARE DIVERGENCE PIN — non-protocol shape, input 0 prevout swapped to the PegIn txid): signs and verifies",
+      async () => {
+        expect(graph, "fixture stage must have built the graph").toBeDefined();
+        // Challenger 0's slot was consumed by the survival proof above (per-slot
+        // dedup, `sign_psbt_validate.c:2221-2234`); this completes the roster.
+        await signAndVerifyFirmwareShapedNoPayout((graph as DepositorGraphFixture).perChallenger[1]);
+      },
+      SIGNING_TIMEOUT_MS,
+    );
+
+    /**
+     * Sign the firmware-shaped NoPayout — the shape the firmware's own tests
+     * build (test_sign_psbt_validate.py:2997), differing from production ONLY
+     * in input 0's prevout txid. Its completing isolates the production-shape
+     * rejection to the prevout routing alone: leaf, control block, witness
+     * band and sink all pass. NOT an endorsed scenario: a signature over the
+     * PegIn-txid prevout is unusable on the real Assert:0 (sighash commits
+     * the outpoint).
+     */
+    async function signAndVerifyFirmwareShapedNoPayout(
+      challenger: DepositorGraphFixture["perChallenger"][number],
+    ): Promise<void> {
+      const result = await signVaultPsbt(sendRaw, {
+        psbtHex: challenger.firmwareShapedPsbtHex,
+        depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+        signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+      });
+      expect(result.yields).toHaveLength(1);
+      const yielded = result.yields[0];
+      expect(yielded.kind).toBe("tapscript");
+      if (yielded.kind !== "tapscript") throw new Error("unreachable");
+      expect(yielded.inputIndex).toBe(0);
+      expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
+      expect(yielded.leafHashHex).toBe(challenger.noPayoutLeafHashHex);
+      assertScriptPathSchnorrSignature({
+        requestedPsbtHex: challenger.firmwareShapedPsbtHex,
+        signatureHex: Buffer.from(yielded.signature).toString("hex"),
+        signerXOnlyPubkeyHex: DEPOSITOR_XONLY_HEX,
+        inputIndex: 0,
+      });
+    }
+  });
+
+  describe("(12) SIGN_PSBT abort mid-loop: eaten APDU, consumed cap, re-ceremony recovery", () => {
+    it(
+      "an abort after the first yield leaves the device awaiting CONTINUE: exactly one APDU is eaten with 0x6a80",
+      async () => {
+        expect(prePegin, "policy-context stage must have built the Pre-PegIn").toBeDefined();
+        const root = await rearmIntentCeremony();
+        // Same context ⇒ same root: the re-derivation is deterministic.
+        expect(Buffer.from(root).equals(Buffer.from(contextRoot as Uint8Array))).toBe(true);
+
+        const abort = new AbortController();
+        const prepared = prepareAugmentedPrePegin();
+        const failure = await signPreparedVaultPsbt(sendRaw, prepared, {
+          signal: abort.signal,
+          onProgress: ({ yieldedCount }) => {
+            // Abort BEFORE the loop sends this round's CONTINUE — the device is
+            // left mid-interruption with the first signature already yielded.
+            if (yieldedCount === ABORT_AFTER_YIELD_COUNT) abort.abort();
+          },
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        expect(isLedgerSignPsbtAbortedError(failure)).toBe(true);
+        expect((failure as LedgerSignPsbtAbortedError).yieldedCount).toBe(ABORT_AFTER_YIELD_COUNT);
+
+        // Probe IMMEDIATELY — the 50-tick ≈ 5 s deadline (base:io_ext.h:28)
+        // resets the app on further host silence. The dispatcher answers a
+        // non-CONTINUE APDU with SW_INCORRECT_DATA and drops the interrupted
+        // handler (base:dispatcher.c:107-111 @ e400d8d8): one eaten APDU…
+        const eaten = await getMasterFingerprintHex(send).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        expect(isLedgerDeviceError(eaten)).toBe(true);
+        expect((eaten as { statusWord: number }).statusWord).toBe(SW_INCORRECT_DATA);
+        // …and exactly one: the same read now answers normally.
+        expect(await getMasterFingerprintHex(send)).toBe(masterFingerprintHex);
+      },
+      CEREMONY_TIMEOUT_MS,
+    );
+
+    it(
+      "the aborted sign consumed the one-per-intent Pre-PegIn cap: the retry answers SW_CAP_EXCEEDED",
+      async () => {
+        // `pre_pegin_signed++` runs at the END of validation, BEFORE any yield
+        // ("a failed attempt counts as used", sign_psbt_validate.c:648-656) —
+        // the abort above came after yield 1, so the slot is already burnt.
+        // Pins the fw-reverify delta note: recovery REQUIRES the re-ceremony.
+        const failure = await signPreparedVaultPsbt(sendRaw, prepareAugmentedPrePegin(), {
+          signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        expect(isLedgerDeviceError(failure)).toBe(true);
+        expect((failure as { statusWord: number }).statusWord).toBe(SW_CAP_EXCEEDED);
+      },
+      SIGNING_TIMEOUT_MS,
+    );
+
+    it(
+      "a full re-ceremony (derive → intent → sign) recovers: the Pre-PegIn completes with two verifiable yields",
+      async () => {
+        // SW_CAP_EXCEEDED nullified the session — this re-ceremony is exactly
+        // T3's post-cancel recovery path, pinned here on real firmware.
+        const root = await rearmIntentCeremony();
+        expect(Buffer.from(root).equals(Buffer.from(contextRoot as Uint8Array))).toBe(true);
+
+        const result = await signPreparedVaultPsbt(sendRaw, prepareAugmentedPrePegin(), {
+          signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+        });
+        expect(result.yields).toHaveLength(2);
+        const depositorSpk = bip86OutputScript(DEPOSITOR_XONLY_HEX);
+        const tx = Transaction.fromBuffer(
+          Psbt.fromHex((prePegin as PrePeginPsbtFixture).psbtHex).data.globalMap.unsignedTx.toBuffer(),
+        );
+        for (const yielded of result.yields) {
+          expect(yielded.kind).toBe("taproot-keypath");
+          expect(yielded.signature).toHaveLength(SCHNORR_SIG_BYTES);
+          const sighash = tx.hashForWitnessV1(
+            yielded.inputIndex,
+            [depositorSpk, depositorSpk],
+            [PREPEGIN_INPUT_VALUE_SATS, PREPEGIN_INPUT_VALUE_SATS],
+            Transaction.SIGHASH_DEFAULT,
+          );
+          expect(
+            verifySchnorrSignature(
+              sighash,
+              depositorSpk.subarray(P2TR_WITNESS_PROGRAM_OFFSET).toString("hex"),
+              yielded.signature,
+            ),
+          ).toBe(true);
+        }
+      },
+      CEREMONY_TIMEOUT_MS,
+    );
+  });
+
+  /** Re-run the device ceremony (derive → intent) over the same deterministic fixture; returns the re-derived root. */
+  async function rearmIntentCeremony(): Promise<Uint8Array> {
+    await waitForIdleScreen();
+    const rootPending = deriveContextHash(send, {
+      appName: VAULT_APP_NAME,
+      derivationPath: DEPOSITOR_PATH,
+      context: DERIVE_CONTEXT,
+    });
+    rootPending.catch(() => undefined); // handled at the await below
+    await approveOnScreen(SPECULOS_URL, DERIVE_APPROVAL_TEXT);
+    const root = await rootPending;
+
+    const terms = buildDepositTerms((prePegin as PrePeginPsbtFixture).txidInternal);
+    const intent = termsToIntent(terms);
+    await waitForIdleScreen();
+    const approvePending = approveVaultIntent(send, intent);
+    approvePending.catch(() => undefined); // handled at the await below
+    await approveOnScreen(SPECULOS_URL, INTENT_APPROVAL_TEXT);
+    await approvePending;
+    return root;
+  }
+
+  /** Stage-6-shaped Pre-PegIn (change marked internal), freshly prepared — prepared objects are single-use. */
+  function prepareAugmentedPrePegin(): PreparedSignPsbt {
+    const augmented = augmentPsbtForWalletPolicy({
+      psbtHex: (prePegin as PrePeginPsbtFixture).psbtHex,
+      depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+      walletPolicy: policy as DefaultTaprootWalletPolicy,
+      depositorPath: DEPOSITOR_PATH,
+      change: { addressIndex: CHANGE_ADDRESS_INDEX },
+    });
+    return prepareSignPsbt({
+      psbtHex: augmented,
+      depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+      walletPolicy: policy as DefaultTaprootWalletPolicy,
+    });
+  }
 
   /** Best-effort settle back to the dashboard between the ceremony's two approval flows. */
   async function waitForIdleScreen(): Promise<void> {

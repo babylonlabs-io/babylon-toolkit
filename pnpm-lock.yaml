@@ -315,9 +315,18 @@ importers:
         specifier: 7.8.2
         version: 7.8.2
     devDependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../babylon-tbv-rust-wasm
+      '@babylonlabs-io/ts-sdk':
+        specifier: workspace:*
+        version: link:../babylon-ts-sdk
       '@internal/eslint-config':
         specifier: workspace:*
         version: link:../../tools/eslint-config
+      '@ledgerhq/device-transport-kit-speculos':
+        specifier: 1.2.1
+        version: 1.2.1(@ledgerhq/device-management-kit@1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10))(rxjs@7.8.2)
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -2935,6 +2944,12 @@ packages:
   '@ledgerhq/device-management-kit@1.7.1':
     resolution: {integrity: sha512-O1/H1BWPjrZre+/czkuDcP7fpbjq+PaTwquUtFxEXdVMM+6buvYAtlRUyGR6kjBy/tOsiSKQmHCnOabi/KBozw==}
     peerDependencies:
+      rxjs: 7.8.2
+
+  '@ledgerhq/device-transport-kit-speculos@1.2.1':
+    resolution: {integrity: sha512-lowqaGWtum+KrLgayz5Fu35Ep0AgtBMKo9FJoQ82ilNGli/PxSa4RqLLeWh/+L3CQtpyW8/89pBqSURQyldaYw==}
+    peerDependencies:
+      '@ledgerhq/device-management-kit': ^1.5.1
       rxjs: 7.8.2
 
   '@ledgerhq/device-transport-kit-web-hid@1.2.4':
@@ -13300,6 +13315,13 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@ledgerhq/device-transport-kit-speculos@1.2.1(@ledgerhq/device-management-kit@1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10))(rxjs@7.8.2)':
+    dependencies:
+      '@ledgerhq/device-management-kit': 1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10)
+      '@sentry/minimal': 6.19.7
+      purify-ts: 2.1.0
+      rxjs: 7.8.2
 
   '@ledgerhq/device-transport-kit-web-hid@1.2.4(@ledgerhq/device-management-kit@1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10))(rxjs@7.8.2)':
     dependencies:
