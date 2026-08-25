@@ -48,6 +48,18 @@ const DEFAULT_SAFE_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_SAFE_POLL_TIMEOUT_MS = 4 * 60 * 60 * 1_000;
 const SAFE_TX_SERVICE_FETCH_TIMEOUT_MS = 10_000;
 
+/** Safe Transaction Service route for one multisig-transaction proposal. */
+const SAFE_MULTISIG_TX_PATH = "/api/v1/multisig-transactions";
+/** Safe Transaction Service route for a single Safe account. */
+const SAFE_ACCOUNT_PATH = "/api/v1/safes";
+/** The service answers 404 both for an unindexed proposal and an unknown Safe. */
+const SAFE_TX_SERVICE_NOT_FOUND = 404;
+/** Statuses at or above this are server-side, so worth retrying. */
+const SAFE_TX_SERVICE_SERVER_ERROR = 500;
+
+/** Two hex characters encode one byte in an `eth_getCode` result. */
+const HEX_CHARS_PER_BYTE = 2;
+
 /**
  * EIP-7702 delegation designator: an EOA that has delegated its code to a
  * contract reports exactly `0xef0100 ‖ <20-byte delegate address>` from
@@ -58,7 +70,8 @@ const SAFE_TX_SERVICE_FETCH_TIMEOUT_MS = 10_000;
 const EIP_7702_DELEGATION_PREFIX = "0xef0100";
 const EIP_7702_DELEGATION_ADDRESS_BYTES = 20;
 const EIP_7702_DELEGATION_CODE_LENGTH =
-  EIP_7702_DELEGATION_PREFIX.length + 2 * EIP_7702_DELEGATION_ADDRESS_BYTES;
+  EIP_7702_DELEGATION_PREFIX.length +
+  HEX_CHARS_PER_BYTE * EIP_7702_DELEGATION_ADDRESS_BYTES;
 
 /**
  * True when `eth_getCode` reports an EIP-7702 delegation designator rather than
@@ -167,7 +180,7 @@ async function assertAddressIsSafe({
   baseUrl: string;
   walletAddress: Address;
 }): Promise<void> {
-  const url = `${baseUrl}/api/v1/safes/${walletAddress}/`;
+  const url = `${baseUrl}${SAFE_ACCOUNT_PATH}/${walletAddress}/`;
   const controller = new AbortController();
   const fetchTimeoutId = setTimeout(
     () => controller.abort(),
@@ -188,7 +201,7 @@ async function assertAddressIsSafe({
     clearTimeout(fetchTimeoutId);
   }
 
-  if (response.status === 404) {
+  if (response.status === SAFE_TX_SERVICE_NOT_FOUND) {
     throw new Error(
       `${walletAddress} reports contract bytecode but is not a Safe known to ` +
         `the Safe Transaction Service, so the transaction hash cannot be a ` +
@@ -222,7 +235,7 @@ async function pollSafeTransactionServiceUntilExecuted({
     );
   }
 
-  const url = `${baseUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const url = `${baseUrl}${SAFE_MULTISIG_TX_PATH}/${safeTxHash}/`;
   const deadline = Date.now() + timeoutMs;
   // The "is this actually a Safe?" lookup runs at most once, and only if a 404
   // makes the proposal ambiguous — a healthy Safe never pays for it.
@@ -267,7 +280,7 @@ async function pollSafeTransactionServiceUntilExecuted({
           return data.transactionHash;
         }
       }
-    } else if (response.status === 404) {
+    } else if (response.status === SAFE_TX_SERVICE_NOT_FOUND) {
       // Proposal not yet indexed — keep polling silently. But a 404 also looks
       // exactly like this when the hash is not a safeTxHash at all, so confirm
       // once that the address really is a Safe before spending the budget.
@@ -275,7 +288,7 @@ async function pollSafeTransactionServiceUntilExecuted({
         await assertAddressIsSafe({ baseUrl, walletAddress });
         addressConfirmedSafe = true;
       }
-    } else if (response.status >= 500) {
+    } else if (response.status >= SAFE_TX_SERVICE_SERVER_ERROR) {
       // Transient server error — same treatment as a hung connection: log and retry.
       console.warn(
         `Safe Transaction Service returned ${response.status} for ${safeTxHash}; retrying in ${pollIntervalMs}ms.`,
