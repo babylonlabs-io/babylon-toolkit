@@ -3,8 +3,8 @@
  *
  * Externally Owned Accounts (EOAs) — wallets controlled by a single private
  * key, e.g. MetaMask or a hardware wallet. `eth_sendTransaction` returns a real
- * Ethereum tx hash, which viem can poll directly. This wrapper detects an EOA
- * via `eth_getCode` returning empty bytecode and delegates unchanged.
+ * Ethereum tx hash, which viem can poll directly. This wrapper delegates
+ * unchanged for them.
  *
  * Smart-contract accounts (e.g. Safe multisigs) — the wallet address is a
  * deployed contract that decides whether to accept a transaction. WalletConnect's
@@ -13,6 +13,17 @@
  * off-chain Transaction Service until quorum signs and executes it. We poll
  * that service for the proposal until execution, then wait for receipt on the
  * real Ethereum tx hash exposed in the service's response.
+ *
+ * The two are told apart by `eth_getCode`, but NOT by "empty vs non-empty":
+ * an EIP-7702 delegated EOA reports `0xef0100 ‖ <delegate address>` and is
+ * still an EOA — it signs and submits its own transactions, so
+ * `eth_sendTransaction` returns a real tx hash. MetaMask upgrades accounts to
+ * smart accounts this way by default, and treating one as a Safe means polling
+ * the Transaction Service for a hash that is not a `safeTxHash`: a permanent
+ * 404 that reads as "proposal not yet indexed" and hangs for the full poll
+ * budget on a transaction that already succeeded. Delegation designators are
+ * therefore classified as EOAs, and the Safe path additionally confirms the
+ * address really is a Safe the first time a 404 makes the proposal ambiguous.
  *
  * @module utils/eth
  */
@@ -36,6 +47,30 @@ const SAFE_TX_SERVICE_BASE_URLS: Record<number, string> = {
 const DEFAULT_SAFE_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_SAFE_POLL_TIMEOUT_MS = 4 * 60 * 60 * 1_000;
 const SAFE_TX_SERVICE_FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * EIP-7702 delegation designator: an EOA that has delegated its code to a
+ * contract reports exactly `0xef0100 ‖ <20-byte delegate address>` from
+ * `eth_getCode` (EIP-7702 §"Delegation Designation"). Both the prefix and the
+ * exact length are checked so ordinary contract bytecode that merely happens to
+ * start with these bytes is not mistaken for a delegation.
+ */
+const EIP_7702_DELEGATION_PREFIX = "0xef0100";
+const EIP_7702_DELEGATION_ADDRESS_BYTES = 20;
+const EIP_7702_DELEGATION_CODE_LENGTH =
+  EIP_7702_DELEGATION_PREFIX.length + 2 * EIP_7702_DELEGATION_ADDRESS_BYTES;
+
+/**
+ * True when `eth_getCode` reports an EIP-7702 delegation designator rather than
+ * a deployed contract. Such an account is still an EOA for our purposes: it
+ * signs and submits its own transactions, so the hash we hold is a real tx hash.
+ */
+function isEip7702DelegatedEoa(code: string): boolean {
+  return (
+    code.length === EIP_7702_DELEGATION_CODE_LENGTH &&
+    code.toLowerCase().startsWith(EIP_7702_DELEGATION_PREFIX)
+  );
+}
 
 export interface WaitForTransactionReceiptSmartAwareParams {
   publicClient: PublicClient;
@@ -78,7 +113,10 @@ export async function waitForTransactionReceiptSmartAware(
   } = params;
 
   const code = await publicClient.getCode({ address: walletAddress });
-  const isSmartAccount = code !== undefined && code !== "0x";
+  // An EIP-7702 delegated EOA has non-empty code but still submits its own
+  // transactions, so it belongs on the EOA path — see the module docblock.
+  const isSmartAccount =
+    code !== undefined && code !== "0x" && !isEip7702DelegatedEoa(code);
 
   if (!isSmartAccount) {
     return publicClient.waitForTransactionReceipt({
@@ -91,6 +129,7 @@ export async function waitForTransactionReceiptSmartAware(
   const chainId = await publicClient.getChainId();
   const realTxHash = await pollSafeTransactionServiceUntilExecuted({
     chainId,
+    walletAddress,
     safeTxHash: hash,
     pollIntervalMs: safePollIntervalMs,
     timeoutMs: safePollTimeoutMs,
@@ -108,13 +147,67 @@ interface SafeMultisigTransaction {
   transactionHash: Hash | null;
 }
 
+/**
+ * Refuse to keep polling unless the address really is a Safe.
+ *
+ * A misclassified account produces a hash the Transaction Service has never
+ * heard of, and its 404 is indistinguishable from "proposal not yet indexed" —
+ * so the poll runs to the full budget and reports a timeout, hours after a
+ * transaction that in fact succeeded. Resolving that ambiguity once, on the
+ * first 404, turns it into an immediate and accurate error.
+ *
+ * Only a definitive 404 is treated as proof. Any other outcome (network
+ * failure, 5xx, an unexpected status) is inconclusive, so we warn and let the
+ * poll proceed rather than break a genuine Safe user on a flaky service.
+ */
+async function assertAddressIsSafe({
+  baseUrl,
+  walletAddress,
+}: {
+  baseUrl: string;
+  walletAddress: Address;
+}): Promise<void> {
+  const url = `${baseUrl}/api/v1/safes/${walletAddress}/`;
+  const controller = new AbortController();
+  const fetchTimeoutId = setTimeout(
+    () => controller.abort(),
+    SAFE_TX_SERVICE_FETCH_TIMEOUT_MS,
+  );
+
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: controller.signal });
+  } catch (err) {
+    console.warn(
+      `Could not confirm ${walletAddress} is a Safe (${
+        err instanceof Error ? err.message : String(err)
+      }); proceeding with the proposal poll.`,
+    );
+    return;
+  } finally {
+    clearTimeout(fetchTimeoutId);
+  }
+
+  if (response.status === 404) {
+    throw new Error(
+      `${walletAddress} reports contract bytecode but is not a Safe known to ` +
+        `the Safe Transaction Service, so the transaction hash cannot be a ` +
+        `safeTxHash and waiting for a Safe proposal would never resolve. If ` +
+        `this is a smart-account wallet of another kind, its receipt handling ` +
+        `needs to be added to waitForTransactionReceiptSmartAware.ts.`,
+    );
+  }
+}
+
 async function pollSafeTransactionServiceUntilExecuted({
   chainId,
+  walletAddress,
   safeTxHash,
   pollIntervalMs,
   timeoutMs,
 }: {
   chainId: number;
+  walletAddress: Address;
   safeTxHash: Hash;
   pollIntervalMs: number;
   timeoutMs: number;
@@ -131,6 +224,9 @@ async function pollSafeTransactionServiceUntilExecuted({
 
   const url = `${baseUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
   const deadline = Date.now() + timeoutMs;
+  // The "is this actually a Safe?" lookup runs at most once, and only if a 404
+  // makes the proposal ambiguous — a healthy Safe never pays for it.
+  let addressConfirmedSafe = false;
 
   while (Date.now() < deadline) {
     const controller = new AbortController();
@@ -172,7 +268,13 @@ async function pollSafeTransactionServiceUntilExecuted({
         }
       }
     } else if (response.status === 404) {
-      // Proposal not yet indexed — keep polling silently.
+      // Proposal not yet indexed — keep polling silently. But a 404 also looks
+      // exactly like this when the hash is not a safeTxHash at all, so confirm
+      // once that the address really is a Safe before spending the budget.
+      if (!addressConfirmedSafe) {
+        await assertAddressIsSafe({ baseUrl, walletAddress });
+        addressConfirmedSafe = true;
+      }
     } else if (response.status >= 500) {
       // Transient server error — same treatment as a hung connection: log and retry.
       console.warn(
