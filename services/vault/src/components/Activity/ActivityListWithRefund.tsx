@@ -37,6 +37,7 @@ export function ActivityListWithRefund({
     ethAddress,
     broadcastModal,
     refundModal,
+    reclaimModal,
     emergencyWithdrawModal,
   } = usePendingDeposits();
 
@@ -89,6 +90,7 @@ export function ActivityListWithRefund({
       <PendingDepositModals
         broadcastModal={broadcastModal}
         refundModal={refundModal}
+        reclaimModal={reclaimModal}
         emergencyWithdrawModal={emergencyWithdrawModal}
         ethAddress={ethAddress}
       />

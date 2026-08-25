@@ -68,6 +68,21 @@ const BTC_FRACTIONAL_DIGITS = SATS_PER_BTC.toString().length - 1;
  *
  * @param sats - Total in satoshis. Zero or negative returns "0 BTC/sBTC".
  */
+/**
+ * Format a satoshi-denominated bigint as a grouped integer, e.g. `33,000`.
+ *
+ * Sub-BTC amounts like the depositor-claim reserve read better in whole sats
+ * than as `0.00033 BTC`. The unit itself lives in `copy.ts`, not here.
+ * Grouping is done on the bigint's own digits so totals beyond the JS
+ * safe-integer range stay exact.
+ */
+export function formatSats(sats: bigint): string {
+  const negative = sats < 0n;
+  const digits = (negative ? -sats : sats).toString();
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return negative ? `-${grouped}` : grouped;
+}
+
 export function formatBtcFromSats(sats: bigint): string {
   if (sats <= 0n) return `0 ${btcConfig.coinSymbol}`;
   const whole = sats / SATS_PER_BTC;
