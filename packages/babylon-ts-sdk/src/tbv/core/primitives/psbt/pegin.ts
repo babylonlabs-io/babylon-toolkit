@@ -19,24 +19,22 @@ import {
   computeMinClaimValue,
   createPrePeginTransaction,
   peginP2aAnchorOutput,
-  tapInternalPubkey,
   validatePeginP2aAnchor,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Buffer } from "buffer";
-import { payments, script as bscript, Transaction, opcodes } from "bitcoinjs-lib";
+import { Transaction } from "bitcoinjs-lib";
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
-import {
-  hexToUint8Array,
-  stripHexPrefix,
-  uint8ArrayToHex,
-} from "../utils/bitcoin";
+import { stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
 
 import {
   assertEncodedHtlcOutputsMatch,
   assertWasmPeginSizing,
 } from "./assertWasmPeginSizing";
+import {
+  PEGIN_DEPOSITOR_CLAIM_VOUT,
+  deriveDepositorClaimScriptPubKey,
+} from "./depositorClaim";
 
 /**
  * Parameters for building an unfunded Pre-PegIn PSBT
@@ -330,12 +328,6 @@ export async function buildPeginTxFromFundedPrePegin(
 const PEGIN_BASE_OUTPUT_COUNT = 2;
 
 /**
- * Vout of the depositor-claim output in every PegIn version (btc-vault:
- * vault at 0, depositor claim at 1, optional P2A anchor appended after).
- */
-const PEGIN_DEPOSITOR_CLAIM_VOUT = 1;
-
-/**
  * Cross-check the WASM-built PegIn transaction's bytes against the request
  * and the version's expected output layout before the depositor signs it.
  *
@@ -483,26 +475,3 @@ async function assertPeginTxShape(
   }
 }
 
-/**
- * Independently derive the PegIn depositor-claim output's scriptPubKey in
- * JS: a Taproot output with the NUMS internal key and a single
- * `<depositor> OP_CHECKSIG` leaf — btc-vault's `SingleKeyConnector`
- * (`crates/vault/src/connectors/mod.rs`, identical across graph versions).
- * Uses the same `tapInternalPubkey` NUMS constant the HTLC connector pins.
- */
-function deriveDepositorClaimScriptPubKey(depositorPubkey: string): Buffer {
-  const claimLeafScript = bscript.compile([
-    Buffer.from(hexToUint8Array(depositorPubkey)),
-    opcodes.OP_CHECKSIG,
-  ]);
-  const { output } = payments.p2tr({
-    internalPubkey: Buffer.from(tapInternalPubkey),
-    scriptTree: { output: claimLeafScript },
-  });
-  if (!output) {
-    throw new Error(
-      "Failed to derive the depositor-claim P2TR scriptPubKey for PegIn output validation",
-    );
-  }
-  return output;
-}

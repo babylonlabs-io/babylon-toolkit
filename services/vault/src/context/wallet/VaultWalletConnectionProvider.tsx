@@ -40,7 +40,12 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
 // Ledger's firmware being final. Opt-in rather than opt-out: the env disable
 // list defaults to empty, so a new provider would otherwise be visible in any
 // environment that has not listed it.
-const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+/**
+ * Wallet id of the Ledger BTC Vault app. Exported because the reclaim flow
+ * gates on it too — the device firmware cannot sign that transaction shape
+ * (see `models/reclaimEligibility`) — and both sites must agree on the id.
+ */
+export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,

@@ -663,8 +663,13 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Reserve Claimer UTXO",
+      // Describes the real mechanism, and deliberately shares wording with
+      // COPY.reclaim.review.description so the promise made at deposit time
+      // and the action offered after settlement read as the same thing. Until
+      // the reclaim flow shipped this said the reserve "is returned to you if
+      // unused", which nothing in the app could actually do.
       transactionReserveTooltip:
-        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. It remains locked until claim conditions are met and is returned to you if unused.",
+        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTC Vault once the vault has settled.",
       // The depositable maximum is labelled as the balance, with `maxTooltip`
       // explaining the fee buffer / cap adjustments.
       balanceLabel: "Balance",
@@ -1236,6 +1241,79 @@ export const COPY = {
     // anchor to the explorer home; `callout` is the plain lead-in.
     callout:
       "Explore BTC Vault activity, liquidity metrics, and protocol statistics in the",
+  },
+  // Reclaim of the depositor-claim reserve — the ~33k sats every peg-in sets
+  // aside to fund the depositor's own claim transaction. On the happy path the
+  // vault provider claims from its own wallet and the reserve is never spent,
+  // so it is swept back once the vault has terminally settled.
+  //
+  // "Reclaim", never "Withdraw": that word already means the peg-out, the
+  // inactive-row refund, and ACTIVATE_AND_REDEEM. A fourth sense would make
+  // the row labels unreadable.
+  reclaim: {
+    // Row action in the Inactive Vaults section.
+    rowButton: "Reclaim",
+    // Reserve figure on the row. Whole sats rather than BTC — the reserve is
+    // ~33,000 sats, which reads as "0.00033 BTC" and loses all shape.
+    rowAmount: (amount: string) => `${amount} sats`,
+    // Caption under the reclaimable amount on the row.
+    rowMetricLabel: "reclaimable",
+    // Status-cell label while a sweep is broadcast but not yet confirmed.
+    // Replaces the vault's own "Redeemed" for the duration, the same way the
+    // refund path shows "Refunding" before "Refunded".
+    rowStatusReclaiming: "Reclaiming",
+    review: {
+      heading: "Review Reclaim",
+      description:
+        "A small amount of BTC was reserved during peg-in as a fallback for the withdrawal. The reserve was not used and is now available to reclaim.",
+      reclaimAmount: "Reclaim Amount",
+      networkFeeRate: "Network Fee Rate",
+      btcNetworkFee: "BTC Network Fee",
+      youReceive: "You'll receive",
+      fallbackFeeWarning:
+        "Could not fetch the mempool fee rate. The minimum relay fee may not get your reclaim confirmed. Set a fee rate above to continue.",
+      dustError:
+        "Network fee is too high — the reclaimed amount would be below the Bitcoin dust limit. Your reserve is safe where it is; try again when fees are lower.",
+      feeRateCapError: (maxRateSatsVb: number) =>
+        `Network fee rate exceeds the safety cap of ${maxRateSatsVb} sat/vB. Lower the fee rate to continue.`,
+      // The basis here is the reclaimed amount itself, unlike the refund's cap
+      // which is a fraction of the much larger deposit. Say so plainly — the
+      // percentage is of the figure shown directly above it.
+      feeFractionCapError: (percent: number) =>
+        `Network fee would take more than ${percent}% of the reclaimed amount. Your reserve is safe where it is; try again when fees are lower.`,
+      feeFractionWarning: (percent: number) =>
+        `Network fee takes over ${percent}% of the reclaimed amount. You can continue, or wait for lower fees.`,
+      retryButton: "Retry",
+      confirmButton: "Confirm",
+    },
+    success: {
+      heading: "Reclaim submitted",
+      body: (amount: string) =>
+        `Your ${amount} reclaim transaction has been submitted. It may take a few minutes to be confirmed on the Bitcoin network. You'll receive the funds once the transaction is confirmed.`,
+      // Stands in for the amount when the chain read is unavailable at the
+      // moment of success — the sweep still happened, we just can't name the
+      // figure. Reads naturally in the body sentence above.
+      amountFallback: "reserve",
+      explorerButton: "View on blockchain explorer",
+      doneButton: "Done",
+    },
+    // Shown on a disabled row control, explaining why the reclaim is visible
+    // but not performable right now.
+    blocked: {
+      protocolPaused:
+        "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
+      // The Ledger vault app's firmware cannot sign this transaction shape.
+      // See models/reclaimEligibility.ts for the firmware reference.
+      ledgerUnsupported:
+        "The Ledger BTC Vault app cannot sign a reclaim yet. Connect the same wallet through another BTC wallet to reclaim your reserve.",
+    },
+    // Terminal state reached while the modal was open — the reserve turned out
+    // to be spent already, typically from another device or session.
+    alreadySettled: {
+      heading: "Reserve already reclaimed",
+      body: "This reserve has already been spent, so there is nothing left to reclaim.",
+      doneButton: "Done",
+    },
   },
   withdraw: {
     // Shared labels (review + initiated screens).
