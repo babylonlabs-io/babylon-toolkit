@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicClient } from "viem";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { waitForTransactionReceiptSmartAware } from "../waitForTransactionReceiptSmartAware";
 
@@ -20,7 +20,9 @@ function makePublicClient(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     getCode: vi.fn(),
     getChainId: vi.fn().mockResolvedValue(SEPOLIA_CHAIN_ID),
-    getTransaction: vi.fn().mockRejectedValue(new Error("Transaction not found")),
+    getTransaction: vi
+      .fn()
+      .mockRejectedValue(new Error("Transaction not found")),
     waitForTransactionReceipt: vi.fn(),
     ...overrides,
   } as unknown as PublicClient;

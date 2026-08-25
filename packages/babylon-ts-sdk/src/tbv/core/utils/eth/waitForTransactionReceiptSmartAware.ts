@@ -30,12 +30,7 @@
  * @module utils/eth
  */
 
-import type {
-  Address,
-  Hash,
-  PublicClient,
-  TransactionReceipt,
-} from "viem";
+import type { Address, Hash, PublicClient, TransactionReceipt } from "viem";
 
 /**
  * Chains where the Safe Transaction Service is supported by this utility.
