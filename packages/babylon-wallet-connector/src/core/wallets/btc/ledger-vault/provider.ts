@@ -818,9 +818,12 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+    // Carrying a leaf is not the same as being signed: since #2281 Payout input 1
+    // carries the Assert payout leaf only so the device can display the terms.
+    const signInputIndexes = options?.signInputs?.map((input) => input.index);
     let prepared: PreparedSignPsbt;
     try {
-      prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex });
+      prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex, signInputIndexes });
     } catch (error) {
       throw toStagingWalletError(error, `${label} rejected before device I/O`);
     }
@@ -857,6 +860,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       try {
         // Pass the AUGMENTED hex: the signer's merge target is whatever hex it
         // prepared, so the SDK gets the derivation fields back with the tapKeySig.
+        // No signInputIndexes: it narrows tapscript only, and this path is key-path.
         prepared = prepareSignPsbt({ psbtHex: augmented, depositorXOnlyHex, walletPolicy: policy });
       } catch (error) {
         throw toStagingWalletError(error, `${label} rejected at policy-mode prepare`);

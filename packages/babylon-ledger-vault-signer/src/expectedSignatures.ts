@@ -126,6 +126,13 @@ export interface BuildExpectedSignatureTableParams {
   readonly psbt: ExpectedSignaturePsbt;
   /** Connected depositor x-only key (64 lowercase hex) — pins the table. */
   readonly depositorXOnlyHex: string;
+  /**
+   * Input indices the caller asked to sign. Narrows TAPSCRIPT expectations
+   * only, and is inert for key-path/policy signing — there the base app picks
+   * the set. Structural gates still run on EVERY input. Omit to expect every
+   * device-signable input (the pre-#2281 behaviour).
+   */
+  readonly signInputIndexes?: readonly number[];
 }
 
 /**
@@ -222,11 +229,19 @@ function assertControlBlockCommitsToLeaf(
  * spec §3.1; BIP-371 key types verified against `base:psbt.h:37-42`).
  * Throws `LedgerSignPsbtProtocolError` on any rule violation — all before any
  * device I/O.
+ *
+ * Carrying signing metadata is NOT the same as being signed: since #2281 Payout
+ * input 1 carries the Assert payout leaf purely so the device can display the
+ * terms, while the firmware signs input 0 alone — the index is the literal 0 at
+ * `fw:sign_custom_inputs.c:276,334`, with no loop over inputs.
+ * `signInputIndexes` is what separates the two.
  */
 export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableParams): ExpectedSignatureTable {
-  const { psbt, depositorXOnlyHex } = params;
+  const { psbt, depositorXOnlyHex, signInputIndexes } = params;
   const byInput = new Map<number, InputSigExpectation>();
   const inputCount = psbt.getGlobalInputCount();
+  const requestedInputs = signInputIndexes === undefined ? undefined : new Set(signInputIndexes);
+  const isRequested = (inputIndex: number): boolean => requestedInputs === undefined || requestedInputs.has(inputIndex);
 
   // Precompute the depositor-owned scriptPubKeys once for the ownership scan.
   const depositorP2trScript = bip86OutputScript(depositorXOnlyHex);
@@ -271,11 +286,15 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
       const leafHash = tapLeafHash(TAPSCRIPT_LEAF_VERSION, script);
       // BIP-371 keyData of a TAP_LEAF_SCRIPT entry IS the control block.
       assertControlBlockCommitsToLeaf(inputIndex, leafEntries[0].keyData, leafHash, leafWitnessUtxo.scriptPubKey);
-      byInput.set(inputIndex, {
-        kind: "tapscript",
-        expectedLeafHashHexes: new Set([leafHash.toString("hex")]),
-        expectedSignerXOnlyHex: depositorXOnlyHex,
-      });
+      // Gated AFTER every structural gate above: a leaf we never sign is still
+      // a leaf the spent output must have committed to.
+      if (isRequested(inputIndex)) {
+        byInput.set(inputIndex, {
+          kind: "tapscript",
+          expectedLeafHashHexes: new Set([leafHash.toString("hex")]),
+          expectedSignerXOnlyHex: depositorXOnlyHex,
+        });
+      }
       continue;
     }
 
@@ -303,6 +322,8 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
           `input ${inputIndex} witnessUtxo is not the BIP-86 P2TR of the depositor key`,
         );
       }
+      // NEVER narrowed: under a policy the base app signs every internal input
+      // (`base:sign_psbt.c:142-148`), so the device picks the set, not the caller.
       byInput.set(inputIndex, {
         kind: "taproot-keypath",
         expectedOutputKeyHex: script.subarray(P2TR_SCRIPT_PREFIX.length).toString("hex"),
@@ -310,7 +331,7 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
       continue;
     }
 
-    // Not signed by the device (Payout input 1, NoPayout inputs 1-2 today).
+    // No taproot signing metadata at all (NoPayout inputs 1-2 today).
     // Ownership scan: a depositor-owned UTXO here means our builder dropped
     // the device-required metadata — fail before burning a ceremony. Deliberately
     // limited to these inputs: a Pre-PegIn keypath input legitimately IS the
@@ -326,6 +347,16 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     ) {
       throw new LedgerSignPsbtProtocolError(
         `input ${inputIndex} spends a depositor-owned UTXO but carries no signing metadata`,
+      );
+    }
+  }
+
+  // A requested index with no expectation means the caller and the builder
+  // disagree about the PSBT — a host bug, caught at zero device I/O.
+  for (const inputIndex of requestedInputs ?? []) {
+    if (!byInput.has(inputIndex)) {
+      throw new LedgerSignPsbtProtocolError(
+        `input ${inputIndex} was requested for signing but carries no signing metadata`,
       );
     }
   }

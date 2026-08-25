@@ -191,6 +191,13 @@ export interface PrepareSignPsbtParams {
   /** Cached GET_EXTENDED_PUBKEY read (64 lowercase hex) — pins the table. */
   readonly depositorXOnlyHex: string;
   /**
+   * Input indices the caller asked to sign, narrowing TAPSCRIPT expectations
+   * without relaxing any structural gate. Inert under `walletPolicy`: key-path
+   * expectations are never narrowed, because the base app signs every internal
+   * input. See {@link buildExpectedSignatureTable}; omit for pre-#2281 behaviour.
+   */
+  readonly signInputIndexes?: readonly number[];
+  /**
    * Wallet-policy mode: the SIGN_PSBT wallet_id becomes the policy id and the
    * interpreter serves the policy preimages. Required for key-path signing
    * (PoP, Pre-PegIn): without a policy the base app skips `sign_internal_inputs`
@@ -257,7 +264,7 @@ export function getPreparedSignPsbtState(prepared: PreparedSignPsbt): PreparedSi
  * device I/O.
  */
 export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt {
-  const { psbtHex, depositorXOnlyHex, walletPolicy } = params;
+  const { psbtHex, depositorXOnlyHex, signInputIndexes, walletPolicy } = params;
   if (!DEPOSITOR_X_ONLY_HEX_RE.test(depositorXOnlyHex)) {
     throw new LedgerSignPsbtProtocolError("depositorXOnlyHex must be 64 lowercase hex characters");
   }
@@ -307,7 +314,7 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   try {
     merkelized = new MerkelizedPsbt(psbt);
     // Table from the SAME instance that was committed — no re-parse gap.
-    table = buildExpectedSignatureTable({ psbt: merkelized, depositorXOnlyHex });
+    table = buildExpectedSignatureTable({ psbt: merkelized, depositorXOnlyHex, signInputIndexes });
   } catch (error) {
     // Totalize the typed contract: already-typed rejections pass through;
     // anything else (vendored reader throws, bitcoinjs point math) is wrapped.
