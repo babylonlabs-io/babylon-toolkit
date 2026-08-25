@@ -68,6 +68,20 @@ import { formatSats } from "@/utils/formatting";
 /** Step-progress bar fill — the pending amber, matching the status dot. */
 const PROGRESS_FILL_COLOR = "rgb(var(--risk-amber))";
 
+/**
+ * Real-wallet E2E hook for the reclaim action (e2e/real/actions/reclaim.ts).
+ * Shared by the enabled and in-flight renders so the harness finds the control
+ * in either state — carry it over if you move or rename the element.
+ */
+const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
+
+/**
+ * Reserve-figure cell width. Sits outside the fixed action slot, whose basis is
+ * what keeps every row's columns aligned, so it needs a width of its own; 82px
+ * is the design's, and fits "999,999 sats" at `text-sm`.
+ */
+const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
+
 /** Dot color per display variant. Danger keeps the error red explicitly —
  *  there is no "no dot" state in this compact row layout (v2's cards swap in
  *  a warning icon instead). */
@@ -427,7 +441,7 @@ function InactiveRow({
           columns aligned, and the design's amount + button pair is wider than
           that basis. Rendered on every inactive row — empty for refund rows —
           so both row kinds still line up. */}
-      <div className="flex w-[82px] shrink-0 flex-col">
+      <div className={`flex shrink-0 flex-col ${RECLAIM_METRIC_COLUMN_CLASS}`}>
         {reclaimableSats !== null && (
           <>
             <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
@@ -467,7 +481,7 @@ function InactiveRow({
             type="button"
             onClick={() => onReclaim(activity.id)}
             className={NEUTRAL_ROW_BUTTON_CLASS}
-            data-testid="vault-reclaim-button"
+            data-testid={RECLAIM_BUTTON_TEST_ID}
           >
             {COPY.reclaim.rowButton}
           </button>
@@ -480,7 +494,7 @@ function InactiveRow({
             type="button"
             disabled
             className={NEUTRAL_ROW_BUTTON_CLASS}
-            data-testid="vault-reclaim-button"
+            data-testid={RECLAIM_BUTTON_TEST_ID}
           >
             {COPY.reclaim.rowButton}
           </button>

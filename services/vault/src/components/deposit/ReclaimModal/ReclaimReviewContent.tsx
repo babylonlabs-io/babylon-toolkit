@@ -60,12 +60,22 @@ export function ReclaimReviewContent({
   const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
-    if (feeRate !== null) return;
     if (defaultFeeRateSatsVb && defaultFeeRateSatsVb > 0) {
-      setFeeRate(defaultFeeRateSatsVb);
-      setUsingFallback(false);
+      // The real rate can arrive later than the first render — the preview
+      // refetches on window focus, so a failed fetch can succeed on a second
+      // pass. Adopt it then, and clear the gate. Returning early whenever
+      // `feeRate` was set would strand the fallback warning on screen with
+      // Confirm disabled until the depositor edited the field by hand.
+      //
+      // Only overwrite the field while it still holds the fallback seed; a
+      // rate the depositor typed is theirs to keep.
+      setUsingFallback((wasFallback) => {
+        if (wasFallback || feeRate === null) setFeeRate(defaultFeeRateSatsVb);
+        return false;
+      });
       return;
     }
+    if (feeRate !== null) return;
     setFeeRate(FALLBACK_FEE_RATE_SATS_VB);
     setUsingFallback(true);
   }, [defaultFeeRateSatsVb, feeRate]);

@@ -21,6 +21,8 @@ import { mapWithConcurrency } from "@/utils/concurrency";
 // still re-reads if the user leaves the page open for a long time.
 const STALE_TIME_MS = 5 * 60 * 1000;
 const MAX_CONCURRENT_REQUESTS = 4;
+/** Retries before a failed batch gives up until the next focus or remount. */
+const MAX_READ_RETRIES = 3;
 
 export const RECLAIM_CHAIN_DATA_QUERY_KEY = "reclaimVaultChainData";
 
@@ -45,32 +47,33 @@ export function useReclaimVaultChainData(
     queryKey: [RECLAIM_CHAIN_DATA_QUERY_KEY, stable.join(",")] as const,
     enabled: stable.length > 0,
     staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
+    // An errored query is always stale, so leaving focus refetching on is what
+    // lets a failed batch recover when the user comes back to the tab.
+    refetchOnWindowFocus: true,
+    retry: MAX_READ_RETRIES,
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const entries = await mapWithConcurrency(
         stable,
         MAX_CONCURRENT_REQUESTS,
-        async (vaultId): Promise<[string, ReclaimVaultChainData] | null> => {
-          try {
-            const vault = await getVaultFromChain(vaultId as Hex);
-            return [
-              vaultId,
-              {
-                peginTxid: derivePeginTxid(vault.depositorSignedPeginTx),
-                onChainStatus: vault.status,
-              },
-            ];
-          } catch {
-            // Fails closed: without the contract read the gate withholds the
-            // action rather than trusting the indexer's status.
-            return null;
-          }
+        async (vaultId): Promise<[string, ReclaimVaultChainData]> => {
+          const vault = await getVaultFromChain(vaultId as Hex);
+          return [
+            vaultId,
+            {
+              peginTxid: derivePeginTxid(vault.depositorSignedPeginTx),
+              onChainStatus: vault.status,
+            },
+          ];
         },
       );
-      return new Map<string, ReclaimVaultChainData>(
-        entries.filter((e): e is [string, ReclaimVaultChainData] => e !== null),
-      );
+      // Deliberately not swallowed per-vault. Catching here would resolve the
+      // query *successfully* with the vault missing, and with a 5-minute
+      // staleTime nothing would refetch — one transient RPC blip would hide
+      // Reclaim for five minutes with no way back. Letting it throw keeps the
+      // gate fail-closed (no data, no action) while React Query retries with
+      // backoff and refetches on focus.
+      return new Map<string, ReclaimVaultChainData>(entries);
     },
   });
 

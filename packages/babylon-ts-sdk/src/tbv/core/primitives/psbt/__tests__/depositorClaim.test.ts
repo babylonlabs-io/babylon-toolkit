@@ -150,6 +150,10 @@ describe("deriveDepositorClaimDescriptor", () => {
     );
   });
 
+  // Each key costs three secp256k1 operations across the two implementations,
+  // and the asmjs build is slow — ~1s locally but ~5s on a CI runner, which
+  // overran vitest's 5s default. Critical path #9 wants the randomised sweep,
+  // so the timeout gives way rather than the coverage.
   it("matches the independent BIP-341 derivation across 64 randomised keys", () => {
     for (let seed = 1; seed <= 64; seed++) {
       const depositor = xOnlyKeyFromSeed(seed);
@@ -168,7 +172,7 @@ describe("deriveDepositorClaimDescriptor", () => {
         expected.controlBlock.toString("hex"),
       );
     }
-  });
+  }, 30_000);
 
   it("produces a distinct script per depositor key", () => {
     const a = deriveDepositorClaimScriptPubKey(xOnlyKeyFromSeed(1));

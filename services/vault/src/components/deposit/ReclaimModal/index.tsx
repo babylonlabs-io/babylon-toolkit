@@ -20,6 +20,11 @@ interface ReclaimModalProps {
   activity: VaultActivity;
   onClose: () => void;
   onSuccess: () => void;
+  /**
+   * Called once, only when this session actually broadcast a sweep. Not called
+   * on the already-settled path — that reserve was spent by someone else.
+   */
+  onBroadcast: (vaultId: string) => void;
 }
 
 const RECLAIM_PREVIEW_QUERY_KEY = "RECLAIM_PREVIEW";
@@ -29,6 +34,7 @@ export function ReclaimModal({
   activity,
   onClose,
   onSuccess,
+  onBroadcast,
 }: ReclaimModalProps) {
   const { reclaiming, reclaimTxId, alreadySettled, error, handleReclaim } =
     useReclaimState({ activity });
@@ -71,12 +77,16 @@ export function ReclaimModal({
   // Fire onSuccess only once the user acknowledges, so the parent refetch
   // doesn't race the success screen.
   if (reclaimTxId) {
+    const handleBroadcastDone = () => {
+      onBroadcast(activity.id);
+      handleDone();
+    };
     return (
-      <V3ModalShell open={open} onClose={handleDone}>
+      <V3ModalShell open={open} onClose={handleBroadcastDone}>
         <ReclaimSuccessContent
           reclaimTxId={reclaimTxId}
           amountSats={previewAmountSats}
-          onDone={handleDone}
+          onDone={handleBroadcastDone}
         />
       </V3ModalShell>
     );

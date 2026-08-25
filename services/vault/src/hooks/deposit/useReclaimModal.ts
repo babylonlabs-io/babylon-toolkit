@@ -39,14 +39,19 @@ export function useReclaimModal(options: {
     setReclaimingActivity(null);
   }, []);
 
+  /**
+   * A sweep was broadcast from this session. Separate from {@link handleClose}
+   * on purpose: the modal also reaches a terminal screen when the reserve turns
+   * out to be *already* spent — by another device, or long ago — and marking
+   * that as this session's in-flight reclaim would make the row claim credit
+   * for work it did not do.
+   */
+  const handleBroadcast = useCallback((vaultId: string) => {
+    setInFlightVaultIds((prev) => new Set(prev).add(vaultId.toLowerCase()));
+  }, []);
+
   const handleSuccess = useCallback(() => {
-    setReclaimingActivity((current) => {
-      if (current) {
-        const vaultId = current.id.toLowerCase();
-        setInFlightVaultIds((prev) => new Set(prev).add(vaultId));
-      }
-      return null;
-    });
+    setReclaimingActivity(null);
     onSuccess();
   }, [onSuccess]);
 
@@ -56,6 +61,7 @@ export function useReclaimModal(options: {
     inFlightVaultIds,
     handleReclaimClick,
     handleClose,
+    handleBroadcast,
     handleSuccess,
   };
 }

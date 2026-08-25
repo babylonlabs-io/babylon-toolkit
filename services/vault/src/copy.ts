@@ -1307,6 +1307,16 @@ export const COPY = {
       ledgerUnsupported:
         "The Ledger BTC Vault app cannot sign a reclaim yet. Connect the same wallet through another BTC wallet to reclaim your reserve.",
     },
+    // Failures surfaced on the review screen's error callout. Kept here rather
+    // than inline in the execution hook so the whole reclaim surface is
+    // editable from one place.
+    errors: {
+      walletNotConnected: "BTC wallet not connected",
+      missingVaultId: "Missing BTC Vault ID",
+      invalidFeeRate: "Fee rate must be a positive number",
+      // Fallback when the failure carries no message of its own.
+      generic: "Reclaim transaction failed",
+    },
     // Terminal state reached while the modal was open — the reserve turned out
     // to be spent already, typically from another device or session.
     alreadySettled: {

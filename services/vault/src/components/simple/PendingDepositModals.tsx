@@ -38,6 +38,7 @@ interface RefundModalState {
 interface ReclaimModalState {
   reclaimingActivity: VaultActivity | null;
   handleClose: () => void;
+  handleBroadcast: (vaultId: string) => void;
   handleSuccess: () => void;
 }
 
@@ -97,6 +98,7 @@ export function PendingDepositModals({
           activity={reclaimModal.reclaimingActivity}
           onClose={reclaimModal.handleClose}
           onSuccess={reclaimModal.handleSuccess}
+          onBroadcast={reclaimModal.handleBroadcast}
         />
       )}
 

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,20 +53,22 @@ const ACTIVITY = {
   providers: [],
 } as unknown as VaultActivity;
 
-function renderModal() {
+function renderModal(onBroadcast = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={client}>
       <ReclaimModal
         open
         activity={ACTIVITY}
         onClose={vi.fn()}
         onSuccess={vi.fn()}
+        onBroadcast={onBroadcast}
       />
     </QueryClientProvider>,
   );
+  return { ...result, onBroadcast };
 }
 
 function mockReclaimState(overrides: Record<string, unknown> = {}) {
@@ -135,6 +137,27 @@ describe("ReclaimModal", () => {
     expect(
       await screen.findByText(COPY.reclaim.alreadySettled.heading),
     ).toBeInTheDocument();
+  });
+
+  it("marks the vault in flight only after this session broadcast a sweep", async () => {
+    mockReclaimState({ reclaimTxId: "deadbeef" });
+    const { onBroadcast } = renderModal();
+
+    fireEvent.click(await screen.findByTestId("reclaim-done-button"));
+
+    expect(onBroadcast).toHaveBeenCalledWith(ACTIVITY.id);
+  });
+
+  it("does not mark the vault in flight when the reserve was already spent", async () => {
+    // Someone else's sweep — claiming it as this session's in-flight reclaim
+    // would make the row show "Reclaiming" for work it did not do.
+    mockReclaimState({ alreadySettled: true });
+    const { onBroadcast } = renderModal();
+
+    await screen.findByText(COPY.reclaim.alreadySettled.heading);
+    fireEvent.click(screen.getByText(COPY.reclaim.alreadySettled.doneButton));
+
+    expect(onBroadcast).not.toHaveBeenCalled();
   });
 
   it("surfaces a preview failure on the review screen rather than blocking it", async () => {

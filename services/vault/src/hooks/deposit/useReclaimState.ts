@@ -2,6 +2,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import {
   ReclaimAlreadySettledError,
@@ -74,15 +75,15 @@ export function useReclaimState({
 
       try {
         if (!btcWalletProvider || !connectedBtcAddress) {
-          setError("BTC wallet not connected");
+          setError(COPY.reclaim.errors.walletNotConnected);
           return;
         }
         if (!vaultId) {
-          setError("Missing BTC Vault ID");
+          setError(COPY.reclaim.errors.missingVaultId);
           return;
         }
         if (!Number.isFinite(feeRate) || feeRate <= 0) {
-          setError("Fee rate must be a positive number");
+          setError(COPY.reclaim.errors.invalidFeeRate);
           return;
         }
 
@@ -135,7 +136,7 @@ export function useReclaimState({
             data: { context: "Reclaim failed", vaultId },
           });
           setError(
-            err instanceof Error ? err.message : "Reclaim transaction failed",
+            err instanceof Error ? err.message : COPY.reclaim.errors.generic,
           );
           setReclaiming(false);
         }
