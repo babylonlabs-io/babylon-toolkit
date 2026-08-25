@@ -401,7 +401,8 @@ describe("waitForTransactionReceiptSmartAware", () => {
     });
 
     // A genuine Safe tx is already mined by the time we get here; applying the
-    // caller's bound could fail it on a slow node, so it stays unset.
+    // caller's shorter bound could fail it on a slow node, so it stays unset
+    // and viem's own default bounds this wait instead.
     expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
       hash: REAL_TX_HASH,
       confirmations: undefined,

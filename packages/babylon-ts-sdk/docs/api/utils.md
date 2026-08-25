@@ -253,8 +253,11 @@ fallback where a supposed smart account turns out to submit its own
 transactions — that is the EOA case too, however we arrived at it.
 
 Ignored only while waiting on a genuine Safe proposal, whose budget is
-safePollTimeoutMs; the receipt wait after a proposal executes is left to
-viem's own default so a slow node cannot fail an already-executed Safe tx.
+safePollTimeoutMs. It is not forwarded to the receipt wait that follows a
+proposal's execution either: viem's own default applies there (180s as of
+viem 2.38.2), so that wait is bounded too — a sufficiently slow node still
+raises WaitForTransactionReceiptTimeoutError, just on viem's uniform bound
+rather than on a caller's shorter one.
 
 ##### safePollTimeoutMs?
 
