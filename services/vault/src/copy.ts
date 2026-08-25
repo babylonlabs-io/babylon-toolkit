@@ -150,11 +150,11 @@ export const COPY = {
     // as the activation error so the spinner clears and the user understands
     // it's a governance pause (not a failed secret). Activation resumes on unpause.
     activationPaused:
-      "Activation is paused by a protocol governance action. Your BTC Vault stays safe — activation will resume once the pause is lifted.",
+      "Activation is paused by a protocol governance action. Your BTCVault stays safe — activation will resume once the pause is lifted.",
     // Same shape for the activate-and-redeem escape hatch, which is gated only
     // by a protocol-scope pause (an application pause never blocks it).
     activateAndRedeemPaused:
-      "Withdrawal is paused by a protocol governance action. Your BTC Vault stays safe — withdrawal will resume once the pause is lifted.",
+      "Withdrawal is paused by a protocol governance action. Your BTCVault stays safe — withdrawal will resume once the pause is lifted.",
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
@@ -172,13 +172,13 @@ export const COPY = {
       waitingForPayoutPrep:
         "Waiting for vault provider to prepare claim and payout transactions...",
       activationSubmitted:
-        "BTC Vault activation submitted. Waiting for on-chain confirmation...",
+        "BTCVault activation submitted. Waiting for on-chain confirmation...",
       readyToActivate:
-        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTC Vault.",
+        "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTCVault.",
       // Deliberately reassuring: this state looks alarming but the BTC is
       // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
       // Always-visible one-liner under the amount (the message above is
       // tooltip-only); same reassuring tone.
       activationIncompleteSubtext:
@@ -187,7 +187,7 @@ export const COPY = {
       // checks; the minutes figure is an estimate derived from slot time, so it
       // is bracketed as approximate. Mirrors the refundMaturing shape.
       activationWindowOpening: (blocks: number, minutes: number) =>
-        `Your BTC Vault is verified. Activation opens in ${blocks} Ethereum ${
+        `Your BTCVault is verified. Activation opens in ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
         } (~${minutes} min).`,
       activationWindowTooltip:
@@ -209,13 +209,13 @@ export const COPY = {
       // above: we cannot say how long, only that we will not reveal the secret
       // against an unverifiable gate.
       activationWindowUnavailable:
-        "Could not confirm the BTC Vault activation window. Nothing was submitted — please try again in a moment.",
+        "Could not confirm the BTCVault activation window. Nothing was submitted — please try again in a moment.",
       inUseCannotRedeem:
-        "BTC Vault is currently being used as collateral. Repay all debt before redeeming.",
+        "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
         "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
       liquidated:
-        "This BTC Vault was liquidated. The collateral was seized to cover unpaid debt.",
+        "This BTCVault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       refundComplete:
@@ -227,7 +227,7 @@ export const COPY = {
         `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
       invalid:
-        "This BTC Vault is invalid. The BTC UTXOs were spent in a different transaction.",
+        "This BTCVault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
         "Redemption complete. Your BTC payout has been sent to your nominated address.",
     },
@@ -267,9 +267,9 @@ export const COPY = {
         // often be wrong, so these vaults show the heading alone.
         ack_timeout: null,
         proof_timeout: "The inclusion proof was not submitted in time",
-        activation_timeout: "The BTC Vault was not activated in time",
+        activation_timeout: "The BTCVault was not activated in time",
       },
-      heading: "This BTC Vault has expired.",
+      heading: "This BTCVault has expired.",
       timeAgo: {
         justNow: "just now",
         prefix: "Expired",
@@ -277,7 +277,7 @@ export const COPY = {
     },
     warnings: {
       walletOwnershipMismatch: (truncatedPubkey: string) =>
-        `This BTC Vault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
+        `This BTCVault was created with a different BTC public key (${truncatedPubkey}). Switch to that wallet to perform actions.`,
     },
   },
   deposit: {
@@ -289,9 +289,9 @@ export const COPY = {
     },
     maxVaultsReached: {
       cta: "Maximum BTC Vaults reached",
-      unavailableCta: "Unable to verify BTC Vault count — please try again",
+      unavailableCta: "Unable to verify BTCVault count — please try again",
       splitUnavailable: (used: number, cap: number) =>
-        `${used} of ${cap} BTC Vaults used. BTC Vault split unavailable.`,
+        `${used} of ${cap} BTCVaults used. BTCVault split unavailable.`,
     },
     steps: {
       generateSecret: "Generate secret for the deposit",
@@ -309,7 +309,7 @@ export const COPY = {
       awaitVpVerification: "Awaiting vault provider verification",
       retrieveSecret: "Retrieve secret",
       revealSecret: "Sign and broadcast ETH activation transaction",
-      awaitActivationConfirmation: "Awaiting BTC Vault activation confirmation",
+      awaitActivationConfirmation: "Awaiting BTCVault activation confirmation",
       peginFeeWarning: "Expect a high transaction fee for security reasons",
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
@@ -351,11 +351,11 @@ export const COPY = {
       },
       activateVault: {
         title: ACTIVATION_REQUIRED_LABEL,
-        body: "Your Bitcoin is confirmed - activate your BTC Vault to finish your deposit.",
+        body: "Your Bitcoin is confirmed - activate your BTCVault to finish your deposit.",
       },
       activateAndRedeem: {
         title: WITHDRAW_REQUIRED_LABEL,
-        body: "Your BTC Vault could not be activated - withdraw to recover your BTC.",
+        body: "Your BTCVault could not be activated - withdraw to recover your BTC.",
       },
       // In-flow prompt nudging the depositor to allow browser notifications so
       // we can ping them when a deposit needs a signature.
@@ -371,7 +371,7 @@ export const COPY = {
       registerDeposit: "Register deposit",
       signWots: "Set up claim",
       signPayout: "Sign payout",
-      activateVault: "Activate BTC Vault",
+      activateVault: "Activate BTCVault",
       stepCounter: (completed: number, total: number) =>
         `${completed}/${total}`,
     },
@@ -395,7 +395,7 @@ export const COPY = {
       summary: {
         estimate: (duration: string) => `~${duration}`,
         description:
-          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the BTC Vault is activated.",
+          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the BTCVault is activated.",
       },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
@@ -407,7 +407,7 @@ export const COPY = {
       doNotSpendWarning:
         "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
       splitVaultColumnLabel: (vaultNumber: number) =>
-        `BTC Vault ${vaultNumber}`,
+        `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",
@@ -463,14 +463,14 @@ export const COPY = {
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",
       body: (amount: string, symbol: string) =>
-        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTC Vault is not active yet — this is just one step in the deposit lifecycle.`,
+        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTCVault is not active yet — this is just one step in the deposit lifecycle.`,
       footnote:
-        "Once the Pre-Pegin confirms, the vault provider will prompt you to submit a WOTS key, sign payout authorizations, and finally activate the BTC Vault by revealing your HTLC secret. Check back here — the next required action will appear when it's ready.",
+        "Once the Pre-Pegin confirms, the vault provider will prompt you to submit a WOTS key, sign payout authorizations, and finally activate the BTCVault by revealing your HTLC secret. Check back here — the next required action will appear when it's ready.",
       doneButton: "Done",
     },
     refundSuccess: {
-      heading: "Expired BTC Vault withdrawal broadcast",
-      body: "Your expired BTC Vault withdrawal transaction has been broadcast successfully.",
+      heading: "Expired BTCVault withdrawal broadcast",
+      body: "Your expired BTCVault withdrawal transaction has been broadcast successfully.",
       viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
@@ -509,14 +509,14 @@ export const COPY = {
       confirmButton: "Confirm",
     },
     activateConfirmation: {
-      title: "Activate your BTC Vault",
+      title: "Activate your BTCVault",
       // The download instruction is emphasized (primary text color) per the
       // design; the surrounding prose stays secondary.
       body: [
         { text: "Before activating, ", emphasis: false },
         { text: "download the recovery artifacts", emphasis: true },
         {
-          text: " of your BTC Vault. These files will make sure your BTC Vault is fully functional even if your vault provider becomes unavailable.",
+          text: " of your BTCVault. These files will make sure your BTCVault is fully functional even if your vault provider becomes unavailable.",
           emphasis: false,
         },
       ] satisfies EmphasisBodySegment[],
@@ -553,9 +553,9 @@ export const COPY = {
       // — the real wait is the vault's `timelockAssert`, a protocol parameter
       // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTC Vault was never activated. Withdrawing redeems the BTC Vault — the vault provider will send your BTC to your payout address, which takes several days.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider will send your BTC to your payout address, which takes several days.",
       bodyAdvanced:
-        "This reveals your HTLC secret and redeems the BTC Vault without activating it. The vault provider will send your BTC to your payout address, which takes several days. If you are unsure, cancel and wait — letting the BTC Vault expire and refunding is the safe default.",
+        "This reveals your HTLC secret and redeems the BTCVault without activating it. The vault provider will send your BTC to your payout address, which takes several days. If you are unsure, cancel and wait — letting the BTCVault expire and refunding is the safe default.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       // Shown when the vault's application is registered but not Active on
@@ -563,7 +563,7 @@ export const COPY = {
       // is withheld rather than failing after the user commits to revealing
       // the secret.
       applicationInactive:
-        "This BTC Vault's application is not currently active on the vault registry, so withdrawing would be rejected. Your secret has not been revealed. Please try again later or contact support.",
+        "This BTCVault's application is not currently active on the vault registry, so withdrawing would be rejected. Your secret has not been revealed. Please try again later or contact support.",
       confirmButton: "Withdraw without activating",
       retryButton: "Retry",
       cancelButton: "Cancel",
@@ -572,17 +572,17 @@ export const COPY = {
       errors: {
         btcWalletNotConnected: "BTC wallet is not connected",
         ethWalletNotConnected: "ETH wallet is not connected",
-        withdrawFailed: "Failed to withdraw BTC Vault",
+        withdrawFailed: "Failed to withdraw BTCVault",
       },
       success: {
         heading: "Withdrawal submitted",
-        body: "Your BTC Vault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
+        body: "Your BTCVault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
         doneButton: "Done",
       },
     },
     artifactDownload: {
-      title: "Download BTC Vault artifacts",
-      body: "Download your BTC Vault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      title: "Download BTCVault artifacts",
+      body: "Download your BTCVault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
       // Shown after the download completes (third copy bucket for the
       // same modal); the green-card layout pairs with this title.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
@@ -633,7 +633,7 @@ export const COPY = {
       // opened before the wallet prompt, so this is the first status a user
       // sees after pressing Download.
       choosingSaveLocation: "Choose where to save your artifacts...",
-      savePickerDescription: "BTC Vault recovery artifacts",
+      savePickerDescription: "BTCVault recovery artifacts",
       // The browser refused the chosen location, or the write failed partway
       // through (permission revoked, disk full).
       fileAccessDenied:
@@ -647,7 +647,7 @@ export const COPY = {
       // must hold the whole ~1 GB file in memory, and the browser reports
       // nothing back about whether it was saved.
       fallbackSaveHint:
-        "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTC Vault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
+        "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTCVault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
       // Shown after that same fallback path finishes. The transfer is done and
       // the file was handed to the browser, but a blocked or dismissed save
       // looks identical to a successful one from here, so this state stops
@@ -655,7 +655,7 @@ export const COPY = {
       // stays required and the vault keeps warning.
       unverifiedSaveTitle: "Download finished, but we cannot confirm it saved",
       unverifiedSaveNotice:
-        "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTC Vault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
+        "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTCVault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
       // The fallback path may well have worked; this offers a retry without
       // implying the first attempt failed.
       downloadAgainButton: "Download Again",
@@ -753,7 +753,7 @@ export const COPY = {
       splitOptionDescription:
         "Split your BTC into two BTC Vaults to enable partial liquidation.",
       noSplitOptionDescription:
-        "Your BTC will be deposited into a single BTC Vault.",
+        "Your BTC will be deposited into a single BTCVault.",
       // "Learn more here." link appended to the split-option description in
       // UtxoSplitSelector, pointing at the partial-liquidation docs.
       learnMore: "Learn more here.",
@@ -769,7 +769,7 @@ export const COPY = {
     resume: {
       broadcastSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       readyToActivateMessage:
-        "Your payout transactions are signed and verified. Your BTC Vault is ready to activate.",
+        "Your payout transactions are signed and verified. Your BTCVault is ready to activate.",
       wotsMismatchError: WRONG_WALLET_BODY,
       // Resume preflight guards (rendered via mapDepositError's pass-through,
       // same pattern as wotsMismatchError above). walletNotConnected is shared
@@ -787,14 +787,14 @@ export const COPY = {
         "Your deposit was registered on-chain, but this browser couldn't save a local copy. Free up browser storage or exit private browsing so it shows up here for tracking.",
       reusesReservedUtxos: (count: number) =>
         count <= 1
-          ? "This deposit and another of your pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
-          : `This deposit and ${count} of your other pending BTC Vault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
+          ? "This deposit and another of your pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
+          : `This deposit and ${count} of your other pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
       wotsReadinessTimeout: (vaultNumber: number) =>
         `Vault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
       wotsReadinessTerminal: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTC Vault cannot continue`,
+        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTCVault cannot continue`,
       payoutReadinessTerminal: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: Payout signing skipped - vault provider reported this BTC Vault cannot continue`,
+        `Vault ${vaultNumber}: Payout signing skipped - vault provider reported this BTCVault cannot continue`,
       wotsSubmissionFailed: (vaultNumber: number, error: string) =>
         `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
       payoutSigningFailed: (vaultNumber: number, error: string) =>
@@ -807,23 +807,23 @@ export const COPY = {
     },
     errors: {
       invalidSecret:
-        "Invalid secret: SHA256(secret) does not match the BTC Vault's hashlock. Please check your secret and try again.",
+        "Invalid secret: SHA256(secret) does not match the BTCVault's hashlock. Please check your secret and try again.",
       // Surfaced if deposit execution is reached while the protocol is frozen or
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
       protocolPaused:
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
       cannotActivateInState: (state: string) =>
-        `Cannot activate: BTC Vault is in ${state} state. Activation is only valid when VERIFIED.`,
+        `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
       // Deliberately worded without the token "broadcast". These are state
       // preconditions, not broadcast failures, and `mapDepositError` matches
       // "broadcast" on the message — which would replace this precise sentence
       // with "Broadcast failed / please try again", wrong for a terminal state
       // like EXPIRED where retrying can never succeed.
       cannotBroadcastInState: (state: string) =>
-        `Cannot continue: BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
+        `Cannot continue: BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
-        `Cannot continue: on-chain BTC Vault is in ${state} state. This step is only valid while the vault is PENDING.`,
+        `Cannot continue: on-chain BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -1235,7 +1235,7 @@ export const COPY = {
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
     },
   },
-  // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
+  // Links to the Babylon BTCVault explorer (Xangle). Only rendered when
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
   // accessible name + tooltip.
   explorer: {
@@ -2009,7 +2009,7 @@ export const COPY = {
     // what action is feasible.
     cliff: {
       title: "First liquidation takes everything",
-      body: "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+      body: "With your current BTCVaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
       // Header shown above the suggestion text when there is no actionable CTA
       // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
       suggestionLabel: "Suggestion",
