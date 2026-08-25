@@ -22,8 +22,10 @@
  * the Transaction Service for a hash that is not a `safeTxHash`: a permanent
  * 404 that reads as "proposal not yet indexed" and hangs for the full poll
  * budget on a transaction that already succeeded. Delegation designators are
- * therefore classified as EOAs, and the Safe path additionally confirms the
- * address really is a Safe the first time a 404 makes the proposal ambiguous.
+ * therefore classified as EOAs. As a backstop for any wallet that behaves this
+ * way in future, a 404 from the Transaction Service is also checked against the
+ * node: if it knows the hash as a real transaction, we were never waiting on a
+ * proposal and switch to waiting for that transaction's receipt.
  *
  * @module utils/eth
  */
@@ -50,8 +52,6 @@ const SAFE_TX_SERVICE_FETCH_TIMEOUT_MS = 10_000;
 
 /** Safe Transaction Service route for one multisig-transaction proposal. */
 const SAFE_MULTISIG_TX_PATH = "/api/v1/multisig-transactions";
-/** Safe Transaction Service route for a single Safe account. */
-const SAFE_ACCOUNT_PATH = "/api/v1/safes";
 /** The service answers 404 both for an unindexed proposal and an unknown Safe. */
 const SAFE_TX_SERVICE_NOT_FOUND = 404;
 /** Statuses at or above this are server-side, so worth retrying. */
@@ -142,7 +142,7 @@ export async function waitForTransactionReceiptSmartAware(
   const chainId = await publicClient.getChainId();
   const realTxHash = await pollSafeTransactionServiceUntilExecuted({
     chainId,
-    walletAddress,
+    publicClient,
     safeTxHash: hash,
     pollIntervalMs: safePollIntervalMs,
     timeoutMs: safePollTimeoutMs,
@@ -161,66 +161,39 @@ interface SafeMultisigTransaction {
 }
 
 /**
- * Refuse to keep polling unless the address really is a Safe.
+ * Decide whether a 404 from the Transaction Service means "proposal not indexed
+ * yet" or "this hash was never a proposal at all".
  *
- * A misclassified account produces a hash the Transaction Service has never
- * heard of, and its 404 is indistinguishable from "proposal not yet indexed" —
- * so the poll runs to the full budget and reports a timeout, hours after a
- * transaction that in fact succeeded. Resolving that ambiguity once, on the
- * first 404, turns it into an immediate and accurate error.
+ * The Safe indexer cannot answer that: a genuine Safe and its freshly-submitted
+ * proposal are both absent from it for a while, so its 404 proves nothing. The
+ * NODE can. A `safeTxHash` is an EIP-712 digest of a proposal and is never a
+ * transaction on chain, so if the node knows the hash as a real transaction then
+ * this was never a proposal and we are on the wrong path entirely.
  *
- * Only a definitive 404 is treated as proof. Any other outcome (network
- * failure, 5xx, an unexpected status) is inconclusive, so we warn and let the
- * poll proceed rather than break a genuine Safe user on a flaky service.
+ * Returns true only on that positive identification. Anything else — the node
+ * has not seen it yet, or the lookup fails — is inconclusive and leaves the
+ * caller polling, which is the correct behaviour for a Safe that is simply
+ * still being indexed.
  */
-async function assertAddressIsSafe({
-  baseUrl,
-  walletAddress,
-}: {
-  baseUrl: string;
-  walletAddress: Address;
-}): Promise<void> {
-  const url = `${baseUrl}${SAFE_ACCOUNT_PATH}/${walletAddress}/`;
-  const controller = new AbortController();
-  const fetchTimeoutId = setTimeout(
-    () => controller.abort(),
-    SAFE_TX_SERVICE_FETCH_TIMEOUT_MS,
-  );
-
-  let response: Response;
-  try {
-    response = await fetch(url, { signal: controller.signal });
-  } catch (err) {
-    console.warn(
-      `Could not confirm ${walletAddress} is a Safe (${
-        err instanceof Error ? err.message : String(err)
-      }); proceeding with the proposal poll.`,
-    );
-    return;
-  } finally {
-    clearTimeout(fetchTimeoutId);
-  }
-
-  if (response.status === SAFE_TX_SERVICE_NOT_FOUND) {
-    throw new Error(
-      `${walletAddress} reports contract bytecode but is not a Safe known to ` +
-        `the Safe Transaction Service, so the transaction hash cannot be a ` +
-        `safeTxHash and waiting for a Safe proposal would never resolve. If ` +
-        `this is a smart-account wallet of another kind, its receipt handling ` +
-        `needs to be added to waitForTransactionReceiptSmartAware.ts.`,
-    );
-  }
+async function hashIsRealTransaction(
+  publicClient: PublicClient,
+  hash: Hash,
+): Promise<boolean> {
+  const transaction = await publicClient
+    .getTransaction({ hash })
+    .catch(() => null);
+  return transaction !== null;
 }
 
 async function pollSafeTransactionServiceUntilExecuted({
   chainId,
-  walletAddress,
+  publicClient,
   safeTxHash,
   pollIntervalMs,
   timeoutMs,
 }: {
   chainId: number;
-  walletAddress: Address;
+  publicClient: PublicClient;
   safeTxHash: Hash;
   pollIntervalMs: number;
   timeoutMs: number;
@@ -237,9 +210,6 @@ async function pollSafeTransactionServiceUntilExecuted({
 
   const url = `${baseUrl}${SAFE_MULTISIG_TX_PATH}/${safeTxHash}/`;
   const deadline = Date.now() + timeoutMs;
-  // The "is this actually a Safe?" lookup runs at most once, and only if a 404
-  // makes the proposal ambiguous — a healthy Safe never pays for it.
-  let addressConfirmedSafe = false;
 
   while (Date.now() < deadline) {
     const controller = new AbortController();
@@ -281,12 +251,18 @@ async function pollSafeTransactionServiceUntilExecuted({
         }
       }
     } else if (response.status === SAFE_TX_SERVICE_NOT_FOUND) {
-      // Proposal not yet indexed — keep polling silently. But a 404 also looks
-      // exactly like this when the hash is not a safeTxHash at all, so confirm
-      // once that the address really is a Safe before spending the budget.
-      if (!addressConfirmedSafe) {
-        await assertAddressIsSafe({ baseUrl, walletAddress });
-        addressConfirmedSafe = true;
+      // Usually "proposal not indexed yet", so keep polling. But the very same
+      // 404 appears when the hash is not a safeTxHash at all — the case that
+      // used to burn the whole budget on an already-mined transaction. Ask the
+      // node: if it knows this hash, it is a real transaction, so stop treating
+      // it as a proposal and let the caller wait on it directly.
+      if (await hashIsRealTransaction(publicClient, safeTxHash)) {
+        console.warn(
+          `${safeTxHash} is a real transaction, not a Safe proposal — the ` +
+            `connected wallet submits its own transactions despite reporting ` +
+            `contract bytecode. Waiting for its receipt directly.`,
+        );
+        return safeTxHash;
       }
     } else if (response.status >= SAFE_TX_SERVICE_SERVER_ERROR) {
       // Transient server error — same treatment as a hung connection: log and retry.
