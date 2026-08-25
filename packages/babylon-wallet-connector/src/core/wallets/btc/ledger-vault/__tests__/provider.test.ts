@@ -495,6 +495,27 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
+    it("forwards the caller's requested input indices to prepare", async () => {
+      const provider = await approved();
+
+      // The Payout shape: the SDK asks for input 0 only, even though input 1
+      // carries a leaf for the device to display (#2281).
+      await provider.signPsbt(PSBT_A, {
+        autoFinalized: false,
+        signInputs: [{ index: 0, publicKey: "02".repeat(33), useTweakedSigner: false }],
+      });
+
+      expect(signMock.prepareSignPsbt.mock.calls[0][0].signInputIndexes).toEqual([0]);
+    });
+
+    it("leaves the requested set undefined when the caller does not restrict inputs", async () => {
+      const provider = await approved();
+
+      await provider.signPsbt(PSBT_A, { autoFinalized: false });
+
+      expect(signMock.prepareSignPsbt.mock.calls[0][0].signInputIndexes).toBeUndefined();
+    });
+
     it("throws on autoFinalized: true instead of silently not finalizing", async () => {
       const provider = await approved();
 

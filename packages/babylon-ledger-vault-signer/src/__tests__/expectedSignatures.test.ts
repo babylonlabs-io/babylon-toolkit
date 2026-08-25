@@ -98,6 +98,8 @@ function fixtureLeafScript(vector: SignPsbtVector, inputIndex: number): Buffer {
 }
 
 describe("expected-signature table classification (G2, 22 fixtures)", () => {
+  // Pin-dependent: at fixtures commit 8f99b8b these PSBTs' input 1 carries no
+  // leaf, so no requested set is needed. A post-#2281 Payout must pass one.
   it.each(TAPSCRIPT_VECTOR_NAMES.map((name) => [name]))("%s: input 0 tapscript, other inputs absent", (name) => {
     const vector = loadVector(name);
     const { table } = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX });
@@ -443,6 +445,161 @@ describe("tapscript control block must commit to its leaf, driven by PegIn fixtu
     );
 
     expectPrepareRejects(psbtHex, /is tapscript but its witnessUtxo script is not P2TR/);
+  });
+});
+
+describe("caller-requested input set narrows the expectation, never the structural gates", () => {
+  // Post-#2281 Payout shape: input 1 (Assert:0) carries a tapLeafScript so the
+  // device can read the payout leaf to display terms, but it is never signed.
+  const PAYOUT_OUTPUT_SCRIPT = Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0x2b)]);
+  const INPUT_0_LEAF = Buffer.from([0x51]);
+  const INPUT_1_LEAF = Buffer.from([0x52]);
+
+  /** Single-leaf taptree, so the control block genuinely commits to its witnessUtxo. */
+  function leafInput(script: Buffer): { scriptPubKey: Buffer; controlBlock: Buffer } {
+    const leaf = { output: script, version: 0xc0 };
+    const p2tr = payments.p2tr({ internalPubkey: Buffer.from(OTHER_KEY_HEX, "hex"), scriptTree: leaf, redeem: leaf });
+    if (!p2tr.output || !p2tr.witness) throw new Error("p2tr produced no script-path spend");
+    return { scriptPubKey: p2tr.output, controlBlock: p2tr.witness[p2tr.witness.length - 1] };
+  }
+
+  /** Two tapscript inputs, exactly the shape `buildPayoutPsbt` emits since #2281. */
+  function payoutShapedPsbtHex(mutateInput1ControlBlock = false): string {
+    const psbt = new Psbt();
+    [INPUT_0_LEAF, INPUT_1_LEAF].forEach((script, index) => {
+      psbt.addInput({ hash: Buffer.alloc(32, index + 1), index });
+    });
+    psbt.addOutput({ script: PAYOUT_OUTPUT_SCRIPT, value: 9000 });
+    [INPUT_0_LEAF, INPUT_1_LEAF].forEach((script, index) => {
+      const { scriptPubKey, controlBlock } = leafInput(script);
+      const usedControlBlock =
+        mutateInput1ControlBlock && index === 1
+          ? // Swap in a different (valid) internal key: the path still folds, to
+            // an output key the witnessUtxo never paid to.
+            Buffer.concat([
+              controlBlock.subarray(0, 1),
+              Buffer.from(TEST_DEPOSITOR_KEY_HEX, "hex"),
+              controlBlock.subarray(33),
+            ])
+          : controlBlock;
+      psbt.updateInput(index, {
+        witnessUtxo: { script: scriptPubKey, value: 10000 },
+        tapLeafScript: [{ leafVersion: 0xc0, script, controlBlock: usedControlBlock }],
+      });
+    });
+    return psbt.toHex();
+  }
+
+  it("expects only input 0 when the caller requests input 0", () => {
+    const { table } = prepareSignPsbt({
+      psbtHex: payoutShapedPsbtHex(),
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signInputIndexes: [0],
+    });
+
+    expect([...table.byInput.keys()]).toEqual([0]);
+  });
+
+  it("counts one expected yield for a requested set of one input", () => {
+    const { table } = prepareSignPsbt({
+      psbtHex: payoutShapedPsbtHex(),
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signInputIndexes: [0],
+    });
+
+    expect(table.expectedYieldCount).toBe(1);
+  });
+
+  it("expects every leaf input when the caller requests nothing", () => {
+    const { table } = prepareSignPsbt({
+      psbtHex: payoutShapedPsbtHex(),
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+    });
+
+    expect([...table.byInput.keys()]).toEqual([0, 1]);
+    expect(table.expectedYieldCount).toBe(2);
+  });
+
+  it("still rejects a control block that does not commit to its leaf on a NON-requested input", () => {
+    expectRejects(
+      () =>
+        prepareSignPsbt({
+          psbtHex: payoutShapedPsbtHex(true),
+          depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+          signInputIndexes: [0],
+        }),
+      /input 1 control block does not commit to its TAP_LEAF_SCRIPT/,
+    );
+  });
+
+  it("completes the ceremony when the device yields input 0 alone", () => {
+    // The live regression: the device signs input 0, then assertComplete threw
+    // "missing 1: 1:<leafhash>" — after the one-shot payout slot was spent.
+    const prepared = prepareSignPsbt({
+      psbtHex: payoutShapedPsbtHex(),
+      depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+      signInputIndexes: [0],
+    });
+    const { collector } = getPreparedSignPsbtState(prepared);
+    const expectation = prepared.table.byInput.get(0);
+    if (expectation?.kind !== "tapscript") throw new Error("input 0 must classify tapscript");
+    // varint(input 0) ‖ augmLen(0x40) ‖ signer key(32) ‖ leaf hash(32) ‖ sig(64).
+    collector.assertAndRecord(
+      Buffer.from("0040" + TEST_DEPOSITOR_KEY_HEX + [...expectation.expectedLeafHashHexes][0] + "ab".repeat(64), "hex"),
+    );
+
+    expect(() => collector.assertComplete()).not.toThrow();
+  });
+
+  it("rejects a requested input that carries no signing metadata", () => {
+    expectRejects(
+      () =>
+        prepareSignPsbt({
+          psbtHex: payoutShapedPsbtHex(),
+          depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+          signInputIndexes: [0, 2],
+        }),
+      /input 2 was requested for signing but carries no signing metadata/,
+    );
+  });
+});
+
+describe("the requested input set is inert for key-path signing", () => {
+  // Under a wallet policy the base app signs EVERY internal input
+  // (`base:sign_psbt.c:142-148`), so narrowing would under-expect and the extra
+  // yields would fail AFTER the user already approved on-device.
+  const FIXTURE = "deposit-flow__pre_pegin__0";
+
+  it("expects every key-path input even when the caller requests a subset", () => {
+    const vector = loadVector(FIXTURE);
+    const depositorXOnlyHex = fixtureInternalKeyHex(vector);
+
+    const { table } = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex, signInputIndexes: [0] });
+
+    expect([...table.byInput.keys()]).toEqual([0, 1]);
+    expect(table.expectedYieldCount).toBe(2);
+  });
+
+  it("accepts the device yielding every key-path input, and completes", () => {
+    const vector = loadVector(FIXTURE);
+    const depositorXOnlyHex = fixtureInternalKeyHex(vector);
+    const prepared = prepareSignPsbt({ psbtHex: vector.psbt_hex, depositorXOnlyHex, signInputIndexes: [0] });
+    const { collector } = getPreparedSignPsbtState(prepared);
+
+    for (let inputIndex = 0; inputIndex < vector.n_inputs; inputIndex++) {
+      // varint(index) ‖ augmLen(0x20) ‖ tweaked output key(32) ‖ sig(64).
+      collector.assertAndRecord(
+        Buffer.from(
+          inputIndex.toString(16).padStart(2, "0") +
+            "20" +
+            fixtureWitnessProgramHex(vector, inputIndex) +
+            "cd".repeat(64),
+          "hex",
+        ),
+      );
+    }
+
+    expect(() => collector.assertComplete()).not.toThrow();
   });
 });
 

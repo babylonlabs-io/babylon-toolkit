@@ -27,6 +27,13 @@ export interface SignVaultPsbtParams {
   /** Cached GET_EXTENDED_PUBKEY read (64 lowercase hex) — pins the table. */
   readonly depositorXOnlyHex: string;
   /**
+   * Input indices to sign, narrowing TAPSCRIPT expectations without relaxing any
+   * structural gate — a Payout must pass `[0]`, since its input 1 carries a leaf
+   * the device displays but never signs. Inert for key-path/policy signing, where
+   * the base app signs every internal input. See {@link prepareSignPsbt}.
+   */
+  readonly signInputIndexes?: readonly number[];
+  /**
    * Fires after each accepted YIELD. Invocation is isolated: a throw inside
    * the callback is swallowed — progress is display-only, and a caller bug
    * must not abort a non-idempotent ceremony mid-loop.
@@ -58,7 +65,10 @@ export interface SignVaultPsbtResult {
 }
 
 /** The device-facing half of {@link SignVaultPsbtParams} — everything but the PSBT itself. */
-export type SignPreparedVaultPsbtOptions = Omit<SignVaultPsbtParams, "psbtHex" | "depositorXOnlyHex">;
+export type SignPreparedVaultPsbtOptions = Omit<
+  SignVaultPsbtParams,
+  "psbtHex" | "depositorXOnlyHex" | "signInputIndexes"
+>;
 
 // Single-use: a prepared object's mutable collector/interpreter would replay a
 // non-idempotent device ceremony with stale yields on a second run.
@@ -126,7 +136,7 @@ export async function signPreparedVaultPsbt(
  * call that itself hangs is not cancelled.
  */
 export async function signVaultPsbt(send: RawApduSender, params: SignVaultPsbtParams): Promise<SignVaultPsbtResult> {
-  const { psbtHex, depositorXOnlyHex, ...options } = params;
-  const prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex });
+  const { psbtHex, depositorXOnlyHex, signInputIndexes, ...options } = params;
+  const prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex, signInputIndexes });
   return signPreparedVaultPsbt(send, prepared, options);
 }
