@@ -209,6 +209,56 @@ describe("ensurePrePeginTermsApproval", () => {
     expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
   });
 
+  it("runs validateDepositTerms before the derive on the ceremony path", async () => {
+    const { hex, txid } = makeFundedTx();
+    const order: string[] = [];
+    const wallet: PrePeginApprovalWallet = {
+      validateDepositTerms: vi.fn(async () => {
+        order.push("validate");
+      }),
+      deriveContextHash: vi.fn(async () => {
+        order.push("derive");
+        return "ab".repeat(32);
+      }),
+      approveDepositTerms: vi.fn(async () => {
+        order.push("approve");
+      }),
+    };
+    const terms = makeTerms(txid);
+
+    await ensurePrePeginTermsApproval({
+      wallet,
+      depositTerms: terms,
+      fundedPrePeginTxHex: hex,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+    });
+
+    expect(order).toEqual(["validate", "derive", "approve"]);
+    expect(wallet.validateDepositTerms).toHaveBeenCalledWith(terms);
+  });
+
+  it("stops before the derive when validateDepositTerms rejects", async () => {
+    const { hex, txid } = makeFundedTx();
+    const wallet: PrePeginApprovalWallet = {
+      validateDepositTerms: vi.fn(async () => {
+        throw new Error("Deposit terms outside the device-supported range");
+      }),
+      deriveContextHash: vi.fn(),
+      approveDepositTerms: vi.fn(),
+    };
+
+    await expect(
+      ensurePrePeginTermsApproval({
+        wallet,
+        depositTerms: makeTerms(txid),
+        fundedPrePeginTxHex: hex,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      }),
+    ).rejects.toThrow(/device-supported range/);
+    expect(wallet.deriveContextHash).not.toHaveBeenCalled();
+    expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+  });
+
   it("skips derive and approve when the wallet still holds the approved terms", async () => {
     const { hex, txid } = makeFundedTx();
     const wallet: PrePeginApprovalWallet = {

@@ -86,8 +86,8 @@ vi.mock("../../primitives/psbt/verifyKeyPathSchnorrSignature", () => ({
 
 // Passthrough observer: records each per-vault PegIn build so the seam test can
 // assert the htlcVout bind-checks run BEFORE deposit-terms approval. The
-// prePeginTamper hook lets one test corrupt the Pre-PegIn result to prove the
-// funded-fee cross-check fires; it must be reset to null afterwards.
+// prePeginTamper hook lets tests corrupt the Pre-PegIn commit pass to prove
+// the sizing/commit and funded-fee cross-checks fire; each resets it to null.
 const peginBuildLog = vi.hoisted(() => [] as string[]);
 const prePeginTamper = vi.hoisted(
   () =>
@@ -845,6 +845,225 @@ describe("PeginManager", () => {
         expect(vault.peginMaxFee).toBe(expectedPeginMaxFee);
         expect(vault.depositorClaimValue).toBe(expectedClaimValue);
       });
+    });
+
+    it("rejects before any device call when validateDepositTerms refuses the provisional terms", async () => {
+      // T4 (#2110): an envelope violation must cost zero device ceremonies —
+      // today it is discovered only after the physical Screen-1 approval.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const deriveSpy = vi.fn(btcWallet.deriveContextHash.bind(btcWallet));
+      const signPsbtSpy = vi.fn(btcWallet.signPsbt.bind(btcWallet));
+      const signPsbtsSpy = vi.fn(btcWallet.signPsbts.bind(btcWallet));
+      const approveSpy = vi.fn(async () => {});
+      const capableWallet = Object.assign(btcWallet, {
+        deriveContextHash: deriveSpy,
+        signPsbt: signPsbtSpy,
+        signPsbts: signPsbtsSpy,
+        approveDepositTerms: approveSpy,
+        validateDepositTerms: vi.fn(async () => {
+          throw new DepositTermsRejectedError(
+            "Deposit terms outside the device-supported range: protocolFeeRate",
+          );
+        }),
+        getChangeAddress: async () => TEST_CHANGE_ADDRESS,
+      });
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: capableWallet,
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toMatchObject({
+        name: "DepositTermsRejectedError",
+        reason: "device-envelope",
+      });
+
+      expect(capableWallet.validateDepositTerms).toHaveBeenCalledOnce();
+      expect(deriveSpy).not.toHaveBeenCalled();
+      expect(approveSpy).not.toHaveBeenCalled();
+      expect(signPsbtSpy).not.toHaveBeenCalled();
+      expect(signPsbtsSpy).not.toHaveBeenCalled();
+    });
+
+    it("validates provisional terms before the derive and approves the final terms identical except the txid", async () => {
+      const callOrder: string[] = [];
+      let validatedTerms: DepositTerms | undefined;
+      let approvedTerms: DepositTerms | undefined;
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const originalDerive = btcWallet.deriveContextHash.bind(btcWallet);
+      const capableWallet = Object.assign(btcWallet, {
+        deriveContextHash: async (appName: string, context: string) => {
+          callOrder.push("deriveContextHash");
+          return originalDerive(appName, context);
+        },
+        validateDepositTerms: vi.fn(async (terms: DepositTerms) => {
+          callOrder.push("validateDepositTerms");
+          validatedTerms = terms;
+        }),
+        approveDepositTerms: vi.fn(async (terms: DepositTerms) => {
+          callOrder.push("approveDepositTerms");
+          approvedTerms = terms;
+        }),
+        getChangeAddress: async () => TEST_CHANGE_ADDRESS,
+      });
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: capableWallet,
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const result = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      // The validate-only pre-check runs BEFORE the first device screen.
+      expect(capableWallet.validateDepositTerms).toHaveBeenCalledOnce();
+      const validateIdx = callOrder.indexOf("validateDepositTerms");
+      const deriveIdx = callOrder.indexOf("deriveContextHash");
+      expect(validateIdx).toBeGreaterThanOrEqual(0);
+      expect(deriveIdx).toBeGreaterThan(validateIdx);
+
+      // The provisional txid is the all-zero placeholder and never reaches the
+      // device: approveDepositTerms (the only device-bound terms call) gets
+      // the real Pre-PegIn txid instead.
+      expect(validatedTerms?.prepeginTxid).toBe("00".repeat(32));
+      expect(approvedTerms?.prepeginTxid).toBe(
+        result.transaction.prePeginTxid.replace(/^0x/i, "").toLowerCase(),
+      );
+      expect(approvedTerms?.prepeginTxid).not.toBe(
+        validatedTerms?.prepeginTxid,
+      );
+
+      // Every other field of the validated provisional terms must equal the
+      // approved terms — the pre-check validated what the device later shows.
+      expect({
+        ...validatedTerms,
+        prepeginTxid: approvedTerms!.prepeginTxid,
+      }).toEqual(approvedTerms);
+    });
+
+    it("keeps the provisional terms identical to the approved terms except the txid across a 2-vault batch", async () => {
+      let validatedTerms: DepositTerms | undefined;
+      let approvedTerms: DepositTerms | undefined;
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const capableWallet = Object.assign(btcWallet, {
+        validateDepositTerms: vi.fn(async (terms: DepositTerms) => {
+          validatedTerms = terms;
+        }),
+        approveDepositTerms: vi.fn(async (terms: DepositTerms) => {
+          approvedTerms = terms;
+        }),
+        getChangeAddress: async () => TEST_CHANGE_ADDRESS,
+      });
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: capableWallet,
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await manager.preparePegin({
+        // Distinct amounts so a per-vault projection swap is observable.
+        amounts: [TEST_AMOUNTS.PEGIN, TEST_AMOUNTS.PEGIN_MEDIUM],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+      });
+
+      // The per-vault projection (vault groups, commission fees, htlcVout
+      // ordering) must already be final in the provisional terms.
+      expect(validatedTerms?.prepeginTxid).toBe("00".repeat(32));
+      expect(validatedTerms?.vaults.map((v) => v.peginAmount)).toEqual([
+        TEST_AMOUNTS.PEGIN,
+        TEST_AMOUNTS.PEGIN_MEDIUM,
+      ]);
+      expect({
+        ...validatedTerms,
+        prepeginTxid: approvedTerms!.prepeginTxid,
+      }).toEqual(approvedTerms);
+    });
+
+    it("throws when the commit pass diverges from the sizing pass on depositorClaimValue", async () => {
+      // The provisional pre-check validated the sizing-build value; a commit
+      // pass that computes a different one must fail, not ship unvalidated.
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: new MockBitcoinWallet({ publicKeyHex: TEST_KEYS.DEPOSITOR }),
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      let prePeginCalls = 0;
+      prePeginTamper.fn = (result) => {
+        prePeginCalls += 1;
+        return prePeginCalls === 2
+          ? { ...result, depositorClaimValue: result.depositorClaimValue + 1n }
+          : result;
+      };
+      try {
+        await expect(
+          manager.preparePegin({
+            amounts: [TEST_AMOUNTS.PEGIN],
+            ...BASE_PREPARE_PEGIN_PARAMS,
+          }),
+        ).rejects.toThrow(/sizing\/commit divergence/i);
+      } finally {
+        prePeginTamper.fn = null;
+      }
+    });
+
+    it("throws when the commit pass diverges from the sizing pass on minPeginFee", async () => {
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: new MockBitcoinWallet({ publicKeyHex: TEST_KEYS.DEPOSITOR }),
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      let prePeginCalls = 0;
+      prePeginTamper.fn = (result) => {
+        prePeginCalls += 1;
+        return prePeginCalls === 2
+          ? { ...result, minPeginFee: result.minPeginFee + 1n }
+          : result;
+      };
+      try {
+        await expect(
+          manager.preparePegin({
+            amounts: [TEST_AMOUNTS.PEGIN],
+            ...BASE_PREPARE_PEGIN_PARAMS,
+          }),
+        ).rejects.toThrow(/sizing\/commit divergence/i);
+      } finally {
+        prePeginTamper.fn = null;
+      }
     });
 
     it("is a no-op for wallets without approveDepositTerms", async () => {

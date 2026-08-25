@@ -336,6 +336,35 @@ signature — this is a UX optimization, never an authorization.
 
 `Promise`\<`boolean`\>
 
+##### validateDepositTerms()?
+
+```ts
+optional validateDepositTerms(terms): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+OPTIONAL validate-only pre-check (#2110): reject terms the device
+envelope would refuse, with the same `{ name:
+"DepositTermsRejectedError", reason: "device-envelope", message }` shape
+as `approveDepositTerms`, WITHOUT any device I/O and WITHOUT touching a
+held approval — the SDK calls it before the first derive screen, so a
+side effect here would cost or invalidate a physical ceremony. Success
+is NOT an approval: `approveDepositTerms` still runs its own envelope
+gate before the ceremony. Callers may pass provisional terms whose
+`prepeginTxid` is a placeholder (the real txid exists only post-derive),
+so implementations MUST NOT validate or bind `prepeginTxid` here.
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`void`\>
+
 ***
 
 ### PrePeginChangeSource
@@ -564,6 +593,24 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval
 ###### Returns
 
 `Promise`\<`boolean`\>
+
+##### validateDepositTerms()?
+
+```ts
+optional validateDepositTerms(terms): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/prePeginApproval.ts)
+
+###### Parameters
+
+###### terms
+
+[`DepositTerms`](#depositterms)
+
+###### Returns
+
+`Promise`\<`void`\>
 
 ***
 

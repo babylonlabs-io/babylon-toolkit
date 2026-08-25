@@ -119,6 +119,19 @@ export interface DepositTermsApprover {
    * signature — this is a UX optimization, never an authorization.
    */
   holdsApprovedDepositTerms?(terms: DepositTerms): Promise<boolean>;
+  /**
+   * OPTIONAL validate-only pre-check (#2110): reject terms the device
+   * envelope would refuse, with the same `{ name:
+   * "DepositTermsRejectedError", reason: "device-envelope", message }` shape
+   * as `approveDepositTerms`, WITHOUT any device I/O and WITHOUT touching a
+   * held approval — the SDK calls it before the first derive screen, so a
+   * side effect here would cost or invalidate a physical ceremony. Success
+   * is NOT an approval: `approveDepositTerms` still runs its own envelope
+   * gate before the ceremony. Callers may pass provisional terms whose
+   * `prepeginTxid` is a placeholder (the real txid exists only post-derive),
+   * so implementations MUST NOT validate or bind `prepeginTxid` here.
+   */
+  validateDepositTerms?(terms: DepositTerms): Promise<void>;
 }
 
 /**
@@ -183,11 +196,12 @@ export function forwardDepositApproval(
     return {};
   }
   const holdsApprovedDepositTerms = wallet.holdsApprovedDepositTerms;
+  const validateDepositTerms = wallet.validateDepositTerms;
   const getChangeAddress = (wallet as Partial<PrePeginChangeSource>)
     .getChangeAddress;
   return {
     approveDepositTerms: (terms) => wallet.approveDepositTerms(terms),
-    // Both optional in the seam: forward only what the provider implements, so
+    // All optional in the seam: forward only what the provider implements, so
     // wrapper consumers can keep probing by typeof.
     ...(typeof getChangeAddress === "function"
       ? { getChangeAddress: () => getChangeAddress.call(wallet) }
@@ -196,6 +210,12 @@ export function forwardDepositApproval(
       ? {
           holdsApprovedDepositTerms: (terms: DepositTerms) =>
             holdsApprovedDepositTerms.call(wallet, terms),
+        }
+      : {}),
+    ...(typeof validateDepositTerms === "function"
+      ? {
+          validateDepositTerms: (terms: DepositTerms) =>
+            validateDepositTerms.call(wallet, terms),
         }
       : {}),
   };

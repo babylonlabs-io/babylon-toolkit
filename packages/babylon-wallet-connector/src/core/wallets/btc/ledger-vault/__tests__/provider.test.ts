@@ -1053,6 +1053,52 @@ describe("LedgerVaultProvider", () => {
     expect(h.sent).toHaveLength(0);
   });
 
+  describe("validateDepositTerms (#2110 T4)", () => {
+    it("rejects out-of-envelope terms with the seam's shape and zero device I/O", async () => {
+      // Validate-only: works even unconnected — nothing may touch the device.
+      const provider = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(provider.validateDepositTerms({ ...TERMS, protocolFeeRate: 0n })).rejects.toMatchObject({
+        name: "DepositTermsRejectedError",
+        reason: "device-envelope",
+        message: expect.stringMatching(/protocolFeeRate/),
+      });
+      expect(h.sent).toHaveLength(0);
+      expect(dmkSessionMock.connectDmkSession).not.toHaveBeenCalled();
+    });
+
+    it("accepts in-envelope terms carrying a placeholder txid, without device I/O", async () => {
+      // The SDK pre-check runs before the real txid exists; the envelope never
+      // reads prepeginTxid (ledger-vault-signer envelope.ts has no reference).
+      const provider = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(provider.validateDepositTerms({ ...TERMS, prepeginTxid: "00".repeat(32) })).resolves.toBeUndefined();
+      expect(h.sent).toHaveLength(0);
+      expect(dmkSessionMock.connectDmkSession).not.toHaveBeenCalled();
+    });
+
+    it("is not an approval: after validate, the full approve ceremony still runs", async () => {
+      const provider = await derived();
+
+      await provider.validateDepositTerms(TERMS);
+
+      expect(await provider.holdsApprovedDepositTerms(TERMS)).toBe(false);
+      h.sent.length = 0;
+      await provider.approveDepositTerms(TERMS);
+      expect(approveApdus().map((s) => s.p1)).toEqual([0x00, 0x01, 0x02]);
+    });
+
+    it("leaves a held approval intact — validate is read-only on the mirror", async () => {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      expect(await provider.holdsApprovedDepositTerms(TERMS)).toBe(true);
+
+      await provider.validateDepositTerms(TERMS);
+
+      expect(await provider.holdsApprovedDepositTerms(TERMS)).toBe(true);
+    });
+  });
+
   it("classifies both approve-time state conflicts as DEVICE_CEREMONY_INVALID", async () => {
     // The UX routes restart-from-derivation on this code, not on message text.
     const loaded = await derived();

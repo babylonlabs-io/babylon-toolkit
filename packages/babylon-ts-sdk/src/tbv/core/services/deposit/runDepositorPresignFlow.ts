@@ -459,6 +459,11 @@ export async function runDepositorPresignFlow(
           "must rebuild them from on-chain state (the vault app's rebuildDepositTerms).",
       );
     }
+    // #2110 T4: providers exposing the validate-only pre-check fail an
+    // envelope violation here, before the approval ceremony starts.
+    if (typeof btcWallet.validateDepositTerms === "function") {
+      await btcWallet.validateDepositTerms(depositTerms);
+    }
     // The provider validates its own device envelope inside
     // approveDepositTerms (DepositTermsApprover contract, #2109).
     await btcWallet.approveDepositTerms(depositTerms);
