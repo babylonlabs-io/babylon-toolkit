@@ -47,9 +47,16 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
  */
 export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 
+// The DMK web-hid transport needs WebHID (`navigator.hid` — Chromium-only,
+// secure context); without it the entry would render as a dead hardware row.
+const isWebHidAvailable =
+  typeof navigator !== "undefined" && "hid" in navigator;
+
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,
-  ...(featureFlags.isLedgerVaultWalletEnabled ? [] : [LEDGER_VAULT_WALLET_ID]),
+  ...(featureFlags.isLedgerVaultWalletEnabled && isWebHidAvailable
+    ? []
+    : [LEDGER_VAULT_WALLET_ID]),
   ...featureFlags.disabledBtcWallets,
 ];
 

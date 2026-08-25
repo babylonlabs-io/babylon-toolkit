@@ -132,9 +132,9 @@ export default {
    * connect UI. It drives Ledger's dedicated vault app over the DMK — a
    * different device app and a different transport stack from the legacy
    * `ledger_btc` / `ledger_btc_v2` staking adapters.
-   * Why needed: the provider is built ahead of Ledger's firmware being final,
-   * AND signing is not implemented yet (signPsbt/signPsbts/signMessage throw),
-   * so no deposit can complete with this wallet — it must stay invisible
+   * Why needed: the full depositor flow is implemented (intent ceremony, PoP,
+   * Pre-PegIn and payout signing), but Ledger's firmware is still in review,
+   * so the wallet ships per environment — it must stay invisible
    * everywhere by default while Ledger can switch it on in a test environment
    * without a code change or a release.
    * Default: false (hidden unless explicitly set to "true")

@@ -94,6 +94,7 @@ describe("WalletConnectionProvider — Ledger vault wallet opt-in", () => {
   afterEach(() => {
     if (original === undefined) delete process.env[FF_KEY];
     else process.env[FF_KEY] = original;
+    delete (window.navigator as { hid?: unknown }).hid;
   });
 
   it("hides the Ledger vault wallet when the flag is unset", async () => {
@@ -108,9 +109,21 @@ describe("WalletConnectionProvider — Ledger vault wallet opt-in", () => {
     expect(h.captured.disabledWallets).toContain("ledger_btc_vault");
   });
 
-  it('reveals it when the flag is exactly "true"', async () => {
+  it('reveals it when the flag is exactly "true" and WebHID exists', async () => {
+    // jsdom's navigator has no `hid`, so the Chromium case must be stubbed.
+    Object.defineProperty(window.navigator, "hid", {
+      value: {},
+      configurable: true,
+    });
     await renderWithFlag("true");
     expect(h.captured.disabledWallets).not.toContain("ledger_btc_vault");
+  });
+
+  it("hides it without WebHID even when the flag is on", async () => {
+    // jsdom default: no navigator.hid — the Firefox/Safari case, where the
+    // entry would otherwise render as a dead hardware row.
+    await renderWithFlag("true");
+    expect(h.captured.disabledWallets).toContain("ledger_btc_vault");
   });
 
   it("keeps the legacy staking Ledger adapters hidden either way", async () => {
