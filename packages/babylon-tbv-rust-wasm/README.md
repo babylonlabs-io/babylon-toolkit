@@ -4,9 +4,7 @@ WASM bindings for Babylon Trustless Bitcoin Vaults (TBV), providing TypeScript/J
 
 The normal package entry is a lazy facade: importing it does not load the
 wasm-bindgen glue or instantiate/download the `.wasm` binary. The generated
-module is fetched on the first facade call that needs it. Type-only consumers
-can use `@babylonlabs-io/babylon-tbv-rust-wasm/types` without touching the
-runtime at all.
+module is fetched on the first facade call that needs it.
 
 Low-level consumers that construct wasm-bindgen classes directly must opt in
 to the eager `@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath and call its
@@ -492,5 +490,3 @@ The raw entry exports:
 - `WasmPrePeginTx` - Low-level Pre-PegIn transaction class
 - `WasmPeginPayoutConnector` - Low-level payout connector class
 - `WasmPrePeginHtlcConnector` - Low-level Pre-PegIn HTLC connector class
-- `WasmAssertPayoutNoPayoutConnector` - Low-level Assert Payout/NoPayout connector class
-- `WasmAssertChallengeAssertConnector` - Low-level ChallengeAssert connector class

@@ -1,7 +1,21 @@
-import { assertPositiveBigintArray as wasmAssertPositiveBigintArray } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { assertPositiveBigintArray } from "../value-guards";
+
+// Differential source of truth: the engine's own guard, loaded from its
+// TypeScript source rather than its package specifier. The specifier resolves
+// to the engine's built `dist/`, so a stale build would pin this copy to bytes
+// the engine no longer ships.
+const ENGINE_VALUE_GUARDS_SOURCE = resolve(
+  __dirname,
+  "../../../../../../babylon-tbv-rust-wasm/src/value-guards.ts",
+);
+
+const { assertPositiveBigintArray: engineAssertPositiveBigintArray } =
+  (await import(/* @vite-ignore */ ENGINE_VALUE_GUARDS_SOURCE)) as {
+    assertPositiveBigintArray: (values: unknown, label: string) => bigint[];
+  };
 
 const U64_MAX = 18446744073709551615n;
 const ABOVE_U64_MAX = 18446744073709551616n;
@@ -108,7 +122,7 @@ describe("assertPositiveBigintArray", () => {
     );
   });
 
-  it("behaves identically to the WASM package's copy on boundary vectors", () => {
+  it("behaves identically to the engine source's copy on boundary vectors", () => {
     const vectors: unknown[] = [
       [1n],
       [1n, 2n, 100_000n],
@@ -127,17 +141,17 @@ describe("assertPositiveBigintArray", () => {
       { 0: 1n, length: 1 },
     ];
     const local = outcome(assertPositiveBigintArray);
-    const wasm = outcome(wasmAssertPositiveBigintArray);
+    const wasm = outcome(engineAssertPositiveBigintArray);
 
     for (const vector of vectors) {
       expect(local(vector)).toEqual(wasm(vector));
     }
   });
 
-  it("behaves identically to the WASM package's copy on seeded random vectors", () => {
+  it("behaves identically to the engine source's copy on seeded random vectors", () => {
     const next = mulberry32(RANDOM_VECTOR_SEED);
     const local = outcome(assertPositiveBigintArray);
-    const wasm = outcome(wasmAssertPositiveBigintArray);
+    const wasm = outcome(engineAssertPositiveBigintArray);
 
     for (let index = 0; index < RANDOM_VECTOR_COUNT; index += 1) {
       const vector = randomVector(next);

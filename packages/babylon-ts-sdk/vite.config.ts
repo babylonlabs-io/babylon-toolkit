@@ -30,6 +30,10 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/clients/index.ts",
         ),
+        "tbv/core/clients/vault-provider/status/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/vault-provider/status/index.ts",
+        ),
         "tbv/core/wasm/index": path.resolve(
           __dirname,
           "src/tbv/core/wasm/index.ts",

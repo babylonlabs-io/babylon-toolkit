@@ -2,7 +2,7 @@
  * Protocol constants that do not require loading the vault WASM module.
  *
  * Keeping these values local lets Bitcoin builders construct PSBT metadata
- * without resolving or evaluating the optional WASM peer at module-import
+ * without resolving or evaluating the WASM engine at module-import
  * time. The hex value is the BIP-341 nothing-up-my-sleeve internal key and is
  * pinned by the vault protocol.
  */

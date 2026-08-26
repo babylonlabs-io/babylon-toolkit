@@ -10,8 +10,11 @@
  * {@link assertPositiveBigintArray} validates such inputs before the
  * typed-array construction.
  *
- * Mirrors `value-guards.ts` in `@babylonlabs-io/babylon-tbv-rust-wasm`; the two
- * are pinned to identical behaviour by `__tests__/value-guards.test.ts`.
+ * Mirrors the `assertPositiveBigintArray` half of `value-guards.ts` in
+ * `@babylonlabs-io/babylon-tbv-rust-wasm`; that one function is pinned to the
+ * engine's source copy by `__tests__/value-guards.test.ts`. The engine's other
+ * guard, `assertWasmBigint`, has no counterpart here: the engine applies it to
+ * its own WASM return values before they reach this package.
  */
 
 /** Largest value BigUint64Array stores without wrapping mod 2^64 (2^64 − 1). */

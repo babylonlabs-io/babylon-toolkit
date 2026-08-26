@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("loadTbvWasm", () => {
-  it("names the missing peer when the engine cannot be resolved", async () => {
+  it("names the engine package when the import fails", async () => {
     vi.doMock(ENGINE, () => {
       throw new Error("Cannot find package");
     });
@@ -29,7 +29,7 @@ describe("loadTbvWasm", () => {
     const { loadTbvWasm } = await import("../index");
 
     await expect(loadTbvWasm()).rejects.toThrow(
-      "requires the optional @babylonlabs-io/babylon-tbv-rust-wasm peer dependency",
+      "@babylonlabs-io/babylon-tbv-rust-wasm failed to load",
     );
   });
 
@@ -59,7 +59,7 @@ describe("loadTbvWasm", () => {
 
     const { loadTbvWasm } = await import("../index");
 
-    await expect(loadTbvWasm()).rejects.toThrow("peer dependency");
+    await expect(loadTbvWasm()).rejects.toThrow("failed to load");
     const engine = await loadTbvWasm();
     expect(engine).toMatchObject({ deriveVaultId: expect.any(Function) });
     expect(attempt).toBe(2);
@@ -76,7 +76,7 @@ describe("loadTbvWasm", () => {
 });
 
 describe("loadRawTbvWasm", () => {
-  it("names the missing raw entry when it cannot be resolved", async () => {
+  it("names the raw entry when the import fails", async () => {
     vi.doMock(RAW, () => {
       throw new Error("Cannot find package");
     });
@@ -84,7 +84,7 @@ describe("loadRawTbvWasm", () => {
     const { loadRawTbvWasm } = await import("../index");
 
     await expect(loadRawTbvWasm()).rejects.toThrow(
-      "requires the optional raw vault-WASM peer entry",
+      "@babylonlabs-io/babylon-tbv-rust-wasm/raw failed to load",
     );
   });
 

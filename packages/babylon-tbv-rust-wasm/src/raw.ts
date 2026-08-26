@@ -7,5 +7,5 @@
  */
 // prettier-ignore
 // @ts-expect-error - generated artifacts live in dist/generated
-export { WasmPeginTx, WasmPeginPayoutConnector, WasmPrePeginTx, WasmPrePeginHtlcConnector, WasmAssertPayoutNoPayoutConnector, WasmAssertChallengeAssertConnector } from './generated/vault_wasm.js';
+export { WasmPeginTx, WasmPeginPayoutConnector, WasmPrePeginTx, WasmPrePeginHtlcConnector } from './generated/vault_wasm.js';
 export { initWasm } from './wasm-loader.js';

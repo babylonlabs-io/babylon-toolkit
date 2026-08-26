@@ -59,9 +59,15 @@ function resolveLocal(from, specifier) {
   throw new Error(`Could not resolve ${specifier} from ${from}`);
 }
 
-function staticClosure(entry) {
+// The glue is matched on the specifier, not on a resolved path: it ships only
+// as dist/generated/vault_wasm.js, so an eager edge to it never resolves to a
+// file this walk can visit.
+const generatedSpecifier = /(?:^|\/)generated\//;
+
+function eagerGeneratedEdges(entry) {
   const pending = [entry];
   const visited = new Set();
+  const edges = [];
   while (pending.length > 0) {
     const file = pending.pop();
     if (visited.has(file)) continue;
@@ -69,21 +75,26 @@ function staticClosure(entry) {
     const source = stripComments(readFileSync(file, 'utf8'));
     for (const match of source.matchAll(staticSpecifier)) {
       const specifier = match[1];
-      if (specifier.startsWith('.'))
-        pending.push(resolveLocal(file, specifier));
+      if (!specifier.startsWith('.')) continue;
+      if (generatedSpecifier.test(specifier)) {
+        edges.push(`${file} -> ${specifier}`);
+        continue;
+      }
+      pending.push(resolveLocal(file, specifier));
     }
   }
-  return visited;
+  return edges;
 }
 
 for (const entryName of ['index.ts', 'index-node.ts']) {
   const entry = resolve(packageRoot, 'src', entryName);
-  const generated = Array.from(staticClosure(entry)).filter((file) =>
-    file.includes('/generated/'),
-  );
-  if (generated.length > 0) {
+  const edges = eagerGeneratedEdges(entry);
+  if (edges.length > 0) {
     throw new Error(
-      `${entryName} statically reaches generated WASM glue:\n${generated.join('\n')}`,
+      `${entryName} statically reaches generated WASM glue, so importing the ` +
+        `facade loads the engine eagerly. Reach the glue only through ` +
+        `import('./generated/vault_wasm.js') inside a loader, or through the ` +
+        `explicit raw entry:\n${edges.join('\n')}`,
     );
   }
 }
@@ -93,6 +104,35 @@ for (const loaderName of ['wasm-loader.ts', 'wasm-loader-node.ts']) {
   if (!source.includes("import('./generated/vault_wasm.js')")) {
     throw new Error(
       `${loaderName} must dynamically import generated WASM glue`,
+    );
+  }
+}
+
+// Each loader's type-only import is copied into its emitted declaration
+// verbatim, so it has to resolve from dist too. Nothing reports it when it
+// stops resolving: tsc is silent here, and every consumer inherits
+// skipLibCheck, which drops the error inside the emitted declaration.
+for (const loaderName of ['wasm-loader.d.ts', 'wasm-loader-node.d.ts']) {
+  const emitted = resolve(packageRoot, 'dist', loaderName);
+  const match = readFileSync(emitted, 'utf8').match(
+    /from ['"]([^'"]*generated\/vault_wasm\.js)['"]/,
+  );
+  if (!match) {
+    throw new Error(
+      `${loaderName} no longer pins its bindings to the generated declarations`,
+    );
+  }
+  const [, specifier] = match;
+  try {
+    readFileSync(
+      resolve(dirname(emitted), specifier.replace(/\.js$/, '.d.ts')),
+    );
+  } catch {
+    throw new Error(
+      `${loaderName} emits '${specifier}', which resolves to no declaration ` +
+        `from dist. The emitted specifier reaches the generated surface only ` +
+        `while the emit directory and src stay siblings one level under the ` +
+        `package root.`,
     );
   }
 }
@@ -177,6 +217,14 @@ const connectorParams = {
   councilMembers: xOnlyKeys.slice(3),
   councilQuorum: 2,
 };
+const payoutConnectorParams = {
+  txGraphVersion: 1,
+  depositor: xOnlyKeys[0],
+  vaultProvider: xOnlyKeys[1],
+  vaultKeepers: [xOnlyKeys[2]],
+  universalChallengers: [xOnlyKeys[3]],
+  timelockPegin: 144,
+};
 
 // Browser raw and facade entry points must share one in-flight initializer.
 // A second wasm-bindgen initialization replaces the module-global memory and
@@ -225,14 +273,13 @@ try {
   const rawInit = rawBrowser.initWasm();
   const facadeInit = facadeBrowser.initWasm();
   await rawInit;
-  browserRaceConnector = new rawBrowser.WasmAssertPayoutNoPayoutConnector(
-    connectorParams.txGraphVersion,
-    connectorParams.claimer,
-    connectorParams.localChallengers,
-    connectorParams.universalChallengers,
-    connectorParams.timelockAssert,
-    connectorParams.councilMembers,
-    connectorParams.councilQuorum,
+  browserRaceConnector = new rawBrowser.WasmPeginPayoutConnector(
+    payoutConnectorParams.txGraphVersion,
+    payoutConnectorParams.depositor,
+    payoutConnectorParams.vaultProvider,
+    payoutConnectorParams.vaultKeepers,
+    payoutConnectorParams.universalChallengers,
+    payoutConnectorParams.timelockPegin,
   );
   const payoutScriptBefore = browserRaceConnector.getPayoutScript();
   await facadeInit;

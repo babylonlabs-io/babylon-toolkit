@@ -67,7 +67,8 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files (all marked `@stability frozen` in JSDoc):
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext`, `buildFundingOutpointsCommitment`
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveVaultRoot.ts` — `deriveVaultRoot`, `VAULT_APP_NAME`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` from the WASM package
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` from the SDK's lazy WASM boundary
+  - `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts` — the lazy boundary's async wrappers for the three expanders; every SDK caller now reaches the WASM package through this hop (also registered in section 9)
   - `packages/babylon-tbv-rust-wasm/src/index.ts` — browser-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/src/index-node.ts` — node-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js` — `VAULT_WASM_COMMIT` pin (the vault-wasm facade at this commit, and the btc-vault revs it bundles, are the byte-level source of truth for the HKDF `info` encoding, labels, and i2osp prefixes)

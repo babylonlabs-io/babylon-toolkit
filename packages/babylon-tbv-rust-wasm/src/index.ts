@@ -323,9 +323,9 @@ export async function peginP2aAnchorOutput(
 
 /**
  * Validate a PegIn transaction's P2A anchor against a graph version's rules:
- * v2 requires the exact anchor (240 sats, vout 2, P2A script) and v1 requires
- * that NO output carries the P2A script. Throws on any mismatch — a v2 PegIn
- * checked as v1 fails closed, and vice versa.
+ * v2 and v3 require the exact anchor (240 sats, vout 2, P2A script) and v1
+ * requires that NO output carries the P2A script. Throws on any mismatch — a
+ * v2 PegIn checked as v1 fails closed, and vice versa.
  */
 export async function validatePeginP2aAnchor(
   txGraphVersion: number,
