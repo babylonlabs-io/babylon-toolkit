@@ -919,7 +919,10 @@ export class LedgerVaultProvider implements IBTCProvider {
       const walletError = this.classifySignFailure(error, generation, label);
       // Mirror reset is signPsbt-only (PoP failures don't invalidate the vault
       // context); stale rejections and cancels were already handled in classify.
-      if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error)) {
+      // Initial-APDU lock: the OS refused pre-dispatch (os_io_legacy.c:396-405 @ SDK v26.6.0); the classifier
+      // set {0x5515,0x6982,0x5303} is never emitted by the vault app/base pin e400d8d8. Mid-ceremony: caps may be committed.
+      const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && !error.midCeremony;
+      if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error) && !lockedBeforeDispatch) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).
         this.deviceState = { phase: "idle" };

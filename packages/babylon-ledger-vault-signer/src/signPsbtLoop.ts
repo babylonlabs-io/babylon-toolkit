@@ -20,8 +20,10 @@
 import { Buffer } from "buffer";
 
 import {
+  LedgerDeviceLockedError,
   LedgerSignPsbtAbortedError,
   LedgerSignPsbtProtocolError,
+  isLedgerDeviceLockedError,
   isLedgerSignPsbtProtocolError,
   isLedgerYieldMismatchError,
   toCollectedYieldRefs,
@@ -149,6 +151,11 @@ export async function runSignPsbtLoop(
         `status word 0x${response.sw.toString(16)} escaped classification`,
         toCollectedYieldRefs(collector.yields),
       );
+    }
+    // A lock on a CONTINUE lands after the app ran earlier rounds; the adapter
+    // must not treat it like the pre-dispatch refusal of the initial APDU.
+    if (isLedgerDeviceLockedError(terminal) && lastSentApdu.ins === INS_CONTINUE) {
+      throw new LedgerDeviceLockedError(terminal.statusWord, { midCeremony: true });
     }
     throw terminal;
   }

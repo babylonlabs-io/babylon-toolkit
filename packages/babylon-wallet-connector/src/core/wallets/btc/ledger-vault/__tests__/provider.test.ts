@@ -792,6 +792,48 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
     });
 
+    it("a locked-device sign failure keeps the approved intent, so the retry signs without a re-ceremony", async () => {
+      // 0x5515 comes from the OS IO loop before the app sees the APDU, so the
+      // intent on the device is intact — contrast the SW_BAD_STATE drop above.
+      const provider = await approved();
+      const approvalsBefore = approveApdus().length;
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515));
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+
+      await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+      expect(approveApdus().length).toBe(approvalsBefore);
+    });
+
+    it("a locked-device failure inside a batch keeps the intent and the already-signed fingerprints", async () => {
+      const provider = await approved();
+      signMock.signPreparedVaultPsbt
+        .mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+          signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+          yields: [],
+        }))
+        .mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515));
+
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+
+      // After unlock: the unsigned element signs under the same intent...
+      await expect(provider.signPsbts([PSBT_B])).resolves.toEqual([`signed:${PSBT_B}`]);
+      // ...and the element signed before the lock is still fingerprinted.
+      await expect(provider.signPsbt(PSBT_A)).rejects.toThrow(/already signed/);
+    });
+
+    it("a lock mid-ceremony drops the intent like any other sign failure", async () => {
+      // A CONTINUE refused after earlier rounds ran: caps may be committed on
+      // the device, so the mirror cannot assume the intent survived.
+      const provider = await approved();
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515, { midCeremony: true }));
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
     it("an aborted sign classifies as the user's cancel and forces the full re-ceremony", async () => {
       // Keep-intent retries risk SW_CAP_EXCEEDED (caps commit pre-yield):
       // the mirror drops and only a re-ceremony recovers.

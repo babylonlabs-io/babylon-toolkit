@@ -65,7 +65,7 @@ const DEVICE_CEREMONY_INVALID_BODY =
   "Your signing device no longer holds this deposit's approval. Try again to restart from the device approval screens.";
 const DEVICE_LOCKED_TITLE = "Signing device locked";
 const DEVICE_LOCKED_BODY =
-  "Your signing device is locked. Unlock it with your PIN and try again.";
+  "Your signing device is locked. Unlock it with your PIN and retry.";
 const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
 // Network-agnostic on purpose: the app is named "Babylon Vault" on mainnet
 // and "Babylon Vault Testnet" on test networks.
@@ -900,11 +900,11 @@ export const COPY = {
         body: "You canceled the signature request, so the deposit did not continue. No Bitcoin was spent.",
       },
       // A cancel settling after the Ethereum registration is mined: gas is
-      // spent and the vaults await the Pre-PegIn, so point at the resume path
-      // instead of implying nothing happened. No Bitcoin has moved.
+      // spent and the vaults await the Pre-PegIn, so point at the in-modal
+      // Retry instead of implying nothing happened. No Bitcoin has moved.
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
-        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Resume it from your dashboard to broadcast, or the registration will expire on its own.",
+        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or the registration will expire on its own.",
       },
       walletNotConnected: {
         title: "Wallet not connected",

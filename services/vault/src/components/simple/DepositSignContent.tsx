@@ -53,6 +53,7 @@ export function DepositSignContent({
     currentVaultIndex,
     processing,
     error,
+    resumableVaultIds,
     lastWarnings,
     isWaiting,
     payoutSigningProgress,
@@ -98,6 +99,14 @@ export function DepositSignContent({
       setContinuationVaultIds(result.pegins.map((pegin) => pegin.vaultId));
     }
   }, [executeDeposit, onRefetchActivities]);
+
+  // Post-registration device error or cancel: hand off to the polling
+  // continuation (what the dashboard resume does) instead of re-running the flow.
+  const handleResume = useCallback(() => {
+    if (!resumableVaultIds) return;
+    onRefetchActivities?.();
+    setContinuationVaultIds(resumableVaultIds);
+  }, [resumableVaultIds, onRefetchActivities]);
 
   // `executeDeposit` broadcasts BTC and has no internal re-entrancy guard, and
   // dropping `useRunOnce` removed its exactly-once protection. A fast double
@@ -209,6 +218,7 @@ export function DepositSignContent({
         currentVaultIndex={currentVaultIndex}
         perVaultSteps={perVaultSteps}
         onClose={handleClose}
+        onRetry={resumableVaultIds ? handleResume : undefined}
         started={started}
         onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}

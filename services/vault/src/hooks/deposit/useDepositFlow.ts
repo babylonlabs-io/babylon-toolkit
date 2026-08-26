@@ -93,6 +93,7 @@ import {
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
+import { isDeviceRecoverableError } from "@/utils/errors/deviceErrors";
 import {
   isUserCancellation,
   WALLET_CONNECTION_REJECTED_CODE,
@@ -162,6 +163,12 @@ export interface UseDepositFlowReturn {
   processing: boolean;
   /** Mapped error content (title + body) if any step failed */
   error: DepositErrorContent | null;
+  /**
+   * Registered vault ids when `error` is a post-registration device failure or
+   * self-cancel — the deposit is on-chain, so the modal can resume in place.
+   * `null` otherwise.
+   */
+  resumableVaultIds: Hex[] | null;
   /**
    * Structured soft warnings from the most recent flow (e.g. a per-vault WOTS
    * readiness timeout, or "couldn't save a local copy"). Empty until the flow
@@ -287,6 +294,9 @@ export function useDepositFlow(
   );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<DepositErrorContent | null>(null);
+  const [resumableVaultIds, setResumableVaultIds] = useState<Hex[] | null>(
+    null,
+  );
   const [isWaiting, setIsWaiting] = useState(false);
   // Soft warnings accumulated during the most recent run (per-vault payout
   // failures, localStorage write failures, etc.). Exposed so the UI can
@@ -411,6 +421,7 @@ export function useDepositFlow(
 
       setProcessing(true);
       setError(null);
+      setResumableVaultIds(null);
       setLastWarnings([]);
       setPeginSigningProgress(null);
       deviceCancelSettledRef.current = false;
@@ -430,9 +441,9 @@ export function useDepositFlow(
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
       const primedRegistryTxids: string[] = [];
 
-      // Flips once the ETH batch registration is mined: a cancel after that
-      // point gets the after-registration copy pointing at the resume path.
-      let registeredOnEth = false;
+      // Set once the ETH batch registration is mined: a later cancel gets the
+      // after-registration copy, a later device failure gets the in-modal resume.
+      let registeredVaultIds: Hex[] | null = null;
 
       try {
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
@@ -731,7 +742,9 @@ export function useDepositFlow(
           popSignature,
           quotedCommissionBps,
         });
-        registeredOnEth = true;
+        registeredVaultIds = batchRegistration.vaults.map(
+          (vault) => vault.vaultId,
+        );
 
         // 3f. Build pegin results from batch response
         const peginResults: PeginCreationResult[] =
@@ -1524,9 +1537,19 @@ export function useDepositFlow(
           // your wallet. Click Retry" — misattributed, and naming a button
           // this surface doesn't render. Post-registration cancels get the
           // variant pointing at the resume path — vaults are already on-chain.
+          // Post-registration device trouble (locked / wrong app / approval
+          // dropped) or a self-cancel: the deposit is on-chain, so offer the
+          // in-modal resume.
+          if (
+            registeredVaultIds !== null &&
+            (isDeviceRecoverableError(err) ||
+              (deviceCancelSettledRef.current && isUserCancellation(err)))
+          ) {
+            setResumableVaultIds(registeredVaultIds);
+          }
           setError(
             deviceCancelSettledRef.current && isUserCancellation(err)
-              ? registeredOnEth
+              ? registeredVaultIds !== null
                 ? {
                     title:
                       COPY.deposit.errors.signingCanceledAfterRegistration
@@ -1619,6 +1642,7 @@ export function useDepositFlow(
     currentVaultIndex,
     processing,
     error,
+    resumableVaultIds,
     /** Soft warnings from the most recent flow (empty until completion). */
     lastWarnings,
     isWaiting,
