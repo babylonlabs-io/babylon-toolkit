@@ -1,6 +1,8 @@
 import { Text } from "@babylonlabs-io/core-ui";
 import { PiWarningOctagonFill } from "react-icons/pi";
 
+import { COPY } from "@/copy";
+
 interface AddressScreeningBannerProps {
   visible: boolean;
 }
@@ -17,10 +19,9 @@ export function AddressScreeningBanner({
       <div className="flex flex-row items-center gap-2">
         <PiWarningOctagonFill className="flex-shrink-0" />
         <Text variant="body1">
-          <strong>Wallet not eligible</strong>
+          <strong>{COPY.wallet.walletNotEligibleTooltip}</strong>
           <br />
-          This wallet is not eligible to use the BTCVault. Please review the
-          Terms of Use or contact support if you believe this is an error.
+          {COPY.wallet.addressScreeningBannerBody}
         </Text>
       </div>
     </div>

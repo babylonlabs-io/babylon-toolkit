@@ -452,7 +452,7 @@ describe("peginStateMachine", () => {
         expiredAt: now - 2 * 60 * 60_000,
       });
       expect(state.message).toBe(
-        "This BTC Vault has expired. The inclusion proof was not submitted in time. Expired 2h ago.",
+        "This BTCVault has expired. The inclusion proof was not submitted in time. Expired 2h ago.",
       );
       vi.useRealTimers();
     });
@@ -464,7 +464,7 @@ describe("peginStateMachine", () => {
         expirationReason: "ack_timeout",
         expiredAt: now - 2 * 60 * 60_000,
       });
-      expect(state.message).toBe("This BTC Vault has expired. Expired 2h ago.");
+      expect(state.message).toBe("This BTCVault has expired. Expired 2h ago.");
       vi.useRealTimers();
     });
 

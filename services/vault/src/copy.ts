@@ -19,7 +19,7 @@
  * - "peg-in" (lowercase, hyphenated) in regular prose.
  * - "vault provider" lowercase mid-sentence; capitalized only when
  *   sentence-leading.
- * - "BTC Vault" (capitalized, two words) when naming the product or a
+ * - "BTCVault" (capitalized, one word) when naming the product or a
  *   depositor's vault; never bare "vault". The "vault provider" /
  *   "vault keeper" role terms are the only exception.
  * - Status labels use sentence case (e.g. "Signing required").
@@ -28,7 +28,7 @@
  * - American English spelling (e.g. "acknowledgments", not
  *   "acknowledgements").
  * - Button labels are intentionally per-context: primary CTAs use Title
- *   Case (e.g. "Submit WOTS Key", "Broadcast Pre-Pegin", "Add BTC Vault"),
+ *   Case (e.g. "Submit WOTS Key", "Broadcast Pre-Pegin", "Add BTCVault"),
  *   while in-flow / dialog buttons use sentence case (e.g. "Activate",
  *   "Do not split", "View on blockchain explorer"). Match the
  *   surrounding screen rather than imposing a single rule.
@@ -406,8 +406,7 @@ export const COPY = {
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
-      splitVaultColumnLabel: (vaultNumber: number) =>
-        `BTCVault ${vaultNumber}`,
+      splitVaultColumnLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",
@@ -1208,6 +1207,8 @@ export const COPY = {
   wallet: {
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
+    addressScreeningBannerBody:
+      "This wallet is not eligible to use the BTCVault. Please review the Terms of Use or contact support if you believe this is an error.",
     liveness: {
       errorTitle: "Wallet not responding",
       unresponsive:

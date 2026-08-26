@@ -580,7 +580,7 @@ describe("PositionNotificationBanner", () => {
           detail:
             "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
           suggestion:
-            "Adding a sacrificial 0.72 BTC Vault creates a buffer — it gets liquidated first, your existing BTC survives.",
+            "Adding a sacrificial 0.72 BTCVault creates a buffer — it gets liquidated first, your existing BTC survives.",
         },
       ],
       suggestedNewVaultBtc: 0.72,

@@ -565,7 +565,7 @@ describe("Contract Error Mapping", () => {
 
     it("returns true for an ActivationNotPossibleError (e.g. already EXPIRED)", () => {
       const err = new ActivationNotPossibleError(
-        "Cannot activate: BTC Vault is in EXPIRED state.",
+        "Cannot activate: BTCVault is in EXPIRED state.",
       );
 
       expect(isTerminalActivationError(err)).toBe(true);

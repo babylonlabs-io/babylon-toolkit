@@ -131,7 +131,7 @@ describe("getActionStatus — wallet ownership mismatch", () => {
     if (status.type !== "disabled") return;
     expect(status.action?.action).toBe(PeginAction.ACTIVATE_VAULT);
     expect(status.tooltip).toMatch(
-      /this btc vault was created with a different btc public key/i,
+      /this btcvault was created with a different btc public key/i,
     );
     expect(status.tooltip).toContain("bcc5...f21c");
     expect(status.tooltip).not.toContain("0x");
@@ -159,7 +159,7 @@ describe("getActionStatus — wallet ownership mismatch", () => {
     if (status.type !== "disabled") return;
     expect(status.action).toBeUndefined();
     expect(status.tooltip).toMatch(
-      /this btc vault was created with a different btc public key/i,
+      /this btcvault was created with a different btc public key/i,
     );
   });
 
@@ -181,7 +181,7 @@ describe("getActionStatus — wallet ownership mismatch", () => {
     expect(status.type).toBe("disabled");
     if (status.type !== "disabled") return;
     expect(status.tooltip).toMatch(
-      /this btc vault was created with a different btc public key/i,
+      /this btcvault was created with a different btc public key/i,
     );
   });
 

@@ -290,7 +290,7 @@ describe("golden vectors (reference scenario suite)", () => {
     // existing vault becomes protected.
     expect(result.suggestedNewVaultBtc).toBe(0.72);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "sacrificial 0.72 BTC Vault creates a buffer",
+      "sacrificial 0.72 BTCVault creates a buffer",
     );
   });
 
@@ -372,7 +372,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
     // The deficit detail moved into the suggestion now that the body is shared.
-    expect(cliff?.suggestion).toContain("Neither BTC Vault");
+    expect(cliff?.suggestion).toContain("Neither BTCVault");
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
     expect(result.groups).toHaveLength(1);
   });
