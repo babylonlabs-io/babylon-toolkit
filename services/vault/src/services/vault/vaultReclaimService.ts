@@ -47,6 +47,8 @@ import {
 } from "../../clients/eth-contract/sdk-readers";
 import {
   PEGIN_VAULT_VOUT,
+  isPayoutSettled,
+  toOutpointSpend,
   type OutpointSpend,
 } from "../../models/reclaimEligibility";
 
@@ -63,6 +65,26 @@ export class ReclaimAlreadySettledError extends Error {
     super("Reclaim already settled: the depositor-claim reserve is spent.");
     this.name = "ReclaimAlreadySettledError";
     this.spendingTxid = spendingTxid;
+  }
+}
+
+/**
+ * Thrown when the Payout that made the reserve reclaimable is no longer settled
+ * on Bitcoin by the time the depositor confirms — a reorg deep enough to unwind
+ * six confirmations.
+ *
+ * Distinct from {@link ReclaimAlreadySettledError}, and deliberately so: that
+ * one is a resolved outcome (the reserve is gone, nothing left to do), this one
+ * is the opposite (the reserve is intact and must stay intact, because the
+ * recourse graph it funds is live again).
+ */
+export class ReclaimNoLongerEligibleError extends Error {
+  constructor() {
+    super(
+      "Reclaim no longer eligible: the vault's Payout is not settled on " +
+        "Bitcoin at the required confirmation depth.",
+    );
+    this.name = "ReclaimNoLongerEligibleError";
   }
 }
 
@@ -99,18 +121,6 @@ export function derivePeginTxid(depositorSignedPeginTx: Hex): string {
   return stripHexPrefix(calculateBtcTxHash(depositorSignedPeginTx));
 }
 
-function toOutpointSpend(res: {
-  spent?: boolean;
-  txid?: string;
-  status?: { confirmed?: boolean; block_height?: number };
-}): OutpointSpend {
-  return {
-    spent: res.spent === true,
-    confirmed: res.spent === true && res.status?.confirmed === true,
-    blockHeight: res.status?.block_height,
-  };
-}
-
 /**
  * Read everything on Bitcoin the eligibility gate needs for one vault.
  *
@@ -139,6 +149,34 @@ export async function readReclaimChainState(
     tipHeight,
     reserveValueSats: BigInt(reserveUtxo.value),
   };
+}
+
+/**
+ * Re-assert the chain-derived half of the reclaim gate against a fresh read.
+ *
+ * The row's eligibility is decided in the render path, off a poller with a
+ * 60-second interval and a 55-second stale window, and the modal can sit open
+ * for far longer than that. Both conditions this checks can change underneath
+ * it: someone sweeps the reserve from another session, or — the one that
+ * matters — a reorg unwinds the Payout and makes the depositor's recourse graph
+ * necessary again. Signing then destroys the recovery material permanently, and
+ * after a reorg that deep the vault provider's own graph is dead too, so the
+ * depositor's was the remaining path.
+ *
+ * The wallet and UI conditions (ownership, Ledger, protocol pause, in-flight)
+ * stay owned by the React layer, which is the only place that knows them.
+ * Ownership in particular is re-proved far more strongly inside the SDK, which
+ * re-derives the claim script from the connected wallet's live key.
+ */
+export function assertReclaimStillEligible(
+  chainState: ReclaimChainState,
+): void {
+  if (chainState.reserveSpend.spent) {
+    throw new ReclaimAlreadySettledError(undefined);
+  }
+  if (!isPayoutSettled(chainState.payoutSpend, chainState.tipHeight)) {
+    throw new ReclaimNoLongerEligibleError();
+  }
 }
 
 /**
@@ -212,9 +250,10 @@ export async function getReclaimPreview(vaultId: Hex): Promise<ReclaimPreview> {
     getNetworkFees(getMempoolApiUrl()).catch(() => null),
   ]);
 
-  if (chainState.reserveSpend.spent) {
-    throw new ReclaimAlreadySettledError(undefined);
-  }
+  // Same gate the row was rendered from, re-asserted against this read, so a
+  // vault that stopped being eligible while the list sat idle never gets as far
+  // as showing the depositor an amount.
+  assertReclaimStillEligible(chainState);
 
   return {
     reclaimableSats: chainState.reserveValueSats,
@@ -241,19 +280,20 @@ export interface BroadcastReclaimParams {
  *
  * @returns the broadcast transaction id
  * @throws {@link ReclaimAlreadySettledError} if the reserve is already spent
+ * @throws {@link ReclaimNoLongerEligibleError} if the Payout is no longer
+ *   settled deeply enough for the sweep to be safe
  */
 export async function buildAndBroadcastReclaimTransaction(
   params: BroadcastReclaimParams,
 ): Promise<string> {
   const { vaultId, depositorBtcPubkey, feeRate, signPsbt, signal } = params;
 
-  // Re-probe immediately before signing: the modal may have been open a while,
-  // and sweeping an already-spent reserve is a guaranteed broadcast failure
-  // after a pointless wallet prompt.
+  // Re-probe immediately before signing. The modal may have been open a while,
+  // and both halves of the gate matter here: an already-spent reserve is a
+  // guaranteed broadcast failure after a pointless wallet prompt, and an
+  // unsettled Payout means signing would destroy live recovery material.
   const chainState = await readReclaimChainState(vaultId);
-  if (chainState.reserveSpend.spent) {
-    throw new ReclaimAlreadySettledError(undefined);
-  }
+  assertReclaimStillEligible(chainState);
 
   const expectedClaimValue = await readExpectedClaimValue(vaultId);
   const onChainVault = await getVaultFromChain(vaultId);
@@ -268,6 +308,11 @@ export async function buildAndBroadcastReclaimTransaction(
     {
       depositorSignedPeginTxHex: onChainVault.depositorSignedPeginTx,
       observed: {
+        // The outpoint this observation was taken from. The SDK binds it to
+        // the PegIn it builds the input from — the script and value are
+        // identical across every vault this depositor owns, so they cannot.
+        txid: chainState.peginTxid,
+        vout: PEGIN_DEPOSITOR_CLAIM_VOUT,
         scriptPubKey: reserveUtxo.scriptPubKey,
         value: BigInt(reserveUtxo.value),
       },
@@ -278,6 +323,7 @@ export async function buildAndBroadcastReclaimTransaction(
   try {
     const { txId } = await buildAndBroadcastReclaim({
       vaultIds: [vaultId],
+      depositorEthAddress: onChainVault.depositor,
       depositorBtcPubkey,
       readVaults,
       feeRate,

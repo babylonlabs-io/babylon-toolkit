@@ -1799,16 +1799,6 @@ vaultProviderCommissionBps: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-##### claimExpiredUntil
-
-```ts
-claimExpiredUntil: bigint;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
-
-Block deadline (uint256) for depositor reclaim. TODO(#1690): wire to refund flow.
-
 ##### vaultCoreVersion
 
 ```ts

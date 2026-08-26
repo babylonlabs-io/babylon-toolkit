@@ -500,6 +500,48 @@ from the same derivation.
 
 ***
 
+### FinalizeScriptPathWithSignaturesParams
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+
+Hex of the PSBT built locally and sent to the wallet — the sole source of
+every per-input field. NOT the wallet-returned PSBT.
+
+##### signaturesHex
+
+```ts
+signaturesHex: readonly string[];
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+
+Verified 64-byte Schnorr signatures, one per input, index-aligned with the
+PSBT's inputs. Each must already have passed
+`assertScriptPathSchnorrSignature` — this function does not re-verify them,
+it only decides which bytes are allowed to reach the witness.
+
+##### signerXOnlyPubkeyHex
+
+```ts
+signerXOnlyPubkeyHex: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+
+X-only pubkey (64 hex chars) the signatures are attributed to.
+
+***
+
 ### NoPayoutParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts)
@@ -1367,6 +1409,31 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](ht
 
 Independent chain observation of `peginTxid:1` (esplora UTXO lookup).
 
+###### txid
+
+```ts
+txid: string;
+```
+
+The outpoint the caller actually issued its chain lookup against, so the
+observation below can be tied to the input this builder adds.
+
+Without it the script and value binds prove only that *some* UTXO has
+this shape — the claim script is a pure function of the depositor key and
+so is byte-identical across every vault they own, and the value is a pure
+function of protocol parameters. Neither distinguishes one of the
+depositor's vaults from another.
+
+Txid in display order, 64 hex chars, with or without `0x` prefix.
+
+###### vout
+
+```ts
+vout: number;
+```
+
+Vout the lookup was issued against. Must be the claim vout.
+
 ###### scriptPubKey
 
 ```ts
@@ -2101,6 +2168,36 @@ which has no need of the spend material.
 
 ***
 
+### finalizeScriptPathWithSignatures()
+
+```ts
+function finalizeScriptPathWithSignatures(params): string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+
+Attach `signaturesHex` to the locally built PSBT's script-path inputs,
+finalize, and return the extracted transaction hex.
+
+#### Parameters
+
+##### params
+
+[`FinalizeScriptPathWithSignaturesParams`](#finalizescriptpathwithsignaturesparams)
+
+#### Returns
+
+`string`
+
+#### Throws
+
+If the signature count does not match the input count, any signature
+  or the signer key is malformed, any input does not carry exactly one
+  tapscript leaf at the expected leaf version, any input already carries a
+  key-path signature, or bitcoinjs-lib cannot finalize.
+
+***
+
 ### buildNoPayoutPsbt()
 
 ```ts
@@ -2536,6 +2633,12 @@ Build the N-in/1-out reclaim PSBT.
 Every input is bound three ways before it reaches the PSBT: the contract's
 PegIn bytes, the chain observation, and a JS re-derivation from the live
 wallet key must agree on both script and value. Any disagreement throws.
+The observation must also name the outpoint it was taken from, since script
+and value alone repeat across all of a depositor's vaults.
+
+Binding the input to the *vault* that was asked for is a further step, and
+it belongs to the service: it needs the vault id derivation, which is async.
+See `services/reclaim/buildAndBroadcastReclaim`.
 
 #### Parameters
 
@@ -2550,7 +2653,8 @@ wallet key must agree on both script and value. Any disagreement throws.
 #### Throws
 
 If `inputs` is empty, the fee is non-positive, any input fails its
-  script or value bind, or the resulting output would be at or below dust.
+  outpoint, script or value bind, or the resulting output would be at or
+  below dust.
 
 ***
 

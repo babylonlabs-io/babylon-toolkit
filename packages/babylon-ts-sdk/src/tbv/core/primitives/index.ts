@@ -163,6 +163,9 @@ export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsigne
 export { assertScriptPathSchnorrSignature } from "./psbt/verifyScriptPathSchnorrSignature";
 export type { VerifyScriptPathSchnorrSignatureParams } from "./psbt/verifyScriptPathSchnorrSignature";
 
+export { finalizeScriptPathWithSignatures } from "./psbt/finalizeScriptPathWithSignatures";
+export type { FinalizeScriptPathWithSignaturesParams } from "./psbt/finalizeScriptPathWithSignatures";
+
 export {
   assertKeyPathSchnorrSignature,
   assertReturnedKeyPathSignatures,

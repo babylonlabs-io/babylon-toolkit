@@ -75,8 +75,6 @@ export interface VaultProtocolInfo {
   depositorPopSignature: Hex;
   prePeginTxHash: Hex;
   vaultProviderCommissionBps: number;
-  /** Block deadline (uint256) for depositor reclaim. TODO(#1690): wire to refund flow. */
-  claimExpiredUntil: bigint;
   /** Vault core version (uint16) stamped at registration. VP-side gating only — see #1690. */
   vaultCoreVersion: number;
 }

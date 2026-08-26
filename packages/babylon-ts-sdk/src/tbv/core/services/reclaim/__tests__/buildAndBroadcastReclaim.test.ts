@@ -6,7 +6,7 @@
  * verification, and abort handling.
  */
 
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -43,21 +43,39 @@ vi.mock("../../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
   assertScriptPathSchnorrSignature: vi.fn(),
 }));
 
-vi.mock("bitcoinjs-lib", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("bitcoinjs-lib")>();
+vi.mock(
+  "../../../primitives/psbt/finalizeScriptPathWithSignatures",
+  () => ({
+    finalizeScriptPathWithSignatures: vi.fn().mockReturnValue("signedtxhex"),
+  }),
+);
+
+vi.mock("../../../utils/transaction/btcTxHash", () => ({
+  calculateBtcTxHash: vi.fn().mockReturnValue(`0x${"cd".repeat(32)}`),
+}));
+
+// The vault-id bind hashes the PegIn back to the id that was requested. The
+// derivation itself is golden-vector tested against the Rust reference in
+// `primitives/__tests__/deriveVaultId.test.ts`; here it is stubbed so the tests
+// can drive agreement and disagreement directly.
+vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@babylonlabs-io/babylon-tbv-rust-wasm")
+    >();
   return {
     ...actual,
-    Psbt: {
-      ...actual.Psbt,
-      fromHex: vi.fn().mockReturnValue({
-        finalizeAllInputs: vi.fn(),
-        extractTransaction: () => ({ toHex: () => "signedtxhex" }),
-      }),
-    },
+    deriveVaultId: vi.fn().mockResolvedValue(`0x${"11".repeat(32)}`),
   };
 });
 
 const { buildReclaimPsbt } = await import("../../../primitives/psbt/reclaim");
+const { finalizeScriptPathWithSignatures } = await import(
+  "../../../primitives/psbt/finalizeScriptPathWithSignatures"
+);
+const { deriveVaultId } = await import(
+  "@babylonlabs-io/babylon-tbv-rust-wasm"
+);
 const { assertScriptPathSchnorrSignature } = await import(
   "../../../primitives/psbt/verifyScriptPathSchnorrSignature"
 );
@@ -66,8 +84,11 @@ const { extractPayoutSignature } = await import(
 );
 
 const VAULT_ID = `0x${"11".repeat(32)}` as Hex;
+const SECOND_VAULT_ID = `0x${"22".repeat(32)}` as Hex;
+const DEPOSITOR_ETH_ADDRESS = `0x${"33".repeat(20)}` as Address;
 const DEPOSITOR_PUBKEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const PEGIN_TXID = "cd".repeat(32);
 const CLAIM_VALUE = 33_000n;
 
 function makeVaultData(
@@ -75,7 +96,12 @@ function makeVaultData(
 ): ReclaimVaultData {
   return {
     depositorSignedPeginTxHex: "0200000000",
-    observed: { scriptPubKey: "5120" + "ab".repeat(32), value: CLAIM_VALUE },
+    observed: {
+      txid: PEGIN_TXID,
+      vout: 1,
+      scriptPubKey: "5120" + "ab".repeat(32),
+      value: CLAIM_VALUE,
+    },
     expectedClaimValue: CLAIM_VALUE,
     ...overrides,
   };
@@ -84,6 +110,7 @@ function makeVaultData(
 function makeInput(overrides: Record<string, unknown> = {}) {
   return {
     vaultIds: [VAULT_ID],
+    depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
     depositorBtcPubkey: DEPOSITOR_PUBKEY,
     readVaults: vi.fn().mockResolvedValue([makeVaultData()]),
     feeRate: 5,
@@ -162,11 +189,14 @@ describe("buildAndBroadcastReclaim", () => {
 
   it("verifies a signature for every input, not just the first", async () => {
     const input = makeInput({
-      vaultIds: [VAULT_ID, `0x${"22".repeat(32)}` as Hex],
+      vaultIds: [VAULT_ID, SECOND_VAULT_ID],
       readVaults: vi
         .fn()
         .mockResolvedValue([makeVaultData(), makeVaultData()]),
     });
+    vi.mocked(deriveVaultId)
+      .mockResolvedValueOnce(VAULT_ID)
+      .mockResolvedValueOnce(SECOND_VAULT_ID);
 
     await buildAndBroadcastReclaim(input);
 
@@ -182,7 +212,7 @@ describe("buildAndBroadcastReclaim", () => {
 
   it("refuses when readVaults returns a different number of reserves than requested", async () => {
     const input = makeInput({
-      vaultIds: [VAULT_ID, `0x${"22".repeat(32)}` as Hex],
+      vaultIds: [VAULT_ID, SECOND_VAULT_ID],
       readVaults: vi.fn().mockResolvedValue([makeVaultData()]),
     });
 
@@ -190,6 +220,49 @@ describe("buildAndBroadcastReclaim", () => {
       /does not match the request/,
     );
     expect(input.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("refuses a reserve whose PegIn does not hash to the requested vault id", async () => {
+    // The script and value binds cannot catch this: both repeat across every
+    // vault this depositor owns. Only the vault id distinguishes them.
+    const input = makeInput();
+    vi.mocked(deriveVaultId).mockResolvedValueOnce(SECOND_VAULT_ID);
+
+    await expect(buildAndBroadcastReclaim(input)).rejects.toThrow(
+      /belongs to vault 0x2222.*not the requested 0x1111/,
+    );
+    expect(buildReclaimPsbt).not.toHaveBeenCalled();
+    expect(input.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("refuses a batch whose reserves come back in the wrong order", async () => {
+    const input = makeInput({
+      vaultIds: [VAULT_ID, SECOND_VAULT_ID],
+      readVaults: vi
+        .fn()
+        .mockResolvedValue([makeVaultData(), makeVaultData()]),
+    });
+    // Same two vaults, swapped — a cardinality check cannot see this.
+    vi.mocked(deriveVaultId)
+      .mockResolvedValueOnce(SECOND_VAULT_ID)
+      .mockResolvedValueOnce(VAULT_ID);
+
+    await expect(buildAndBroadcastReclaim(input)).rejects.toThrow(
+      /Reserve 0 belongs to vault/,
+    );
+    expect(input.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("finalizes the PSBT it built rather than the one the wallet returned", async () => {
+    const input = makeInput();
+
+    await buildAndBroadcastReclaim(input);
+
+    expect(finalizeScriptPathWithSignatures).toHaveBeenCalledWith({
+      requestedPsbtHex: "70736274ffmock",
+      signaturesHex: ["aa".repeat(64)],
+      signerXOnlyPubkeyHex: DEPOSITOR_PUBKEY,
+    });
   });
 
   it("rejects an empty vault set", async () => {
@@ -221,9 +294,12 @@ describe("buildAndBroadcastReclaim", () => {
   it("passes the swept reserves through to the builder in request order", async () => {
     const first = makeVaultData({ depositorSignedPeginTxHex: "0200000001" });
     const second = makeVaultData({ depositorSignedPeginTxHex: "0200000002" });
+    vi.mocked(deriveVaultId)
+      .mockResolvedValueOnce(VAULT_ID)
+      .mockResolvedValueOnce(SECOND_VAULT_ID);
     await buildAndBroadcastReclaim(
       makeInput({
-        vaultIds: [VAULT_ID, `0x${"22".repeat(32)}` as Hex],
+        vaultIds: [VAULT_ID, SECOND_VAULT_ID],
         readVaults: vi.fn().mockResolvedValue([first, second]),
       }),
     );

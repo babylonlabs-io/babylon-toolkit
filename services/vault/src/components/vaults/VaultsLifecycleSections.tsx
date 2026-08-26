@@ -312,7 +312,6 @@ function InactiveRow({
   onRefund,
   onReclaim,
   reclaimStatus,
-  reclaimTipHeight,
   reclaimOnChainStatus,
   isReclaimInFlight,
 }: {
@@ -322,7 +321,6 @@ function InactiveRow({
   onReclaim: (depositId: string) => void;
   /** Reserve state from the section's batched poll; undefined for expired rows. */
   reclaimStatus: ReclaimStatus | undefined;
-  reclaimTipHeight: number | undefined;
   reclaimOnChainStatus: number | undefined;
   isReclaimInFlight: boolean;
 }) {
@@ -348,7 +346,6 @@ function InactiveRow({
     reclaimableSats,
   } = useReclaimRowAction({
     status: reclaimStatus,
-    tipHeight: reclaimTipHeight,
     onChainStatus: reclaimOnChainStatus,
     depositorBtcPubkey: activity.depositorBtcPubkey,
     isReclaimInFlight,
@@ -561,7 +558,7 @@ export function VaultsLifecycleSections({
         ),
     [reclaimableCandidates, reclaimChainData],
   );
-  const { statusByDepositId, tipHeight } = useReclaimStatus(reclaimOutpoints);
+  const { statusByDepositId } = useReclaimStatus(reclaimOutpoints);
 
   // Settled vaults join the expired ones in the Inactive section rather than
   // getting a section of their own, so the heading count and action-required
@@ -716,7 +713,6 @@ export function VaultsLifecycleSections({
                 onRefund={handleRefund}
                 onReclaim={handleReclaim}
                 reclaimStatus={statusByDepositId.get(activity.id.toLowerCase())}
-                reclaimTipHeight={tipHeight}
                 reclaimOnChainStatus={
                   reclaimChainData.get(activity.id.toLowerCase())?.onChainStatus
                 }

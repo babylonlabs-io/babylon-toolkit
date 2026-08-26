@@ -117,6 +117,21 @@ export interface ReclaimReserve {
   depositorSignedPeginTxHex: string;
   /** Independent chain observation of `peginTxid:1` (esplora UTXO lookup). */
   observed: {
+    /**
+     * The outpoint the caller actually issued its chain lookup against, so the
+     * observation below can be tied to the input this builder adds.
+     *
+     * Without it the script and value binds prove only that *some* UTXO has
+     * this shape — the claim script is a pure function of the depositor key and
+     * so is byte-identical across every vault they own, and the value is a pure
+     * function of protocol parameters. Neither distinguishes one of the
+     * depositor's vaults from another.
+     *
+     * Txid in display order, 64 hex chars, with or without `0x` prefix.
+     */
+    txid: string;
+    /** Vout the lookup was issued against. Must be the claim vout. */
+    vout: number;
     /** scriptPubKey hex, with or without `0x` prefix. */
     scriptPubKey: string;
     /** Output value in satoshis. */
@@ -163,9 +178,16 @@ export interface BuildReclaimPsbtResult {
  * Every input is bound three ways before it reaches the PSBT: the contract's
  * PegIn bytes, the chain observation, and a JS re-derivation from the live
  * wallet key must agree on both script and value. Any disagreement throws.
+ * The observation must also name the outpoint it was taken from, since script
+ * and value alone repeat across all of a depositor's vaults.
+ *
+ * Binding the input to the *vault* that was asked for is a further step, and
+ * it belongs to the service: it needs the vault id derivation, which is async.
+ * See `services/reclaim/buildAndBroadcastReclaim`.
  *
  * @throws If `inputs` is empty, the fee is non-positive, any input fails its
- *   script or value bind, or the resulting output would be at or below dust.
+ *   outpoint, script or value bind, or the resulting output would be at or
+ *   below dust.
  */
 export function buildReclaimPsbt(
   params: BuildReclaimPsbtParams,
@@ -207,6 +229,30 @@ export function buildReclaimPsbt(
         `PegIn ${peginTxid} has no output at vout ` +
           `${PEGIN_DEPOSITOR_CLAIM_VOUT} (tx has ${peginTx.outs.length}); ` +
           `there is no depositor-claim reserve to reclaim.`,
+      );
+    }
+
+    // Bind 0: the observation is of *this* outpoint. Everything below compares
+    // a script and a value, both of which repeat across every vault this
+    // depositor owns under the same protocol parameters — so without this the
+    // remaining binds cannot tell one of their vaults from another, and a
+    // caller that resolved the wrong vault would sweep it with every check
+    // passing. The independent source is the PegIn the PSBT is built from; the
+    // esplora response cannot serve here because `getUtxoInfo` echoes back the
+    // txid and vout it was called with rather than reading them from the body.
+    const observedTxid = stripHexPrefix(input.observed.txid).toLowerCase();
+    if (observedTxid !== peginTxid) {
+      throw new Error(
+        `Input ${i}: the observation is of ${observedTxid}, but this input ` +
+          `spends PegIn ${peginTxid}. Reclaim refused — the reserve that was ` +
+          `looked up is not the one being swept.`,
+      );
+    }
+    if (input.observed.vout !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
+      throw new Error(
+        `Input ${i}: the observation is of vout ${input.observed.vout}, but ` +
+          `the depositor-claim reserve is at vout ` +
+          `${PEGIN_DEPOSITOR_CLAIM_VOUT}. Reclaim refused.`,
       );
     }
 
