@@ -27,46 +27,79 @@ const DEPOSITOR_XONLY = Buffer.from(
 const CLAIM_VALUE = 33_000n;
 const FEE_SATS = 645n;
 
-/** A PegIn shaped like the real one: vault output at vout 0, reserve at vout 1. */
-function makePeginTxHex(): string {
+function xOnlyOf(priv: Buffer): string {
+  return Buffer.from(ecc.xOnlyPointFromScalar(priv)).toString("hex");
+}
+
+/**
+ * A PegIn shaped like the real one: vault output at vout 0, reserve at vout 1.
+ *
+ * `seed` varies the funding outpoint so each call yields a distinct txid, the
+ * way two real vaults would — the builder rejects a batch that repeats one.
+ */
+function makePeginTxHex({
+  depositorXOnly = DEPOSITOR_XONLY,
+  claimValue = CLAIM_VALUE,
+  seed = 9,
+}: {
+  depositorXOnly?: string;
+  claimValue?: bigint;
+  seed?: number;
+} = {}): string {
   const tx = new Transaction();
   tx.version = 2;
-  tx.addInput(Buffer.alloc(32, 9), 0);
+  tx.addInput(Buffer.alloc(32, seed), 0);
   tx.addOutput(
     Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 1)]),
     500_000,
   );
   tx.addOutput(
-    deriveDepositorClaimDescriptor(DEPOSITOR_XONLY).scriptPubKey,
-    Number(CLAIM_VALUE),
+    deriveDepositorClaimDescriptor(depositorXOnly).scriptPubKey,
+    Number(claimValue),
   );
   return tx.toHex();
 }
 
-/** The 1-in/1-out reclaim PSBT the SDK would build and send to the wallet. */
-function buildRequestedPsbtHex(): string {
-  const peginTxHex = makePeginTxHex();
-  const { scriptPubKey } = deriveDepositorClaimDescriptor(DEPOSITOR_XONLY);
+/** The N-in/1-out reclaim PSBT the SDK would build and send to the wallet. */
+function buildRequestedPsbtHex({
+  depositorXOnly = DEPOSITOR_XONLY,
+  claimValues = [CLAIM_VALUE],
+  feeSats = FEE_SATS,
+}: {
+  depositorXOnly?: string;
+  claimValues?: bigint[];
+  feeSats?: bigint;
+} = {}): string {
+  const { scriptPubKey } = deriveDepositorClaimDescriptor(depositorXOnly);
   return buildReclaimPsbt({
-    depositorPubkey: DEPOSITOR_XONLY,
-    inputs: [
-      {
+    depositorPubkey: depositorXOnly,
+    inputs: claimValues.map((claimValue, i) => {
+      const peginTxHex = makePeginTxHex({
+        depositorXOnly,
+        claimValue,
+        seed: 9 + i,
+      });
+      return {
         depositorSignedPeginTxHex: peginTxHex,
         observed: {
           txid: Transaction.fromHex(peginTxHex).getId(),
           vout: 1,
           scriptPubKey: scriptPubKey.toString("hex"),
-          value: CLAIM_VALUE,
+          value: claimValue,
         },
-        expectedValue: CLAIM_VALUE,
-      },
-    ],
-    feeSats: FEE_SATS,
+        expectedValue: claimValue,
+      };
+    }),
+    feeSats,
   }).psbtHex;
 }
 
 /** Genuine BIP-340 script-path signature over input `inputIndex`. */
-function signInput(psbtHex: string, inputIndex: number): string {
+function signInput(
+  psbtHex: string,
+  inputIndex: number,
+  priv: Buffer = DEPOSITOR_PRIV,
+): string {
   const psbt = Psbt.fromHex(psbtHex);
   const leaf = psbt.data.inputs[inputIndex].tapLeafScript![0];
 
@@ -88,7 +121,95 @@ function signInput(psbtHex: string, inputIndex: number): string {
     computeTapLeafHash(leaf.leafVersion, leaf.script),
   );
 
-  return Buffer.from(ecc.signSchnorr(sighash, DEPOSITOR_PRIV)).toString("hex");
+  return Buffer.from(ecc.signSchnorr(sighash, priv)).toString("hex");
+}
+
+/**
+ * What the OLD code did: finalize the PSBT the wallet returned. Used as the
+ * parity baseline for an honest wallet, which returns the same per-input
+ * metadata it was handed.
+ */
+function finalizeWalletReturn(
+  psbtHex: string,
+  signatures: string[],
+  depositorXOnly: string,
+): string {
+  const walletReturn = Psbt.fromHex(psbtHex);
+  signatures.forEach((signature, i) => {
+    const leaf = walletReturn.data.inputs[i].tapLeafScript![0];
+    walletReturn.updateInput(i, {
+      tapScriptSig: [
+        {
+          pubkey: Buffer.from(depositorXOnly, "hex"),
+          leafHash: computeTapLeafHash(leaf.leafVersion, leaf.script),
+          signature: Buffer.from(signature, "hex"),
+        },
+      ],
+    });
+  });
+  return walletReturn.finalizeAllInputs().extractTransaction().toHex();
+}
+
+/**
+ * Deterministic pseudo-random source. A seeded LCG rather than `Math.random`
+ * so a failing case is reproducible from the test name alone — "randomised"
+ * here means "covers the input space", not "differs between runs".
+ */
+function lcg(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+}
+
+interface ParityCase {
+  label: string;
+  depositorPriv: Buffer;
+  claimValues: bigint[];
+  feeSats: bigint;
+}
+
+/**
+ * The golden case plus randomised ones spanning input count, claim value, fee
+ * and depositor key — the axes `finalizeScriptPathWithSignatures` actually
+ * varies over, since it loops the inputs and the reclaim builder batches them.
+ */
+function parityCases(): ParityCase[] {
+  const cases: ParityCase[] = [
+    {
+      label: "golden single input",
+      depositorPriv: DEPOSITOR_PRIV,
+      claimValues: [CLAIM_VALUE],
+      feeSats: FEE_SATS,
+    },
+    {
+      label: "golden three-input batch",
+      depositorPriv: DEPOSITOR_PRIV,
+      claimValues: [CLAIM_VALUE, 26_228n, 41_500n],
+      feeSats: 1_395n,
+    },
+  ];
+
+  const rand = lcg(0x5eed);
+  for (let i = 0; i < 12; i++) {
+    const inputCount = 1 + Math.floor(rand() * 4);
+    const claimValues = Array.from(
+      { length: inputCount },
+      () => 5_000n + BigInt(Math.floor(rand() * 60_000)),
+    );
+    const total = claimValues.reduce((sum, v) => sum + v, 0n);
+    // Leave the output comfortably above dust so the builder's own guards are
+    // not what the case ends up exercising.
+    const feeSats = 200n + BigInt(Math.floor(rand() * Number(total / 4n)));
+    cases.push({
+      label: `randomised #${i} (${inputCount} input(s))`,
+      depositorPriv: Buffer.alloc(32, 1 + Math.floor(rand() * 200)),
+      claimValues,
+      feeSats,
+    });
+  }
+  return cases;
 }
 
 describe("finalizeScriptPathWithSignatures", () => {
@@ -149,41 +270,44 @@ describe("finalizeScriptPathWithSignatures", () => {
     expect(Transaction.fromHex(txHex).ins[0].witness).toHaveLength(3);
   });
 
-  it("matches the old finalize-the-wallet's-PSBT result when the wallet is honest", () => {
-    // The two paths are only meant to differ when the returned PSBT differs. An
-    // honest wallet returns the same per-input metadata it was given, and for
-    // that case this must be byte-for-byte what finalizing the wallet's copy
-    // produced — otherwise the change would be altering more than the trust
-    // boundary it set out to move.
-    const psbtHex = buildRequestedPsbtHex();
-    const signature = signInput(psbtHex, 0);
+  it.each(parityCases())(
+    "matches the old finalize-the-wallet's-PSBT result for an honest wallet: $label",
+    ({ depositorPriv, claimValues, feeSats }) => {
+      // The two paths are only meant to diverge when the returned PSBT
+      // diverges. An honest wallet returns the per-input metadata it was
+      // handed, and for that case the result must be byte-for-byte what
+      // finalizing the wallet's copy produced — otherwise this change moved
+      // more than the trust boundary it set out to move.
+      //
+      // Spread across input count, claim value, fee and depositor key because
+      // the function loops the inputs and the reclaim builder batches them, so
+      // index alignment between signatures and inputs is the thing most likely
+      // to diverge and a single fixed case would never show it.
+      const depositorXOnly = xOnlyOf(depositorPriv);
+      const psbtHex = buildRequestedPsbtHex({
+        depositorXOnly,
+        claimValues,
+        feeSats,
+      });
+      const signatures = claimValues.map((_v, i) =>
+        signInput(psbtHex, i, depositorPriv),
+      );
 
-    const honestWalletReturn = Psbt.fromHex(psbtHex);
-    honestWalletReturn.updateInput(0, {
-      tapScriptSig: [
-        {
-          pubkey: Buffer.from(DEPOSITOR_XONLY, "hex"),
-          leafHash: computeTapLeafHash(
-            honestWalletReturn.data.inputs[0].tapLeafScript![0].leafVersion,
-            honestWalletReturn.data.inputs[0].tapLeafScript![0].script,
-          ),
-          signature: Buffer.from(signature, "hex"),
-        },
-      ],
-    });
-    const previousBehaviour = honestWalletReturn
-      .finalizeAllInputs()
-      .extractTransaction()
-      .toHex();
+      const previousBehaviour = finalizeWalletReturn(
+        psbtHex,
+        signatures,
+        depositorXOnly,
+      );
+      const current = finalizeScriptPathWithSignatures({
+        requestedPsbtHex: psbtHex,
+        signaturesHex: signatures,
+        signerXOnlyPubkeyHex: depositorXOnly,
+      });
 
-    const current = finalizeScriptPathWithSignatures({
-      requestedPsbtHex: psbtHex,
-      signaturesHex: [signature],
-      signerXOnlyPubkeyHex: DEPOSITOR_XONLY,
-    });
-
-    expect(current).toBe(previousBehaviour);
-  });
+      expect(current).toBe(previousBehaviour);
+      expect(Transaction.fromHex(current).ins).toHaveLength(claimValues.length);
+    },
+  );
 
   it("refuses when a signature is missing for some input", () => {
     const psbtHex = buildRequestedPsbtHex();
